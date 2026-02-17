@@ -1458,7 +1458,7 @@ const OrdersList = () => {
                     const totalPrice = (o.price || 0) * (o.quantity || 1);
 
                     return (
-                      <tr key={o._id} className="hover:bg-blue-50/40 transition-colors cursor-pointer group" onClick={() => navigate(`/orders/${o._id}`)}>
+                      <tr key={o._id} className="hover:bg-blue-50/40 transition-colors cursor-pointer group" onClick={() => navigate(`/ecom/orders/${o._id}`)}>
                         {/* Colonne nom fixe */}
                         <td className="px-3 py-2.5 whitespace-nowrap max-w-[160px]">
                           <span className="text-xs font-medium text-gray-900 truncate block" title={clientName}>{clientName || <span className="text-gray-300">—</span>}</span>
@@ -1530,7 +1530,7 @@ const OrdersList = () => {
 
               return (
                 <div key={o._id} className={`bg-white rounded-xl shadow-sm border-l-4 ${getStatusDot(o.status)} overflow-hidden hover:shadow-md transition-all duration-200`}>
-                  <div className="p-4 cursor-pointer" onClick={() => navigate(`/orders/${o._id}`)}>
+                  <div className="p-4 cursor-pointer" onClick={() => navigate(`/ecom/orders/${o._id}`)}>
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">

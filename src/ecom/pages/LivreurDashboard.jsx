@@ -58,7 +58,7 @@ const LivreurDashboard = () => {
       }
       
       // Rediriger vers la page de la commande
-      setTimeout(() => navigate(`/orders/${orderId}`), 1500);
+      setTimeout(() => navigate(`/ecom/orders/${orderId}`), 1500);
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur lors de l\'assignation');
     } finally {
@@ -274,7 +274,7 @@ const LivreurDashboard = () => {
                       )}
                     </button>
                     <button
-                      onClick={() => navigate(`/orders/${order._id}`)}
+                      onClick={() => navigate(`/ecom/orders/${order._id}`)}
                       className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition"
                     >
                       Détails
@@ -352,7 +352,7 @@ const LivreurDashboard = () => {
                   
                   <div className="flex flex-col gap-2 ml-4">
                     <button
-                      onClick={() => navigate(`/orders/${order._id}`)}
+                      onClick={() => navigate(`/ecom/orders/${order._id}`)}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition"
                     >
                       Gérer la livraison

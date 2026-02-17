@@ -84,7 +84,7 @@ const ReportDetail = () => {
           </div>
           <div className="flex space-x-4">
             <button
-              onClick={() => navigate(`/reports/${id}/edit`)}
+              onClick={() => navigate(`/ecom/reports/${id}/edit`)}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               Modifier

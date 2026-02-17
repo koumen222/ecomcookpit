@@ -24,7 +24,7 @@ const OrderCard = ({
 
   return (
     <div className={`bg-white rounded-xl shadow-sm border-l-4 ${getStatusDot(order.status)} overflow-hidden hover:shadow-md transition-all duration-200`}>
-      <div className="p-4 cursor-pointer" onClick={() => navigate(`/orders/${order._id}`)}>
+      <div className="p-4 cursor-pointer" onClick={() => navigate(`/ecom/orders/${order._id}`)}>
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-2">
