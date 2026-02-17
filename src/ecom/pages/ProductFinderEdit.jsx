@@ -267,7 +267,7 @@ const ProductFinderEdit = () => {
       };
       
       // Appeler l'API pour mettre à jour
-      const response = await ecomApi.put(`/products-research/research/${id}`, productData);
+      const response = await ecomApi.put(`/ecom/products-research/research/${id}`, productData);
       
       if (response.data.success) {
         setSuccess('Produit de recherche mis à jour avec succès!');
