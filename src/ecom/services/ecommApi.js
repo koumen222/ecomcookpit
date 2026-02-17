@@ -76,30 +76,11 @@ ecomApi.interceptors.response.use(
       throw new Error('Impossible de contacter le serveur. Vérifiez votre connexion.');
     }
 
-    // Gérer l'expiration du token SEULEMENT si c'est une vraie erreur 401 
-    // ET que c'est la route /auth/me (vérification de session)
-    // NE PAS déconnecter pour les autres routes (produits, commandes, etc.)
+    // Gérer les erreurs 401 — NE JAMAIS déconnecter ni rediriger ici
+    // La gestion de la déconnexion est faite dans useEcomAuth.jsx
     if (error.response?.status === 401) {
       const requestUrl = error.config?.url || '';
-      const isAuthCheck = requestUrl.includes('/auth/me') || requestUrl.includes('/auth/login');
-      
-      // Seulement déconnecter si c'est la vérification de profil qui échoue
-      if (isAuthCheck && !requestUrl.includes('/auth/login')) {
-        console.log('🔐 Session invalide sur /auth/me - déconnexion');
-        localStorage.removeItem('ecomToken');
-        localStorage.removeItem('ecomUser');
-        localStorage.removeItem('ecomOriginalUser');
-        localStorage.removeItem('ecomImpersonatedUser');
-        localStorage.removeItem('ecomWorkspace');
-        
-        if (window.location.pathname !== '/ecom/login') {
-          window.location.href = '/ecom/login';
-        }
-        return Promise.reject(error);
-      }
-      
-      // Pour les autres routes 401, juste propager l'erreur sans déconnecter
-      console.warn('⚠️ Erreur 401 sur:', requestUrl, '- pas de déconnexion automatique');
+      console.warn('⚠️ 401 sur:', requestUrl, '- erreur propagée (pas de déconnexion dans l\'intercepteur)');
     }
     
     // Logger les erreurs avec workspace
