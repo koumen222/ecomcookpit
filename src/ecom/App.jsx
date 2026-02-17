@@ -108,10 +108,7 @@ class ErrorBoundary extends React.Component {
 const ProtectedRoute = ({ children, requiredRole }) => {
   const { user, isAuthenticated, loading } = useEcomAuth();
 
-  // Vérifier manuellement le token localStorage pour éviter les problèmes mobile
-  const hasToken = localStorage.getItem('ecomToken');
-  const hasUserData = localStorage.getItem('ecomUser');
-
+  // Pendant le chargement initial, afficher le spinner
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -123,32 +120,24 @@ const ProtectedRoute = ({ children, requiredRole }) => {
     );
   }
 
-  // Si pas authentifié MAIS qu'on a un token en localStorage, attendre un peu
-  if (!isAuthenticated && hasToken && hasUserData) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Vérification de la session...</p>
-        </div>
-      </div>
-    );
-  }
+  // Après le chargement : vérifier l'authentification
+  // Utiliser isAuthenticated du contexte OU les données locales en fallback
+  const hasToken = !!localStorage.getItem('ecomToken');
+  const localUser = !user ? JSON.parse(localStorage.getItem('ecomUser') || 'null') : user;
+  const effectiveAuth = isAuthenticated || (hasToken && localUser);
+  const effectiveUser = user || localUser;
 
-  // Rediriger vers login seulement si vraiment pas de token
-  if (!isAuthenticated && !hasToken) {
-    console.log('🔐 Aucun token trouvé - redirection vers login');
+  if (!effectiveAuth) {
     return <Navigate to="/ecom/login" replace />;
   }
 
   if (requiredRole) {
     const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
     // Le Super Admin peut accéder à toutes les routes
-    if (user?.role === 'super_admin') {
+    if (effectiveUser?.role === 'super_admin') {
       return children;
     }
-    if (!roles.includes(user?.role)) {
-      // Rediriger vers le dashboard approprié selon le rôle
+    if (!roles.includes(effectiveUser?.role)) {
       const roleDashboardMap = {
         'super_admin': '/ecom/super-admin',
         'ecom_admin': '/ecom/dashboard/admin',
@@ -156,7 +145,7 @@ const ProtectedRoute = ({ children, requiredRole }) => {
         'ecom_compta': '/ecom/dashboard/compta'
       };
       
-      return <Navigate to={roleDashboardMap[user.role] || '/ecom/login'} replace />;
+      return <Navigate to={roleDashboardMap[effectiveUser?.role] || '/ecom/login'} replace />;
     }
   }
 
@@ -167,10 +156,6 @@ const ProtectedRoute = ({ children, requiredRole }) => {
 const DashboardRedirect = () => {
   const { user, isAuthenticated, loading } = useEcomAuth();
 
-  // Vérifier manuellement le token localStorage pour éviter les problèmes mobile
-  const hasToken = localStorage.getItem('ecomToken');
-  const hasUserData = localStorage.getItem('ecomUser');
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -182,21 +167,12 @@ const DashboardRedirect = () => {
     );
   }
 
-  // Si pas authentifié MAIS qu'on a un token en localStorage, attendre un peu
-  if (!isAuthenticated && hasToken && hasUserData) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Vérification de la session...</p>
-        </div>
-      </div>
-    );
-  }
+  const hasToken = !!localStorage.getItem('ecomToken');
+  const localUser = !user ? JSON.parse(localStorage.getItem('ecomUser') || 'null') : user;
+  const effectiveAuth = isAuthenticated || (hasToken && localUser);
+  const effectiveUser = user || localUser;
 
-  // Rediriger vers login seulement si vraiment pas de token
-  if (!isAuthenticated && !hasToken) {
-    console.log('🔐 DashboardRedirect: Aucun token trouvé - redirection vers login');
+  if (!effectiveAuth) {
     return <Navigate to="/ecom/login" replace />;
   }
 
