@@ -277,7 +277,7 @@ const ReportsList = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <Link
-                        to={`/reports/${report._id}`}
+                        to={`ecom/reports/${report._id}`}
                         className="text-indigo-600 hover:text-indigo-900 mr-3"
                       >
                         Voir
@@ -285,7 +285,7 @@ const ReportsList = () => {
                       {(user.role === 'ecom_admin' || user.role === 'ecom_closeuse') && (
                         <>
                           <Link
-                            to={`/reports/${report._id}/edit`}
+                            to={`ecom/reports/${report._id}/edit`}
                             className="text-blue-600 hover:text-blue-900 mr-3"
                           >
                             Modifier

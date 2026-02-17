@@ -227,7 +227,7 @@ const TransactionsList = () => {
               transactions.map((tx) => (
                 <tr key={tx._id} className="hover:bg-gray-50">
                   <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-                    <Link to={`/transactions/${tx._id}`} className="text-xs sm:text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">
+                    <Link to={`/ecom/transactions/${tx._id}`} className="text-xs sm:text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">
                       {new Date(tx.date).toLocaleDateString('fr-FR')}
                     </Link>
                   </td>
@@ -251,7 +251,7 @@ const TransactionsList = () => {
                     {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}
                   </td>
                   <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
-                    <Link to={`/transactions/${tx._id}/edit`}
+                    <Link to={`/ecom/transactions/${tx._id}/edit`}
                       className="text-blue-600 hover:text-blue-900 mr-2 sm:mr-3">
                       Modifier
                     </Link>
