@@ -246,13 +246,13 @@ const ReportsList = () => {
                 return (
                   <tr key={report._id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <Link to={`/reports/${report._id}`} className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">
+                      <Link to={`/ecom/reports/${report._id}`} className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">
                         {new Date(report.date).toLocaleDateString('fr-FR')}
                       </Link>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {report.productId?._id ? (
-                        <Link to={`/products/${report.productId._id}`} className="text-sm text-blue-600 hover:text-blue-800 hover:underline">{report.productId.name}</Link>
+                        <Link to={`/ecom/products/${report.productId._id}`} className="text-sm text-blue-600 hover:text-blue-800 hover:underline">{report.productId.name}</Link>
                       ) : (
                         <span className="text-sm text-gray-900">N/A</span>
                       )}
