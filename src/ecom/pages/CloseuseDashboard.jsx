@@ -232,7 +232,7 @@ const CloseuseDashboard = () => {
           </div>
 
           {/* Widget Marketing */}
-          <Link to="/campaigns" className="bg-gradient-to-r from-pink-500 to-purple-600 rounded-lg shadow p-4 hover:from-pink-600 hover:to-purple-700 transition-all transform hover:scale-105">
+          <Link to="/ecom/campaigns" className="bg-gradient-to-r from-pink-500 to-purple-600 rounded-lg shadow p-4 hover:from-pink-600 hover:to-purple-700 transition-all transform hover:scale-105">
             <div className="flex items-center text-white">
               <div className="p-3 bg-white/20 rounded-full">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -297,7 +297,7 @@ const CloseuseDashboard = () => {
                 {recentOrders.length > 5 && (
                   <div className="mt-4 text-center">
                     <Link 
-                      to="/orders"
+                      to="/ecom/orders"
                       className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                     >
                       Voir toutes les commandes →

@@ -158,7 +158,7 @@ const CampaignsList = () => {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Marketing</h1>
           <p className="text-sm text-gray-500 mt-0.5">{stats.total || 0} campagne{(stats.total || 0) > 1 ? 's' : ''}</p>
         </div>
-        <Link to="/campaigns/new" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium flex items-center gap-1.5">
+        <Link to="/ecom/campaigns/new" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium flex items-center gap-1.5">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
           Nouvelle campagne
         </Link>
@@ -187,7 +187,7 @@ const CampaignsList = () => {
           </div>
           <p className="text-gray-500 text-sm mb-1">Aucune campagne</p>
           <p className="text-gray-400 text-xs mb-3">Créez votre première campagne de relance WhatsApp</p>
-          <Link to="/campaigns/new" className="inline-block text-sm text-blue-600 hover:text-blue-700 font-medium">
+          <Link to="/ecom/campaigns/new" className="inline-block text-sm text-blue-600 hover:text-blue-700 font-medium">
             Créer une campagne
           </Link>
         </div>

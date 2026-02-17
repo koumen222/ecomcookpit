@@ -186,7 +186,7 @@ const ClientsList = () => {
             </button>
           )}
           <Link
-            to="/clients/new"
+            to="/ecom/clients/new"
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
           >
             + Client
@@ -292,7 +292,7 @@ const ClientsList = () => {
             </svg>
           </div>
           <p className="text-gray-500 text-sm">Aucun client trouvé</p>
-          <Link to="/clients/new" className="inline-block mt-3 text-sm text-blue-600 hover:text-blue-700 font-medium">
+          <Link to="/ecom/clients/new" className="inline-block mt-3 text-sm text-blue-600 hover:text-blue-700 font-medium">
             Ajouter votre premier client
           </Link>
         </div>

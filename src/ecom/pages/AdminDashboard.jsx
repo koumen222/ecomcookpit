@@ -116,7 +116,7 @@ const AdminDashboard = () => {
         </svg>
       ),
       color: 'blue',
-      link: '/reports'
+      link: '/ecom/reports'
     },
     {
       title: 'Bénéfice net',
@@ -129,7 +129,7 @@ const AdminDashboard = () => {
         </svg>
       ),
       color: 'emerald',
-      link: '/reports'
+      link: '/ecom/reports'
     },
     {
       title: 'Produits actifs',
@@ -142,7 +142,7 @@ const AdminDashboard = () => {
         </svg>
       ),
       color: 'indigo',
-      link: '/products'
+      link: '/ecom/products'
     },
     {
       title: 'Commandes livrées',
@@ -155,7 +155,7 @@ const AdminDashboard = () => {
         </svg>
       ),
       color: 'violet',
-      link: '/orders'
+      link: '/ecom/orders'
     }
   ];
 
@@ -168,7 +168,7 @@ const AdminDashboard = () => {
         </svg>
       ), 
       color: 'bg-blue-600 hover:bg-blue-700', 
-      link: '/products/new' 
+      link: '/ecom/products/new' 
     },
     { 
       name: 'Nouvelle commande', 
@@ -178,7 +178,7 @@ const AdminDashboard = () => {
         </svg>
       ), 
       color: 'bg-violet-600 hover:bg-violet-700', 
-      link: '/orders' 
+      link: '/ecom/orders' 
     },
     { 
       name: 'Ajouter stock', 
@@ -188,7 +188,7 @@ const AdminDashboard = () => {
         </svg>
       ), 
       color: 'bg-emerald-600 hover:bg-emerald-700', 
-      link: '/stock-locations' 
+      link: '/ecom/stock-locations' 
     },
     { 
       name: 'Transaction', 
@@ -198,7 +198,7 @@ const AdminDashboard = () => {
         </svg>
       ), 
       color: 'bg-amber-600 hover:bg-amber-700', 
-      link: '/transactions/new' 
+      link: '/ecom/transactions/new' 
     },
   ];
 
@@ -493,7 +493,7 @@ const AdminDashboard = () => {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-gray-900">Activité récente</h3>
-              <Link to="/orders" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+              <Link to="/ecom/orders" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
                 Voir tout
               </Link>
             </div>
@@ -530,7 +530,7 @@ const AdminDashboard = () => {
                 <h3 className="text-lg font-bold text-gray-900">Top produits</h3>
                 <p className="text-sm text-gray-500">Performance par marge générée</p>
               </div>
-              <Link to="/products" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+              <Link to="/ecom/products" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
                 Tous les produits →
               </Link>
             </div>
@@ -568,7 +568,7 @@ const AdminDashboard = () => {
               {stats.products.length === 0 && (
                 <div className="text-center py-8">
                   <p className="text-gray-400 mb-3">Aucun produit actif</p>
-                  <Link to="/products/new" className="text-blue-600 hover:text-blue-700 font-medium text-sm">
+                  <Link to="/ecom/products/new" className="text-blue-600 hover:text-blue-700 font-medium text-sm">
                     + Créer votre premier produit
                   </Link>
                 </div>
@@ -614,7 +614,7 @@ const AdminDashboard = () => {
                       </p>
                     </div>
                     <Link 
-                      to="/stock/orders/new"
+                      to="/ecom/stock/orders/new"
                       className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
                     >
                       Réapprovisionner
@@ -635,7 +635,7 @@ const AdminDashboard = () => {
             )}
 
             <div className="mt-4 pt-4 border-t border-gray-100">
-              <Link to="/stock" className="flex items-center justify-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium py-2 rounded-lg hover:bg-blue-50 transition">
+              <Link to="/ecom/stock" className="flex items-center justify-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium py-2 rounded-lg hover:bg-blue-50 transition">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
