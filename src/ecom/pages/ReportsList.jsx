@@ -84,7 +84,7 @@ const ReportsList = () => {
       <div className="flex justify-between items-center mb-4 sm:mb-6">
         <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Rapports</h1>
         <Link
-          to="/ecom/reports/new"
+          to="reports/new"
           className="bg-blue-600 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-blue-700 text-sm"
         >
           + Nouveau
