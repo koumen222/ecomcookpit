@@ -1,16 +1,19 @@
 import axios from 'axios';
 
 // Service API spécial pour l'incarnation
+const isDev = import.meta.env.DEV;
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+
 class ImpersonationAPI {
   constructor() {
-    this.baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-    this.token = localStorage.getItem('ecomToken');
+    this.baseURL = isDev ? '/api/ecom' : `${BACKEND_URL}/api/ecom`;
   }
 
-  // Récupérer les headers avec le token
+  // Récupérer les headers avec le token FRAIS (pas celui du constructeur)
   getHeaders() {
+    const token = localStorage.getItem('ecomToken');
     return {
-      'Authorization': `Bearer ${this.token}`,
+      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
     };
   }

@@ -12,9 +12,8 @@ const ProductSearchDebug = () => {
     
     try {
       // Test direct avec fetch
-      const API_BASE = window.location.origin.includes('localhost') 
-        ? 'http://localhost:3001/api/ecom' 
-        : '/api/ecom';
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const API_BASE = import.meta.env.DEV ? '/api/ecom' : `${BACKEND_URL}/api/ecom`;
       
       console.log('🔍 Test API direct vers:', API_BASE);
       

@@ -134,9 +134,14 @@ export const EcomAuthProvider = ({ children }) => {
 
   // Sauvegarder le token dans le localStorage
   const saveToken = (token, user, workspace) => {
+    console.log('💾 Sauvegarde du token et des données utilisateur...');
     localStorage.setItem('ecomToken', token);
     localStorage.setItem('ecomUser', JSON.stringify(user));
-    if (workspace) localStorage.setItem('ecomWorkspace', JSON.stringify(workspace));
+    if (workspace) {
+      localStorage.setItem('ecomWorkspace', JSON.stringify(workspace));
+      console.log('🏢 Workspace sauvegardé:', workspace.name);
+    }
+    console.log('✅ Données sauvegardées avec succès');
   };
 
   // Sauvegarder l'état d'incarnation
@@ -185,8 +190,39 @@ export const EcomAuthProvider = ({ children }) => {
       console.error('Message:', error.message);
       console.error('Config:', error.config);
       
-      clearToken();
-      dispatch({ type: 'LOAD_USER_FAILURE' });
+      // NE déconnecter que pour les vraies erreurs 401 (token invalide)
+      // PAS pour les erreurs réseau (backend inaccessible)
+      if (error.response?.status === 401) {
+        console.log('🔐 Token invalide - déconnexion');
+        clearToken();
+        dispatch({ type: 'LOAD_USER_FAILURE' });
+      } else if (!error.response) {
+        // Erreur réseau - garder l'utilisateur connecté avec les données locales
+        console.log('🌐 Erreur réseau - maintien de la session locale');
+        const userData = JSON.parse(localStorage.getItem('ecomUser') || 'null');
+        const workspaceData = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+        if (userData) {
+          dispatch({
+            type: 'LOAD_USER_SUCCESS',
+            payload: { user: userData, workspace: workspaceData }
+          });
+        } else {
+          dispatch({ type: 'LOAD_USER_FAILURE' });
+        }
+      } else {
+        // Autre erreur serveur (500, etc) - garder la session
+        console.log('⚠️ Erreur serveur - maintien de la session');
+        const userData = JSON.parse(localStorage.getItem('ecomUser') || 'null');
+        const workspaceData = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+        if (userData) {
+          dispatch({
+            type: 'LOAD_USER_SUCCESS',
+            payload: { user: userData, workspace: workspaceData }
+          });
+        } else {
+          dispatch({ type: 'LOAD_USER_FAILURE' });
+        }
+      }
     }
   };
 

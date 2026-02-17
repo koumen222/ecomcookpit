@@ -1,9 +1,9 @@
 import axios from 'axios';
 
 // Configuration de base pour les API publiques (sans authentification)
-const API_BASE = window.location.origin.includes('localhost') 
-  ? 'http://localhost:3001/api/ecom' 
-  : '/api/ecom';
+const isDev = import.meta.env.DEV;
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE = isDev ? '/api/ecom' : `${BACKEND_URL}/api/ecom`;
 
 // Créer une instance axios pour les API publiques
 const publicApi = axios.create({
@@ -19,10 +19,8 @@ publicApi.interceptors.response.use(
   (response) => response,
   (error) => {
     console.error('API Error:', error);
-    if (error.response?.status === 401) {
-      // Rediriger vers login si nécessaire (pour les routes protégées)
-      window.location.href = '/ecom/login';
-    }
+    // NE PAS rediriger vers login pour les API publiques
+    // Laisser l'appelant gérer l'erreur
     return Promise.reject(error);
   }
 );

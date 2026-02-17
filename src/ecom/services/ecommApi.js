@@ -10,6 +10,7 @@ const ECOM_API_PREFIX = isDev ? '/api/ecom' : '/api/ecom';
 const ecomApi = axios.create({
   baseURL: isDev ? '/api/ecom' : `${API_BASE_URL}${ECOM_API_PREFIX}`,
   timeout: 30000,
+  withCredentials: isDev, // Cookies uniquement en développement, JWT en production
   headers: {
     'Content-Type': 'application/json'
   }
@@ -42,6 +43,11 @@ ecomApi.interceptors.request.use(
       }
     }
 
+    // Log pour debug en production
+    if (!isDev && process.env.NODE_ENV === 'production') {
+      console.log(`🌐 Requête API production: ${config.method?.toUpperCase()} ${config.url}`);
+    }
+
     return config;
   },
   (error) => {
@@ -64,19 +70,36 @@ ecomApi.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Gérer l'expiration du token
-    if (error.response?.status === 401) {
-      localStorage.removeItem('ecomToken');
-      localStorage.removeItem('ecomUser');
-      localStorage.removeItem('ecomOriginalUser');
-      localStorage.removeItem('ecomImpersonatedUser');
-      window.location.href = '/ecom/login';
-    }
-    
-    // Gérer les erreurs réseau
+    // Gérer les erreurs réseau (backend inaccessible) — NE PAS déconnecter
     if (!error.response) {
-      console.error('Erreur réseau:', error.message);
+      console.error('🌐 Erreur réseau - backend inaccessible:', error.message);
       throw new Error('Impossible de contacter le serveur. Vérifiez votre connexion.');
+    }
+
+    // Gérer l'expiration du token SEULEMENT si c'est une vraie erreur 401 
+    // ET que c'est la route /auth/me (vérification de session)
+    // NE PAS déconnecter pour les autres routes (produits, commandes, etc.)
+    if (error.response?.status === 401) {
+      const requestUrl = error.config?.url || '';
+      const isAuthCheck = requestUrl.includes('/auth/me') || requestUrl.includes('/auth/login');
+      
+      // Seulement déconnecter si c'est la vérification de profil qui échoue
+      if (isAuthCheck && !requestUrl.includes('/auth/login')) {
+        console.log('🔐 Session invalide sur /auth/me - déconnexion');
+        localStorage.removeItem('ecomToken');
+        localStorage.removeItem('ecomUser');
+        localStorage.removeItem('ecomOriginalUser');
+        localStorage.removeItem('ecomImpersonatedUser');
+        localStorage.removeItem('ecomWorkspace');
+        
+        if (window.location.pathname !== '/ecom/login') {
+          window.location.href = '/ecom/login';
+        }
+        return Promise.reject(error);
+      }
+      
+      // Pour les autres routes 401, juste propager l'erreur sans déconnecter
+      console.warn('⚠️ Erreur 401 sur:', requestUrl, '- pas de déconnexion automatique');
     }
     
     // Logger les erreurs avec workspace
@@ -86,7 +109,7 @@ ecomApi.interceptors.response.use(
     }
     
     // Propager l'erreur avec le message du serveur
-    throw error;
+    return Promise.reject(error);
   }
 );
 

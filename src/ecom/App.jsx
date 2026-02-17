@@ -108,6 +108,10 @@ class ErrorBoundary extends React.Component {
 const ProtectedRoute = ({ children, requiredRole }) => {
   const { user, isAuthenticated, loading } = useEcomAuth();
 
+  // Vérifier manuellement le token localStorage pour éviter les problèmes mobile
+  const hasToken = localStorage.getItem('ecomToken');
+  const hasUserData = localStorage.getItem('ecomUser');
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -119,7 +123,21 @@ const ProtectedRoute = ({ children, requiredRole }) => {
     );
   }
 
-  if (!isAuthenticated) {
+  // Si pas authentifié MAIS qu'on a un token en localStorage, attendre un peu
+  if (!isAuthenticated && hasToken && hasUserData) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Vérification de la session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Rediriger vers login seulement si vraiment pas de token
+  if (!isAuthenticated && !hasToken) {
+    console.log('🔐 Aucun token trouvé - redirection vers login');
     return <Navigate to="/ecom/login" replace />;
   }
 
@@ -149,6 +167,10 @@ const ProtectedRoute = ({ children, requiredRole }) => {
 const DashboardRedirect = () => {
   const { user, isAuthenticated, loading } = useEcomAuth();
 
+  // Vérifier manuellement le token localStorage pour éviter les problèmes mobile
+  const hasToken = localStorage.getItem('ecomToken');
+  const hasUserData = localStorage.getItem('ecomUser');
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -160,7 +182,21 @@ const DashboardRedirect = () => {
     );
   }
 
-  if (!isAuthenticated) {
+  // Si pas authentifié MAIS qu'on a un token en localStorage, attendre un peu
+  if (!isAuthenticated && hasToken && hasUserData) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Vérification de la session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Rediriger vers login seulement si vraiment pas de token
+  if (!isAuthenticated && !hasToken) {
+    console.log('🔐 DashboardRedirect: Aucun token trouvé - redirection vers login');
     return <Navigate to="/ecom/login" replace />;
   }
 

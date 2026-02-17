@@ -166,10 +166,12 @@ const ImportOrders = () => {
     // SSE for progress
     const resolvedSourceId = useManualInput ? 'manual' : selectedSourceId;
     try {
-      const baseUrl = window.location.origin;
+      const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || '';
+      const baseUrl = import.meta.env.DEV ? '' : BACKEND_URL;
       const ws = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
       const wsId = ws?._id || user?.workspaceId?._id || user?.workspaceId;
-      const sseUrl = `${baseUrl}/api/import/progress?workspaceId=${wsId}&sourceId=${resolvedSourceId}`;
+      const token = localStorage.getItem('ecomToken');
+      const sseUrl = `${baseUrl}/api/import/progress?workspaceId=${wsId}&sourceId=${resolvedSourceId}&token=${token}`;
       const es = new EventSource(sseUrl);
       eventSourceRef.current = es;
 
