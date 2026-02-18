@@ -203,6 +203,38 @@ const LayoutRoute = ({ children, requiredRole }) => {
   );
 };
 
+// Redirection racine: dashboard si connecté, login sinon
+const RootRedirect = () => {
+  const { isAuthenticated, user, loading } = useEcomAuth();
+  const hasLocalSession = !!localStorage.getItem('ecomToken') && !!localStorage.getItem('ecomUser');
+
+  if (loading && !hasLocalSession) {
+    return (
+      <div className="min-h-screen bg-blue-600 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white"></div>
+      </div>
+    );
+  }
+
+  const effectiveUser = user || JSON.parse(localStorage.getItem('ecomUser') || 'null');
+  const effectiveAuth = isAuthenticated || hasLocalSession;
+
+  if (!effectiveAuth) {
+    return <Navigate to="/ecom/login" replace />;
+  }
+
+  const roleDashboardMap = {
+    'super_admin': '/ecom/super-admin',
+    'ecom_admin': '/ecom/dashboard/admin',
+    'ecom_closeuse': '/ecom/dashboard/closeuse',
+    'ecom_compta': '/ecom/dashboard/compta',
+    'livreur': '/ecom/livreur'
+  };
+
+  const dest = roleDashboardMap[effectiveUser?.role] || '/ecom/dashboard/admin';
+  return <Navigate to={dest} replace />;
+};
+
 const EcomApp = () => {
   return (
     <EcomAuthProvider>
@@ -210,9 +242,9 @@ const EcomApp = () => {
         <div className="min-h-screen bg-gray-50">
           <ErrorBoundary>
             <Routes>
-              {/* Route racine - landing page */}
-              <Route path="/" element={<EcomLandingPage />} />
-              <Route path="/ecom" element={<EcomLandingPage />} />
+              {/* Route racine - redirection auto selon session */}
+              <Route path="/" element={<RootRedirect />} />
+              <Route path="/ecom" element={<RootRedirect />} />
               
               {/* Routes publiques (sans layout) */}
               <Route path="/ecom/landing" element={<EcomLandingPage />} />
