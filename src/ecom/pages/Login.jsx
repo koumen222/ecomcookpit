@@ -1,16 +1,56 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login, registerDevice } = useEcomAuth();
+  const { login, registerDevice, isAuthenticated, loading: authLoading, user } = useEcomAuth();
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showDevicePopup, setShowDevicePopup] = useState(false);
   const [registeringDevice, setRegisteringDevice] = useState(false);
+
+  // Rediriger automatiquement si déjà connecté
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && user) {
+      // Rediriger vers le dashboard approprié selon le rôle
+      const roleDashboardMap = {
+        'super_admin': '/ecom/super-admin',
+        'ecom_admin': '/ecom/dashboard/admin',
+        'ecom_closeuse': '/ecom/dashboard/closeuse',
+        'ecom_compta': '/ecom/dashboard/compta',
+        'livreur': '/ecom/livreur'
+      };
+      const dashboardPath = roleDashboardMap[user.role] || '/ecom/dashboard';
+      navigate(dashboardPath, { replace: true });
+    }
+  }, [authLoading, isAuthenticated, user, navigate]);
+
+  // Afficher un loader pendant la vérification de l'authentification
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-400">Vérification de la session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Si déjà authentifié, ne pas afficher le formulaire (la redirection est en cours)
+  if (isAuthenticated && user) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-400">Redirection vers votre espace...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();

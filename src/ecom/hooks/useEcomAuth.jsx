@@ -4,13 +4,18 @@ import { authApi } from '../services/ecommApi.js';
 // Contexte d'authentification e-commerce
 const EcomAuthContext = createContext();
 
-// État initial
+// État initial - charger les données locales pour une persistance immédiate
+const storedToken = localStorage.getItem('ecomToken');
+const storedUser = JSON.parse(localStorage.getItem('ecomUser') || 'null');
+const storedWorkspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+
 const initialState = {
-  user: null,
-  workspace: JSON.parse(localStorage.getItem('ecomWorkspace') || 'null'),
-  token: localStorage.getItem('ecomToken'),
-  isAuthenticated: false,
-  loading: true,
+  user: storedUser,
+  workspace: storedWorkspace,
+  token: storedToken,
+  // Si on a un token ET un user stocké, on est potentiellement authentifié
+  isAuthenticated: !!(storedToken && storedUser),
+  loading: !!storedToken, // Ne charger que si on a un token à vérifier
   error: null,
   // Mode incarnation pour Super Admin
   isImpersonating: false,
@@ -71,12 +76,22 @@ const authReducer = (state, action) => {
       };
     
     case 'LOAD_USER_FAILURE':
+      // Ne pas effacer le token du state si on veut juste signaler l'échec du chargement
+      // Le token sera effacé explicitement par clearToken() si nécessaire
       return {
         ...state,
         user: null,
         workspace: null,
         token: null,
         isAuthenticated: false,
+        loading: false,
+        error: null
+      };
+    
+    case 'LOAD_USER_FAILURE_KEEP_TOKEN':
+      // Garder le token mais marquer comme non authentifié temporairement
+      return {
+        ...state,
         loading: false,
         error: null
       };

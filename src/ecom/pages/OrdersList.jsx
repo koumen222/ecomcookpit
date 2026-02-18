@@ -91,6 +91,7 @@ const OrdersList = () => {
   const [expandedId, setExpandedId] = useState(null);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({});
+  const [itemsPerPage, setItemsPerPage] = useState(100);
   const [viewMode, setViewMode] = useState('table');
   const [showSourceSelector, setShowSourceSelector] = useState(true);
   const [showWhatsAppConfig, setShowWhatsAppConfig] = useState(false);
@@ -200,7 +201,7 @@ const OrdersList = () => {
 
   const fetchOrders = async () => {
     try {
-      const params = { page, limit: 50 };
+      const params = { page, limit: itemsPerPage };
       if (search) params.search = search;
       if (filterStatus) params.status = filterStatus;
       if (filterCity) params.city = filterCity;
@@ -467,7 +468,7 @@ const OrdersList = () => {
     init();
   }, []);
 
-  useEffect(() => { if (!loading) fetchOrders(); }, [search, filterStatus, filterCity, filterProduct, filterTag, filterStartDate, filterEndDate, selectedSourceId, page, viewAllWorkspaces]);
+  useEffect(() => { if (!loading) fetchOrders(); }, [search, filterStatus, filterCity, filterProduct, filterTag, filterStartDate, filterEndDate, selectedSourceId, page, viewAllWorkspaces, itemsPerPage]);
   useEffect(() => { if (success) { const t = setTimeout(() => setSuccess(''), 10000); return () => clearTimeout(t); } }, [success]);
   useEffect(() => { if (error) { const t = setTimeout(() => setError(''), 5000); return () => clearTimeout(t); } }, [error]);
 
@@ -947,8 +948,180 @@ const OrdersList = () => {
     setPage(1);
   };
 
-  const deliveryRate = stats.total ? ((stats.delivered || 0) / stats.total * 100).toFixed(1) : 0;
-  const returnRate = stats.total ? ((stats.returned || 0) / stats.total * 100).toFixed(1) : 0;
+  // Calculer les statistiques filtrées en fonction de TOUS les filtres actifs
+  const hasActiveFilters = filterStatus || filterCity || filterProduct || filterTag || filterStartDate || filterEndDate || search;
+  
+  const filteredStats = useMemo(() => {
+    if (!hasActiveFilters) {
+      // Aucun filtre actif, utiliser les stats globales
+      return {
+        total: stats.total || 0,
+        delivered: stats.delivered || 0,
+        returned: stats.returned || 0,
+        pending: stats.pending || 0,
+        confirmed: stats.confirmed || 0,
+        shipped: stats.shipped || 0,
+        totalRevenue: stats.totalRevenue || 0
+      };
+    }
+    
+    // Appliquer TOUS les filtres aux commandes
+    let filtered = [...orders];
+    
+    // Filtre par statut
+    if (filterStatus) {
+      filtered = filtered.filter(o => o.status === filterStatus);
+    }
+    
+    // Filtre par ville
+    if (filterCity) {
+      filtered = filtered.filter(o => {
+        const city = getCity(o);
+        return city && city.toLowerCase().includes(filterCity.toLowerCase());
+      });
+    }
+    
+    // Filtre par produit
+    if (filterProduct) {
+      filtered = filtered.filter(o => {
+        const product = getProductName(o);
+        return product && product.toLowerCase().includes(filterProduct.toLowerCase());
+      });
+    }
+    
+    // Filtre par tag
+    if (filterTag) {
+      filtered = filtered.filter(o => o.tags && o.tags.includes(filterTag));
+    }
+    
+    // Filtre par dates
+    if (filterStartDate) {
+      const startDate = new Date(filterStartDate);
+      filtered = filtered.filter(o => o.date && new Date(o.date) >= startDate);
+    }
+    if (filterEndDate) {
+      const endDate = new Date(filterEndDate);
+      endDate.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(o => o.date && new Date(o.date) <= endDate);
+    }
+    
+    // Filtre par recherche
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filtered = filtered.filter(o => {
+        const clientName = getClientName(o).toLowerCase();
+        const clientPhone = getClientPhone(o).toLowerCase();
+        const city = getCity(o).toLowerCase();
+        const product = getProductName(o).toLowerCase();
+        return clientName.includes(searchLower) || 
+               clientPhone.includes(searchLower) || 
+               city.includes(searchLower) || 
+               product.includes(searchLower);
+      });
+    }
+    
+    // Calculer les stats pour les commandes filtrées
+    const delivered = filtered.filter(o => o.status === 'delivered').length;
+    const returned = filtered.filter(o => o.status === 'returned').length;
+    const pending = filtered.filter(o => o.status === 'pending').length;
+    const confirmed = filtered.filter(o => o.status === 'confirmed').length;
+    const shipped = filtered.filter(o => o.status === 'shipped').length;
+    
+    // Revenu calculé UNIQUEMENT sur les commandes livrées
+    const deliveredRevenue = filtered
+      .filter(o => o.status === 'delivered')
+      .reduce((sum, o) => {
+        const price = parseFloat(o.price) || 0;
+        const quantity = parseInt(o.quantity) || 1;
+        return sum + (price * quantity);
+      }, 0);
+    
+    // Revenu total (toutes commandes) pour comparaison
+    const totalRevenue = filtered.reduce((sum, o) => {
+      const price = parseFloat(o.price) || 0;
+      const quantity = parseInt(o.quantity) || 1;
+      return sum + (price * quantity);
+    }, 0);
+    
+    return {
+      total: filtered.length,
+      delivered,
+      returned,
+      pending,
+      confirmed,
+      shipped,
+      totalRevenue, // Garder pour compatibilité
+      deliveredRevenue // Nouveau : revenu des commandes livrées uniquement
+    };
+  }, [filterStatus, filterCity, filterProduct, filterTag, filterStartDate, filterEndDate, search, orders, stats]);
+
+  const deliveryRate = filteredStats.total ? ((filteredStats.delivered || 0) / filteredStats.total * 100).toFixed(1) : 0;
+  const returnRate = filteredStats.total ? ((filteredStats.returned || 0) / filteredStats.total * 100).toFixed(1) : 0;
+
+  // Calculer les compteurs de filtres dynamiques (sans le filtre de statut)
+  const dynamicFilterCounts = useMemo(() => {
+    // Appliquer tous les filtres SAUF le statut
+    let baseFiltered = [...orders];
+    
+    if (filterCity) {
+      baseFiltered = baseFiltered.filter(o => {
+        const city = getCity(o);
+        return city && city.toLowerCase().includes(filterCity.toLowerCase());
+      });
+    }
+    
+    if (filterProduct) {
+      baseFiltered = baseFiltered.filter(o => {
+        const product = getProductName(o);
+        return product && product.toLowerCase().includes(filterProduct.toLowerCase());
+      });
+    }
+    
+    if (filterTag) {
+      baseFiltered = baseFiltered.filter(o => o.tags && o.tags.includes(filterTag));
+    }
+    
+    if (filterStartDate) {
+      const startDate = new Date(filterStartDate);
+      baseFiltered = baseFiltered.filter(o => o.date && new Date(o.date) >= startDate);
+    }
+    
+    if (filterEndDate) {
+      const endDate = new Date(filterEndDate);
+      endDate.setHours(23, 59, 59, 999);
+      baseFiltered = baseFiltered.filter(o => o.date && new Date(o.date) <= endDate);
+    }
+    
+    if (search) {
+      const searchLower = search.toLowerCase();
+      baseFiltered = baseFiltered.filter(o => {
+        const clientName = getClientName(o).toLowerCase();
+        const clientPhone = getClientPhone(o).toLowerCase();
+        const city = getCity(o).toLowerCase();
+        const product = getProductName(o).toLowerCase();
+        return clientName.includes(searchLower) || 
+               clientPhone.includes(searchLower) || 
+               city.includes(searchLower) || 
+               product.includes(searchLower);
+      });
+    }
+    
+    // Compter par statut
+    const counts = {
+      total: baseFiltered.length,
+      pending: baseFiltered.filter(o => o.status === 'pending').length,
+      confirmed: baseFiltered.filter(o => o.status === 'confirmed').length,
+      shipped: baseFiltered.filter(o => o.status === 'shipped').length,
+      delivered: baseFiltered.filter(o => o.status === 'delivered').length,
+      returned: baseFiltered.filter(o => o.status === 'returned').length,
+      cancelled: baseFiltered.filter(o => o.status === 'cancelled').length,
+      unreachable: baseFiltered.filter(o => o.status === 'unreachable').length,
+      called: baseFiltered.filter(o => o.status === 'called').length,
+      postponed: baseFiltered.filter(o => o.status === 'postponed').length
+    };
+    
+    return counts;
+  }, [filterCity, filterProduct, filterTag, filterStartDate, filterEndDate, search, orders]);
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -969,7 +1142,18 @@ const OrdersList = () => {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
             {selectedSourceId ? sources.find(s => s._id === selectedSourceId)?.name : 'Commandes'}
           </h1>
-          <p className="text-xs text-gray-400 mt-0.5">{stats.total || 0} commandes au total</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {hasActiveFilters ? (
+              <>
+                {filteredStats.total} commande{filteredStats.total > 1 ? 's' : ''} filtrée{filteredStats.total > 1 ? 's' : ''}
+                {filterStatus && <> • <span className="text-blue-600 font-medium">{getStatusLabel(filterStatus)}</span></>}
+                {filterCity && <> • <span className="text-purple-600 font-medium">{filterCity}</span></>}
+                {filterProduct && <> • <span className="text-green-600 font-medium">{filterProduct}</span></>}
+              </>
+            ) : (
+              <>{stats.total || 0} commandes au total</>
+            )}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {/* Toggle tous les espaces pour Super Admin */}
@@ -1127,6 +1311,207 @@ const OrdersList = () => {
         </div>
       )}
 
+      {/* Barre de filtres moderne style GAFAM */}
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden mb-6">
+        {/* En-tête des filtres */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-5 py-3 border-b border-blue-100">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Filtres intelligents</h3>
+                <p className="text-xs text-gray-500">
+                  {hasActiveFilters ? (
+                    <>
+                      <span className="font-semibold text-blue-600">{filteredStats.total}</span> résultat{filteredStats.total > 1 ? 's' : ''} sur {stats.total || 0}
+                    </>
+                  ) : (
+                    <>{stats.total || 0} commandes au total</>
+                  )}
+                </p>
+              </div>
+            </div>
+            {activeFiltersCount > 0 && (
+              <button onClick={clearAllFilters} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-semibold transition-all hover:shadow-md">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                Réinitialiser tout
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Chips de filtres actifs */}
+        {activeFiltersCount > 0 && (
+          <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
+            <div className="flex flex-wrap gap-2">
+              {filterStatus && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold border border-blue-200">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+                  Statut: {getStatusLabel(filterStatus)}
+                  <button onClick={() => { setFilterStatus(''); setPage(1); }} className="ml-1.5 hover:text-blue-900">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
+                </div>
+              )}
+              {filterCity && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-100 text-purple-700 rounded-full text-xs font-semibold border border-purple-200">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                  Ville: {filterCity}
+                  <button onClick={() => { setFilterCity(''); setPage(1); }} className="ml-1.5 hover:text-purple-900">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
+                </div>
+              )}
+              {filterProduct && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold border border-green-200">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                  Produit: {filterProduct}
+                  <button onClick={() => { setFilterProduct(''); setPage(1); }} className="ml-1.5 hover:text-green-900">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
+                </div>
+              )}
+              {filterStartDate && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold border border-orange-200">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                  Depuis: {filterStartDate}
+                  <button onClick={() => { setFilterStartDate(''); setPage(1); }} className="ml-1.5 hover:text-orange-900">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
+                </div>
+              )}
+              {filterEndDate && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold border border-orange-200">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                  Jusqu'au: {filterEndDate}
+                  <button onClick={() => { setFilterEndDate(''); setPage(1); }} className="ml-1.5 hover:text-orange-900">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
+                </div>
+              )}
+              {search && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full text-xs font-semibold border border-gray-300">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                  Recherche: {search}
+                  <button onClick={() => { setSearch(''); setPage(1); }} className="ml-1.5 hover:text-gray-900">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Contenu des filtres */}
+        <div className="p-5">
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-700 mb-2">Recherche rapide</label>
+            <div className="relative">
+              <svg className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              <input 
+                type="text" 
+                placeholder="Rechercher par nom, téléphone, ville, produit..." 
+                value={search} 
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              />
+              {search && (
+                <button 
+                  onClick={() => { setSearch(''); setPage(1); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-700 mb-2">Filtrer par statut</label>
+            <div className="flex flex-wrap gap-1.5">
+          <button onClick={() => { setFilterStatus(''); setPage(1); }} className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-all ${!filterStatus ? 'bg-gray-900 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+            Tous ({(filterCity || filterProduct || filterTag || filterStartDate || filterEndDate || search) ? dynamicFilterCounts.total : stats.total || 0})
+          </button>
+          {[
+            { key: 'pending', label: 'En attente', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-200' },
+            { key: 'confirmed', label: 'Confirmé', color: 'bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-200' },
+            { key: 'shipped', label: 'Expédié', color: 'bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-200' },
+            { key: 'delivered', label: 'Livré', color: 'bg-green-100 text-green-700 hover:bg-green-200 border border-green-200' },
+            { key: 'returned', label: 'Retour', color: 'bg-orange-100 text-orange-700 hover:bg-orange-200 border border-orange-200' },
+            { key: 'cancelled', label: 'Annulé', color: 'bg-red-100 text-red-700 hover:bg-red-200 border border-red-200' },
+            { key: 'unreachable', label: 'Injoignable', color: 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300' },
+            { key: 'called', label: 'Appelé', color: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200 border border-cyan-200' },
+            { key: 'postponed', label: 'Reporté', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-200' }
+          ].map(s => (
+            <button key={s.key} onClick={() => { setFilterStatus(filterStatus === s.key ? '' : s.key); setPage(1); }}
+              className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-all ${filterStatus === s.key ? 'ring-2 ring-offset-1 ring-gray-400 shadow-sm ' : ''}${s.color}`}>
+              {s.label} ({(filterCity || filterProduct || filterTag || filterStartDate || filterEndDate || search) ? dynamicFilterCounts[s.key] || 0 : stats[s.key] || 0})
+            </button>
+          ))}
+          </div>
+          </div>
+
+          <button 
+            onClick={() => setShowFilters(!showFilters)} 
+            className={`w-full px-4 py-2.5 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all ${showFilters ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+            {showFilters ? 'Masquer les filtres avancés' : 'Afficher les filtres avancés'}
+          </button>
+
+          {/* Advanced filters panel */}
+          {showFilters && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-1">Date début</label>
+                  <input type="date" value={filterStartDate} onChange={e => { setFilterStartDate(e.target.value); setPage(1); }} className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-1">Date fin</label>
+                  <input type="date" value={filterEndDate} onChange={e => { setFilterEndDate(e.target.value); setPage(1); }} className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-1">Ville</label>
+                  <select value={filterCity} onChange={e => { setFilterCity(e.target.value); setPage(1); }} className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <option value="">Toutes les villes</option>
+                    {uniqueCities.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-1">Produit</label>
+                  <select value={filterProduct} onChange={e => { setFilterProduct(e.target.value); setPage(1); }} className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <option value="">Tous les produits</option>
+                    {uniqueProducts.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-500 mb-1">Tag</label>
+                  <select value={filterTag} onChange={e => { setFilterTag(e.target.value); setPage(1); }} className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <option value="">Tous les tags</option>
+                    {uniqueTags.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+              {activeFiltersCount > 0 && (
+                <div className="flex items-center justify-between mt-2.5">
+                  <div className="flex flex-wrap gap-1.5">
+                    {filterStartDate && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[10px] font-medium">{filterStartDate} <button onClick={() => { setFilterStartDate(''); setPage(1); }} className="hover:text-blue-900">&times;</button></span>}
+                    {filterEndDate && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[10px] font-medium">{filterEndDate} <button onClick={() => { setFilterEndDate(''); setPage(1); }} className="hover:text-blue-900">&times;</button></span>}
+                    {filterCity && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full text-[10px] font-medium">{filterCity} <button onClick={() => { setFilterCity(''); setPage(1); }} className="hover:text-purple-900">&times;</button></span>}
+                    {filterProduct && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 rounded-full text-[10px] font-medium">{filterProduct} <button onClick={() => { setFilterProduct(''); setPage(1); }} className="hover:text-green-900">&times;</button></span>}
+                    {filterTag && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-50 text-orange-700 rounded-full text-[10px] font-medium">{filterTag} <button onClick={() => { setFilterTag(''); setPage(1); }} className="hover:text-orange-900">&times;</button></span>}
+                  </div>
+                  <button onClick={clearAllFilters} className="text-[10px] text-red-600 hover:text-red-800 font-medium">Tout effacer</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Sync clients button */}
       {isAdmin && (
         <div className="mb-4 bg-white rounded-xl border border-gray-200 shadow-sm p-3">
@@ -1262,157 +1647,77 @@ const OrdersList = () => {
         </div>
       )}
 
-      {/* KPI Cards - Design amélioré */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200 shadow-sm p-4 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Revenu livré</p>
-            <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      {/* KPI Cards - Design ultra-moderne avec animations */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <div className="group bg-gradient-to-br from-green-50 via-green-50 to-emerald-100 rounded-2xl border border-green-200/50 shadow-sm p-5 hover:shadow-lg hover:scale-[1.02] transition-all duration-300 cursor-pointer relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-green-400/10 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-500"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-green-700 uppercase tracking-wider">Revenu livré</p>
+              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg group-hover:rotate-12 transition-transform duration-300">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </div>
             </div>
-          </div>
-          <p className="text-xl font-bold text-gray-900">{fmt(stats.totalRevenue)}</p>
-          <p className="text-xs text-green-600 font-medium">{stats.delivered || 0} commandes livrées</p>
-        </div>
-        
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200 shadow-sm p-4 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Taux livraison</p>
-            <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <p className="text-2xl font-extrabold text-gray-900 mb-1 tracking-tight">{fmt(filteredStats.deliveredRevenue || 0) || '0 FCFA'}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-green-600 font-semibold">{filteredStats.delivered || 0} livrées</p>
+              <div className="flex items-center gap-0.5 text-green-600">
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd"/></svg>
+                <span className="text-xs font-bold">+{Math.round((filteredStats.delivered || 0) / (filteredStats.total || 1) * 100)}%</span>
+              </div>
             </div>
-          </div>
-          <p className="text-xl font-bold text-gray-900">{deliveryRate}%</p>
-          <div className="w-full bg-blue-100 rounded-full h-2 mt-2">
-            <div className="bg-gradient-to-r from-blue-400 to-blue-600 h-2 rounded-full transition-all duration-500" style={{ width: `${Math.min(deliveryRate, 100)}%` }}></div>
           </div>
         </div>
         
-        <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl border border-orange-200 shadow-sm p-4 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide">Taux retour</p>
-            <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z"/></svg>
+        <div className="group bg-gradient-to-br from-blue-50 via-blue-50 to-indigo-100 rounded-2xl border border-blue-200/50 shadow-sm p-5 hover:shadow-lg hover:scale-[1.02] transition-all duration-300 cursor-pointer relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-400/10 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-500"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-blue-700 uppercase tracking-wider">Taux livraison</p>
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg group-hover:rotate-12 transition-transform duration-300">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </div>
             </div>
-          </div>
-          <p className="text-xl font-bold text-gray-900">{returnRate}%</p>
-          <div className="w-full bg-orange-100 rounded-full h-2 mt-2">
-            <div className="bg-gradient-to-r from-orange-400 to-orange-600 h-2 rounded-full transition-all duration-500" style={{ width: `${Math.min(returnRate, 100)}%` }}></div>
+            <p className="text-2xl font-extrabold text-gray-900 mb-2 tracking-tight">{deliveryRate}%</p>
+            <div className="w-full bg-blue-100/50 rounded-full h-2.5 overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-400 via-blue-500 to-indigo-600 h-2.5 rounded-full transition-all duration-700 ease-out shadow-sm" style={{ width: `${Math.min(deliveryRate, 100)}%` }}></div>
+            </div>
           </div>
         </div>
         
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200 shadow-sm p-4 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide">En cours</p>
-            <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <div className="group bg-gradient-to-br from-orange-50 via-orange-50 to-amber-100 rounded-2xl border border-orange-200/50 shadow-sm p-5 hover:shadow-lg hover:scale-[1.02] transition-all duration-300 cursor-pointer relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-orange-400/10 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-500"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-orange-700 uppercase tracking-wider">Taux retour</p>
+              <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl flex items-center justify-center shadow-lg group-hover:rotate-12 transition-transform duration-300">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z"/></svg>
+              </div>
             </div>
-          </div>
-          <p className="text-xl font-bold text-gray-900">{(stats.pending || 0) + (stats.confirmed || 0) + (stats.shipped || 0)}</p>
-          <p className="text-xs text-purple-600 font-medium">{stats.pending || 0} en attente · {stats.shipped || 0} expédiées</p>
-        </div>
-      </div>
-
-      {/* Filtres améliorés avec design moderne */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-gray-700">Filtres rapides</h3>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">{stats.total || 0} commandes</span>
-            {activeFiltersCount > 0 && (
-              <button onClick={clearAllFilters} className="text-xs text-red-600 hover:text-red-800 font-medium flex items-center gap-1">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
-                Tout effacer
-              </button>
-            )}
+            <p className="text-2xl font-extrabold text-gray-900 mb-2 tracking-tight">{returnRate}%</p>
+            <div className="w-full bg-orange-100/50 rounded-full h-2.5 overflow-hidden">
+              <div className="bg-gradient-to-r from-orange-400 via-orange-500 to-amber-600 h-2.5 rounded-full transition-all duration-700 ease-out shadow-sm" style={{ width: `${Math.min(returnRate, 100)}%` }}></div>
+            </div>
           </div>
         </div>
         
-        <div className="flex flex-wrap gap-2 mb-4">
-          <button onClick={() => { setFilterStatus(''); setPage(1); }} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${!filterStatus ? 'bg-gray-900 text-white shadow-sm' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-            Tous ({stats.total || 0})
-          </button>
-          {[
-            { key: 'pending', label: 'En attente', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-200' },
-            { key: 'confirmed', label: 'Confirmé', color: 'bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-200' },
-            { key: 'shipped', label: 'Expédié', color: 'bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-200' },
-            { key: 'delivered', label: 'Livré', color: 'bg-green-100 text-green-700 hover:bg-green-200 border border-green-200' },
-            { key: 'returned', label: 'Retour', color: 'bg-orange-100 text-orange-700 hover:bg-orange-200 border border-orange-200' },
-            { key: 'cancelled', label: 'Annulé', color: 'bg-red-100 text-red-700 hover:bg-red-200 border border-red-200' }
-          ].map(s => (
-            <button key={s.key} onClick={() => { setFilterStatus(filterStatus === s.key ? '' : s.key); setPage(1); }}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${filterStatus === s.key ? 'ring-2 ring-offset-2 ring-gray-400 shadow-sm ' : ''}${s.color}`}>
-              {s.label} ({stats[s.key] || 0})
-            </button>
-          ))}
-        </div>
-        
-        <div className="flex gap-3">
-          <div className="relative flex-1">
-            <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-            <input type="text" placeholder="Rechercher nom, téléphone, ville, produit..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-          </div>
-          <button onClick={() => setShowFilters(!showFilters)} className={`px-4 py-2.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-all ${showFilters || activeFiltersCount > 0 ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'}`}>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
-            Filtres avancés
-            {activeFiltersCount > 0 && <span className="bg-white text-blue-600 text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">{activeFiltersCount}</span>}
-          </button>
-        </div>
-
-        {/* Advanced filters panel */}
-        {showFilters && (
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-              <div>
-                <label className="block text-[10px] font-medium text-gray-500 mb-1">Date début</label>
-                <input type="date" value={filterStartDate} onChange={e => { setFilterStartDate(e.target.value); setPage(1); }}
-                  className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-medium text-gray-500 mb-1">Date fin</label>
-                <input type="date" value={filterEndDate} onChange={e => { setFilterEndDate(e.target.value); setPage(1); }}
-                  className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-medium text-gray-500 mb-1">Ville</label>
-                <select value={filterCity} onChange={e => { setFilterCity(e.target.value); setPage(1); }}
-                  className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">Toutes les villes</option>
-                  {uniqueCities.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-medium text-gray-500 mb-1">Produit</label>
-                <select value={filterProduct} onChange={e => { setFilterProduct(e.target.value); setPage(1); }}
-                  className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">Tous les produits</option>
-                  {uniqueProducts.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-medium text-gray-500 mb-1">Tag</label>
-                <select value={filterTag} onChange={e => { setFilterTag(e.target.value); setPage(1); }}
-                  className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="">Tous les tags</option>
-                  {uniqueTags.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+        <div className="group bg-gradient-to-br from-purple-50 via-purple-50 to-violet-100 rounded-2xl border border-purple-200/50 shadow-sm p-5 hover:shadow-lg hover:scale-[1.02] transition-all duration-300 cursor-pointer relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-purple-400/10 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-500"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-purple-700 uppercase tracking-wider">En cours</p>
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-violet-600 rounded-xl flex items-center justify-center shadow-lg group-hover:rotate-12 transition-transform duration-300">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               </div>
             </div>
-            {activeFiltersCount > 0 && (
-              <div className="flex items-center justify-between mt-2.5">
-                <div className="flex flex-wrap gap-1.5">
-                  {filterStartDate && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[10px] font-medium">Depuis: {filterStartDate} <button onClick={() => { setFilterStartDate(''); setPage(1); }} className="hover:text-blue-900">&times;</button></span>}
-                  {filterEndDate && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[10px] font-medium">Jusqu'au: {filterEndDate} <button onClick={() => { setFilterEndDate(''); setPage(1); }} className="hover:text-blue-900">&times;</button></span>}
-                  {filterCity && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full text-[10px] font-medium">{filterCity} <button onClick={() => { setFilterCity(''); setPage(1); }} className="hover:text-purple-900">&times;</button></span>}
-                  {filterProduct && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 rounded-full text-[10px] font-medium">{filterProduct} <button onClick={() => { setFilterProduct(''); setPage(1); }} className="hover:text-green-900">&times;</button></span>}
-                  {filterTag && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-50 text-orange-700 rounded-full text-[10px] font-medium">{filterTag} <button onClick={() => { setFilterTag(''); setPage(1); }} className="hover:text-orange-900">&times;</button></span>}
-                </div>
-                <button onClick={clearAllFilters} className="text-[10px] text-red-600 hover:text-red-800 font-medium">Tout effacer</button>
-              </div>
-            )}
+            <p className="text-2xl font-extrabold text-gray-900 mb-1 tracking-tight">{filteredStats.delivered || 0}</p>
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-semibold">{filteredStats.delivered || 0} livrées</span>
+              <span className="text-gray-300">·</span>
+              <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full font-semibold">{(filteredStats.pending || 0) + (filteredStats.confirmed || 0) + (filteredStats.shipped || 0)} en cours</span>
+            </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Orders */}
@@ -1432,84 +1737,99 @@ const OrdersList = () => {
       ) : (
         <>
           {/* Vue tableau structuré — Desktop adapté au Google Sheet */}
-          <div className="hidden md:block bg-white rounded-xl shadow-sm border overflow-hidden">
+          <div className="hidden md:block bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
+                  <tr className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b-2 border-gray-200">
                     {/* Colonnes fixes */}
-                    <th className="px-3 py-3 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Nom</th>
+                    <th className="px-4 py-4 text-left text-[11px] font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">Nom</th>
                     
                     {/* Colonnes dynamiques selon le Google Sheet */}
                     {getDisplayFields(selectedSourceId).map(field => (
-                      <th key={field.key} className="px-3 py-3 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      <th key={field.key} className="px-4 py-4 text-left text-[11px] font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">
                         {field.label}
                       </th>
                     ))}
                     
                     {/* Colonnes fixes */}
-                    <th className="px-3 py-3 text-right text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Total</th>
-                    <th className="px-3 py-3 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky right-0 bg-gray-50">Statut</th>
+                    <th className="px-4 py-4 text-right text-[11px] font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">Total</th>
+                    <th className="px-4 py-4 text-left text-[11px] font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap sticky right-0 bg-gradient-to-r from-gray-50 to-gray-100/50">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-gray-50">
                   {orders.map((o) => {
                     const clientName = getClientName(o);
                     const totalPrice = (o.price || 0) * (o.quantity || 1);
 
                     return (
-                      <tr key={o._id} className="hover:bg-blue-50/40 transition-colors cursor-pointer group" onClick={() => navigate(`/ecom/orders/${o._id}`)}>
+                      <tr key={o._id} className="hover:bg-gradient-to-r hover:from-blue-50/60 hover:to-indigo-50/40 transition-all duration-200 cursor-pointer group border-l-4 border-l-transparent hover:border-l-blue-500 hover:shadow-sm" onClick={() => navigate(`/ecom/orders/${o._id}`)}>
                         {/* Colonne nom fixe */}
-                        <td className="px-3 py-2.5 whitespace-nowrap max-w-[160px]">
-                          <span className="text-xs font-medium text-gray-900 truncate block" title={clientName}>{clientName || <span className="text-gray-300">—</span>}</span>
-                          {o.orderId && (
-                            <span className="text-[10px] font-mono text-blue-600 bg-blue-50 px-1 py-0.5 rounded border border-blue-100 mt-0.5 inline-block">{o.orderId}</span>
-                          )}
+                        <td className="px-4 py-4 whitespace-nowrap max-w-[180px]">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-sm">
+                              {clientName ? clientName.charAt(0).toUpperCase() : '?'}
+                            </div>
+                            <div>
+                              <span className="text-sm font-semibold text-gray-900 truncate block" title={clientName}>{clientName || <span className="text-gray-300">—</span>}</span>
+                              {o.orderId && (
+                                <span className="text-[10px] font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md border border-blue-200 mt-0.5 inline-block">{o.orderId}</span>
+                              )}
+                            </div>
+                          </div>
                         </td>
                         
                         {/* Colonnes dynamiques */}
                         {getDisplayFields(selectedSourceId).map(field => {
                           const value = field.getValue(o);
                           return (
-                            <td key={field.key} className={`px-3 py-2.5 ${field.key === 'address' ? 'max-w-[150px]' : field.key === 'product' ? 'max-w-[140px]' : field.key === 'notes' ? 'max-w-[120px]' : 'whitespace-nowrap'}`}>
+                            <td key={field.key} className={`px-4 py-4 ${field.key === 'address' ? 'max-w-[160px]' : field.key === 'product' ? 'max-w-[150px]' : field.key === 'notes' ? 'max-w-[130px]' : 'whitespace-nowrap'}`}>
                               {value ? (
-                                <span className={`text-xs ${field.key === 'clientPhone' ? 'text-gray-600 font-mono' : field.key === 'notes' ? 'text-gray-500' : 'text-gray-700'} truncate block`} title={String(value)}>
+                                <span className={`text-sm ${field.key === 'clientPhone' ? 'text-gray-700 font-mono bg-gray-50 px-2 py-1 rounded-md' : field.key === 'notes' ? 'text-gray-500 italic' : 'text-gray-800 font-medium'} truncate block`} title={String(value)}>
                                   {field.key === 'price' ? fmt(value) : 
                                    field.key === 'date' ? fmtDate(value) :
                                    field.key === 'quantity' && o.quantity > 1 ? `${value}×${o.quantity}` :
                                    String(value)}
                                 </span>
                               ) : (
-                                <span className="text-gray-300">—</span>
+                                <span className="text-gray-300 text-sm">—</span>
                               )}
                             </td>
                           );
                         })}
                         
                         {/* Colonne total fixe */}
-                        <td className="px-3 py-2.5 whitespace-nowrap text-right">
-                          <span className="text-xs font-semibold text-gray-900">{totalPrice > 0 ? fmt(totalPrice) : <span className="text-gray-300">—</span>}</span>
+                        <td className="px-4 py-4 whitespace-nowrap text-right">
+                          {totalPrice > 0 ? (
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
+                              <svg className="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/></svg>
+                              <span className="text-sm font-bold text-green-700">{fmt(totalPrice)}</span>
+                            </div>
+                          ) : (
+                            <span className="text-gray-300 text-sm">—</span>
+                          )}
                         </td>
                         
-                        {/* Colonne statut fixe */}
-                        <td className="px-3 py-2.5 whitespace-nowrap sticky right-0 bg-white group-hover:bg-blue-50/40 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                          <select value={o.status} onChange={(e) => { if (e.target.value === '__custom') { const c = prompt('Entrez le statut personnalisé :'); if (c && c.trim()) handleStatusChange(o._id, c.trim()); } else handleStatusChange(o._id, e.target.value); }}
-                            className={`text-[10px] px-2 py-1 rounded-full font-medium border cursor-pointer focus:ring-2 focus:ring-blue-400 focus:outline-none ${getStatusColor(o.status)}`}>
-                            {Object.entries(SL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                            {!SL[o.status] && <option value={o.status}>{o.status}</option>}
-                            <option value="__custom">+ Personnalisé...</option>
-                          </select>
-                          {/* Bouton copier */}
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleCopyOrder(o); }}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition"
-                            title="Copier la commande"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                            Copier
-                          </button>
+                        {/* Colonne actions fixe */}
+                        <td className="px-4 py-4 whitespace-nowrap sticky right-0 bg-white group-hover:bg-gradient-to-r group-hover:from-blue-50/60 group-hover:to-indigo-50/40" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-2">
+                            <select value={o.status} onChange={(e) => { if (e.target.value === '__custom') { const c = prompt('Entrez le statut personnalisé :'); if (c && c.trim()) handleStatusChange(o._id, c.trim()); } else handleStatusChange(o._id, e.target.value); }}
+                              className={`text-xs px-3 py-1.5 rounded-lg font-semibold border-2 cursor-pointer focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all hover:shadow-md ${getStatusColor(o.status)}`}>
+                              {Object.entries(SL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                              {!SL[o.status] && <option value={o.status}>{o.status}</option>}
+                              <option value="__custom">+ Personnalisé...</option>
+                            </select>
+                            {/* Bouton copier - icône uniquement */}
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleCopyOrder(o); }}
+                              className="inline-flex items-center justify-center w-8 h-8 text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-all hover:shadow-md hover:scale-110"
+                              title="Copier la commande"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1659,17 +1979,57 @@ const OrdersList = () => {
       )}
 
       {/* Pagination */}
-      {pagination.pages > 1 && (
-        <div className="flex items-center justify-between mt-4 bg-white rounded-xl shadow-sm border px-4 py-2.5">
-          <p className="text-[11px] text-gray-400">Page {page}/{pagination.pages} · {pagination.total} commandes</p>
+      <div className="flex items-center justify-between mt-4 bg-white rounded-xl shadow-sm border px-4 py-2.5">
+        <div className="flex items-center gap-3">
+          <p className="text-[11px] text-gray-400">
+            {pagination.pages > 1 ? (
+              <>Page {page}/{pagination.pages} · {pagination.total} commandes</>
+            ) : (
+              <>{orders.length} commande{orders.length > 1 ? 's' : ''} affichée{orders.length > 1 ? 's' : ''}</>
+            )}
+          </p>
+          <div className="flex items-center gap-2">
+            <label className="text-[11px] text-gray-500 font-medium">Lignes par page:</label>
+            <select 
+              value={itemsPerPage} 
+              onChange={(e) => { setItemsPerPage(Number(e.target.value)); setPage(1); }}
+              className="text-[11px] px-2 py-1 border border-gray-200 rounded-md bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={200}>200</option>
+              <option value={500}>500</option>
+            </select>
+          </div>
+        </div>
+        {pagination.pages > 1 && (
           <div className="flex gap-1">
-            <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1} className="px-3 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30">Préc</button>
-            <button onClick={() => setPage(Math.min(pagination.pages, page + 1))} disabled={page >= pagination.pages} className="px-3 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30">Suiv</button>
+            <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1} className="px-3 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">Préc</button>
+            <button onClick={() => setPage(Math.min(pagination.pages, page + 1))} disabled={page >= pagination.pages} className="px-3 py-1 text-xs rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">Suiv</button>
+          </div>
+        )}
+      </div>
+
+      {/* Modal Configuration WhatsApp Automatique */}
+      {showWhatsAppConfig && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowWhatsAppConfig(false)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900">Configuration WhatsApp automatique</h3>
+              <button onClick={() => setShowWhatsAppConfig(false)} className="text-gray-400 hover:text-gray-600 p-1">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="bg-blue-50 rounded-lg p-3">
+                <p className="text-xs font-medium text-blue-700 mb-2">Configuration WhatsApp</p>
+                <p className="text-xs text-blue-600">Configurez les numéros WhatsApp pour recevoir automatiquement les notifications de nouvelles commandes.</p>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Modal Configuration WhatsApp Automatique */}
       {/* Modal Créer/Modifier Commande */}
       {showOrderModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowOrderModal(false)}>
@@ -2078,8 +2438,7 @@ const OrdersList = () => {
           </div>
         </div>
       )}
-
-    </div>
+    </div>  
   );
 };
 
