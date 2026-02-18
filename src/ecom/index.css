@@ -24,7 +24,7 @@
 }
 
 /* 🆕 Optimisations Mobile */
-/* Safe areas pour les mobiles modernes (iPhone X, etc.) */
+/* Safe areas pour les mobiles modernes (iPhone X+, Dynamic Island) */
 .safe-area-top {
   padding-top: env(safe-area-inset-top);
 }
@@ -43,6 +43,35 @@
 
 .safe-area-all {
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* Navigation fixe en bas: ajouter la home bar de l'iPhone sous les boutons */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Hauteur totale correcte sur iOS Safari (évite le bug 100vh) */
+.h-dvh { height: 100dvh; }
+.min-h-dvh { min-height: 100dvh; }
+
+/* Contenu principal: décaler vers le bas pour le Dynamic Island */
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Barre de nav fixe en bas: hauteur + home indicator */
+.bottom-nav-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4px);
+}
+
+/* Contenu scrollable: ne pas être caché sous la nav bottom */
+.content-with-bottom-nav {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+}
+
+/* Padding bottom = nav (64px) + home indicator iPhone (safe-area) */
+.pb-safe-nav {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 5rem);
 }
 
 /* 🆕 Optimisations pour le tactile sur mobile */

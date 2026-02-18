@@ -80,20 +80,34 @@ function timeAgo(dateStr) {
 
 export function useNotifications() {
   const [unreadCount, setUnreadCount] = useState(0);
+  const failCountRef = useRef(0);
+  const intervalRef = useRef(null);
 
   const fetchUnreadCount = useCallback(async () => {
     try {
       const res = await notificationsApi.getUnreadCount();
       setUnreadCount(res.data?.data?.count || 0);
+      failCountRef.current = 0; // reset backoff on success
     } catch {
+      failCountRef.current += 1;
       // silent fail
     }
   }, []);
 
   useEffect(() => {
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
+
+    const schedule = () => {
+      // Backoff exponentiel: 30s, 60s, 120s, 240s, max 300s
+      const backoff = Math.min(30000 * Math.pow(2, failCountRef.current), 300000);
+      intervalRef.current = setTimeout(async () => {
+        await fetchUnreadCount();
+        schedule(); // re-schedule après chaque fetch
+      }, backoff);
+    };
+
+    schedule();
+    return () => clearTimeout(intervalRef.current);
   }, [fetchUnreadCount]);
 
   return { unreadCount, refreshCount: fetchUnreadCount };

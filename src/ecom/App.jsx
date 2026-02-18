@@ -108,8 +108,10 @@ class ErrorBoundary extends React.Component {
 const ProtectedRoute = ({ children, requiredRole }) => {
   const { user, isAuthenticated, loading } = useEcomAuth();
 
-  // Pendant le chargement initial, afficher le spinner
-  if (loading) {
+  // Si on charge ET qu'on n'a pas de données locales → spinner
+  // Si on a déjà token+user en local → afficher directement (vérification réseau en arrière-plan)
+  const hasLocalSession = !!localStorage.getItem('ecomToken') && !!localStorage.getItem('ecomUser');
+  if (loading && !hasLocalSession) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -156,7 +158,8 @@ const ProtectedRoute = ({ children, requiredRole }) => {
 const DashboardRedirect = () => {
   const { user, isAuthenticated, loading } = useEcomAuth();
 
-  if (loading) {
+  const hasLocalSession = !!localStorage.getItem('ecomToken') && !!localStorage.getItem('ecomUser');
+  if (loading && !hasLocalSession) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">

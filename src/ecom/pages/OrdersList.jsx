@@ -953,7 +953,8 @@ const OrdersList = () => {
   
   const filteredStats = useMemo(() => {
     if (!hasActiveFilters) {
-      // Aucun filtre actif, utiliser les stats globales
+      // Aucun filtre actif: utiliser les stats globales du serveur (toutes commandes, pas paginées)
+      // stats.totalRevenue = revenu livré calculé côté serveur sur TOUTES les commandes livrées
       return {
         total: stats.total || 0,
         delivered: stats.delivered || 0,
@@ -961,7 +962,8 @@ const OrdersList = () => {
         pending: stats.pending || 0,
         confirmed: stats.confirmed || 0,
         shipped: stats.shipped || 0,
-        totalRevenue: stats.totalRevenue || 0
+        totalRevenue: stats.totalRevenue || 0,
+        deliveredRevenue: stats.totalRevenue || 0
       };
     }
     
