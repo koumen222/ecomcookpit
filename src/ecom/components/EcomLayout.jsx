@@ -5,7 +5,7 @@ import CurrencySelector from './CurrencySelector.jsx';
 import NotificationPanel, { useNotifications } from './NotificationPanel.jsx';
 import PushNotificationBanner from './PushNotificationBanner.jsx';
 import InstallPrompt from './InstallPrompt.jsx';
-import ChatWidget from './ChatWidget.jsx';
+import { useDmUnread } from '../hooks/useDmUnread.js';
 
 const EcomLayout = ({ children }) => {
   const { user, workspace, logout, isImpersonating, impersonatedUser, stopImpersonation } = useEcomAuth();
@@ -17,6 +17,7 @@ const EcomLayout = ({ children }) => {
   const userMenuRef = useRef(null);
   const notifRef = useRef(null);
   const { unreadCount, refreshCount } = useNotifications();
+  const { unreadDm, clearUnread } = useDmUnread();
 
   // Utiliser l'utilisateur incarné si en mode incarnation, sinon l'utilisateur normal
   const displayUser = isImpersonating ? impersonatedUser : user;
@@ -280,8 +281,8 @@ const EcomLayout = ({ children }) => {
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0 lg:ml-[240px]">
-        {/* ── Mobile Header: Apple frosted glass ── */}
-        <header className="lg:hidden bg-white/80 backdrop-blur-xl border-b border-gray-200/60 sticky top-0 z-20 pt-safe">
+        {/* ── Mobile Header: Apple frosted glass (hidden on chat) ── */}
+        <header className={`lg:hidden bg-white/80 backdrop-blur-xl border-b border-gray-200/60 sticky top-0 z-20 pt-safe ${location.pathname.startsWith('/ecom/chat') ? 'hidden' : ''}`}>
           <div className="flex items-center justify-between h-11 px-4">
             <div className="flex items-center gap-2.5 flex-1 min-w-0">
               <div className={`w-8 h-8 ${roleColors[displayUser?.role] || 'bg-gray-900'} rounded-full flex items-center justify-center flex-shrink-0 shadow-sm`}>
@@ -292,6 +293,19 @@ const EcomLayout = ({ children }) => {
               </div>
             </div>
             <div className="flex items-center gap-0.5 flex-shrink-0">
+              {/* Messages icon mobile */}
+              <Link
+                to="/ecom/chat"
+                onClick={clearUnread}
+                className={`relative w-9 h-9 flex items-center justify-center rounded-full transition-colors ${
+                  location.pathname.startsWith('/ecom/chat') ? 'text-blue-500' : 'text-gray-900'
+                } active:bg-gray-100/80`}
+              >
+                <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                {unreadDm > 0 && !location.pathname.startsWith('/ecom/chat') && (
+                  <span className="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] flex items-center justify-center px-1 rounded-full bg-[#25D366] text-white text-[11px] font-bold shadow-sm">{unreadDm > 99 ? '99+' : unreadDm}</span>
+                )}
+              </Link>
               <div className="relative" ref={notifRef}>
                 <button onClick={() => { setNotifOpen(!notifOpen); setUserMenuOpen(false); }} className="relative w-9 h-9 flex items-center justify-center rounded-full active:bg-gray-100/80 transition-colors">
                   <svg className="w-[22px] h-[22px] text-gray-900" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
@@ -313,6 +327,20 @@ const EcomLayout = ({ children }) => {
               </div>
             </div>
             <div className="flex items-center gap-1">
+              {/* Messages icon - Facebook style */}
+              <Link
+                to="/ecom/chat"
+                onClick={clearUnread}
+                className={`relative p-2 rounded-lg transition-colors ${
+                  location.pathname.startsWith('/ecom/chat') ? 'text-blue-600 bg-blue-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+                title="Messages"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                {unreadDm > 0 && !location.pathname.startsWith('/ecom/chat') && (
+                  <span className="absolute top-1 right-1 min-w-[16px] h-4 flex items-center justify-center px-1 rounded-full bg-[#25D366] text-white text-[10px] font-bold">{unreadDm > 99 ? '99+' : unreadDm}</span>
+                )}
+              </Link>
               <div className="relative" ref={notifRef}>
                 <button onClick={() => { setNotifOpen(!notifOpen); setUserMenuOpen(false); }} className="relative p-2 text-gray-500 hover:text-gray-700 rounded-lg">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
@@ -360,11 +388,8 @@ const EcomLayout = ({ children }) => {
       {/* PWA Install Prompt */}
       <InstallPrompt />
 
-      {/* Chat Équipe flottant */}
-      <ChatWidget />
-
-      {/* ── iOS-Style Bottom Tab Bar ── */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-xl border-t border-gray-200/60">
+      {/* ── iOS-Style Bottom Tab Bar (hidden on chat page) ── */}
+      <nav className={`lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-xl border-t border-gray-200/60 ${location.pathname.startsWith('/ecom/chat') ? 'hidden' : ''}`}>
         <div className="flex items-stretch justify-around px-2 bottom-nav-safe" style={{ height: '50px' }}>
           {mobileMainTabs.map((item) => {
             const active = isActive(item.href);

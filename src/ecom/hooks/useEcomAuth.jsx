@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { authApi } from '../services/ecommApi.js';
+import { logAuthEvent, logWorkspace, logUserAction } from '../services/prodLogger.js';
 
 // Contexte d'authentification e-commerce
 const EcomAuthContext = createContext();
@@ -140,6 +141,7 @@ export const EcomAuthProvider = ({ children }) => {
 
   // Effacer le token du localStorage
   const clearToken = () => {
+    logAuthEvent('token_cleared', { reason: 'explicit_clear' });
     localStorage.removeItem('ecomToken');
     localStorage.removeItem('ecomUser');
     localStorage.removeItem('ecomWorkspace');
@@ -149,14 +151,13 @@ export const EcomAuthProvider = ({ children }) => {
 
   // Sauvegarder le token dans le localStorage
   const saveToken = (token, user, workspace) => {
-    console.log('💾 Sauvegarde du token et des données utilisateur...');
+    logAuthEvent('token_saved', { userEmail: user?.email, userRole: user?.role, hasWorkspace: !!workspace });
     localStorage.setItem('ecomToken', token);
     localStorage.setItem('ecomUser', JSON.stringify(user));
     if (workspace) {
       localStorage.setItem('ecomWorkspace', JSON.stringify(workspace));
-      console.log('🏢 Workspace sauvegardé:', workspace.name);
+      logWorkspace('saved', workspace);
     }
-    console.log('✅ Données sauvegardées avec succès');
   };
 
   // Sauvegarder l'état d'incarnation
@@ -175,7 +176,9 @@ export const EcomAuthProvider = ({ children }) => {
   // Charger l'utilisateur depuis le token
   const loadUser = async () => {
     const token = localStorage.getItem('ecomToken');
-    console.log('🔍 Vérification du token:', token ? 'Token trouvé' : 'Pas de token');
+    logAuthEvent(token ? 'token_found' : 'token_missing', {
+      tokenPrefix: token ? token.slice(0, 20) + '…' : null
+    });
     
     if (!token) {
       dispatch({ type: 'LOAD_USER_FAILURE' });
@@ -183,40 +186,47 @@ export const EcomAuthProvider = ({ children }) => {
     }
 
     try {
-      console.log('👤 Tentative de chargement du profil...');
-      console.log('🔑 Token utilisé:', token);
-      
+      logAuthEvent('load_user_start', { tokenPrefix: token.slice(0, 20) + '…' });
       const response = await authApi.getProfile();
-      console.log('📩 Réponse complète de getProfile:', response);
-      console.log('📦 Données utilisateur:', response.data);
       
       const wsData = response.data.data.workspace;
-      if (wsData) localStorage.setItem('ecomWorkspace', JSON.stringify(wsData));
+      if (wsData) {
+        localStorage.setItem('ecomWorkspace', JSON.stringify(wsData));
+        logWorkspace('loaded', wsData);
+      }
+
+      const userData = response.data.data.user;
+      logAuthEvent('load_user_success', {
+        userEmail: userData?.email,
+        userRole: userData?.role,
+        userId: userData?._id,
+        workspaceId: wsData?._id,
+        workspaceName: wsData?.name,
+      });
       
       dispatch({
         type: 'LOAD_USER_SUCCESS',
-        payload: { user: response.data.data.user, workspace: wsData }
+        payload: { user: userData, workspace: wsData }
       });
     } catch (error) {
-      console.error('❌ Erreur chargement utilisateur - Détails complets:');
-      console.error('Status:', error.response?.status);
-      console.error('Status Text:', error.response?.statusText);
-      console.error('Response Data:', error.response?.data);
-      console.error('Message:', error.message);
-      console.error('Config:', error.config);
+      logAuthEvent('load_user_failure', {
+        status: error.response?.status,
+        message: error.message,
+        isNetwork: !error.response,
+      });
       
       // NE déconnecter que pour les vraies erreurs 401 (token invalide)
       // PAS pour les erreurs réseau (backend inaccessible)
       if (error.response?.status === 401) {
-        console.log('🔐 Token invalide - déconnexion');
         clearToken();
         dispatch({ type: 'LOAD_USER_FAILURE' });
       } else if (!error.response) {
         // Erreur réseau - garder l'utilisateur connecté avec les données locales
-        console.log('🌐 Erreur réseau - maintien de la session locale');
+        logAuthEvent('load_user_network', { message: error.message });
         const userData = JSON.parse(localStorage.getItem('ecomUser') || 'null');
         const workspaceData = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
         if (userData) {
+          logAuthEvent('session_restored', { userEmail: userData?.email, source: 'localStorage' });
           dispatch({
             type: 'LOAD_USER_SUCCESS',
             payload: { user: userData, workspace: workspaceData }
@@ -226,10 +236,10 @@ export const EcomAuthProvider = ({ children }) => {
         }
       } else {
         // Autre erreur serveur (500, etc) - garder la session
-        console.log('⚠️ Erreur serveur - maintien de la session');
         const userData = JSON.parse(localStorage.getItem('ecomUser') || 'null');
         const workspaceData = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
         if (userData) {
+          logAuthEvent('session_restored', { userEmail: userData?.email, source: 'localStorage_server_error', status: error.response?.status });
           dispatch({
             type: 'LOAD_USER_SUCCESS',
             payload: { user: userData, workspace: workspaceData }
@@ -244,18 +254,20 @@ export const EcomAuthProvider = ({ children }) => {
   // Connexion
   const login = async (email, password) => {
     dispatch({ type: 'LOGIN_START' });
+    logAuthEvent('login_start', { email });
 
     try {
-      console.log('🔐 Tentative de connexion avec:', email);
       const response = await authApi.login({ email, password });
-      console.log('📩 Réponse de l\'API:', response.data);
-      
       const { token, user, workspace } = response.data.data;
-      console.log('🔑 Token et utilisateur extraits:', { token, user, workspace });
 
-      // Sauvegarder le token et l'utilisateur
       saveToken(token, user, workspace);
-      console.log('💾 Token sauvegardé dans localStorage');
+      logAuthEvent('login_success', {
+        userEmail: user?.email,
+        userRole: user?.role,
+        userId: user?._id,
+        workspaceId: workspace?._id,
+        workspaceName: workspace?.name,
+      });
 
       dispatch({
         type: 'LOGIN_SUCCESS',
@@ -264,8 +276,12 @@ export const EcomAuthProvider = ({ children }) => {
 
       return response.data;
     } catch (error) {
-      console.error('❌ Erreur de connexion:', error);
       const errorMessage = error.response?.data?.message || 'Erreur de connexion';
+      logAuthEvent('login_failure', {
+        email,
+        status: error.response?.status,
+        message: errorMessage,
+      });
       dispatch({
         type: 'LOGIN_FAILURE',
         payload: errorMessage
@@ -276,6 +292,7 @@ export const EcomAuthProvider = ({ children }) => {
 
   // Déconnexion
   const logout = () => {
+    logAuthEvent('logout', { userEmail: state.user?.email, userRole: state.user?.role });
     clearToken();
     dispatch({ type: 'LOGOUT' });
   };
@@ -283,11 +300,13 @@ export const EcomAuthProvider = ({ children }) => {
   // Inscription (création espace ou rejoindre)
   const register = async (userData) => {
     try {
+      logUserAction('register_attempt', { email: userData.email });
       const response = await authApi.register(userData);
       const { token, user, workspace } = response.data.data;
       
       // Auto-login après inscription
       saveToken(token, user, workspace);
+      logAuthEvent('login_success', { userEmail: user?.email, userRole: user?.role, source: 'register' });
       dispatch({
         type: 'LOGIN_SUCCESS',
         payload: { token, user, workspace }
@@ -296,6 +315,7 @@ export const EcomAuthProvider = ({ children }) => {
       return response.data;
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Erreur d\'inscription';
+      logUserAction('register_failure', { email: userData.email, message: errorMessage });
       throw new Error(errorMessage);
     }
   };
@@ -354,8 +374,7 @@ export const EcomAuthProvider = ({ children }) => {
         // Utiliser les données fournies directement (depuis la liste des utilisateurs)
         targetUser = targetUserData;
         targetWorkspace = targetUserData.workspaceId;
-        console.log('🎭 Incarnation avec données fournies:', targetUser.email);
-        console.log('🏢 Workspace cible:', targetWorkspace?.name || 'Sans workspace');
+        logAuthEvent('impersonate_start', { targetEmail: targetUser.email, targetWorkspace: targetWorkspace?.name });
       } else {
         // Approche de secours avec données simulées
         targetUser = {
@@ -365,7 +384,7 @@ export const EcomAuthProvider = ({ children }) => {
           workspaceId: null
         };
         targetWorkspace = null;
-        console.log('🎭 Incarnation avec données simulées');
+      logAuthEvent('impersonate_start', { targetId: targetUserId, mode: 'simulated' });
       }
 
       // Démarrer l'incarnation
@@ -384,10 +403,9 @@ export const EcomAuthProvider = ({ children }) => {
       // Mettre à jour le workspace actif dans localStorage
       if (targetWorkspace) {
         localStorage.setItem('ecomWorkspace', JSON.stringify(targetWorkspace));
-        console.log('💾 Workspace sauvegardé:', targetWorkspace.name);
+        logWorkspace('impersonation_active', targetWorkspace);
       }
 
-      console.log('🎭 Incarnation réussie pour:', targetUser.email, 'workspace:', targetWorkspace?.name);
       return { success: true, targetUser, targetWorkspace };
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Erreur lors de l\'incarnation';
@@ -413,13 +431,13 @@ export const EcomAuthProvider = ({ children }) => {
     // Effacer l'état d'incarnation
     clearImpersonation();
     
+    logAuthEvent('impersonate_stop', { originalEmail: state.originalUser?.email });
     // Restaurer le workspace original du Super Admin
     if (state.originalUser?.workspace) {
       localStorage.setItem('ecomWorkspace', JSON.stringify(state.originalUser.workspace));
-      console.log('🔄 Workspace original restauré:', state.originalUser.workspace?.name);
+      logWorkspace('restored', state.originalUser.workspace);
     } else {
       localStorage.removeItem('ecomWorkspace');
-      console.log('🔄 Workspace supprimé (Super Admin sans workspace)');
     }
 
     // Naviguer vers le dashboard Super Admin
@@ -470,7 +488,7 @@ export const EcomAuthProvider = ({ children }) => {
 
   // Charger l'utilisateur au montage du composant
   useEffect(() => {
-    console.log('🚀 EcomAuthProvider monté, début du loadUser');
+    logAuthEvent('provider_mounted', { url: window.location.pathname });
     loadUser();
     // Restaurer l'incarnation si elle existe
     restoreImpersonation();

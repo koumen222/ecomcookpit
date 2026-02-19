@@ -1,955 +1,972 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
 import { useAudioRecorder } from '../hooks/useAudioRecorder.js';
 import { useMediaUpload } from '../hooks/useMediaUpload.js';
-import {
-  AudioPlayer, ImageMessage, VideoMessage, DocumentMessage,
-  ReplyPreview, MessageStatus, MessageReactions, TypingIndicator,
-  RecordingIndicator, UploadProgress, EmojiPicker
-} from '../components/MessageComponents.jsx';
 import { io } from 'socket.io-client';
 
-const EMOJIS = ['💬','📦','💰','🚚','🏭','📣','📊','🎯','🔔','⚡','🛒','👥','📝','🔧','🌟'];
-const ROLE_COLORS = { ecom_admin:'bg-blue-600', ecom_closeuse:'bg-pink-500', ecom_compta:'bg-emerald-500', ecom_livreur:'bg-orange-500', super_admin:'bg-purple-600' };
-const ROLE_LABELS = { ecom_admin:'Admin', ecom_closeuse:'Closeuse', ecom_compta:'Compta', ecom_livreur:'Livreur', super_admin:'Super Admin' };
+const ROLE_COLORS = { 
+  ecom_admin: 'bg-blue-600', 
+  ecom_closeuse: 'bg-pink-500', 
+  ecom_compta: 'bg-emerald-500', 
+  ecom_livreur: 'bg-orange-500', 
+  super_admin: 'bg-purple-600' 
+};
 
-const renderContent = (content, own) => {
+const CHANNEL_COLORS = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500', 'bg-teal-500'];
+
+const formatTime = (d) => {
+  const date = new Date(d);
+  const now = new Date();
+  const diff = Math.floor((now - date) / 86400000);
+  if (diff === 0) return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  if (diff === 1) return 'Hier';
+  if (diff < 7) return date.toLocaleDateString('fr-FR', { weekday: 'short' });
+  return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+};
+
+const getInitial = (n) => (n || 'U').charAt(0).toUpperCase();
+
+// Génère une couleur unique par nom (pour les groupes)
+const stringToColor = (str = '') => {
+  const colors = ['#E53935','#8E24AA','#1E88E5','#00897B','#F4511E','#6D4C41','#039BE5','#7CB342','#FB8C00','#D81B60'];
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+};
+
+const renderMessageContent = (content, own) => {
+  if (!content) return null;
+  const linkMatch = content.match(/🔗\s*(\/ecom\/\S+)/);
+  if (linkMatch) {
+    const link = linkMatch[1];
+    const lines = content.split('\n').filter(l => !l.startsWith('🔗'));
+    const emoji = lines[0]?.match(/^(📦|🏷️|📊|👤|💰|📎)\s*/)?.[1] || '📎';
+    const title = lines[0]?.replace(/^(📦|🏷️|📊|👤|💰|📎)\s*/, '') || '';
+    const subtitle = lines.slice(1).join(' ').trim();
+    return (
+      <Link to={link} className={`block rounded-xl p-3 min-w-[200px] transition-colors border ${own ? 'bg-white/15 border-white/20 hover:bg-white/25' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'}`}>
+        <div className="flex items-start gap-2">
+          <span className="text-xl flex-shrink-0">{emoji}</span>
+          <div className="min-w-0 flex-1">
+            <p className={`text-[13px] font-bold leading-tight ${own ? 'text-white' : 'text-slate-800'}`}>{title}</p>
+            {subtitle && <p className={`text-[11px] mt-0.5 ${own ? 'text-white/70' : 'text-slate-500'}`}>{subtitle}</p>}
+            <p className={`text-[11px] font-semibold mt-1.5 ${own ? 'text-white/80' : 'text-blue-600'}`}>Ouvrir →</p>
+          </div>
+        </div>
+      </Link>
+    );
+  }
   const parts = content.split(/(@\S+)/g);
-  return parts.map((part, i) =>
-    part.startsWith('@')
-      ? <span key={i} className={`font-semibold ${own ? 'text-blue-100 bg-blue-500' : 'text-blue-700 bg-blue-50'} px-1 rounded`}>{part}</span>
-      : part
+  return (
+    <p className={`text-[15px] leading-relaxed whitespace-pre-wrap break-words ${own ? 'text-white' : 'text-slate-900'}`}>
+      {parts.map((part, i) =>
+        part.startsWith('@')
+          ? <span key={i} className={`font-bold px-1 rounded ${own ? 'bg-white/20' : 'text-blue-600 bg-blue-50'}`}>{part}</span>
+          : part
+      )}
+    </p>
   );
 };
 
-const formatTime = (d) => {
-  const date = new Date(d), now = new Date();
-  const diff = Math.floor((now - date) / 86400000);
-  if (diff === 0) return date.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
-  if (diff === 1) return 'Hier ' + date.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
-  return date.toLocaleDateString('fr-FR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+const normalizeId = (value) => {
+  if (!value) return null;
+  // populated object { _id: ... }
+  if (typeof value === 'object' && value._id) return String(value._id);
+  // bson ObjectId has toString() that returns hex
+  return String(value);
 };
-const getInitial = (n) => (n || 'U').charAt(0).toUpperCase();
 
 export default function TeamChat() {
   const { user } = useEcomAuth();
-  const [searchParams] = useSearchParams();
-  const [tab, setTab] = useState('channels');
+  const navigate = useNavigate();
+  const [tab, setTab] = useState('dm'); // 'dm' or 'groups'
+  const [view, setView] = useState('list'); // 'list' or 'chat'
+  const [conversations, setConversations] = useState([]);
   const [channels, setChannels] = useState([]);
-  const [unreadCounts, setUnreadCounts] = useState({});
+  const [activeConv, setActiveConv] = useState(null);
   const [activeChannel, setActiveChannel] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [replyTo, setReplyTo] = useState(null);
-  const [editingId, setEditingId] = useState(null);
-  const [editContent, setEditContent] = useState('');
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [showNewChannel, setShowNewChannel] = useState(false);
-  const [newChannelName, setNewChannelName] = useState('');
-  const [newChannelEmoji, setNewChannelEmoji] = useState('💬');
-  const [newChannelDesc, setNewChannelDesc] = useState('');
-  const [creatingChannel, setCreatingChannel] = useState(false);
   const [members, setMembers] = useState([]);
-  const [mentionQuery, setMentionQuery] = useState('');
-  const [showMentions, setShowMentions] = useState(false);
-  const [mentionIndex, setMentionIndex] = useState(0);
-  const [dmConversations, setDmConversations] = useState([]);
-  const [activeDmUser, setActiveDmUser] = useState(null);
-  const [dmMessages, setDmMessages] = useState([]);
-  const [dmNewMessage, setDmNewMessage] = useState('');
-  const [dmSending, setDmSending] = useState(false);
-  const [dmLoading, setDmLoading] = useState(false);
-  const [showStartDm, setShowStartDm] = useState(false);
-  const [dmSearch, setDmSearch] = useState('');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [mobileView, setMobileView] = useState('list');
-
-  // New state for WhatsApp-like features
-  const [dmTyping, setDmTyping] = useState(false);
-  const [dmTypingName, setDmTypingName] = useState('');
-  const [dmReplyTo, setDmReplyTo] = useState(null);
-  const [showDmEmojiPicker, setShowDmEmojiPicker] = useState(null); // messageId
-  const [dmUploadPreview, setDmUploadPreview] = useState(null); // { file, kind, url }
-  const [dmUploadProgress, setDmUploadProgress] = useState(0);
-  const [dmCursor, setDmCursor] = useState(null);
-  const [dmHasMore, setDmHasMore] = useState(false);
-  const [dmLoadingMore, setDmLoadingMore] = useState(false);
-  const [lightboxSrc, setLightboxSrc] = useState(null);
-  const socketRef = useRef(null);
-  const typingTimerRef = useRef(null);
-  const fileInputRef = useRef(null);
+  const [search, setSearch] = useState('');
+  const [showNewChat, setShowNewChat] = useState(false);
+  const [showNewGroup, setShowNewGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupEmoji, setNewGroupEmoji] = useState('💬');
+  const [replyTo, setReplyTo] = useState(null);
+  const [typing, setTyping] = useState(false);
+  const [typingName, setTypingName] = useState('');
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const [shareType, setShareType] = useState(null); // 'order','product','report','client','transaction'
+  const [shareSearch, setShareSearch] = useState('');
+  const [shareResults, setShareResults] = useState([]);
+  const [shareLoading, setShareLoading] = useState(false);
 
   const messagesEndRef = useRef(null);
-  const dmEndRef = useRef(null);
   const inputRef = useRef(null);
-  const dmInputRef = useRef(null);
-  const pollRef = useRef(null);
-  const dmPollRef = useRef(null);
-  const lastMsgIdRef = useRef(null);
-  const lastDmIdRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const socketRef = useRef(null);
+  const typingTimerRef = useRef(null);
   const token = localStorage.getItem('ecomToken');
 
-  // Audio recorder hook
-  const {
-    isRecording, duration: recDuration, formattedDuration,
-    audioBlob, error: recError,
-    startRecording, stopRecording, cancelRecording, clearRecording
-  } = useAudioRecorder();
-
-  // Media upload hook
+  const { isRecording, formattedDuration, audioBlob, startRecording, stopRecording, cancelRecording, clearRecording } = useAudioRecorder();
   const { isUploading, progress: uploadProgress, uploadFile, uploadAudio, getMediaKind } = useMediaUpload();
 
+  // API calls
   const apiFetch = useCallback(async (path, opts = {}) => {
-    const res = await fetch(`/api/ecom/messages${path}`, { ...opts, headers: { 'Content-Type':'application/json', Authorization:`Bearer ${token}`, ...opts.headers } });
+    const res = await fetch(`/api/ecom/dm${path}`, {
+      ...opts,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...opts.headers }
+    });
     return res.json();
   }, [token]);
 
-  const dmFetch = useCallback(async (path, opts = {}) => {
-    const res = await fetch(`/api/ecom/dm${path}`, { ...opts, headers: { 'Content-Type':'application/json', Authorization:`Bearer ${token}`, ...opts.headers } });
+  const msgFetch = useCallback(async (path, opts = {}) => {
+    const res = await fetch(`/api/ecom/messages${path}`, {
+      ...opts,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...opts.headers }
+    });
     return res.json();
   }, [token]);
 
+  // Load conversations
+  const loadConversations = useCallback(async () => {
+    try {
+      const data = await apiFetch('/conversations');
+      if (data.success) setConversations(data.conversations || []);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  }, [apiFetch]);
+
+  // Load channels/groups
   const loadChannels = useCallback(async () => {
     try {
-      const data = await apiFetch('/channels');
-      if (data.success) { setChannels(data.channels); setUnreadCounts(data.unreadCounts||{}); if (!activeChannel && data.channels.length>0) setActiveChannel(data.channels[0].slug); }
-    } catch (_) {}
-  }, [apiFetch, activeChannel]);
+      const data = await msgFetch('/channels');
+      if (data.success) setChannels(data.channels || []);
+    } catch (e) { console.error(e); }
+  }, [msgFetch]);
 
-  const loadMessages = useCallback(async (channel, pageNum=1, append=false) => {
-    if (!channel) return;
-    try {
-      if (pageNum===1) setLoading(true); else setLoadingMore(true);
-      const data = await apiFetch(`/${channel}?page=${pageNum}&limit=50`);
-      if (data.success) {
-        if (append) setMessages(prev => [...data.messages, ...prev]);
-        else { setMessages(data.messages); lastMsgIdRef.current=data.messages[data.messages.length-1]?._id; setTimeout(()=>messagesEndRef.current?.scrollIntoView({behavior:'smooth'}),100); }
-        setHasMore(data.pagination.page<data.pagination.pages); setPage(pageNum); setUnreadCounts(prev=>({...prev,[channel]:0}));
-      }
-    } catch (_) {} finally { setLoading(false); setLoadingMore(false); }
-  }, [apiFetch]);
-
-  const pollMessages = useCallback(async () => {
-    if (!activeChannel) return;
-    try {
-      const data = await apiFetch(`/${activeChannel}?page=1&limit=50`);
-      if (data.success && data.messages.length>0) { const lid=data.messages[data.messages.length-1]?._id; if (lid!==lastMsgIdRef.current) { setMessages(data.messages); lastMsgIdRef.current=lid; setTimeout(()=>messagesEndRef.current?.scrollIntoView({behavior:'smooth'}),100); } }
-      const cd = await apiFetch('/channels'); if (cd.success) setUnreadCounts(cd.unreadCounts||{});
-    } catch (err) {
-      if (err?.status >= 400 && err?.status < 500) { clearInterval(pollRef.current); }
-    }
-  }, [apiFetch, activeChannel]);
-
+  // Load members for new chat
   const loadMembers = useCallback(async () => {
-    try { const data=await apiFetch('/team/members'); if (data.success) setMembers(data.members); } catch (_) {}
+    try {
+      const res = await fetch('/api/ecom/messages/team/members', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) setMembers(data.members || []);
+    } catch (e) { console.error(e); }
+  }, [token]);
+
+  // Load messages for a DM conversation
+  const loadMessages = useCallback(async (userId) => {
+    if (!userId) return;
+    setLoading(true);
+    try {
+      const data = await apiFetch(`/${userId}?limit=50`);
+      if (data.success) {
+        setMessages(data.messages || []);
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        apiFetch(`/${userId}/read`, { method: 'POST' }).catch(() => {});
+      }
+    } catch (e) { console.error(e); }
+    setLoading(false);
   }, [apiFetch]);
 
-  const loadDmConversations = useCallback(async () => {
-    try { const data=await dmFetch('/conversations'); if (data.success) setDmConversations(data.conversations); } catch (_) {}
-  }, [dmFetch]);
-
-  const loadDmMessages = useCallback(async (userId, cursor = null, append = false) => {
-    if (!userId) return;
-    if (!append) setDmLoading(true); else setDmLoadingMore(true);
+  // Load messages for a channel/group
+  const loadChannelMessages = useCallback(async (channelSlug) => {
+    if (!channelSlug) return;
+    setLoading(true);
     try {
-      const params = new URLSearchParams({ limit: '50' });
-      if (cursor) { params.set('cursor', cursor); params.set('direction', 'older'); }
-      const data = await dmFetch(`/${userId}?${params}`);
+      const data = await msgFetch(`/${channelSlug}?page=1&limit=50`);
       if (data.success) {
-        if (append) {
-          setDmMessages(prev => [...data.messages, ...prev]);
-        } else {
-          setDmMessages(data.messages);
-          setTimeout(() => dmEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-        }
-        setDmCursor(data.pagination?.oldestCursor || null);
-        setDmHasMore(data.pagination?.hasMore || false);
-        lastDmIdRef.current = data.messages[data.messages.length - 1]?._id;
-        // Mark as read
-        if (!append) {
-          dmFetch(`/${userId}/read`, { method: 'POST' }).catch(() => {});
-        }
+        setMessages(data.messages || []);
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
       }
-    } catch (_) {} finally { setDmLoading(false); setDmLoadingMore(false); }
-  }, [dmFetch]);
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  }, [msgFetch]);
 
-  const pollDm = useCallback(async () => {
-    if (!activeDmUser || socketRef.current?.connected) return; // Skip polling if WebSocket active
-    try {
-      const data = await dmFetch(`/${activeDmUser._id}?limit=50`);
-      if (data.success && data.messages.length > 0) {
-        const lid = data.messages[data.messages.length - 1]?._id;
-        if (lid !== lastDmIdRef.current) {
-          setDmMessages(data.messages);
-          lastDmIdRef.current = lid;
-          setTimeout(() => dmEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-        }
-      }
-      loadDmConversations();
-    } catch (err) {
-      if (err?.status >= 400 && err?.status < 500) { clearInterval(dmPollRef.current); }
-    }
-  }, [dmFetch, activeDmUser, loadDmConversations]);
-
-  // WebSocket initialization
-  useEffect(() => {
-    const t = localStorage.getItem('ecomToken');
-    if (!t) return;
-    const socket = io('', {
-      auth: { token: t },
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000
-    });
-    socketRef.current = socket;
-
-    socket.on('message:new', (msg) => {
-      // DM: add to list if conversation is open
-      setDmMessages(prev => {
-        if (prev.some(m => m._id === msg._id)) return prev;
-        return [...prev, msg];
-      });
-      setTimeout(() => dmEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
-      loadDmConversations();
-    });
-
-    socket.on('message:status', ({ messageIds, status }) => {
-      setDmMessages(prev => prev.map(m =>
-        messageIds.includes(m._id) ? { ...m, status } : m
-      ));
-    });
-
-    socket.on('message:deleted', ({ messageId }) => {
-      setDmMessages(prev => prev.filter(m => m._id !== messageId));
-    });
-
-    socket.on('message:reaction', ({ messageId, reactions }) => {
-      setDmMessages(prev => prev.map(m =>
-        m._id === messageId ? { ...m, metadata: { ...m.metadata, reactions } } : m
-      ));
-    });
-
-    socket.on('typing:start', ({ userId, userName }) => {
-      if (activeDmUser?._id === userId) {
-        setDmTyping(true);
-        setDmTypingName(userName);
-      }
-    });
-
-    socket.on('typing:stop', ({ userId }) => {
-      if (activeDmUser?._id === userId) {
-        setDmTyping(false);
-      }
-    });
-
-    socket.on('conversation:update', () => {
-      loadDmConversations();
-    });
-
-    return () => { socket.disconnect(); };
-  }, []);
-
-  // Join conversation room when DM user changes
-  useEffect(() => {
-    if (activeDmUser && socketRef.current?.connected) {
-      socketRef.current.emit('conversation:join', { recipientId: activeDmUser._id });
-    }
-    return () => {
-      if (activeDmUser && socketRef.current?.connected) {
-        socketRef.current.emit('conversation:leave', { recipientId: activeDmUser._id });
-      }
-    };
-  }, [activeDmUser?._id]);
-
-  // Auto-stop audio recording after 2 minutes
-  useEffect(() => {
-    if (isRecording && recDuration >= 120) stopRecording();
-  }, [isRecording, recDuration, stopRecording]);
-
-  // When audio recording stops and we have a blob, auto-send
-  useEffect(() => {
-    if (audioBlob && !isRecording && activeDmUser) {
-      sendDmAudio();
-    }
-  }, [audioBlob, isRecording]);
-
-  useEffect(() => { loadChannels(); loadMembers(); loadDmConversations(); }, []);
-  useEffect(() => { if (searchParams.get('newDm') === '1') { setTab('dm'); setShowStartDm(true); } }, []);
-
-  const openChannel = (slug) => { setActiveChannel(slug); setSidebarOpen(false); setMobileView('chat'); };
-  const openDm = (otherUser) => { setActiveDmUser(otherUser); setTab('dm'); setSidebarOpen(false); setMobileView('chat'); };
-  const goBackToList = () => { setMobileView('list'); };
-  useEffect(() => { if (!activeChannel) return; loadMessages(activeChannel,1,false); clearInterval(pollRef.current); pollRef.current=setInterval(pollMessages,5000); return ()=>clearInterval(pollRef.current); }, [activeChannel]);
-  useEffect(() => { if (!activeDmUser) return; loadDmMessages(activeDmUser._id); clearInterval(dmPollRef.current); dmPollRef.current=setInterval(pollDm,5000); return ()=>clearInterval(dmPollRef.current); }, [activeDmUser?._id]);
-
+  // Send message (DM or Channel)
   const sendMessage = async (e) => {
-    e.preventDefault(); if (!newMessage.trim()||sending) return; setSending(true);
-    try { const data=await apiFetch(`/${activeChannel}`,{method:'POST',body:JSON.stringify({content:newMessage.trim(),replyTo:replyTo?._id||null})}); if (data.success) { setMessages(prev=>[...prev,data.message]); setNewMessage(''); setReplyTo(null); lastMsgIdRef.current=data.message._id; setTimeout(()=>messagesEndRef.current?.scrollIntoView({behavior:'smooth'}),50); } }
-    catch (_) {} finally { setSending(false); inputRef.current?.focus(); }
-  };
-
-  const saveEdit = async (mid) => {
-    if (!editContent.trim()) return;
-    try { const data=await apiFetch(`/${activeChannel}/${mid}`,{method:'PUT',body:JSON.stringify({content:editContent.trim()})}); if (data.success) { setMessages(prev=>prev.map(m=>m._id===mid?data.message:m)); setEditingId(null); setEditContent(''); } } catch (_) {}
-  };
-
-  const deleteMessage = async (mid) => {
-    if (!window.confirm('Supprimer ce message ?')) return;
-    try { const data=await apiFetch(`/${activeChannel}/${mid}`,{method:'DELETE'}); if (data.success) setMessages(prev=>prev.filter(m=>m._id!==mid)); } catch (_) {}
-  };
-
-  const sendDm = async (e) => {
-    e.preventDefault();
-    if ((!dmNewMessage.trim() && !dmUploadPreview) || dmSending || !activeDmUser) return;
-    setDmSending(true);
+    e?.preventDefault();
+    if (!newMessage.trim() || sending) return;
+    setSending(true);
     try {
-      const clientMessageId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const body = {
-        content: dmNewMessage.trim(),
-        clientMessageId,
-        replyTo: dmReplyTo?._id || null
-      };
-      const data = await dmFetch(`/${activeDmUser._id}`, { method: 'POST', body: JSON.stringify(body) });
-      if (data.success) {
-        if (!dmMessages.some(m => m._id === data.message._id)) {
-          setDmMessages(prev => [...prev, data.message]);
+      if (activeChannel) {
+        // Channel message
+        const data = await msgFetch(`/${activeChannel.slug}`, {
+          method: 'POST',
+          body: JSON.stringify({
+            content: newMessage.trim(),
+            replyTo: replyTo?._id || null,
+            replyToContent: replyTo?.content || null,
+            replyToSenderName: replyTo?.senderName || null
+          })
+        });
+        if (data.success) {
+          setMessages(prev => [...prev, data.message]);
+          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
         }
-        setDmNewMessage('');
-        setDmReplyTo(null);
-        lastDmIdRef.current = data.message._id;
-        setTimeout(() => dmEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
-        loadDmConversations();
+      } else if (activeConv) {
+        // DM message
+        const data = await apiFetch(`/${activeConv._id}`, {
+          method: 'POST',
+          body: JSON.stringify({
+            content: newMessage.trim(),
+            clientMessageId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            replyTo: replyTo?._id || null
+          })
+        });
+        if (data.success && !messages.some(m => m._id === data.message._id)) {
+          setMessages(prev => [...prev, data.message]);
+          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+        }
+        loadConversations();
       }
-    } catch (_) {} finally { setDmSending(false); dmInputRef.current?.focus(); }
+      setNewMessage('');
+      setReplyTo(null);
+    } catch (e) { console.error(e); }
+    setSending(false);
+    inputRef.current?.focus();
   };
 
-  const sendDmAudio = async () => {
-    if (!audioBlob || !activeDmUser) return;
-    setDmSending(true);
+  // Create new channel/group
+  const createChannel = async () => {
+    if (!newGroupName.trim()) return;
     try {
-      const result = await uploadAudio(audioBlob, recDuration * 1000, (p) => setDmUploadProgress(p));
+      const data = await msgFetch('/channels', {
+        method: 'POST',
+        body: JSON.stringify({ name: newGroupName.trim(), emoji: newGroupEmoji, description: '' })
+      });
+      if (data.success) {
+        setChannels(prev => [...prev, data.channel]);
+        setShowNewGroup(false);
+        setNewGroupName('');
+        setNewGroupEmoji('💬');
+        openChannel(data.channel);
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  // Send audio
+  const sendAudio = async () => {
+    if (!audioBlob || !activeConv) return;
+    setSending(true);
+    try {
+      const result = await uploadAudio(audioBlob, 0);
       if (result?.success) {
-        const clientMessageId = `audio-${Date.now()}`;
-        const data = await dmFetch(`/${activeDmUser._id}`, {
+        const data = await apiFetch(`/${activeConv._id}`, {
           method: 'POST',
           body: JSON.stringify({
             content: '',
             messageType: 'audio',
             mediaId: result.mediaId,
             mediaUrl: result.mediaUrl,
-            metadata: { durationMs: recDuration * 1000, mimeType: audioBlob.type, fileSize: audioBlob.size },
-            clientMessageId
+            clientMessageId: `audio-${Date.now()}`
           })
         });
         if (data.success) {
-          if (!dmMessages.some(m => m._id === data.message._id)) {
-            setDmMessages(prev => [...prev, data.message]);
-          }
-          setTimeout(() => dmEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
-          loadDmConversations();
+          setMessages(prev => [...prev, data.message]);
+          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
         }
       }
-    } catch (_) {} finally {
-      setDmSending(false);
-      setDmUploadProgress(0);
-      clearRecording();
-    }
+    } catch (e) { console.error(e); }
+    setSending(false);
+    clearRecording();
   };
 
-  const sendDmMedia = async (file) => {
-    if (!file || !activeDmUser) return;
-    const kind = getMediaKind(file);
-    setDmSending(true);
+  // Send file
+  const sendFile = async (file) => {
+    if (!file || !activeConv) return;
+    setSending(true);
     try {
-      const result = await uploadFile(file, (p) => setDmUploadProgress(p));
+      const result = await uploadFile(file);
       if (result?.success) {
-        const clientMessageId = `media-${Date.now()}`;
-        const data = await dmFetch(`/${activeDmUser._id}`, {
+        const data = await apiFetch(`/${activeConv._id}`, {
           method: 'POST',
           body: JSON.stringify({
             content: '',
-            messageType: kind,
+            messageType: getMediaKind(file),
             mediaId: result.mediaId,
             mediaUrl: result.mediaUrl,
             metadata: { mimeType: file.type, fileName: file.name, fileSize: file.size },
-            clientMessageId
+            clientMessageId: `file-${Date.now()}`
           })
         });
         if (data.success) {
-          if (!dmMessages.some(m => m._id === data.message._id)) {
-            setDmMessages(prev => [...prev, data.message]);
-          }
-          setTimeout(() => dmEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
-          loadDmConversations();
+          setMessages(prev => [...prev, data.message]);
+          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
         }
       }
-    } catch (_) {} finally {
-      setDmSending(false);
-      setDmUploadProgress(0);
-      setDmUploadPreview(null);
+    } catch (e) { console.error(e); }
+    setSending(false);
+  };
+
+  // Auto-send audio when recording stops
+  useEffect(() => {
+    if (audioBlob && !isRecording) sendAudio();
+  }, [audioBlob, isRecording]);
+
+  // Share platform elements
+  const SHARE_TYPES = [
+    { key: 'order', label: 'Commande', emoji: '📦', endpoint: '/api/ecom/orders', searchField: 'search' },
+    { key: 'product', label: 'Produit', emoji: '🏷️', endpoint: '/api/ecom/products', searchField: 'search' },
+    { key: 'report', label: 'Rapport', emoji: '📊', endpoint: '/api/ecom/reports', searchField: 'search' },
+    { key: 'client', label: 'Client', emoji: '👤', endpoint: '/api/ecom/clients', searchField: 'search' },
+    { key: 'transaction', label: 'Transaction', emoji: '💰', endpoint: '/api/ecom/transactions', searchField: 'search' },
+  ];
+
+  const searchShareItems = useCallback(async (type, query) => {
+    setShareLoading(true);
+    try {
+      const cfg = SHARE_TYPES.find(t => t.key === type);
+      if (!cfg) return;
+      const params = query ? `search=${encodeURIComponent(query)}&limit=10` : 'limit=10';
+      const url = `${cfg.endpoint}?${params}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const json = await res.json();
+      // Chaque API a une structure différente
+      let items = [];
+      if (type === 'order') items = json.data?.orders || [];
+      else if (type === 'product') items = Array.isArray(json.data) ? json.data : [];
+      else if (type === 'client') items = json.data?.clients || [];
+      else if (type === 'transaction') items = json.data?.transactions || [];
+      else if (type === 'report') items = Array.isArray(json.data) ? json.data : json.data?.reports || [];
+      setShareResults(items.slice(0, 10));
+    } catch (e) { setShareResults([]); }
+    setShareLoading(false);
+  }, [token]);
+
+  useEffect(() => {
+    if (!shareType) return;
+    // Charger immédiatement à l'ouverture, puis debounce sur la recherche
+    if (shareSearch === '') {
+      searchShareItems(shareType, '');
+    } else {
+      const timer = setTimeout(() => searchShareItems(shareType, shareSearch), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [shareType, shareSearch, searchShareItems]);
+
+  const formatShareCard = (type, item) => {
+    switch (type) {
+      case 'order': {
+        const statusLabels = { pending: '⏳ En attente', confirmed: '✅ Confirmée', shipped: '🚚 Expédiée', delivered: '📦 Livrée', returned: '↩️ Retournée', cancelled: '❌ Annulée', unreachable: '📵 Injoignable', called: '📞 Appelée', postponed: '⏰ Reportée' };
+        return { title: `Commande ${item.orderId || '#' + (item._id?.slice(-6) || '')}`, subtitle: `${item.clientName || 'Client'} • ${item.product || ''} • ${statusLabels[item.status] || item.status || ''}`, price: item.price, link: `/ecom/orders/${item._id}` };
+      }
+      case 'product':
+        return { title: item.name || 'Produit', subtitle: `${item.status || ''} • Stock: ${item.stock ?? '?'}`, price: item.sellingPrice || item.price, link: `/ecom/products/${item._id}` };
+      case 'report': {
+        const productName = item.productId?.name || item.product || '';
+        const delivered = item.ordersDelivered ?? 0;
+        const received = item.ordersReceived ?? 0;
+        const profit = item.profit ?? null;
+        const revenue = item.revenue ?? null;
+        const displayPrice = profit ?? revenue ?? null;
+        return {
+          title: `Rapport ${item.date ? new Date(item.date).toLocaleDateString('fr-FR') : ''}`,
+          subtitle: `${productName}${productName ? ' • ' : ''}${delivered}/${received} livraisons`,
+          price: displayPrice,
+          link: `/ecom/reports`
+        };
+      }
+      case 'client': {
+        const name = [item.firstName, item.lastName].filter(Boolean).join(' ') || 'Client';
+        return { title: name, subtitle: `${item.phone || ''} ${item.city ? '• ' + item.city : ''}`, price: null, link: `/ecom/clients` };
+      }
+      case 'transaction': {
+        const typeLabel = item.type === 'income' ? '📈 Revenu' : item.type === 'expense' ? '📉 Dépense' : item.type || '';
+        return { title: item.description || item.label || 'Transaction', subtitle: `${typeLabel} • ${item.category || ''}`, price: item.amount, link: `/ecom/transactions` };
+      }
+      default:
+        return { title: 'Élément', subtitle: '', price: null, link: '#' };
     }
   };
 
-  const handleDmFileSelect = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const kind = getMediaKind(file);
-    const url = URL.createObjectURL(file);
-    setDmUploadPreview({ file, kind, url, name: file.name });
-    e.target.value = '';
+  const sendShareItem = async (type, item) => {
+    const card = formatShareCard(type, item);
+    const cfg = SHARE_TYPES.find(t => t.key === type);
+    const fmtPrice = card.price != null ? ` — ${Number(card.price).toLocaleString('fr-FR')} MAD` : '';
+    const content = `${cfg?.emoji || '📎'} ${card.title}\n${card.subtitle}${fmtPrice}\n🔗 ${card.link}`;
+    setShowShareMenu(false);
+    setShareType(null);
+    setShareSearch('');
+    setShareResults([]);
+    // Send as a regular message with metadata
+    if (activeChannel) {
+      const data = await msgFetch(`/${activeChannel.slug}`, {
+        method: 'POST',
+        body: JSON.stringify({ content })
+      });
+      if (data.success) {
+        setMessages(prev => [...prev, data.message]);
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+      }
+    } else if (activeConv) {
+      const data = await apiFetch(`/${activeConv._id}`, {
+        method: 'POST',
+        body: JSON.stringify({ content, clientMessageId: `share-${Date.now()}` })
+      });
+      if (data.success) {
+        setMessages(prev => [...prev, data.message]);
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+      }
+    }
   };
 
-  const handleDmTyping = (value) => {
-    setDmNewMessage(value);
-    if (activeDmUser && socketRef.current?.connected) {
-      socketRef.current.emit('typing:start', { recipientId: activeDmUser._id });
+  // Open DM conversation
+  const openConversation = (conv) => {
+    const other = conv.other;
+    setActiveConv(other);
+    setActiveChannel(null);
+    setView('chat');
+    loadMessages(other._id);
+  };
+
+  // Open channel/group
+  const openChannel = (channel) => {
+    setActiveChannel(channel);
+    setActiveConv(null);
+    setView('chat');
+    loadChannelMessages(channel.slug);
+  };
+
+  // Start new conversation
+  const startNewChat = (member) => {
+    setActiveConv(member);
+    setActiveChannel(null);
+    setView('chat');
+    setShowNewChat(false);
+    loadMessages(member._id);
+  };
+
+  // Go back to list
+  const goBack = () => {
+    setView('list');
+    setActiveConv(null);
+    setActiveChannel(null);
+    setMessages([]);
+    if (tab === 'dm') loadConversations();
+    else loadChannels();
+  };
+
+  const goBackFromList = () => {
+    navigate(-1);
+  };
+
+  // Initial load
+  useEffect(() => {
+    loadConversations();
+    loadChannels();
+    loadMembers();
+  }, []);
+
+  // Polling for new messages (fallback if WebSocket not connected)
+  useEffect(() => {
+    if (!activeConv && !activeChannel) return;
+    const interval = setInterval(() => {
+      if (activeConv) {
+        apiFetch(`/${activeConv._id}?limit=50`).then(data => {
+          if (data.success && data.messages) {
+            setMessages(prev => {
+              const prevIds = new Set(prev.map(m => m._id));
+              const newMsgs = data.messages.filter(m => !prevIds.has(m._id));
+              if (newMsgs.length > 0) {
+                setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+                return [...prev, ...newMsgs];
+              }
+              return prev;
+            });
+          }
+        }).catch(() => {});
+      } else if (activeChannel) {
+        msgFetch(`/${activeChannel.slug}?page=1&limit=50`).then(data => {
+          if (data.success && data.messages) {
+            setMessages(prev => {
+              const prevIds = new Set(prev.map(m => m._id));
+              const newMsgs = data.messages.filter(m => !prevIds.has(m._id));
+              if (newMsgs.length > 0) {
+                setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+                return [...prev, ...newMsgs];
+              }
+              return prev;
+            });
+          }
+        }).catch(() => {});
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [activeConv?._id, activeChannel?.slug]);
+
+  // WebSocket
+  useEffect(() => {
+    if (!token) return;
+    const socket = io('', { auth: { token }, transports: ['websocket', 'polling'], reconnection: true });
+    socketRef.current = socket;
+
+    socket.on('message:new', (msg) => {
+      if (activeConv && (msg.senderId === activeConv._id || msg.participants?.includes(activeConv._id))) {
+        setMessages(prev => prev.some(m => m._id === msg._id) ? prev : [...prev, msg]);
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+      }
+      loadConversations();
+    });
+
+    socket.on('typing:start', ({ userId, userName }) => {
+      if (activeConv?._id === userId) { setTyping(true); setTypingName(userName); }
+    });
+    socket.on('typing:stop', ({ userId }) => {
+      if (activeConv?._id === userId) setTyping(false);
+    });
+
+    return () => socket.disconnect();
+  }, [token, activeConv?._id]);
+
+  // Typing indicator
+  const handleTyping = (value) => {
+    setNewMessage(value);
+    if (activeConv && socketRef.current?.connected) {
+      socketRef.current.emit('typing:start', { recipientId: activeConv._id });
       if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
       typingTimerRef.current = setTimeout(() => {
-        socketRef.current?.emit('typing:stop', { recipientId: activeDmUser._id });
+        socketRef.current?.emit('typing:stop', { recipientId: activeConv._id });
       }, 2000);
     }
   };
 
-  const reactToDm = async (messageId, emoji, action) => {
-    try {
-      const data = await dmFetch(`/message/${messageId}/reaction`, {
-        method: 'POST',
-        body: JSON.stringify({ emoji, action })
-      });
-      if (data.success) {
-        setDmMessages(prev => prev.map(m =>
-          m._id === messageId ? { ...m, metadata: { ...m.metadata, reactions: data.reactions } } : m
-        ));
-      }
-    } catch (_) {}
-    setShowDmEmojiPicker(null);
+  // Filter conversations
+  const filteredConvs = conversations.filter(c =>
+    !search || (c.other?.name || c.other?.email || '').toLowerCase().includes(search.toLowerCase())
+  );
+
+  // Filter members for new chat
+  const filteredMembers = members.filter(m =>
+    m._id !== user?._id && (m.name || m.email || '').toLowerCase().includes(search.toLowerCase())
+  );
+
+  const isOwn = (msg) => {
+    // user peut être { _id } ou { id } selon la source
+    const uid = normalizeId(user?._id || user?.id || user?.userId);
+    const sid = normalizeId(msg?.senderId?._id || msg?.senderId);
+    if (!uid || !sid) return false;
+    return sid === uid;
   };
 
-  const deleteDm = async (mid) => {
-    if (!window.confirm('Supprimer ce message ?')) return;
-    try { await dmFetch(`/message/${mid}`, { method: 'DELETE' }); setDmMessages(prev => prev.filter(m => m._id !== mid)); } catch (_) {}
-  };
+  const ROLE_LABELS = { ecom_admin: 'Admin', ecom_closeuse: 'Closeuse', ecom_compta: 'Compta', ecom_livreur: 'Livreur', super_admin: 'Super Admin' };
 
-  const handleMentionInput = (value) => {
-    setNewMessage(value);
-    const atIdx=value.lastIndexOf('@');
-    if (atIdx!==-1) { const after=value.slice(atIdx+1); if (!after.includes(' ')&&after.length<=20) { setMentionQuery(after); setShowMentions(true); setMentionIndex(0); return; } }
-    setShowMentions(false);
-  };
-
-  const filteredMentions = members.filter(m=>(m.name||m.email||'').toLowerCase().includes(mentionQuery.toLowerCase())).slice(0,6);
-
-  const insertMention = (member) => {
-    const atIdx=newMessage.lastIndexOf('@'); const name=member.name||member.email?.split('@')[0]||'membre';
-    setNewMessage(newMessage.slice(0,atIdx)+`@${name} `); setShowMentions(false); inputRef.current?.focus();
-  };
-
-  const handleKeyDown = (e) => {
-    if (showMentions&&filteredMentions.length>0) {
-      if (e.key==='ArrowDown') { e.preventDefault(); setMentionIndex(i=>Math.min(i+1,filteredMentions.length-1)); return; }
-      if (e.key==='ArrowUp') { e.preventDefault(); setMentionIndex(i=>Math.max(i-1,0)); return; }
-      if (e.key==='Enter'||e.key==='Tab') { e.preventDefault(); insertMention(filteredMentions[mentionIndex]); return; }
-      if (e.key==='Escape') { setShowMentions(false); return; }
-    }
-    if (e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); sendMessage(e); }
-    if (e.key==='Escape') { setReplyTo(null); setEditingId(null); }
-  };
-
-  const isOwn = (msg) => { const sid=msg.senderId?._id||msg.senderId; return sid?.toString()===user?._id?.toString(); };
-  const isAdmin = ['ecom_admin','super_admin'].includes(user?.role);
-
-  const createChannel = async (e) => {
-    e.preventDefault(); if (!newChannelName.trim()||creatingChannel) return; setCreatingChannel(true);
-    try { const data=await apiFetch('/channels',{method:'POST',body:JSON.stringify({name:newChannelName.trim(),emoji:newChannelEmoji,description:newChannelDesc.trim()})}); if (data.success) { setShowNewChannel(false); setNewChannelName(''); setNewChannelEmoji('💬'); setNewChannelDesc(''); await loadChannels(); setActiveChannel(data.channel.slug); } else alert(data.message||'Erreur'); }
-    catch (_) {} finally { setCreatingChannel(false); }
-  };
-
-  const deleteChannel = async (slug) => {
-    if (!window.confirm('Supprimer ce canal ?')) return;
-    try { await apiFetch(`/channels/${slug}`,{method:'DELETE'}); await loadChannels(); if (activeChannel===slug) setActiveChannel(channels.find(c=>c.slug!==slug)?.slug||null); } catch (_) {}
-  };
-
-  const activeChannelObj = channels.find(c=>c.slug===activeChannel);
-  const totalChUnread = Object.values(unreadCounts).reduce((a,b)=>a+b,0);
-  const totalDmUnread = dmConversations.reduce((a,c)=>a+(c.unread||0),0);
-  const filteredMembers = members.filter(m=>m._id!==user?._id&&(m.name||m.email||'').toLowerCase().includes(dmSearch.toLowerCase()));
-
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
+  // ═══════════════════════════════════════════════════════════════
+  // RENDER
+  // ═══════════════════════════════════════════════════════════════
 
   return (
-    <div className="flex h-[calc(100vh-56px)] lg:h-[calc(100vh-56px)] overflow-hidden relative">
+    <div className="fixed inset-0 lg:static lg:h-[calc(100vh-56px)] bg-slate-50 flex flex-col z-10">
 
-      {/* ═══════ MOBILE DRAWER BACKDROP ═══════ */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* ═══════ SIDEBAR ═══════ */}
-      <div className={`
-        fixed top-0 left-0 h-full w-[280px] bg-[#1e1f22] flex flex-col z-40 transition-transform duration-300 ease-in-out
-        lg:static lg:w-64 lg:translate-x-0 lg:z-auto lg:flex-shrink-0
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `} style={{ paddingTop: sidebarOpen ? 'env(safe-area-inset-top, 0px)' : undefined }}>
-        <div className="px-4 py-3 border-b border-white/10 flex-shrink-0">
-          <h2 className="text-white font-bold text-sm flex items-center gap-2">
-            <div className="w-6 h-6 bg-blue-500 rounded-md flex items-center justify-center flex-shrink-0">
-              <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-            </div>
-            Chat Équipe
-          </h2>
-        </div>
-
-        <div className="flex px-2 pt-2 gap-1 flex-shrink-0">
-          <button onClick={()=>setTab('channels')} className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors relative ${tab==='channels'?'bg-white/15 text-white':'text-gray-400 hover:text-white hover:bg-white/5'}`}>
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>
-            Canaux
-            {totalChUnread>0&&tab!=='channels'&&<span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5">{totalChUnread}</span>}
-          </button>
-          <button onClick={()=>setTab('dm')} className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors relative ${tab==='dm'?'bg-white/15 text-white':'text-gray-400 hover:text-white hover:bg-white/5'}`}>
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
-            Messages
-            {totalDmUnread>0&&tab!=='dm'&&<span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5">{totalDmUnread}</span>}
-          </button>
-        </div>
-
-        {tab==='channels' && (
-          <div className="flex-1 overflow-y-auto py-2 px-1">
-            <div className="flex items-center justify-between px-2 py-1 mb-0.5">
-              <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Canaux</span>
-              <button onClick={()=>setShowNewChannel(true)} className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-white rounded hover:bg-white/10 transition-colors">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+      {/* ═══════ LIST VIEW ═══════ */}
+      {view === 'list' && (
+        <div className="flex-1 flex flex-col bg-white">
+          {/* Header plateforme */}
+          <div className="bg-white border-b border-slate-200 px-4 pt-4 pb-0">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <button onClick={goBackFromList} className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-600">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <div>
+                  <h1 className="text-xl font-bold text-slate-900">Messages</h1>
+                  <p className="text-xs text-slate-400">{conversations.length} conversation{conversations.length > 1 ? 's' : ''}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => tab === 'dm' ? setShowNewChat(true) : setShowNewGroup(true)}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 py-2 rounded-xl transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                <span className="hidden sm:inline">Nouveau</span>
               </button>
             </div>
-            {channels.length===0 ? (
-              <div className="px-3 py-5 text-center"><p className="text-xs text-gray-500">Aucun canal</p><button onClick={()=>setShowNewChannel(true)} className="mt-1 text-xs text-blue-400 hover:text-blue-300">Créer un canal</button></div>
-            ) : channels.map(ch => {
-              const unread=unreadCounts[ch.slug]||0; const isActive=activeChannel===ch.slug;
-              return (
-                <div key={ch.slug} className="group relative">
-                  <button onClick={()=>{setActiveChannel(ch.slug);setSidebarOpen(false);}} className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[13px] transition-colors ${isActive?'bg-white/15 text-white':'text-gray-400 hover:text-white hover:bg-white/5'}`}>
-                    <span className="text-base leading-none flex-shrink-0">{ch.emoji}</span>
-                    <span className="flex-1 text-left truncate">{ch.name}</span>
-                    {unread>0&&<span className="min-w-[18px] h-[18px] flex items-center justify-center px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold">{unread>99?'99+':unread}</span>}
+            {/* Search */}
+            <div className="flex items-center bg-slate-100 rounded-xl px-3 py-2 mb-3">
+              <svg className="w-4 h-4 text-slate-400 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher une conversation..." className="flex-1 bg-transparent outline-none text-sm text-slate-700 placeholder-slate-400" />
+            </div>
+            {/* Tabs */}
+            <div className="flex gap-1">
+              <button onClick={() => setTab('dm')} className={`flex-1 py-2 text-sm font-semibold rounded-t-lg border-b-2 transition-colors ${tab === 'dm' ? 'text-blue-600 border-blue-600 bg-blue-50' : 'text-slate-500 border-transparent hover:text-slate-700'}`}>
+                💬 Discussions
+              </button>
+              <button onClick={() => setTab('groups')} className={`flex-1 py-2 text-sm font-semibold rounded-t-lg border-b-2 transition-colors ${tab === 'groups' ? 'text-blue-600 border-blue-600 bg-blue-50' : 'text-slate-500 border-transparent hover:text-slate-700'}`}>
+                👥 Groupes
+              </button>
+            </div>
+          </div>
+
+          {/* List */}
+          <div className="flex-1 overflow-y-auto">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center h-40 gap-3">
+                <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-slate-400">Chargement...</p>
+              </div>
+            ) : tab === 'dm' ? (
+              filteredConvs.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+                  <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-4">
+                    <svg className="w-8 h-8 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                  </div>
+                  <p className="font-semibold text-slate-700 mb-1">Aucune conversation</p>
+                  <p className="text-sm text-slate-400 mb-4">Démarrez une discussion avec un membre de l'équipe</p>
+                  <button onClick={() => setShowNewChat(true)} className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors">Nouvelle conversation</button>
+                </div>
+              ) : filteredConvs.map(conv => {
+                const other = conv.other;
+                if (!other) return null;
+                const hasUnread = conv.unread > 0;
+                return (
+                  <button
+                    key={conv._id || other._id}
+                    onClick={() => openConversation(conv)}
+                    className={`w-full flex items-center gap-3 px-4 py-3.5 border-b border-slate-100 text-left transition-colors ${hasUnread ? 'bg-blue-50/50 hover:bg-blue-50' : 'hover:bg-slate-50'}`}
+                  >
+                    <div className="relative flex-shrink-0">
+                      <div className={`w-12 h-12 ${ROLE_COLORS[other.role] || 'bg-slate-400'} rounded-2xl flex items-center justify-center shadow-sm`}>
+                        <span className="text-white text-lg font-bold">{getInitial(other.name)}</span>
+                      </div>
+                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className={`text-[15px] truncate ${hasUnread ? 'font-bold text-slate-900' : 'font-semibold text-slate-800'}`}>{other.name || other.email?.split('@')[0]}</span>
+                        <span className={`text-[11px] flex-shrink-0 ml-2 ${hasUnread ? 'text-blue-600 font-semibold' : 'text-slate-400'}`}>{conv.lastMessage ? formatTime(conv.lastMessage.createdAt) : ''}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className={`text-sm truncate ${hasUnread ? 'text-slate-700 font-medium' : 'text-slate-400'}`}>{conv.preview || 'Démarrer la conversation'}</p>
+                        {hasUnread && <span className="ml-2 min-w-[20px] h-5 bg-blue-600 text-white text-[11px] font-bold rounded-full flex items-center justify-center px-1.5 flex-shrink-0">{conv.unread}</span>}
+                      </div>
+                    </div>
                   </button>
-                  {isAdmin&&<button onClick={()=>deleteChannel(ch.slug)} className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 text-gray-600 hover:text-red-400 rounded transition-all"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>}
+                );
+              })
+            ) : (
+              channels.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+                  <div className="w-16 h-16 bg-violet-50 rounded-2xl flex items-center justify-center mb-4">
+                    <svg className="w-8 h-8 text-violet-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  </div>
+                  <p className="font-semibold text-slate-700 mb-1">Aucun groupe</p>
+                  <p className="text-sm text-slate-400 mb-4">Créez un canal pour collaborer en équipe</p>
+                  <button onClick={() => setShowNewGroup(true)} className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors">Créer un groupe</button>
+                </div>
+              ) : channels.filter(c => !search || c.name?.toLowerCase().includes(search.toLowerCase())).map((channel, idx) => (
+                <button
+                  key={channel._id || channel.slug}
+                  onClick={() => openChannel(channel)}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-slate-100 hover:bg-slate-50 text-left transition-colors"
+                >
+                  <div className={`w-12 h-12 ${CHANNEL_COLORS[idx % CHANNEL_COLORS.length]} rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm`}>
+                    <span className="text-2xl">{channel.emoji || '💬'}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-slate-800 truncate">{channel.name}</p>
+                    <p className="text-sm text-slate-400 truncate mt-0.5">{channel.description || 'Canal de discussion'}</p>
+                  </div>
+                  <svg className="w-4 h-4 text-slate-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══════ CHAT VIEW ═══════ */}
+      {view === 'chat' && (activeConv || activeChannel) && (
+        <div className="flex-1 flex flex-col bg-slate-50 overflow-hidden">
+          {/* Header */}
+          <div className="bg-white border-b border-slate-200 px-3 py-3 flex items-center gap-3 shadow-sm">
+            <button onClick={goBack} className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-500 flex-shrink-0 transition-colors">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            {activeChannel ? (
+              <>
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-violet-600 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <span className="text-xl">{activeChannel.emoji || '💬'}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-slate-900 truncate">{activeChannel.name}</p>
+                  <p className="text-xs text-slate-400">Canal de groupe</p>
+                </div>
+              </>
+            ) : activeConv ? (
+              <>
+                <div className={`w-10 h-10 ${ROLE_COLORS[activeConv.role] || 'bg-slate-400'} rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm`}>
+                  <span className="text-white font-bold text-lg">{getInitial(activeConv.name)}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-slate-900 truncate">{activeConv.name || activeConv.email?.split('@')[0]}</p>
+                  {typing
+                    ? <p className="text-xs text-emerald-500 font-medium">✍️ écrit...</p>
+                    : <p className="text-xs text-slate-400">{ROLE_LABELS[activeConv.role] || 'Membre'}</p>
+                  }
+                </div>
+              </>
+            ) : null}
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-3 py-4">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center h-full gap-3">
+                <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-slate-400">Chargement...</p>
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full gap-2">
+                <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center">
+                  <svg className="w-7 h-7 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                </div>
+                <p className="text-slate-400 text-sm">Démarrez la conversation</p>
+              </div>
+            ) : messages.map((msg, idx) => {
+              const own = isOwn(msg);
+              const prev = messages[idx - 1];
+              const next = messages[idx + 1];
+              const prevOwn = prev ? isOwn(prev) : null;
+              const nextOwn = next ? isOwn(next) : null;
+              // Grouper les messages consécutifs du même expéditeur
+              const isFirst = prevOwn !== own;
+              const isLast = nextOwn !== own;
+              const showDate = !prev || new Date(msg.createdAt).toDateString() !== new Date(prev.createdAt).toDateString();
+              const showTimeSep = !prev || new Date(msg.createdAt) - new Date(prev.createdAt) > 600000;
+              // Dans un groupe, afficher le nom seulement sur le premier message du destinataire
+              const showSenderName = !own && isFirst && !!activeChannel;
+
+              return (
+                <div key={msg._id}>
+                  {/* Séparateur de date */}
+                  {(showDate || showTimeSep) && (
+                    <div className="flex items-center justify-center my-4">
+                      <span className="bg-white text-slate-400 text-[11px] font-medium px-3 py-1 rounded-full shadow-sm border border-slate-200">
+                        {showDate
+                          ? new Date(msg.createdAt).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+                          : new Date(msg.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className={`flex items-end gap-1 ${own ? 'justify-end' : 'justify-start'} ${isLast ? 'mb-2' : 'mb-0.5'}`}>
+
+                    {/* Avatar destinataire */}
+                    {!own && (
+                      <div className="w-7 flex-shrink-0 self-end mb-0.5">
+                        {isLast ? (
+                          <div className={`w-7 h-7 ${ROLE_COLORS[(msg.senderId?.role || activeConv?.role)] || 'bg-slate-400'} rounded-lg flex items-center justify-center`}>
+                            <span className="text-white text-[10px] font-bold">{getInitial(msg.senderName)}</span>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+
+                    {/* Bulle */}
+                    <div className={`relative max-w-[75%] ${own ? 'items-end' : 'items-start'} flex flex-col`}>
+
+                      {/* Nom expéditeur dans les groupes */}
+                      {showSenderName && (
+                        <span className="text-[11px] font-semibold ml-3 mb-0.5" style={{ color: stringToColor(msg.senderName) }}>
+                          {msg.senderName}
+                        </span>
+                      )}
+
+                      <div className={`relative px-3 py-2.5 shadow-sm
+                        ${own
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white text-slate-900 border border-slate-200'}
+                        ${isFirst && own ? 'rounded-tl-2xl rounded-tr-sm rounded-bl-2xl rounded-br-2xl'
+                          : isFirst && !own ? 'rounded-tl-sm rounded-tr-2xl rounded-bl-2xl rounded-br-2xl'
+                          : 'rounded-2xl'}
+                      `}>
+
+                        {/* Queue de bulle */}
+                        {isFirst && own && (
+                          <svg className="absolute -right-[6px] bottom-0 w-3 h-3 text-blue-600" viewBox="0 0 8 13" fill="currentColor">
+                            <path d="M5.188 1H1v11.193l6.467-8.625C8.334 2.116 7.607 1 5.188 1z" />
+                          </svg>
+                        )}
+                        {isFirst && !own && (
+                          <svg className="absolute -left-[6px] bottom-0 w-3 h-3 text-white" viewBox="0 0 8 13" fill="currentColor">
+                            <path d="M2.812 1H7v11.193L.533 3.568C-.334 2.116.393 1 2.812 1z" />
+                          </svg>
+                        )}
+
+                        {/* Reply preview */}
+                        {(msg.replyToPreview || msg.replyToContent) && (
+                          <div className={`border-l-[3px] pl-2 mb-2 rounded-r py-1 pr-2 ${own ? 'border-white/50 bg-white/10' : 'border-blue-400 bg-slate-50'}`}>
+                            <p className={`text-[11px] font-semibold ${own ? 'text-white/80' : 'text-blue-600'}`}>
+                              {msg.replyToPreview?.senderName || msg.replyToSenderName || ''}
+                            </p>
+                            <p className={`text-[12px] truncate ${own ? 'text-white/70' : 'text-slate-500'}`}>
+                              {msg.replyToPreview?.content || msg.replyToContent || '📎 Média'}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Contenu */}
+                        {msg.deleted ? (
+                          <p className={`text-[14px] italic ${own ? 'text-white/50' : 'text-slate-400'}`}>🚫 Message supprimé</p>
+                        ) : msg.messageType === 'audio' ? (
+                          msg.mediaUrl ? (
+                            <audio controls preload="metadata" src={msg.mediaUrl} className="w-[240px] max-w-full" />
+                          ) : (
+                            <span className={`text-[12px] ${own ? 'text-white/60' : 'text-slate-400'}`}>🎤 Audio indisponible</span>
+                          )
+                        ) : msg.messageType === 'image' ? (
+                          <img src={msg.mediaUrl} alt="" className="max-w-full rounded-xl max-h-64 object-cover" />
+                        ) : msg.messageType === 'video' ? (
+                          <video src={msg.mediaUrl} controls className="max-w-full rounded-xl max-h-64" />
+                        ) : msg.messageType === 'document' ? (
+                          <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer"
+                            className={`flex items-center gap-2 rounded-xl px-2 py-2 min-w-[160px] ${own ? 'bg-white/10' : 'bg-slate-50 border border-slate-200'}`}>
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${own ? 'bg-white/20' : 'bg-blue-600'}`}>
+                              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                            </div>
+                            <div className="min-w-0">
+                              <p className={`text-[13px] font-medium truncate ${own ? 'text-white' : 'text-slate-800'}`}>{msg.metadata?.fileName || 'Document'}</p>
+                              <p className={`text-[10px] ${own ? 'text-white/60' : 'text-slate-400'}`}>{msg.metadata?.fileSize ? `${Math.round(msg.metadata.fileSize / 1024)} Ko` : ''}</p>
+                            </div>
+                          </a>
+                        ) : (
+                          renderMessageContent(msg.content, own)
+                        )}
+
+                        {/* Heure + statut */}
+                        <div className="flex items-center justify-end gap-1 mt-1 -mb-0.5">
+                          <span className={`text-[10px] leading-none ${own ? 'text-white/60' : 'text-slate-400'}`}>
+                            {new Date(msg.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          {own && (
+                            <svg className={`w-[14px] h-[14px] flex-shrink-0 ${msg.status === 'read' ? 'text-white' : 'text-white/50'}`} viewBox="0 0 16 11" fill="currentColor">
+                              <path d="M11.071.653a.75.75 0 0 1 .025 1.06l-6.5 7a.75.75 0 0 1-1.085 0l-3-3.5a.75.75 0 1 1 1.138-.976l2.458 2.869 5.904-6.428a.75.75 0 0 1 1.06-.025z"/>
+                              <path d="M14.071.653a.75.75 0 0 1 .025 1.06l-6.5 7a.75.75 0 0 1-1.085 0 .75.75 0 0 1 0-1.06l6.5-7a.75.75 0 0 1 1.06.025z" opacity=".5"/>
+                            </svg>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               );
             })}
+            <div ref={messagesEndRef} />
           </div>
-        )}
 
-        {tab==='dm' && (
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="px-2 pt-2 pb-1 flex-shrink-0">
-              <button onClick={()=>setShowStartDm(true)} className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                Démarrer une conversation
+          {/* Reply preview */}
+          {replyTo && (
+            <div className="bg-white border-t border-slate-200 px-4 py-2 flex items-center gap-3">
+              <div className="flex-1 border-l-2 border-blue-500 pl-3">
+                <p className="text-xs font-bold text-blue-600">{replyTo.senderName}</p>
+                <p className="text-xs text-slate-500 truncate">{replyTo.content || '📎 Média'}</p>
+              </div>
+              <button onClick={() => setReplyTo(null)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <div className="px-3 py-1 flex-shrink-0"><span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Conversations</span></div>
-            <div className="flex-1 overflow-y-auto px-1">
-              {dmConversations.length===0 ? (
-                <div className="px-3 py-6 text-center">
-                  <div className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-2"><svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg></div>
-                  <p className="text-xs text-gray-500">Aucune conversation</p>
-                  <button onClick={()=>setShowStartDm(true)} className="mt-1 text-xs text-blue-400 hover:text-blue-300">Envoyer un message</button>
-                </div>
-              ) : dmConversations.map(conv => {
-                const other=conv.other; if (!other) return null;
-                const isActive=activeDmUser?._id?.toString()===other._id?.toString();
-                return (
-                  <button key={conv._id||other._id} onClick={()=>{setActiveDmUser(other);setSidebarOpen(false);}} className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-lg transition-colors mb-0.5 text-left ${isActive?'bg-white/15':'hover:bg-white/5'}`}>
-                    <div className="relative flex-shrink-0">
-                      <div className={`w-9 h-9 ${ROLE_COLORS[other.role]||'bg-gray-500'} rounded-full flex items-center justify-center`}><span className="text-white text-xs font-bold">{getInitial(other.name)}</span></div>
-                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[#1e1f22]" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className={`text-[13px] font-medium truncate ${isActive?'text-white':'text-gray-300'}`}>{other.name||other.email?.split('@')[0]}</span>
-                        {conv.lastMessage&&<span className="text-[10px] text-gray-500 flex-shrink-0 ml-1">{formatTime(conv.lastMessage.createdAt)}</span>}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <p className="text-[11px] text-gray-500 truncate">{conv.lastMessage?.content||ROLE_LABELS[other.role]||''}</p>
-                        {conv.unread>0&&<span className="min-w-[16px] h-4 flex items-center justify-center px-1 rounded-full bg-blue-500 text-white text-[9px] font-bold flex-shrink-0 ml-1">{conv.unread}</span>}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+          )}
 
-        <div className="px-3 py-2 border-t border-white/10 flex-shrink-0 flex items-center gap-2">
-          <div className={`w-7 h-7 ${ROLE_COLORS[user?.role]||'bg-gray-500'} rounded-full flex items-center justify-center flex-shrink-0`}><span className="text-white text-[10px] font-bold">{getInitial(user?.name)}</span></div>
-          <div className="min-w-0 flex-1"><p className="text-xs font-medium text-white truncate">{user?.name||user?.email?.split('@')[0]}</p><p className="text-[10px] text-gray-400">{ROLE_LABELS[user?.role]||user?.role}</p></div>
-        </div>
-      </div>
-
-      {/* ═══════ ZONE PRINCIPALE ═══════ */}
-      <div className="flex-1 flex flex-col min-w-0 bg-white w-full">
-
-        {tab === 'dm' && activeDmUser ? (
-          <>
-            <div className="bg-white border-b border-gray-200 px-3 py-2.5 flex items-center justify-between flex-shrink-0 lg:px-5 lg:py-3">
-              <div className="flex items-center gap-2 lg:gap-3">
-                <button onClick={()=>setSidebarOpen(true)} className="lg:hidden w-9 h-9 flex items-center justify-center text-gray-500 active:bg-gray-100 rounded-full flex-shrink-0 -ml-1">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          {/* Input */}
+          <div className="bg-white border-t border-slate-200 px-3 py-3 flex items-end gap-2">
+            {isRecording ? (
+              <div className="flex-1 flex items-center gap-3 bg-slate-100 rounded-2xl px-4 py-2.5">
+                <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+                <span className="text-red-500 font-semibold text-sm">{formattedDuration}</span>
+                <div className="flex-1" />
+                <button onClick={cancelRecording} className="text-slate-400 hover:text-red-500 transition-colors">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
-                <div className="relative">
-                  <div className={`w-9 h-9 ${ROLE_COLORS[activeDmUser.role]||'bg-gray-400'} rounded-full flex items-center justify-center`}><span className="text-white text-sm font-bold">{getInitial(activeDmUser.name)}</span></div>
-                  <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900 text-sm">{activeDmUser.name||activeDmUser.email?.split('@')[0]}</h3>
-                  <p className="text-xs text-gray-400">{ROLE_LABELS[activeDmUser.role]||activeDmUser.role} · Message privé</p>
-                </div>
+                <button onClick={stopRecording} className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center text-white hover:bg-blue-700 transition-colors">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                </button>
               </div>
-              <button onClick={()=>loadDmMessages(activeDmUser._id)} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg></button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5 bg-gray-50 lg:px-6 lg:py-4">
-              {dmLoading ? (
-                <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
-              ) : dmMessages.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <div className={`w-16 h-16 ${ROLE_COLORS[activeDmUser.role]||'bg-gray-300'} rounded-full flex items-center justify-center mx-auto mb-3`}><span className="text-white text-2xl font-bold">{getInitial(activeDmUser.name)}</span></div>
-                    <p className="font-semibold text-gray-800">{activeDmUser.name||activeDmUser.email?.split('@')[0]}</p>
-                    <p className="text-sm text-gray-400 mt-1">Démarrez la conversation</p>
-                  </div>
-                </div>
-              ) : dmMessages.map((msg, idx) => {
-                const own=(msg.senderId?._id||msg.senderId)?.toString()===user?._id?.toString();
-                const prev=dmMessages[idx-1];
-                const showHeader=!prev||(prev.senderId?._id||prev.senderId)?.toString()!==(msg.senderId?._id||msg.senderId)?.toString()||new Date(msg.createdAt)-new Date(prev.createdAt)>300000;
-                const reactions = msg.metadata?.reactions || {};
-                const hasReactions = Object.keys(reactions).length > 0;
-                return (
-                  <div key={msg._id} className={`flex gap-2 lg:gap-3 ${own?'flex-row-reverse':'flex-row'} ${showHeader?'mt-4':'mt-0.5'} group`}>
-                    {showHeader ? <div className={`w-8 h-8 ${ROLE_COLORS[msg.senderRole]||'bg-gray-400'} rounded-full flex items-center justify-center flex-shrink-0 mt-0.5`}><span className="text-white text-xs font-bold">{getInitial(msg.senderName)}</span></div> : <div className="w-8 flex-shrink-0" />}
-                    <div className={`max-w-[75%] lg:max-w-[65%] flex flex-col ${own?'items-end':'items-start'}`}>
-                      {showHeader && <div className={`flex items-center gap-2 mb-1 ${own?'flex-row-reverse':'flex-row'}`}><span className="text-xs font-semibold text-gray-700">{own?'Vous':msg.senderName}</span><span className="text-[10px] text-gray-400">{formatTime(msg.createdAt)}</span></div>}
-
-                      {/* Reply preview */}
-                      {msg.replyToPreview && (
-                        <div className={`mb-1 px-2.5 py-1.5 rounded-lg border-l-2 text-xs max-w-full ${own?'border-blue-300 bg-blue-500/20 text-blue-100':'border-gray-400 bg-gray-100 text-gray-600'}`}>
-                          <p className={`font-semibold mb-0.5 ${own?'text-blue-200':'text-gray-700'}`}>{msg.replyToPreview.senderName}</p>
-                          <p className="truncate opacity-80">
-                            {msg.replyToPreview.messageType==='audio'?'🎤 Message vocal':msg.replyToPreview.messageType==='image'?'📷 Photo':msg.replyToPreview.messageType==='video'?'🎬 Vidéo':msg.replyToPreview.messageType==='document'?'📎 Document':msg.replyToPreview.content}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Message bubble */}
-                      <div className={`relative rounded-2xl text-[14px] leading-relaxed break-words ${own?'bg-blue-600 text-white rounded-tr-sm':'bg-white text-gray-800 border border-gray-200 rounded-tl-sm shadow-sm'} ${msg.messageType!=='text'?'p-2':'px-3 py-2 lg:px-4 lg:py-2.5'}`}>
-                        {msg.deleted ? (
-                          <span className="italic opacity-60 text-sm">Message supprimé</span>
-                        ) : msg.messageType === 'audio' ? (
-                          <div className={`${own?'text-white':'text-gray-800'}`}>
-                            <AudioPlayer src={msg.mediaUrl} duration={msg.metadata?.durationMs || 0} />
-                          </div>
-                        ) : msg.messageType === 'image' ? (
-                          <ImageMessage src={msg.mediaUrl} onClick={() => setLightboxSrc(msg.mediaUrl)} />
-                        ) : msg.messageType === 'video' ? (
-                          <VideoMessage src={msg.mediaUrl} />
-                        ) : msg.messageType === 'document' ? (
-                          <DocumentMessage fileName={msg.metadata?.fileName} fileSize={msg.metadata?.fileSize} src={msg.mediaUrl} />
-                        ) : (
-                          <>
-                            {renderContent(msg.content, own)}
-                            {msg.edited && <span className={`text-[10px] ml-1.5 ${own?'text-blue-200':'text-gray-400'}`}>(modifié)</span>}
-                          </>
-                        )}
-                        {/* Status for own messages */}
-                        {own && (
-                          <div className="flex justify-end mt-0.5">
-                            <MessageStatus status={msg.status} />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Reactions */}
-                      {hasReactions && (
-                        <MessageReactions
-                          reactions={reactions}
-                          userId={user?._id}
-                          onReact={(emoji, action) => reactToDm(msg._id, emoji, action)}
-                        />
-                      )}
-
-                      {!showHeader && <span className="text-[10px] text-gray-400 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">{formatTime(msg.createdAt)}</span>}
-                    </div>
-
-                    {/* Action buttons on hover */}
-                    <div className={`flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity self-center relative ${own?'flex-row':'flex-row-reverse'}`}>
-                      <button onClick={() => setDmReplyTo(msg)} className="p-1.5 text-gray-400 hover:text-blue-500 rounded-lg hover:bg-blue-50" title="Répondre">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
-                      </button>
-                      <div className="relative">
-                        <button onClick={() => setShowDmEmojiPicker(showDmEmojiPicker === msg._id ? null : msg._id)} className="p-1.5 text-gray-400 hover:text-yellow-500 rounded-lg hover:bg-yellow-50" title="Réaction">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        </button>
-                        {showDmEmojiPicker === msg._id && (
-                          <EmojiPicker
-                            onSelect={(emoji) => reactToDm(msg._id, emoji, 'add')}
-                            onClose={() => setShowDmEmojiPicker(null)}
-                          />
-                        )}
-                      </div>
-                      {own && !msg.deleted && (
-                        <button onClick={() => deleteDm(msg._id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50" title="Supprimer">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              {/* Typing indicator */}
-              {dmTyping && <TypingIndicator userName={dmTypingName} />}
-              <div ref={dmEndRef} />
-            </div>
-
-            {/* DM Input area */}
-            <div className="bg-white border-t border-gray-200 px-3 py-2.5 flex-shrink-0 lg:px-4 lg:py-3">
-              {/* Load more */}
-              {dmHasMore && !dmLoadingMore && (
-                <button onClick={() => loadDmMessages(activeDmUser._id, dmCursor, true)} className="w-full text-xs text-blue-500 hover:text-blue-700 py-1 mb-2">
-                  Charger les messages précédents
-                </button>
-              )}
-
-              {/* Reply preview */}
-              {dmReplyTo && (
-                <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-blue-50 rounded-xl border-l-2 border-blue-400">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-blue-600">↩ {dmReplyTo.senderName}</p>
-                    <p className="text-xs text-gray-500 truncate">
-                      {dmReplyTo.messageType==='audio'?'🎤 Message vocal':dmReplyTo.messageType==='image'?'📷 Photo':dmReplyTo.content?.substring(0,60)}
-                    </p>
-                  </div>
-                  <button onClick={() => setDmReplyTo(null)} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            ) : (
+              <>
+                <input ref={fileInputRef} type="file" className="hidden" onChange={e => e.target.files?.[0] && sendFile(e.target.files[0])} />
+                <div className="relative">
+                  <button onClick={() => setShowShareMenu(!showShareMenu)} className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                   </button>
-                </div>
-              )}
-
-              {/* Upload preview */}
-              {dmUploadPreview && (
-                <div className="mb-2 p-2 bg-gray-50 rounded-xl border flex items-center gap-3">
-                  {dmUploadPreview.kind === 'image' ? (
-                    <img src={dmUploadPreview.url} className="w-16 h-16 object-cover rounded-lg" alt="preview" />
-                  ) : (
-                    <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center text-2xl">
-                      {dmUploadPreview.kind === 'audio' ? '🎵' : dmUploadPreview.kind === 'video' ? '🎬' : '📎'}
+                  {showShareMenu && (
+                    <div className="absolute bottom-12 left-0 bg-white rounded-2xl shadow-xl border border-slate-200 w-52 overflow-hidden z-50">
+                      <button onClick={() => { fileInputRef.current?.click(); setShowShareMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left text-sm">
+                        <span className="w-8 h-8 bg-violet-100 rounded-xl flex items-center justify-center text-lg">📎</span>
+                        <span className="font-semibold text-slate-700">Fichier</span>
+                      </button>
+                      {SHARE_TYPES.map(st => (
+                        <button key={st.key} onClick={() => { setShareType(st.key); setShowShareMenu(false); setShareSearch(''); setShareResults([]); }} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left text-sm border-t border-slate-100">
+                          <span className="w-8 h-8 bg-blue-50 rounded-xl flex items-center justify-center text-lg">{st.emoji}</span>
+                          <span className="font-semibold text-slate-700">{st.label}</span>
+                        </button>
+                      ))}
                     </div>
                   )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{dmUploadPreview.name}</p>
-                    <p className="text-xs text-gray-400">{dmUploadPreview.kind}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => sendDmMedia(dmUploadPreview.file)} disabled={dmSending} className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                      {dmSending ? 'Envoi...' : 'Envoyer'}
-                    </button>
-                    <button onClick={() => setDmUploadPreview(null)} className="p-1.5 text-gray-400 hover:text-gray-600">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                  </div>
                 </div>
-              )}
-
-              {/* Upload progress */}
-              {isUploading && dmUploadProgress > 0 && (
-                <div className="mb-2">
-                  <UploadProgress progress={dmUploadProgress} fileName={dmUploadPreview?.name || 'Fichier'} />
-                </div>
-              )}
-
-              {/* Recording indicator */}
-              {isRecording ? (
-                <RecordingIndicator
-                  duration={formattedDuration}
-                  onCancel={cancelRecording}
-                  onStop={stopRecording}
-                />
-              ) : (
-                <form onSubmit={sendDm} className="flex items-end gap-2">
-                  {/* File attachment button */}
-                  <input ref={fileInputRef} type="file" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" className="hidden" onChange={handleDmFileSelect} />
-                  <button type="button" onClick={() => fileInputRef.current?.click()} className="flex-shrink-0 w-9 h-9 flex items-center justify-center text-gray-400 hover:text-blue-500 rounded-xl hover:bg-blue-50 transition-colors" title="Joindre un fichier">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-                  </button>
-
-                  {/* Text input */}
+                <form onSubmit={sendMessage} className="flex-1 flex items-end gap-2">
                   <textarea
-                    ref={dmInputRef}
-                    value={dmNewMessage}
-                    onChange={e => handleDmTyping(e.target.value)}
-                    onKeyDown={e => { if (e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); sendDm(e); } }}
-                    placeholder={`Message à ${activeDmUser.name?.split(' ')[0]}...`}
-                    className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none bg-gray-50"
+                    ref={inputRef}
+                    value={newMessage}
+                    onChange={e => handleTyping(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(e); } }}
+                    placeholder="Écrire un message..."
+                    className="flex-1 bg-slate-100 rounded-2xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 outline-none resize-none max-h-24 focus:bg-slate-50 focus:ring-2 focus:ring-blue-200 transition-all"
                     rows={1}
-                    style={{ minHeight: '42px', maxHeight: '120px' }}
-                    onInput={e => { e.target.style.height='auto'; e.target.style.height=Math.min(e.target.scrollHeight,120)+'px'; }}
+                    style={{ minHeight: '40px' }}
                   />
-
-                  {/* Send or mic button */}
-                  {dmNewMessage.trim() || dmUploadPreview ? (
-                    <button type="submit" disabled={dmSending} className="flex-shrink-0 w-10 h-10 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 text-white rounded-xl flex items-center justify-center transition-colors">
-                      {dmSending ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>}
+                  {newMessage.trim() ? (
+                    <button type="submit" disabled={sending} className="w-10 h-10 bg-blue-600 hover:bg-blue-700 rounded-2xl flex items-center justify-center text-white flex-shrink-0 transition-colors disabled:opacity-60">
+                      {sending ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                      )}
                     </button>
                   ) : (
-                    <button type="button" onMouseDown={startRecording} onTouchStart={startRecording} className="flex-shrink-0 w-10 h-10 bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-500 rounded-xl flex items-center justify-center transition-colors" title="Maintenir pour enregistrer">
+                    <button type="button" onMouseDown={startRecording} className="w-10 h-10 bg-blue-600 hover:bg-blue-700 rounded-2xl flex items-center justify-center text-white flex-shrink-0 transition-colors">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
                     </button>
                   )}
                 </form>
-              )}
-            </div>
-          </>
-        ) : tab === 'dm' ? (
-          <div className="flex-1 flex flex-col bg-gray-50">
-            <div className="bg-white border-b border-gray-200 px-3 py-2.5 flex items-center gap-2 flex-shrink-0 lg:hidden">
-              <button onClick={()=>setSidebarOpen(true)} className="w-9 h-9 flex items-center justify-center text-gray-500 active:bg-gray-100 rounded-full flex-shrink-0 -ml-1">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
-              </button>
-              <h3 className="font-semibold text-gray-900 text-[15px]">Messages directs</h3>
-            </div>
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center px-6">
-                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4"><svg className="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg></div>
-                <h3 className="font-semibold text-gray-700 text-lg">Messages directs</h3>
-                <p className="text-sm text-gray-400 mt-1 mb-4">Sélectionnez une conversation ou démarrez-en une nouvelle</p>
-                <button onClick={()=>setShowStartDm(true)} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors">Démarrer une conversation</button>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="bg-white border-b border-gray-200 px-3 py-2.5 flex items-center justify-between flex-shrink-0 lg:px-5 lg:py-3">
-              <div className="flex items-center gap-2 lg:gap-3">
-                <button onClick={()=>setSidebarOpen(true)} className="lg:hidden w-9 h-9 flex items-center justify-center text-gray-500 active:bg-gray-100 rounded-full flex-shrink-0 -ml-1">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
-                </button>
-                <span className="text-xl">{activeChannelObj?.emoji||'💬'}</span>
-                <div>
-                  <h3 className="font-semibold text-gray-900 text-sm">{activeChannelObj?.name||(activeChannel||'Aucun canal')}</h3>
-                  <p className="text-xs text-gray-400 hidden lg:block">{activeChannelObj?.description||''}{activeChannelObj?.description?' · ':''}{messages.length} messages</p>
-                  <p className="text-xs text-gray-400 lg:hidden">{messages.length} messages</p>
-                </div>
-              </div>
-              <button onClick={()=>activeChannel&&loadMessages(activeChannel,1,false)} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg></button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5 bg-gray-50 lg:px-6 lg:py-4">
-              {hasMore && <div className="flex justify-center mb-4"><button onClick={()=>loadMessages(activeChannel,page+1,true)} disabled={loadingMore} className="text-sm text-blue-600 font-medium px-4 py-1.5 rounded-full border border-blue-200 hover:bg-blue-50 disabled:opacity-50">{loadingMore?'Chargement...':'Charger plus'}</button></div>}
-              {loading ? (
-                <div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
-              ) : !activeChannel ? (
-                <div className="flex items-center justify-center h-full"><div className="text-center"><p className="text-gray-500 font-medium">Sélectionnez ou créez un canal</p><button onClick={()=>setShowNewChannel(true)} className="mt-2 text-sm text-blue-600 hover:underline">Créer un canal</button></div></div>
-              ) : messages.length === 0 ? (
-                <div className="flex items-center justify-center h-full"><div className="text-center"><div className="text-4xl mb-3">{activeChannelObj?.emoji||'💬'}</div><p className="font-semibold text-gray-700">Bienvenue dans #{activeChannelObj?.name||activeChannel}</p><p className="text-sm text-gray-400 mt-1">Soyez le premier à écrire !</p></div></div>
-              ) : messages.map((msg, idx) => {
-                const own=isOwn(msg);
-                const prev=messages[idx-1];
-                const showHeader=!prev||(prev.senderId?._id||prev.senderId)?.toString()!==(msg.senderId?._id||msg.senderId)?.toString()||new Date(msg.createdAt)-new Date(prev.createdAt)>300000;
-                return (
-                  <div key={msg._id} className={`flex gap-2 lg:gap-3 ${own?'flex-row-reverse':'flex-row'} ${showHeader?'mt-4':'mt-0.5'} group`}>
-                    {showHeader ? <div className={`w-8 h-8 ${ROLE_COLORS[msg.senderRole]||'bg-gray-400'} rounded-full flex items-center justify-center flex-shrink-0 mt-0.5`}><span className="text-white text-xs font-bold">{getInitial(msg.senderName)}</span></div> : <div className="w-8 flex-shrink-0" />}
-                    <div className={`max-w-[78%] lg:max-w-[65%] flex flex-col ${own?'items-end':'items-start'}`}>
-                      {showHeader && <div className={`flex items-center gap-1.5 lg:gap-2 mb-1 ${own?'flex-row-reverse':'flex-row'}`}><span className="text-xs font-semibold text-gray-700">{msg.senderName}</span><span className={`text-[10px] px-1.5 py-0.5 rounded-full text-white hidden lg:inline ${ROLE_COLORS[msg.senderRole]||'bg-gray-400'}`}>{ROLE_LABELS[msg.senderRole]||msg.senderRole}</span><span className="text-[10px] text-gray-400">{formatTime(msg.createdAt)}</span></div>}
-                      {msg.replyToContent && <div className="mb-1 px-3 py-1.5 rounded-lg border-l-2 border-blue-400 bg-blue-50 text-xs text-gray-600 max-w-full"><p className="font-medium text-blue-600 mb-0.5">{msg.replyToSenderName}</p><p className="truncate">{msg.replyToContent}</p></div>}
-                      {editingId===msg._id ? (
-                        <div className="w-full min-w-[200px]">
-                          <textarea value={editContent} onChange={e=>setEditContent(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();saveEdit(msg._id);}if(e.key==='Escape'){setEditingId(null);setEditContent('');}}} className="w-full px-3 py-2 border border-blue-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} autoFocus />
-                          <div className="flex gap-2 mt-1 justify-end"><button onClick={()=>{setEditingId(null);setEditContent('');}} className="text-xs text-gray-500 hover:text-gray-700">Annuler</button><button onClick={()=>saveEdit(msg._id)} className="text-xs text-blue-600 font-medium hover:text-blue-700">Sauvegarder</button></div>
-                        </div>
-                      ) : (
-                        <div className={`px-3 py-2 lg:px-4 lg:py-2.5 rounded-2xl text-[14px] leading-relaxed break-words ${own?'bg-blue-600 text-white rounded-tr-sm':'bg-white text-gray-800 border border-gray-200 rounded-tl-sm shadow-sm'}`}>{renderContent(msg.content,own)}{msg.edited&&<span className={`text-[10px] ml-1.5 ${own?'text-blue-200':'text-gray-400'}`}>(modifié)</span>}</div>
-                      )}
-                      {!showHeader && <span className="text-[10px] text-gray-400 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">{formatTime(msg.createdAt)}</span>}
-                    </div>
-                    <div className={`flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity self-center ${own?'flex-row':'flex-row-reverse'}`}>
-                      <button onClick={()=>setReplyTo(msg)} className="p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-200"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg></button>
-                      {isOwn(msg)&&<button onClick={()=>{setEditingId(msg._id);setEditContent(msg.content);}} className="p-1 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-200"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>}
-                      {(isOwn(msg)||isAdmin)&&<button onClick={()=>deleteMessage(msg._id)} className="p-1 text-gray-400 hover:text-red-500 rounded hover:bg-red-50"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>}
-                    </div>
-                  </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </div>
-            <div className="bg-white border-t border-gray-200 px-3 py-2.5 flex-shrink-0 lg:px-4 lg:py-3">
-              {replyTo && (
-                <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-blue-50 rounded-lg border-l-2 border-blue-400">
-                  <div className="flex-1 min-w-0"><p className="text-xs font-medium text-blue-600">Répondre à {replyTo.senderName}</p><p className="text-xs text-gray-600 truncate">{replyTo.content}</p></div>
-                  <button onClick={()=>setReplyTo(null)} className="text-gray-400 hover:text-gray-600 flex-shrink-0"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
-                </div>
-              )}
-              <form onSubmit={sendMessage} className="flex items-end gap-2 relative">
-                {showMentions&&filteredMentions.length>0&&(
-                  <div className="absolute bottom-full left-0 mb-2 w-56 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-20">
-                    {filteredMentions.map((m,i)=>(
-                      <button key={m._id} type="button" onClick={()=>insertMention(m)} className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${i===mentionIndex?'bg-blue-50 text-blue-700':'text-gray-700 hover:bg-gray-50'}`}>
-                        <div className={`w-6 h-6 ${ROLE_COLORS[m.role]||'bg-gray-400'} rounded-full flex items-center justify-center flex-shrink-0`}><span className="text-white text-[10px] font-bold">{getInitial(m.name||m.email)}</span></div>
-                        <span className="flex-1 text-left font-medium truncate">{m.name||m.email?.split('@')[0]}</span>
-                        <span className="text-[10px] text-gray-400">{ROLE_LABELS[m.role]||''}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <textarea ref={inputRef} value={newMessage} onChange={e=>handleMentionInput(e.target.value)} onKeyDown={handleKeyDown} placeholder={`Message dans #${activeChannelObj?.name||activeChannel||'...'}  (@mention)`} className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none bg-gray-50" rows={1} style={{minHeight:'42px',maxHeight:'120px'}} onInput={e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,120)+'px';}} />
-                <button type="submit" disabled={!newMessage.trim()||sending} className="flex-shrink-0 w-10 h-10 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 text-white rounded-xl flex items-center justify-center transition-colors">
-                  {sending?<div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>:<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>}
-                </button>
-              </form>
-              <p className="hidden lg:block text-[10px] text-gray-400 mt-1 ml-1">Entrée pour envoyer · Maj+Entrée pour nouvelle ligne · Échap pour annuler</p>
-            </div>
-          </>
-        )}
-      </div>
-
-      {showNewChannel && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={()=>setShowNewChannel(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e=>e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Nouveau canal</h3>
-            <form onSubmit={createChannel} className="space-y-4">
-              <div><label className="block text-xs font-medium text-gray-700 mb-1">Emoji</label><div className="flex flex-wrap gap-1.5">{EMOJIS.map(em=><button key={em} type="button" onClick={()=>setNewChannelEmoji(em)} className={`w-8 h-8 text-lg rounded-lg flex items-center justify-center transition-colors ${newChannelEmoji===em?'bg-blue-100 ring-2 ring-blue-500':'hover:bg-gray-100'}`}>{em}</button>)}</div></div>
-              <div><label className="block text-xs font-medium text-gray-700 mb-1">Nom du canal *</label><input type="text" value={newChannelName} onChange={e=>setNewChannelName(e.target.value)} placeholder="ex: commandes, livraisons..." className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" autoFocus /></div>
-              <div><label className="block text-xs font-medium text-gray-700 mb-1">Description (optionnel)</label><input type="text" value={newChannelDesc} onChange={e=>setNewChannelDesc(e.target.value)} placeholder="À quoi sert ce canal ?" className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" /></div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={()=>setShowNewChannel(false)} className="flex-1 px-4 py-2 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50">Annuler</button>
-                <button type="submit" disabled={!newChannelName.trim()||creatingChannel} className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded-xl text-sm font-medium transition-colors">{creatingChannel?'Création...':'Créer le canal'}</button>
-              </div>
-            </form>
+              </>
+            )}
           </div>
         </div>
       )}
 
-      {showStartDm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={()=>{setShowStartDm(false);setDmSearch('');}}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5" onClick={e=>e.stopPropagation()}>
-            <h3 className="text-base font-semibold text-gray-900 mb-3">Nouvelle conversation</h3>
-            <input type="text" value={dmSearch} onChange={e=>setDmSearch(e.target.value)} placeholder="Rechercher un membre..." className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3" autoFocus />
-            <div className="space-y-1 max-h-64 overflow-y-auto">
-              {filteredMembers.length===0 ? (
-                <p className="text-sm text-gray-400 text-center py-4">Aucun membre trouvé</p>
-              ) : filteredMembers.map(m=>(
-                <button key={m._id} onClick={()=>{setActiveDmUser(m);setTab('dm');setShowStartDm(false);setDmSearch('');}}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left">
-                  <div className={`w-9 h-9 ${ROLE_COLORS[m.role]||'bg-gray-400'} rounded-full flex items-center justify-center flex-shrink-0`}><span className="text-white text-xs font-bold">{getInitial(m.name)}</span></div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{m.name||m.email?.split('@')[0]}</p>
-                    <p className="text-xs text-gray-400">{ROLE_LABELS[m.role]||m.role}</p>
+      {/* ═══════ NEW CHAT MODAL ═══════ */}
+      {showNewChat && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center" onClick={() => setShowNewChat(false)}>
+          <div className="bg-white w-full sm:max-w-md sm:rounded-2xl max-h-[80vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="px-4 py-4 flex items-center gap-3 border-b border-slate-100 sm:rounded-t-2xl">
+              <button onClick={() => setShowNewChat(false)} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-500 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+              <h2 className="font-bold text-slate-900">Nouvelle conversation</h2>
+            </div>
+            <div className="p-3 border-b border-slate-100">
+              <div className="flex items-center bg-slate-100 rounded-xl px-3 py-2">
+                <svg className="w-4 h-4 text-slate-400 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher un membre..." className="flex-1 bg-transparent outline-none text-sm text-slate-700 placeholder-slate-400" autoFocus />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {filteredMembers.length === 0 ? (
+                <p className="text-center py-10 text-slate-400 text-sm">Aucun membre trouvé</p>
+              ) : filteredMembers.map(m => (
+                <button key={m._id} onClick={() => startNewChat(m)} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 text-left transition-colors">
+                  <div className={`w-11 h-11 ${ROLE_COLORS[m.role] || 'bg-slate-400'} rounded-2xl flex items-center justify-center flex-shrink-0`}>
+                    <span className="text-white text-base font-bold">{getInitial(m.name)}</span>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-900">{m.name || m.email?.split('@')[0]}</p>
+                    <p className="text-xs text-slate-400">{ROLE_LABELS[m.role] || m.role}</p>
                   </div>
                 </button>
               ))}
@@ -957,13 +974,114 @@ export default function TeamChat() {
           </div>
         </div>
       )}
-      {/* Image lightbox */}
-      {lightboxSrc && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={() => setLightboxSrc(null)}>
-          <button className="absolute top-4 right-4 text-white p-2 hover:bg-white/10 rounded-full">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-          <img src={lightboxSrc} alt="Image" className="max-w-full max-h-full rounded-lg object-contain" onClick={e => e.stopPropagation()} />
+
+      {/* ═══════ NEW GROUP MODAL ═══════ */}
+      {showNewGroup && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center" onClick={() => setShowNewGroup(false)}>
+          <div className="bg-white w-full sm:max-w-md sm:rounded-2xl max-h-[80vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="px-4 py-4 flex items-center gap-3 border-b border-slate-100">
+              <button onClick={() => setShowNewGroup(false)} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-500 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+              <h2 className="font-bold text-slate-900">Nouveau groupe</h2>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Emoji</label>
+                <div className="flex flex-wrap gap-2">
+                  {['💬', '📦', '💰', '🚚', '📣', '📊', '🎯', '👥', '🔧', '🌟'].map(em => (
+                    <button
+                      key={em}
+                      type="button"
+                      onClick={() => setNewGroupEmoji(em)}
+                      className={`w-10 h-10 text-xl rounded-xl flex items-center justify-center transition-colors ${newGroupEmoji === em ? 'bg-blue-600 shadow-sm' : 'bg-slate-100 hover:bg-slate-200'}`}
+                    >
+                      {em}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Nom du groupe</label>
+                <input
+                  type="text"
+                  value={newGroupName}
+                  onChange={e => setNewGroupName(e.target.value)}
+                  placeholder="Ex: Équipe ventes, Livraisons..."
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition-all"
+                  autoFocus
+                />
+              </div>
+              <button
+                onClick={createChannel}
+                disabled={!newGroupName.trim()}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Créer le groupe
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════ SHARE PLATFORM ELEMENT MODAL ═══════ */}
+      {shareType && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center" onClick={() => { setShareType(null); setShareResults([]); }}>
+          <div className="bg-white w-full sm:max-w-md sm:rounded-2xl max-h-[80vh] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="px-4 py-4 flex items-center gap-3 border-b border-slate-100">
+              <button onClick={() => { setShareType(null); setShareResults([]); }} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-500 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+              </button>
+              <div>
+                <h2 className="font-bold text-slate-900">Partager {SHARE_TYPES.find(t => t.key === shareType)?.label}</h2>
+                <p className="text-xs text-slate-400">Sélectionnez un élément à envoyer</p>
+              </div>
+            </div>
+            <div className="p-3 border-b border-slate-100">
+              <div className="flex items-center bg-slate-100 rounded-xl px-3 py-2">
+                <svg className="w-4 h-4 text-slate-400 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <input
+                  type="text"
+                  value={shareSearch}
+                  onChange={e => setShareSearch(e.target.value)}
+                  placeholder={`Rechercher ${SHARE_TYPES.find(t => t.key === shareType)?.label?.toLowerCase()}...`}
+                  className="flex-1 bg-transparent outline-none text-sm text-slate-700 placeholder-slate-400"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {shareLoading ? (
+                <div className="flex flex-col items-center justify-center py-10 gap-3">
+                  <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm text-slate-400">Chargement...</p>
+                </div>
+              ) : shareResults.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 gap-2">
+                  <p className="text-slate-400 text-sm">{shareSearch ? 'Aucun résultat' : 'Tapez pour rechercher...'}</p>
+                </div>
+              ) : shareResults.map(item => {
+                const card = formatShareCard(shareType, item);
+                const cfg = SHARE_TYPES.find(t => t.key === shareType);
+                return (
+                  <button
+                    key={item._id}
+                    onClick={() => sendShareItem(shareType, item)}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50 text-left border-b border-slate-100 transition-colors"
+                  >
+                    <span className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-xl flex-shrink-0">{cfg?.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-slate-900 text-sm truncate">{card.title}</p>
+                      <p className="text-xs text-slate-400 truncate mt-0.5">{card.subtitle}</p>
+                    </div>
+                    {card.price != null && card.price !== 0 && (
+                      <span className="text-sm font-bold text-blue-600 flex-shrink-0">{Number(card.price).toLocaleString('fr-FR')} MAD</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
     </div>

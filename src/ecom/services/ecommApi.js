@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { logApiRequest, logApiResponse, logApiError, logAuthEvent, logPushEvent } from './prodLogger.js';
 
 // Configuration de base pour l'API e-commerce
 // Toujours utiliser le chemin relatif /api/ecom — le proxy Cloudflare (ou Vite en dev) forward vers Railway
@@ -38,14 +39,16 @@ ecomApi.interceptors.request.use(
       }
     }
 
-    // Log pour debug en production
-    if (import.meta.env.PROD) {
-      console.log(`🌐 Requête API production: ${config.method?.toUpperCase()} ${config.url}`);
-    }
+    // Marquer le timestamp de départ pour mesurer la durée
+    config._startTime = Date.now();
+
+    // Log complet de chaque requête
+    logApiRequest(config);
 
     return config;
   },
   (error) => {
+    logApiError(error);
     return Promise.reject(error);
   }
 );
@@ -67,12 +70,16 @@ const processQueue = (error, token = null) => {
 
 // Intercepteur pour gérer les erreurs et auto-refresh token
 ecomApi.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    logApiResponse(response);
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
 
     // Gérer les erreurs réseau (backend inaccessible)
     if (!error.response) {
+      logApiError(error);
       console.error('🌐 Erreur réseau - backend inaccessible:', error.message);
       throw new Error('Impossible de contacter le serveur. Vérifiez votre connexion.');
     }
@@ -98,7 +105,7 @@ ecomApi.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        console.log('🔄 Tentative de refresh token...');
+        logAuthEvent('token_refresh_start', { url: originalRequest.url });
         const response = await ecomApi.post('/auth/refresh');
         
         if (response.data?.success && response.data?.data?.token) {
@@ -110,7 +117,7 @@ ecomApi.interceptors.response.use(
             localStorage.setItem('ecomWorkspace', JSON.stringify(response.data.data.workspace));
           }
           
-          console.log('✅ Token rafraîchi avec succès');
+          logAuthEvent('token_refresh_ok', { url: originalRequest.url });
           processQueue(null, newToken);
           
           // Rejouer la requête originale avec le nouveau token
@@ -118,7 +125,7 @@ ecomApi.interceptors.response.use(
           return ecomApi(originalRequest);
         }
       } catch (refreshError) {
-        console.error('❌ Refresh token échoué:', refreshError.message);
+        logAuthEvent('token_refresh_fail', { message: refreshError.message, url: originalRequest.url });
         processQueue(refreshError, null);
         
         // Token invalide — déconnecter l'utilisateur
@@ -132,6 +139,8 @@ ecomApi.interceptors.response.use(
       }
     }
     
+    // Log toutes les autres erreurs HTTP
+    logApiError(error);
     return Promise.reject(error);
   }
 );

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProductSearch from '../components/ProductSearch.jsx';
-import ProductSearchDebug from '../components/ProductSearchDebug.jsx';
+
 
 const LandingPage = () => {
   const navigate = useNavigate();
