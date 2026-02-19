@@ -3,11 +3,11 @@ export async function onRequest(context) {
   const url = new URL(request.url);
   
   // Forward to your backend
-  const backendUrl = `https://plateforme-backend-production-2ec6.up.railway.app/api/ecom${url.pathname.replace('/api', '')}${url.search}`;
+  const backendUrl = `https://plateforme-backend-production-2ec6.up.railway.app${url.pathname}${url.search}`;
   
   // Copy headers and add CORS
   const headers = new Headers(request.headers);
-  headers.set('Origin', 'https://f905d6ba.ecomcookpit.pages.dev');
+  headers.set('Origin', request.headers.get('Origin') || 'https://ecomcookpit.pages.dev');
   
   try {
     const response = await fetch(backendUrl, {
