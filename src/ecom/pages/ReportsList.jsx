@@ -84,7 +84,7 @@ const ReportsList = () => {
       <div className="flex justify-between items-center mb-4 sm:mb-6">
         <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Rapports</h1>
         <Link
-          to="reports/new"
+          to="/ecom/reports/new"
           className="bg-blue-600 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-blue-700 text-sm"
         >
           + Nouveau
@@ -277,7 +277,7 @@ const ReportsList = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <Link
-                        to={`ecom/reports/${report._id}`}
+                        to={`/ecom/reports/${report._id}`}
                         className="text-indigo-600 hover:text-indigo-900 mr-3"
                       >
                         Voir
@@ -285,7 +285,7 @@ const ReportsList = () => {
                       {(user.role === 'ecom_admin' || user.role === 'ecom_closeuse') && (
                         <>
                           <Link
-                            to={`ecom/reports/${report._id}/edit`}
+                            to={`/ecom/reports/${report._id}/edit`}
                             className="text-blue-600 hover:text-blue-900 mr-3"
                           >
                             Modifier

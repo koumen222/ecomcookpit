@@ -3,121 +3,80 @@ import { Link } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
 
+const STATUS_LABELS = {
+  pending: 'En attente', confirmed: 'Confirmée', shipped: 'Expédiée',
+  delivered: 'Livrée', returned: 'Retour', cancelled: 'Annulée',
+  unreachable: 'Injoignable', called: 'Appelée', postponed: 'Reportée'
+};
+const STATUS_COLORS = {
+  pending: { bg: 'bg-yellow-100', text: 'text-yellow-700', bar: 'bg-yellow-400' },
+  confirmed: { bg: 'bg-blue-100', text: 'text-blue-700', bar: 'bg-blue-400' },
+  shipped: { bg: 'bg-indigo-100', text: 'text-indigo-700', bar: 'bg-indigo-400' },
+  delivered: { bg: 'bg-green-100', text: 'text-green-700', bar: 'bg-green-500' },
+  returned: { bg: 'bg-orange-100', text: 'text-orange-700', bar: 'bg-orange-400' },
+  cancelled: { bg: 'bg-red-100', text: 'text-red-700', bar: 'bg-red-400' },
+  unreachable: { bg: 'bg-gray-100', text: 'text-gray-600', bar: 'bg-gray-400' },
+  called: { bg: 'bg-purple-100', text: 'text-purple-700', bar: 'bg-purple-400' },
+  postponed: { bg: 'bg-pink-100', text: 'text-pink-700', bar: 'bg-pink-400' },
+};
+
+const getBadge = (rate) => {
+  if (rate >= 80) return { label: '🏆 Champion', color: 'from-yellow-400 to-orange-400', msg: 'Performance exceptionnelle ! Continuez comme ça !' };
+  if (rate >= 60) return { label: '🥇 Expert', color: 'from-green-400 to-emerald-500', msg: 'Très bon travail, vous êtes au top !' };
+  if (rate >= 40) return { label: '🥈 Confirmée', color: 'from-blue-400 to-cyan-500', msg: 'Bonne progression, encore un effort !' };
+  if (rate >= 20) return { label: '🥉 En progression', color: 'from-purple-400 to-violet-500', msg: 'Vous progressez bien, continuez !' };
+  return { label: '🌱 Débutante', color: 'from-gray-400 to-slate-500', msg: 'Chaque commande livrée compte !' };
+};
+
 const CloseuseDashboard = () => {
   const { user } = useEcomAuth();
   const [loading, setLoading] = useState(true);
-  const [products, setProducts] = useState([]);
-  const [todayReports, setTodayReports] = useState([]);
   const [recentOrders, setRecentOrders] = useState([]);
+  const [allOrders, setAllOrders] = useState([]);
+  const [weekOrders, setWeekOrders] = useState([]);
   const [myAssignments, setMyAssignments] = useState({ orderSources: [], productAssignments: [] });
   const [stats, setStats] = useState({
-    todayOrders: 0,
-    pendingOrders: 0,
-    deliveredToday: 0,
-    weeklyPerformance: 0
+    total: 0, delivered: 0, confirmed: 0, pending: 0,
+    cancelled: 0, returned: 0, unreachable: 0, called: 0, postponed: 0, shipped: 0,
+    deliveryRate: 0, todayDelivered: 0, todayTotal: 0,
   });
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
+  useEffect(() => { loadDashboardData(); }, []);
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      
       const today = new Date().toISOString().split('T')[0];
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      
-      // Charger toutes les données nécessaires pour la closeuse
-      const [productsRes, reportsRes, ordersRes, assignmentsRes] = await Promise.all([
-        ecomApi.get('/products?isActive=true'),
-        ecomApi.get('/reports?date=' + today),
-        ecomApi.get('/orders?limit=10&sort=-createdAt'), // Commandes récentes
-        ecomApi.get('/assignments/my-assignments') // Mes affectations
+      const [ordersRes, weekRes, assignmentsRes] = await Promise.all([
+        ecomApi.get('/orders?limit=200'),
+        ecomApi.get(`/orders?limit=500&startDate=${weekAgo}&endDate=${today}`),
+        ecomApi.get('/assignments/my-assignments'),
       ]);
-
-      setTodayReports(reportsRes.data.data.reports || []);
-      setRecentOrders(ordersRes.data.data.orders || []);
-      setMyAssignments(assignmentsRes.data.data);
-
-      // Filtrer les produits selon les affectations
-      const assignments = assignmentsRes.data.data;
-      let filteredProducts = productsRes.data.data;
-      
-      // Collecter les noms de produits Google Sheets assignés
-      const sheetProductNames = (assignments.productAssignments || []).flatMap(pa => pa.sheetProductNames || []);
-      
-      if (assignments.productAssignments && assignments.productAssignments.length > 0) {
-        const assignedProductIds = assignments.productAssignments.flatMap(pa => (pa.productIds || []).map(p => p._id));
-        if (assignedProductIds.length > 0) {
-          filteredProducts = filteredProducts.filter(product => assignedProductIds.includes(product._id));
-        }
-      }
-      
-      // Ajouter les produits Google Sheets comme des objets virtuels
-      const sheetProductObjects = sheetProductNames.map((name, idx) => ({
-        _id: `sheet_${idx}`,
-        name,
-        isSheetProduct: true,
-        status: 'active',
-        sellingPrice: '-',
-        stock: '-'
-      }));
-      
-      setProducts([...filteredProducts, ...sheetProductObjects]);
-
-      // Filtrer les commandes selon les sources et produits assignés
-      let filteredOrders = ordersRes.data.data.orders || [];
-      
-      const hasSourceAssignments = assignments.orderSources?.length > 0;
-      const hasProductAssignments = sheetProductNames.length > 0;
-      
-      if (hasSourceAssignments || hasProductAssignments) {
-        const assignedSourceIds = (assignments.orderSources || []).map(os => os.sourceId?._id);
-        
-        filteredOrders = filteredOrders.filter(order => {
-          // Filtre par source
-          const sourceMatch = !hasSourceAssignments || !order.sourceId || assignedSourceIds.includes(order.sourceId);
-          // Filtre par produit (si des produits sheets sont assignés, ne montrer que ceux-là)
-          const productMatch = !hasProductAssignments || sheetProductNames.some(name => 
-            order.product?.toLowerCase().includes(name.toLowerCase()) || 
-            name.toLowerCase().includes(order.product?.toLowerCase() || '')
-          );
-          return sourceMatch && productMatch;
-        });
-      }
-      setRecentOrders(filteredOrders);
-
-      // Calculer les statistiques
-      const todayOrders = filteredOrders.filter(order => 
-        new Date(order.date).toISOString().split('T')[0] === today
-      ).length;
-
-      const pendingOrders = filteredOrders.filter(order => 
-        order.status === 'pending' || order.status === 'confirmed'
-      ).length;
-
-      const deliveredToday = reportsRes.data.data.reports?.reduce((sum, report) => 
-        sum + (report.ordersDelivered || 0), 0
-      ) || 0;
-
-      // Performance hebdomadaire
-      const weekReports = await ecomApi.get('/reports?startDate=' + weekAgo + '&endDate=' + today);
-      const weekTotal = weekReports.data.data.reports?.reduce((sum, report) => 
-        sum + (report.ordersReceived || 0), 0
-      ) || 0;
-      const weekDelivered = weekReports.data.data.reports?.reduce((sum, report) => 
-        sum + (report.ordersDelivered || 0), 0
-      ) || 0;
-      const weeklyPerformance = weekTotal > 0 ? Math.round((weekDelivered / weekTotal) * 100) : 0;
-
+      const orders = ordersRes.data.data.orders || [];
+      const week = weekRes.data.data.orders || [];
+      setMyAssignments(assignmentsRes.data.data || {});
+      setAllOrders(orders);
+      setWeekOrders(week);
+      setRecentOrders(orders.slice(0, 8));
+      const countBy = (arr, key) => arr.filter(o => o.status === key).length;
+      const total = orders.length;
+      const delivered = countBy(orders, 'delivered');
+      const todayOrders = orders.filter(o => new Date(o.date).toISOString().split('T')[0] === today);
       setStats({
-        todayOrders,
-        pendingOrders,
-        deliveredToday,
-        weeklyPerformance
+        total, delivered,
+        confirmed: countBy(orders, 'confirmed'),
+        pending: countBy(orders, 'pending'),
+        cancelled: countBy(orders, 'cancelled'),
+        returned: countBy(orders, 'returned'),
+        unreachable: countBy(orders, 'unreachable'),
+        called: countBy(orders, 'called'),
+        postponed: countBy(orders, 'postponed'),
+        shipped: countBy(orders, 'shipped'),
+        deliveryRate: total > 0 ? Math.round((delivered / total) * 100) : 0,
+        todayDelivered: todayOrders.filter(o => o.status === 'delivered').length,
+        todayTotal: todayOrders.length,
       });
-
     } catch (error) {
       console.error('Erreur chargement dashboard closeuse:', error);
     } finally {
@@ -125,13 +84,25 @@ const CloseuseDashboard = () => {
     }
   };
 
-  const getStatusColor = (status) => {
-    const colors = {
-      test: 'bg-yellow-100 text-yellow-800',
-      stable: 'bg-blue-100 text-blue-800',
-      winner: 'bg-green-100 text-green-800'
-    };
-    return colors[status] || 'bg-gray-100 text-gray-800';
+  const buildDailyTrend = () => {
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400000);
+      const key = d.toISOString().split('T')[0];
+      const label = d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' });
+      const dayOrders = weekOrders.filter(o => new Date(o.date).toISOString().split('T')[0] === key);
+      days.push({ label, total: dayOrders.length, delivered: dayOrders.filter(o => o.status === 'delivered').length, isToday: i === 0 });
+    }
+    return days;
+  };
+
+  const buildTopProducts = () => {
+    const map = {};
+    allOrders.filter(o => o.status === 'delivered').forEach(o => {
+      const name = o.product || 'Inconnu';
+      map[name] = (map[name] || 0) + 1;
+    });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 5);
   };
 
   if (loading) {
@@ -145,286 +116,202 @@ const CloseuseDashboard = () => {
     );
   }
 
+  const badge = getBadge(stats.deliveryRate);
+  const dailyTrend = buildDailyTrend();
+  const topProducts = buildTopProducts();
+  const maxDayTotal = Math.max(...dailyTrend.map(d => d.total), 1);
+  const maxProduct = topProducts[0]?.[1] || 1;
+  const statusOrder = ['delivered','confirmed','pending','shipped','called','postponed','unreachable','returned','cancelled'];
+
   return (
-    <div className="p-3 sm:p-4 lg:p-6 max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-            Dashboard Closeuse 👩‍💼
-          </h1>
-          <p className="text-gray-600 mt-1">
-            Bienvenue {user?.name || user?.email} - Vue d'ensemble de vos commandes
-          </p>
-          
-          {/* Sources assignées */}
-          {myAssignments.orderSources && myAssignments.orderSources.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <span className="text-sm text-gray-500">Vos sources:</span>
-              {myAssignments.orderSources.map((os) => (
-                <span
-                  key={os.sourceId._id}
-                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
-                  style={{ backgroundColor: os.sourceId.color + '20', color: os.sourceId.color }}
-                >
-                  {os.sourceId.icon} {os.sourceId.name}
-                </span>
+    <div className="p-3 sm:p-4 lg:p-6 max-w-7xl mx-auto space-y-3 sm:space-y-5">
+
+      {/* ── Header + Badge ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Mon Dashboard 👩‍💼</h1>
+          <p className="text-gray-500 text-xs sm:text-sm mt-0.5">Bienvenue <strong>{user?.name?.split(' ')[0] || user?.email}</strong></p>
+        </div>
+        <div className={`inline-flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl bg-gradient-to-r ${badge.color} text-white shadow-md self-start sm:self-auto`}>
+          <span className="text-lg sm:text-xl">{badge.label.split(' ')[0]}</span>
+          <div>
+            <p className="font-bold text-xs sm:text-sm leading-none">{badge.label.split(' ').slice(1).join(' ')}</p>
+            <p className="text-[10px] sm:text-xs text-white/80 mt-0.5">{badge.msg}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── KPI Cards ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 sm:p-4 active:scale-[0.98] transition-transform">
+          <p className="text-[10px] sm:text-xs text-gray-400 font-semibold uppercase tracking-wide">Total</p>
+          <p className="text-2xl sm:text-3xl font-extrabold text-gray-900 mt-0.5 sm:mt-1">{stats.total}</p>
+          <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5">commandes</p>
+        </div>
+        <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl shadow-sm border border-green-100 p-3 sm:p-4 active:scale-[0.98] transition-transform">
+          <p className="text-[10px] sm:text-xs text-green-600 font-semibold uppercase tracking-wide">Livrées ✅</p>
+          <p className="text-2xl sm:text-3xl font-extrabold text-green-700 mt-0.5 sm:mt-1">{stats.delivered}</p>
+          <p className="text-[10px] sm:text-xs text-green-500 mt-0.5">taux : {stats.deliveryRate}%</p>
+        </div>
+        <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl shadow-sm border border-blue-100 p-3 sm:p-4 active:scale-[0.98] transition-transform">
+          <p className="text-[10px] sm:text-xs text-blue-600 font-semibold uppercase tracking-wide">Aujourd'hui</p>
+          <p className="text-2xl sm:text-3xl font-extrabold text-blue-700 mt-0.5 sm:mt-1">{stats.todayDelivered}</p>
+          <p className="text-[10px] sm:text-xs text-blue-400 mt-0.5">/ {stats.todayTotal} reçues</p>
+        </div>
+        <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-2xl shadow-sm border border-yellow-100 p-3 sm:p-4 active:scale-[0.98] transition-transform">
+          <p className="text-[10px] sm:text-xs text-yellow-600 font-semibold uppercase tracking-wide">En attente ⏳</p>
+          <p className="text-2xl sm:text-3xl font-extrabold text-yellow-700 mt-0.5 sm:mt-1">{stats.pending}</p>
+          <p className="text-[10px] sm:text-xs text-yellow-400 mt-0.5">à traiter</p>
+        </div>
+      </div>
+
+      {/* ── Taux de livraison (jauge) ── */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-gray-800">🎯 Taux de livraison global</h3>
+          <span className="text-2xl font-extrabold text-green-600">{stats.deliveryRate}%</span>
+        </div>
+        <div className="w-full bg-gray-100 rounded-full h-4 overflow-hidden">
+          <div
+            className="h-4 rounded-full transition-all duration-700"
+            style={{
+              width: `${stats.deliveryRate}%`,
+              background: stats.deliveryRate >= 60
+                ? 'linear-gradient(90deg,#22c55e,#10b981)'
+                : stats.deliveryRate >= 30
+                ? 'linear-gradient(90deg,#f59e0b,#f97316)'
+                : 'linear-gradient(90deg,#ef4444,#f97316)'
+            }}
+          />
+        </div>
+        <div className="flex justify-between text-xs text-gray-400 mt-1">
+          <span>0%</span><span>Objectif 60%</span><span>100%</span>
+        </div>
+      </div>
+
+      {/* ── Répartition par statut ── */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5">
+        <h3 className="font-semibold text-gray-800 mb-4">📊 Répartition par statut</h3>
+        <div className="space-y-2.5">
+          {statusOrder.map(s => {
+            const count = stats[s] || 0;
+            const pct = stats.total > 0 ? Math.round((count / stats.total) * 100) : 0;
+            const c = STATUS_COLORS[s] || { bg: 'bg-gray-100', text: 'text-gray-600', bar: 'bg-gray-400' };
+            return (
+              <div key={s} className="flex items-center gap-3">
+                <span className={`text-xs font-medium w-24 shrink-0 ${c.text}`}>{STATUS_LABELS[s]}</span>
+                <div className="flex-1 bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                  <div className={`h-2.5 rounded-full ${c.bar} transition-all duration-500`} style={{ width: `${pct}%` }} />
+                </div>
+                <span className="text-xs font-bold text-gray-700 w-8 text-right">{count}</span>
+                <span className="text-xs text-gray-400 w-8 text-right">{pct}%</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Tendance 7 jours ── */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5">
+        <h3 className="font-semibold text-gray-800 mb-4">📈 Activité des 7 derniers jours</h3>
+        <div className="flex items-end gap-2 h-28">
+          {dailyTrend.map((day, i) => (
+            <div key={i} className="flex-1 flex flex-col items-center gap-1">
+              <div className="w-full flex flex-col justify-end gap-0.5" style={{ height: '80px' }}>
+                <div
+                  className="w-full rounded-t bg-green-400 transition-all duration-500"
+                  style={{ height: `${maxDayTotal > 0 ? (day.delivered / maxDayTotal) * 80 : 0}px` }}
+                  title={`${day.delivered} livrées`}
+                />
+                <div
+                  className="w-full bg-blue-200 transition-all duration-500"
+                  style={{ height: `${maxDayTotal > 0 ? ((day.total - day.delivered) / maxDayTotal) * 80 : 0}px` }}
+                  title={`${day.total - day.delivered} autres`}
+                />
+              </div>
+              <span className={`text-[10px] font-medium ${day.isToday ? 'text-blue-600 font-bold' : 'text-gray-400'}`}>
+                {day.label}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-400 inline-block" /> Livrées</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-blue-200 inline-block" /> Autres</span>
+        </div>
+      </div>
+
+      {/* ── Top produits + Commandes récentes ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-5">
+
+        {/* Top produits livrés */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5">
+          <h3 className="font-semibold text-gray-800 mb-4">🏅 Top produits livrés</h3>
+          {topProducts.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-6">Aucune livraison encore</p>
+          ) : (
+            <div className="space-y-3">
+              {topProducts.map(([name, count], i) => (
+                <div key={name} className="flex items-center gap-3">
+                  <span className="text-lg font-bold text-gray-300 w-6">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{name}</p>
+                    <div className="w-full bg-gray-100 rounded-full h-1.5 mt-1">
+                      <div className="h-1.5 rounded-full bg-green-400" style={{ width: `${(count / maxProduct) * 100}%` }} />
+                    </div>
+                  </div>
+                  <span className="text-sm font-bold text-green-600 shrink-0">{count}</span>
+                </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Widgets de statistiques */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center">
-              <div className="p-3 bg-blue-100 rounded-full">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-500">Commandes du jour</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.todayOrders}</p>
-              </div>
-            </div>
+        {/* Commandes récentes */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-800">🕐 Commandes récentes</h3>
+            <Link to="/ecom/orders" className="text-xs text-blue-500 hover:underline">Voir tout →</Link>
           </div>
-
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center">
-              <div className="p-3 bg-yellow-100 rounded-full">
-                <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-500">En attente</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.pendingOrders}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center">
-              <div className="p-3 bg-green-100 rounded-full">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-500">Livrées aujourd'hui</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.deliveredToday}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center">
-              <div className="p-3 bg-purple-100 rounded-full">
-                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm text-gray-500">Performance semaine</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.weeklyPerformance}%</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Widget Marketing */}
-          <Link to="/ecom/campaigns" className="bg-gradient-to-r from-pink-500 to-purple-600 rounded-lg shadow p-4 hover:from-pink-600 hover:to-purple-700 transition-all transform hover:scale-105">
-            <div className="flex items-center text-white">
-              <div className="p-3 bg-white/20 rounded-full">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6 0 3 3 0 000 6zM13.73 21a2.765 2.765 0 00-3.46 0" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm text-white/90">Marketing</p>
-                <p className="text-lg font-bold text-white">Campagnes</p>
-              </div>
-            </div>
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Colonnes de droite */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Commandes récentes */}
-            <div className="bg-white rounded-lg shadow">
-              <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900">Commandes Récentes</h3>
-                <p className="text-xs sm:text-sm text-gray-500 mt-1">
-                  Dernières commandes enregistrées
-                </p>
-              </div>
-              <div className="p-3 sm:p-6">
-                <div className="space-y-3">
-                  {recentOrders.slice(0, 5).map((order) => (
-                    <div key={order._id} className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 transition">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-gray-900">{order.clientName}</span>
-                            <span className="text-gray-400">•</span>
-                            <span className="text-sm text-gray-600">{order.product}</span>
-                          </div>
-                          <div className="flex items-center gap-4 mt-1">
-                            <span className="text-sm text-gray-500">{order.quantity}x</span>
-                            <span className="text-sm font-medium text-gray-900">{order.price} FCFA</span>
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(order.status)}`}>
-                              {order.status}
-                            </span>
-                          </div>
-                        </div>
-                        <Link 
-                          to={`/orders/${order._id}`}
-                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                        >
-                          Voir
-                        </Link>
-                      </div>
+          {recentOrders.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-6">Aucune commande</p>
+          ) : (
+            <div className="space-y-2">
+              {recentOrders.slice(0, 6).map(order => {
+                const c = STATUS_COLORS[order.status] || { bg: 'bg-gray-100', text: 'text-gray-600' };
+                return (
+                  <div key={order._id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 transition">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{order.clientName || order.clientPhone}</p>
+                      <p className="text-xs text-gray-400 truncate">{order.product}</p>
                     </div>
-                  ))}
-                </div>
-                
-                {recentOrders.length === 0 && (
-                  <p className="text-center text-gray-500 py-4">
-                    Aucune commande récente
-                  </p>
-                )}
-
-                {recentOrders.length > 5 && (
-                  <div className="mt-4 text-center">
-                    <Link 
-                      to="/ecom/orders"
-                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                    >
-                      Voir toutes les commandes →
-                    </Link>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full shrink-0 ${c.bg} ${c.text}`}>
+                      {STATUS_LABELS[order.status] || order.status}
+                    </span>
                   </div>
-                )}
-              </div>
+                );
+              })}
             </div>
-
-            {/* Produits Actifs */}
-            <div className="bg-white rounded-lg shadow">
-              <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900">Produits Actifs</h3>
-                <p className="text-xs sm:text-sm text-gray-500 mt-1">
-                  {products.length} produit{products.length > 1 ? 's' : ''} en cours
-                </p>
-              </div>
-              <div className="p-3 sm:p-6">
-                <div className="space-y-3">
-                  {products.map((product) => {
-                    const todayReport = todayReports.find(r => (r.productId?._id || r.productId)?.toString() === product._id?.toString());
-                    return (
-                      <div key={product._id} className="border border-gray-200 rounded-lg p-3 sm:p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <Link to={`/products/${product._id}`} className="font-medium text-blue-600 hover:text-blue-800 hover:underline">{product.name}</Link>
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(product.status)}`}>
-                            {product.status}
-                          </span>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <span className="text-gray-500">Stock:</span>
-                            <span className="ml-2 font-medium">{product.stock}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Prix:</span>
-                            <span className="ml-2 font-medium">{product.sellingPrice} FCFA</span>
-                          </div>
-                        </div>
-
-                        {todayReport && (
-                          <div className="mt-3 pt-3 border-t border-gray-100">
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                              <div>
-                                <span className="text-gray-500">Reçues:</span>
-                                <span className="ml-2 font-medium">{todayReport.ordersReceived}</span>
-                              </div>
-                              <div>
-                                <span className="text-gray-500">Livrées:</span>
-                                <span className="ml-2 font-medium">{todayReport.ordersDelivered}</span>
-                              </div>
-                            </div>
-                            {todayReport.notes && (
-                              <p className="mt-2 text-xs text-gray-600 italic">
-                                "{todayReport.notes}"
-                              </p>
-                            )}
-                          </div>
-                        )}
-
-                        {!todayReport && (
-                          <div className="mt-3 pt-3 border-t border-gray-100">
-                            <p className="text-xs text-gray-500 italic">
-                              Pas encore de rapport pour aujourd'hui
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
+      </div>
 
-        {/* Résumé de la journée */}
-        {todayReports.length > 0 && (
-          <div className="mt-4 sm:mt-8 bg-white rounded-lg shadow">
-            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
-              <h3 className="text-base sm:text-lg font-semibold text-gray-900">Résumé du Jour</h3>
-            </div>
-            <div className="p-3 sm:p-6">
-              <div className="grid grid-cols-3 gap-3 sm:gap-6">
-                <div className="text-center">
-                  <div className="text-2xl sm:text-3xl font-bold text-blue-600">
-                    {todayReports.reduce((sum, report) => sum + report.ordersReceived, 0)}
-                  </div>
-                  <p className="text-sm text-gray-500 mt-1">Commandes Reçues</p>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl sm:text-3xl font-bold text-green-600">
-                    {todayReports.reduce((sum, report) => sum + report.ordersDelivered, 0)}
-                  </div>
-                  <p className="text-sm text-gray-500 mt-1">Commandes Livrées</p>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl sm:text-3xl font-bold text-purple-600">
-                    {(() => {
-                      const received = todayReports.reduce((sum, report) => sum + report.ordersReceived, 0);
-                      const delivered = todayReports.reduce((sum, report) => sum + report.ordersDelivered, 0);
-                      return received > 0 ? Math.round((delivered / received) * 100) : 0;
-                    })()}%
-                  </div>
-                  <p className="text-sm text-gray-500 mt-1">Taux de Livraison</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* ── Actions rapides ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+        <Link to="/ecom/orders" className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-blue-200 transition">
+          <span className="text-2xl">📦</span>
+          <div><p className="font-semibold text-sm text-gray-800">Mes commandes</p><p className="text-xs text-gray-400">Gérer le statut</p></div>
+        </Link>
+        <Link to="/ecom/reports/new" className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-green-200 transition">
+          <span className="text-2xl">📝</span>
+          <div><p className="font-semibold text-sm text-gray-800">Rapport du jour</p><p className="text-xs text-gray-400">Saisir mes résultats</p></div>
+        </Link>
+        <Link to="/ecom/campaigns" className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-pink-200 transition">
+          <span className="text-2xl">📣</span>
+          <div><p className="font-semibold text-sm text-gray-800">Campagnes</p><p className="text-xs text-gray-400">Marketing</p></div>
+        </Link>
+      </div>
 
-        {/* Guide rapide */}
-        <div className="mt-4 sm:mt-8 bg-blue-50 rounded-lg p-4 sm:p-6">
-          <h3 className="text-base sm:text-lg font-semibold text-blue-900 mb-2 sm:mb-3">📋 Guide Quick Start</h3>
-          <div className="space-y-2 text-sm text-blue-800">
-            <p>• <strong>1.</strong> Sélectionnez un produit dans la liste</p>
-            <p>• <strong>2.</strong> Saisissez le nombre de commandes reçues aujourd'hui</p>
-            <p>• <strong>3.</strong> Saisissez le nombre de commandes livrées aujourd'hui</p>
-            <p>• <strong>4.</strong> Ajoutez des notes si nécessaire (problèmes, retards, etc.)</p>
-            <p>• <strong>5.</strong> Cliquez sur "Enregistrer le rapport"</p>
-          </div>
-          <div className="mt-4 p-3 bg-blue-100 rounded text-xs text-blue-700">
-            <strong>Important:</strong> Vous ne voyez pas les informations financières (dépenses pub, bénéfices) 
-            pour vous concentrer uniquement sur la gestion des commandes.
-          </div>
-        </div>
     </div>
   );
 };

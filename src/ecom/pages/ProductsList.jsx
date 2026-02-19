@@ -244,7 +244,7 @@ const ProductsList = () => {
                 return (
                   <tr key={product._id}>
                     <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-                      <Link to={`/products/${product._id}`} className="text-xs sm:text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">{product.name}</Link>
+                      <Link to={`/ecom/products/${product._id}`} className="text-xs sm:text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">{product.name}</Link>
                     </td>
                     <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
                       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
@@ -282,7 +282,7 @@ const ProductsList = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <Link
-                        to={`/products/${product._id}/edit`}
+                        to={`/ecom/products/${product._id}/edit`}
                         className="text-indigo-600 hover:text-indigo-900 mr-4"
                       >
                         Modifier

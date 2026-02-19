@@ -100,7 +100,7 @@ const ClientsList = () => {
 
   const handleStatusChange = async (clientId, newStatus) => {
     try {
-      await ecomApi.put(`/clients/${clientId}`, { status: newStatus });
+      await ecomApi.put(`/ecom/clients/${clientId}`, { status: newStatus });
       setSuccess('Statut mis à jour');
       fetchClients();
     } catch { setError('Erreur modification statut'); }
@@ -109,7 +109,7 @@ const ClientsList = () => {
   const handleDelete = async (clientId, name) => {
     if (!confirm(`Supprimer ${name} ?`)) return;
     try {
-      await ecomApi.delete(`/clients/${clientId}`);
+      await ecomApi.delete(`/ecom/clients/${clientId}`);
       setSuccess('Client supprimé');
       fetchClients();
     } catch { setError('Erreur suppression'); }
@@ -121,7 +121,7 @@ const ClientsList = () => {
     setDeletingAll(true);
     setError('');
     try {
-      const res = await ecomApi.delete('/clients/bulk');
+      const res = await ecomApi.delete('/ecom/clients/bulk');
       setSuccess(res.data.message);
       fetchClients();
     } catch (err) {
@@ -308,7 +308,7 @@ const ClientsList = () => {
               {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Link to={`/clients/${c._id}/edit`} className="text-sm font-medium text-gray-900 hover:text-blue-600 truncate">
+                  <Link to={`/ecom/clients/${c._id}/edit`} className="text-sm font-medium text-gray-900 hover:text-blue-600 truncate">
                     {c.firstName} {c.lastName}
                   </Link>
                   <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${statusColors[c.status]}`}>
@@ -356,8 +356,8 @@ const ClientsList = () => {
                   <option value="blocked">Bloqué</option>
                 </select>
                 <Link
-                  to={`/clients/${c._id}/edit`}
-                  className="px-2.5 py-1.5 text-xs rounded-lg font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition"
+                 to={`/ecom/clients/${c._id}/edit`}
+                 className="px-2.5 py-1.5 text-xs rounded-lg font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 transition"
                 >
                   Modifier
                 </Link>

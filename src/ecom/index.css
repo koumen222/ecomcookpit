@@ -227,6 +227,25 @@
   }
 }
 
+/* iOS-style animations */
+@keyframes iosSlideUp {
+  from { transform: translateY(100%); opacity: 0.5; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes iosFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.ios-slide-up { animation: iosSlideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards; }
+.ios-fade-in { animation: iosFadeIn 0.2s ease-out forwards; }
+
+/* Apple-style touch feedback */
+@media (max-width: 1023px) {
+  .active\:scale-90:active { transform: scale(0.9); }
+  * { -webkit-tap-highlight-color: transparent; }
+  input, textarea, select { font-size: 16px !important; }
+}
+
 /* Classes utilitaires */
 .animate-spin {
   animation: spin 1s linear infinite;

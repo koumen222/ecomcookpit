@@ -218,33 +218,30 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50/50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
+      {/* Header - Apple style */}
+      <div className="bg-white/80 backdrop-blur-xl border-b border-gray-200/60 lg:bg-white lg:backdrop-blur-none lg:border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">
-                {getGreeting()}, <span className="text-blue-600">{user?.name || user?.email?.split('@')[0]}</span>
-                <svg className="w-5 h-5 inline-block ml-1 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
-                </svg>
+          <div className="flex items-center justify-between py-3 lg:h-16 lg:py-0">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
+                {getGreeting()}, <span className="text-blue-600">{user?.name?.split(' ')[0] || user?.email?.split('@')[0]}</span> 👋
               </h1>
-              <p className="text-sm text-gray-500">Voici ce qui se passe dans votre business aujourd'hui</p>
+              <p className="text-xs sm:text-sm text-gray-500 mt-0.5 hidden sm:block">Voici ce qui se passe dans votre business aujourd'hui</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <select 
                 value={timeRange} 
                 onChange={(e) => setTimeRange(e.target.value)}
-                className="px-3 py-1.5 bg-gray-100 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="px-2.5 py-1.5 bg-gray-100/80 border border-gray-200/60 rounded-xl text-xs sm:text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
               >
-                <option value="24h">24 heures</option>
-                <option value="7d">7 jours</option>
-                <option value="30d">30 jours</option>
+                <option value="24h">24h</option>
+                <option value="7d">7j</option>
+                <option value="30d">30j</option>
                 <option value="90d">3 mois</option>
               </select>
               <button 
                 onClick={loadDashboardData}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                className="p-2 text-gray-400 hover:text-gray-600 active:bg-gray-100 rounded-xl transition"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -255,68 +252,68 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Quick Actions */}
-        <div className="mb-8">
-          <div className="flex items-center gap-2 mb-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
+        {/* Quick Actions - Apple-style horizontal scroll on mobile */}
+        <div className="mb-5 sm:mb-8">
+          <div className="flex items-center gap-2 mb-3">
             <span className="w-1 h-5 bg-blue-600 rounded-full"></span>
-            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">Actions rapides</h2>
+            <h2 className="text-xs sm:text-sm font-semibold text-gray-900 uppercase tracking-wide">Actions rapides</h2>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="flex gap-2.5 overflow-x-auto pb-1 -mx-3 px-3 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 md:grid-cols-4 sm:gap-3 sm:overflow-visible snap-x snap-mandatory">
             {quickActions.map((action, i) => (
               <Link
                 key={i}
                 to={action.link}
-                className={`${action.color} text-white rounded-xl p-4 transition-all duration-200 hover:shadow-lg hover:scale-[1.02] group`}
+                className={`${action.color} text-white rounded-2xl p-3.5 sm:p-4 transition-all duration-200 active:scale-95 sm:hover:shadow-lg sm:hover:scale-[1.02] group min-w-[140px] sm:min-w-0 snap-start flex-shrink-0 sm:flex-shrink`}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-2xl">{action.icon}</span>
-                  <svg className="w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+                  <span className="text-xl sm:text-2xl">{action.icon}</span>
+                  <svg className="w-4 h-4 opacity-50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </div>
-                <p className="text-sm font-medium">{action.name}</p>
+                <p className="text-[13px] sm:text-sm font-semibold">{action.name}</p>
               </Link>
             ))}
           </div>
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 mb-5 sm:mb-8">
           {kpiCards.map((card, i) => (
             <Link
               key={i}
               to={card.link}
-              className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 group"
+              className="bg-white rounded-2xl p-3.5 sm:p-5 border border-gray-100 shadow-sm hover:shadow-md active:scale-[0.98] transition-all duration-200 group"
             >
-              <div className="flex items-start justify-between mb-3">
-                <div className={`w-10 h-10 rounded-xl bg-${card.color}-100 text-${card.color}-600 flex items-center justify-center`}>
+              <div className="flex items-start justify-between mb-2 sm:mb-3">
+                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-${card.color}-100 text-${card.color}-600 flex items-center justify-center`}>
                   {card.icon}
                 </div>
-                <span className={`flex items-center gap-1 text-xs font-medium ${card.trendUp ? 'text-emerald-600' : 'text-red-600'}`}>
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span className={`flex items-center gap-0.5 text-[10px] sm:text-xs font-medium ${card.trendUp ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={card.trendUp ? "M5 10l7-7m0 0l7 7m-7-7v18" : "M19 14l-7 7m0 0l-7-7m7 7V3"} />
                   </svg>
                   {card.trend}
                 </span>
               </div>
-              <p className="text-2xl font-bold text-gray-900 mb-1">{card.value}</p>
-              <p className="text-sm text-gray-500">{card.title}</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 mb-0.5 sm:mb-1">{card.value}</p>
+              <p className="text-xs sm:text-sm text-gray-500">{card.title}</p>
             </Link>
           ))}
         </div>
 
         {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-6 mb-5 sm:mb-8">
           {/* Chart Section - Revenue Trend */}
-          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Performance financière</h3>
-                <p className="text-sm text-gray-500">Évolution du chiffre d'affaires et des bénéfices</p>
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6">
+            <div className="flex items-start sm:items-center justify-between mb-4 sm:mb-6 gap-2">
+              <div className="min-w-0">
+                <h3 className="text-base sm:text-lg font-bold text-gray-900">Performance financière</h3>
+                <p className="text-xs sm:text-sm text-gray-500 hidden sm:block">Évolution du chiffre d'affaires et des bénéfices</p>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="hidden sm:flex items-center gap-2">
                   <span className="w-3 h-3 rounded-full bg-blue-500"></span>
                   <span className="text-xs text-gray-500">CA</span>
                   <span className="w-3 h-3 rounded-full bg-emerald-500 ml-2"></span>
@@ -325,12 +322,12 @@ const AdminDashboard = () => {
                 <select
                   value={timeRange}
                   onChange={(e) => setTimeRange(e.target.value)}
-                  className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="text-xs border border-gray-200 rounded-xl px-2 py-1 text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
-                  <option value="7d">7 jours</option>
-                  <option value="14d">14 jours</option>
-                  <option value="30d">30 jours</option>
-                  <option value="60d">60 jours</option>
+                  <option value="7d">7j</option>
+                  <option value="14d">14j</option>
+                  <option value="30d">30j</option>
+                  <option value="60d">60j</option>
                 </select>
               </div>
             </div>
@@ -468,8 +465,14 @@ const AdminDashboard = () => {
               );
             })()}
 
+            {/* Legend mobile */}
+            <div className="flex sm:hidden items-center justify-center gap-4 mt-3">
+              <span className="flex items-center gap-1.5 text-[11px] text-gray-500"><span className="w-2.5 h-2.5 rounded-full bg-blue-500" />CA</span>
+              <span className="flex items-center gap-1.5 text-[11px] text-gray-500"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />Bénéfice</span>
+            </div>
+
             {/* Financial Metrics */}
-            <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-100">
+            <div className="grid grid-cols-3 gap-3 sm:gap-4 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-100">
               <div>
                 <p className="text-xs text-gray-500 mb-1">Coûts totaux</p>
                 <p className="text-lg font-bold text-red-600">{fmt(stats.financialStats.totalCost || 0)}</p>

@@ -5,6 +5,7 @@ import CurrencySelector from './CurrencySelector.jsx';
 import NotificationPanel, { useNotifications } from './NotificationPanel.jsx';
 import PushNotificationBanner from './PushNotificationBanner.jsx';
 import InstallPrompt from './InstallPrompt.jsx';
+import ChatWidget from './ChatWidget.jsx';
 
 const EcomLayout = ({ children }) => {
   const { user, workspace, logout, isImpersonating, impersonatedUser, stopImpersonation } = useEcomAuth();
@@ -121,12 +122,7 @@ const EcomLayout = ({ children }) => {
       roles: ['ecom_admin', 'ecom_closeuse'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>
     },
-    {
-      name: 'Prospects', shortName: 'Prospects', href: '/ecom/prospects', primary: false,
-      roles: ['ecom_admin', 'ecom_closeuse'],
-      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-    },
-    {
+        {
       name: 'Fournisseurs', shortName: 'Fourn.', href: '/ecom/stock/orders', primary: false,
       roles: ['ecom_admin'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
@@ -284,79 +280,50 @@ const EcomLayout = ({ children }) => {
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0 lg:ml-[240px]">
-        {/* Clean Top Navigation - Shopify Style */}
-        <header className="bg-white border-b border-gray-200 h-14 flex items-center px-4 lg:px-6 sticky top-0 z-20">
-          <div className="flex-1 flex items-center justify-between gap-4">
-            {/* Left: Search */}
-            <div className="flex items-center gap-4 flex-1">
-              {/* Mobile logo */}
-              <div className="w-8 h-8 bg-gray-900 rounded-lg flex items-center justify-center lg:hidden">
-                <span className="text-white font-bold text-xs">EC</span>
+        {/* ── Mobile Header: Apple frosted glass ── */}
+        <header className="lg:hidden bg-white/80 backdrop-blur-xl border-b border-gray-200/60 sticky top-0 z-20 pt-safe">
+          <div className="flex items-center justify-between h-11 px-4">
+            <div className="flex items-center gap-2.5 flex-1 min-w-0">
+              <div className={`w-8 h-8 ${roleColors[displayUser?.role] || 'bg-gray-900'} rounded-full flex items-center justify-center flex-shrink-0 shadow-sm`}>
+                <span className="text-white text-xs font-bold">{initial}</span>
               </div>
-
-              {/* Search */}
-              <div className="hidden md:flex items-center flex-1 max-w-md">
-                <div className="relative w-full">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Rechercher..."
-                    className="block w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-lg leading-5 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm"
-                  />
-                </div>
-              </div>
-
-              {/* Page Title - Mobile */}
-              <div className="lg:hidden">
-                <h2 className="text-sm font-medium text-gray-900">{getPageTitle(location.pathname)}</h2>
+              <div className="min-w-0">
+                <h1 className="text-[17px] font-semibold text-gray-900 tracking-tight leading-tight truncate">{getPageTitle(location.pathname)}</h1>
               </div>
             </div>
-
-            {/* Right: Actions */}
-            <div className="flex items-center gap-1">
-              {/* Mobile Search */}
-              <button className="md:hidden p-2 text-gray-500 hover:text-gray-700 rounded-lg">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </button>
-
-              {/* Notifications */}
+            <div className="flex items-center gap-0.5 flex-shrink-0">
               <div className="relative" ref={notifRef}>
-                <button
-                  onClick={() => { setNotifOpen(!notifOpen); setUserMenuOpen(false); }}
-                  className="relative p-2 text-gray-500 hover:text-gray-700 rounded-lg"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                  </svg>
-                  {unreadCount > 0 && (
-                    <span className="absolute top-1 right-1 min-w-[16px] h-4 flex items-center justify-center px-1 rounded-full bg-red-500 text-white text-[10px] font-bold">
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </span>
-                  )}
+                <button onClick={() => { setNotifOpen(!notifOpen); setUserMenuOpen(false); }} className="relative w-9 h-9 flex items-center justify-center rounded-full active:bg-gray-100/80 transition-colors">
+                  <svg className="w-[22px] h-[22px] text-gray-900" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                  {unreadCount > 0 && <span className="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] flex items-center justify-center px-1 rounded-full bg-red-500 text-white text-[11px] font-bold shadow-sm">{unreadCount > 99 ? '99+' : unreadCount}</span>}
                 </button>
-                <NotificationPanel
-                  isOpen={notifOpen}
-                  onClose={() => { setNotifOpen(false); refreshCount(); }}
-                />
+                <NotificationPanel isOpen={notifOpen} onClose={() => { setNotifOpen(false); refreshCount(); }} />
               </div>
+            </div>
+          </div>
+        </header>
 
-              {/* User Menu - Desktop only */}
-              <div className="relative ml-2 hidden lg:block" ref={userMenuRef}>
-                <button
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center gap-2 p-1 rounded-lg hover:bg-gray-100"
-                >
-                  <div className={`w-8 h-8 ${roleColors[displayUser?.role] || 'bg-gray-900'} rounded-lg flex items-center justify-center`}>
-                    <span className="text-white text-xs font-bold">{initial}</span>
-                  </div>
+        {/* ── Desktop Header ── */}
+        <header className="hidden lg:flex bg-white border-b border-gray-200 h-14 items-center px-6 sticky top-0 z-20">
+          <div className="flex-1 flex items-center justify-between gap-4">
+            <div className="flex items-center flex-1 max-w-md">
+              <div className="relative w-full">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg></div>
+                <input type="text" placeholder="Rechercher..." className="block w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-lg leading-5 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm" />
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="relative" ref={notifRef}>
+                <button onClick={() => { setNotifOpen(!notifOpen); setUserMenuOpen(false); }} className="relative p-2 text-gray-500 hover:text-gray-700 rounded-lg">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                  {unreadCount > 0 && <span className="absolute top-1 right-1 min-w-[16px] h-4 flex items-center justify-center px-1 rounded-full bg-red-500 text-white text-[10px] font-bold">{unreadCount > 99 ? '99+' : unreadCount}</span>}
                 </button>
-
+                <NotificationPanel isOpen={notifOpen} onClose={() => { setNotifOpen(false); refreshCount(); }} />
+              </div>
+              <div className="relative ml-2" ref={userMenuRef}>
+                <button onClick={() => setUserMenuOpen(!userMenuOpen)} className="flex items-center gap-2 p-1 rounded-lg hover:bg-gray-100">
+                  <div className={`w-8 h-8 ${roleColors[displayUser?.role] || 'bg-gray-900'} rounded-lg flex items-center justify-center`}><span className="text-white text-xs font-bold">{initial}</span></div>
+                </button>
                 {userMenuOpen && (
                   <div className="absolute right-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden z-50">
                     <div className="px-4 py-3 border-b border-gray-100">
@@ -364,34 +331,14 @@ const EcomLayout = ({ children }) => {
                       <p className="text-xs text-gray-500">{displayUser?.email}</p>
                     </div>
                     <div className="py-1">
-                      <Link to="/ecom/profile" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                        Profil
-                      </Link>
-                      <Link to="/ecom/settings" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                        </svg>
-                        Paramètres
-                      </Link>
+                      <Link to="/ecom/profile" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"><svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>Profil</Link>
+                      <Link to="/ecom/settings" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"><svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /></svg>Paramètres</Link>
                     </div>
                     <div className="border-t border-gray-100 py-1">
                       {isImpersonating ? (
-                        <button onClick={() => { setUserMenuOpen(false); stopImpersonation(); }} className="flex items-center gap-2 px-4 py-2 text-sm text-purple-600 hover:bg-purple-50 w-full">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                          </svg>
-                          Revenir Admin
-                        </button>
+                        <button onClick={() => { setUserMenuOpen(false); stopImpersonation(); }} className="flex items-center gap-2 px-4 py-2 text-sm text-purple-600 hover:bg-purple-50 w-full"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>Revenir Admin</button>
                       ) : (
-                        <button onClick={() => { setUserMenuOpen(false); handleLogout(); }} className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                          </svg>
-                          Déconnexion
-                        </button>
+                        <button onClick={() => { setUserMenuOpen(false); handleLogout(); }} className="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 w-full"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>Déconnexion</button>
                       )}
                     </div>
                   </div>
@@ -413,9 +360,12 @@ const EcomLayout = ({ children }) => {
       {/* PWA Install Prompt */}
       <InstallPrompt />
 
-      {/* Mobile Bottom Tab Bar */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40">
-        <div className="flex items-center justify-around h-16 px-1 bottom-nav-safe">
+      {/* Chat Équipe flottant */}
+      <ChatWidget />
+
+      {/* ── iOS-Style Bottom Tab Bar ── */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-xl border-t border-gray-200/60">
+        <div className="flex items-stretch justify-around px-2 bottom-nav-safe" style={{ height: '50px' }}>
           {mobileMainTabs.map((item) => {
             const active = isActive(item.href);
             return (
@@ -423,15 +373,12 @@ const EcomLayout = ({ children }) => {
                 key={item.name}
                 to={item.href}
                 onClick={() => setMoreMenuOpen(false)}
-                className={`flex flex-col items-center justify-center flex-1 h-full pt-1 transition-colors ${
-                  active ? 'text-blue-600' : 'text-gray-400 active:text-gray-600'
+                className={`flex flex-col items-center justify-center flex-1 gap-0.5 transition-all duration-200 active:scale-90 ${
+                  active ? 'text-blue-500' : 'text-gray-400'
                 }`}
               >
-                <span className={active ? 'text-blue-600' : 'text-gray-400'}>{item.icon}</span>
-                <span className={`text-[10px] mt-0.5 font-medium ${active ? 'text-blue-600' : 'text-gray-400'}`}>
-                  {item.shortName}
-                </span>
-                {active && <span className="w-1 h-1 bg-blue-600 rounded-full mt-0.5"></span>}
+                <span className={`transition-transform duration-200 ${active ? 'scale-110' : ''}`}>{item.icon}</span>
+                <span className={`text-[10px] font-medium leading-none ${active ? 'text-blue-500' : 'text-gray-400'}`}>{item.shortName}</span>
               </Link>
             );
           })}
@@ -440,57 +387,56 @@ const EcomLayout = ({ children }) => {
             <div className="relative flex-1">
               <button
                 onClick={() => setMoreMenuOpen(!moreMenuOpen)}
-                className={`flex flex-col items-center justify-center w-full h-16 pt-1 transition-colors ${
-                  moreMenuOpen ? 'text-blue-600' : 'text-gray-400 active:text-gray-600'
+                className={`flex flex-col items-center justify-center w-full h-full gap-0.5 transition-all duration-200 active:scale-90 ${
+                  moreMenuOpen ? 'text-blue-500' : 'text-gray-400'
                 }`}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
-                </svg>
-                <span className="text-[10px] mt-0.5 font-medium">Plus</span>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01" /><circle cx="12" cy="12" r="10" strokeWidth={1.5} /></svg>
+                <span className="text-[10px] font-medium leading-none">Plus</span>
               </button>
 
+              {/* iOS-style action sheet */}
               {moreMenuOpen && (
                 <>
-                  <div className="fixed inset-0 z-30" onClick={() => setMoreMenuOpen(false)} />
-                  <div className="absolute bottom-full right-0 mb-2 w-52 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-40">
-                    {mobileSecondaryTabs.map((item) => {
-                      const active = isActive(item.href);
-                      return (
-                        <Link
-                          key={item.name}
-                          to={item.href}
-                          onClick={() => setMoreMenuOpen(false)}
-                          className={`flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors ${
-                            active ? 'bg-blue-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'
-                          }`}
-                        >
-                          <span className={active ? 'text-blue-600' : 'text-gray-400'}>{item.icon}</span>
-                          {item.name}
+                  <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-30 ios-fade-in" onClick={() => setMoreMenuOpen(false)} />
+                  <div className="fixed bottom-0 left-0 right-0 z-40 px-2 ios-slide-up" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)' }}>
+                    <div className="bg-white/95 backdrop-blur-xl rounded-2xl overflow-hidden shadow-2xl mb-2">
+                      <div className="px-4 pt-3 pb-2">
+                        <div className="w-9 h-1 bg-gray-300 rounded-full mx-auto mb-2" />
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Plus d'options</p>
+                      </div>
+                      <div className="divide-y divide-gray-100">
+                        {mobileSecondaryTabs.map((item) => {
+                          const active = isActive(item.href);
+                          return (
+                            <Link
+                              key={item.name}
+                              to={item.href}
+                              onClick={() => setMoreMenuOpen(false)}
+                              className={`flex items-center gap-3.5 px-5 py-3.5 text-[15px] font-medium active:bg-gray-100 transition-colors ${
+                                active ? 'text-blue-500' : 'text-gray-900'
+                              }`}
+                            >
+                              <span className={`flex-shrink-0 ${active ? 'text-blue-500' : 'text-gray-400'}`}>{item.icon}</span>
+                              <span className="flex-1">{item.name}</span>
+                              {active && <span className="w-2 h-2 bg-blue-500 rounded-full" />}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                      <div className="border-t border-gray-100">
+                        <Link to="/ecom/profile" onClick={() => setMoreMenuOpen(false)} className="flex items-center gap-3.5 px-5 py-3.5 text-[15px] font-medium text-gray-900 active:bg-gray-100">
+                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                          Mon profil
                         </Link>
-                      );
-                    })}
-                    <div className="border-t border-gray-100">
-                      <Link
-                        to="/ecom/profile"
-                        onClick={() => setMoreMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                      >
-                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                        Mon profil
-                      </Link>
-                      <button
-                        onClick={() => { setMoreMenuOpen(false); handleLogout(); }}
-                        className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 w-full"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                        </svg>
-                        Déconnexion
-                      </button>
+                      </div>
                     </div>
+                    <button
+                      onClick={() => { setMoreMenuOpen(false); handleLogout(); }}
+                      className="w-full bg-white/95 backdrop-blur-xl rounded-2xl py-3.5 text-[17px] font-semibold text-red-500 active:bg-gray-100 shadow-2xl transition-colors"
+                    >
+                      Déconnexion
+                    </button>
                   </div>
                 </>
               )}
@@ -531,11 +477,11 @@ const getPageTitle = (pathname) => {
   if (pathname.includes('/clients') && pathname.includes('/edit')) return 'Modifier client';
   if (pathname.includes('/clients')) return 'Clients';
   if (pathname.includes('/campaigns')) return 'Marketing';
-  if (pathname.includes('/prospects')) return 'Prospects';
-  if (pathname.includes('/super-admin/users')) return 'Gestion des utilisateurs';
+    if (pathname.includes('/super-admin/users')) return 'Gestion des utilisateurs';
   if (pathname.includes('/super-admin/workspaces')) return 'Gestion des espaces';
   if (pathname.includes('/super-admin/activity')) return 'Activité';
   if (pathname.includes('/super-admin/settings')) return 'Paramètres';
+  if (pathname.includes('/chat')) return 'Chat Équipe';
   if (pathname.includes('/goals')) return 'Objectifs Hebdomadaires';
   if (pathname.includes('/settings')) return 'Paramètres';
   if (pathname.includes('/super-admin')) return 'Super Administration';

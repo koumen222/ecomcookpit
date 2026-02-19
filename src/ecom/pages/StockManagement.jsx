@@ -33,6 +33,10 @@ const StockManagement = () => {
     productId: '', city: '', agency: '', quantity: '', unitCost: '', notes: ''
   });
   const [adjustForm, setAdjustForm] = useState({ adjustment: '', reason: '' });
+  const [showDistributeModal, setShowDistributeModal] = useState(false);
+  const [distributeForm, setDistributeForm] = useState({
+    productId: '', city: '', agency: '', quantity: ''
+  });
 
   useEffect(() => {
     loadAll();
@@ -121,6 +125,80 @@ const StockManagement = () => {
       setError(err.response?.data?.message || 'Erreur');
       // En cas d'erreur, on recharge les données
       loadAll();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleResync = async () => {
+    if (!confirm('Resynchroniser les emplacements avec le stock produit ? Les quantités des emplacements seront ajustées pour correspondre au stock réel de chaque produit.')) return;
+    try {
+      setSubmitting(true);
+      const res = await ecomApi.post('/stock-locations/resync');
+      setSuccess(res.data.message || 'Resync effectué');
+      await loadAll();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Erreur resync');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDistributeStock = async (e) => {
+    e.preventDefault();
+    if (!distributeForm.productId || !distributeForm.city || !distributeForm.quantity) {
+      setError('Produit, ville et quantité sont requis');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      const quantity = parseInt(distributeForm.quantity);
+      
+      // Vérifier si le produit a assez de stock
+      const product = products.find(p => p._id === distributeForm.productId);
+      if (!product || (product.stock ?? 0) < quantity) {
+        setError(`Stock insuffisant. Disponible: ${product?.stock ?? 0} unités`);
+        return;
+      }
+      
+      // Trouver l'emplacement existant ou en créer un nouveau
+      const existingEntry = entries.find(
+        e => e.productId?._id === distributeForm.productId && e.city === distributeForm.city
+      );
+      
+      if (existingEntry) {
+        // Mettre à jour l'emplacement existant
+        await ecomApi.put(`/stock-locations/${existingEntry._id}`, {
+          quantity: existingEntry.quantity + quantity,
+          unitCost: existingEntry.unitCost,
+          notes: existingEntry.notes + ` | Distribution: +${quantity}`
+        });
+      } else {
+        // Créer un nouvel emplacement
+        await ecomApi.post('/stock-locations', {
+          productId: distributeForm.productId,
+          city: distributeForm.city,
+          agency: distributeForm.agency || '',
+          quantity: quantity,
+          unitCost: product?.productCost || 0,
+          notes: `Distribution initiale: ${quantity}`
+        });
+      }
+      
+      // Décrémenter le stock général du produit directement
+      await ecomApi.post('/stock-locations/distribute-from-product', {
+        productId: distributeForm.productId,
+        quantity: -quantity,
+        reason: `Distribution vers ${distributeForm.city}`
+      });
+      
+      setSuccess(`Stock distribué: ${quantity} unités à ${distributeForm.city}`);
+      setShowDistributeModal(false);
+      setDistributeForm({ productId: '', city: '', agency: '', quantity: '' });
+      loadAll();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Erreur lors de la distribution');
     } finally {
       setSubmitting(false);
     }
@@ -301,15 +379,28 @@ const StockManagement = () => {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Gestion de stock</h1>
           <p className="text-sm text-gray-500 mt-0.5">Stock par ville et agence de livraison</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition flex items-center gap-2"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Ajouter du stock
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleResync}
+            disabled={submitting}
+            title="Resynchroniser les emplacements avec le stock produit"
+            className="px-3 py-2.5 bg-amber-100 text-amber-700 border border-amber-300 rounded-xl text-sm font-medium hover:bg-amber-200 transition flex items-center gap-2 disabled:opacity-50"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Resync stock
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Ajouter du stock
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
@@ -362,6 +453,15 @@ const StockManagement = () => {
                   </svg>
                   Ajouter
                 </button>
+                <button
+                  onClick={() => setShowDistributeModal(true)}
+                  className="px-3 py-1.5 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-700 flex items-center gap-1"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4" />
+                  </svg>
+                  Distribuer
+                </button>
                 <div className="h-4 w-px bg-gray-300"></div>
                 <span className="text-xs text-gray-500">
                   {selectedCells.size > 0 ? `${selectedCells.size} cellule(s) sélectionnée(s)` : 'Cliquez sur une cellule pour éditer'}
@@ -390,10 +490,12 @@ const StockManagement = () => {
                   <th className="border border-gray-300 px-2 py-1 text-left font-medium text-gray-700 bg-gray-50">Produit</th>
                   <th className="border border-gray-300 px-2 py-1 text-left font-medium text-gray-700 bg-gray-50">Ville</th>
                   <th className="border border-gray-300 px-2 py-1 text-left font-medium text-gray-700 bg-gray-50">Agence</th>
-                  <th className="border border-gray-300 px-2 py-1 text-right font-medium text-gray-700 bg-gray-50">Quantité</th>
+                  <th className="border border-gray-300 px-2 py-1 text-right font-medium text-gray-700 bg-gray-50">Qté emplacement</th>
+                  <th className="border border-gray-300 px-2 py-1 text-right font-medium text-emerald-700 bg-emerald-50" title="Stock total du produit (somme de tous les emplacements)">Stock produit ↗</th>
                   <th className="border border-gray-300 px-2 py-1 text-right font-medium text-gray-700 bg-gray-50">Coût unit.</th>
                   <th className="border border-gray-300 px-2 py-1 text-right font-medium text-gray-700 bg-gray-50">Valeur</th>
                   <th className="border border-gray-300 px-2 py-1 text-left font-medium text-gray-700 bg-gray-50">Notes</th>
+                  <th className="border border-gray-300 px-2 py-1 text-left font-medium text-gray-700 bg-gray-50">Dernière mise à jour</th>
                   <th className="border border-gray-300 px-2 py-1 text-center font-medium text-gray-700 bg-gray-50">Actions</th>
                 </tr>
               </thead>
@@ -417,8 +519,8 @@ const StockManagement = () => {
                       <td className="border border-gray-300 px-2 py-2 text-blue-800">
                         {cityData.entries.length} emplacement(s)
                       </td>
-                      <td className="border border-gray-300 px-2 py-2 text-blue-800 text-center">
-                        -
+                      <td className="border border-gray-300 px-2 py-2 text-blue-800 text-center" colSpan="3">
+                        Total {cityData.city}
                       </td>
                     </tr>
                     
@@ -538,11 +640,25 @@ const StockManagement = () => {
                               fmt(entry.unitCost)
                             )}
                           </td>
+                          <td className="border border-gray-300 px-2 py-1 text-right bg-emerald-50">
+                            <span className={`font-bold text-xs ${
+                              entry.productId?.stock !== undefined
+                                ? entry.productId.stock <= (entry.productId?.reorderThreshold || 10)
+                                  ? 'text-red-600'
+                                  : 'text-emerald-700'
+                                : 'text-gray-400'
+                            }`}>
+                              {entry.productId?.stock ?? '—'}
+                            </span>
+                          </td>
                           <td className="border border-gray-300 px-2 py-1 text-right text-green-600 font-medium">
                             {fmt(entry.quantity * entry.unitCost)}
                           </td>
                           <td className="border border-gray-300 px-2 py-1 text-gray-500 text-xs truncate max-w-[150px]">
                             {entry.notes || '-'}
+                          </td>
+                          <td className="border border-gray-300 px-2 py-1 text-gray-500 text-xs">
+                            {entry.createdAt ? new Date(entry.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '-'}
                           </td>
                           <td className="border border-gray-300 px-2 py-1 text-center">
                             <div className="flex items-center justify-center gap-1">
@@ -580,18 +696,17 @@ const StockManagement = () => {
                   <td className="border border-gray-300 px-2 py-2 text-right text-gray-800">
                     {formatNumber(totals.totalQuantity)}
                   </td>
-                  <td className="border border-gray-300 px-2 py-2 text-right text-gray-800">
-                    -
-                  </td>
+                  <td className="border border-gray-300 px-2 py-2 text-right bg-emerald-50 text-emerald-700">—</td>
+                  <td className="border border-gray-300 px-2 py-2 text-right text-gray-800">-</td>
                   <td className="border border-gray-300 px-2 py-2 text-right text-green-700 text-sm">
                     {fmt(totals.totalValue)}
                   </td>
                   <td className="border border-gray-300 px-2 py-2 text-gray-800">
                     {filteredEntries.length} entrées
                   </td>
-                  <td className="border border-gray-300 px-2 py-2 text-center text-gray-800">
-                    -
-                  </td>
+                  <td className="border border-gray-300 px-2 py-2 text-center text-gray-800">-</td>
+                  <td className="border border-gray-300 px-2 py-2 text-center text-gray-800">-</td>
+                  <td className="border border-gray-300 px-2 py-2 text-center text-gray-800">-</td>
                 </tr>
               </tbody>
             </table>
@@ -645,18 +760,35 @@ const StockManagement = () => {
                 <h3 className="text-sm font-semibold text-gray-800">Stock par produit</h3>
               </div>
               <div className="divide-y">
-                {summary.byProduct.map((p, i) => (
-                  <div key={i} className="px-4 py-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{p.productName}</p>
-                      <p className="text-xs text-gray-500">{p.cities?.length || 0} ville(s)</p>
+                {summary.byProduct.map((p, i) => {
+                  const prod = products.find(pr => pr._id === (p._id?.toString?.() || p._id));
+                  const productStock = prod?.stock ?? p.totalQuantity;
+                  const inSync = productStock === p.totalQuantity;
+                  return (
+                    <div key={i} className="px-4 py-3 flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900">{p.productName}</p>
+                        <p className="text-xs text-gray-500">{p.cities?.length || 0} ville(s) · {fmt(p.totalValue)}</p>
+                      </div>
+                      <div className="flex items-center gap-3 text-right flex-shrink-0">
+                        <div>
+                          <p className="text-[10px] text-gray-400 uppercase font-semibold">Emplacements</p>
+                          <p className="text-sm font-bold text-gray-700">{formatNumber(p.totalQuantity)}</p>
+                        </div>
+                        <div className="w-px h-8 bg-gray-200"/>
+                        <div>
+                          <p className="text-[10px] text-emerald-600 uppercase font-semibold">Stock produit</p>
+                          <p className={`text-sm font-bold ${productStock <= (prod?.reorderThreshold || 10) ? 'text-red-600' : 'text-emerald-600'}`}>
+                            {formatNumber(productStock)}
+                          </p>
+                        </div>
+                        {!inSync && (
+                          <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-semibold">⚠ désync</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-gray-900">{formatNumber(p.totalQuantity)} unités</p>
-                      <p className="text-xs text-green-600 font-medium">{fmt(p.totalValue)}</p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -715,10 +847,19 @@ const StockManagement = () => {
                           <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-medium rounded-full">{entry.agency}</span>
                         )}
                       </div>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs text-gray-500">Qté: <strong className="text-gray-800">{formatNumber(entry.quantity)}</strong></span>
+                      <div className="flex items-center gap-3 mt-1 flex-wrap">
+                        <span className="text-xs text-gray-500">Qté ici: <strong className="text-gray-800">{formatNumber(entry.quantity)}</strong></span>
                         <span className="text-xs text-gray-500">Coût unit: <strong className="text-gray-800">{fmt(entry.unitCost)}</strong></span>
                         <span className="text-xs text-green-600 font-medium">Valeur: {fmt(entry.quantity * entry.unitCost)}</span>
+                        {entry.productId?.stock !== undefined && (
+                          <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                            entry.productId.stock <= (entry.productId?.reorderThreshold || 10)
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-emerald-100 text-emerald-700'
+                          }`}>
+                            Stock total produit: {formatNumber(entry.productId.stock)}
+                          </span>
+                        )}
                       </div>
                       {entry.notes && <p className="text-[10px] text-gray-400 mt-1 truncate">{entry.notes}</p>}
                     </div>
@@ -824,7 +965,7 @@ const StockManagement = () => {
                 }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" required>
                   <option value="">-- Choisir un produit --</option>
-                  {products.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
+                  {products.map(p => <option key={p._id} value={p._id}>{p.name}{p.stock !== undefined ? ` — stock: ${p.stock}` : ''}</option>)}
                 </select>
               </div>
 
@@ -832,13 +973,33 @@ const StockManagement = () => {
               {form.productId && (() => {
                 const prod = products.find(p => p._id === form.productId);
                 if (!prod) return null;
+                const isLow = prod.stock !== undefined && prod.stock <= (prod.reorderThreshold || 10);
                 return (
-                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <p className="text-xs font-medium text-gray-500 mb-1.5">Infos produit</p>
-                    <div className="flex flex-wrap gap-3 text-xs">
-                      <span className="text-gray-600">Prix vente: <strong className="text-gray-900">{fmt(prod.sellingPrice)}</strong></span>
-                      <span className="text-gray-600">Coût produit: <strong className="text-gray-900">{fmt(prod.productCost)}</strong></span>
-                      <span className="text-gray-600">Livraison: <strong className="text-gray-900">{fmt(prod.deliveryCost)}</strong></span>
+                  <div className="rounded-lg border border-gray-200 overflow-hidden">
+                    {/* Stock actuel — mis en avant */}
+                    <div className={`flex items-center justify-between px-3 py-2.5 ${
+                      isLow ? 'bg-red-50 border-b border-red-200' : 'bg-emerald-50 border-b border-emerald-200'
+                    }`}>
+                      <span className={`text-xs font-semibold uppercase tracking-wide ${
+                        isLow ? 'text-red-600' : 'text-emerald-700'
+                      }`}>Stock actuel du produit</span>
+                      <span className={`text-lg font-bold ${
+                        isLow ? 'text-red-600' : 'text-emerald-700'
+                      }`}>
+                        {prod.stock ?? '—'} unités
+                        {isLow && <span className="ml-2 text-[10px] font-semibold bg-red-100 text-red-700 px-1.5 py-0.5 rounded">⚠ bas</span>}
+                      </span>
+                    </div>
+                    {/* Autres infos */}
+                    <div className="bg-gray-50 px-3 py-2">
+                      <div className="flex flex-wrap gap-3 text-xs">
+                        <span className="text-gray-600">Prix vente: <strong className="text-gray-900">{fmt(prod.sellingPrice)}</strong></span>
+                        <span className="text-gray-600">Coût produit: <strong className="text-gray-900">{fmt(prod.productCost)}</strong></span>
+                        <span className="text-gray-600">Livraison: <strong className="text-gray-900">{fmt(prod.deliveryCost)}</strong></span>
+                        {prod.reorderThreshold > 0 && (
+                          <span className="text-gray-600">Seuil: <strong className="text-gray-900">{prod.reorderThreshold}</strong></span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -879,6 +1040,57 @@ const StockManagement = () => {
         </div>
       )}
 
+      {/* Distribute Modal */}
+      {showDistributeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowDistributeModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-5" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Distribuer le stock</h3>
+            <form onSubmit={handleDistributeStock} className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Produit *</label>
+                <select value={distributeForm.productId} onChange={e => setDistributeForm(prev => ({ ...prev, productId: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" required>
+                  <option value="">-- Choisir un produit --</option>
+                  {products.map(p => (
+                    <option key={p._id} value={p._id}>
+                      {p.name} (Stock: {p.stock ?? 0})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ville *</label>
+                <input type="text" value={distributeForm.city} onChange={e => setDistributeForm(prev => ({ ...prev, city: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ex: Douala" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Agence</label>
+                <input type="text" value={distributeForm.agency} onChange={e => setDistributeForm(prev => ({ ...prev, agency: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ex: Lygos, Anka (optionnel)" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantité à distribuer *</label>
+                <input type="number" min="1" value={distributeForm.quantity} onChange={e => setDistributeForm(prev => ({ ...prev, quantity: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                  placeholder="Nombre d'unités" required />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowDistributeModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                  Annuler
+                </button>
+                <button type="submit" disabled={submitting}
+                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
+                  {submitting ? 'Distribution...' : 'Distribuer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Adjust Modal */}
       {showAdjustModal && selectedEntry && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowAdjustModal(false)}>
@@ -887,8 +1099,26 @@ const StockManagement = () => {
             <p className="text-sm text-gray-500 mb-4">
               {selectedEntry.productId?.name} · {selectedEntry.city}
               {selectedEntry.agency ? ` · ${selectedEntry.agency}` : ''}
-              <br />Stock actuel: <strong>{fmt(selectedEntry.quantity)}</strong>
             </p>
+            <div className="flex gap-3 mb-4">
+              <div className="flex-1 bg-gray-50 rounded-lg p-2.5 text-center border border-gray-200">
+                <p className="text-[10px] text-gray-400 uppercase font-semibold">Qté emplacement</p>
+                <p className="text-lg font-bold text-gray-900">{formatNumber(selectedEntry.quantity)}</p>
+              </div>
+              {selectedEntry.productId?.stock !== undefined && (
+                <div className={`flex-1 rounded-lg p-2.5 text-center border ${
+                  selectedEntry.productId.stock <= (selectedEntry.productId?.reorderThreshold || 10)
+                    ? 'bg-red-50 border-red-200'
+                    : 'bg-emerald-50 border-emerald-200'
+                }`}>
+                  <p className="text-[10px] text-gray-400 uppercase font-semibold">Stock total produit</p>
+                  <p className={`text-lg font-bold ${
+                    selectedEntry.productId.stock <= (selectedEntry.productId?.reorderThreshold || 10)
+                      ? 'text-red-600' : 'text-emerald-600'
+                  }`}>{formatNumber(selectedEntry.productId.stock)}</p>
+                </div>
+              )}
+            </div>
             <form onSubmit={handleAdjust} className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Ajustement (+ ou -)</label>

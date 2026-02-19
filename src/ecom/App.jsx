@@ -26,11 +26,12 @@ import ProductDetail from './pages/ProductDetail.jsx';
 import UserManagement from './pages/UserManagement.jsx';
 import ClientsList from './pages/ClientsList.jsx';
 import ClientForm from './pages/ClientForm.jsx';
-import ProspectsList from './pages/ProspectsList.jsx';
 import OrdersList from './pages/OrdersList.jsx';
 import OrderDetail from './pages/OrderDetail.jsx';
 import CampaignsList from './pages/CampaignsList.jsx';
 import CampaignForm from './pages/CampaignForm.jsx';
+import WhatsAppPostulation from './pages/WhatsAppPostulation.jsx';
+import WhatsAppEnSavoirPlus from './pages/WhatsAppEnSavoirPlus.jsx';
 import AssignmentsManager from './pages/AssignmentsManager.jsx';
 import CloseuseProduits from './pages/CloseuseProduits.jsx';
 import SuperAdminDashboard from './pages/SuperAdminDashboard.jsx';
@@ -55,6 +56,7 @@ import EcomLayout from './components/EcomLayout.jsx';
 import PrivacyPolicy from './pages/PrivacyPolicy.jsx';
 import PrivacyBanner from './components/PrivacyBanner.jsx';
 import SecurityDashboard from './pages/SecurityDashboard.jsx';
+import TeamChat from './pages/TeamChat.jsx';
 
 
 class ErrorBoundary extends React.Component {
@@ -285,8 +287,8 @@ const EcomApp = () => {
               {/* Routes stock */}
               <Route path="/ecom/stock" element={<LayoutRoute requiredRole="ecom_admin"><StockOrdersList /></LayoutRoute>} />
               <Route path="/ecom/stock/orders" element={<LayoutRoute requiredRole="ecom_admin"><StockOrdersList /></LayoutRoute>} />
-              <Route path="/ecom/stock/orders/new" element={<LayoutRoute requiredRole="ecom_admin"><StockOrderForm /></LayoutRoute>} />
-              <Route path="/ecom/stock/orders/:id/edit" element={<LayoutRoute requiredRole="ecom_admin"><StockOrderForm /></LayoutRoute>} />
+              <Route path="/ecom/stock/orders/new" element={<LayoutRoute requiredRole="ecom_admin"><StockOrdersList /></LayoutRoute>} />
+              <Route path="/ecom/stock/orders/:id/edit" element={<LayoutRoute requiredRole="ecom_admin"><StockOrdersList /></LayoutRoute>} />
               <Route path="/ecom/stock-locations" element={<LayoutRoute requiredRole="ecom_admin"><StockManagement /></LayoutRoute>} />
               
               {/* Routes transactions (compta + admin) */}
@@ -304,8 +306,6 @@ const EcomApp = () => {
               <Route path="/ecom/clients/new" element={<LayoutRoute><ClientForm /></LayoutRoute>} />
               <Route path="/ecom/clients/:id/edit" element={<LayoutRoute><ClientForm /></LayoutRoute>} />
               
-              {/* Routes prospects */}
-              <Route path="/ecom/prospects" element={<LayoutRoute><ProspectsList /></LayoutRoute>} />
               
               {/* Routes commandes (admin + closeuse) */}
               <Route path="/ecom/orders" element={<LayoutRoute><OrdersList /></LayoutRoute>} />
@@ -320,6 +320,12 @@ const EcomApp = () => {
               <Route path="/ecom/campaigns/new" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><CampaignForm /></LayoutRoute>} />
               <Route path="/ecom/campaigns/:id/edit" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><CampaignForm /></LayoutRoute>} />
               
+              {/* Route postulation WhatsApp */}
+              <Route path="/ecom/whatsapp-postulation" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppPostulation /></LayoutRoute>} />
+              
+              {/* Route WhatsApp en savoir plus */}
+              <Route path="/ecom/whatsapp-en-savoir-plus" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppEnSavoirPlus /></LayoutRoute>} />
+              
               {/* Routes gestion utilisateurs (admin) */}
               <Route path="/ecom/users" element={<LayoutRoute requiredRole="ecom_admin"><UserManagement /></LayoutRoute>} />
               
@@ -329,6 +335,9 @@ const EcomApp = () => {
               {/* Route produits affectés (closeuse) */}
               <Route path="/ecom/assignments/produits" element={<LayoutRoute requiredRole="ecom_closeuse"><CloseuseProduits /></LayoutRoute>} />
               
+              {/* Route Chat Équipe */}
+              <Route path="/ecom/chat" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse', 'ecom_compta', 'ecom_livreur', 'super_admin']}><TeamChat /></LayoutRoute>} />
+
               {/* Route Paramètres */}
               <Route path="/ecom/settings" element={<LayoutRoute><Settings /></LayoutRoute>} />
               

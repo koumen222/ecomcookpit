@@ -88,8 +88,7 @@ const SuperAdminDashboard = () => {
         { name: 'Objectifs', path: '/goals', desc: 'KPIs' },
         { name: 'Rapports', path: '/reports', desc: 'Rapports' },
         { name: 'Décisions', path: '/decisions', desc: 'Prises décision' },
-        { name: 'Prospects', path: '/prospects', desc: 'Leads' }
-      ],
+              ],
       ecom_closeuse: [
         { name: 'Dashboard', path: '/dashboard/admin', desc: 'Vue principale' },
         { name: 'Produits', path: '/products', desc: 'Gestion produits' },
@@ -102,8 +101,7 @@ const SuperAdminDashboard = () => {
         { name: 'Objectifs', path: '/goals', desc: 'KPIs' },
         { name: 'Rapports', path: '/reports', desc: 'Rapports' },
         { name: 'Décisions', path: '/decisions', desc: 'Prises décision' },
-        { name: 'Prospects', path: '/prospects', desc: 'Leads' }
-      ],
+              ],
       ecom_compta: [
         { name: 'Dashboard', path: '/dashboard/compta', desc: 'Vue financière' },
         { name: 'Transactions', path: '/transactions', desc: 'Gestion transactions' },
@@ -655,8 +653,7 @@ const SuperAdminDashboard = () => {
                     { name: 'Objectifs', path: '/goals', desc: 'KPIs' },
                     { name: 'Rapports', path: '/reports', desc: 'Rapports' },
                     { name: 'Décisions', path: '/decisions', desc: 'Prises décision' },
-                    { name: 'Prospects', path: '/prospects', desc: 'Leads' }
-                  ], 'admin').map((iface, idx) => (
+                                      ], 'admin').map((iface, idx) => (
                     <button
                       key={idx}
                       onClick={() => navigate(iface.path)}
@@ -694,8 +691,7 @@ const SuperAdminDashboard = () => {
                     { name: 'Objectifs', path: '/goals', desc: 'KPIs' },
                     { name: 'Rapports', path: '/reports', desc: 'Rapports' },
                     { name: 'Décisions', path: '/decisions', desc: 'Prises décision' },
-                    { name: 'Prospects', path: '/prospects', desc: 'Leads' }
-                  ], 'closeuse').map((iface, idx) => (
+                                      ], 'closeuse').map((iface, idx) => (
                     <button
                       key={idx}
                       onClick={() => navigate(iface.path)}
