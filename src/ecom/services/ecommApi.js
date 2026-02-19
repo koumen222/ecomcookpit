@@ -1,16 +1,11 @@
 import axios from 'axios';
 
 // Configuration de base pour l'API e-commerce
-// Utiliser le proxy Vite en développement, URL directe en production
-const isDev = import.meta.env.DEV;
-const API_BASE_URL = isDev ? '' : (import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000');
-const ECOM_API_PREFIX = isDev ? '/api/ecom' : '/api/ecom';
-
-// Créer une instance axios avec configuration par défaut
+// Toujours utiliser le chemin relatif /api/ecom — le proxy Cloudflare (ou Vite en dev) forward vers Railway
 const ecomApi = axios.create({
-  baseURL: isDev ? '/api/ecom' : `${API_BASE_URL}${ECOM_API_PREFIX}`,
+  baseURL: '/api/ecom',
   timeout: 30000,
-  withCredentials: isDev, // Cookies uniquement en développement, JWT en production
+  withCredentials: false,
   headers: {
     'Content-Type': 'application/json'
   }
@@ -44,7 +39,7 @@ ecomApi.interceptors.request.use(
     }
 
     // Log pour debug en production
-    if (!isDev && process.env.NODE_ENV === 'production') {
+    if (import.meta.env.PROD) {
       console.log(`🌐 Requête API production: ${config.method?.toUpperCase()} ${config.url}`);
     }
 
@@ -246,7 +241,7 @@ export const importApi = {
 
 export const pushApi = {
   // Obtenir la clé publique VAPID (endpoint principal hors /api/ecom)
-  getVapidPublicKey: () => axios.get(`${API_BASE_URL}/api/push/public-key`).catch(() =>
+  getVapidPublicKey: () => axios.get('/api/push/public-key').catch(() =>
     // Fallback vers l'endpoint ecom
     ecomApi.get('/push/vapid-public-key')
   ),
