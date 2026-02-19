@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
+import { playCashRegisterSound, playConfirmSound } from '../services/soundService.js';
 
 const SL = { pending: 'En attente', confirmed: 'Confirmé', shipped: 'Expédié', delivered: 'Livré', returned: 'Retour', cancelled: 'Annulé', unreachable: 'Injoignable', called: 'Appelé', postponed: 'Reporté' };
 const SC = {
@@ -643,6 +644,13 @@ const OrdersList = () => {
       // Update local state instantly for immediate UI feedback
       setOrders(prev => prev.map(o => o._id === orderId ? { ...o, status: newStatus } : o));
       
+      // Son de notification selon le statut
+      if (newStatus === 'delivered') {
+        playCashRegisterSound();
+      } else if (['confirmed', 'shipped'].includes(newStatus)) {
+        playConfirmSound();
+      }
+
       // Update stats when status changes
       setStats(prev => {
         const newStats = { ...prev };
