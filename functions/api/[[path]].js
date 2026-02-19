@@ -21,8 +21,17 @@ export async function onRequest(context) {
 
   const backendUrl = `${BACKEND}${url.pathname}${url.search}`;
 
-  const headers = new Headers(request.headers);
-  headers.set('Origin', origin || BACKEND);
+  // Rebuild headers explicitly — Cloudflare may strip Authorization from request.headers
+  const headers = new Headers();
+  const contentType = request.headers.get('Content-Type');
+  if (contentType) headers.set('Content-Type', contentType);
+  // Only forward Origin if it's a real browser origin (not empty)
+  if (origin) headers.set('Origin', origin);
+
+  const authorization = request.headers.get('Authorization');
+  if (authorization) {
+    headers.set('Authorization', authorization);
+  }
 
   const hasBody = !['GET', 'HEAD'].includes(request.method);
 
