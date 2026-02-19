@@ -1,6 +1,5 @@
 # Git subdirectories (ignore embedded repos)
 backend/
-ecom-frontend/
 
 # Dependencies
 node_modules/
