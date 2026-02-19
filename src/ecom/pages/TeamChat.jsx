@@ -107,7 +107,9 @@ export default function TeamChat() {
       const data = await apiFetch(`/${activeChannel}?page=1&limit=50`);
       if (data.success && data.messages.length>0) { const lid=data.messages[data.messages.length-1]?._id; if (lid!==lastMsgIdRef.current) { setMessages(data.messages); lastMsgIdRef.current=lid; setTimeout(()=>messagesEndRef.current?.scrollIntoView({behavior:'smooth'}),100); } }
       const cd = await apiFetch('/channels'); if (cd.success) setUnreadCounts(cd.unreadCounts||{});
-    } catch (_) {}
+    } catch (err) {
+      if (err?.status >= 400 && err?.status < 500) { clearInterval(pollRef.current); }
+    }
   }, [apiFetch, activeChannel]);
 
   const loadMembers = useCallback(async () => {
@@ -130,7 +132,9 @@ export default function TeamChat() {
       const data=await dmFetch(`/${activeDmUser._id}?limit=50`);
       if (data.success && data.messages.length>0) { const lid=data.messages[data.messages.length-1]?._id; if (lid!==lastDmIdRef.current) { setDmMessages(data.messages); lastDmIdRef.current=lid; setTimeout(()=>dmEndRef.current?.scrollIntoView({behavior:'smooth'}),100); } }
       loadDmConversations();
-    } catch (_) {}
+    } catch (err) {
+      if (err?.status >= 400 && err?.status < 500) { clearInterval(dmPollRef.current); }
+    }
   }, [dmFetch, activeDmUser, loadDmConversations]);
 
   useEffect(() => { loadChannels(); loadMembers(); loadDmConversations(); }, []);

@@ -161,7 +161,9 @@ export default function ChatWidget() {
         setUnreadCounts(counts);
         setTotalUnread(Object.values(counts).reduce((a, b) => a + b, 0));
       }
-    } catch (_) {}
+    } catch (err) {
+      if (err?.status >= 400 && err?.status < 500) { clearInterval(pollRef.current); }
+    }
   }, [apiFetch, activeChannel, open]);
 
   // Charger les canaux au montage
