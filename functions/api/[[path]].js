@@ -1,37 +1,52 @@
+const BACKEND = 'https://plateforme-backend-production-2ec6.up.railway.app';
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+  'Access-Control-Allow-Credentials': 'true',
+};
+
 export async function onRequest(context) {
-  const { request, env } = context;
+  const { request } = context;
   const url = new URL(request.url);
-  
-  // Forward to your backend
-  const backendUrl = `https://plateforme-backend-production-2ec6.up.railway.app${url.pathname}${url.search}`;
-  
-  // Copy headers and add CORS
+  const origin = request.headers.get('Origin') || '';
+
+  // Handle CORS preflight
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: { ...CORS_HEADERS, 'Access-Control-Allow-Origin': origin },
+    });
+  }
+
+  const backendUrl = `${BACKEND}${url.pathname}${url.search}`;
+
   const headers = new Headers(request.headers);
-  headers.set('Origin', request.headers.get('Origin') || 'https://ecomcookpit.pages.dev');
-  
+  headers.set('Origin', origin || BACKEND);
+
+  const hasBody = !['GET', 'HEAD'].includes(request.method);
+
   try {
     const response = await fetch(backendUrl, {
       method: request.method,
-      headers: headers,
-      body: request.body
+      headers,
+      body: hasBody ? request.body : undefined,
+      redirect: 'follow',
     });
-    
-    // Add CORS headers to response
-    const corsHeaders = new Headers(response.headers);
-    corsHeaders.set('Access-Control-Allow-Origin', 'https://f905d6ba.ecomcookpit.pages.dev');
-    corsHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    corsHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    corsHeaders.set('Access-Control-Allow-Credentials', 'true');
-    
+
+    const responseHeaders = new Headers(response.headers);
+    responseHeaders.set('Access-Control-Allow-Origin', origin || '*');
+    Object.entries(CORS_HEADERS).forEach(([k, v]) => responseHeaders.set(k, v));
+
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
-      headers: corsHeaders
+      headers: responseHeaders,
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: 'Proxy error' }), {
+    return new Response(JSON.stringify({ error: 'Proxy error', detail: error.message }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': origin || '*' },
     });
   }
 }
