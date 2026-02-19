@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
+import { useAudioRecorder } from '../hooks/useAudioRecorder.js';
+import { useMediaUpload } from '../hooks/useMediaUpload.js';
+import {
+  AudioPlayer, ImageMessage, VideoMessage, DocumentMessage,
+  ReplyPreview, MessageStatus, MessageReactions, TypingIndicator,
+  RecordingIndicator, UploadProgress, EmojiPicker
+} from '../components/MessageComponents.jsx';
+import { io } from 'socket.io-client';
 
 const EMOJIS = ['💬','📦','💰','🚚','🏭','📣','📊','🎯','🔔','⚡','🛒','👥','📝','🔧','🌟'];
 const ROLE_COLORS = { ecom_admin:'bg-blue-600', ecom_closeuse:'bg-pink-500', ecom_compta:'bg-emerald-500', ecom_livreur:'bg-orange-500', super_admin:'bg-purple-600' };
@@ -61,6 +69,21 @@ export default function TeamChat() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mobileView, setMobileView] = useState('list');
 
+  // New state for WhatsApp-like features
+  const [dmTyping, setDmTyping] = useState(false);
+  const [dmTypingName, setDmTypingName] = useState('');
+  const [dmReplyTo, setDmReplyTo] = useState(null);
+  const [showDmEmojiPicker, setShowDmEmojiPicker] = useState(null); // messageId
+  const [dmUploadPreview, setDmUploadPreview] = useState(null); // { file, kind, url }
+  const [dmUploadProgress, setDmUploadProgress] = useState(0);
+  const [dmCursor, setDmCursor] = useState(null);
+  const [dmHasMore, setDmHasMore] = useState(false);
+  const [dmLoadingMore, setDmLoadingMore] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState(null);
+  const socketRef = useRef(null);
+  const typingTimerRef = useRef(null);
+  const fileInputRef = useRef(null);
+
   const messagesEndRef = useRef(null);
   const dmEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -70,6 +93,16 @@ export default function TeamChat() {
   const lastMsgIdRef = useRef(null);
   const lastDmIdRef = useRef(null);
   const token = localStorage.getItem('ecomToken');
+
+  // Audio recorder hook
+  const {
+    isRecording, duration: recDuration, formattedDuration,
+    audioBlob, error: recError,
+    startRecording, stopRecording, cancelRecording, clearRecording
+  } = useAudioRecorder();
+
+  // Media upload hook
+  const { isUploading, progress: uploadProgress, uploadFile, uploadAudio, getMediaKind } = useMediaUpload();
 
   const apiFetch = useCallback(async (path, opts = {}) => {
     const res = await fetch(`/api/ecom/messages${path}`, { ...opts, headers: { 'Content-Type':'application/json', Authorization:`Bearer ${token}`, ...opts.headers } });
@@ -120,22 +153,131 @@ export default function TeamChat() {
     try { const data=await dmFetch('/conversations'); if (data.success) setDmConversations(data.conversations); } catch (_) {}
   }, [dmFetch]);
 
-  const loadDmMessages = useCallback(async (userId) => {
-    if (!userId) return; setDmLoading(true);
-    try { const data=await dmFetch(`/${userId}?limit=50`); if (data.success) { setDmMessages(data.messages); lastDmIdRef.current=data.messages[data.messages.length-1]?._id; setTimeout(()=>dmEndRef.current?.scrollIntoView({behavior:'smooth'}),100); } }
-    catch (_) {} finally { setDmLoading(false); }
+  const loadDmMessages = useCallback(async (userId, cursor = null, append = false) => {
+    if (!userId) return;
+    if (!append) setDmLoading(true); else setDmLoadingMore(true);
+    try {
+      const params = new URLSearchParams({ limit: '50' });
+      if (cursor) { params.set('cursor', cursor); params.set('direction', 'older'); }
+      const data = await dmFetch(`/${userId}?${params}`);
+      if (data.success) {
+        if (append) {
+          setDmMessages(prev => [...data.messages, ...prev]);
+        } else {
+          setDmMessages(data.messages);
+          setTimeout(() => dmEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        }
+        setDmCursor(data.pagination?.oldestCursor || null);
+        setDmHasMore(data.pagination?.hasMore || false);
+        lastDmIdRef.current = data.messages[data.messages.length - 1]?._id;
+        // Mark as read
+        if (!append) {
+          dmFetch(`/${userId}/read`, { method: 'POST' }).catch(() => {});
+        }
+      }
+    } catch (_) {} finally { setDmLoading(false); setDmLoadingMore(false); }
   }, [dmFetch]);
 
   const pollDm = useCallback(async () => {
-    if (!activeDmUser) return;
+    if (!activeDmUser || socketRef.current?.connected) return; // Skip polling if WebSocket active
     try {
-      const data=await dmFetch(`/${activeDmUser._id}?limit=50`);
-      if (data.success && data.messages.length>0) { const lid=data.messages[data.messages.length-1]?._id; if (lid!==lastDmIdRef.current) { setDmMessages(data.messages); lastDmIdRef.current=lid; setTimeout(()=>dmEndRef.current?.scrollIntoView({behavior:'smooth'}),100); } }
+      const data = await dmFetch(`/${activeDmUser._id}?limit=50`);
+      if (data.success && data.messages.length > 0) {
+        const lid = data.messages[data.messages.length - 1]?._id;
+        if (lid !== lastDmIdRef.current) {
+          setDmMessages(data.messages);
+          lastDmIdRef.current = lid;
+          setTimeout(() => dmEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        }
+      }
       loadDmConversations();
     } catch (err) {
       if (err?.status >= 400 && err?.status < 500) { clearInterval(dmPollRef.current); }
     }
   }, [dmFetch, activeDmUser, loadDmConversations]);
+
+  // WebSocket initialization
+  useEffect(() => {
+    const t = localStorage.getItem('ecomToken');
+    if (!t) return;
+    const socket = io('', {
+      auth: { token: t },
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000
+    });
+    socketRef.current = socket;
+
+    socket.on('message:new', (msg) => {
+      // DM: add to list if conversation is open
+      setDmMessages(prev => {
+        if (prev.some(m => m._id === msg._id)) return prev;
+        return [...prev, msg];
+      });
+      setTimeout(() => dmEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+      loadDmConversations();
+    });
+
+    socket.on('message:status', ({ messageIds, status }) => {
+      setDmMessages(prev => prev.map(m =>
+        messageIds.includes(m._id) ? { ...m, status } : m
+      ));
+    });
+
+    socket.on('message:deleted', ({ messageId }) => {
+      setDmMessages(prev => prev.filter(m => m._id !== messageId));
+    });
+
+    socket.on('message:reaction', ({ messageId, reactions }) => {
+      setDmMessages(prev => prev.map(m =>
+        m._id === messageId ? { ...m, metadata: { ...m.metadata, reactions } } : m
+      ));
+    });
+
+    socket.on('typing:start', ({ userId, userName }) => {
+      if (activeDmUser?._id === userId) {
+        setDmTyping(true);
+        setDmTypingName(userName);
+      }
+    });
+
+    socket.on('typing:stop', ({ userId }) => {
+      if (activeDmUser?._id === userId) {
+        setDmTyping(false);
+      }
+    });
+
+    socket.on('conversation:update', () => {
+      loadDmConversations();
+    });
+
+    return () => { socket.disconnect(); };
+  }, []);
+
+  // Join conversation room when DM user changes
+  useEffect(() => {
+    if (activeDmUser && socketRef.current?.connected) {
+      socketRef.current.emit('conversation:join', { recipientId: activeDmUser._id });
+    }
+    return () => {
+      if (activeDmUser && socketRef.current?.connected) {
+        socketRef.current.emit('conversation:leave', { recipientId: activeDmUser._id });
+      }
+    };
+  }, [activeDmUser?._id]);
+
+  // Auto-stop audio recording after 2 minutes
+  useEffect(() => {
+    if (isRecording && recDuration >= 120) stopRecording();
+  }, [isRecording, recDuration, stopRecording]);
+
+  // When audio recording stops and we have a blob, auto-send
+  useEffect(() => {
+    if (audioBlob && !isRecording && activeDmUser) {
+      sendDmAudio();
+    }
+  }, [audioBlob, isRecording]);
 
   useEffect(() => { loadChannels(); loadMembers(); loadDmConversations(); }, []);
   useEffect(() => { if (searchParams.get('newDm') === '1') { setTab('dm'); setShowStartDm(true); } }, []);
@@ -163,14 +305,135 @@ export default function TeamChat() {
   };
 
   const sendDm = async (e) => {
-    e.preventDefault(); if (!dmNewMessage.trim()||dmSending||!activeDmUser) return; setDmSending(true);
-    try { const data=await dmFetch(`/${activeDmUser._id}`,{method:'POST',body:JSON.stringify({content:dmNewMessage.trim()})}); if (data.success) { setDmMessages(prev=>[...prev,data.message]); setDmNewMessage(''); lastDmIdRef.current=data.message._id; setTimeout(()=>dmEndRef.current?.scrollIntoView({behavior:'smooth'}),50); loadDmConversations(); } }
-    catch (_) {} finally { setDmSending(false); dmInputRef.current?.focus(); }
+    e.preventDefault();
+    if ((!dmNewMessage.trim() && !dmUploadPreview) || dmSending || !activeDmUser) return;
+    setDmSending(true);
+    try {
+      const clientMessageId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const body = {
+        content: dmNewMessage.trim(),
+        clientMessageId,
+        replyTo: dmReplyTo?._id || null
+      };
+      const data = await dmFetch(`/${activeDmUser._id}`, { method: 'POST', body: JSON.stringify(body) });
+      if (data.success) {
+        if (!dmMessages.some(m => m._id === data.message._id)) {
+          setDmMessages(prev => [...prev, data.message]);
+        }
+        setDmNewMessage('');
+        setDmReplyTo(null);
+        lastDmIdRef.current = data.message._id;
+        setTimeout(() => dmEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+        loadDmConversations();
+      }
+    } catch (_) {} finally { setDmSending(false); dmInputRef.current?.focus(); }
+  };
+
+  const sendDmAudio = async () => {
+    if (!audioBlob || !activeDmUser) return;
+    setDmSending(true);
+    try {
+      const result = await uploadAudio(audioBlob, recDuration * 1000, (p) => setDmUploadProgress(p));
+      if (result?.success) {
+        const clientMessageId = `audio-${Date.now()}`;
+        const data = await dmFetch(`/${activeDmUser._id}`, {
+          method: 'POST',
+          body: JSON.stringify({
+            content: '',
+            messageType: 'audio',
+            mediaId: result.mediaId,
+            mediaUrl: result.mediaUrl,
+            metadata: { durationMs: recDuration * 1000, mimeType: audioBlob.type, fileSize: audioBlob.size },
+            clientMessageId
+          })
+        });
+        if (data.success) {
+          if (!dmMessages.some(m => m._id === data.message._id)) {
+            setDmMessages(prev => [...prev, data.message]);
+          }
+          setTimeout(() => dmEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+          loadDmConversations();
+        }
+      }
+    } catch (_) {} finally {
+      setDmSending(false);
+      setDmUploadProgress(0);
+      clearRecording();
+    }
+  };
+
+  const sendDmMedia = async (file) => {
+    if (!file || !activeDmUser) return;
+    const kind = getMediaKind(file);
+    setDmSending(true);
+    try {
+      const result = await uploadFile(file, (p) => setDmUploadProgress(p));
+      if (result?.success) {
+        const clientMessageId = `media-${Date.now()}`;
+        const data = await dmFetch(`/${activeDmUser._id}`, {
+          method: 'POST',
+          body: JSON.stringify({
+            content: '',
+            messageType: kind,
+            mediaId: result.mediaId,
+            mediaUrl: result.mediaUrl,
+            metadata: { mimeType: file.type, fileName: file.name, fileSize: file.size },
+            clientMessageId
+          })
+        });
+        if (data.success) {
+          if (!dmMessages.some(m => m._id === data.message._id)) {
+            setDmMessages(prev => [...prev, data.message]);
+          }
+          setTimeout(() => dmEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+          loadDmConversations();
+        }
+      }
+    } catch (_) {} finally {
+      setDmSending(false);
+      setDmUploadProgress(0);
+      setDmUploadPreview(null);
+    }
+  };
+
+  const handleDmFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const kind = getMediaKind(file);
+    const url = URL.createObjectURL(file);
+    setDmUploadPreview({ file, kind, url, name: file.name });
+    e.target.value = '';
+  };
+
+  const handleDmTyping = (value) => {
+    setDmNewMessage(value);
+    if (activeDmUser && socketRef.current?.connected) {
+      socketRef.current.emit('typing:start', { recipientId: activeDmUser._id });
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = setTimeout(() => {
+        socketRef.current?.emit('typing:stop', { recipientId: activeDmUser._id });
+      }, 2000);
+    }
+  };
+
+  const reactToDm = async (messageId, emoji, action) => {
+    try {
+      const data = await dmFetch(`/message/${messageId}/reaction`, {
+        method: 'POST',
+        body: JSON.stringify({ emoji, action })
+      });
+      if (data.success) {
+        setDmMessages(prev => prev.map(m =>
+          m._id === messageId ? { ...m, metadata: { ...m.metadata, reactions: data.reactions } } : m
+        ));
+      }
+    } catch (_) {}
+    setShowDmEmojiPicker(null);
   };
 
   const deleteDm = async (mid) => {
     if (!window.confirm('Supprimer ce message ?')) return;
-    try { await dmFetch(`/message/${mid}`,{method:'DELETE'}); setDmMessages(prev=>prev.filter(m=>m._id!==mid)); } catch (_) {}
+    try { await dmFetch(`/message/${mid}`, { method: 'DELETE' }); setDmMessages(prev => prev.filter(m => m._id !== mid)); } catch (_) {}
   };
 
   const handleMentionInput = (value) => {
@@ -368,30 +631,190 @@ export default function TeamChat() {
                 const own=(msg.senderId?._id||msg.senderId)?.toString()===user?._id?.toString();
                 const prev=dmMessages[idx-1];
                 const showHeader=!prev||(prev.senderId?._id||prev.senderId)?.toString()!==(msg.senderId?._id||msg.senderId)?.toString()||new Date(msg.createdAt)-new Date(prev.createdAt)>300000;
+                const reactions = msg.metadata?.reactions || {};
+                const hasReactions = Object.keys(reactions).length > 0;
                 return (
                   <div key={msg._id} className={`flex gap-2 lg:gap-3 ${own?'flex-row-reverse':'flex-row'} ${showHeader?'mt-4':'mt-0.5'} group`}>
                     {showHeader ? <div className={`w-8 h-8 ${ROLE_COLORS[msg.senderRole]||'bg-gray-400'} rounded-full flex items-center justify-center flex-shrink-0 mt-0.5`}><span className="text-white text-xs font-bold">{getInitial(msg.senderName)}</span></div> : <div className="w-8 flex-shrink-0" />}
                     <div className={`max-w-[75%] lg:max-w-[65%] flex flex-col ${own?'items-end':'items-start'}`}>
                       {showHeader && <div className={`flex items-center gap-2 mb-1 ${own?'flex-row-reverse':'flex-row'}`}><span className="text-xs font-semibold text-gray-700">{own?'Vous':msg.senderName}</span><span className="text-[10px] text-gray-400">{formatTime(msg.createdAt)}</span></div>}
-                      <div className={`px-3 py-2 lg:px-4 lg:py-2.5 rounded-2xl text-[14px] leading-relaxed break-words ${own?'bg-blue-600 text-white rounded-tr-sm':'bg-white text-gray-800 border border-gray-200 rounded-tl-sm shadow-sm'}`}>{renderContent(msg.content,own)}</div>
+
+                      {/* Reply preview */}
+                      {msg.replyToPreview && (
+                        <div className={`mb-1 px-2.5 py-1.5 rounded-lg border-l-2 text-xs max-w-full ${own?'border-blue-300 bg-blue-500/20 text-blue-100':'border-gray-400 bg-gray-100 text-gray-600'}`}>
+                          <p className={`font-semibold mb-0.5 ${own?'text-blue-200':'text-gray-700'}`}>{msg.replyToPreview.senderName}</p>
+                          <p className="truncate opacity-80">
+                            {msg.replyToPreview.messageType==='audio'?'🎤 Message vocal':msg.replyToPreview.messageType==='image'?'📷 Photo':msg.replyToPreview.messageType==='video'?'🎬 Vidéo':msg.replyToPreview.messageType==='document'?'📎 Document':msg.replyToPreview.content}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Message bubble */}
+                      <div className={`relative rounded-2xl text-[14px] leading-relaxed break-words ${own?'bg-blue-600 text-white rounded-tr-sm':'bg-white text-gray-800 border border-gray-200 rounded-tl-sm shadow-sm'} ${msg.messageType!=='text'?'p-2':'px-3 py-2 lg:px-4 lg:py-2.5'}`}>
+                        {msg.deleted ? (
+                          <span className="italic opacity-60 text-sm">Message supprimé</span>
+                        ) : msg.messageType === 'audio' ? (
+                          <div className={`${own?'text-white':'text-gray-800'}`}>
+                            <AudioPlayer src={msg.mediaUrl} duration={msg.metadata?.durationMs || 0} />
+                          </div>
+                        ) : msg.messageType === 'image' ? (
+                          <ImageMessage src={msg.mediaUrl} onClick={() => setLightboxSrc(msg.mediaUrl)} />
+                        ) : msg.messageType === 'video' ? (
+                          <VideoMessage src={msg.mediaUrl} />
+                        ) : msg.messageType === 'document' ? (
+                          <DocumentMessage fileName={msg.metadata?.fileName} fileSize={msg.metadata?.fileSize} src={msg.mediaUrl} />
+                        ) : (
+                          <>
+                            {renderContent(msg.content, own)}
+                            {msg.edited && <span className={`text-[10px] ml-1.5 ${own?'text-blue-200':'text-gray-400'}`}>(modifié)</span>}
+                          </>
+                        )}
+                        {/* Status for own messages */}
+                        {own && (
+                          <div className="flex justify-end mt-0.5">
+                            <MessageStatus status={msg.status} />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Reactions */}
+                      {hasReactions && (
+                        <MessageReactions
+                          reactions={reactions}
+                          userId={user?._id}
+                          onReact={(emoji, action) => reactToDm(msg._id, emoji, action)}
+                        />
+                      )}
+
                       {!showHeader && <span className="text-[10px] text-gray-400 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">{formatTime(msg.createdAt)}</span>}
                     </div>
-                    <div className={`flex items-center opacity-0 group-hover:opacity-100 transition-opacity self-center ${own?'flex-row':'flex-row-reverse'}`}>
-                      {own && <button onClick={()=>deleteDm(msg._id)} className="p-1 text-gray-400 hover:text-red-500 rounded hover:bg-red-50"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>}
+
+                    {/* Action buttons on hover */}
+                    <div className={`flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity self-center relative ${own?'flex-row':'flex-row-reverse'}`}>
+                      <button onClick={() => setDmReplyTo(msg)} className="p-1.5 text-gray-400 hover:text-blue-500 rounded-lg hover:bg-blue-50" title="Répondre">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                      </button>
+                      <div className="relative">
+                        <button onClick={() => setShowDmEmojiPicker(showDmEmojiPicker === msg._id ? null : msg._id)} className="p-1.5 text-gray-400 hover:text-yellow-500 rounded-lg hover:bg-yellow-50" title="Réaction">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </button>
+                        {showDmEmojiPicker === msg._id && (
+                          <EmojiPicker
+                            onSelect={(emoji) => reactToDm(msg._id, emoji, 'add')}
+                            onClose={() => setShowDmEmojiPicker(null)}
+                          />
+                        )}
+                      </div>
+                      {own && !msg.deleted && (
+                        <button onClick={() => deleteDm(msg._id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50" title="Supprimer">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
               })}
+              {/* Typing indicator */}
+              {dmTyping && <TypingIndicator userName={dmTypingName} />}
               <div ref={dmEndRef} />
             </div>
+
+            {/* DM Input area */}
             <div className="bg-white border-t border-gray-200 px-3 py-2.5 flex-shrink-0 lg:px-4 lg:py-3">
-              <form onSubmit={sendDm} className="flex items-end gap-2">
-                <textarea ref={dmInputRef} value={dmNewMessage} onChange={e=>setDmNewMessage(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendDm(e);}}} placeholder={`Message à ${activeDmUser.name?.split(' ')[0]}...`} className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none bg-gray-50" rows={1} style={{minHeight:'42px',maxHeight:'120px'}} onInput={e=>{e.target.style.height='auto';e.target.style.height=Math.min(e.target.scrollHeight,120)+'px';}} />
-                <button type="submit" disabled={!dmNewMessage.trim()||dmSending} className="flex-shrink-0 w-10 h-10 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 text-white rounded-xl flex items-center justify-center transition-colors">
-                  {dmSending?<div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>:<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>}
+              {/* Load more */}
+              {dmHasMore && !dmLoadingMore && (
+                <button onClick={() => loadDmMessages(activeDmUser._id, dmCursor, true)} className="w-full text-xs text-blue-500 hover:text-blue-700 py-1 mb-2">
+                  Charger les messages précédents
                 </button>
-              </form>
-              <p className="hidden lg:block text-[10px] text-gray-400 mt-1 ml-1">Entrée pour envoyer · Maj+Entrée pour nouvelle ligne</p>
+              )}
+
+              {/* Reply preview */}
+              {dmReplyTo && (
+                <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-blue-50 rounded-xl border-l-2 border-blue-400">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-blue-600">↩ {dmReplyTo.senderName}</p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {dmReplyTo.messageType==='audio'?'🎤 Message vocal':dmReplyTo.messageType==='image'?'📷 Photo':dmReplyTo.content?.substring(0,60)}
+                    </p>
+                  </div>
+                  <button onClick={() => setDmReplyTo(null)} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              )}
+
+              {/* Upload preview */}
+              {dmUploadPreview && (
+                <div className="mb-2 p-2 bg-gray-50 rounded-xl border flex items-center gap-3">
+                  {dmUploadPreview.kind === 'image' ? (
+                    <img src={dmUploadPreview.url} className="w-16 h-16 object-cover rounded-lg" alt="preview" />
+                  ) : (
+                    <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center text-2xl">
+                      {dmUploadPreview.kind === 'audio' ? '🎵' : dmUploadPreview.kind === 'video' ? '🎬' : '📎'}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{dmUploadPreview.name}</p>
+                    <p className="text-xs text-gray-400">{dmUploadPreview.kind}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => sendDmMedia(dmUploadPreview.file)} disabled={dmSending} className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                      {dmSending ? 'Envoi...' : 'Envoyer'}
+                    </button>
+                    <button onClick={() => setDmUploadPreview(null)} className="p-1.5 text-gray-400 hover:text-gray-600">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Upload progress */}
+              {isUploading && dmUploadProgress > 0 && (
+                <div className="mb-2">
+                  <UploadProgress progress={dmUploadProgress} fileName={dmUploadPreview?.name || 'Fichier'} />
+                </div>
+              )}
+
+              {/* Recording indicator */}
+              {isRecording ? (
+                <RecordingIndicator
+                  duration={formattedDuration}
+                  onCancel={cancelRecording}
+                  onStop={stopRecording}
+                />
+              ) : (
+                <form onSubmit={sendDm} className="flex items-end gap-2">
+                  {/* File attachment button */}
+                  <input ref={fileInputRef} type="file" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" className="hidden" onChange={handleDmFileSelect} />
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className="flex-shrink-0 w-9 h-9 flex items-center justify-center text-gray-400 hover:text-blue-500 rounded-xl hover:bg-blue-50 transition-colors" title="Joindre un fichier">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                  </button>
+
+                  {/* Text input */}
+                  <textarea
+                    ref={dmInputRef}
+                    value={dmNewMessage}
+                    onChange={e => handleDmTyping(e.target.value)}
+                    onKeyDown={e => { if (e.key==='Enter'&&!e.shiftKey) { e.preventDefault(); sendDm(e); } }}
+                    placeholder={`Message à ${activeDmUser.name?.split(' ')[0]}...`}
+                    className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none bg-gray-50"
+                    rows={1}
+                    style={{ minHeight: '42px', maxHeight: '120px' }}
+                    onInput={e => { e.target.style.height='auto'; e.target.style.height=Math.min(e.target.scrollHeight,120)+'px'; }}
+                  />
+
+                  {/* Send or mic button */}
+                  {dmNewMessage.trim() || dmUploadPreview ? (
+                    <button type="submit" disabled={dmSending} className="flex-shrink-0 w-10 h-10 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 text-white rounded-xl flex items-center justify-center transition-colors">
+                      {dmSending ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>}
+                    </button>
+                  ) : (
+                    <button type="button" onMouseDown={startRecording} onTouchStart={startRecording} className="flex-shrink-0 w-10 h-10 bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-500 rounded-xl flex items-center justify-center transition-colors" title="Maintenir pour enregistrer">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                    </button>
+                  )}
+                </form>
+              )}
             </div>
           </>
         ) : tab === 'dm' ? (
@@ -532,6 +955,15 @@ export default function TeamChat() {
               ))}
             </div>
           </div>
+        </div>
+      )}
+      {/* Image lightbox */}
+      {lightboxSrc && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={() => setLightboxSrc(null)}>
+          <button className="absolute top-4 right-4 text-white p-2 hover:bg-white/10 rounded-full">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+          <img src={lightboxSrc} alt="Image" className="max-w-full max-h-full rounded-lg object-contain" onClick={e => e.stopPropagation()} />
         </div>
       )}
     </div>
