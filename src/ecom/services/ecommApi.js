@@ -50,41 +50,88 @@ ecomApi.interceptors.request.use(
   }
 );
 
-// Intercepteur pour gérer les erreurs et logger les réponses
-ecomApi.interceptors.response.use(
-  (response) => {
-    // Logger les réponses avec workspace pour le débogage
-    const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
-    if (workspace && workspace._id) {
-      console.log(`✅ Réponse reçue pour ${response.config.method?.toUpperCase()} ${response.config.url} avec workspace ${workspace.name} (${workspace._id})`);
-      if (response.data && response.data.data) {
-        const dataCount = Array.isArray(response.data.data) ? response.data.data.length : Object.keys(response.data.data).length;
-        console.log(`📊 Données chargées: ${dataCount} éléments`);
-      }
+// Flag pour éviter les boucles de refresh
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
     }
-    return response;
-  },
-  (error) => {
-    // Gérer les erreurs réseau (backend inaccessible) — NE PAS déconnecter
+  });
+  failedQueue = [];
+};
+
+// Intercepteur pour gérer les erreurs et auto-refresh token
+ecomApi.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    // Gérer les erreurs réseau (backend inaccessible)
     if (!error.response) {
       console.error('🌐 Erreur réseau - backend inaccessible:', error.message);
       throw new Error('Impossible de contacter le serveur. Vérifiez votre connexion.');
     }
 
-    // Gérer les erreurs 401 — NE JAMAIS déconnecter ni rediriger ici
-    // La gestion de la déconnexion est faite dans useEcomAuth.jsx
-    if (error.response?.status === 401) {
-      const requestUrl = error.config?.url || '';
-      console.warn('⚠️ 401 sur:', requestUrl, '- erreur propagée (pas de déconnexion dans l\'intercepteur)');
+    // Auto-refresh sur 401 (token expiré)
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      // Ne pas refresh sur les routes d'auth
+      if (originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh')) {
+        return Promise.reject(error);
+      }
+
+      if (isRefreshing) {
+        // Attendre que le refresh en cours se termine
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then(token => {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return ecomApi(originalRequest);
+        }).catch(err => Promise.reject(err));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        console.log('🔄 Tentative de refresh token...');
+        const response = await ecomApi.post('/auth/refresh');
+        
+        if (response.data?.success && response.data?.data?.token) {
+          const newToken = response.data.data.token;
+          localStorage.setItem('ecomToken', newToken);
+          
+          // Mettre à jour le workspace si fourni
+          if (response.data.data.workspace) {
+            localStorage.setItem('ecomWorkspace', JSON.stringify(response.data.data.workspace));
+          }
+          
+          console.log('✅ Token rafraîchi avec succès');
+          processQueue(null, newToken);
+          
+          // Rejouer la requête originale avec le nouveau token
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return ecomApi(originalRequest);
+        }
+      } catch (refreshError) {
+        console.error('❌ Refresh token échoué:', refreshError.message);
+        processQueue(refreshError, null);
+        
+        // Token invalide — déconnecter l'utilisateur
+        localStorage.removeItem('ecomToken');
+        localStorage.removeItem('ecomUser');
+        localStorage.removeItem('ecomWorkspace');
+        window.location.href = '/ecom/login';
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
     }
     
-    // Logger les erreurs avec workspace
-    const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
-    if (workspace && workspace._id) {
-      console.error(`❌ Erreur pour ${error.config?.method?.toUpperCase()} ${error.config?.url} avec workspace ${workspace.name} (${workspace._id}):`, error.response?.data);
-    }
-    
-    // Propager l'erreur avec le message du serveur
     return Promise.reject(error);
   }
 );
@@ -93,6 +140,9 @@ ecomApi.interceptors.response.use(
 export const authApi = {
   // Connexion
   login: (credentials) => ecomApi.post('/auth/login', credentials),
+  
+  // Rafraîchir le token
+  refresh: () => ecomApi.post('/auth/refresh'),
   
   // Inscription (admin seulement)
   register: (userData) => ecomApi.post('/auth/register', userData),
