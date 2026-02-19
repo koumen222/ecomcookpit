@@ -121,23 +121,32 @@ const AssignmentsManager = () => {
 
   const handleEdit = (assignment) => {
     setEditingAssignment(assignment);
+    // Garder dbIds et sheetNames séparés dans productIds
+    // Le backend sépare lui-même les ObjectIds valides des noms sheets
     const productAssignments = Array.isArray(assignment.productAssignments) ? assignment.productAssignments.map(pa => {
-      const dbIds = Array.isArray(pa.productIds) ? pa.productIds.filter(p => p && (typeof p === 'object' ? p._id : typeof p === 'string')).map(p => p._id || p) : [];
+      const dbIds = Array.isArray(pa.productIds)
+        ? pa.productIds
+            .filter(p => p)
+            .map(p => (typeof p === 'object' ? p._id?.toString() : p))
+            .filter(Boolean)
+        : [];
       const sheetNames = Array.isArray(pa.sheetProductNames) ? pa.sheetProductNames : [];
       return {
-        sourceId: pa.sourceId?._id || pa.sourceId,
+        sourceId: pa.sourceId?._id?.toString() || pa.sourceId?.toString() || pa.sourceId,
         productIds: [...dbIds, ...sheetNames]
       };
     }) : [];
 
     setFormData({
-      closeuseId: assignment.closeuseId._id,
-      orderSources: Array.isArray(assignment.orderSources) ? assignment.orderSources.map(os => ({ sourceId: os.sourceId._id })) : [],
+      closeuseId: assignment.closeuseId?._id?.toString() || assignment.closeuseId,
+      orderSources: Array.isArray(assignment.orderSources)
+        ? assignment.orderSources.map(os => ({ sourceId: os.sourceId?._id?.toString() || os.sourceId }))
+        : [],
       productAssignments,
-      notes: assignment.notes
+      notes: assignment.notes || ''
     });
 
-    // Load sheet products for each source in the assignment
+    // Charger les produits sheets pour chaque source
     productAssignments.forEach(pa => {
       if (pa.sourceId) loadSheetProducts(pa.sourceId);
     });
@@ -191,6 +200,52 @@ const AssignmentsManager = () => {
       productAssignments: Array.isArray(prev.productAssignments) ? prev.productAssignments.map((pa, i) => 
         i === index ? { ...pa, [field]: value } : pa
       ) : []
+    }));
+  };
+
+  // Toggle source : coche/décoche une source et crée/supprime son productAssignment
+  const toggleSource = (sourceId, isSheetSource) => {
+    const isChecked = formData.orderSources.some(os => os.sourceId === sourceId);
+    if (isChecked) {
+      setFormData(prev => ({
+        ...prev,
+        orderSources: prev.orderSources.filter(os => os.sourceId !== sourceId),
+        productAssignments: prev.productAssignments.filter(p => p.sourceId !== sourceId)
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        orderSources: [...prev.orderSources, { sourceId }],
+        productAssignments: [...prev.productAssignments, { sourceId, productIds: [] }]
+      }));
+      if (isSheetSource) loadSheetProducts(sourceId);
+    }
+  };
+
+  // Toggle un produit dans une source
+  const toggleProduct = (sourceId, productId) => {
+    setFormData(prev => ({
+      ...prev,
+      productAssignments: prev.productAssignments.map(p =>
+        p.sourceId === sourceId
+          ? {
+              ...p,
+              productIds: p.productIds.includes(productId)
+                ? p.productIds.filter(id => id !== productId)
+                : [...p.productIds, productId]
+            }
+          : p
+      )
+    }));
+  };
+
+  // Sélectionner / désélectionner tous les produits d'une source
+  const selectAllProducts = (sourceId, allIds) => {
+    setFormData(prev => ({
+      ...prev,
+      productAssignments: prev.productAssignments.map(p =>
+        p.sourceId === sourceId ? { ...p, productIds: allIds } : p
+      )
     }));
   };
 
@@ -612,260 +667,247 @@ const AssignmentsManager = () => {
 
       {/* Modal formulaire */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">
-                {editingAssignment ? 'Modifier l\'affectation' : 'Nouvelle affectation'}
-              </h2>
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-3xl w-full max-h-[92vh] flex flex-col shadow-2xl">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">
+                  {editingAssignment ? 'Modifier l\'affectation' : 'Nouvelle affectation'}
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">Sélectionnez une closeuse, ses sources et ses produits</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setShowForm(false); setEditingAssignment(null); setFormData({ closeuseId: '', orderSources: [], productAssignments: [], notes: '' }); }}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
 
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Sélection de la closeuse */}
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+
+                {/* ÉTAPE 1 — Closeuse */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Closeuse *
-                  </label>
-                  <select
-                    value={formData.closeuseId}
-                    onChange={(e) => setFormData(prev => ({ ...prev, closeuseId: e.target.value }))}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="">Sélectionner une closeuse</option>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold">1</span>
+                    <h3 className="text-sm font-semibold text-gray-800">Choisir la closeuse</h3>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {Array.isArray(closeuses) && closeuses.map((closeuse) => (
-                      <option key={closeuse._id} value={closeuse._id}>
-                        {closeuse.name} ({closeuse.email})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Sources de commandes */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Sources de commandes
-                  </label>
-                  {formData.orderSources.map((os, index) => (
-                    <div key={index} className="flex gap-2 mb-2">
-                      <select
-                        value={os.sourceId}
-                        onChange={(e) => {
-                          const newOrderSources = [...formData.orderSources];
-                          newOrderSources[index] = { sourceId: e.target.value };
-                          setFormData(prev => ({ ...prev, orderSources: newOrderSources }));
-                        }}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
+                      <label
+                        key={closeuse._id}
+                        className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                          formData.closeuseId === closeuse._id
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                        }`}
                       >
-                        <option value="">Sélectionner une source</option>
-                        {Array.isArray(sources) && sources.map((source) => (
-                          <option key={source._id} value={source._id}>
-                            {source.icon} {source.name}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => removeOrderSource(index)}
-                        className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                      >
-                        Supprimer
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={addOrderSource}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    Ajouter une source
-                  </button>
-                </div>
-
-                {/* Affectations de produits par source */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Produits par source (depuis Google Sheets)
-                  </label>
-                  {formData.productAssignments.map((pa, index) => {
-                    const selectedSrc = sources.find(s => s._id === pa.sourceId);
-                    const isSheetSource = selectedSrc?.metadata?.type === 'google_sheets';
-                    const sourceProducts = sheetProducts[pa.sourceId] || [];
-                    const isLoadingProducts = loadingSheetProducts[pa.sourceId];
-
-                    return (
-                      <div key={index} className="border border-gray-200 rounded-lg p-4 mb-4">
-                        <div className="flex gap-2 mb-3">
-                          <select
-                            value={pa.sourceId}
-                            onChange={(e) => {
-                              updateProductAssignment(index, 'sourceId', e.target.value);
-                              updateProductAssignment(index, 'productIds', []);
-                              if (e.target.value) {
-                                loadSheetProducts(e.target.value);
-                              }
-                            }}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
-                          >
-                            <option value="">Sélectionner une source</option>
-                            {Array.isArray(sources) && sources.map((source) => (
-                              <option key={source._id} value={source._id}>
-                                {source.icon} {source.name} {source.metadata?.type === 'google_sheets' ? '(Google Sheets)' : ''}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => removeProductAssignment(index)}
-                            className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                          >
-                            Supprimer
-                          </button>
+                        <input
+                          type="radio"
+                          name="closeuse"
+                          value={closeuse._id}
+                          checked={formData.closeuseId === closeuse._id}
+                          onChange={(e) => setFormData(prev => ({ ...prev, closeuseId: e.target.value }))}
+                          className="sr-only"
+                        />
+                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
+                          {closeuse.name?.charAt(0)?.toUpperCase() || '?'}
                         </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-gray-900 truncate">{closeuse.name}</div>
+                          <div className="text-xs text-gray-500 truncate">{closeuse.email}</div>
+                        </div>
+                        {formData.closeuseId === closeuse._id && (
+                          <svg className="w-4 h-4 text-blue-600 ml-auto flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </label>
+                    ))}
+                    {closeuses.length === 0 && (
+                      <p className="text-sm text-gray-400 col-span-2">Aucune closeuse disponible</p>
+                    )}
+                  </div>
+                </div>
 
-                        {pa.sourceId && (
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <label className="block text-sm font-medium text-gray-700">
-                                Produits {isSheetSource ? 'du Google Sheet' : 'disponibles'}
-                              </label>
-                              {isSheetSource && Array.isArray(sourceProducts.products) && sourceProducts.products.length > 0 && (
-                                <span className="text-xs text-green-600 font-medium">
-                                  {sourceProducts.products.length} produits trouvés
-                                </span>
+                {/* ÉTAPE 2 — Sources + Produits par source */}
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold">2</span>
+                    <h3 className="text-sm font-semibold text-gray-800">Sources & Produits assignés</h3>
+                    <span className="text-xs text-gray-400">— Cochez les sources puis sélectionnez les produits</span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {Array.isArray(sources) && sources.map((source) => {
+                      const isSourceChecked = formData.orderSources.some(os => os.sourceId === source._id);
+                      const pa = formData.productAssignments.find(p => p.sourceId === source._id);
+                      const selectedProductIds = pa?.productIds || [];
+                      const isSheetSource = source.metadata?.type === 'google_sheets';
+                      const srcProducts = sheetProducts[source._id];
+                      const isLoadingProds = loadingSheetProducts[source._id];
+                      const dbProducts = products;
+
+                      const availableProducts = isSheetSource
+                        ? (srcProducts?.products || [])
+                        : dbProducts.map(p => p._id);
+
+                      return (
+                        <div
+                          key={source._id}
+                          className={`rounded-lg border-2 transition-all ${
+                            isSourceChecked ? 'border-blue-400 bg-blue-50/40' : 'border-gray-200 bg-white'
+                          }`}
+                        >
+                          {/* Header source */}
+                          <label className="flex items-center gap-3 p-3 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={isSourceChecked}
+                              onChange={() => toggleSource(source._id, isSheetSource)}
+                              className="w-4 h-4 rounded border-gray-300 text-blue-600 cursor-pointer"
+                            />
+                            <span className="text-base">{source.icon}</span>
+                            <span className="text-sm font-medium text-gray-800 flex-1">{source.name}</span>
+                            {isSheetSource && (
+                              <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">Google Sheets</span>
+                            )}
+                            {isSourceChecked && selectedProductIds.length > 0 && (
+                              <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium">
+                                {selectedProductIds.length} produit{selectedProductIds.length > 1 ? 's' : ''}
+                              </span>
+                            )}
+                          </label>
+
+                          {/* Produits (visible si source cochée) */}
+                          {isSourceChecked && (
+                            <div className="px-4 pb-4 border-t border-blue-100">
+                              {isLoadingProds ? (
+                                <div className="flex items-center gap-2 py-3 text-sm text-gray-500">
+                                  <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                  Chargement des produits...
+                                </div>
+                              ) : srcProducts?.error ? (
+                                <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+                                  {srcProducts.error}
+                                </div>
+                              ) : (
+                                <div className="mt-3">
+                                  {/* Boutons tout sélectionner / désélectionner */}
+                                  <div className="flex gap-2 mb-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => selectAllProducts(source._id, availableProducts)}
+                                      className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                                    >
+                                      Tout sélectionner ({availableProducts.length})
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => selectAllProducts(source._id, [])}
+                                      className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
+                                    >
+                                      Tout désélectionner
+                                    </button>
+                                  </div>
+
+                                  {/* Liste produits */}
+                                  {availableProducts.length === 0 ? (
+                                    <p className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded p-2">
+                                      {isSheetSource ? 'Aucun produit trouvé dans ce Google Sheet.' : 'Aucun produit disponible.'}
+                                    </p>
+                                  ) : (
+                                    <div className="max-h-44 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-1 pr-1">
+                                      {isSheetSource
+                                        ? availableProducts.map((productName, idx) => (
+                                            <label key={idx} className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm transition-colors ${
+                                              selectedProductIds.includes(productName) ? 'bg-blue-100 text-blue-800' : 'hover:bg-gray-100 text-gray-700'
+                                            }`}>
+                                              <input
+                                                type="checkbox"
+                                                checked={selectedProductIds.includes(productName)}
+                                                onChange={() => toggleProduct(source._id, productName)}
+                                                className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600"
+                                              />
+                                              <span className="truncate">{productName}</span>
+                                            </label>
+                                          ))
+                                        : dbProducts.map((product) => (
+                                            <label key={product._id} className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm transition-colors ${
+                                              selectedProductIds.includes(product._id) ? 'bg-blue-100 text-blue-800' : 'hover:bg-gray-100 text-gray-700'
+                                            }`}>
+                                              <input
+                                                type="checkbox"
+                                                checked={selectedProductIds.includes(product._id)}
+                                                onChange={() => toggleProduct(source._id, product._id)}
+                                                className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600"
+                                              />
+                                              <span className="truncate">{product.name}</span>
+                                            </label>
+                                          ))
+                                      }
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </div>
-
-                            {isLoadingProducts ? (
-                              <div className="flex items-center gap-2 p-4 border border-gray-200 rounded-lg">
-                                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                                <span className="text-sm text-gray-500">Chargement des produits depuis Google Sheets...</span>
-                              </div>
-                            ) : sourceProducts.error ? (
-                              <div className="p-3 border border-red-200 bg-red-50 rounded-lg text-sm text-red-700">
-                                <div className="font-medium">Erreur d'accès</div>
-                                <div>{sourceProducts.error}</div>
-                              </div>
-                            ) : isSheetSource && Array.isArray(sourceProducts.products) && sourceProducts.products.length > 0 ? (
-                              <div>
-                                <div className="flex gap-2 mb-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => updateProductAssignment(index, 'productIds', Array.isArray(sourceProducts.products) ? [...sourceProducts.products] : [])}
-                                    className="px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded hover:bg-blue-100"
-                                  >
-                                    Tout sélectionner ({Array.isArray(sourceProducts.products) ? sourceProducts.products.length : 0})
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => updateProductAssignment(index, 'productIds', [])}
-                                    className="px-2 py-1 text-xs bg-gray-50 text-gray-600 rounded hover:bg-gray-100"
-                                  >
-                                    Tout désélectionner
-                                  </button>
-                                </div>
-                                <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
-                                  {Array.isArray(sourceProducts.products) && sourceProducts.products.map((productName, pIdx) => (
-                                    <label key={pIdx} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={Array.isArray(pa.productIds) && (pa.productIds || []).includes(productName)}
-                                        onChange={(e) => {
-                                          const currentProductIds = Array.isArray(pa.productIds) ? pa.productIds : [];
-                                          const newProductIds = e.target.checked
-                                            ? [...currentProductIds, productName]
-                                            : currentProductIds.filter(id => id !== productName);
-                                          updateProductAssignment(index, 'productIds', newProductIds);
-                                        }}
-                                        className="w-4 h-4 rounded border-gray-300 text-blue-600"
-                                      />
-                                      <span className="text-sm text-gray-800">{productName}</span>
-                                    </label>
-                                  ))}
-                                </div>
-                                {Array.isArray(pa.productIds) && pa.productIds.length > 0 && !sourceProducts.error && (
-                                  <div className="mt-2 text-xs text-indigo-600 font-medium">
-                                    {pa.productIds.length} produit(s) sélectionné(s)
-                                  </div>
-                                )}
-                              </div>
-                            ) : isSheetSource ? (
-                              <div className="p-3 border border-yellow-200 bg-yellow-50 rounded-lg text-sm text-yellow-700">
-                                Aucun produit trouvé dans ce Google Sheet. Vérifiez que la colonne "Produit" existe.
-                              </div>
-                            ) : (
-                              <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2">
-                                {Array.isArray(products) && products.map((product) => (
-                                  <label key={product._id} className="flex items-center mb-1">
-                                    <input
-                                      type="checkbox"
-                                      checked={(pa.productIds || []).includes(product._id)}
-                                      onChange={(e) => {
-                                        const newProductIds = e.target.checked
-                                          ? [...(pa.productIds || []), product._id]
-                                          : (pa.productIds || []).filter(id => id !== product._id);
-                                        updateProductAssignment(index, 'productIds', newProductIds);
-                                      }}
-                                      className="mr-2"
-                                    />
-                                    <span className="text-sm">{product.name} ({product.sellingPrice} FCFA)</span>
-                                  </label>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  <button
-                    type="button"
-                    onClick={addProductAssignment}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    Ajouter une affectation de produits
-                  </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {sources.length === 0 && (
+                      <p className="text-sm text-gray-400">Aucune source disponible</p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Notes */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Notes
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes <span className="text-gray-400 font-normal">(optionnel)</span></label>
                   <textarea
                     value={formData.notes}
                     onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    rows={2}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Notes optionnelles..."
                   />
                 </div>
+              </div>
 
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between flex-shrink-0 bg-gray-50 rounded-b-xl">
+                <div className="text-xs text-gray-500">
+                  {formData.closeuseId && (
+                    <span>
+                      {closeuses.find(c => c._id === formData.closeuseId)?.name} —{' '}
+                      {formData.orderSources.length} source{formData.orderSources.length > 1 ? 's' : ''},{' '}
+                      {formData.productAssignments.reduce((acc, pa) => acc + pa.productIds.length, 0)} produit{formData.productAssignments.reduce((acc, pa) => acc + pa.productIds.length, 0) > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
                 <div className="flex gap-3">
                   <button
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    {editingAssignment ? 'Mettre à jour' : 'Créer'}
-                  </button>
-                  <button
                     type="button"
-                    onClick={() => {
-                      setShowForm(false);
-                      setEditingAssignment(null);
-                      setFormData({
-                        closeuseId: '',
-                        orderSources: [],
-                        productAssignments: [],
-                        notes: ''
-                      });
-                    }}
-                    className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                    onClick={() => { setShowForm(false); setEditingAssignment(null); setFormData({ closeuseId: '', orderSources: [], productAssignments: [], notes: '' }); }}
+                    className="px-4 py-2 text-sm border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100"
                   >
                     Annuler
                   </button>
+                  <button
+                    type="submit"
+                    disabled={!formData.closeuseId}
+                    className="px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                  >
+                    {editingAssignment ? 'Mettre à jour' : 'Créer l\'affectation'}
+                  </button>
                 </div>
-              </form>
-            </div>
+              </div>
+            </form>
           </div>
         </div>
       )}
