@@ -189,6 +189,9 @@ const EcomLayout = ({ children }) => {
   const filteredAll = allNav.filter(i => i.roles.includes(user?.role));
 
   const mobileMainTabs = filteredAll.filter(i => i.primary).slice(0, 4);
+  // Icônes mobile agrandies (w-6 h-6 au lieu de w-5 h-5)
+  const mobileIcon = (item) => React.cloneElement(item.icon, { className: 'w-6 h-6' });
+  const mobileIconLg = (item) => React.cloneElement(item.icon, { className: 'w-[22px] h-[22px]' });
   const mobileSecondaryTabs = filteredAll.filter(i => !mobileMainTabs.includes(i));
   const showMoreTab = mobileSecondaryTabs.length > 0;
 
@@ -219,7 +222,7 @@ const EcomLayout = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col lg:flex-row">
+    <div className="min-h-screen bg-gray-50 flex flex-col lg:flex-row overflow-x-hidden max-w-[100vw]">
       {/* Desktop Sidebar - Clean Shopify Style */}
       <aside className="hidden lg:flex lg:flex-col lg:w-[240px] lg:fixed lg:inset-y-0 bg-gray-50 z-30 border-r border-gray-200">
         <div className="flex flex-col h-full">
@@ -283,33 +286,33 @@ const EcomLayout = ({ children }) => {
       <div className="flex-1 flex flex-col min-w-0 lg:ml-[240px]">
         {/* ── Mobile Header: Apple frosted glass (hidden on chat) ── */}
         <header className={`lg:hidden bg-white/80 backdrop-blur-xl border-b border-gray-200/60 sticky top-0 z-20 pt-safe ${location.pathname.startsWith('/ecom/chat') ? 'hidden' : ''}`}>
-          <div className="flex items-center justify-between h-11 px-4">
-            <div className="flex items-center gap-2.5 flex-1 min-w-0">
-              <div className={`w-8 h-8 ${roleColors[displayUser?.role] || 'bg-gray-900'} rounded-full flex items-center justify-center flex-shrink-0 shadow-sm`}>
-                <span className="text-white text-xs font-bold">{initial}</span>
+          <div className="flex items-center justify-between h-12 px-4">
+            <div className="flex items-center gap-3 flex-1 min-w-0 overflow-hidden">
+              <div className={`w-9 h-9 ${roleColors[displayUser?.role] || 'bg-gray-900'} rounded-full flex items-center justify-center flex-shrink-0 shadow-sm`}>
+                <span className="text-white text-sm font-bold">{initial}</span>
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 overflow-hidden">
                 <h1 className="text-[17px] font-semibold text-gray-900 tracking-tight leading-tight truncate">{getPageTitle(location.pathname)}</h1>
               </div>
             </div>
-            <div className="flex items-center gap-0.5 flex-shrink-0">
+            <div className="flex items-center gap-1 flex-shrink-0">
               {/* Messages icon mobile */}
               <Link
                 to="/ecom/chat"
                 onClick={clearUnread}
-                className={`relative w-9 h-9 flex items-center justify-center rounded-full transition-colors ${
+                className={`relative w-10 h-10 flex items-center justify-center rounded-full transition-colors ${
                   location.pathname.startsWith('/ecom/chat') ? 'text-blue-500' : 'text-gray-900'
                 } active:bg-gray-100/80`}
               >
-                <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
                 {unreadDm > 0 && !location.pathname.startsWith('/ecom/chat') && (
-                  <span className="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] flex items-center justify-center px-1 rounded-full bg-[#25D366] text-white text-[11px] font-bold shadow-sm">{unreadDm > 99 ? '99+' : unreadDm}</span>
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 flex items-center justify-center px-1 rounded-full bg-[#25D366] text-white text-[11px] font-bold shadow-sm">{unreadDm > 99 ? '99+' : unreadDm}</span>
                 )}
               </Link>
               <div className="relative" ref={notifRef}>
-                <button onClick={() => { setNotifOpen(!notifOpen); setUserMenuOpen(false); }} className="relative w-9 h-9 flex items-center justify-center rounded-full active:bg-gray-100/80 transition-colors">
-                  <svg className="w-[22px] h-[22px] text-gray-900" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-                  {unreadCount > 0 && <span className="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] flex items-center justify-center px-1 rounded-full bg-red-500 text-white text-[11px] font-bold shadow-sm">{unreadCount > 99 ? '99+' : unreadCount}</span>}
+                <button onClick={() => { setNotifOpen(!notifOpen); setUserMenuOpen(false); }} className="relative w-10 h-10 flex items-center justify-center rounded-full active:bg-gray-100/80 transition-colors">
+                  <svg className="w-6 h-6 text-gray-900" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                  {unreadCount > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 flex items-center justify-center px-1 rounded-full bg-red-500 text-white text-[11px] font-bold shadow-sm">{unreadCount > 99 ? '99+' : unreadCount}</span>}
                 </button>
                 <NotificationPanel isOpen={notifOpen} onClose={() => { setNotifOpen(false); refreshCount(); }} />
               </div>
@@ -380,7 +383,7 @@ const EcomLayout = ({ children }) => {
         <PushNotificationBanner />
 
         {/* Page content - pb-safe-nav = pb-20 + home indicator sur iOS */}
-        <main className="flex-1 overflow-y-auto pb-safe-nav lg:pb-0">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden pb-safe-nav lg:pb-0">
           {children}
         </main>
       </div>
@@ -390,7 +393,7 @@ const EcomLayout = ({ children }) => {
 
       {/* ── iOS-Style Bottom Tab Bar (hidden on chat page) ── */}
       <nav className={`lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-xl border-t border-gray-200/60 ${location.pathname.startsWith('/ecom/chat') ? 'hidden' : ''}`}>
-        <div className="flex items-stretch justify-around px-2 bottom-nav-safe" style={{ height: '50px' }}>
+        <div className="flex items-stretch justify-around px-1 bottom-nav-safe" style={{ height: '56px' }}>
           {mobileMainTabs.map((item) => {
             const active = isActive(item.href);
             return (
@@ -398,12 +401,12 @@ const EcomLayout = ({ children }) => {
                 key={item.name}
                 to={item.href}
                 onClick={() => setMoreMenuOpen(false)}
-                className={`flex flex-col items-center justify-center flex-1 gap-0.5 transition-all duration-200 active:scale-90 ${
+                className={`flex flex-col items-center justify-center flex-1 gap-1 transition-all duration-200 active:scale-90 ${
                   active ? 'text-blue-500' : 'text-gray-400'
                 }`}
               >
-                <span className={`transition-transform duration-200 ${active ? 'scale-110' : ''}`}>{item.icon}</span>
-                <span className={`text-[10px] font-medium leading-none ${active ? 'text-blue-500' : 'text-gray-400'}`}>{item.shortName}</span>
+                <span className={`transition-transform duration-200 ${active ? 'scale-110' : ''}`}>{mobileIcon(item)}</span>
+                <span className={`text-[10px] font-semibold leading-none ${active ? 'text-blue-500' : 'text-gray-400'}`}>{item.shortName}</span>
               </Link>
             );
           })}
@@ -412,22 +415,22 @@ const EcomLayout = ({ children }) => {
             <div className="relative flex-1">
               <button
                 onClick={() => setMoreMenuOpen(!moreMenuOpen)}
-                className={`flex flex-col items-center justify-center w-full h-full gap-0.5 transition-all duration-200 active:scale-90 ${
+                className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-all duration-200 active:scale-90 ${
                   moreMenuOpen ? 'text-blue-500' : 'text-gray-400'
                 }`}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01" /><circle cx="12" cy="12" r="10" strokeWidth={1.5} /></svg>
-                <span className="text-[10px] font-medium leading-none">Plus</span>
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01" /><circle cx="12" cy="12" r="10" strokeWidth={1.5} /></svg>
+                <span className="text-[10px] font-semibold leading-none">Plus</span>
               </button>
 
               {/* iOS-style action sheet */}
               {moreMenuOpen && (
                 <>
                   <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-30 ios-fade-in" onClick={() => setMoreMenuOpen(false)} />
-                  <div className="fixed bottom-0 left-0 right-0 z-40 px-2 ios-slide-up" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)' }}>
+                  <div className="fixed bottom-0 left-0 right-0 z-40 px-3 ios-slide-up" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)' }}>
                     <div className="bg-white/95 backdrop-blur-xl rounded-2xl overflow-hidden shadow-2xl mb-2">
-                      <div className="px-4 pt-3 pb-2">
-                        <div className="w-9 h-1 bg-gray-300 rounded-full mx-auto mb-2" />
+                      <div className="px-5 pt-3 pb-2">
+                        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-3" />
                         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Plus d'options</p>
                       </div>
                       <div className="divide-y divide-gray-100">
@@ -438,27 +441,27 @@ const EcomLayout = ({ children }) => {
                               key={item.name}
                               to={item.href}
                               onClick={() => setMoreMenuOpen(false)}
-                              className={`flex items-center gap-3.5 px-5 py-3.5 text-[15px] font-medium active:bg-gray-100 transition-colors ${
+                              className={`flex items-center gap-4 px-5 py-4 text-[16px] font-medium active:bg-gray-100 transition-colors ${
                                 active ? 'text-blue-500' : 'text-gray-900'
                               }`}
                             >
-                              <span className={`flex-shrink-0 ${active ? 'text-blue-500' : 'text-gray-400'}`}>{item.icon}</span>
-                              <span className="flex-1">{item.name}</span>
-                              {active && <span className="w-2 h-2 bg-blue-500 rounded-full" />}
+                              <span className={`flex-shrink-0 ${active ? 'text-blue-500' : 'text-gray-400'}`}>{mobileIcon(item)}</span>
+                              <span className="flex-1 truncate">{item.name}</span>
+                              {active && <span className="w-2.5 h-2.5 bg-blue-500 rounded-full flex-shrink-0" />}
                             </Link>
                           );
                         })}
                       </div>
                       <div className="border-t border-gray-100">
-                        <Link to="/ecom/profile" onClick={() => setMoreMenuOpen(false)} className="flex items-center gap-3.5 px-5 py-3.5 text-[15px] font-medium text-gray-900 active:bg-gray-100">
-                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                        <Link to="/ecom/profile" onClick={() => setMoreMenuOpen(false)} className="flex items-center gap-4 px-5 py-4 text-[16px] font-medium text-gray-900 active:bg-gray-100">
+                          <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                           Mon profil
                         </Link>
                       </div>
                     </div>
                     <button
                       onClick={() => { setMoreMenuOpen(false); handleLogout(); }}
-                      className="w-full bg-white/95 backdrop-blur-xl rounded-2xl py-3.5 text-[17px] font-semibold text-red-500 active:bg-gray-100 shadow-2xl transition-colors"
+                      className="w-full bg-white/95 backdrop-blur-xl rounded-2xl py-4 text-[17px] font-semibold text-red-500 active:bg-gray-100 shadow-2xl transition-colors"
                     >
                       Déconnexion
                     </button>

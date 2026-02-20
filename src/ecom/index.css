@@ -61,7 +61,7 @@
 
 /* Barre de nav fixe en bas: hauteur + home indicator */
 .bottom-nav-safe {
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 2px);
 }
 
 /* Contenu scrollable: ne pas être caché sous la nav bottom */
@@ -69,9 +69,9 @@
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
 }
 
-/* Padding bottom = nav (64px) + home indicator iPhone (safe-area) */
+/* Padding bottom = nav (56px tab bar) + home indicator iPhone (safe-area) */
 .pb-safe-nav {
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 5rem);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 5.5rem);
 }
 
 /* 🆕 Optimisations pour le tactile sur mobile */
@@ -243,7 +243,21 @@
 @media (max-width: 1023px) {
   .active\:scale-90:active { transform: scale(0.9); }
   * { -webkit-tap-highlight-color: transparent; }
+  /* Évite le zoom auto iOS sur les inputs */
   input, textarea, select { font-size: 16px !important; }
+  /* Rien ne déborde horizontalement */
+  html, body, #root { overflow-x: hidden; max-width: 100vw; }
+  /* Scrollbars invisibles sur mobile */
+  ::-webkit-scrollbar { display: none; }
+  * { scrollbar-width: none; }
+  /* Tous les éléments cliquables : zone tactile min 44px (Apple HIG) */
+  button, a, [role="button"] { min-height: 44px; min-width: 44px; }
+  /* Texte ne déborde jamais */
+  p, span, h1, h2, h3, h4, h5, h6, td, th, li { word-break: break-word; overflow-wrap: break-word; }
+  /* Images et médias ne débordent jamais */
+  img, video, iframe, svg { max-width: 100%; height: auto; }
+  /* Tables scrollables horizontalement sur mobile */
+  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 
 /* Classes utilitaires */
