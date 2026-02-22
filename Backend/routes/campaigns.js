@@ -1042,9 +1042,9 @@ router.post('/:id/send', requireEcomAuth, validateEcomAccess('products', 'write'
     let messageCount = 0;
     
     // Configuration timing envoi WhatsApp
-    const BATCH_SIZE = 10;           // Pause toutes les 10 messages
-    const BATCH_PAUSE_MS = 5 * 60 * 1000; // 5 minutes entre chaque batch
-    const MSG_PAUSE_MS = 30000;      // 30 secondes entre chaque message
+    const BATCH_SIZE = 5;            // Pause toutes les 5 messages
+    const BATCH_PAUSE_MS = 5 * 60 * 1000; // 5 minutes entre chaque batch de 5
+    const MSG_PAUSE_MS = 39000;      // 39 secondes entre chaque message
 
     const hasOrderFilters = campaign.targetFilters && (
       campaign.targetFilters.orderStatus ||
@@ -1164,11 +1164,12 @@ router.post('/:id/send', requireEcomAuth, validateEcomAccess('products', 'write'
         failed++;
       }
 
-      // Timing: 30s entre chaque message, pause 5min après 10 envois
+      // Timing: 39s entre chaque message, pause 5min après chaque 5 envois
       if (messageCount > 0 && messageCount % BATCH_SIZE === 0) {
-        console.log(`⏸️ Pause 5 minutes après ${messageCount} messages envoyés...`);
+        console.log(`⏸️ Pause 5 minutes après ${messageCount} messages envoyés (batch de ${BATCH_SIZE})...`);
         await new Promise(resolve => setTimeout(resolve, BATCH_PAUSE_MS));
-      } else {
+      } else if (messageCount > 0) {
+        console.log(`⏳ Attente 39s avant prochain message (${messageCount}/${clients.length})...`);
         await new Promise(resolve => setTimeout(resolve, MSG_PAUSE_MS));
       }
     }
