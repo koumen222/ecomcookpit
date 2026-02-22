@@ -1,6 +1,7 @@
 import express from 'express';
 import EcomUser from '../models/EcomUser.js';
 import Workspace from '../models/Workspace.js';
+import WhatsAppLog from '../models/WhatsAppLog.js';
 import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
 import { logAudit, auditSensitiveAccess, AuditLog } from '../middleware/security.js';
 
@@ -509,6 +510,46 @@ router.put('/whatsapp-postulations/:id',
       });
     } catch (error) {
       console.error('Erreur super-admin whatsapp-postulation update:', error);
+      res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+  }
+);
+
+// GET /api/ecom/super-admin/whatsapp-logs - Logs d'envoi WhatsApp
+router.get('/whatsapp-logs',
+  requireEcomAuth,
+  requireSuperAdmin,
+  async (req, res) => {
+    try {
+      const { workspaceId, status, page = 1, limit = 100 } = req.query;
+      const filter = {};
+      if (workspaceId) filter.workspaceId = workspaceId;
+      if (status) filter.status = status;
+
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+      const [logs, total] = await Promise.all([
+        WhatsAppLog.find(filter)
+          .sort({ sentAt: -1 })
+          .skip(skip)
+          .limit(parseInt(limit))
+          .populate('workspaceId', 'name slug')
+          .populate('userId', 'email name')
+          .populate('campaignId', 'name')
+          .lean(),
+        WhatsAppLog.countDocuments(filter)
+      ]);
+
+      const stats = {
+        total,
+        sent: await WhatsAppLog.countDocuments({ ...filter, status: 'sent' }),
+        delivered: await WhatsAppLog.countDocuments({ ...filter, status: 'delivered' }),
+        failed: await WhatsAppLog.countDocuments({ ...filter, status: 'failed' }),
+        pending: await WhatsAppLog.countDocuments({ ...filter, status: 'pending' }),
+      };
+
+      res.json({ success: true, data: { logs, stats, page: parseInt(page), total } });
+    } catch (error) {
+      console.error('Erreur super-admin whatsapp-logs:', error);
       res.status(500).json({ success: false, message: 'Erreur serveur' });
     }
   }

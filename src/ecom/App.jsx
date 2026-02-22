@@ -65,6 +65,7 @@ import TeamChat from './pages/TeamChat.jsx';
 import SuperAdminAnalytics from './pages/SuperAdminAnalytics.jsx';
 import Marketing from './pages/Marketing.jsx';
 import SuperAdminWhatsAppPostulations from './pages/SuperAdminWhatsAppPostulations.jsx';
+import SuperAdminWhatsAppLogs from './pages/SuperAdminWhatsAppLogs.jsx';
 
 
 
@@ -375,6 +376,7 @@ const EcomApp = () => {
               <Route path="/ecom/super-admin/settings" element={<LayoutRoute requiredRole="super_admin"><SuperAdminSettings /></LayoutRoute>} />
               <Route path="/ecom/super-admin/analytics" element={<LayoutRoute requiredRole="super_admin"><SuperAdminAnalytics /></LayoutRoute>} />
               <Route path="/ecom/super-admin/whatsapp-postulations" element={<LayoutRoute requiredRole="super_admin"><SuperAdminWhatsAppPostulations /></LayoutRoute>} />
+              <Route path="/ecom/super-admin/whatsapp-logs" element={<LayoutRoute requiredRole="super_admin"><SuperAdminWhatsAppLogs /></LayoutRoute>} />
 
               {/* Route Marketing Email (super_admin + ecom_admin) */}
               <Route path="/ecom/marketing" element={<LayoutRoute requiredRole={['super_admin', 'ecom_admin']}><Marketing /></LayoutRoute>} />
