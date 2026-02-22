@@ -1,17 +1,17 @@
 import webpush from 'web-push';
 import Subscription from '../models/Subscription.js';
 
-// Configuration VAPID (à mettre dans .env)
-const vapidKeys = {
-  publicKey: process.env.VAPID_PUBLIC_KEY || 'BL1HvKjXQh4jL8J9G2L3Q9R0T1Y2U3I4O5P6A7S8D9E0F1G2H3I4J5K6L7M8N9O0P1Q2R3S4T5U6V7W8X9Y0Z1',
-  privateKey: process.env.VAPID_PRIVATE_KEY || 'x9J8K7L6M5N4O3P2Q1R0S9T8U7V6W5X4Y3Z2A1B0C9D8E7F6G5H4I3J2K1L0M9N8O7P6Q5R4S3T2U1V0W9X8Y7Z6'
-};
+// Configuration VAPID (depuis .env)
+const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
+const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:contact@safitech.shop';
 
-webpush.setVapidDetails(
-  'mailto:contact@votre-app.com',
-  vapidKeys.publicKey,
-  vapidKeys.privateKey
-);
+if (vapidPublicKey && vapidPrivateKey) {
+  webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+  console.log('✅ VAPID configuré pour les notifications push');
+} else {
+  console.warn('⚠️ VAPID_PUBLIC_KEY ou VAPID_PRIVATE_KEY manquant — notifications push désactivées');
+}
 
 /**
  * Vérifier si un type de notification push est activé pour un workspace

@@ -111,11 +111,11 @@ router.delete('/unsubscribe', requireEcomAuth, async (req, res) => {
  * GET /api/ecom/push/vapid-public-key - Obtenir la clé publique VAPID
  */
 router.get('/vapid-public-key', (req, res) => {
-  const publicKey = process.env.VAPID_PUBLIC_KEY || 'BL1HvKjXQh4jL8J9G2L3Q9R0T1Y2U3I4O5P6A7S8D9E0F1G2H3I4J5K6L7M8N9O0P1Q2R3S4T5U6V7W8X9Y0Z1';
-  
-  res.json({
-    publicKey
-  });
+  const publicKey = process.env.VAPID_PUBLIC_KEY;
+  if (!publicKey) {
+    return res.status(503).json({ success: false, message: 'VAPID non configuré sur le serveur' });
+  }
+  res.json({ publicKey });
 });
 
 /**
