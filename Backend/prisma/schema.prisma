@@ -1,0 +1,734 @@
+// Schéma Prisma pour EcomCookpit - Migration depuis MongoDB vers PostgreSQL
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================================
+// CORE MODELS - Utilisateurs et Workspaces
+// ============================================================================
+
+model EcomUser {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String?
+  googleId      String?   @unique
+  name          String    @default("")
+  phone         String    @default("")
+  avatar        String    @default("")
+  role          UserRole?
+  workspaceId   String?
+  isActive      Boolean   @default(true)
+  lastLogin     DateTime?
+  currency      String    @default("XAF")
+  deviceToken   String?
+  deviceId      String?
+  userAgent     String?
+  platform      String?
+  lastSeen      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  workspace              Workspace?               @relation("UserWorkspace", fields: [workspaceId], references: [id])
+  ownedWorkspaces        Workspace[]              @relation("WorkspaceOwner")
+  workspaceMemberships   WorkspaceMember[]
+  createdProducts        Product[]
+  createdClients         Client[]
+  assignedClients        Client[]                 @relation("AssignedClients")
+  assignedOrders         Order[]
+  createdTransactions    Transaction[]
+  createdReports         DailyReport[]
+  createdDecisions       Decision[]
+  assignedDecisions      Decision[]               @relation("AssignedDecisions")
+  notifications          Notification[]
+  subscriptions          Subscription[]
+  agentConversations     AgentConversation[]
+  agentMessages          AgentMessage[]
+  directMessagesSent     DirectMessage[]          @relation("SentMessages")
+  directMessagesReceived DirectMessage[]          @relation("ReceivedMessages")
+  analyticsEvents        AnalyticsEvent[]
+  analyticsSessions      AnalyticsSession[]
+  invitedMembers         WorkspaceMember[]        @relation("InvitedBy")
+  closeuseAssignments    CloseuseAssignment[]
+
+  @@map("ecom_users")
+  @@index([email])
+  @@index([workspaceId])
+}
+
+enum UserRole {
+  super_admin
+  ecom_admin
+  ecom_closeuse
+  ecom_compta
+  ecom_livreur
+}
+
+model Workspace {
+  id                String              @id @default(uuid())
+  name              String
+  slug              String              @unique
+  ownerId           String
+  inviteCode        String              @unique
+  currency          String              @default("XOF")
+  businessType      String              @default("ecommerce")
+  whatsappPhone     String              @default("")
+  whatsappStatus    WhatsAppStatus      @default(none)
+  whatsappRequestedAt DateTime?
+  whatsappActivatedAt DateTime?
+  whatsappNote      String              @default("")
+  isActive          Boolean             @default(true)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  // Relations
+  owner             EcomUser            @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  users             EcomUser[]          @relation("UserWorkspace")
+  members           WorkspaceMember[]
+  invites           WorkspaceInvite[]
+  products          Product[]
+  orders            Order[]
+  clients           Client[]
+  transactions      Transaction[]
+  reports           DailyReport[]
+  decisions         Decision[]
+  campaigns         Campaign[]
+  goals             Goal[]
+  stockOrders       StockOrder[]
+  stockLocations    StockLocation[]
+  importHistory     ImportHistory[]
+  productResearch   ProductResearch[]
+  settings          WorkspaceSettings?
+  closeuseAssignments CloseuseAssignment[]
+  orderSources      OrderSource[]
+
+  @@map("ecom_workspaces")
+  @@index([ownerId])
+  @@index([slug])
+}
+
+enum WhatsAppStatus {
+  none
+  pending
+  active
+}
+
+model WorkspaceMember {
+  id          String   @id @default(uuid())
+  workspaceId String
+  userId      String
+  role        UserRole
+  joinedAt    DateTime @default(now())
+  invitedById String?
+  status      MemberStatus @default(active)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        EcomUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy   EcomUser? @relation("InvitedBy", fields: [invitedById], references: [id])
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+  @@index([workspaceId])
+  @@index([userId])
+}
+
+enum MemberStatus {
+  active
+  pending
+  suspended
+}
+
+model WorkspaceInvite {
+  id          String    @id @default(uuid())
+  workspaceId String
+  token       String    @unique
+  createdById String
+  expiresAt   DateTime
+  used        Boolean   @default(false)
+  usedById    String?
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("workspace_invites")
+  @@index([workspaceId])
+  @@index([token])
+}
+
+model WorkspaceSettings {
+  id                    String   @id @default(uuid())
+  workspaceId           String   @unique
+  currency              String   @default("XOF")
+  timezone              String   @default("Africa/Douala")
+  dateFormat            String   @default("DD/MM/YYYY")
+  language              String   @default("fr")
+  notificationsEnabled  Boolean  @default(true)
+  emailNotifications    Boolean  @default(true)
+  smsNotifications      Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("workspace_settings")
+}
+
+// ============================================================================
+// PRODUCTS & INVENTORY
+// ============================================================================
+
+model Product {
+  id                String   @id @default(uuid())
+  workspaceId       String
+  name              String
+  status            ProductStatus @default(test)
+  sellingPrice      Float
+  productCost       Float
+  deliveryCost      Float
+  avgAdsCost        Float    @default(0)
+  stock             Int      @default(0)
+  reorderThreshold  Int      @default(10)
+  isActive          Boolean  @default(true)
+  createdById       String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy         EcomUser  @relation(fields: [createdById], references: [id])
+
+  @@map("ecom_products")
+  @@index([workspaceId])
+  @@index([status, isActive])
+  @@index([stock])
+}
+
+enum ProductStatus {
+  test
+  stable
+  winner
+  pause
+  stop
+}
+
+model ProductResearch {
+  id              String   @id @default(uuid())
+  workspaceId     String
+  name            String
+  category        String   @default("")
+  targetPrice     Float?
+  estimatedCost   Float?
+  notes           String   @default("")
+  status          String   @default("research")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("product_research")
+  @@index([workspaceId])
+}
+
+model StockLocation {
+  id          String   @id @default(uuid())
+  workspaceId String
+  name        String
+  address     String   @default("")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("stock_locations")
+  @@index([workspaceId])
+}
+
+model StockOrder {
+  id          String   @id @default(uuid())
+  workspaceId String
+  productName String
+  quantity    Int
+  unitCost    Float
+  totalCost   Float
+  supplier    String   @default("")
+  status      StockOrderStatus @default(pending)
+  orderDate   DateTime @default(now())
+  receivedDate DateTime?
+  notes       String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("stock_orders")
+  @@index([workspaceId])
+  @@index([status])
+}
+
+enum StockOrderStatus {
+  pending
+  ordered
+  received
+  cancelled
+}
+
+// ============================================================================
+// ORDERS & CLIENTS
+// ============================================================================
+
+model Order {
+  id                    String    @id @default(uuid())
+  workspaceId           String
+  sheetRowId            String?
+  orderId               String    @default("")
+  date                  DateTime?
+  clientName            String    @default("")
+  clientPhone           String    @default("")
+  city                  String    @default("")
+  address               String    @default("")
+  product               String    @default("")
+  quantity              Int       @default(1)
+  price                 Float     @default(0)
+  status                String    @default("pending")
+  deliveryLocation      String    @default("")
+  deliveryTime          String    @default("")
+  tags                  String[]
+  assignedLivreurId     String?
+  notes                 String    @default("")
+  source                String    @default("manual")
+  rawData               Json?
+  whatsappNotificationSent Boolean @default(false)
+  whatsappNotificationSentAt DateTime?
+  statusModifiedManually Boolean @default(false)
+  statusModifiedAt      DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  // Relations
+  workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignedLivreur       EcomUser? @relation(fields: [assignedLivreurId], references: [id])
+
+  @@unique([workspaceId, sheetRowId])
+  @@map("ecom_orders")
+  @@index([workspaceId, status, date])
+  @@index([workspaceId, city, status])
+  @@index([workspaceId, product, status])
+  @@index([workspaceId, updatedAt])
+}
+
+model OrderSource {
+  id          String   @id @default(uuid())
+  workspaceId String
+  name        String
+  type        String
+  config      Json?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("order_sources")
+  @@index([workspaceId])
+}
+
+model Client {
+  id            String    @id @default(uuid())
+  workspaceId   String
+  firstName     String
+  lastName      String    @default("")
+  phone         String    @default("")
+  email         String    @default("")
+  city          String    @default("")
+  address       String    @default("")
+  source        ClientSource @default(other)
+  status        String    @default("prospect")
+  totalOrders   Int       @default(0)
+  totalSpent    Float     @default(0)
+  notes         String    @default("")
+  products      String[]
+  tags          String[]
+  assignedToId  String?
+  createdById   String
+  lastContactAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignedTo    EcomUser? @relation("AssignedClients", fields: [assignedToId], references: [id])
+  createdBy     EcomUser  @relation(fields: [createdById], references: [id])
+
+  @@map("ecom_clients")
+  @@index([workspaceId, phone])
+  @@index([workspaceId, status])
+  @@index([workspaceId, createdAt])
+}
+
+enum ClientSource {
+  facebook
+  instagram
+  tiktok
+  whatsapp
+  site
+  referral
+  other
+}
+
+model CloseuseAssignment {
+  id          String   @id @default(uuid())
+  workspaceId String
+  closeuseId  String
+  sources     String[]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  closeuse    EcomUser  @relation(fields: [closeuseId], references: [id])
+
+  @@unique([workspaceId, closeuseId])
+  @@map("closeuse_assignments")
+  @@index([workspaceId])
+}
+
+// ============================================================================
+// FINANCIAL
+// ============================================================================
+
+model Transaction {
+  id          String   @id @default(uuid())
+  workspaceId String
+  type        TransactionType
+  amount      Float
+  category    String   @default("")
+  description String   @default("")
+  date        DateTime @default(now())
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy   EcomUser  @relation(fields: [createdById], references: [id])
+
+  @@map("ecom_transactions")
+  @@index([workspaceId, date])
+  @@index([workspaceId, type])
+}
+
+enum TransactionType {
+  income
+  expense
+}
+
+model DailyReport {
+  id                String   @id @default(uuid())
+  workspaceId       String
+  date              DateTime
+  ordersReceived    Int      @default(0)
+  ordersDelivered   Int      @default(0)
+  revenue           Float    @default(0)
+  expenses          Float    @default(0)
+  notes             String   @default("")
+  createdById       String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy         EcomUser  @relation(fields: [createdById], references: [id])
+
+  @@unique([workspaceId, date])
+  @@map("daily_reports")
+  @@index([workspaceId, date])
+}
+
+model Goal {
+  id          String   @id @default(uuid())
+  workspaceId String
+  title       String
+  target      Float
+  current     Float    @default(0)
+  period      String   @default("monthly")
+  startDate   DateTime
+  endDate     DateTime
+  status      GoalStatus @default(active)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("goals")
+  @@index([workspaceId])
+}
+
+enum GoalStatus {
+  active
+  completed
+  cancelled
+}
+
+// ============================================================================
+// DECISIONS & TASKS
+// ============================================================================
+
+model Decision {
+  id          String   @id @default(uuid())
+  workspaceId String
+  title       String
+  description String   @default("")
+  priority    Priority @default(medium)
+  status      DecisionStatus @default(pending)
+  assignedToId String?
+  createdById String
+  dueDate     DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignedTo  EcomUser? @relation("AssignedDecisions", fields: [assignedToId], references: [id])
+  createdBy   EcomUser  @relation(fields: [createdById], references: [id])
+
+  @@map("decisions")
+  @@index([workspaceId, status])
+}
+
+enum Priority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum DecisionStatus {
+  pending
+  in_progress
+  completed
+  cancelled
+}
+
+// ============================================================================
+// MARKETING & CAMPAIGNS
+// ============================================================================
+
+model Campaign {
+  id          String   @id @default(uuid())
+  workspaceId String
+  name        String
+  type        CampaignType
+  status      CampaignStatus @default(draft)
+  targetAudience Json?
+  content     String   @default("")
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  stats       Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("campaigns")
+  @@index([workspaceId])
+}
+
+enum CampaignType {
+  email
+  sms
+  whatsapp
+  push
+}
+
+enum CampaignStatus {
+  draft
+  scheduled
+  sent
+  cancelled
+}
+
+// ============================================================================
+// NOTIFICATIONS & MESSAGING
+// ============================================================================
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String
+  title     String
+  message   String
+  data      Json?
+  read      Boolean  @default(false)
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      EcomUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+  @@index([userId, read])
+  @@index([userId, createdAt])
+}
+
+model Subscription {
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String
+  keys      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user      EcomUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+  @@index([userId])
+}
+
+model DirectMessage {
+  id          String   @id @default(uuid())
+  senderId    String
+  receiverId  String
+  message     String
+  read        Boolean  @default(false)
+  readAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  sender      EcomUser @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver    EcomUser @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@map("direct_messages")
+  @@index([senderId, receiverId])
+  @@index([receiverId, read])
+}
+
+// ============================================================================
+// AGENT & AI
+// ============================================================================
+
+model AgentConversation {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String   @default("Nouvelle conversation")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user        EcomUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages    AgentMessage[]
+
+  @@map("agent_conversations")
+  @@index([userId])
+}
+
+model AgentMessage {
+  id              String   @id @default(uuid())
+  conversationId  String
+  userId          String
+  role            MessageRole
+  content         String
+  createdAt       DateTime @default(now())
+
+  // Relations
+  conversation    AgentConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user            EcomUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("agent_messages")
+  @@index([conversationId])
+}
+
+enum MessageRole {
+  user
+  assistant
+  system
+}
+
+// ============================================================================
+// ANALYTICS
+// ============================================================================
+
+model AnalyticsEvent {
+  id          String   @id @default(uuid())
+  userId      String?
+  sessionId   String?
+  eventType   String
+  eventData   Json?
+  page        String?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user        EcomUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  session     AnalyticsSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@map("analytics_events")
+  @@index([userId])
+  @@index([sessionId])
+  @@index([eventType, createdAt])
+}
+
+model AnalyticsSession {
+  id          String   @id @default(uuid())
+  userId      String?
+  userAgent   String?
+  ipAddress   String?
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?
+
+  // Relations
+  user        EcomUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  events      AnalyticsEvent[]
+
+  @@map("analytics_sessions")
+  @@index([userId])
+}
+
+// ============================================================================
+// IMPORT & SYNC
+// ============================================================================
+
+model ImportHistory {
+  id          String   @id @default(uuid())
+  workspaceId String
+  source      String
+  status      ImportStatus
+  totalRows   Int      @default(0)
+  successRows Int      @default(0)
+  errorRows   Int      @default(0)
+  errors      Json?
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+
+  // Relations
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("import_history")
+  @@index([workspaceId, createdAt])
+}
+
+enum ImportStatus {
+  pending
+  processing
+  completed
+  failed
+}

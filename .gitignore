@@ -1,5 +1,5 @@
 # Git subdirectories (ignore embedded repos)
-backend/
+# backend/
 
 # Dependencies
 node_modules/
