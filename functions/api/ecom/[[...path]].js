@@ -16,8 +16,8 @@ export async function onRequest(context) {
     });
   }
 
-  // Backend Railway URL
-  const BACKEND_URL = 'https://ecomcookpit-production.up.railway.app';
+  // Backend Railway URL - lu depuis les variables d'environnement
+  const BACKEND_URL = env.BACKEND_URL || 'https://ecomcookpit-production.up.railway.app';
   
   // Construire l'URL backend en préservant le path après /api/ecom
   const path = url.pathname.replace('/api/ecom', '/api/ecom');
