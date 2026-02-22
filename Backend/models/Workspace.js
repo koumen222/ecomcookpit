@@ -23,8 +23,11 @@ const workspaceSchema = new mongoose.Schema({
     unique: true
   },
   settings: {
-    currency: { type: String, default: 'XOF' },
-    businessType: { type: String, default: 'ecommerce' }
+    type: mongoose.Schema.Types.Mixed,
+    default: {
+      currency: 'XOF',
+      businessType: 'ecommerce'
+    }
   },
   whatsappConfig: {
     phoneNumber: { type: String, default: '' },
