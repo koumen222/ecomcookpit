@@ -12,15 +12,45 @@ const JWT_SECRET = process.env.ECOM_JWT_SECRET || 'ecom-secret-key-change-in-pro
  * @param {http.Server} httpServer - The HTTP server instance
  */
 export function initSocketServer(httpServer) {
+  const allowedOrigins = [
+    'https://ecomcookpit.site',
+    'https://www.ecomcookpit.site',
+    'http://ecomcookpit.site',
+    'http://www.ecomcookpit.site',
+    'https://ecomcookpit.pages.dev',
+    'https://ecomcookpit-production.up.railway.app',
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:3000',
+    'http://localhost:8081'
+  ];
+
+  // Add CORS_ORIGINS from env if available
+  if (process.env.CORS_ORIGINS) {
+    const envOrigins = process.env.CORS_ORIGINS.split(',').map(o => o.trim());
+    allowedOrigins.push(...envOrigins);
+  }
+
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:5173'],
+      origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, etc.)
+        if (!origin) return callback(null, true);
+        
+        // Check if origin is in allowed list or is a Cloudflare Pages preview
+        if (allowedOrigins.includes(origin) || origin.endsWith('.ecomcookpit.pages.dev')) {
+          return callback(null, true);
+        }
+        
+        callback(new Error('Not allowed by CORS'));
+      },
       methods: ['GET', 'POST'],
       credentials: true
     },
     pingTimeout: 60000,
     pingInterval: 25000,
-    transports: ['websocket', 'polling']
+    transports: ['websocket', 'polling'],
+    allowEIO3: true
   });
 
   // Authentication middleware
