@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
 
-const API_BASE = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production.up.railway.app';
+const API_BASE = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
 
 const CHANNEL_LABELS = {
   general: { label: 'Général', emoji: '💬', desc: "Toute l'équipe" },

@@ -30,7 +30,7 @@ export function trackEvent(eventType, extra = {}) {
     if (eventType === 'page_view' && navigator.sendBeacon) {
       const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
       const token = localStorage.getItem('ecomToken');
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production.up.railway.app';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
       // sendBeacon can't set headers, so use fetch with keepalive instead
       fetch(`${backendUrl}/api/ecom/analytics/track`, {
         method: 'POST',

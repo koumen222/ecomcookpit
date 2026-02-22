@@ -5,8 +5,8 @@ import { useAudioRecorder } from '../hooks/useAudioRecorder.js';
 import { useMediaUpload } from '../hooks/useMediaUpload.js';
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production.up.railway.app';
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production.up.railway.app';
+const SOCKET_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
 
 const ROLE_COLORS = { 
   ecom_admin: 'bg-blue-600', 

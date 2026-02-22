@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 
-const API_BASE = `${import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production.up.railway.app'}/api/ecom`;
+const API_BASE = `${import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app'}/api/ecom`;
 
 /**
  * Custom hook for media upload with progress tracking
