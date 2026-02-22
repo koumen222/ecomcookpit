@@ -25,9 +25,13 @@ const allowedOrigins = [
   "http://localhost:8081"
 ];
 
-// CORS simplifié - accepter toutes les origines temporairement
 const corsOptions = {
-  origin: '*',
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (origin.endsWith(".ecomcookpit.pages.dev")) return callback(null, true);
+    callback(null, false);
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Session-Id"],
   credentials: false,

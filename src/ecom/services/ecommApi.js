@@ -4,6 +4,7 @@ import { logApiRequest, logApiResponse, logApiError, logAuthEvent, logPushEvent 
 // Configuration de base pour l'API e-commerce
 // Appel direct vers Railway backend (CORS configuré côté backend)
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production.up.railway.app';
+console.log('🔧 [API] BACKEND_URL =', BACKEND_URL, '| VITE_BACKEND_URL =', import.meta.env.VITE_BACKEND_URL);
 const ecomApi = axios.create({
   baseURL: `${BACKEND_URL}/api/ecom`,
   timeout: 30000,
