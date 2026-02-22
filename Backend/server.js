@@ -27,9 +27,20 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    if (origin.endsWith(".ecomcookpit.pages.dev")) return callback(null, true);
+    console.log(`🌐 CORS check - Origin: ${origin}`);
+    if (!origin) {
+      console.log('✅ CORS: No origin (same-origin or tools)');
+      return callback(null, true);
+    }
+    if (allowedOrigins.includes(origin)) {
+      console.log(`✅ CORS: Origin autorisée - ${origin}`);
+      return callback(null, true);
+    }
+    if (origin.endsWith(".ecomcookpit.pages.dev")) {
+      console.log(`✅ CORS: Cloudflare Pages preview - ${origin}`);
+      return callback(null, true);
+    }
+    console.error(`❌ CORS: Origin refusée - ${origin}`);
     callback(new Error('Not allowed by CORS'));
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
