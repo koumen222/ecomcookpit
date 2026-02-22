@@ -365,60 +365,67 @@ router.get('/whatsapp-postulations',
     try {
       const { status } = req.query;
 
-      // Chercher dans settings.whatsappConfig (où le formulaire sauvegarde)
-      const filter = {
-        $or: [
-          { 'settings.whatsappConfig.status': { $in: ['pending', 'active', 'rejected'] } },
-          { 'whatsappConfig.status': { $in: ['pending', 'active', 'rejected'] } }
-        ]
-      };
+      console.log('🔍 [SuperAdmin] Récupération des postulations WhatsApp...');
 
-      // Filtre optionnel par status
-      if (status && ['pending', 'active', 'rejected'].includes(status)) {
-        filter.$or = [
-          { 'settings.whatsappConfig.status': status },
-          { 'whatsappConfig.status': status }
-        ];
-      }
-
-      const workspaces = await Workspace.find(filter)
+      // Récupérer TOUS les workspaces et filtrer en JavaScript
+      const allWorkspaces = await Workspace.find({})
         .populate('owner', 'email name role')
-        .sort({ 'settings.whatsappConfig.requestedAt': -1, 'whatsappConfig.requestedAt': -1 })
         .lean();
 
-      // Normaliser les données (le formulaire sauvegarde dans settings.whatsappConfig)
-      const postulations = await Promise.all(workspaces.map(async (ws) => {
+      console.log(`📊 [SuperAdmin] ${allWorkspaces.length} workspaces trouvés au total`);
+
+      // Normaliser les données et filtrer ceux qui ont une postulation WhatsApp
+      const postulations = [];
+      
+      for (const ws of allWorkspaces) {
         const config = ws.settings?.whatsappConfig || ws.whatsappConfig || {};
+        
+        // Vérifier si ce workspace a une postulation WhatsApp
+        const hasPostulation = config.status && ['pending', 'active', 'rejected'].includes(config.status);
+        
+        if (hasPostulation) {
+          // Filtre optionnel par status
+          if (status && config.status !== status) {
+            continue;
+          }
 
-        // Récupérer l'utilisateur qui a fait la demande
-        let requestedByUser = null;
-        if (config.requestedBy) {
-          requestedByUser = await EcomUser.findById(config.requestedBy)
-            .select('email name role')
-            .lean();
+          // Récupérer l'utilisateur qui a fait la demande
+          let requestedByUser = null;
+          if (config.requestedBy) {
+            requestedByUser = await EcomUser.findById(config.requestedBy)
+              .select('email name role')
+              .lean();
+          }
+
+          postulations.push({
+            _id: ws._id,
+            workspaceName: ws.name,
+            workspaceSlug: ws.slug,
+            owner: ws.owner,
+            isActive: ws.isActive,
+            phoneNumber: config.phoneNumber || '',
+            status: config.status || 'none',
+            requestedAt: config.requestedAt || null,
+            activatedAt: config.activatedAt || null,
+            note: config.note || '',
+            businessName: config.businessName || '',
+            contactName: config.contactName || '',
+            email: config.email || '',
+            currentWhatsappNumber: config.currentWhatsappNumber || '',
+            businessType: config.businessType || '',
+            monthlyMessages: config.monthlyMessages || '',
+            reason: config.reason || '',
+            requestedBy: requestedByUser
+          });
         }
+      }
 
-        return {
-          _id: ws._id,
-          workspaceName: ws.name,
-          workspaceSlug: ws.slug,
-          owner: ws.owner,
-          isActive: ws.isActive,
-          phoneNumber: config.phoneNumber || '',
-          status: config.status || 'none',
-          requestedAt: config.requestedAt || null,
-          activatedAt: config.activatedAt || null,
-          note: config.note || '',
-          businessName: config.businessName || '',
-          contactName: config.contactName || '',
-          email: config.email || '',
-          currentWhatsappNumber: config.currentWhatsappNumber || '',
-          businessType: config.businessType || '',
-          monthlyMessages: config.monthlyMessages || '',
-          reason: config.reason || '',
-          requestedBy: requestedByUser
-        };
-      }));
+      // Trier par date de demande (plus récent en premier)
+      postulations.sort((a, b) => {
+        const dateA = a.requestedAt ? new Date(a.requestedAt) : new Date(0);
+        const dateB = b.requestedAt ? new Date(b.requestedAt) : new Date(0);
+        return dateB - dateA;
+      });
 
       const stats = {
         total: postulations.length,
@@ -426,6 +433,9 @@ router.get('/whatsapp-postulations',
         active: postulations.filter(p => p.status === 'active').length,
         rejected: postulations.filter(p => p.status === 'rejected').length
       };
+
+      console.log(`✅ [SuperAdmin] ${postulations.length} postulations WhatsApp trouvées`);
+      console.log(`📊 [SuperAdmin] Stats: ${stats.pending} pending, ${stats.active} active, ${stats.rejected} rejected`);
 
       res.json({
         success: true,
