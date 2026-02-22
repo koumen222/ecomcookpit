@@ -342,7 +342,7 @@ router.put('/:id',
       // 📱 Push notification pour changement de stock
       if (req.body.stock !== undefined && req.body.stock !== oldStock) {
         try {
-          const { sendPushNotification } = await import('../../services/pushService.js');
+          const { sendPushNotification } = await import('../services/pushService.js');
           const stockDiff = req.body.stock - oldStock;
           const isLowStock = req.body.stock <= (product.reorderThreshold || 5);
           

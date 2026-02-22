@@ -18,7 +18,7 @@ let analyzeSpamRisk, validateMessageBeforeSend, sendWhatsAppMessage, getHumanDel
 
 async function loadWhatsAppService() {
   try {
-    const whatsappService = await import('../../services/whatsappService.js');
+    const whatsappService = await import('../services/whatsappService.js');
     analyzeSpamRisk = whatsappService.analyzeSpamRisk;
     validateMessageBeforeSend = whatsappService.validateMessageBeforeSend;
     sendWhatsAppMessage = whatsappService.sendWhatsAppMessage;

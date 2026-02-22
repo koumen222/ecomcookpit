@@ -407,7 +407,7 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
       emitProgress(req.workspaceId, sourceId, { percentage: 92, status: 'Envoi des notifications...', current: totalDataRows, total: totalDataRows });
 
       try {
-        const { sendPushNotification } = await import('../../services/pushService.js');
+        const { sendPushNotification } = await import('../services/pushService.js');
         await sendPushNotification(req.workspaceId, {
           title: 'Import terminé',
           body: `${successCount} nouvelles commandes importées, ${updatedCount} mises à jour`,

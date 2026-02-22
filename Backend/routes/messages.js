@@ -3,7 +3,7 @@ import Message from '../models/Message.js';
 import Channel from '../models/Channel.js';
 import EcomUser from '../models/EcomUser.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
-import { sendPushNotificationToUser } from '../../services/pushService.js';
+import { sendPushNotificationToUser } from '../services/pushService.js';
 import { notifyNewMessage } from '../services/notificationHelper.js';
 
 const router = express.Router();

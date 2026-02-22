@@ -1,5 +1,5 @@
 import express from 'express';
-import { sendEmail } from '../../services/emailService.js';
+import { sendEmail } from '../services/emailService.js';
 
 const router = express.Router();
 

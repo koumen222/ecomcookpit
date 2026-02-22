@@ -4,7 +4,7 @@
 
 import express from 'express';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
-import autoSyncService from '../../services/autoSyncService.js';
+import autoSyncService from '../services/autoSyncService.js';
 import WorkspaceSettings from '../models/WorkspaceSettings.js';
 
 const router = express.Router();
