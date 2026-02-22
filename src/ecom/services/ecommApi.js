@@ -2,10 +2,10 @@ import axios from 'axios';
 import { logApiRequest, logApiResponse, logApiError, logAuthEvent, logPushEvent } from './prodLogger.js';
 
 // Configuration de base pour l'API e-commerce
-// Utiliser le chemin relatif /api/ecom — la Pages Function (functions/api/[[path]].js) proxy vers Railway
-// En dev, Vite proxy fait la même chose via vite.config.js
+// Appel direct vers Railway backend (CORS configuré côté backend)
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production.up.railway.app';
 const ecomApi = axios.create({
-  baseURL: '/api/ecom',
+  baseURL: `${BACKEND_URL}/api/ecom`,
   timeout: 30000,
   withCredentials: false,
   headers: {
