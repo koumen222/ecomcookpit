@@ -51,8 +51,8 @@ const sendPushNotification = async (workspaceId, notificationData, notificationT
     
     console.log(`📱 Envoi notification push pour workspace: ${workspaceId}`);
     
-    // Récupérer tous les abonnés du workspace
-    const subscriptions = await Subscription.find({ workspaceId });
+    // Récupérer tous les abonnés du workspace (timeout 5s)
+    const subscriptions = await Subscription.find({ workspaceId }).maxTimeMS(5000).catch(() => []);
     
     if (subscriptions.length === 0) {
       console.log(`ℹ️ Aucun abonné push trouvé pour workspace: ${workspaceId}`);
@@ -123,8 +123,8 @@ const sendPushNotification = async (workspaceId, notificationData, notificationT
     };
     
   } catch (error) {
-    console.error('❌ Erreur critique notification push:', error);
-    throw error;
+    console.warn('⚠️ Push notification failed:', error.message);
+    return { success: false, total: 0, successful: 0, failed: 0 };
   }
 };
 
@@ -133,7 +133,7 @@ const sendPushNotification = async (workspaceId, notificationData, notificationT
  */
 const sendPushNotificationToUser = async (userId, notificationData) => {
   try {
-    const subscriptions = await Subscription.find({ userId });
+    const subscriptions = await Subscription.find({ userId }).maxTimeMS(5000).catch(() => []);
     
     if (subscriptions.length === 0) {
       console.log(`ℹ️ Aucun abonné push trouvé pour utilisateur: ${userId}`);
