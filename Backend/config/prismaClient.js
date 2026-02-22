@@ -1,18 +1,7 @@
-  import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-import pg from 'pg';
+import { PrismaClient } from '@prisma/client';
 
-// Créer le pool PostgreSQL
-const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-// Créer l'adapter
-const adapter = new PrismaPg(pool);
-
-// Créer le client Prisma avec l'adapter
+// Créer le client Prisma
 const prisma = new PrismaClient({
-  adapter,
   log: ['query', 'info', 'warn', 'error'],
   errorFormat: 'pretty',
 });
