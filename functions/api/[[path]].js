@@ -2,7 +2,7 @@ const BACKEND = 'https://plateforme-backend-production-2ec6.up.railway.app';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Session-Id',
   'Access-Control-Allow-Credentials': 'true',
 };
 
@@ -31,6 +31,11 @@ export async function onRequest(context) {
   const authorization = request.headers.get('Authorization');
   if (authorization) {
     headers.set('Authorization', authorization);
+  }
+
+  const sessionId = request.headers.get('X-Session-Id');
+  if (sessionId) {
+    headers.set('X-Session-Id', sessionId);
   }
 
   const hasBody = !['GET', 'HEAD'].includes(request.method);
