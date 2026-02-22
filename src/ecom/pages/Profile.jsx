@@ -2,6 +2,72 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
 import { authApi } from '../services/ecommApi.js';
 import { useMoney } from '../hooks/useMoney.js';
+import { usePushNotifications } from '../hooks/usePushNotifications.jsx';
+
+const PushSection = () => {
+  const { isSupported, isSubscribed, permission, loading, error, subscribeToPush, unsubscribeFromPush, sendTestNotification } = usePushNotifications();
+  const [activating, setActivating] = useState(false);
+  const [testSent, setTestSent] = useState(false);
+
+  if (!isSupported) return null;
+
+  const handleToggle = async () => {
+    setActivating(true);
+    if (isSubscribed) {
+      await unsubscribeFromPush();
+    } else {
+      const ok = await subscribeToPush();
+      if (ok) {
+        setTestSent(true);
+        await sendTestNotification();
+        setTimeout(() => setTestSent(false), 4000);
+      }
+    }
+    setActivating(false);
+  };
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isSubscribed ? 'bg-blue-100' : 'bg-gray-100'}`}>
+            <svg className={`w-5 h-5 ${isSubscribed ? 'text-blue-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-900">Notifications push</p>
+            <p className="text-xs text-gray-500">
+              {permission === 'denied' ? '🚫 Bloquées dans le navigateur' :
+               isSubscribed ? '✅ Activées sur cet appareil' :
+               '⬜ Désactivées sur cet appareil'}
+            </p>
+            {testSent && <p className="text-xs text-emerald-600 font-medium mt-0.5">✅ Notification de test envoyée !</p>}
+            {error && <p className="text-xs text-red-500 mt-0.5">{error}</p>}
+          </div>
+        </div>
+
+        {permission === 'denied' ? (
+          <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg">Bloquer</span>
+        ) : (
+          <button
+            onClick={handleToggle}
+            disabled={activating || loading}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50 ${isSubscribed ? 'bg-blue-600' : 'bg-gray-300'}`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${isSubscribed ? 'translate-x-6' : 'translate-x-1'}`} />
+          </button>
+        )}
+      </div>
+
+      {permission === 'denied' && (
+        <p className="mt-3 text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+          Pour activer les notifications, autorisez-les dans les paramètres de votre navigateur → icône 🔒 dans la barre d'adresse.
+        </p>
+      )}
+    </div>
+  );
+};
 
 const Profile = () => {
   const { user, workspace, logout, loadUser } = useEcomAuth();
@@ -493,6 +559,9 @@ const Profile = () => {
           )}
         </div>
       </div>
+
+      {/* 🔔 Notifications push */}
+      <PushSection />
 
       {/* Déconnexion */}
       <div className="flex justify-center">

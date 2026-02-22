@@ -2243,7 +2243,7 @@ router.post('/:id/assign', requireEcomAuth, async (req, res) => {
     
     // 📱 Push notification pour assignation livreur
     try {
-      const { sendPushNotification } = await import('../../backend/services/pushService.js');
+      const { sendPushNotification } = await import('../services/pushService.js');
       await sendPushNotification(req.workspaceId, {
         title: '🚚 Commande assignée',
         body: `${order.orderId} assignée à un livreur - ${order.clientName || order.clientPhone}`,
@@ -2339,7 +2339,7 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
       
       // 📱 Push notification pour changement de statut
       try {
-        const { sendPushNotification } = await import('../../backend/services/pushService.js');
+        const { sendPushNotification } = await import('../services/pushService.js');
         const statusEmojis = {
           pending: '⏳', confirmed: '✅', shipped: '📦', 
           delivered: '🎉', returned: '↩️', cancelled: '❌',
@@ -2442,7 +2442,7 @@ router.patch('/:id/status', requireEcomAuth, async (req, res) => {
     
     // 📱 Push notification pour changement de statut
     try {
-      const { sendPushNotification } = await import('../../backend/services/pushService.js');
+      const { sendPushNotification } = await import('../services/pushService.js');
       const statusEmojis = {
         pending: '⏳', confirmed: '✅', shipped: '📦', 
         delivered: '🎉', returned: '↩️', cancelled: '❌',

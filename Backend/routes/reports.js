@@ -638,6 +638,18 @@ router.post('/',
       // Notification interne
       notifyReportCreated(req.workspaceId, report, req.ecomUser?.name || req.ecomUser?.email).catch(() => {});
 
+      // 📱 Push notification rapport soumis
+      import('../services/pushService.js').then(({ sendPushNotification }) => {
+        sendPushNotification(req.workspaceId, {
+          title: '📊 Nouveau rapport soumis',
+          body: `${req.ecomUser?.name || req.ecomUser?.email} — ${product.name} : ${ordersDelivered} livrées / ${ordersReceived} reçues`,
+          icon: '/icons/icon-192x192.png',
+          badge: '/icons/icon-72x72.png',
+          tag: 'report-created',
+          data: { type: 'report_created', reportId: report._id.toString(), url: `/ecom/reports` }
+        }, 'push_new_orders');
+      }).catch(() => {});
+
       // Décrémenter le stock du produit selon les commandes livrées
       if (ordersDelivered > 0) {
         await adjustProductStock({
