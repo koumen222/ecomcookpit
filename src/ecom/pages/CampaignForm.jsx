@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import ecomApi from '../services/ecommApi.js';
 
 const CampaignForm = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = !!id;
+
+  const [waStatus, setWaStatus] = useState(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -30,6 +32,14 @@ const CampaignForm = () => {
   const [previewSending, setPreviewSending] = useState(false);
   const [previewClient, setPreviewClient] = useState(null);
   const [filterOptions, setFilterOptions] = useState({ cities: [], products: [], addresses: [] });
+
+  useEffect(() => {
+    if (!isEdit) {
+      ecomApi.get('/workspaces/whatsapp-config')
+        .then(res => setWaStatus(res.data.data?.whatsappConfig?.status || 'none'))
+        .catch(() => setWaStatus('none'));
+    }
+  }, [isEdit]);
 
   useEffect(() => {
     ecomApi.get('/campaigns/templates').then(res => setTemplates(res.data.data)).catch(() => {});
@@ -368,6 +378,27 @@ const CampaignForm = () => {
   if (fetchLoading) return (
     <div className="flex items-center justify-center h-64">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+    </div>
+  );
+
+  if (!isEdit && waStatus === 'pending') return (
+    <div className="p-6 max-w-lg mx-auto mt-12">
+      <div className="bg-amber-50 border border-amber-300 rounded-2xl p-8 text-center shadow-sm">
+        <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg className="w-8 h-8 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </div>
+        <h2 className="text-lg font-bold text-amber-800 mb-2">Création de campagne bloquée</h2>
+        <p className="text-sm text-amber-700 mb-1">Votre postulation WhatsApp est <strong>en attente d'approbation</strong>.</p>
+        <p className="text-sm text-amber-600 mb-6">Vous pourrez créer des campagnes une fois que votre numéro WhatsApp aura été approuvé par l'équipe (délai : 24-48h).</p>
+        <Link to="/ecom/campaigns" className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition text-sm font-medium">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
+          </svg>
+          Retour au Marketing
+        </Link>
+      </div>
     </div>
   );
 
