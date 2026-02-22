@@ -15,10 +15,19 @@ router.get('/', requireEcomAuth, async (req, res) => {
     }
 
     const query = {
-      workspaceId,
       $or: [
-        { userId: null },
-        { userId: req.ecomUser._id }
+        { workspaceId },
+        { workspaceId: null },
+        { workspaceId: { $exists: false } }
+      ],
+      $and: [
+        {
+          $or: [
+            { userId: null },
+            { userId: { $exists: false } },
+            { userId: req.ecomUser._id }
+          ]
+        }
       ]
     };
 
@@ -63,11 +72,20 @@ router.get('/unread-count', requireEcomAuth, async (req, res) => {
     }
 
     const count = await Notification.countDocuments({
-      workspaceId,
-      read: false,
       $or: [
-        { userId: null },
-        { userId: req.ecomUser._id }
+        { workspaceId },
+        { workspaceId: null },
+        { workspaceId: { $exists: false } }
+      ],
+      read: false,
+      $and: [
+        {
+          $or: [
+            { userId: null },
+            { userId: { $exists: false } },
+            { userId: req.ecomUser._id }
+          ]
+        }
       ]
     });
 

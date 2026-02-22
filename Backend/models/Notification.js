@@ -7,16 +7,34 @@ import mongoose from 'mongoose';
  * et peuvent être déclenchées par différents événements (commentaires, messages, etc.)
  */
 const notificationSchema = new mongoose.Schema({
+  workspaceId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Workspace',
+    index: true,
+    default: null
+  },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
+    ref: 'EcomUser',
+    required: false,
+    default: null,
     index: true
   },
   type: {
     type: String,
     required: true,
-    enum: ['comment', 'message', 'system', 'course', 'payment', 'admin'],
+    enum: [
+      'comment', 'message', 'system', 'course', 'payment', 'admin',
+      'order_new', 'order_confirmed', 'order_shipped', 'order_delivered',
+      'order_cancelled', 'order_returned', 'order_status',
+      'stock_low', 'stock_out', 'stock_received',
+      'user_joined', 'report_created', 'import_completed',
+      'team_member_action', 'team_order_created', 'team_order_status_changed',
+      'team_campaign_created', 'team_campaign_sent',
+      'team_product_created', 'team_product_updated', 'team_product_deleted',
+      'team_report_generated', 'team_inventory_update',
+      'new_message', 'new_dm'
+    ],
     index: true
   },
   title: {
