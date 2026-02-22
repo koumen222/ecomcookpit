@@ -1,0 +1,4 @@
+[submodule "ecom-frontend"]
+	path = ecom-frontend
+	url = https://github.com/koumen222/ecomcookpit.git
+	branch = main
