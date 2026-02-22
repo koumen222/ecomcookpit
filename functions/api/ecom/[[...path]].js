@@ -28,11 +28,17 @@ export async function onRequest(context) {
   headers.set('X-Forwarded-Host', url.hostname);
   headers.set('X-Forwarded-Proto', url.protocol.slice(0, -1));
   
+  // Lire le body pour les requêtes POST/PUT/PATCH/DELETE
+  let body = null;
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    body = await request.arrayBuffer();
+  }
+  
   // Créer la requête vers le backend
   const backendRequest = new Request(backendUrl, {
     method: request.method,
     headers: headers,
-    body: request.method !== 'GET' && request.method !== 'HEAD' ? await request.clone().arrayBuffer() : null,
+    body: body,
   });
   
   try {
