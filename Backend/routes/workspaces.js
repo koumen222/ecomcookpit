@@ -376,6 +376,7 @@ router.post('/whatsapp-request', requireEcomAuth, async (req, res) => {
       reason: reason || ''
     };
 
+    workspace.markModified('settings');
     await workspace.save();
 
     console.log(`📱 Postulation WhatsApp: ${cleanPhone} (${businessName}) par ${contactName}`);

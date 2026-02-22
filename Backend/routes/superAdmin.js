@@ -481,7 +481,6 @@ router.put('/whatsapp-postulations/:id',
       if (status === 'active') {
         workspace.settings.whatsappConfig.activatedAt = new Date();
         workspace.settings.whatsappConfig.note = note || 'Approuvé par le Super Admin';
-        // Aussi mettre à jour le whatsappConfig du modèle principal pour la compatibilité
         workspace.whatsappConfig = {
           phoneNumber: workspace.settings.whatsappConfig.phoneNumber,
           status: 'active',
@@ -493,6 +492,7 @@ router.put('/whatsapp-postulations/:id',
         workspace.settings.whatsappConfig.note = note || 'Rejeté par le Super Admin';
       }
 
+      workspace.markModified('settings');
       await workspace.save();
       await logAudit(req, 'WHATSAPP_POSTULATION_UPDATE', `${status === 'active' ? 'Approbation' : 'Rejet'} postulation WhatsApp pour ${workspace.name} (tel: ${workspace.settings.whatsappConfig.phoneNumber})`, 'workspace', workspace._id);
 
