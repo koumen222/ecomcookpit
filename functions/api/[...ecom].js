@@ -2,7 +2,7 @@ export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
   
-  // Gérer les requêtes OPTIONS (preflight) avant tout appel backend
+  // Gérer les requêtes OPTIONS (preflight)
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 204,
@@ -16,39 +16,33 @@ export async function onRequest(context) {
     });
   }
 
-  // Backend Railway URL - lu depuis les variables d'environnement
+  // Backend Railway URL
   const BACKEND_URL = env.BACKEND_URL || 'https://ecomcookpit-production.up.railway.app';
   
-  // Construire l'URL backend en préservant le path après /api/ecom
-  const path = url.pathname.replace('/api/ecom', '/api/ecom');
-  const backendUrl = `${BACKEND_URL}${path}${url.search}`;
+  // Construire l'URL backend - préserver tout le path après /api
+  const backendUrl = `${BACKEND_URL}${url.pathname}${url.search}`;
   
-  // Copier les headers de la requête originale
+  // Copier les headers
   const headers = new Headers(request.headers);
   headers.set('X-Forwarded-Host', url.hostname);
   headers.set('X-Forwarded-Proto', url.protocol.slice(0, -1));
   
-  // Lire le body pour les requêtes POST/PUT/PATCH/DELETE
+  // Lire le body pour POST/PUT/PATCH/DELETE
   let body = null;
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     body = await request.arrayBuffer();
   }
   
-  // Créer la requête vers le backend
-  const backendRequest = new Request(backendUrl, {
-    method: request.method,
-    headers: headers,
-    body: body,
-  });
-  
   try {
-    // Faire la requête vers le backend
-    const response = await fetch(backendRequest);
+    const response = await fetch(backendUrl, {
+      method: request.method,
+      headers: headers,
+      body: body,
+    });
     
-    // Créer une nouvelle réponse avec les headers CORS appropriés
     const newResponse = new Response(response.body, response);
     
-    // Ajouter les headers CORS
+    // Headers CORS
     newResponse.headers.set('Access-Control-Allow-Origin', url.origin);
     newResponse.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
     newResponse.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Session-Id');
