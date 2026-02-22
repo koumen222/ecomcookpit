@@ -334,7 +334,7 @@ export const importApi = {
 
 export const pushApi = {
   // Obtenir la clé publique VAPID (endpoint principal hors /api/ecom)
-  getVapidPublicKey: () => axios.get('/api/push/public-key').catch(() =>
+  getVapidPublicKey: () => axios.get(`${BACKEND_URL}/api/push/public-key`).catch(() =>
     // Fallback vers l'endpoint ecom
     ecomApi.get('/push/vapid-public-key')
   ),

@@ -30,7 +30,8 @@ export function useDmUnread() {
   const fetchUnread = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch('/api/ecom/dm/conversations', {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production.up.railway.app';
+      const res = await fetch(`${backendUrl}/api/ecom/dm/conversations`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();

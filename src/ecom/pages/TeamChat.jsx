@@ -5,7 +5,8 @@ import { useAudioRecorder } from '../hooks/useAudioRecorder.js';
 import { useMediaUpload } from '../hooks/useMediaUpload.js';
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || 'https://plateforme-backend-production-2ec6.up.railway.app';
+const SOCKET_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production.up.railway.app';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production.up.railway.app';
 
 const ROLE_COLORS = { 
   ecom_admin: 'bg-blue-600', 
@@ -119,7 +120,7 @@ export default function TeamChat() {
 
   // API calls
   const apiFetch = useCallback(async (path, opts = {}) => {
-    const res = await fetch(`/api/ecom/dm${path}`, {
+    const res = await fetch(`${BACKEND_URL}/api/ecom/dm${path}`, {
       ...opts,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...opts.headers }
     });
@@ -127,7 +128,7 @@ export default function TeamChat() {
   }, [token]);
 
   const msgFetch = useCallback(async (path, opts = {}) => {
-    const res = await fetch(`/api/ecom/messages${path}`, {
+    const res = await fetch(`${BACKEND_URL}/api/ecom/messages${path}`, {
       ...opts,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...opts.headers }
     });
@@ -154,7 +155,7 @@ export default function TeamChat() {
   // Load members for new chat
   const loadMembers = useCallback(async () => {
     try {
-      const res = await fetch('/api/ecom/messages/team/members', {
+      const res = await fetch(`${BACKEND_URL}/api/ecom/messages/team/members`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -314,11 +315,11 @@ export default function TeamChat() {
 
   // Share platform elements
   const SHARE_TYPES = [
-    { key: 'order', label: 'Commande', emoji: '📦', endpoint: '/api/ecom/orders', searchField: 'search' },
-    { key: 'product', label: 'Produit', emoji: '🏷️', endpoint: '/api/ecom/products', searchField: 'search' },
-    { key: 'report', label: 'Rapport', emoji: '📊', endpoint: '/api/ecom/reports', searchField: 'search' },
-    { key: 'client', label: 'Client', emoji: '👤', endpoint: '/api/ecom/clients', searchField: 'search' },
-    { key: 'transaction', label: 'Transaction', emoji: '💰', endpoint: '/api/ecom/transactions', searchField: 'search' },
+    { key: 'order', label: 'Commande', emoji: '📦', endpoint: `${BACKEND_URL}/api/ecom/orders`, searchField: 'search' },
+    { key: 'product', label: 'Produit', emoji: '🏷️', endpoint: `${BACKEND_URL}/api/ecom/products`, searchField: 'search' },
+    { key: 'report', label: 'Rapport', emoji: '📊', endpoint: `${BACKEND_URL}/api/ecom/reports`, searchField: 'search' },
+    { key: 'client', label: 'Client', emoji: '👤', endpoint: `${BACKEND_URL}/api/ecom/clients`, searchField: 'search' },
+    { key: 'transaction', label: 'Transaction', emoji: '💰', endpoint: `${BACKEND_URL}/api/ecom/transactions`, searchField: 'search' },
   ];
 
   const searchShareItems = useCallback(async (type, query) => {
