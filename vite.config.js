@@ -13,6 +13,12 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false
+      },
+      '/socket.io': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        secure: false,
+        ws: true
       }
     }
   },
@@ -36,7 +42,7 @@ export default defineConfig({
             }
             return 'vendor';
           }
-          
+
           // App chunks
           if (id.includes('/src/components/')) {
             return 'components';
