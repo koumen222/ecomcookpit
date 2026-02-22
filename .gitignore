@@ -83,3 +83,8 @@ jspm_packages/
 # Temporary folders
 tmp/
 temp/
+
+# Frontend specific
+ecom-frontend/node_modules/
+ecom-frontend/dist/
+ecom-frontend/.git

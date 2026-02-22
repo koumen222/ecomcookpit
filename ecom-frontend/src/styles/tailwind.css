@@ -1,0 +1,1274 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   PREVENTION DEBORDEMENTS MOBILE
+   ============================================ */
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  
+  html, body {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+  
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+/* ============================================
+   VARIABLES CSS - Thème clair/sombre
+   ============================================ */
+@layer base {
+  :root {
+    --bg-primary: #ffffff;
+    --bg-secondary:rgb(251, 249, 250);
+    --bg-card: #ffffff;
+    --bg-hover: #f3f4f6;
+    --text-primary:rgb(58, 0, 58);
+    --text-secondary: #4b5563;
+    --accent:rgb(96, 60, 139);           /* Couleur principale */
+    --accent-hover:rgb(41, 120, 154);     /* Couleur au survol */
+    --accent-light: #a87c5c;     /* Version plus claire */
+    --border:rgb(235, 229, 234);
+    --shadow: rgba(0, 0, 0, 0.08);
+    --shadow-lg: rgba(0, 0, 0, 0.12);
+    --accent-shadow: rgba(139, 94, 60, 0.25);
+  }
+
+  [data-theme="dark"] {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-card: #1e293b;
+    --bg-hover: #334155;
+    --text-primary: #f1f5f9;
+    --text-secondary: #cbd5e1;
+    --accent: #9333ea;
+    --accent-hover: #a855f7;
+    --accent-light: #c084fc;
+    --border: #334155;
+    --shadow: rgba(0, 0, 0, 0.3);
+    --shadow-lg: rgba(0, 0, 0, 0.5);
+    --accent-shadow: rgba(147, 51, 234, 0.4);
+  }
+
+  /* Classes utilitaires de base */
+  .bg-primary { background-color: var(--bg-primary); }
+  .bg-secondary { background-color: var(--bg-secondary); }
+  .bg-card { background-color: var(--bg-card); }
+  .bg-accent { background-color: var(--accent); }
+  .text-primary { color: var(--text-primary); }
+  .text-secondary { color: var(--text-secondary); }
+  .text-accent { color: var(--accent); }
+  .border-theme { border-color: var(--border); }
+  .border-accent { border-color: var(--accent); }
+}
+
+/* ============================================
+   COMPOSANTS PERSONNALISÉS
+   ============================================ */
+@layer components {
+  /* Conteneur principal */
+  .container-startup {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* ============================================
+     BOUTONS PRINCIPAUX - TOUS en couleur #8B5E3C
+     ============================================ */
+  
+  /* Bouton principal (solide) */
+  .btn-primary {
+    @apply px-6 py-3 text-white font-semibold rounded-2xl shadow-sm transition-all duration-200;
+    background-color: var(--accent);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--accent-hover);
+    box-shadow: 0 4px 12px var(--accent-shadow);
+  }
+
+  .btn-primary:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  /* Bouton secondaire (contour) */
+  .btn-secondary {
+    @apply px-6 py-3 font-semibold rounded-2xl border-2 transition-all duration-200 shadow-sm;
+    background-color: transparent;
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background-color: var(--accent);
+    color: white;
+  }
+
+  .btn-secondary:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  /* Bouton tertiaire (léger) */
+  .btn-tertiary {
+    @apply px-6 py-3 font-semibold rounded-2xl transition-all duration-200;
+    background-color: rgba(139, 94, 60, 0.1);
+    color: var(--accent);
+  }
+
+  .btn-tertiary:hover:not(:disabled) {
+    background-color: rgba(139, 94, 60, 0.2);
+  }
+
+  [data-theme="dark"] .btn-tertiary {
+    background-color: rgba(147, 51, 234, 0.1);
+  }
+
+  [data-theme="dark"] .btn-tertiary:hover:not(:disabled) {
+    background-color: rgba(147, 51, 234, 0.2);
+  }
+
+  /* Bouton avec icône */
+  .btn-icon {
+    @apply inline-flex items-center justify-center gap-2;
+  }
+
+  /* ============================================
+     CARTES
+     ============================================ */
+  .card-startup {
+    @apply rounded-2xl shadow-sm p-6 border transition-all duration-300 hover:shadow-md;
+    background-color: var(--bg-card);
+    border-color: var(--border);
+  }
+
+  .course-card-african {
+    @apply relative rounded-xl sm:rounded-2xl overflow-hidden shadow-sm border transition-all duration-300 hover:shadow-md;
+    background-color: var(--bg-card);
+    border-color: var(--border);
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .course-card-african:hover {
+    box-shadow: 0 4px 12px var(--shadow);
+    border-color: var(--accent);
+  }
+  
+  /* Garantir que les images ne débordent pas */
+  .course-card-african img {
+    max-width: 100%;
+    height: auto;
+    object-fit: cover;
+  }
+  
+  /* Garantir que le texte ne déborde pas */
+  .course-card-african h3,
+  .course-card-african p {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+
+  /* ============================================
+     FORMULAIRES
+     ============================================ */
+  .input-startup {
+    @apply w-full px-4 py-3 border rounded-xl focus:ring-2 focus:outline-none transition-all;
+    background-color: var(--bg-card);
+    border-color: var(--border);
+    color: var(--text-primary);
+  }
+
+  .input-startup:focus {
+    border-color: var(--accent);
+    --tw-ring-color: var(--accent);
+  }
+
+  /* ============================================
+     CHATBOT
+     ============================================ */
+  .chatbot-platform {
+    @apply border rounded-2xl shadow-lg;
+    background-color: var(--bg-card);
+    border-color: var(--border);
+  }
+
+  .chatbot-toggle-platform {
+    @apply fixed bottom-4 md:bottom-6 right-4 md:right-6 w-14 h-14 md:w-16 md:h-16 text-white rounded-full flex items-center justify-center text-xl md:text-2xl hover:scale-105 transition-all duration-300 z-50 shadow-lg;
+    background-color: var(--accent);
+  }
+
+  .chatbot-toggle-platform:hover {
+    background-color: var(--accent-hover);
+    box-shadow: 0 8px 16px var(--accent-shadow);
+  }
+
+  /* ============================================
+     PROFILE - Boutons (TOUS en #8B5E3C)
+     ============================================ */
+  .btn-profile {
+    @apply text-white border-none rounded-xl text-sm font-semibold cursor-pointer transition-all duration-200;
+    background-color: var(--accent);
+  }
+
+  .btn-profile-primary {
+    @apply px-5 py-2.5 btn-profile;
+  }
+  
+  .btn-profile-primary:hover:not(:disabled) {
+    background-color: var(--accent-hover);
+    box-shadow: 0 4px 12px var(--accent-shadow);
+  }
+  
+  .btn-profile-primary:disabled {
+    @apply opacity-60 cursor-not-allowed;
+  }
+
+  .btn-profile-secondary {
+    @apply px-6 py-3 btn-profile;
+  }
+  
+  .btn-profile-secondary:hover:not(:disabled) {
+    background-color: var(--accent-hover);
+    box-shadow: 0 4px 12px var(--accent-shadow);
+  }
+  
+  .btn-profile-secondary:disabled {
+    @apply opacity-60 cursor-not-allowed;
+  }
+
+  /* Bouton profile avec contour */
+  .btn-profile-outline {
+    @apply px-5 py-2.5 border-2 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-200;
+    background-color: transparent;
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  
+  .btn-profile-outline:hover:not(:disabled) {
+    background-color: var(--accent);
+    color: white;
+  }
+
+  /* ============================================
+     PROFILE - Formulaires
+     ============================================ */
+  .input-profile {
+    @apply w-full px-3 py-3 rounded-xl text-sm font-sans transition-all duration-200 border;
+    background-color: var(--bg-secondary);
+    border-color: var(--border);
+    color: var(--text-primary);
+  }
+  
+  .input-profile:focus {
+    @apply outline-none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(139, 94, 60, 0.1);
+  }
+  
+  .input-profile:disabled {
+    @apply opacity-60 cursor-not-allowed;
+  }
+  
+  .input-profile::placeholder {
+    @apply opacity-60;
+  }
+
+  .field-profile {
+    @apply mb-3.5;
+  }
+  
+  .field-profile:last-child {
+    @apply mb-0;
+  }
+  
+  .field-profile label {
+    @apply block text-xs font-medium uppercase tracking-wide mb-2;
+    color: var(--text-secondary);
+  }
+  
+  .value-profile {
+    @apply text-sm px-4 py-3 rounded-2xl border;
+    background-color: var(--bg-secondary);
+    border-color: var(--border);
+    color: var(--text-primary);
+  }
+  
+  .value-profile.capitalize {
+    text-transform: capitalize;
+  }
+
+  .actions-profile-edit {
+    @apply mt-6 flex gap-3 justify-end;
+  }
+
+  /* ============================================
+     PROFILE - Cartes
+     ============================================ */
+  .card-profile-stat {
+    @apply rounded-2xl p-6 text-center border;
+    background-color: var(--bg-secondary);
+    border-color: var(--border);
+  }
+  
+  .card-profile-lesson {
+    @apply rounded-2xl p-6 flex items-start gap-4 no-underline transition-all duration-200 relative border-2;
+    background-color: var(--bg-card);
+    border-color: var(--border);
+    color: var(--text-primary);
+  }
+  
+  .card-profile-lesson:hover {
+    border-color: var(--accent);
+    @apply -translate-y-0.5;
+    box-shadow: 0 4px 12px var(--shadow-lg);
+  }
+  
+  .card-profile-lesson.completed {
+    @apply border-green-300 dark:border-green-700;
+    background-color: rgba(34, 197, 94, 0.05);
+  }
+
+  /* ============================================
+     PROFILE - Statuts
+     ============================================ */
+  .status-badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border;
+  }
+
+  .status-active {
+    color: #22c55e;
+    background-color: rgba(34, 197, 94, 0.1);
+    border-color: rgba(34, 197, 94, 0.3);
+  }
+  
+  .status-pending {
+    color: #f59e0b;
+    background-color: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.3);
+  }
+  
+  .status-accent {
+    color: var(--accent);
+    background-color: rgba(139, 94, 60, 0.1);
+    border-color: rgba(139, 94, 60, 0.3);
+  }
+  
+  .status-default {
+    color: var(--text-secondary);
+    background-color: var(--bg-secondary);
+    border-color: var(--border);
+  }
+
+  /* ============================================
+     PROFILE - Notifications
+     ============================================ */
+  .notice-profile {
+    @apply my-8 p-6 rounded-2xl border;
+    background-color: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.4);
+  }
+  
+  .notice-profile-content h3 {
+    @apply text-lg font-bold mb-3 m-0;
+    color: var(--text-primary);
+  }
+  
+  .notice-profile-content p {
+    @apply m-0 mb-4 leading-relaxed text-sm;
+    color: var(--text-secondary);
+    opacity: 0.95;
+  }
+
+  /* ============================================
+     BOUTON WHATSAPP (en #8B5E3C)
+     ============================================ */
+  .btn-whatsapp {
+    @apply px-6 py-3 text-white border-none rounded-lg text-base font-bold cursor-pointer no-underline flex items-center gap-2 transition-all duration-200 w-full justify-center;
+    background-color: var(--accent);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  
+  .btn-whatsapp:hover {
+    background-color: var(--accent-hover);
+    box-shadow: 0 4px 8px var(--accent-shadow);
+  }
+
+  /* ============================================
+     PAGE LEÇON (TOUS les boutons en couleur accent)
+     ============================================ */
+  .page-header-lesson {
+    @apply border rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 mb-4 sm:mb-8 shadow-md relative overflow-hidden;
+    background: linear-gradient(135deg, var(--bg-card) 0%, rgba(96, 60, 139, 0.05) 100%);
+    border-color: var(--border);
+  }
+
+  [data-theme="dark"] .page-header-lesson {
+    background: linear-gradient(135deg, var(--bg-card) 0%, rgba(147, 51, 234, 0.1) 100%);
+  }
+  
+  .page-header-lesson::before {
+    @apply absolute top-0 left-0 right-0 h-1;
+    content: '';
+    background: linear-gradient(90deg, var(--accent) 0%, var(--accent-hover) 50%, var(--accent) 100%);
+  }
+  
+  .lesson-header-top {
+    @apply flex flex-col sm:flex-row justify-between items-start gap-4 sm:gap-6;
+  }
+  
+  .lesson-meta {
+    @apply flex items-center gap-2 sm:gap-4 mt-2 flex-wrap;
+  }
+  
+  .lesson-badge {
+    @apply inline-flex items-center justify-center px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-bold;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+    color: white;
+    box-shadow: 0 2px 8px var(--accent-shadow);
+  }
+  
+  .lesson-completed-badge {
+    @apply inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 border rounded-xl sm:rounded-2xl text-xs sm:text-sm font-semibold;
+    background-color: rgba(34, 197, 94, 0.1);
+    border-color: rgba(34, 197, 94, 0.3);
+    color: #22c55e;
+  }
+  
+  /* Bouton marquer comme complété */
+  .mark-completed-btn {
+    @apply inline-flex items-center gap-2 text-white border-none rounded-xl sm:rounded-2xl font-semibold cursor-pointer transition-all duration-200 shadow-md hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+  }
+
+  .mark-completed-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, var(--accent-hover) 0%, var(--accent) 100%);
+    box-shadow: 0 6px 16px var(--accent-shadow);
+  }
+  
+  .summary-card-lesson {
+    @apply border rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8 shadow-md transition-all duration-300 relative overflow-hidden;
+    background: linear-gradient(135deg, var(--bg-card) 0%, rgba(96, 60, 139, 0.05) 100%);
+    border-color: var(--border);
+  }
+
+  [data-theme="dark"] .summary-card-lesson {
+    background: linear-gradient(135deg, var(--bg-card) 0%, rgba(147, 51, 234, 0.1) 100%);
+  }
+  
+  .summary-card-lesson::before {
+    @apply absolute top-0 left-0 right-0 h-1 scale-x-0 transition-transform duration-300;
+    content: '';
+    background: linear-gradient(90deg, var(--accent) 0%, var(--accent-hover) 50%, var(--accent) 100%);
+  }
+  
+  .summary-card-lesson:hover::before {
+    @apply scale-x-100;
+  }
+  
+  .summary-card-lesson:hover {
+    @apply shadow-lg -translate-y-0.5;
+    border-color: var(--accent);
+  }
+  
+  .downloads-section-lesson {
+    @apply border rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8 shadow-sm transition-all duration-300 w-full hover:shadow-md;
+    background: linear-gradient(135deg, var(--bg-card) 0%, rgba(96, 60, 139, 0.03) 100%);
+    border-color: var(--border);
+  }
+
+  [data-theme="dark"] .downloads-section-lesson {
+    background: linear-gradient(135deg, var(--bg-card) 0%, rgba(147, 51, 234, 0.08) 100%);
+  }
+
+  .downloads-section-lesson:hover {
+    border-color: var(--accent);
+  }
+  
+  .download-item-lesson {
+    @apply flex flex-col sm:flex-row items-stretch sm:items-center justify-between p-3 sm:p-4 rounded-xl sm:rounded-2xl border transition-all duration-300 gap-3 sm:gap-4 hover:-translate-y-0.5 hover:shadow-md;
+    background-color: var(--bg-hover);
+    border-color: var(--border);
+  }
+
+  .download-item-lesson:hover {
+    background-color: var(--bg-secondary);
+    border-color: var(--accent);
+  }
+  
+  .download-icon-lesson {
+    @apply flex items-center justify-center rounded-xl sm:rounded-2xl text-white font-bold;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+    box-shadow: 0 2px 8px var(--accent-shadow);
+  }
+  
+  /* Bouton de téléchargement */
+  .download-btn-lesson {
+    @apply text-white border-none rounded-lg sm:rounded-xl font-semibold cursor-pointer transition-all duration-200 no-underline inline-flex items-center justify-center gap-2 flex-shrink-0 hover:-translate-y-0.5 hover:shadow-lg;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+  }
+
+  .download-btn-lesson:hover {
+    background: linear-gradient(135deg, var(--accent-hover) 0%, var(--accent) 100%);
+    box-shadow: 0 4px 12px var(--accent-shadow);
+  }
+  
+  .lesson-navigation-lesson {
+    @apply flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-4 mt-6 sm:mt-8 pt-6 sm:pt-8 border-t;
+    border-color: var(--border);
+  }
+  
+  /* Bouton de navigation précédent */
+  .lesson-nav-btn {
+    @apply inline-flex items-center justify-center gap-2 sm:gap-3 border rounded-xl sm:rounded-2xl font-semibold cursor-pointer transition-all duration-200 no-underline hover:-translate-y-0.5 hover:shadow-md;
+    background-color: var(--bg-card);
+    border-color: var(--border);
+    color: var(--text-primary);
+  }
+
+  .lesson-nav-btn:hover {
+    background-color: var(--bg-hover);
+    border-color: var(--accent);
+  }
+  
+  /* Bouton de navigation suivant */
+  .lesson-nav-next {
+    @apply text-white border-none sm:ml-auto hover:shadow-xl w-full sm:w-auto;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+  }
+
+  .lesson-nav-next:hover {
+    background: linear-gradient(135deg, var(--accent-hover) 0%, var(--accent) 100%);
+    box-shadow: 0 6px 20px var(--accent-shadow);
+  }
+  
+  .lesson-nav-prev {
+    @apply sm:mr-auto w-full sm:w-auto;
+  }
+
+  /* ============================================
+     ADMIN - Boutons (TOUS en #8B5E3C)
+     ============================================ */
+  
+  /* Bouton admin de base */
+  .admin-btn {
+    @apply text-white font-semibold rounded-lg cursor-pointer transition-all duration-200 border-none flex items-center justify-center gap-2;
+    background-color: var(--accent);
+  }
+
+  .admin-btn:hover:not(:disabled) {
+    background-color: var(--accent-hover);
+    box-shadow: 0 4px 12px var(--accent-shadow);
+  }
+
+  .admin-btn:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  /* Variantes de taille */
+  .admin-btn-sm {
+    @apply px-3 py-1.5 text-sm;
+  }
+
+  .admin-btn-md {
+    @apply px-4 py-2;
+  }
+
+  .admin-btn-lg {
+    @apply px-6 py-3 text-lg;
+  }
+
+  /* Variantes de style */
+  .admin-btn-outline {
+    background-color: transparent;
+    color: var(--accent);
+    border: 2px solid var(--accent);
+  }
+
+  .admin-btn-outline:hover:not(:disabled) {
+    background-color: var(--accent);
+    color: white;
+  }
+
+  .admin-btn-light {
+    background-color: rgba(139, 94, 60, 0.1);
+    color: var(--accent);
+  }
+
+  .admin-btn-light:hover:not(:disabled) {
+    background-color: rgba(139, 94, 60, 0.2);
+  }
+
+  [data-theme="dark"] .admin-btn-light {
+    background-color: rgba(147, 51, 234, 0.1);
+  }
+
+  [data-theme="dark"] .admin-btn-light:hover:not(:disabled) {
+    background-color: rgba(147, 51, 234, 0.2);
+  }
+
+  /* Boutons d'action spécifiques */
+  .admin-btn-save {
+    background-color: var(--accent);
+  }
+
+  .admin-btn-edit {
+    background-color: var(--accent);
+  }
+
+  .admin-btn-delete {
+    background-color: var(--accent);
+  }
+
+  .admin-btn-cancel {
+    background-color: var(--accent);
+  }
+
+  .admin-btn-confirm {
+    background-color: var(--accent);
+  }
+
+  /* Tous les boutons d'action utilisent la même couleur au survol */
+  .admin-btn-save:hover:not(:disabled),
+  .admin-btn-edit:hover:not(:disabled),
+  .admin-btn-delete:hover:not(:disabled),
+  .admin-btn-cancel:hover:not(:disabled),
+  .admin-btn-confirm:hover:not(:disabled) {
+    background-color: var(--accent-hover);
+  }
+
+  /* Variantes de couleur */
+  .admin-btn-primary {
+    background-color: var(--accent);
+  }
+
+  .admin-btn-secondary {
+    background-color: transparent;
+    color: var(--accent);
+    border: 2px solid var(--accent);
+  }
+
+  .admin-btn-secondary:hover:not(:disabled) {
+    background-color: var(--accent);
+    color: white;
+  }
+
+  .admin-btn-success {
+    background-color: var(--accent);
+  }
+
+  .admin-btn-success:hover:not(:disabled) {
+    background-color: var(--accent-hover);
+  }
+
+  .admin-btn-danger {
+    background-color: var(--accent-hover);
+  }
+
+  .admin-btn-danger:hover:not(:disabled) {
+    background-color: var(--accent);
+  }
+
+  .admin-btn-warning {
+    background-color: var(--accent-light);
+  }
+
+  .admin-btn-warning:hover:not(:disabled) {
+    background-color: var(--accent);
+  }
+
+  .admin-btn-accent {
+    background-color: var(--accent);
+  }
+
+  .admin-btn-xs {
+    @apply px-2 py-1 text-xs;
+  }
+
+  /* ============================================
+     ADMIN - Pages & Layout
+     ============================================ */
+  .admin-page {
+    @apply min-h-screen;
+    background-color: var(--bg-primary);
+  }
+
+  .admin-page-header {
+    @apply mb-8 pb-6 border-b;
+    border-color: var(--border);
+  }
+
+  .admin-page-title-row {
+    @apply flex flex-col md:flex-row md:items-center md:justify-between gap-4;
+  }
+
+  .admin-page-title-row h1 {
+    @apply text-2xl md:text-3xl font-bold mb-2;
+    color: var(--text-primary);
+  }
+
+  .admin-page-subtitle {
+    @apply text-sm md:text-base;
+    color: var(--text-secondary);
+  }
+
+  .admin-header-actions {
+    @apply flex flex-wrap gap-3;
+  }
+
+  /* ============================================
+     ADMIN - Alertes & Notifications
+     ============================================ */
+  .admin-alert {
+    @apply p-4 rounded-lg mb-6 flex items-center gap-3;
+    border: 1px solid;
+  }
+
+  .admin-alert-error {
+    background-color: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #dc2626;
+  }
+
+  .admin-alert-success {
+    background-color: rgba(34, 197, 94, 0.1);
+    border-color: rgba(34, 197, 94, 0.3);
+    color: #16a34a;
+  }
+
+  .admin-alert-icon {
+    @apply text-xl;
+  }
+
+  /* ============================================
+     ADMIN - Formulaires
+     ============================================ */
+  .admin-form-card {
+    @apply p-6 rounded-xl border mb-6;
+    background-color: var(--bg-card);
+    border-color: var(--border);
+  }
+
+  .admin-form-title {
+    @apply text-xl font-bold mb-4;
+    color: var(--text-primary);
+  }
+
+  .admin-form {
+    @apply space-y-4;
+  }
+
+  .admin-form-row {
+    @apply grid grid-cols-1 md:grid-cols-2 gap-4;
+  }
+
+  .admin-form-group {
+    @apply space-y-2;
+  }
+
+  .admin-form-group label {
+    @apply block text-sm font-semibold;
+    color: var(--text-primary);
+  }
+
+  .admin-input {
+    @apply w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-all;
+    background-color: var(--bg-card);
+    border-color: var(--border);
+    color: var(--text-primary);
+  }
+
+  .admin-input:focus {
+    border-color: var(--accent);
+    --tw-ring-color: var(--accent);
+  }
+
+  .admin-input-sm {
+    @apply px-3 py-1.5 text-sm;
+  }
+
+  .admin-input-number {
+    @apply text-right;
+  }
+
+  .admin-input-hint {
+    @apply text-xs;
+    color: var(--text-secondary);
+  }
+
+  .admin-textarea {
+    @apply w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-all resize-y;
+    background-color: var(--bg-card);
+    border-color: var(--border);
+    color: var(--text-primary);
+    min-height: 100px;
+  }
+
+  .admin-textarea:focus {
+    border-color: var(--accent);
+    --tw-ring-color: var(--accent);
+  }
+
+  .admin-select {
+    @apply w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-all;
+    background-color: var(--bg-card);
+    border-color: var(--border);
+    color: var(--text-primary);
+  }
+
+  .admin-select:focus {
+    border-color: var(--accent);
+    --tw-ring-color: var(--accent);
+  }
+
+  .admin-form-checkboxes {
+    @apply flex flex-col gap-3;
+  }
+
+  .admin-checkbox-label {
+    @apply flex items-center gap-2 cursor-pointer;
+    color: var(--text-primary);
+  }
+
+  .admin-checkbox {
+    @apply w-4 h-4 rounded border-2 cursor-pointer;
+    border-color: var(--border);
+    accent-color: var(--accent);
+  }
+
+  .admin-inline-form {
+    @apply flex flex-col sm:flex-row gap-2 items-end;
+  }
+
+  .admin-lesson-form {
+    @apply space-y-4 p-4 rounded-lg border;
+    background-color: var(--bg-secondary);
+    border-color: var(--border);
+  }
+
+  /* ============================================
+     ADMIN - Cartes & Grilles
+     ============================================ */
+  .admin-courses-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6;
+  }
+
+  .admin-course-card {
+    @apply rounded-xl border p-6 transition-all duration-200;
+    background-color: var(--bg-card);
+    border-color: var(--border);
+  }
+
+  .admin-course-card:hover {
+    @apply shadow-md;
+    border-color: var(--accent);
+  }
+
+  .admin-course-card-header {
+    @apply flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4;
+  }
+
+  .admin-course-card-title {
+    @apply flex-1;
+  }
+
+  .admin-course-card-title h3 {
+    @apply text-lg font-bold mb-2;
+    color: var(--text-primary);
+  }
+
+  .admin-course-badges {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .admin-course-card-actions {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .admin-course-description {
+    @apply text-sm mb-4 line-clamp-2;
+    color: var(--text-secondary);
+  }
+
+  /* ============================================
+     ADMIN - Ressources PDF
+     ============================================ */
+  .admin-ressources-pdf-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6;
+  }
+
+  .admin-ressource-pdf-card {
+    @apply rounded-xl border p-6 transition-all duration-200;
+    background-color: var(--bg-card);
+    border-color: var(--border);
+  }
+
+  .admin-ressource-pdf-card:hover {
+    @apply shadow-md;
+    border-color: var(--accent);
+  }
+
+  .admin-ressource-pdf-card-header {
+    @apply flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4;
+  }
+
+  .admin-ressource-pdf-card-title {
+    @apply flex-1;
+  }
+
+  .admin-ressource-pdf-card-title h3 {
+    @apply text-lg font-bold mb-2;
+    color: var(--text-primary);
+  }
+
+  .admin-ressource-pdf-card-content {
+    @apply space-y-4;
+  }
+
+  .admin-ressource-pdf-cover {
+    @apply w-full h-48 object-cover rounded-lg;
+    border: 1px solid var(--border);
+  }
+
+  .admin-ressource-pdf-info {
+    @apply space-y-2;
+  }
+
+  .admin-ressource-pdf-meta {
+    @apply flex flex-col gap-1 text-sm;
+    color: var(--text-secondary);
+  }
+
+  .admin-ressource-pdf-meta span {
+    @apply flex items-center gap-2;
+  }
+
+  .admin-file-input {
+    @apply w-full px-4 py-2 border rounded-lg;
+    background-color: var(--bg-card);
+    border-color: var(--border);
+    color: var(--text-primary);
+  }
+
+  .admin-file-input:focus {
+    @apply outline-none ring-2;
+    ring-color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .admin-course-meta {
+    @apply flex items-center gap-4 text-xs;
+    color: var(--text-secondary);
+  }
+
+  .admin-course-expanded {
+    @apply mt-6 pt-6 border-t;
+    border-color: var(--border);
+  }
+
+  /* ============================================
+     ADMIN - Badges
+     ============================================ */
+  .admin-badge {
+    @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold;
+  }
+
+  .admin-badge-default {
+    background-color: rgba(139, 94, 60, 0.1);
+    color: var(--accent);
+    border: 1px solid rgba(139, 94, 60, 0.3);
+  }
+
+  .admin-badge-success {
+    background-color: rgba(34, 197, 94, 0.1);
+    color: #16a34a;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+  }
+
+  .admin-badge-inactive {
+    background-color: rgba(107, 114, 128, 0.1);
+    color: #6b7280;
+    border: 1px solid rgba(107, 114, 128, 0.3);
+  }
+
+  .admin-badge-warning {
+    background-color: rgba(245, 158, 11, 0.1);
+    color: #d97706;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+  }
+
+  .admin-badge-accent {
+    background-color: rgba(139, 94, 60, 0.1);
+    color: var(--accent);
+    border: 1px solid rgba(139, 94, 60, 0.3);
+  }
+
+  .admin-badge-xs {
+    @apply px-1.5 py-0.5 text-xs rounded;
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+
+  /* ============================================
+     ADMIN - Sections
+     ============================================ */
+  .admin-section {
+    @apply mb-6 pb-6 border-b last:border-b-0 last:pb-0;
+    border-color: var(--border);
+  }
+
+  .admin-section-title {
+    @apply text-lg font-bold mb-4;
+    color: var(--text-primary);
+  }
+
+  .admin-edit-notice {
+    @apply p-3 rounded-lg mb-4 text-sm;
+    background-color: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #d97706;
+  }
+
+  /* ============================================
+     ADMIN - Modules & Leçons
+     ============================================ */
+  .admin-modules-list {
+    @apply space-y-4;
+  }
+
+  .admin-module-item {
+    @apply p-4 rounded-lg border;
+    background-color: var(--bg-secondary);
+    border-color: var(--border);
+  }
+
+  .admin-module-header {
+    @apply flex items-center justify-between mb-3;
+  }
+
+  .admin-module-header h5 {
+    @apply font-bold;
+    color: var(--text-primary);
+  }
+
+  .admin-lessons-list {
+    @apply space-y-2 mt-3;
+  }
+
+  .admin-lesson-item {
+    @apply flex items-center justify-between p-3 rounded-lg border;
+    background-color: var(--bg-card);
+    border-color: var(--border);
+  }
+
+  .admin-lesson-title {
+    @apply flex-1 font-medium;
+    color: var(--text-primary);
+  }
+
+  .admin-lesson-badges {
+    @apply flex gap-2 mr-3;
+  }
+
+  .admin-lesson-actions {
+    @apply flex gap-2;
+  }
+
+  /* ============================================
+     ADMIN - États vides
+     ============================================ */
+  .admin-empty-state {
+    @apply text-center py-8 text-sm;
+    color: var(--text-secondary);
+  }
+
+  .admin-empty-state-sm {
+    @apply text-xs py-2;
+    color: var(--text-secondary);
+  }
+
+  .admin-empty-state-large {
+    @apply text-center py-16;
+  }
+
+  .admin-empty-icon {
+    @apply text-6xl mb-4;
+  }
+
+  /* ============================================
+     ADMIN - Loading & Spinners
+     ============================================ */
+  .admin-loading {
+    @apply flex items-center justify-center py-16;
+  }
+
+  .admin-loading-inline {
+    @apply flex items-center justify-center py-8;
+  }
+
+  .admin-spinner {
+    @apply w-8 h-8 border-4 rounded-full;
+    border-color: var(--border);
+    border-top-color: var(--accent);
+    animation: spin 1s linear infinite;
+  }
+
+  .admin-spinner-sm {
+    @apply w-4 h-4 border-2 rounded-full;
+    border-color: var(--border);
+    border-top-color: var(--accent);
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* ============================================
+     ADMIN - Dashboard
+     ============================================ */
+  .admin-dashboard {
+    @apply space-y-6;
+  }
+
+  .admin-stats-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6;
+  }
+
+  .admin-stat-card {
+    @apply p-6 rounded-xl border transition-all duration-200 hover:shadow-md;
+    background-color: var(--bg-card);
+    border-color: var(--border);
+  }
+
+  .admin-stat-card:hover {
+    border-color: var(--accent);
+  }
+
+  .admin-stat-icon {
+    @apply text-3xl mb-4;
+  }
+
+  .admin-stat-content {
+    @apply space-y-2;
+  }
+
+  .admin-stat-label {
+    @apply text-sm font-medium;
+    color: var(--text-secondary);
+  }
+
+  .admin-stat-value {
+    @apply text-2xl font-bold;
+    color: var(--text-primary);
+  }
+
+  .admin-stat-link {
+    @apply text-xs mt-2 inline-block;
+    color: var(--accent);
+  }
+
+  .admin-stat-link:hover {
+    color: var(--accent-hover);
+  }
+
+  /* ============================================
+     ADMIN - Tables
+     ============================================ */
+  .admin-table {
+    @apply w-full border-collapse;
+  }
+
+  .admin-table th,
+  .admin-table td {
+    @apply px-4 py-3 text-left border;
+    border-color: var(--border);
+  }
+
+  .admin-table th {
+    @apply font-semibold text-sm;
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+  }
+
+  .admin-table td {
+    @apply text-sm;
+    color: var(--text-primary);
+  }
+
+  .admin-table tbody tr:hover {
+    background-color: var(--bg-secondary);
+  }
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+/* ============================================
+   SCROLLBAR PERSONNALISÉE
+   ============================================ */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Scrollbar stylée avec la couleur du thème */
+.scrollbar-custom::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+  border-radius: 4px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 4px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-hover);
+}
+
+/* Scrollbar hide */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

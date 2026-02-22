@@ -1,0 +1,6 @@
+name = "plateforme-ecom"
+compatibility_date = "2024-02-08"
+pages_build_output_dir = "dist"
+
+[vars]
+VITE_GOOGLE_CLIENT_ID = "559924689181-rpkv8ji3029kvrtsvt3qceusmsh1i4p2.apps.googleusercontent.com"
