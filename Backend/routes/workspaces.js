@@ -345,8 +345,20 @@ router.post('/whatsapp-request', requireEcomAuth, async (req, res) => {
     // Nettoyer le numéro (garder seulement les chiffres)
     const cleanPhone = phoneNumber.replace(/\D/g, '');
 
+    // Utiliser workspaceId du body ou du token
+    const wsId = req.body.workspaceId || req.ecomUser.workspaceId;
+    console.log(`📱 [WhatsApp] workspaceId utilisé: ${wsId} (body: ${req.body.workspaceId}, token: ${req.ecomUser.workspaceId})`);
+
+    if (!wsId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Workspace non trouvé - veuillez vous reconnecter'
+      });
+    }
+
     // Mettre à jour la configuration WhatsApp du workspace
-    const workspace = await EcomWorkspace.findById(req.ecomUser.workspaceId);
+    const workspace = await EcomWorkspace.findById(wsId);
+    console.log(`📱 [WhatsApp] Workspace trouvé: ${workspace ? workspace.name : 'NULL'}`);
     if (!workspace) {
       return res.status(404).json({
         success: false,
