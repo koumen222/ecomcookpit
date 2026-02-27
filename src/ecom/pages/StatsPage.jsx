@@ -100,10 +100,10 @@ const StatsPage = () => {
       }
 
       const cacheKey = `stats:${dateRange}:${startDate}:${endDate}`;
-      const cached = getCached(cacheKey);
+      const cached = getCache(cacheKey);
       if (cached) { setStats(cached); setLoading(false); return; }
       const res = await ecomApi.get('/orders/stats/detailed', { params });
-      setCached(cacheKey, res.data.data);
+      setCache(cacheKey, res.data.data);
       setStats(res.data.data);
     } catch (err) {
       setError(getContextualError(err, 'load_stats'));

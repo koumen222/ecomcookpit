@@ -52,6 +52,24 @@ export const removeCache = (key) => {
 };
 
 /**
+ * Supprimer toutes les entrées du cache commençant par un préfixe
+ * @param {string} prefix - Préfixe des clés à supprimer
+ */
+export const invalidatePrefix = (prefix) => {
+  try {
+    const fullPrefix = `${CACHE_PREFIX}${prefix}`;
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith(fullPrefix)) {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch (error) {
+    console.error('Erreur lors de l\'invalidation du cache:', error);
+  }
+};
+
+/**
  * Vider tout le cache
  */
 export const clearAllCache = () => {

@@ -81,10 +81,10 @@ const StatsRapports = () => {
       }
 
       const cacheKey = `rapports:${dateRange}:${startDate}:${endDate}`;
-      const cached = getCached(cacheKey);
+      const cached = getCache(cacheKey);
       if (cached) { setProducts(cached); setLoading(false); return; }
       const res = await ecomApi.get('/reports/stats/products-ranking', { params });
-      setCached(cacheKey, res.data.data || []);
+      setCache(cacheKey, res.data.data || []);
       setProducts(res.data.data || []);
     } catch (err) {
       setError(getContextualError(err, 'load_stats'));

@@ -6,7 +6,7 @@ import ecomApi from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
-import { getCache, setCache } from '../utils/cacheUtils.js';
+import { getCache, setCache, invalidatePrefix } from '../utils/cacheUtils.js';
 
 const TransactionSkeleton = () => (
   <div className="space-y-3 py-2">
@@ -210,7 +210,7 @@ const TransactionsList = () => {
   const loadTab = useCallback(async () => {
     const { startDate, endDate } = getPeriodDates(period, customDates);
     const cacheKey = `tx:${tab}:${period}:${startDate}:${endDate}:${filters.type}:${filters.category}:${budgetMonth}`;
-    const cached = getCached(cacheKey);
+    const cached = getCache(cacheKey);
     if (cached) {
       if (tab === 'overview') { setSummary(cached.summary); setBudgets(cached.budgets); setBudgetSummary(cached.budgetSummary); setForecast(cached.forecast); }
       else if (tab === 'transactions') { setTransactions(cached.transactions); setSummary(cached.summary); }
@@ -229,7 +229,7 @@ const TransactionsList = () => {
           ecomApi.get('/transactions/forecast').catch(()=>({data:{data:{}}}))
         ]);
         const d = { summary: sumRes.data?.data||{}, budgets: budRes.data?.data?.budgets||[], budgetSummary: budRes.data?.data?.summary||{}, forecast: fcRes.data?.data||{} };
-        setCached(cacheKey, d);
+        setCache(cacheKey, d);
         setSummary(d.summary); setBudgets(d.budgets); setBudgetSummary(d.budgetSummary); setForecast(d.forecast);
       } else if (tab === 'transactions') {
         const params = { startDate, endDate };
@@ -240,7 +240,7 @@ const TransactionsList = () => {
           ecomApi.get('/transactions/summary', { params:{ startDate, endDate } })
         ]);
         const d = { transactions: txRes.data?.data?.transactions||[], summary: sumRes.data?.data||{} };
-        setCached(cacheKey, d);
+        setCache(cacheKey, d);
         setTransactions(d.transactions); setSummary(d.summary);
       } else if (tab === 'budgets') {
         const [res, prodRes] = await Promise.all([
@@ -251,17 +251,17 @@ const TransactionsList = () => {
           : Array.isArray(prodRes.data?.data?.products) ? prodRes.data.data.products
           : Array.isArray(prodRes.data?.products) ? prodRes.data.products : [];
         const d = { budgets: res.data?.data?.budgets||[], budgetSummary: res.data?.data?.summary||{}, products: prodList };
-        setCached(cacheKey, d);
+        setCache(cacheKey, d);
         setBudgets(d.budgets); setBudgetSummary(d.budgetSummary); setProducts(d.products);
       } else if (tab === 'analyse') {
         const res = await ecomApi.get('/transactions/accounting-summary', { params:{ startDate, endDate } });
         const d = { accountingSummary: res.data?.data||{} };
-        setCached(cacheKey, d);
+        setCache(cacheKey, d);
         setAccountingSummary(d.accountingSummary);
       } else if (tab === 'previsions') {
         const res = await ecomApi.get('/transactions/forecast');
         const d = { forecast: res.data?.data||{} };
-        setCached(cacheKey, d);
+        setCache(cacheKey, d);
         setForecast(d.forecast);
       }
     } catch (err) { setError(getContextualError(err, 'load_transactions')); }

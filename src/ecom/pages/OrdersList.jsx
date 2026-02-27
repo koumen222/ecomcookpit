@@ -4,7 +4,7 @@ import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
-import { getCache, setCache } from '../utils/cacheUtils.js';
+import { getCache, setCache, invalidatePrefix } from '../utils/cacheUtils.js';
 
 const SL = { pending: 'En attente', confirmed: 'Confirmé', shipped: 'Expédié', delivered: 'Livré', returned: 'Retour', cancelled: 'Annulé', unreachable: 'Injoignable', called: 'Appelé', postponed: 'Reporté' };
 const SC = {
@@ -253,7 +253,7 @@ const OrdersList = () => {
     const hasFilters = search || filterStatus || filterCity || filterProduct || filterTag || filterStartDate || filterEndDate;
     const cacheKey = `orders:${JSON.stringify(params)}:${page}:${itemsPerPage}`;
     if (!silent) {
-      const cached = getCached(cacheKey);
+      const cached = getCache(cacheKey);
       if (cached) {
         setOrders(cached.orders); setStats(cached.stats); setPagination(cached.pagination);
         setLoading(false); setRefreshing(false);
@@ -277,7 +277,7 @@ const OrdersList = () => {
       const fullParams = { ...params, page, limit: itemsPerPage };
       const res = await ecomApi.get('/orders', { params: fullParams });
       const d = { orders: res.data.data.orders, stats: res.data.data.stats, pagination: res.data.data.pagination || {} };
-      setCached(cacheKey, d);
+      setCache(cacheKey, d);
       setOrders(d.orders); setStats(d.stats); setPagination(d.pagination);
     } catch (err) {
       setError(getContextualError(err, 'load_orders'));

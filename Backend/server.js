@@ -17,6 +17,8 @@ const PORT = process.env.PORT || 8080;
 const allowedOrigins = [
   "https://ecomcookpit.site",
   "https://www.ecomcookpit.site",
+  "https://scalor.net",
+  "https://www.scalor.net",
   "http://ecomcookpit.site",
   "http://www.ecomcookpit.site",
   "https://ecomcookpit.pages.dev",
@@ -34,11 +36,12 @@ const corsOptions = {
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
     if (origin.endsWith(".ecomcookpit.pages.dev")) return callback(null, true);
+    if (origin.endsWith(".scalor.net")) return callback(null, true);
     callback(null, false);
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Session-Id"],
-  credentials: false,
+  credentials: true,
   optionsSuccessStatus: 204
 };
 

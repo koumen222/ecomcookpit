@@ -323,7 +323,7 @@ const AdminDashboard = () => {
     setLoadingProgress(5);
 
     const cacheKey = `dashboard:admin:${timeRange}:${customStartDate}:${customEndDate}`;
-    const cached = getCached(cacheKey);
+    const cached = getCache(cacheKey);
 
     // Si cache dispo → affichage instantané, puis revalidation silencieuse
     if (cached) {
@@ -462,7 +462,7 @@ const AdminDashboard = () => {
         return newStats;
       });
 
-      setCached(cacheKey, {
+      setCache(cacheKey, {
         stats: {
           products: topProducts,
           stockAlerts,

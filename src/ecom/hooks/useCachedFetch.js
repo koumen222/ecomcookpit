@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getCached, setCached } from '../utils/dataCache';
+import { getCache, setCache, removeCache } from '../utils/cacheUtils.js';
 
 /**
  * Hook de fetch avec cache mémoire.
@@ -10,7 +10,7 @@ import { getCached, setCached } from '../utils/dataCache';
  * - `skip` : ne pas fetcher si true (ex: dépendances manquantes)
  */
 const useCachedFetch = (cacheKey, fetchFn, { initialData = null, skip = false, deps = [] } = {}) => {
-  const cached = cacheKey ? getCached(cacheKey) : null;
+  const cached = cacheKey ? getCache(cacheKey) : null;
 
   const [data, setData] = useState(cached ?? initialData);
   const [loading, setLoading] = useState(!cached);
@@ -26,7 +26,7 @@ const useCachedFetch = (cacheKey, fetchFn, { initialData = null, skip = false, d
     if (skip) return;
 
     const run = async () => {
-      const fresh = cacheKey ? getCached(cacheKey) : null;
+      const fresh = cacheKey ? getCache(cacheKey) : null;
       if (fresh !== null) {
         if (mountedRef.current) {
           setData(fresh);
@@ -38,7 +38,7 @@ const useCachedFetch = (cacheKey, fetchFn, { initialData = null, skip = false, d
       if (mountedRef.current) setLoading(true);
       try {
         const result = await fetchFn();
-        if (cacheKey) setCached(cacheKey, result);
+        if (cacheKey) setCache(cacheKey, result);
         if (mountedRef.current) {
           setData(result);
           setError(null);
@@ -56,13 +56,12 @@ const useCachedFetch = (cacheKey, fetchFn, { initialData = null, skip = false, d
 
   const refresh = async () => {
     if (cacheKey) {
-      const { invalidateCache } = await import('../utils/dataCache');
-      invalidateCache(cacheKey);
+      removeCache(cacheKey);
     }
     setLoading(true);
     try {
       const result = await fetchFn();
-      if (cacheKey) setCached(cacheKey, result);
+      if (cacheKey) setCache(cacheKey, result);
       if (mountedRef.current) {
         setData(result);
         setError(null);

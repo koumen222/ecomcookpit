@@ -84,12 +84,12 @@ const TeamPerformance = () => {
 
   const fetchPerformance = async () => {
     const key = `team:${period}`;
-    const cached = getCached(key);
+    const cached = getCache(key);
     if (cached) { setData(cached); setLoading(false); return; }
     setLoading(true); setError('');
     try {
       const res = await ecomApi.get(`/users/team/performance?period=${period}`);
-      setCached(key, res.data.data);
+      setCache(key, res.data.data);
       setData(res.data.data);
     } catch (err) {
       setError(getContextualError(err, 'load_stats'));

@@ -126,7 +126,7 @@ const UserManagement = () => {
   // Data loaders
   const loadUsers = useCallback(async () => {
     const key = `users:${filterRole}`;
-    const cached = getCached(key);
+    const cached = getCache(key);
     if (cached) {
       setUsers(cached.users); setStats(cached.stats);
       setLoadingUsers(false); return;
@@ -138,7 +138,7 @@ const UserManagement = () => {
       const res = await ecomApi.get('/users', { params });
       const users = res.data?.data?.users || [];
       const stats = res.data?.data?.stats || {};
-      setCached(key, { users, stats });
+      setCache(key, { users, stats });
       setUsers(users); setStats(stats);
     } catch (err) {
       setError(getContextualError(err, 'load_users'));
@@ -148,7 +148,7 @@ const UserManagement = () => {
   }, [filterRole]);
 
   const loadInvites = useCallback(async () => {
-    const cached = getCached('invites');
+    const cached = getCache('invites');
     if (cached) {
       setInvites(cached.invites); setInviteStats(cached.stats);
       setLoadingInvites(false); return;
@@ -158,7 +158,7 @@ const UserManagement = () => {
       const res = await ecomApi.get('/users/invites/list');
       const invites = res.data?.data?.invites || [];
       const stats = res.data?.data?.stats || {};
-      setCached('invites', { invites, stats });
+      setCache('invites', { invites, stats });
       setInvites(invites); setInviteStats(stats);
     } catch (err) {
       setError(getContextualError(err, 'load_users'));
