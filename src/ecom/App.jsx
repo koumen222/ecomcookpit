@@ -82,6 +82,16 @@ const SuperAdminPushCenter = lazy(() => import('./pages/SuperAdminPushCenter.jsx
 const WhyScalor = lazy(() => import('./pages/WhyScalor.jsx'));
 const Tarifs = lazy(() => import('./pages/Tarifs.jsx'));
 
+// ─── Store / Storefront pages ─────────────────────────────────────────────
+const StoreSetup = lazy(() => import('./pages/StoreSetup.jsx'));
+const StoreProductsList = lazy(() => import('./pages/StoreProductsList.jsx'));
+const StoreProductForm = lazy(() => import('./pages/StoreProductForm.jsx'));
+const StoreAnalytics = lazy(() => import('./pages/StoreAnalytics.jsx'));
+const StoreOrdersDashboard = lazy(() => import('./pages/StoreOrdersDashboard.jsx'));
+const StoreFront = lazy(() => import('./pages/StoreFront.jsx'));
+const StoreProductPage = lazy(() => import('./pages/StoreProductPage.jsx'));
+const StoreCheckout = lazy(() => import('./pages/StoreCheckout.jsx'));
+
 const IconFillLoader = ({ backgroundClassName = 'bg-white' }) => {
   const [p, setP] = useState(0);
 
@@ -486,6 +496,19 @@ const EcomApp = () => {
               <Route path="/ecom/dashboard/admin" element={<LayoutRoute requiredRole="ecom_admin"><AdminDashboard /></LayoutRoute>} />
               <Route path="/ecom/dashboard/closeuse" element={<LayoutRoute requiredRole="ecom_closeuse"><CloseuseDashboard /></LayoutRoute>} />
               <Route path="/ecom/dashboard/compta" element={<LayoutRoute requiredRole="ecom_compta"><ComptaDashboard /></LayoutRoute>} />
+
+              {/* ─── Store Dashboard Routes (authenticated, admin) ──────── */}
+              <Route path="/ecom/store" element={<LayoutRoute requiredRole="ecom_admin"><StoreAnalytics /></LayoutRoute>} />
+              <Route path="/ecom/store/setup" element={<LayoutRoute requiredRole="ecom_admin"><StoreSetup /></LayoutRoute>} />
+              <Route path="/ecom/store/products" element={<LayoutRoute requiredRole="ecom_admin"><StoreProductsList /></LayoutRoute>} />
+              <Route path="/ecom/store/products/new" element={<LayoutRoute requiredRole="ecom_admin"><StoreProductForm /></LayoutRoute>} />
+              <Route path="/ecom/store/products/:id/edit" element={<LayoutRoute requiredRole="ecom_admin"><StoreProductForm /></LayoutRoute>} />
+              <Route path="/ecom/store/orders" element={<LayoutRoute requiredRole="ecom_admin"><StoreOrdersDashboard /></LayoutRoute>} />
+
+              {/* ─── Public Store Routes (no auth, customer-facing) ─────── */}
+              <Route path="/store/:subdomain" element={<Suspense fallback={<SpinnerLoader />}><StoreFront /></Suspense>} />
+              <Route path="/store/:subdomain/product/:slug" element={<Suspense fallback={<SpinnerLoader />}><StoreProductPage /></Suspense>} />
+              <Route path="/store/:subdomain/checkout" element={<Suspense fallback={<SpinnerLoader />}><StoreCheckout /></Suspense>} />
 
               {/* Route catch-all */}
               <Route path="*" element={<Navigate to="/ecom/login" replace />} />

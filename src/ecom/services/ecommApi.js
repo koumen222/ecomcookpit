@@ -718,6 +718,30 @@ export const ecoreApi = {
   getReport: (id) => ecomApi.get(`/ecore/reports/${id}`)
 };
 
+// ─── Store / Storefront APIs ────────────────────────────────────────────────
+export const storeManageApiLegacy = {
+  getStoreConfig: () => ecomApi.get('/store-manage/config'),
+  updateStoreConfig: (data) => ecomApi.put('/store-manage/config', data),
+  setSubdomain: (subdomain) => ecomApi.put('/store-manage/subdomain', { subdomain }),
+  checkSubdomain: (subdomain) => ecomApi.get(`/store-manage/subdomain/check/${subdomain}`)
+};
+
+export const storeProductsApiLegacy = {
+  getProducts: (params = {}) => ecomApi.get('/store-products', { params }),
+  getProduct: (id) => ecomApi.get(`/store-products/${id}`),
+  createProduct: (data) => ecomApi.post('/store-products', data),
+  updateProduct: (id, data) => ecomApi.put(`/store-products/${id}`, data),
+  deleteProduct: (id) => ecomApi.delete(`/store-products/${id}`),
+  getCategories: () => ecomApi.get('/store-products/categories/list')
+};
+
+export const storeOrdersApiLegacy = {
+  getOrders: (params = {}) => ecomApi.get('/store-orders', { params }),
+  getOrder: (id) => ecomApi.get(`/store-orders/${id}`),
+  updateOrderStatus: (id, status) => ecomApi.put(`/store-orders/${id}/status`, { status }),
+  getStats: () => ecomApi.get('/store-orders/stats')
+};
+
 // Export par défaut l'instance axios pour usage direct
 export default ecomApi;
 

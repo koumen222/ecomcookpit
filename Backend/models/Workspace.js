@@ -29,6 +29,26 @@ const workspaceSchema = new mongoose.Schema({
       businessType: 'ecommerce'
     }
   },
+  // Public store subdomain — generates https://{subdomain}.scalor.app
+  subdomain: {
+    type: String,
+    unique: true,
+    sparse: true,
+    lowercase: true,
+    trim: true
+  },
+  // Store configuration for public storefront
+  storeSettings: {
+    isStoreEnabled: { type: Boolean, default: false },
+    storeName: { type: String, trim: true, default: '' },
+    storeDescription: { type: String, trim: true, default: '' },
+    storeLogo: { type: String, default: '' },
+    storeBanner: { type: String, default: '' },
+    storePhone: { type: String, default: '' },
+    storeWhatsApp: { type: String, default: '' },
+    storeThemeColor: { type: String, default: '#0F6B4F' },
+    storeCurrency: { type: String, default: 'XAF' }
+  },
   whatsappConfig: {
     phoneNumber: { type: String, default: '' },
     status: { type: String, enum: ['none', 'pending', 'active'], default: 'none' },
@@ -110,5 +130,7 @@ workspaceSchema.methods.createInviteLink = function (createdBy) {
 };
 
 workspaceSchema.index({ owner: 1 });
+// Subdomain lookup for public store routing
+workspaceSchema.index({ subdomain: 1 }, { unique: true, sparse: true });
 
 export default mongoose.model('EcomWorkspace', workspaceSchema);

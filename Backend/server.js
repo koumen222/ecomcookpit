@@ -37,6 +37,8 @@ const corsOptions = {
     if (allowedOrigins.includes(origin)) return callback(null, true);
     if (origin.endsWith(".ecomcookpit.pages.dev")) return callback(null, true);
     if (origin.endsWith(".scalor.net")) return callback(null, true);
+    // Allow all *.scalor.app subdomains (public stores)
+    if (origin.endsWith(".scalor.app")) return callback(null, true);
     callback(null, false);
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
@@ -152,6 +154,11 @@ const startServer = async () => {
       ['./routes/autoSync.js',                '/api/ecom/auto-sync'],
       ['./routes/agent.js',                   '/api/ecom/agent'],
       ['./routes/agentCommands.js',           '/api/ecom/agent/commands'],
+      // ─── Store / Storefront routes ──────────────────────────────────
+      ['./routes/storeProducts.js',           '/api/ecom/store-products'],
+      ['./routes/storeOrders.js',             '/api/ecom/store-orders'],
+      ['./routes/storeManagement.js',         '/api/ecom/store-manage'],
+      ['./routes/publicStore.js',             '/api/public/store'],
     ];
 
     for (const [file, mountPath] of routes) {

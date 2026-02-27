@@ -1,0 +1,423 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Save, Image, Plus, X, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { storeProductsApi } from '../services/storeApi.js';
+import { mediaApi } from '../services/ecommApi.js';
+
+/**
+ * StoreProductForm — Create or edit a store catalog product.
+ * Handles image uploads (to S3/Cloudinary via existing media API),
+ * category, pricing, SEO fields, and publish toggle.
+ */
+const StoreProductForm = () => {
+  const navigate = useNavigate();
+  const { id } = useParams();
+  const isEdit = !!id;
+
+  const [loading, setLoading] = useState(isEdit);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [uploading, setUploading] = useState(false);
+
+  const [form, setForm] = useState({
+    name: '',
+    description: '',
+    price: '',
+    compareAtPrice: '',
+    stock: '0',
+    category: '',
+    tags: '',
+    isPublished: false,
+    seoTitle: '',
+    seoDescription: '',
+    images: []
+  });
+
+  // Load product for edit mode
+  useEffect(() => {
+    if (!isEdit) return;
+    (async () => {
+      try {
+        const res = await storeProductsApi.getProduct(id);
+        const p = res.data?.data;
+        if (p) {
+          setForm({
+            name: p.name || '',
+            description: p.description || '',
+            price: String(p.price ?? ''),
+            compareAtPrice: p.compareAtPrice ? String(p.compareAtPrice) : '',
+            stock: String(p.stock ?? '0'),
+            category: p.category || '',
+            tags: (p.tags || []).join(', '),
+            isPublished: p.isPublished || false,
+            seoTitle: p.seoTitle || '',
+            seoDescription: p.seoDescription || '',
+            images: p.images || []
+          });
+        }
+      } catch {
+        setError('Impossible de charger le produit');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [id, isEdit]);
+
+  const handleChange = (field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+    setError('');
+    setSuccess('');
+  };
+
+  // Image upload via existing media API
+  const handleImageUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    setUploading(true);
+    setError('');
+
+    try {
+      for (const file of files) {
+        // Validate file size (max 5MB for mobile-first)
+        if (file.size > 5 * 1024 * 1024) {
+          setError(`${file.name} dépasse 5 MB`);
+          continue;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('folder', 'store-products');
+
+        const res = await mediaApi.upload(formData);
+        const url = res.data?.data?.url || res.data?.url;
+
+        if (url) {
+          setForm(prev => ({
+            ...prev,
+            images: [...prev.images, { url, alt: prev.name || file.name, order: prev.images.length }]
+          }));
+        }
+      }
+    } catch (err) {
+      setError('Erreur lors de l\'upload de l\'image');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemoveImage = (index) => {
+    setForm(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index)
+    }));
+  };
+
+  // Add image by URL (for users who host elsewhere)
+  const [imageUrlInput, setImageUrlInput] = useState('');
+  const handleAddImageUrl = () => {
+    if (!imageUrlInput.trim()) return;
+    setForm(prev => ({
+      ...prev,
+      images: [...prev.images, { url: imageUrlInput.trim(), alt: prev.name, order: prev.images.length }]
+    }));
+    setImageUrlInput('');
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim() || !form.price) {
+      setError('Nom et prix sont requis');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+
+    const payload = {
+      name: form.name.trim(),
+      description: form.description.trim(),
+      price: parseFloat(form.price),
+      compareAtPrice: form.compareAtPrice ? parseFloat(form.compareAtPrice) : null,
+      stock: parseInt(form.stock) || 0,
+      category: form.category.trim(),
+      tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+      isPublished: form.isPublished,
+      seoTitle: form.seoTitle.trim(),
+      seoDescription: form.seoDescription.trim(),
+      images: form.images
+    };
+
+    try {
+      if (isEdit) {
+        await storeProductsApi.updateProduct(id, payload);
+        setSuccess('Produit mis à jour');
+      } else {
+        await storeProductsApi.createProduct(payload);
+        setSuccess('Produit créé avec succès');
+        setTimeout(() => navigate('/ecom/store/products'), 1000);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Erreur lors de la sauvegarde');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => navigate('/ecom/store/products')}
+          className="p-2 rounded-lg hover:bg-gray-100 transition"
+        >
+          <ArrowLeft className="w-5 h-5 text-gray-600" />
+        </button>
+        <h1 className="text-xl font-bold text-gray-900">
+          {isEdit ? 'Modifier le produit' : 'Nouveau produit boutique'}
+        </h1>
+      </div>
+
+      {/* Status messages */}
+      {error && (
+        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
+        </div>
+      )}
+      {success && (
+        <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-700 text-sm">
+          <CheckCircle className="w-4 h-4 flex-shrink-0" /> {success}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Basic Info */}
+        <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
+          <h2 className="text-base font-semibold text-gray-900">Informations</h2>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nom du produit *</label>
+            <input
+              type="text"
+              value={form.name}
+              onChange={(e) => handleChange('name', e.target.value)}
+              placeholder="Ex: Robe africaine wax"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea
+              value={form.description}
+              onChange={(e) => handleChange('description', e.target.value)}
+              placeholder="Décrivez le produit pour vos clients..."
+              rows={4}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Prix *</label>
+              <input
+                type="number"
+                value={form.price}
+                onChange={(e) => handleChange('price', e.target.value)}
+                placeholder="15000"
+                min="0"
+                step="any"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ancien prix</label>
+              <input
+                type="number"
+                value={form.compareAtPrice}
+                onChange={(e) => handleChange('compareAtPrice', e.target.value)}
+                placeholder="20000"
+                min="0"
+                step="any"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Stock</label>
+              <input
+                type="number"
+                value={form.stock}
+                onChange={(e) => handleChange('stock', e.target.value)}
+                min="0"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
+              <input
+                type="text"
+                value={form.category}
+                onChange={(e) => handleChange('category', e.target.value)}
+                placeholder="Ex: Vêtements, Accessoires..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tags (séparés par virgule)</label>
+              <input
+                type="text"
+                value={form.tags}
+                onChange={(e) => handleChange('tags', e.target.value)}
+                placeholder="Ex: promo, nouveau, bestseller"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Images */}
+        <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
+          <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+            <Image className="w-5 h-5 text-emerald-600" />
+            Images
+          </h2>
+
+          {/* Current images */}
+          {form.images.length > 0 && (
+            <div className="flex flex-wrap gap-3">
+              {form.images.map((img, i) => (
+                <div key={i} className="relative group">
+                  <img
+                    src={img.url}
+                    alt={img.alt || form.name}
+                    className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg object-cover border border-gray-200"
+                    loading="lazy"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveImage(i)}
+                    className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                  {i === 0 && (
+                    <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-[10px] rounded">
+                      Principale
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Upload button */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <label className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer transition">
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              {uploading ? 'Upload...' : 'Ajouter une image'}
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleImageUpload}
+                className="hidden"
+                disabled={uploading}
+              />
+            </label>
+          </div>
+
+          {/* Add by URL */}
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={imageUrlInput}
+              onChange={(e) => setImageUrlInput(e.target.value)}
+              placeholder="Ou collez une URL d'image..."
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+            <button
+              type="button"
+              onClick={handleAddImageUrl}
+              disabled={!imageUrlInput.trim()}
+              className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-200 disabled:opacity-40 transition"
+            >
+              Ajouter
+            </button>
+          </div>
+
+          <p className="text-xs text-gray-400">Max 5 MB par image. Formats: JPG, PNG, WebP. La première image sera l'image principale.</p>
+        </div>
+
+        {/* SEO */}
+        <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">
+          <h2 className="text-base font-semibold text-gray-900">SEO (optionnel)</h2>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Titre SEO</label>
+            <input
+              type="text"
+              value={form.seoTitle}
+              onChange={(e) => handleChange('seoTitle', e.target.value)}
+              placeholder={form.name || 'Titre pour les moteurs de recherche'}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              maxLength={70}
+            />
+            <p className="text-xs text-gray-400 mt-1">{(form.seoTitle || form.name).length}/70</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description SEO</label>
+            <textarea
+              value={form.seoDescription}
+              onChange={(e) => handleChange('seoDescription', e.target.value)}
+              placeholder="Description courte pour Google..."
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+              maxLength={160}
+            />
+            <p className="text-xs text-gray-400 mt-1">{form.seoDescription.length}/160</p>
+          </div>
+        </div>
+
+        {/* Publish + Save */}
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.isPublished}
+              onChange={(e) => handleChange('isPublished', e.target.checked)}
+              className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+            />
+            <span className="text-sm font-medium text-gray-700">Publier immédiatement</span>
+          </label>
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-lg font-medium text-sm hover:bg-emerald-700 disabled:opacity-50 transition"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {saving ? 'Sauvegarde...' : isEdit ? 'Mettre à jour' : 'Créer le produit'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+export default StoreProductForm;
