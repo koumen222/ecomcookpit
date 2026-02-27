@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
+﻿import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import CurrencySelector from './CurrencySelector.jsx';
