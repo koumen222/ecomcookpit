@@ -63,12 +63,34 @@ function renderMessage(template, client, orderData = null) {
   return msg;
 }
 
+// Helper: normalise un filtre qui peut être string ou array
+function toArray(v) {
+  if (!v) return [];
+  return Array.isArray(v) ? v.filter(Boolean) : [v].filter(Boolean);
+}
+function toMongoIn(v) {
+  const arr = toArray(v);
+  if (arr.length === 0) return null;
+  return arr.length === 1 ? arr[0] : { $in: arr };
+}
+
 // Helper: construire le filtre MongoDB depuis les targetFilters
 function buildClientFilter(workspaceId, targetFilters) {
   const filter = { workspaceId };
-  if (targetFilters.clientStatus) filter.status = targetFilters.clientStatus;
-  if (targetFilters.city) filter.city = { $regex: targetFilters.city, $options: 'i' };
-  if (targetFilters.product) filter.products = { $regex: targetFilters.product, $options: 'i' };
+  const clientStatus = toMongoIn(targetFilters.clientStatus);
+  if (clientStatus) filter.status = clientStatus;
+  if (targetFilters.city) {
+    const cities = toArray(targetFilters.city);
+    filter.city = cities.length > 1
+      ? { $in: cities.map(c => new RegExp(c, 'i')) }
+      : { $regex: cities[0], $options: 'i' };
+  }
+  if (targetFilters.product) {
+    const prods = toArray(targetFilters.product);
+    filter.products = prods.length > 1
+      ? { $in: prods.map(p => new RegExp(p, 'i')) }
+      : { $regex: prods[0], $options: 'i' };
+  }
   if (targetFilters.tag) filter.tags = targetFilters.tag;
   if (targetFilters.minOrders > 0) filter.totalOrders = { ...filter.totalOrders, $gte: targetFilters.minOrders };
   if (targetFilters.maxOrders > 0) filter.totalOrders = { ...filter.totalOrders, $lte: targetFilters.maxOrders };
@@ -79,10 +101,21 @@ function buildClientFilter(workspaceId, targetFilters) {
 // Helper: ciblage basé sur les commandes — retourne les phones des clients correspondants
 async function getClientsFromOrderFilters(workspaceId, targetFilters) {
   const orderFilter = { workspaceId };
-  if (targetFilters.orderStatus) orderFilter.status = targetFilters.orderStatus;
-  if (targetFilters.orderCity) orderFilter.city = { $regex: targetFilters.orderCity, $options: 'i' };
+  const statusVal = toMongoIn(targetFilters.orderStatus);
+  if (statusVal) orderFilter.status = statusVal;
+  if (targetFilters.orderCity) {
+    const cities = toArray(targetFilters.orderCity);
+    orderFilter.city = cities.length > 1
+      ? { $in: cities.map(c => new RegExp(c, 'i')) }
+      : { $regex: cities[0], $options: 'i' };
+  }
   if (targetFilters.orderAddress) orderFilter.address = { $regex: targetFilters.orderAddress, $options: 'i' };
-  if (targetFilters.orderProduct) orderFilter.product = { $regex: targetFilters.orderProduct, $options: 'i' };
+  if (targetFilters.orderProduct) {
+    const prods = toArray(targetFilters.orderProduct);
+    orderFilter.product = prods.length > 1
+      ? { $in: prods.map(p => new RegExp(p, 'i')) }
+      : { $regex: prods[0], $options: 'i' };
+  }
   if (targetFilters.orderDateFrom) orderFilter.date = { ...orderFilter.date, $gte: new Date(targetFilters.orderDateFrom) };
   if (targetFilters.orderDateTo) {
     const end = new Date(targetFilters.orderDateTo);
@@ -306,19 +339,29 @@ router.post('/preview', requireEcomAuth, async (req, res) => {
     console.log('🔍 Campaign preview - targetFilters reçus:', tf);
 
     // Si un statut de commande est sélectionné, n'afficher que ces personnes
-    if (tf.orderStatus) {
-      console.log(`📊 Filtre par statut de commande: ${tf.orderStatus}`);
+    const hasOrderStatus = tf.orderStatus && (Array.isArray(tf.orderStatus) ? tf.orderStatus.length > 0 : tf.orderStatus !== '');
+    if (hasOrderStatus) {
+      const statusArr = toArray(tf.orderStatus);
+      console.log(`📊 Filtre par statut(s) de commande: ${statusArr.join(', ')}`);
       
-      // Utiliser directement les commandes avec ce statut
       const orderFilter = { 
         workspaceId: req.workspaceId, 
-        status: tf.orderStatus,
+        status: statusArr.length === 1 ? statusArr[0] : { $in: statusArr },
         clientPhone: { $exists: true, $ne: '' }
       };
       
-      // Ajouter les autres filtres de commande seulement s'ils sont présents
-      if (tf.orderCity) orderFilter.city = { $regex: tf.orderCity, $options: 'i' };
-      if (tf.orderProduct) orderFilter.product = { $regex: tf.orderProduct, $options: 'i' };
+      if (tf.orderCity) {
+        const cities = toArray(tf.orderCity);
+        orderFilter.city = cities.length > 1
+          ? { $in: cities.map(c => new RegExp(c, 'i')) }
+          : { $regex: cities[0], $options: 'i' };
+      }
+      if (tf.orderProduct) {
+        const prods = toArray(tf.orderProduct);
+        orderFilter.product = prods.length > 1
+          ? { $in: prods.map(p => new RegExp(p, 'i')) }
+          : { $regex: prods[0], $options: 'i' };
+      }
       if (tf.orderDateFrom) orderFilter.date = { ...orderFilter.date, $gte: new Date(tf.orderDateFrom) };
       if (tf.orderDateTo) {
         const end = new Date(tf.orderDateTo);

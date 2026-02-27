@@ -13,7 +13,7 @@ const CampaignForm = () => {
     name: '',
     type: 'custom',
     messageTemplate: '',
-    targetFilters: { clientStatus: '', city: '', product: '', tag: '', minOrders: 0, maxOrders: 0, orderStatus: '', orderCity: '', orderAddress: '', orderProduct: '', orderDateFrom: '', orderDateTo: '', orderSourceId: '', orderMinPrice: 0, orderMaxPrice: 0 },
+    targetFilters: { clientStatus: [], city: [], product: [], tag: '', minOrders: 0, maxOrders: 0, orderStatus: [], orderCity: [], orderAddress: '', orderProduct: [], orderDateFrom: '', orderDateTo: '', orderSourceId: '', orderMinPrice: 0, orderMaxPrice: 0 },
     scheduledAt: '',
     tags: ''
   });
@@ -110,24 +110,46 @@ const CampaignForm = () => {
     navigator.clipboard.writeText(phones).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   };
 
-  const quickFilter = (tag) => {
-    const statusMap = { 'Client': 'delivered', 'En attente': 'prospect', 'Confirmé': 'confirmed', 'Annulé': 'prospect' };
-    setFormData(prev => ({
-      ...prev,
-      targetFilters: {
-        ...prev.targetFilters,
-        clientStatus: statusMap[tag] || '',
-        tag: tag
-      }
-    }));
-    // Auto-preview après mise ù  jour du state
+  // Toggle un item dans un filtre array
+  const toggleArrayFilter = (key, value) => {
+    setFormData(prev => {
+      const cur = prev.targetFilters[key] || [];
+      const arr = Array.isArray(cur) ? cur : [cur].filter(Boolean);
+      const next = arr.includes(value) ? arr.filter(x => x !== value) : [...arr, value];
+      return { ...prev, targetFilters: { ...prev.targetFilters, [key]: next } };
+    });
+  };
+
+  const quickFilter = (status) => {
+    setFormData(prev => {
+      const cur = prev.targetFilters.orderStatus || [];
+      const arr = Array.isArray(cur) ? cur : [cur].filter(Boolean);
+      const next = arr.includes(status) ? arr.filter(x => x !== status) : [...arr, status];
+      return { ...prev, targetFilters: { ...prev.targetFilters, orderStatus: next } };
+    });
     setTimeout(() => handlePreview(), 200);
   };
 
   const resetFilters = () => {
     setFormData(prev => ({
       ...prev,
-      targetFilters: { clientStatus: '', city: '', product: '', tag: '', minOrders: 0, maxOrders: 0, orderStatus: '', orderCity: '', orderAddress: '', orderProduct: '', orderDateFrom: '', orderDateTo: '', orderSourceId: '', orderMinPrice: 0, orderMaxPrice: 0 }
+      targetFilters: { 
+        clientStatus: [], 
+        city: [], 
+        product: [], 
+        tag: '', 
+        minOrders: 0, 
+        maxOrders: 0, 
+        orderStatus: [], 
+        orderCity: [], 
+        orderAddress: '', 
+        orderProduct: [], 
+        orderDateFrom: '', 
+        orderDateTo: '', 
+        orderSourceId: '', 
+        orderMinPrice: 0, 
+        orderMaxPrice: 0 
+      }
     }));
     setTimeout(() => handlePreview(), 200);
   };
@@ -475,47 +497,111 @@ const CampaignForm = () => {
           </div>
           {/* Ciblage par commande */}
           <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider mb-2">Ciblage par commande</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 mb-1">Statut commande</label>
-              <select value={formData.targetFilters.orderStatus} onChange={e => updateFilter('orderStatus', e.target.value)} className={inputClass}>
-                <option value="">Tous</option>
-                <option value="pending">En attente</option>
-                <option value="confirmed">Confirmé</option>
-                <option value="shipped">Expédié</option>
-                <option value="delivered">Livré</option>
-                <option value="returned">Retour</option>
-                <option value="cancelled">Annulé</option>
-                <option value="unreachable">Injoignable</option>
-                <option value="called">Appelé</option>
-                <option value="postponed">Reporté</option>
-              </select>
+
+          {/* Statuts — multi-select chips */}
+          <div className="mb-3">
+            <label className="block text-[10px] font-medium text-gray-500 mb-1.5">Statuts commande <span className="text-gray-400">(plusieurs possibles)</span></label>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { v: 'pending', l: 'En attente', c: 'bg-yellow-50 border-yellow-300 text-yellow-700' },
+                { v: 'confirmed', l: 'Confirmé', c: 'bg-emerald-50 border-emerald-300 text-emerald-700' },
+                { v: 'shipped', l: 'Expédié', c: 'bg-teal-50 border-teal-300 text-teal-700' },
+                { v: 'delivered', l: 'Livré', c: 'bg-green-50 border-green-300 text-green-700' },
+                { v: 'returned', l: 'Retour', c: 'bg-orange-50 border-orange-300 text-orange-700' },
+                { v: 'cancelled', l: 'Annulé', c: 'bg-red-50 border-red-300 text-red-600' },
+                { v: 'unreachable', l: 'Injoignable', c: 'bg-gray-50 border-gray-300 text-gray-600' },
+                { v: 'called', l: 'Appelé', c: 'bg-sky-50 border-sky-300 text-sky-700' },
+                { v: 'postponed', l: 'Reporté', c: 'bg-amber-50 border-amber-300 text-amber-700' },
+              ].map(({ v, l, c }) => {
+                const selected = (formData.targetFilters.orderStatus || []).includes(v);
+                return (
+                  <button key={v} type="button"
+                    onClick={() => { toggleArrayFilter('orderStatus', v); setTimeout(handlePreview, 200); }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                      selected ? `${c} ring-2 ring-offset-1 ring-current shadow-sm` : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'
+                    }`}>
+                    {selected && <span className="mr-0.5">✓</span>}{l}
+                  </button>
+                );
+              })}
             </div>
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 mb-1">Ville (commande)</label>
-              <select value={formData.targetFilters.orderCity} onChange={e => updateFilter('orderCity', e.target.value)} className={inputClass}>
-                <option value="">Toutes les villes</option>
-                {filterOptions.cities.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+            {(formData.targetFilters.orderStatus || []).length > 0 && (
+              <p className="text-[10px] text-emerald-600 mt-1 font-medium">
+                {(formData.targetFilters.orderStatus).length} statut{(formData.targetFilters.orderStatus).length > 1 ? 's' : ''} sélectionné{(formData.targetFilters.orderStatus).length > 1 ? 's' : ''}
+              </p>
+            )}
+          </div>
+
+          {/* Villes + Produits + Adresse — dropdowns avec checkboxes */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+
+            {/* Villes — dropdown checkbox */}
+            <div className="relative">
+              <label className="block text-[10px] font-medium text-gray-500 mb-1">Villes</label>
+              <div className="border border-gray-300 rounded-lg bg-white overflow-hidden">
+                <div className="max-h-40 overflow-y-auto divide-y divide-gray-100">
+                  {filterOptions.cities.length === 0 && (
+                    <p className="text-[10px] text-gray-400 p-2">Aucune ville disponible</p>
+                  )}
+                  {filterOptions.cities.map(c => {
+                    const sel = (formData.targetFilters.orderCity || []).includes(c);
+                    return (
+                      <label key={c} className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-50 transition-colors ${ sel ? 'bg-emerald-50' : '' }`}>
+                        <input type="checkbox" checked={sel}
+                          onChange={() => { toggleArrayFilter('orderCity', c); setTimeout(handlePreview, 200); }}
+                          className="w-3.5 h-3.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 flex-shrink-0" />
+                        <span className={`text-xs ${ sel ? 'font-semibold text-emerald-800' : 'text-gray-700' }`}>{c}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+              {(formData.targetFilters.orderCity || []).length > 0 && (
+                <p className="text-[10px] text-emerald-600 mt-1 font-medium">
+                  {(formData.targetFilters.orderCity).length} ville{(formData.targetFilters.orderCity).length > 1 ? 's' : ''} sélectionnée{(formData.targetFilters.orderCity).length > 1 ? 's' : ''}
+                </p>
+              )}
             </div>
+
+            {/* Produits — dropdown checkbox */}
+            <div className="relative">
+              <label className="block text-[10px] font-medium text-gray-500 mb-1">Produits</label>
+              <div className="border border-gray-300 rounded-lg bg-white overflow-hidden">
+                <div className="max-h-40 overflow-y-auto divide-y divide-gray-100">
+                  {filterOptions.products.length === 0 && (
+                    <p className="text-[10px] text-gray-400 p-2">Aucun produit disponible</p>
+                  )}
+                  {filterOptions.products.map(p => {
+                    const sel = (formData.targetFilters.orderProduct || []).includes(p);
+                    return (
+                      <label key={p} className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-gray-50 transition-colors ${ sel ? 'bg-violet-50' : '' }`}>
+                        <input type="checkbox" checked={sel}
+                          onChange={() => { toggleArrayFilter('orderProduct', p); setTimeout(handlePreview, 200); }}
+                          className="w-3.5 h-3.5 rounded border-gray-300 text-violet-600 focus:ring-violet-500 flex-shrink-0" />
+                        <span className={`text-xs ${ sel ? 'font-semibold text-violet-800' : 'text-gray-700' } truncate`} title={p}>{p}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+              {(formData.targetFilters.orderProduct || []).length > 0 && (
+                <p className="text-[10px] text-violet-600 mt-1 font-medium">
+                  {(formData.targetFilters.orderProduct).length} produit{(formData.targetFilters.orderProduct).length > 1 ? 's' : ''} sélectionné{(formData.targetFilters.orderProduct).length > 1 ? 's' : ''}
+                </p>
+              )}
+            </div>
+
+            {/* Adresse */}
             <div>
-              <label className="block text-[10px] font-medium text-gray-500 mb-1">Adresse (commande)</label>
+              <label className="block text-[10px] font-medium text-gray-500 mb-1">Adresse</label>
               <select value={formData.targetFilters.orderAddress || ''} onChange={e => updateFilter('orderAddress', e.target.value)} className={inputClass}>
-                <option value="">Toutes les adresses</option>
+                <option value="">Toutes</option>
                 {(filterOptions.addresses || []).map(a => <option key={a} value={a}>{a}</option>)}
               </select>
             </div>
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 mb-1">Produit (commande)</label>
-              <select value={formData.targetFilters.orderProduct} onChange={e => updateFilter('orderProduct', e.target.value)} className={inputClass}>
-                <option value="">Tous les produits</option>
-                {filterOptions.products.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 mb-1">Source</label>
-              <input type="text" value={formData.targetFilters.orderSourceId} onChange={e => updateFilter('orderSourceId', e.target.value)} className={inputClass} placeholder="ID source" />
-            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
             <div>
               <label className="block text-[10px] font-medium text-gray-500 mb-1">Date début</label>
               <input type="date" value={formData.targetFilters.orderDateFrom} onChange={e => updateFilter('orderDateFrom', e.target.value)} className={inputClass} />
@@ -534,76 +620,32 @@ const CampaignForm = () => {
             </div>
           </div>
 
-          {/* Ciblage par client */}
-          <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider mb-2">Ciblage par client</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 mb-1">Statut client</label>
-              <select value={formData.targetFilters.clientStatus} onChange={e => updateFilter('clientStatus', e.target.value)} className={inputClass}>
-                <option value="">Tous</option>
-                <option value="pending">En attente</option>
-                <option value="confirmed">Confirmé</option>
-                <option value="shipped">Expédié</option>
-                <option value="delivered">Livré</option>
-                <option value="returned">Retour</option>
-                <option value="cancelled">Annulé</option>
-                <option value="unreachable">Injoignable</option>
-                <option value="called">Appelé</option>
-                <option value="postponed">Reporté</option>
-                <option value="prospect">Prospect</option>
-                <option value="blocked">Bloqué</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 mb-1">Ville (client)</label>
-              <select value={formData.targetFilters.city} onChange={e => updateFilter('city', e.target.value)} className={inputClass}>
-                <option value="">Toutes les villes</option>
-                {filterOptions.cities.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 mb-1">Produit (client)</label>
-              <select value={formData.targetFilters.product} onChange={e => updateFilter('product', e.target.value)} className={inputClass}>
-                <option value="">Tous les produits</option>
-                {filterOptions.products.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 mb-1">Tag</label>
-              <input type="text" value={formData.targetFilters.tag} onChange={e => updateFilter('tag', e.target.value)} className={inputClass} placeholder="Ex: Client" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 mb-1">Min commandes</label>
-              <input type="number" min="0" value={formData.targetFilters.minOrders} onChange={e => updateFilter('minOrders', parseInt(e.target.value) || 0)} className={inputClass} />
-            </div>
-            <div>
-              <label className="block text-[10px] font-medium text-gray-500 mb-1">Max commandes</label>
-              <input type="number" min="0" value={formData.targetFilters.maxOrders} onChange={e => updateFilter('maxOrders', parseInt(e.target.value) || 0)} className={inputClass} />
-            </div>
-          </div>
-
-          {/* Quick filter buttons */}
+          {/* Raccourcis relances */}
           <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-gray-100">
             <span className="text-[10px] text-gray-400 font-medium self-center mr-1">Relances rapides :</span>
             {[
-              { key: 'pending', label: 'En attente', color: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
-              { key: 'unreachable', label: 'Injoignables', color: 'bg-gray-50 text-gray-700 border-gray-300' },
-              { key: 'called', label: 'Appelés', color: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
-              { key: 'postponed', label: 'Reportés', color: 'bg-amber-50 text-amber-700 border-amber-200' },
-              { key: 'confirmed', label: 'Confirmés', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-              { key: 'shipped', label: 'Expédiés', color: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
-              { key: 'delivered', label: 'Livrés', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-              { key: 'returned', label: 'Retours', color: 'bg-orange-50 text-orange-700 border-orange-200' },
-              { key: 'cancelled', label: 'Annulés', color: 'bg-red-50 text-red-700 border-red-200' },
-            ].map(f => (
-              <button key={f.key} type="button" onClick={() => { updateFilter('orderStatus', f.key); setTimeout(() => handlePreview(), 200); }}
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-medium border transition hover:opacity-80 ${formData.targetFilters.orderStatus === f.key ? 'ring-2 ring-offset-1 ring-gray-400 ' : ''}${f.color}`}>
-                {f.label}
-              </button>
-            ))}
+              { key: 'pending', label: 'En attente' },
+              { key: 'unreachable', label: 'Injoignables' },
+              { key: 'called', label: 'Appelés' },
+              { key: 'postponed', label: 'Reportés' },
+              { key: 'confirmed', label: 'Confirmés' },
+              { key: 'cancelled', label: 'Annulés' },
+            ].map(f => {
+              const isActive = (formData.targetFilters.orderStatus || []).includes(f.key);
+              return (
+                <button key={f.key} type="button" onClick={() => quickFilter(f.key)}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition ${
+                    isActive
+                      ? 'bg-emerald-700 border-emerald-700 text-white shadow-sm'
+                      : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                  }`}>
+                  {isActive ? '✓ ' : ''}{f.label}
+                </button>
+              );
+            })}
             <button type="button" onClick={resetFilters}
-              className="px-2.5 py-1 rounded-lg text-[10px] font-medium border bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100 transition">
-              Tous
+              className="px-2.5 py-1 rounded-lg text-[10px] font-medium border bg-red-50 text-red-600 border-red-200 hover:bg-red-100 transition">
+              Réinitialiser
             </button>
           </div>
 
