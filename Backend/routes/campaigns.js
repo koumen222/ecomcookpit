@@ -336,10 +336,25 @@ router.post('/preview', requireEcomAuth, async (req, res) => {
   try {
     const { targetFilters } = req.body;
     const tf = targetFilters || {};
-    console.log('🔍 Campaign preview - targetFilters reçus:', tf);
 
-    // Si un statut de commande est sélectionné, n'afficher que ces personnes
-    const hasOrderStatus = tf.orderStatus && (Array.isArray(tf.orderStatus) ? tf.orderStatus.length > 0 : tf.orderStatus !== '');
+    // Guard: workspaceId requis
+    if (!req.workspaceId) {
+      return res.json({ success: true, data: { count: 0, clients: [] } });
+    }
+
+    // Vérifier si au moins un filtre de commande est actif
+    const hasOrderStatus = toArray(tf.orderStatus).length > 0;
+    const hasOrderCity = toArray(tf.orderCity).length > 0;
+    const hasOrderProduct = toArray(tf.orderProduct).length > 0;
+    const hasOrderDate = !!(tf.orderDateFrom || tf.orderDateTo);
+    const hasOrderPrice = (tf.orderMinPrice > 0) || (tf.orderMaxPrice > 0);
+    const hasAnyOrderFilter = hasOrderStatus || hasOrderCity || hasOrderProduct || hasOrderDate || hasOrderPrice;
+
+    // Si aucun filtre actif, retourner vide (évite de charger tous les clients)
+    if (!hasAnyOrderFilter) {
+      return res.json({ success: true, data: { count: 0, clients: [], hint: 'Sélectionnez au moins un filtre pour prévisualiser' } });
+    }
+
     if (hasOrderStatus) {
       const statusArr = toArray(tf.orderStatus);
       console.log(`📊 Filtre par statut(s) de commande: ${statusArr.join(', ')}`);

@@ -59,7 +59,25 @@ const CampaignForm = () => {
     }
   }, [id, isEdit]);
 
+  const hasAnyFilter = (filters) => {
+    const tf = filters || formData.targetFilters;
+    return (
+      (tf.orderStatus || []).length > 0 ||
+      (tf.orderCity || []).length > 0 ||
+      (tf.orderProduct || []).length > 0 ||
+      !!tf.orderDateFrom ||
+      !!tf.orderDateTo ||
+      (tf.orderMinPrice > 0) ||
+      (tf.orderMaxPrice > 0)
+    );
+  };
+
   const handlePreview = async () => {
+    if (!hasAnyFilter()) {
+      setPreview({ count: 0, clients: [], hint: 'Sélectionnez au moins un filtre' });
+      setSelectedClients(new Set());
+      return;
+    }
     setPreviewLoading(true);
     try {
       const res = await ecomApi.post('/campaigns/preview', { targetFilters: formData.targetFilters });
