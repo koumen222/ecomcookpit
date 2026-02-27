@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SCALOR - Plateforme de Gestion E-commerce pour les Vendeurs en Ligne</title>
+    <meta name="description" content="SCALOR est une plateforme complète de gestion e-commerce pour les vendeurs sur Shopify, WooCommerce et autres plateformes. Gérez vos commandes, produits, et analysez vos performances en un seul endroit.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --scalor-green: #0F6B4F;
+            --scalor-green-light: #147A5C;
+            --obsidian-black: #0F1115;
+            --dark-surface: #1A1C22;
+            --text-primary: #FFFFFF;
+            --text-secondary: #9CA3AF;
+            --text-muted: #6B7280;
+            --border-color: #2A2C33;
+            --success: #10B981;
+            --warning: #F59E0B;
+            --error: #EF4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--obsidian-black);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        header {
+            background: rgba(15, 17, 21, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-color);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 72px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--scalor-green);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 20px;
+            color: white;
+        }
+
+        .logo-text {
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--text-primary);
+            letter-spacing: -0.5px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .btn-primary {
+            background: var(--scalor-green);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 14px;
+            border: none;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-primary:hover {
+            background: var(--scalor-green-light);
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 160px 0 100px;
+            text-align: center;
+            background: linear-gradient(180deg, var(--obsidian-black) 0%, rgba(15, 107, 79, 0.1) 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(15, 107, 79, 0.1) 0%, transparent 50%);
+            animation: pulse 8s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero h1 {
+            font-size: 56px;
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.7) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -1.5px;
+        }
+
+        .hero-subtitle {
+            font-size: 20px;
+            color: var(--text-secondary);
+            max-width: 700px;
+            margin: 0 auto 40px;
+        }
+
+        .hero-cta {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-bottom: 60px;
+        }
+
+        .btn-large {
+            padding: 16px 32px;
+            font-size: 16px;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            padding: 16px 32px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--scalor-green);
+            background: rgba(15, 107, 79, 0.1);
+        }
+
+        /* Features Section */
+        .features {
+            padding: 100px 0;
+            background: var(--obsidian-black);
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 64px;
+        }
+
+        .section-header h2 {
+            font-size: 40px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .section-header p {
+            color: var(--text-secondary);
+            font-size: 18px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+        }
+
+        .feature-card {
+            background: var(--dark-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 32px;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--scalor-green);
+        }
+
+        .feature-icon {
+            width: 56px;
+            height: 56px;
+            background: rgba(15, 107, 79, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+
+        .feature-card h3 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        /* Data Usage Section */
+        .data-usage {
+            padding: 100px 0;
+            background: linear-gradient(180deg, var(--dark-surface) 0%, var(--obsidian-black) 100%);
+        }
+
+        .data-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 32px;
+            margin-top: 48px;
+        }
+
+        .data-item {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        .data-icon {
+            width: 48px;
+            height: 48px;
+            background: rgba(16, 185, 129, 0.2);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .data-item h4 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .data-item p {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        /* Integration Section */
+        .integrations {
+            padding: 100px 0;
+            background: var(--obsidian-black);
+        }
+
+        .integration-logos {
+            display: flex;
+            justify-content: center;
+            gap: 48px;
+            flex-wrap: wrap;
+            margin-top: 48px;
+            opacity: 0.7;
+        }
+
+        .integration-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 24px;
+            background: var(--dark-surface);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            font-weight: 600;
+        }
+
+        /* CTA Section */
+        .cta {
+            padding: 100px 0;
+            text-align: center;
+            background: linear-gradient(180deg, var(--obsidian-black) 0%, rgba(15, 107, 79, 0.15) 100%);
+        }
+
+        .cta h2 {
+            font-size: 40px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+
+        .cta p {
+            color: var(--text-secondary);
+            font-size: 18px;
+            margin-bottom: 32px;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Footer */
+        footer {
+            padding: 48px 0;
+            border-top: 1px solid var(--border-color);
+            background: var(--obsidian-black);
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 24px;
+        }
+
+        .footer-left {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 24px;
+        }
+
+        .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+
+        .footer-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .footer-right {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 36px;
+            }
+
+            .hero-subtitle {
+                font-size: 16px;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .section-header h2 {
+                font-size: 28px;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .hero-cta {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .footer-content {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .footer-left {
+                flex-direction: column;
+            }
+        }
+
+        /* Trust Badges */
+        .trust-badges {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            margin-top: 40px;
+            flex-wrap: wrap;
+        }
+
+        .trust-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .trust-badge svg {
+            width: 20px;
+            height: 20px;
+            color: var(--success);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <a href="/" class="logo">
+                <div class="logo-icon">S</div>
+                <span class="logo-text">SCALOR</span>
+            </a>
+            <div class="nav-links">
+                <a href="#features">Fonctionnalités</a>
+                <a href="#data-usage">Utilisation des données</a>
+                <a href="/ecom/privacy">Politique de confidentialité</a>
+                <a href="mailto:contact@safitech.shop">Contact</a>
+                <a href="/ecom/login" class="btn-primary">Se connecter</a>
+            </div>
+        </nav>
+    </header>
+
+    <section class="hero">
+        <div class="container hero-content">
+            <h1>La plateforme tout-en-un pour les vendeurs e-commerce</h1>
+            <p class="hero-subtitle">
+                SCALOR centralise la gestion de vos boutiques Shopify, WooCommerce et autres. 
+                Suivez vos commandes, analysez vos performances et faites des ventes en direct depuis une interface unique.
+            </p>
+            <div class="hero-cta">
+                <a href="/ecom/login" class="btn-primary btn-large">Commencer gratuitement</a>
+                <a href="#features" class="btn-secondary">Découvrir les fonctionnalités</a>
+            </div>
+            <div class="trust-badges">
+                <div class="trust-badge">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    <span>Sécurisé & Chiffré</span>
+                </div>
+                <div class="trust-badge">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    <span>Conforme RGPD</span>
+                </div>
+                <div class="trust-badge">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    <span>Authentification OAuth</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="features" class="features">
+        <div class="container">
+            <div class="section-header">
+                <h2>Une suite complète pour votre business</h2>
+                <p>Toutes les fonctionnalités nécessaires pour gérer et développer votre activité e-commerce</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>Tableau de bord centralisé</h3>
+                    <p>Visualisez vos performances en temps réel : revenus, commandes, panier moyen, et taux de conversion. Prenez des décisions éclairées basées sur des données précises.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📦</div>
+                    <h3>Gestion multi-boutiques</h3>
+                    <p>Connectez et gérez toutes vos boutiques (Shopify, WooCommerce, etc.) depuis une seule interface. Synchronisation automatique des commandes et stocks.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💬</div>
+                    <h3>Ventes en direct</h3>
+                    <p>Intégrez votre boutique à des lives WhatsApp. Vos clients commandent directement pendant vos diffusions, vous validez en un clic.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔔</div>
+                    <h3>Notifications push</h3>
+                    <p>Recevez des alertes instantanées pour les nouvelles commandes, messages clients, et événements importants. Ne manquez jamais une opportunité de vente.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📈</div>
+                    <h3>Analyses & rapports</h3>
+                    <p>Générez des rapports détaillés sur vos ventes, produits populaires, comportement client. Exportez en PDF ou partagez avec votre équipe.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">👥</div>
+                    <h3>Collaboration d'équipe</h3>
+                    <p>Invitez votre équipe avec des rôles spécifiques (admin, vendeur, comptable). Messagerie interne et chat pour une coordination efficace.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <h3>Agent IA vendeur</h3>
+                    <p>Notre agent IA analyse vos performances et vous suggère automatiquement des actions pour optimiser vos ventes et gérer vos relances clients.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔐</div>
+                    <h3>Sécurité avancée</h3>
+                    <p>Authentification OAuth, chiffrement des données, conformité RGPD. Vos informations et celles de vos clients sont protégées aux plus hauts standards.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="data-usage" class="data-usage">
+        <div class="container">
+            <div class="section-header">
+                <h2>Transparence sur l'utilisation de vos données</h2>
+                <p>Nous prenons la protection de vos données très au sérieux. Voici comment nous utilisons les informations que vous nous partagez.</p>
+            </div>
+            <div class="data-grid">
+                <div class="data-item">
+                    <div class="data-icon">📧</div>
+                    <div>
+                        <h4>Email et profil</h4>
+                        <p>Utilisés pour l'authentification sécurisée, la personnalisation de votre tableau de bord, et l'envoi de notifications importantes concernant votre compte.</p>
+                    </div>
+                </div>
+                <div class="data-item">
+                    <div class="data-icon">🛒</div>
+                    <div>
+                        <h4>Données de commande</h4>
+                        <p>Récupérées depuis vos boutiques connectées pour affichage et analyse. Stockées de manière sécurisée et jamais partagées avec des tiers.</p>
+                    </div>
+                </div>
+                <div class="data-item">
+                    <div class="data-icon">📊</div>
+                    <div>
+                        <h4>Métriques de performance</h4>
+                        <p>Collectées pour générer vos rapports et statistiques. Anonymisées pour nos analyses globales afin d'améliorer le service.</p>
+                    </div>
+                </div>
+                <div class="data-item">
+                    <div class="data-icon">🔔</div>
+                    <div>
+                        <h4>Notifications push</h4>
+                        <p>Nous demandons l'autorisation pour vous envoyer des alertes sur nouvelles commandes et messages. Vous pouvez désactiver cette fonction à tout moment.</p>
+                    </div>
+                </div>
+                <div class="data-item">
+                    <div class="data-icon">💾</div>
+                    <div>
+                        <h4>Stockage sécurisé</h4>
+                        <p>Vos données sont stockées sur des serveurs sécurisés (MongoDB Atlas, Supabase) avec chiffrement et conformité RGPD.</p>
+                    </div>
+                </div>
+                <div class="data-item">
+                    <div class="data-icon">🗑️</div>
+                    <div>
+                        <h4>Suppression de données</h4>
+                        <p>Vous pouvez demander la suppression complète de vos données à tout moment via votre profil ou en contactant notre support.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="integrations">
+        <div class="container">
+            <div class="section-header">
+                <h2>Intégrations supportées</h2>
+                <p>Connectez vos outils e-commerce préférés</p>
+            </div>
+            <div class="integration-logos">
+                <div class="integration-logo">🛍️ Shopify</div>
+                <div class="integration-logo">🌐 WooCommerce</div>
+                <div class="integration-logo">💬 WhatsApp Business</div>
+                <div class="integration-logo">📧 Email SMTP</div>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta">
+        <div class="container">
+            <h2>Prêt à optimiser votre e-commerce ?</h2>
+            <p>Rejoignez des centaines de vendeurs qui utilisent SCALOR pour développer leur business en ligne.</p>
+            <a href="/ecom/login" class="btn-primary btn-large">Créer un compte gratuit</a>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container footer-content">
+            <div class="footer-left">
+                <a href="/" class="logo">
+                    <div class="logo-icon">S</div>
+                    <span class="logo-text">SCALOR</span>
+                </a>
+                <div class="footer-links">
+                    <a href="/ecom/privacy">Politique de confidentialité</a>
+                    <a href="mailto:contact@safitech.shop">Contact</a>
+                    <a href="/ecom/login">Se connecter</a>
+                </div>
+            </div>
+            <div class="footer-right">
+                © 2025 SCALOR by Safitech. Tous droits réservés.
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

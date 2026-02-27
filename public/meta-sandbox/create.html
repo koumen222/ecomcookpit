@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Créer une campagne - Meta Ads Manager</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Top Navigation Bar -->
+  <div class="top-nav">
+    <div class="top-nav-left">
+      <div class="meta-logo">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#1877F2">
+          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+        </svg>
+        <span class="meta-text">Meta</span>
+      </div>
+      <div class="nav-divider"></div>
+      <div class="nav-item active">
+        <span>Publicités</span>
+      </div>
+    </div>
+    <div class="top-nav-right">
+      <button class="nav-btn" onclick="window.location.href='index.html'">
+        <span>←</span>
+        <span class="btn-text">Retour</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="main-layout">
+    <!-- Left Sidebar -->
+    <div class="left-sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-item" onclick="window.location.href='index.html'">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10 2L3 7v11h4v-6h6v6h4V7l-7-5z"/>
+          </svg>
+          <span>Vue d'ensemble</span>
+        </div>
+        <div class="sidebar-item active" onclick="window.location.href='create.html'">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M11 9h4v2h-4v4H9v-4H5V9h4V5h2v4zm-1 11a10 10 0 1 1 0-20 10 10 0 0 1 0 20z"/>
+          </svg>
+          <span>Créer</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <div class="create-container">
+        <!-- Step 1: Campaign Objective Modal Style -->
+        <div class="create-content" id="stepContent1">
+          <div class="modal-style">
+            <h1 class="modal-title">Créer une campagne</h1>
+            <p class="modal-subtitle">Nouvel ensemble de publicités ou nouvelle publicité</p>
+            
+            <div class="form-section-modal">
+              <div class="form-group-modal">
+                <label class="form-label-modal">
+                  Choisissez un type d'achat
+                  <span class="info-icon" title="Plus d'informations">ℹ️</span>
+                </label>
+                <select id="purchaseType" class="form-select-modal">
+                  <option value="auction">Enchères</option>
+                </select>
+              </div>
+
+              <div class="form-group-modal">
+                <label class="form-label-modal">Choisissez un objectif de campagne</label>
+                <div class="objectives-list">
+                  <label class="objective-radio">
+                    <input type="radio" name="objective" value="awareness" class="radio-input">
+                    <div class="objective-radio-content">
+                      <div class="objective-radio-icon">📢</div>
+                      <div class="objective-radio-text">
+                        <div class="objective-radio-title">Notoriété</div>
+                      </div>
+                    </div>
+                  </label>
+                  <label class="objective-radio">
+                    <input type="radio" name="objective" value="traffic" class="radio-input">
+                    <div class="objective-radio-content">
+                      <div class="objective-radio-icon">👆</div>
+                      <div class="objective-radio-text">
+                        <div class="objective-radio-title">Trafic</div>
+                      </div>
+                    </div>
+                  </label>
+                  <label class="objective-radio">
+                    <input type="radio" name="objective" value="engagement" class="radio-input">
+                    <div class="objective-radio-content">
+                      <div class="objective-radio-icon">💬</div>
+                      <div class="objective-radio-text">
+                        <div class="objective-radio-title">Interactions</div>
+                      </div>
+                    </div>
+                  </label>
+                  <label class="objective-radio">
+                    <input type="radio" name="objective" value="leads" class="radio-input">
+                    <div class="objective-radio-content">
+                      <div class="objective-radio-icon">🔽</div>
+                      <div class="objective-radio-text">
+                        <div class="objective-radio-title">Prospects</div>
+                      </div>
+                    </div>
+                  </label>
+                  <label class="objective-radio">
+                    <input type="radio" name="objective" value="app_promotion" class="radio-input">
+                    <div class="objective-radio-content">
+                      <div class="objective-radio-icon">👥</div>
+                      <div class="objective-radio-text">
+                        <div class="objective-radio-title">Promotion de l'application</div>
+                      </div>
+                    </div>
+                  </label>
+                  <label class="objective-radio">
+                    <input type="radio" name="objective" value="sales" class="radio-input">
+                    <div class="objective-radio-content">
+                      <div class="objective-radio-icon">🛒</div>
+                      <div class="objective-radio-text">
+                        <div class="objective-radio-title">Ventes</div>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+                <div class="objective-help-text">
+                  Votre objectif de campagne est l'objectif commercial que vous espérez atteindre en diffusant vos publicités. Survolez chacun d'entre eux pour plus d'informations.
+                </div>
+              </div>
+
+              <div class="modal-actions">
+                <a href="#" class="link-text">À propos des objectifs de campagne</a>
+                <div class="modal-buttons">
+                  <button class="btn-secondary" onclick="window.location.href='index.html'">Annuler</button>
+                  <button class="btn-primary" id="continueToAdSet" disabled>Continuer</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Ad Set -->
+        <div class="create-content" id="stepContent2" style="display: none;">
+          <div class="create-layout">
+            <!-- Left Sidebar Steps -->
+            <div class="create-sidebar">
+              <div class="create-sidebar-item active">
+                <span>Nouvelle campagne de Ventes</span>
+                <span class="sidebar-dots">⋯</span>
+              </div>
+              <div class="create-sidebar-item active">
+                <span>Nouvel ensemble de publicités de Ve...</span>
+                <span class="sidebar-dots">⋯</span>
+              </div>
+              <div class="create-sidebar-item">
+                <span>Nouvelle publicité de Ventes</span>
+                <span class="sidebar-dots">⋯</span>
+              </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="create-main">
+              <div class="create-section-detailed">
+                <div class="section-header">
+                  <h2 class="section-title-detailed">Nom de l'ensemble de publicités</h2>
+                  <button class="btn-link">Créer un modèle</button>
+                </div>
+                <input type="text" id="adSetName" class="form-input-detailed" value="Nouvel ensemble de publicités de Ventes">
+
+                <div class="section-header">
+                  <h2 class="section-title-detailed">Budget et calendrier</h2>
+                </div>
+                <div class="section-content">
+                  <div class="form-group-detailed">
+                    <label class="form-label-detailed">Budget quotidien (FCFA)</label>
+                    <input type="number" id="dailyBudget" class="form-input-detailed" min="1000" max="50000" step="100" value="10000">
+                    <div class="form-hint-detailed">Vous dépenserez une moyenne de 10 000 FCFA par jour.</div>
+                  </div>
+                  <div class="form-group-detailed">
+                    <label class="form-label-detailed">Date de début</label>
+                    <input type="date" id="startDate" class="form-input-detailed">
+                  </div>
+                </div>
+
+                <div class="section-header">
+                  <h2 class="section-title-detailed">Audience</h2>
+                </div>
+                <div class="section-content">
+                  <div class="advantage-badge">Advantage+ active</div>
+                  <div class="form-group-detailed">
+                    <label class="form-label-detailed">Pays</label>
+                    <select id="country" class="form-select-detailed">
+                      <option value="Cameroun">Cameroun</option>
+                      <option value="Sénégal">Sénégal</option>
+                      <option value="Côte d'Ivoire">Côte d'Ivoire</option>
+                    </select>
+                  </div>
+                  <div class="form-group-detailed">
+                    <label class="form-label-detailed">Âge</label>
+                    <div class="age-range-detailed">
+                      <input type="range" id="ageMin" min="18" max="65" value="18" class="range-input-detailed">
+                      <input type="range" id="ageMax" min="18" max="65" value="65" class="range-input-detailed">
+                      <div class="age-display-detailed">
+                        <span id="ageMinValue">18</span> - <span id="ageMaxValue">65</span> ans
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group-detailed">
+                    <label class="form-label-detailed">Sexe</label>
+                    <select id="gender" class="form-select-detailed">
+                      <option value="all">Tous</option>
+                      <option value="male">Hommes</option>
+                      <option value="female">Femmes</option>
+                    </select>
+                  </div>
+                  <div class="form-group-detailed">
+                    <label class="form-label-detailed">Type de ciblage</label>
+                    <select id="targeting" class="form-select-detailed">
+                      <option value="broad">Large (Broad)</option>
+                      <option value="interests">Intérêts</option>
+                      <option value="retargeting">Retargeting</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Sidebar Insights -->
+            <div class="create-right-sidebar">
+              <div class="insight-card">
+                <div class="insight-score">100</div>
+                <div class="insight-text">Vous utilisez notre configuration recommandée.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="create-footer">
+            <button class="btn-secondary" id="backToCampaign">Fermer</button>
+            <button class="btn-secondary" id="backToCampaign2">Retour</button>
+            <button class="btn-primary" id="continueToAds">Suivant</button>
+          </div>
+        </div>
+
+        <!-- Step 3: Ads -->
+        <div class="create-content" id="stepContent3" style="display: none;">
+          <div class="create-layout">
+            <div class="create-sidebar">
+              <div class="create-sidebar-item completed">
+                <span>Nouvelle campagne de Ventes</span>
+                <span class="sidebar-dots">⋯</span>
+              </div>
+              <div class="create-sidebar-item completed">
+                <span>Nouvel ensemble de publicités de Ve...</span>
+                <span class="sidebar-dots">⋯</span>
+              </div>
+              <div class="create-sidebar-item active">
+                <span>Nouvelle publicité de Ventes</span>
+                <span class="sidebar-dots">⋯</span>
+              </div>
+            </div>
+
+            <div class="create-main">
+              <div class="create-section-detailed">
+                <div class="section-header">
+                  <h2 class="section-title-detailed">Nom de l'annonce</h2>
+                </div>
+                <input type="text" id="adName" class="form-input-detailed" value="Nouvelle publicité de Ventes">
+
+                <div class="section-header">
+                  <h2 class="section-title-detailed">Format de la créative</h2>
+                </div>
+                <div class="section-content">
+                  <div class="form-group-detailed">
+                    <label class="form-label-detailed">Type de créative</label>
+                    <select id="creativeType" class="form-select-detailed">
+                      <option value="ugc">UGC (User Generated Content)</option>
+                      <option value="image">Image</option>
+                      <option value="video">Vidéo</option>
+                    </select>
+                  </div>
+                  <div class="form-group-detailed">
+                    <label class="form-label-detailed">Qualité du hook</label>
+                    <select id="hookQuality" class="form-select-detailed">
+                      <option value="low">Faible</option>
+                      <option value="medium">Moyen</option>
+                      <option value="high">Fort</option>
+                    </select>
+                  </div>
+                  <div class="form-group-detailed">
+                    <label class="form-label-detailed">Qualité de la créative</label>
+                    <select id="creativeQuality" class="form-select-detailed">
+                      <option value="low">Faible</option>
+                      <option value="medium">Moyen</option>
+                      <option value="high">Fort</option>
+                    </select>
+                  </div>
+                  <div class="form-group-detailed">
+                    <label class="form-label-detailed">Qualité de l'offre</label>
+                    <select id="offerQuality" class="form-select-detailed">
+                      <option value="low">Faible</option>
+                      <option value="medium">Moyen</option>
+                      <option value="high">Fort</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="create-footer">
+            <button class="btn-secondary" id="backToAdSet">Fermer</button>
+            <button class="btn-secondary" id="backToAdSet2">Retour</button>
+            <button class="btn-primary" id="publishCampaign">Publier</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="engine.js"></script>
+  <script src="ui.js"></script>
+  <script>
+    let currentStep = 1;
+    const campaignData = {};
+
+    function updateStep(step) {
+      document.querySelectorAll('.create-content').forEach(el => el.style.display = 'none');
+      document.getElementById(`stepContent${step}`).style.display = 'block';
+      currentStep = step;
+    }
+
+    // Objective radio buttons
+    document.querySelectorAll('.radio-input').forEach(radio => {
+      radio.addEventListener('change', () => {
+        campaignData.objective = radio.value;
+        document.getElementById('continueToAdSet').disabled = false;
+      });
+    });
+
+    // Step 1
+    document.getElementById('continueToAdSet').addEventListener('click', () => {
+      const selectedObjective = document.querySelector('input[name="objective"]:checked');
+      if (!selectedObjective) {
+        alert('Veuillez sélectionner un objectif');
+        return;
+      }
+      campaignData.objective = selectedObjective.value;
+      campaignData.name = 'Nouvelle campagne de ' + getObjectiveName(selectedObjective.value);
+      updateStep(2);
+    });
+
+    function getObjectiveName(value) {
+      const names = {
+        'awareness': 'Notoriété',
+        'traffic': 'Trafic',
+        'engagement': 'Interactions',
+        'leads': 'Prospects',
+        'app_promotion': 'Application',
+        'sales': 'Ventes'
+      };
+      return names[value] || 'Campagne';
+    }
+
+    // Step 2
+    document.getElementById('ageMin').addEventListener('input', (e) => {
+      document.getElementById('ageMinValue').textContent = e.target.value;
+    });
+    document.getElementById('ageMax').addEventListener('input', (e) => {
+      document.getElementById('ageMaxValue').textContent = e.target.value;
+    });
+
+    document.getElementById('continueToAds').addEventListener('click', () => {
+      campaignData.country = document.getElementById('country').value;
+      campaignData.dailyBudget = parseFloat(document.getElementById('dailyBudget').value) || 10000;
+      campaignData.ageMin = parseInt(document.getElementById('ageMin').value);
+      campaignData.ageMax = parseInt(document.getElementById('ageMax').value);
+      campaignData.gender = document.getElementById('gender').value;
+      campaignData.targeting = document.getElementById('targeting').value;
+      updateStep(3);
+    });
+
+    document.getElementById('backToCampaign').addEventListener('click', () => updateStep(1));
+    document.getElementById('backToCampaign2').addEventListener('click', () => updateStep(1));
+
+    // Step 3
+    document.getElementById('publishCampaign').addEventListener('click', () => {
+      campaignData.creativeType = document.getElementById('creativeType').value;
+      campaignData.hookQuality = document.getElementById('hookQuality').value;
+      campaignData.creativeQuality = document.getElementById('creativeQuality').value;
+      campaignData.offerQuality = document.getElementById('offerQuality').value;
+      
+      const campaign = createCampaign(campaignData);
+      saveCampaign(campaign);
+      alert('✅ Campagne créée avec succès !');
+      window.location.href = 'index.html';
+    });
+
+    document.getElementById('backToAdSet').addEventListener('click', () => updateStep(2));
+    document.getElementById('backToAdSet2').addEventListener('click', () => updateStep(2));
+
+    // Map objectives to engine values
+    const objectiveMap = {
+      'awareness': 'traffic',
+      'traffic': 'traffic',
+      'engagement': 'traffic',
+      'leads': 'conversion',
+      'app_promotion': 'traffic',
+      'sales': 'conversion'
+    };
+
+    // Override createCampaign to map objectives
+    const originalCreateCampaign = window.createCampaign;
+    window.createCampaign = function(data) {
+      if (data.objective && objectiveMap[data.objective]) {
+        data.objective = objectiveMap[data.objective];
+      }
+      return originalCreateCampaign(data);
+    };
+
+    updateStep(1);
+  </script>
+</body>
+</html>
