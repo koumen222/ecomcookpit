@@ -40,6 +40,45 @@ loadWhatsAppService();
 
 const router = express.Router();
 
+// Helper: normaliser les noms de villes pour regrouper les variantes
+function normalizeCityName(city) {
+  if (!city || typeof city !== 'string') return null;
+  
+  // Nettoyer et normaliser
+  let normalized = city.trim()
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Enlever accents
+    .replace(/[^a-z0-9\s-]/g, '') // Garder seulement lettres, chiffres, espaces, tirets
+    .replace(/\s+/g, ' '); // Normaliser espaces multiples
+  
+  // Extraire la ville principale (avant le tiret ou la virgule)
+  const mainCity = normalized.split(/[-,]/)[0].trim();
+  
+  // Capitaliser première lettre
+  return mainCity.charAt(0).toUpperCase() + mainCity.slice(1);
+}
+
+// Helper: grouper les villes similaires
+function groupCities(cityList) {
+  const cityMap = new Map(); // normalized -> original
+  const cityCount = new Map(); // normalized -> count
+  
+  cityList.forEach(city => {
+    const normalized = normalizeCityName(city);
+    if (!normalized) return;
+    
+    if (!cityMap.has(normalized)) {
+      cityMap.set(normalized, city);
+      cityCount.set(normalized, 1);
+    } else {
+      cityCount.set(normalized, cityCount.get(normalized) + 1);
+    }
+  });
+  
+  // Retourner les villes normalisées triées
+  return Array.from(cityMap.keys()).sort();
+}
+
 // Helper: remplacer les variables dans le template (priorité aux données de commande)
 function renderMessage(template, client, orderData = null) {
   // Utiliser les données de commande si disponibles, sinon utiliser les données client
@@ -81,7 +120,11 @@ function buildClientFilter(workspaceId, targetFilters) {
   if (clientStatus) filter.status = clientStatus;
   if (targetFilters.city) {
     const cities = toArray(targetFilters.city);
-    filter.city = cities.length > 1 ? { $in: cities } : cities[0];
+    if (cities.length === 1) {
+      filter.city = { $regex: `^${cities[0]}`, $options: 'i' };
+    } else if (cities.length > 1) {
+      filter.$or = cities.map(c => ({ city: { $regex: `^${c}`, $options: 'i' } }));
+    }
   }
   if (targetFilters.product) {
     const prods = toArray(targetFilters.product);
@@ -101,7 +144,13 @@ async function getClientsFromOrderFilters(workspaceId, targetFilters) {
   if (statusVal) orderFilter.status = statusVal;
   if (targetFilters.orderCity) {
     const cities = toArray(targetFilters.orderCity);
-    orderFilter.city = cities.length > 1 ? { $in: cities } : cities[0];
+    if (cities.length === 1) {
+      // Recherche flexible : "Douala" trouve "douala", "Douala-Akwa", etc.
+      orderFilter.city = { $regex: `^${cities[0]}`, $options: 'i' };
+    } else if (cities.length > 1) {
+      // Plusieurs villes : $or avec regex pour chacune
+      orderFilter.$or = cities.map(c => ({ city: { $regex: `^${c}`, $options: 'i' } }));
+    }
   }
   if (targetFilters.orderAddress) orderFilter.address = { $regex: targetFilters.orderAddress, $options: 'i' };
   if (targetFilters.orderProduct) {
@@ -198,8 +247,11 @@ router.get('/filter-options', requireEcomAuth, async (req, res) => {
       Client.find({ ...wsFilter, address: { $exists: true, $ne: '' } }).distinct('address')
     ]);
     
-    // Fusionner et dédupliquer
-    const cities = [...new Set([...orderCities, ...clientCities])].filter(Boolean).sort();
+    // Fusionner et normaliser les villes intelligemment
+    const allCities = [...orderCities, ...clientCities].filter(Boolean);
+    const cities = groupCities(allCities);
+    
+    // Produits et adresses : simple dédupliquer
     const products = [...new Set([...orderProducts, ...clientProducts])].filter(Boolean).sort();
     const addresses = [...new Set([...orderAddresses, ...clientAddresses])].filter(Boolean).sort();
 
@@ -359,7 +411,11 @@ router.post('/preview', requireEcomAuth, async (req, res) => {
       
       if (tf.orderCity) {
         const cities = toArray(tf.orderCity);
-        orderFilter.city = cities.length > 1 ? { $in: cities } : cities[0];
+        if (cities.length === 1) {
+          orderFilter.city = { $regex: `^${cities[0]}`, $options: 'i' };
+        } else if (cities.length > 1) {
+          orderFilter.$or = cities.map(c => ({ city: { $regex: `^${c}`, $options: 'i' } }));
+        }
       }
       if (tf.orderProduct) {
         const prods = toArray(tf.orderProduct);
