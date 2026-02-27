@@ -81,15 +81,11 @@ function buildClientFilter(workspaceId, targetFilters) {
   if (clientStatus) filter.status = clientStatus;
   if (targetFilters.city) {
     const cities = toArray(targetFilters.city);
-    filter.city = cities.length > 1
-      ? { $in: cities.map(c => new RegExp(c, 'i')) }
-      : { $regex: cities[0], $options: 'i' };
+    filter.city = cities.length > 1 ? { $in: cities } : cities[0];
   }
   if (targetFilters.product) {
     const prods = toArray(targetFilters.product);
-    filter.products = prods.length > 1
-      ? { $in: prods.map(p => new RegExp(p, 'i')) }
-      : { $regex: prods[0], $options: 'i' };
+    filter.products = prods.length > 1 ? { $in: prods } : prods[0];
   }
   if (targetFilters.tag) filter.tags = targetFilters.tag;
   if (targetFilters.minOrders > 0) filter.totalOrders = { ...filter.totalOrders, $gte: targetFilters.minOrders };
@@ -105,16 +101,12 @@ async function getClientsFromOrderFilters(workspaceId, targetFilters) {
   if (statusVal) orderFilter.status = statusVal;
   if (targetFilters.orderCity) {
     const cities = toArray(targetFilters.orderCity);
-    orderFilter.city = cities.length > 1
-      ? { $in: cities.map(c => new RegExp(c, 'i')) }
-      : { $regex: cities[0], $options: 'i' };
+    orderFilter.city = cities.length > 1 ? { $in: cities } : cities[0];
   }
   if (targetFilters.orderAddress) orderFilter.address = { $regex: targetFilters.orderAddress, $options: 'i' };
   if (targetFilters.orderProduct) {
     const prods = toArray(targetFilters.orderProduct);
-    orderFilter.product = prods.length > 1
-      ? { $in: prods.map(p => new RegExp(p, 'i')) }
-      : { $regex: prods[0], $options: 'i' };
+    orderFilter.product = prods.length > 1 ? { $in: prods } : prods[0];
   }
   if (targetFilters.orderDateFrom) orderFilter.date = { ...orderFilter.date, $gte: new Date(targetFilters.orderDateFrom) };
   if (targetFilters.orderDateTo) {
@@ -367,15 +359,11 @@ router.post('/preview', requireEcomAuth, async (req, res) => {
       
       if (tf.orderCity) {
         const cities = toArray(tf.orderCity);
-        orderFilter.city = cities.length > 1
-          ? { $in: cities.map(c => new RegExp(c, 'i')) }
-          : { $regex: cities[0], $options: 'i' };
+        orderFilter.city = cities.length > 1 ? { $in: cities } : cities[0];
       }
       if (tf.orderProduct) {
         const prods = toArray(tf.orderProduct);
-        orderFilter.product = prods.length > 1
-          ? { $in: prods.map(p => new RegExp(p, 'i')) }
-          : { $regex: prods[0], $options: 'i' };
+        orderFilter.product = prods.length > 1 ? { $in: prods } : prods[0];
       }
       if (tf.orderDateFrom) orderFilter.date = { ...orderFilter.date, $gte: new Date(tf.orderDateFrom) };
       if (tf.orderDateTo) {
