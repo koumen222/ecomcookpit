@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect, useCallback } from 'react';
+﻿import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import CurrencySelector from './CurrencySelector.jsx';
@@ -12,7 +12,7 @@ import GlobalSearch from './GlobalSearch.jsx';
 import WorkspaceSwitcherMenu from './WorkspaceSwitcherMenu.jsx';
 import TopLoader from './TopLoader.jsx';
 
-const EcomLayout = ({ children }) => {
+const EcomLayoutComponent = ({ children }) => {
   const { user, workspace, logout, isImpersonating, impersonatedUser, stopImpersonation } = useEcomAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -139,8 +139,8 @@ const EcomLayout = ({ children }) => {
 
   const isSuperAdmin = user?.role === 'super_admin';
 
-  // --- Navigation items grouped by section ---
-  const mainNav = [
+  // --- Navigation items grouped by section (mémorisés pour éviter re-création) ---
+  const mainNav = useMemo(() => [
     {
       name: 'Accueil', shortName: 'Accueil', href: dashboardPath, primary: true,
       roles: ['ecom_admin', 'ecom_closeuse', 'ecom_compta', 'ecom_livreur'],
@@ -191,9 +191,9 @@ const EcomLayout = ({ children }) => {
       roles: ['ecom_admin', 'ecom_compta'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
     },
-  ];
+  ], [dashboardPath]);
 
-  const secondaryNav = [
+  const secondaryNav = useMemo(() => [
     {
       name: 'Marketing', shortName: 'Marketing', href: '/ecom/campaigns', primary: false,
       roles: ['ecom_admin', 'ecom_closeuse'],
@@ -219,17 +219,17 @@ const EcomLayout = ({ children }) => {
       roles: ['ecom_admin'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
     },
-  ];
+  ], []);
 
-  const bottomNav = [
+  const bottomNav = useMemo(() => [
     {
       name: 'Paramètres', shortName: 'Réglages', href: '/ecom/settings', primary: false,
       roles: ['ecom_admin', 'ecom_closeuse', 'ecom_compta', 'ecom_livreur'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
     },
-  ];
+  ], []);
 
-  const superAdminNav = [
+  const superAdminNav = useMemo(() => [
     {
       name: 'Dashboard', shortName: 'Accueil', href: '/ecom/super-admin', primary: true,
       roles: ['super_admin'],
@@ -275,16 +275,16 @@ const EcomLayout = ({ children }) => {
       roles: ['super_admin'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
     },
-  ];
+  ], []);
 
-  const allNav = [...mainNav, ...secondaryNav, ...bottomNav, ...superAdminNav];
-  const filteredMain = mainNav.filter(i => i.roles.includes(user?.role));
-  const filteredSecondary = secondaryNav.filter(i => i.roles.includes(user?.role));
-  const filteredBottom = bottomNav.filter(i => i.roles.includes(user?.role));
-  const filteredSuperAdmin = superAdminNav.filter(i => i.roles.includes(user?.role));
-  const filteredAll = allNav.filter(i => i.roles.includes(user?.role));
+  const allNav = useMemo(() => [...mainNav, ...secondaryNav, ...bottomNav, ...superAdminNav], [mainNav, secondaryNav, bottomNav, superAdminNav]);
+  const filteredMain = useMemo(() => mainNav.filter(i => i.roles.includes(user?.role)), [mainNav, user?.role]);
+  const filteredSecondary = useMemo(() => secondaryNav.filter(i => i.roles.includes(user?.role)), [secondaryNav, user?.role]);
+  const filteredBottom = useMemo(() => bottomNav.filter(i => i.roles.includes(user?.role)), [bottomNav, user?.role]);
+  const filteredSuperAdmin = useMemo(() => superAdminNav.filter(i => i.roles.includes(user?.role)), [superAdminNav, user?.role]);
+  const filteredAll = useMemo(() => allNav.filter(i => i.roles.includes(user?.role)), [allNav, user?.role]);
 
-  const mobileMainTabs = filteredAll.filter(i => i.primary).slice(0, 5);
+  const mobileMainTabs = useMemo(() => filteredAll.filter(i => i.primary).slice(0, 5), [filteredAll]);
   // Icônes mobile agrandies (w-7 h-7 au lieu de w-8 h-8)
   const mobileIcon = (item) => React.cloneElement(item.icon, { className: 'w-5 h-5' });
   const mobileIconLg = (item) => React.cloneElement(item.icon, { className: 'w-5 h-5' });
@@ -732,5 +732,8 @@ const getPageTitle = (pathname) => {
   if (pathname.includes('/marketing')) return 'Marketing';
   return 'Scalor';
 };
+
+// Mémoriser le layout pour éviter les re-renders lors de la navigation
+const EcomLayout = memo(EcomLayoutComponent);
 
 export default EcomLayout;
