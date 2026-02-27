@@ -64,6 +64,41 @@ function dateFilter(range = '30d', startDate = null, endDate = null) {
 }
 
 // ──────────────────────────────────────────────────────────
+// Helper: resolve country from IP (Cloudflare headers first, then ipinfo.io)
+// ──────────────────────────────────────────────────────────
+const _geoCache = new Map(); // simple in-memory cache
+async function resolveCountry(req) {
+  // 1. Cloudflare / reverse-proxy headers (instant)
+  const cfCountry = req.headers['cf-ipcountry'];
+  if (cfCountry && cfCountry !== 'XX') return { country: cfCountry.toUpperCase(), city: req.headers['cf-ipcity'] || null };
+
+  // 2. Extract real IP from x-forwarded-for
+  const forwarded = req.headers['x-forwarded-for'];
+  const ip = forwarded ? forwarded.split(',')[0].trim() : req.socket?.remoteAddress;
+  if (!ip || ip === '::1' || ip === '127.0.0.1') return { country: null, city: null };
+
+  // 3. Cache hit
+  if (_geoCache.has(ip)) return _geoCache.get(ip);
+
+  // 4. ipinfo.io lookup (free, no key needed for basic country)
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1500);
+    const r = await fetch(`https://ipinfo.io/${ip}/json`, { signal: controller.signal });
+    clearTimeout(timer);
+    if (r.ok) {
+      const d = await r.json();
+      const geo = { country: d.country || null, city: d.city || null };
+      _geoCache.set(ip, geo);
+      if (_geoCache.size > 5000) _geoCache.delete(_geoCache.keys().next().value);
+      return geo;
+    }
+  } catch (_) { /* timeout or network — continue */ }
+
+  return { country: null, city: null };
+}
+
+// ──────────────────────────────────────────────────────────
 // POST /api/ecom/analytics/track
 // Public endpoint for tracking events from the frontend
 // ──────────────────────────────────────────────────────────
@@ -78,9 +113,8 @@ router.post('/track', async (req, res) => {
     const ua = req.headers['user-agent'] || '';
     const { device, browser, os } = parseUserAgent(ua);
 
-    // Geo from headers (set by reverse proxy / Cloudflare)
-    const country = req.headers['cf-ipcountry'] || req.headers['x-country'] || null;
-    const city = req.headers['cf-ipcity'] || req.headers['x-city'] || null;
+    // Geo: Cloudflare headers first, then IP lookup fallback
+    const { country, city } = await resolveCountry(req);
 
     // Create event
     await AnalyticsEvent.create({
@@ -534,22 +568,55 @@ router.get('/countries',
         }
       ]);
 
-      // Signups by country
+      // Signups by country (from AnalyticsEvent)
       const signupsByCountry = await AnalyticsEvent.aggregate([
         { $match: { createdAt: { $gte: since, $lte: until }, eventType: 'signup_completed', country: { $ne: null } } },
         { $group: { _id: '$country', signups: { $sum: 1 } } }
       ]);
-
       const signupMap = {};
       signupsByCountry.forEach(s => { signupMap[s._id] = s.signups; });
 
-      const result = countries.map(c => ({
+      let result = countries.map(c => ({
         ...c,
         signups: signupMap[c.country] || 0,
         conversionRate: c.sessions > 0
           ? Math.round(((signupMap[c.country] || 0) / c.sessions) * 100)
           : 0
       }));
+
+      // ── Fallback: if no session geo data, use EcomUser registrations per country ──
+      // We use the login events country as a proxy, or aggregate signups from AnalyticsEvent
+      if (result.length === 0) {
+        // Use signup events that DO have country
+        const signupCountries = await AnalyticsEvent.aggregate([
+          { $match: { createdAt: { $gte: since, $lte: until }, eventType: { $in: ['signup_completed', 'login'] }, country: { $ne: null } } },
+          {
+            $group: {
+              _id: '$country',
+              sessions: { $sum: 1 },
+              uniqueUsers: { $addToSet: '$userId' },
+              signups: { $sum: { $cond: [{ $eq: ['$eventType', 'signup_completed'] }, 1, 0] } }
+            }
+          },
+          { $sort: { sessions: -1 } },
+          { $limit: 30 },
+          {
+            $project: {
+              country: '$_id',
+              sessions: 1,
+              signups: 1,
+              uniqueUsers: { $size: { $filter: { input: '$uniqueUsers', cond: { $ne: ['$$this', null] } } } },
+              pageViews: '$sessions',
+              avgDuration: 0,
+              bounceRate: 0,
+              conversionRate: {
+                $cond: [{ $gt: ['$sessions', 0] }, { $round: [{ $multiply: [{ $divide: ['$signups', '$sessions'] }, 100] }, 0] }, 0]
+              }
+            }
+          }
+        ]);
+        result = signupCountries;
+      }
 
       res.json({
         success: true,
@@ -643,8 +710,8 @@ router.get('/users-activity',
       const { since, until } = dateFilter(range, startDate, endDate);
       const skip = (parseInt(page) - 1) * parseInt(limit);
 
-      // Recent logins
-      const recentLogins = await AnalyticsEvent.aggregate([
+      // Recent logins from AnalyticsEvent
+      let recentLogins = await AnalyticsEvent.aggregate([
         { $match: { createdAt: { $gte: since, $lte: until }, eventType: 'login' } },
         { $sort: { createdAt: -1 } },
         { $skip: skip },
@@ -662,6 +729,7 @@ router.get('/users-activity',
           $project: {
             date: '$createdAt',
             email: '$user.email',
+            name: '$user.name',
             role: '$user.role',
             workspaceId: '$user.workspaceId',
             country: 1,
@@ -672,13 +740,57 @@ router.get('/users-activity',
         }
       ]);
 
-      const totalLogins = await AnalyticsEvent.countDocuments({
+      let totalLogins = await AnalyticsEvent.countDocuments({
         createdAt: { $gte: since, $lte: until },
         eventType: 'login'
       });
 
-      // Active by role
-      const activeByRole = await AnalyticsEvent.aggregate([
+      // ── Fallback: si aucun event login, utiliser EcomUser.lastLogin ──
+      if (recentLogins.length === 0) {
+        const fallbackUsers = await EcomUser.find(
+          { lastLogin: { $gte: since, $lte: until } },
+          { email: 1, name: 1, role: 1, workspaceId: 1, lastLogin: 1, createdAt: 1 }
+        ).sort({ lastLogin: -1 }).skip(skip).limit(parseInt(limit)).lean();
+
+        recentLogins = fallbackUsers.map(u => ({
+          _id: u._id,
+          date: u.lastLogin || u.createdAt,
+          email: u.email,
+          name: u.name,
+          role: u.role,
+          workspaceId: u.workspaceId,
+          country: null,
+          city: null,
+          device: null,
+          browser: null
+        }));
+        totalLogins = await EcomUser.countDocuments({ lastLogin: { $gte: since, $lte: until } });
+
+        // Second fallback: tous les users créés dans la période
+        if (recentLogins.length === 0) {
+          const newUsers = await EcomUser.find(
+            { createdAt: { $gte: since, $lte: until } },
+            { email: 1, name: 1, role: 1, workspaceId: 1, createdAt: 1 }
+          ).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)).lean();
+
+          recentLogins = newUsers.map(u => ({
+            _id: u._id,
+            date: u.createdAt,
+            email: u.email,
+            name: u.name,
+            role: u.role,
+            workspaceId: u.workspaceId,
+            country: null,
+            city: null,
+            device: null,
+            browser: null
+          }));
+          totalLogins = await EcomUser.countDocuments({ createdAt: { $gte: since, $lte: until } });
+        }
+      }
+
+      // Active by role — fallback sur EcomUser si AnalyticsEvent vide
+      let activeByRole = await AnalyticsEvent.aggregate([
         { $match: { createdAt: { $gte: since, $lte: until }, userId: { $ne: null } } },
         {
           $lookup: {
@@ -704,16 +816,25 @@ router.get('/users-activity',
         { $sort: { count: -1 } }
       ]);
 
+      if (activeByRole.length === 0) {
+        activeByRole = await EcomUser.aggregate([
+          { $match: { role: { $ne: null } } },
+          { $group: { _id: '$role', count: { $sum: 1 } } },
+          { $project: { role: '$_id', count: 1 } },
+          { $sort: { count: -1 } }
+        ]);
+      }
+
       // Users without workspace
       const noWorkspace = await EcomUser.countDocuments({ workspaceId: null });
 
-      // Inactive workspaces (no event from any member in 30 days)
+      // Inactive workspaces
       const activeWorkspaceIds = await AnalyticsEvent.distinct('workspaceId', {
         createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
         workspaceId: { $ne: null }
       });
       const totalWorkspaces = await Workspace.countDocuments();
-      const inactiveWorkspaces = totalWorkspaces - activeWorkspaceIds.length;
+      const inactiveWorkspaces = Math.max(0, totalWorkspaces - activeWorkspaceIds.length);
 
       res.json({
         success: true,
@@ -728,7 +849,7 @@ router.get('/users-activity',
             page: parseInt(page),
             limit: parseInt(limit),
             total: totalLogins,
-            pages: Math.ceil(totalLogins / parseInt(limit))
+            pages: Math.max(1, Math.ceil(totalLogins / parseInt(limit)))
           }
         }
       });

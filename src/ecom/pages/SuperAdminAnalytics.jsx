@@ -297,7 +297,7 @@ const SuperAdminAnalytics = () => {
   // CONVERSION TAB
   // ═══════════════════════════════════════════════════════════════════════════
   const renderConversion = () => {
-    if (!funnel) return <EmptyState message="Aucune donnée de conversion" />;
+    if (!funnel) return <EmptyState message="Chargement des données de conversion..." />;
     const { funnel: steps, dropoffs } = funnel;
     return (
       <div className="space-y-6">
@@ -373,7 +373,7 @@ const SuperAdminAnalytics = () => {
   // TRAFFIC TAB
   // ═══════════════════════════════════════════════════════════════════════════
   const renderTraffic = () => {
-    if (!traffic) return <EmptyState message="Aucune donnée de trafic" />;
+    if (!traffic) return <EmptyState message="Chargement des données de trafic..." />;
     const { byDevice, byBrowser, byOS, hourly, byReferrer } = traffic;
     return (
       <div className="space-y-6">
@@ -400,7 +400,7 @@ const SuperAdminAnalytics = () => {
                   );
                 })}
               </div>
-            ) : <p className="text-xs text-gray-400">Aucune donnée</p>}
+            ) : <p className="text-xs text-gray-400">Les appareils s'afficheront dès que des sessions sont enregistrées.</p>}
           </SectionCard>
 
           <SectionCard title="Par navigateur">
@@ -508,7 +508,16 @@ const SuperAdminAnalytics = () => {
   // COUNTRIES TAB
   // ═══════════════════════════════════════════════════════════════════════════
   const renderCountries = () => {
-    if (!countries?.countries?.length) return <EmptyState message="Aucune donnée géographique" />;
+    if (!countries?.countries?.length) return (
+      <div className="bg-white rounded-2xl border border-gray-200/80 p-12 text-center shadow-sm">
+        <MapPin className="w-10 h-10 text-gray-300 mx-auto mb-4" />
+        <p className="text-gray-600 font-semibold text-sm">Aucune donnée géographique</p>
+        <p className="text-gray-400 text-xs mt-2 max-w-xs mx-auto">
+          Les pays s'afficheront dès que des visiteurs accèdent à la plateforme.
+          La géolocalisation est détectée automatiquement via leur adresse IP.
+        </p>
+      </div>
+    );
     const data = countries.countries;
     const maxSessions = data[0]?.sessions || 1;
     return (
@@ -564,7 +573,15 @@ const SuperAdminAnalytics = () => {
   // PAGES TAB
   // ═══════════════════════════════════════════════════════════════════════════
   const renderPages = () => {
-    if (!pages?.pages?.length) return <EmptyState message="Aucune donnée de pages" />;
+    if (!pages?.pages?.length) return (
+      <div className="bg-white rounded-2xl border border-gray-200/80 p-12 text-center shadow-sm">
+        <FileText className="w-10 h-10 text-gray-300 mx-auto mb-4" />
+        <p className="text-gray-600 font-semibold text-sm">Aucune page visitée enregistrée</p>
+        <p className="text-gray-400 text-xs mt-2 max-w-xs mx-auto">
+          Les pages s'afficheront dès que des utilisateurs naviguent sur la plateforme.
+        </p>
+      </div>
+    );
     const data = pages.pages;
     const maxViews = data[0]?.views || 1;
     return (
@@ -620,7 +637,7 @@ const SuperAdminAnalytics = () => {
   // USERS ACTIVITY TAB
   // ═══════════════════════════════════════════════════════════════════════════
   const renderActivity = () => {
-    if (!activity) return <EmptyState message="Aucune donnée d'activité" />;
+    if (!activity) return <EmptyState message="Chargement des utilisateurs..." />;
     const { recentLogins, activeByRole, noWorkspace, inactiveWorkspaces, totalWorkspaces, pagination } = activity;
 
     const roleLabels = {
@@ -664,44 +681,48 @@ const SuperAdminAnalytics = () => {
 
         {/* Recent logins table */}
         <div className="bg-white rounded-2xl border border-gray-200/80 overflow-hidden shadow-sm">
-          <div className="px-5 py-4 border-b border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-900">Dernières connexions</h3>
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-900">Utilisateurs ({formatNumber(activity.totalLogins)})</h3>
+            <span className="text-[10px] text-gray-400">trié par date de connexion</span>
           </div>
           {recentLogins?.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-gray-100">
-                    <th className="px-5 py-3.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Date</th>
-                    <th className="px-5 py-3.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Email</th>
-                    <th className="px-5 py-3.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Rôle</th>
-                    <th className="px-5 py-3.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Pays</th>
-                    <th className="px-5 py-3.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Appareil</th>
-                    <th className="px-5 py-3.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Navigateur</th>
+                  <tr className="border-b border-gray-100 bg-gray-50/60">
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Date</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Nom</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Email</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Rôle</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Pays</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Appareil</th>
                   </tr>
                 </thead>
                 <tbody>
                   {recentLogins.map((l, i) => (
-                    <tr key={i} className={`border-b border-gray-50 transition-colors hover:bg-gray-50/80 ${i % 2 === 1 ? 'bg-gray-50/30' : ''}`}>
-                      <td className="px-5 py-3.5 text-gray-500 whitespace-nowrap">
-                        {new Date(l.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    <tr key={i} className={`border-b border-gray-50 transition-colors hover:bg-emerald-50/30 ${i % 2 === 1 ? 'bg-gray-50/30' : ''}`}>
+                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                        {new Date(l.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
                       </td>
-                      <td className="px-5 py-3.5 font-medium text-gray-900">{l.email || '—'}</td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-4 py-3 text-gray-700 font-medium">{l.name || '—'}</td>
+                      <td className="px-4 py-3 text-gray-900">{l.email || '—'}</td>
+                      <td className="px-4 py-3">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-semibold ring-1 ring-inset ${roleBadge[l.role] || roleBadge[null]}`}>
                           {roleLabels[l.role] || l.role || '—'}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-gray-500">{countryNames[l.country] || l.country || '—'}</td>
-                      <td className="px-5 py-3.5 text-gray-500 capitalize">{l.device || '—'}</td>
-                      <td className="px-5 py-3.5 text-gray-500">{l.browser || '—'}</td>
+                      <td className="px-4 py-3 text-gray-500">{l.country ? (countryNames[l.country] || l.country) : '—'}</td>
+                      <td className="px-4 py-3 text-gray-500 capitalize">{l.device || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ) : (
-            <div className="p-12 text-center text-gray-400 text-sm">Aucune connexion récente</div>
+            <div className="p-12 text-center">
+              <p className="text-gray-500 text-sm font-medium">Aucun utilisateur trouvé pour cette période</p>
+              <p className="text-gray-400 text-xs mt-1">Essayez la plage 90j ou une date plus large</p>
+            </div>
           )}
 
           {/* Pagination */}
