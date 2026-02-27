@@ -2,17 +2,54 @@
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi';
 
+const PALETTE = [
+  '#10b981', '#8b5cf6', '#3b82f6',
+  '#f97316', '#f43f5e', '#06b6d4', '#f59e0b'
+];
+const wsColor = (name = '') => PALETTE[name.charCodeAt(0) % PALETTE.length];
+const wsInitials = (name = '') => name.slice(0, 2).toUpperCase();
+
+const roleLabels = {
+  'ecom_admin': 'Admin',
+  'ecom_closeuse': 'Closeuse',
+  'ecom_compta': 'Compta',
+  'ecom_livreur': 'Livreur'
+};
+
+const roleDashMap = {
+  'super_admin': '/ecom/super-admin',
+  'ecom_admin': '/ecom/dashboard/admin',
+  'ecom_closeuse': '/ecom/dashboard/closeuse',
+  'ecom_compta': '/ecom/dashboard/compta',
+  'livreur': '/ecom/livreur'
+};
+
+// Overlay plein écran pendant le switch
+const SwitchOverlay = ({ name }) => (
+  <div style={{
+    position: 'fixed', inset: 0, zIndex: 9999,
+    background: 'rgba(255,255,255,0.93)',
+    backdropFilter: 'blur(6px)',
+    display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center', gap: 14
+  }}>
+    <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid #e5e7eb', borderTopColor: '#0F6B4F', animation: 'spin 0.7s linear infinite' }} />
+    <p style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>
+      Basculer vers <span style={{ color: '#0F6B4F' }}>{name}</span>…
+    </p>
+  </div>
+);
+
 const WorkspaceSwitcher = () => {
   const { user, workspace, switchWorkspace } = useEcomAuth();
   const [workspaces, setWorkspaces] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
-  const [switching, setSwitching] = useState(false);
+  const [switchingId, setSwitchingId] = useState(null);
+  const [switchingName, setSwitchingName] = useState('');
   const dropdownRef = useRef(null);
 
-  useEffect(() => {
-    fetchWorkspaces();
-  }, []);
+  useEffect(() => { fetchWorkspaces(); }, []);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -28,174 +65,118 @@ const WorkspaceSwitcher = () => {
     try {
       setLoading(true);
       const res = await ecomApi.get('/users/me/workspaces');
-      if (res.data.success) {
-        setWorkspaces(res.data.data.workspaces || []);
-      }
-    } catch (err) {
-      console.error('Erreur récupération workspaces:', err);
-    } finally {
-      setLoading(false);
-    }
+      if (res.data.success) setWorkspaces(res.data.data.workspaces || []);
+    } catch {}
+    finally { setLoading(false); }
   };
 
-  const handleSwitchWorkspace = async (workspaceId) => {
-    if (switching || workspaceId === user?.workspaceId) return;
-
+  const handleSwitch = async (ws) => {
+    if (switchingId || ws._id === user?.workspaceId) return;
+    setSwitchingId(ws._id);
+    setSwitchingName(ws.name);
+    setIsOpen(false);
     try {
-      setSwitching(true);
-      const res = await ecomApi.post('/users/me/switch-workspace', { workspaceId });
-      
+      const res = await ecomApi.post('/users/me/switch-workspace', { workspaceId: ws._id });
       if (res.data.success) {
-        const { token, user: updatedUser, workspace: newWorkspace } = res.data.data;
-        
-        // Mettre ù  jour le token et l'utilisateur via le contexte
-        if (switchWorkspace) {
-          await switchWorkspace(token, updatedUser, newWorkspace);
-        }
-        
-        setIsOpen(false);
-        
-        // Recharger la page pour rafraîchir toutes les données
-        window.location.reload();
+        const { token, user: nextUser, workspace: nextWs } = res.data.data;
+        if (switchWorkspace) await switchWorkspace(token, nextUser, nextWs);
+        window.location.href = roleDashMap[nextUser?.role] || '/ecom/dashboard';
       }
     } catch (err) {
-      console.error('Erreur switch workspace:', err);
       alert(err.response?.data?.message || 'Erreur lors du changement d\'espace');
-    } finally {
-      setSwitching(false);
+      setSwitchingId(null);
     }
   };
 
   const currentWorkspace = workspaces.find(w => w.isActive);
   const otherWorkspaces = workspaces.filter(w => !w.isActive);
 
-  if (loading || workspaces.length <= 1) {
-    return null;
-  }
+  if (loading || workspaces.length <= 1) return null;
 
-  const roleColors = {
-    'ecom_admin': 'bg-emerald-100 text-emerald-700',
-    'ecom_closeuse': 'bg-amber-100 text-amber-700',
-    'ecom_compta': 'bg-emerald-100 text-emerald-700',
-    'ecom_livreur': 'bg-orange-100 text-orange-700'
-  };
-
-  const roleLabels = {
-    'ecom_admin': 'Admin',
-    'ecom_closeuse': 'Closeuse',
-    'ecom_compta': 'Compta',
-    'ecom_livreur': 'Livreur'
-  };
+  const wsName = currentWorkspace?.name || workspace?.name || 'Espace';
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors w-full text-left"
-        disabled={switching}
-      >
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-            </svg>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-gray-900 truncate">
-                {currentWorkspace?.name || workspace?.name || 'Espace'}
-              </p>
-              {currentWorkspace?.role && (
-                <p className="text-xs text-gray-500">
-                  {roleLabels[currentWorkspace.role]}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-        <svg 
-          className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} 
-          fill="none" 
-          stroke="currentColor" 
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
+    <>
+      {switchingId && <SwitchOverlay name={switchingName} />}
 
-      {isOpen && (
-        <div className="absolute left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 max-h-64 overflow-y-auto">
-          <div className="px-3 py-2 border-b border-gray-100">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+      <div className="relative" ref={dropdownRef}>
+        {/* Trigger */}
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          disabled={!!switchingId}
+          className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-left group"
+        >
+          {/* Avatar initiales */}
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0"
+            style={{ background: wsColor(wsName) }}
+          >
+            {wsInitials(wsName)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-900 truncate leading-tight">{wsName}</p>
+            <p className="text-[10px] text-gray-400 leading-tight">{roleLabels[currentWorkspace?.role] || 'Espace'}</p>
+          </div>
+          <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {/* Dropdown */}
+        {isOpen && (
+          <div className="absolute left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-gray-200 py-1.5 z-50 overflow-hidden">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-3 pb-1.5 pt-0.5">
               Mes espaces ({workspaces.length})
             </p>
-          </div>
-          
-          {/* Espace actuel */}
-          {currentWorkspace && (
-            <div className="px-3 py-2 bg-emerald-50 border-b border-gray-100">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-emerald-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{currentWorkspace.name}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${roleColors[currentWorkspace.role] || 'bg-gray-100 text-gray-700'}`}>
-                      {roleLabels[currentWorkspace.role]}
-                    </span>
-                    {currentWorkspace.isOwner && (
-                      <span className="text-xs text-gray-500">👑 Propriétaire</span>
-                    )}
-                  </div>
+
+            {/* Espace actif */}
+            <div className="mx-1.5 mb-1 px-2.5 py-2 bg-emerald-50 rounded-lg border border-emerald-100 flex items-center gap-2.5">
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0"
+                style={{ background: wsColor(currentWorkspace?.name || '') }}
+              >
+                {wsInitials(currentWorkspace?.name || '')}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-900 truncate">{currentWorkspace?.name}</p>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-medium text-emerald-600">{roleLabels[currentWorkspace?.role]}</span>
+                  {currentWorkspace?.isOwner && <span className="text-[10px] text-gray-400">· Propriétaire</span>}
                 </div>
               </div>
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
             </div>
-          )}
 
-          {/* Autres espaces */}
-          {otherWorkspaces.length > 0 && (
-            <div className="py-1">
-              {otherWorkspaces.map((ws) => (
-                <button
-                  key={ws._id}
-                  onClick={() => handleSwitchWorkspace(ws._id)}
-                  disabled={switching}
-                  className="w-full px-3 py-2 hover:bg-gray-50 transition-colors text-left disabled:opacity-50"
+            {/* Autres espaces */}
+            {otherWorkspaces.map((ws) => (
+              <button
+                key={ws._id}
+                onClick={() => handleSwitch(ws)}
+                disabled={!!switchingId}
+                className="w-full px-3 py-2 hover:bg-gray-50 transition-colors text-left flex items-center gap-2.5 disabled:opacity-50"
+              >
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0"
+                  style={{ background: wsColor(ws.name) }}
                 >
-                  <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-700 truncate">{ws.name}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${roleColors[ws.role] || 'bg-gray-100 text-gray-700'}`}>
-                          {roleLabels[ws.role]}
-                        </span>
-                        {ws.isOwner && (
-                          <span className="text-xs text-gray-500">👑</span>
-                        )}
-                      </div>
-                    </div>
+                  {wsInitials(ws.name)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{ws.name}</p>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-gray-400">{roleLabels[ws.role] || ws.role}</span>
+                    {ws.isOwner && <span className="text-[10px] text-gray-400">· Propriétaire</span>}
                   </div>
-                </button>
-              ))}
-            </div>
-          )}
-
-          {switching && (
-            <div className="px-3 py-2 border-t border-gray-100">
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </div>
+                <svg className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
-                Changement en cours...
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
   );
 };
 

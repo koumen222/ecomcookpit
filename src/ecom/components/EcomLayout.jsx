@@ -733,7 +733,7 @@ const getPageTitle = (pathname) => {
   return 'Scalor';
 };
 
-// Mémoriser le layout pour éviter les re-renders lors de la navigation
+// Mémoriser le layout pour éviter les re-renders inutiles
 const EcomLayout = memo(EcomLayoutComponent);
 
 export default EcomLayout;

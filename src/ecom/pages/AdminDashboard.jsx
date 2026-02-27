@@ -5,7 +5,7 @@ import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
 import { getCache, setCache } from '../utils/cacheUtils.js';
 
-const ChartContent = ({ data, selectedMetric, fmt }) => {
+const ChartContent = React.memo(({ data, selectedMetric, fmt }) => {
   if (!data || data.length === 0) {
     return (
       <div className="h-56 flex items-center justify-center text-gray-400 text-sm">
@@ -78,7 +78,42 @@ const ChartContent = ({ data, selectedMetric, fmt }) => {
       })}
     </svg>
   );
-};
+});
+ChartContent.displayName = 'ChartContent';
+
+// Composant KPI Card mémorisé pour éviter re-renders inutiles
+const KPICard = React.memo(({ card, isSelected, onClick, loadingKpi, isLastInRowMobile, isLastInRowDesktop, index }) => (
+  <button
+    onClick={onClick}
+    className={`text-left px-4 py-3 sm:px-5 sm:py-4 transition-all relative ${
+      isSelected ? 'bg-white' : 'bg-white hover:bg-gray-50'
+    } ${!isLastInRowMobile ? 'border-r border-gray-200 md:border-r-0' : ''}
+     ${!isLastInRowDesktop && index < 2 ? 'md:border-r md:border-gray-200' : ''}`}
+  >
+    {isSelected && (
+      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600 rounded-t"></div>
+    )}
+    <p className={`text-xs font-medium mb-0.5 sm:mb-1 ${isSelected ? 'text-gray-900' : 'text-gray-500'}`}>
+      {card.title}
+    </p>
+    <div className="flex items-baseline gap-1.5 sm:gap-2">
+      {loadingKpi ? (
+        <>
+          <div className="h-6 w-24 bg-gray-200 rounded animate-pulse" />
+          <div className="h-3 w-12 bg-gray-100 rounded animate-pulse" />
+        </>
+      ) : (
+        <>
+          <p className="text-lg sm:text-xl font-bold tabular-nums text-gray-900">{card.value}</p>
+          <span className={`text-xs font-medium ${card.trendUp ? 'text-green-600' : 'text-red-500'}`}>
+            {card.trend}
+          </span>
+        </>
+      )}
+    </div>
+  </button>
+));
+KPICard.displayName = 'KPICard';
 
 const DashboardSkeleton = () => (
   <div className="min-h-screen bg-gray-50">
@@ -316,11 +351,19 @@ const AdminDashboard = () => {
   };
 
   const loadDashboardData = async () => {
-    // Réinitialiser l'état de chargement à chaque requête
-    setLoadingKpi(true);
-    setLoadingSecondary(true);
-    setShowLoadingScreen(true);
-    setLoadingProgress(5);
+    // NE JAMAIS afficher le loader pour les KPI après le premier chargement
+    // Utiliser isRefreshing pour indiquer un refresh silencieux en arrière-plan
+    const isFirstLoad = !stats.financialStats || Object.keys(stats.financialStats).length === 0;
+    
+    if (isFirstLoad) {
+      setLoadingKpi(true);
+      setLoadingSecondary(true);
+      setShowLoadingScreen(true);
+      setLoadingProgress(5);
+    } else {
+      // Refresh silencieux : pas de loader, juste l'indicateur isRefreshing
+      setIsRefreshing(true);
+    }
 
     const cacheKey = `dashboard:admin:${timeRange}:${customStartDate}:${customEndDate}`;
     const cached = getCache(cacheKey);
@@ -376,8 +419,10 @@ const AdminDashboard = () => {
     } catch (e) {
       console.error('KPI load error', e);
     } finally {
-      setLoadingKpi(false); // page visible immédiatement après KPIs + graphique
-      setLoadingProgress(70);
+      if (isFirstLoad) {
+        setLoadingKpi(false); // page visible immédiatement après KPIs + graphique
+        setLoadingProgress(70);
+      }
     }
 
     // ── PHASE 2 : reste en arrière-plan ───────────────────────────
@@ -479,9 +524,11 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Erreur chargement secondaire:', error);
     } finally {
-      setLoadingSecondary(false);
+      if (isFirstLoad) {
+        setLoadingSecondary(false);
+        setLoadingProgress(90);
+      }
       setIsRefreshing(false);
-      setLoadingProgress(90);
     }
   };
 
@@ -562,7 +609,8 @@ const AdminDashboard = () => {
     return `${sign}${Math.round(value)}`;
   };
 
-  const kpiCards = [
+  // Mémoriser kpiCards pour éviter re-création à chaque render
+  const kpiCards = React.useMemo(() => [
     {
       id: 'revenue',
       title: 'Chiffre d\'affaires',
@@ -595,7 +643,7 @@ const AdminDashboard = () => {
       trendUp: periodStats.ordersTrend >= 0,
       color: 'violet'
     }
-  ];
+  ], [periodStats, fmt]);
 
   const quickActions = [
     {
@@ -866,37 +914,16 @@ const AdminDashboard = () => {
               const isLastInRowMobile = (i + 1) % 2 === 0;
               const isLastInRowDesktop = (i + 1) % 4 === 0;
               return (
-                <button
-                  key={i}
+                <KPICard
+                  key={card.id}
+                  card={card}
+                  isSelected={isSelected}
                   onClick={() => setSelectedMetric(card.id)}
-                  className={`text-left px-4 py-3 sm:px-5 sm:py-4 transition-all relative ${
-                    isSelected ? 'bg-white' : 'bg-white hover:bg-gray-50'
-                  } ${!isLastInRowMobile ? 'border-r border-gray-200 md:border-r-0' : ''}
-                   ${!isLastInRowDesktop && i < 2 ? 'md:border-r md:border-gray-200' : ''}`}
-                >
-                  {/* Indicateur sélectionné - barre en bas */}
-                  {isSelected && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-600 rounded-t"></div>
-                  )}
-                  <p className={`text-xs font-medium mb-0.5 sm:mb-1 ${isSelected ? 'text-gray-900' : 'text-gray-500'}`}>
-                    {card.title}
-                  </p>
-                  <div className="flex items-baseline gap-1.5 sm:gap-2">
-                    {loadingKpi ? (
-                      <>
-                        <div className="h-6 w-24 bg-gray-200 rounded animate-pulse" />
-                        <div className="h-3 w-12 bg-gray-100 rounded animate-pulse" />
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-lg sm:text-xl font-bold tabular-nums text-gray-900">{card.value}</p>
-                        <span className={`text-xs font-medium ${card.trendUp ? 'text-green-600' : 'text-red-500'}`}>
-                          {card.trend}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </button>
+                  loadingKpi={loadingKpi}
+                  isLastInRowMobile={isLastInRowMobile}
+                  isLastInRowDesktop={isLastInRowDesktop}
+                  index={i}
+                />
               );
             })}
           </div>

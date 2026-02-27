@@ -12,8 +12,10 @@
  */
 
 // Version du Service Worker (incrémenter pour forcer la mise à jour)
-const CACHE_VERSION = '1.0.0';
-const CACHE_NAME = `ecom-cockpit-push-${CACHE_VERSION}`;
+const CACHE_VERSION = '2.0.0';
+const CACHE_NAME = `scalor-v${CACHE_VERSION}`;
+const STATIC_CACHE = `scalor-static-v${CACHE_VERSION}`;
+const FONT_CACHE = `scalor-fonts-v${CACHE_VERSION}`;
 
 // ============================================
 // 1. INSTALLATION DU SERVICE WORKER
@@ -31,14 +33,12 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
   
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Cache ouvert:', CACHE_NAME);
-      // Vous pouvez ajouter des ressources à mettre en cache ici si nécessaire
+    caches.open(STATIC_CACHE).then((cache) => {
+      // Pre-cache critical shell assets
       return cache.addAll([
-        // Exemple : '/icon-192x192.png', '/icon-512x512.png'
-      ]);
-    }).catch((error) => {
-      console.error('[Service Worker] Erreur lors de l\'installation:', error);
+        '/icon.png',
+        '/manifest.json'
+      ]).catch(() => {});
     })
   );
 });
@@ -55,25 +55,16 @@ self.addEventListener('activate', (event) => {
   console.log('[Service Worker] Activation...');
   
   // Prendre le contrôle immédiatement de tous les clients (onglets)
+  const validCaches = [CACHE_NAME, STATIC_CACHE, FONT_CACHE];
   event.waitUntil(
     Promise.all([
-      // Nettoyer les anciens caches
-      caches.keys().then((cacheNames) => {
-        return Promise.all(
-          cacheNames.map((cacheName) => {
-            if (cacheName !== CACHE_NAME) {
-              console.log('[Service Worker] Suppression de l\'ancien cache:', cacheName);
-              return caches.delete(cacheName);
-            }
-          })
-        );
-      }),
-      // Prendre le contrôle de tous les clients
+      // Clean old caches
+      caches.keys().then((names) =>
+        Promise.all(names.map((n) => validCaches.includes(n) ? undefined : caches.delete(n)))
+      ),
       self.clients.claim()
     ])
   );
-  
-  console.log('[Service Worker] Service Worker activé et prêt');
 });
 
 // ============================================
@@ -242,6 +233,90 @@ self.addEventListener('notificationclose', (event) => {
 });
 
 // ============================================
+// 5b. FETCH INTERCEPTION — Caching strategy
+// ============================================
+
+/**
+ * Caching strategies:
+ * - Hashed assets (chunks/*.js, assets/*) → Cache-first (immutable)
+ * - Fonts (googleapis, fontshare) → Stale-while-revalidate
+ * - API requests → Network-only
+ * - HTML navigation → Network-first with offline fallback
+ */
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  const req = event.request;
+
+  // Skip non-GET requests
+  if (req.method !== 'GET') return;
+
+  // Skip API calls — always go to network
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/socket.io')) return;
+
+  // ── Hashed static assets: cache-first (immutable) ──
+  if (
+    url.origin === self.location.origin &&
+    (url.pathname.match(/\.[a-f0-9]{8,}\.(js|css)$/) ||
+     url.pathname.startsWith('/chunks/') ||
+     url.pathname.startsWith('/assets/'))
+  ) {
+    event.respondWith(
+      caches.open(STATIC_CACHE).then((cache) =>
+        cache.match(req).then((cached) => {
+          if (cached) return cached;
+          return fetch(req).then((res) => {
+            if (res.ok) cache.put(req, res.clone());
+            return res;
+          });
+        })
+      )
+    );
+    return;
+  }
+
+  // ── Fonts: stale-while-revalidate ──
+  if (
+    url.hostname.includes('fonts.googleapis.com') ||
+    url.hostname.includes('fonts.gstatic.com') ||
+    url.hostname.includes('fontshare.com')
+  ) {
+    event.respondWith(
+      caches.open(FONT_CACHE).then((cache) =>
+        cache.match(req).then((cached) => {
+          const freshFetch = fetch(req).then((res) => {
+            if (res.ok) cache.put(req, res.clone());
+            return res;
+          }).catch(() => cached);
+          return cached || freshFetch;
+        })
+      )
+    );
+    return;
+  }
+
+  // ── Same-origin static files (icons, images, manifest) ──
+  if (
+    url.origin === self.location.origin &&
+    (url.pathname.match(/\.(png|jpg|jpeg|svg|webp|ico|json)$/) ||
+     url.pathname === '/icon.png' ||
+     url.pathname === '/manifest.json')
+  ) {
+    event.respondWith(
+      caches.open(STATIC_CACHE).then((cache) =>
+        cache.match(req).then((cached) => {
+          const freshFetch = fetch(req).then((res) => {
+            if (res.ok) cache.put(req, res.clone());
+            return res;
+          }).catch(() => cached);
+          return cached || freshFetch;
+        })
+      )
+    );
+    return;
+  }
+});
+
+// ============================================
 // 6. GESTION DES ERREURS
 // ============================================
 
@@ -311,7 +386,3 @@ function log(message, data = null) {
 // ============================================
 // 9. INITIALISATION
 // ============================================
-
-console.log('[Service Worker] Service Worker chargé et prêt');
-console.log('[Service Worker] Version:', CACHE_VERSION);
-console.log('[Service Worker] Domaine:', self.location.origin);

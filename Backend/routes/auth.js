@@ -818,10 +818,16 @@ router.post('/join-workspace', async (req, res) => {
     const allowedRoles = ['ecom_admin', 'ecom_closeuse', 'ecom_compta', 'ecom_livreur'];
     const role = (selectedRole && allowedRoles.includes(selectedRole)) ? selectedRole : 'ecom_closeuse';
 
-    // Mettre à jour l'utilisateur
-    user.role = role;
+    // ✅ CORRECTION : Ajouter le workspace sans écraser le rôle global
+    // Ajouter le nouveau workspace à l'array workspaces
+    const added = user.addWorkspace(workspace._id, role);
+    if (!added) {
+      return res.status(400).json({ success: false, message: 'Erreur lors de l\'ajout du workspace' });
+    }
+    
+    // Mettre à jour le workspace actif et le rôle actif (pour ce workspace uniquement)
     user.workspaceId = workspace._id;
-    user.addWorkspace(workspace._id, role);
+    user.role = role;
     await user.save();
 
     // Regénérer le token

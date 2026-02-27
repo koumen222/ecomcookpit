@@ -19,9 +19,10 @@ const TABS = [
 
 const RANGES = [
   { value: '24h', label: '24h' },
-  { value: '7d', label: '7 jours' },
-  { value: '30d', label: '30 jours' },
-  { value: '90d', label: '90 jours' },
+  { value: '7d', label: '7j' },
+  { value: '30d', label: '30j' },
+  { value: '90d', label: '90j' },
+  { value: 'custom', label: 'Dates' },
 ];
 
 const countryNames = {
@@ -125,9 +126,57 @@ const SectionCard = ({ title, children, className = '', icon: Icon }) => (
   </div>
 );
 
+// ─── Bar chart avec labels dates réels ───
+const DailyBarChart = ({ data, valueKey = 'sessions', color = 'bg-emerald-600', hoverColor = 'bg-emerald-700', height = 'h-36' }) => {
+  if (!data || data.length === 0) return <p className="text-xs text-gray-400 text-center py-8">Aucune donnée</p>;
+  const maxVal = Math.max(...data.map(d => d[valueKey] || 0), 1);
+  // Afficher au max 15 labels sur l'axe X
+  const step = Math.ceil(data.length / 15);
+  return (
+    <div>
+      <div className={`flex items-end gap-0.5 ${height}`}>
+        {data.map((d, i) => {
+          const val = d[valueKey] || 0;
+          const pct = Math.max(2, (val / maxVal) * 100);
+          const dateLabel = d.date || d._id || '';
+          return (
+            <div key={i} className="flex-1 flex flex-col items-center group relative min-w-0">
+              <div className="hidden group-hover:flex absolute -top-12 bg-gray-900 text-white text-[10px] px-2 py-1.5 rounded-lg whitespace-nowrap z-20 shadow-xl flex-col items-center gap-0.5 pointer-events-none">
+                <span className="font-semibold">{val}</span>
+                <span className="text-gray-400">{dateLabel}</span>
+              </div>
+              <div
+                className={`w-full ${color} hover:${hoverColor} rounded-t-sm transition-colors cursor-default`}
+                style={{ height: `${pct}%` }}
+              />
+            </div>
+          );
+        })}
+      </div>
+      {/* Axe X : dates */}
+      <div className="flex mt-1.5" style={{ gap: 0 }}>
+        {data.map((d, i) => {
+          const dateLabel = d.date || d._id || '';
+          const show = i % step === 0 || i === data.length - 1;
+          const short = dateLabel.slice(5); // MM-DD
+          return (
+            <div key={i} className="flex-1 min-w-0">
+              {show && (
+                <span className="block text-[9px] text-gray-400 text-center truncate">{short}</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const SuperAdminAnalytics = () => {
   const [tab, setTab] = useState('overview');
   const [range, setRange] = useState('30d');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -140,41 +189,25 @@ const SuperAdminAnalytics = () => {
   const [activity, setActivity] = useState(null);
   const [activityPage, setActivityPage] = useState(1);
 
-  const loadTab = useCallback(async (t, r, p) => {
+  // Build API params from current range/dates
+  const buildParams = useCallback((p = 1) => {
+    if (range === 'custom' && startDate) {
+      return { startDate, endDate: endDate || startDate, page: p };
+    }
+    return { range, page: p };
+  }, [range, startDate, endDate]);
+
+  const loadTab = useCallback(async (t, params) => {
     setLoading(true);
     setError(null);
     try {
       switch (t) {
-        case 'overview': {
-          const res = await analyticsApi.getOverview(r);
-          setOverview(res.data.data);
-          break;
-        }
-        case 'conversion': {
-          const res = await analyticsApi.getFunnel(r);
-          setFunnel(res.data.data);
-          break;
-        }
-        case 'traffic': {
-          const res = await analyticsApi.getTraffic(r);
-          setTraffic(res.data.data);
-          break;
-        }
-        case 'countries': {
-          const res = await analyticsApi.getCountries(r);
-          setCountries(res.data.data);
-          break;
-        }
-        case 'pages': {
-          const res = await analyticsApi.getPages(r);
-          setPages(res.data.data);
-          break;
-        }
-        case 'activity': {
-          const res = await analyticsApi.getUsersActivity(r, p || 1);
-          setActivity(res.data.data);
-          break;
-        }
+        case 'overview': { const res = await analyticsApi.getOverview(params); setOverview(res.data.data); break; }
+        case 'conversion': { const res = await analyticsApi.getFunnel(params); setFunnel(res.data.data); break; }
+        case 'traffic': { const res = await analyticsApi.getTraffic(params); setTraffic(res.data.data); break; }
+        case 'countries': { const res = await analyticsApi.getCountries(params); setCountries(res.data.data); break; }
+        case 'pages': { const res = await analyticsApi.getPages(params); setPages(res.data.data); break; }
+        case 'activity': { const res = await analyticsApi.getUsersActivity(params); setActivity(res.data.data); break; }
       }
     } catch (err) {
       console.error('Analytics load error:', err);
@@ -185,8 +218,10 @@ const SuperAdminAnalytics = () => {
   }, []);
 
   useEffect(() => {
-    loadTab(tab, range, activityPage);
-  }, [tab, range, activityPage, loadTab]);
+    // Ne pas charger si custom sans dates
+    if (range === 'custom' && !startDate) return;
+    loadTab(tab, buildParams(activityPage));
+  }, [tab, range, startDate, endDate, activityPage, loadTab, buildParams]);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // OVERVIEW TAB
@@ -228,55 +263,32 @@ const SuperAdminAnalytics = () => {
           </div>
         </SectionCard>
 
-        {/* Daily trends */}
-        {overview.trends?.dailySessions?.length > 0 && (
-          <SectionCard title="Sessions par jour">
-            <div className="flex items-end gap-1 h-32">
-              {overview.trends.dailySessions.map((d, i) => {
-                const maxSessions = Math.max(...overview.trends.dailySessions.map(x => x.sessions));
-                const h = maxSessions > 0 ? Math.max(4, (d.sessions / maxSessions) * 100) : 4;
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
-                    <div
-                      className="w-full bg-emerald-600 rounded-t-sm hover:bg-emerald-700 transition-colors cursor-default"
-                      style={{ height: `${h}%` }}
-                    />
-                    <div className="hidden group-hover:block absolute -top-9 bg-gray-900 text-white text-[10px] px-2.5 py-1.5 rounded-lg whitespace-nowrap z-10 shadow-lg">
-                      {d.date}: {d.sessions} sessions
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex justify-between mt-2">
-              <span className="text-[10px] text-gray-400">{overview.trends.dailySessions[0]?.date}</span>
-              <span className="text-[10px] text-gray-400">{overview.trends.dailySessions[overview.trends.dailySessions.length - 1]?.date}</span>
-            </div>
-          </SectionCard>
-        )}
+        {/* Daily sessions */}
+        <SectionCard title="Sessions par jour" icon={Activity}>
+          {overview.trends?.dailySessions?.length > 0
+            ? <DailyBarChart data={overview.trends.dailySessions} valueKey="sessions" color="bg-emerald-600" hoverColor="bg-emerald-700" height="h-36" />
+            : <EmptyState message="Aucune session enregistrée" />}
+        </SectionCard>
 
-        {/* Daily signups trend */}
-        {overview.trends?.dailySignups?.length > 0 && (
-          <SectionCard title="Inscriptions par jour" icon={TrendingUp}>
-            <div className="flex items-end gap-1 h-24">
-              {overview.trends.dailySignups.map((d, i) => {
-                const maxSignups = Math.max(...overview.trends.dailySignups.map(x => x.count));
-                const h = maxSignups > 0 ? Math.max(4, (d.count / maxSignups) * 100) : 4;
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
-                    <div
-                      className="w-full bg-emerald-500 rounded-t-sm hover:bg-emerald-600 transition-colors cursor-default"
-                      style={{ height: `${h}%` }}
-                    />
-                    <div className="hidden group-hover:block absolute -top-9 bg-gray-900 text-white text-[10px] px-2.5 py-1.5 rounded-lg whitespace-nowrap z-10 shadow-lg">
-                      {d._id}: {d.count} inscriptions
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </SectionCard>
-        )}
+        {/* Visites uniques par jour */}
+        <SectionCard title="Visiteurs uniques par jour" icon={Users}>
+          {overview.trends?.dailySessions?.length > 0
+            ? <DailyBarChart data={overview.trends.dailySessions} valueKey="uniqueUsers" color="bg-teal-500" hoverColor="bg-teal-600" height="h-32" />
+            : <EmptyState message="Aucun visiteur enregistré" />}
+        </SectionCard>
+
+        {/* Inscriptions par jour */}
+        <SectionCard title="Inscriptions par jour" icon={TrendingUp}>
+          {overview.trends?.dailySignups?.length > 0
+            ? <DailyBarChart
+                data={overview.trends.dailySignups.map(d => ({ ...d, date: d._id, signups: d.count }))}
+                valueKey="signups"
+                color="bg-violet-500"
+                hoverColor="bg-violet-600"
+                height="h-32"
+              />
+            : <EmptyState message="Aucune inscription enregistrée" />}
+        </SectionCard>
       </div>
     );
   };
@@ -430,35 +442,43 @@ const SuperAdminAnalytics = () => {
             ) : <p className="text-xs text-gray-400">Aucune donnée</p>}
           </SectionCard>
 
-          <SectionCard title="Heures d'activité">
-            {hourly?.length > 0 ? (
-              <>
-                <div className="flex items-end gap-0.5 h-24">
-                  {Array.from({ length: 24 }, (_, h) => {
-                    const entry = hourly.find(x => x._id === h);
-                    const val = entry?.sessions || 0;
-                    const maxH = Math.max(...hourly.map(x => x.sessions));
-                    const height = maxH > 0 ? Math.max(2, (val / maxH) * 100) : 2;
-                    return (
-                      <div key={h} className="flex-1 flex flex-col items-center group relative">
-                        <div
-                          className="w-full bg-amber-400 rounded-t-sm hover:bg-amber-500 transition-colors"
-                          style={{ height: `${height}%` }}
-                        />
-                        <div className="hidden group-hover:block absolute -top-9 bg-gray-900 text-white text-[10px] px-2.5 py-1.5 rounded-lg z-10 shadow-lg">
-                          {h}h: {val}
+          <SectionCard title="Heures d'activité (sessions/heure)">
+            {hourly?.length > 0 ? (() => {
+              const maxH = Math.max(...hourly.map(x => x.sessions), 1);
+              const peakHour = hourly.reduce((a, b) => b.sessions > a.sessions ? b : a, hourly[0]);
+              return (
+                <>
+                  <p className="text-[10px] text-amber-600 font-semibold mb-3">
+                    🔥 Pic : {peakHour._id}h ({peakHour.sessions} sessions)
+                  </p>
+                  <div className="flex items-end gap-0.5 h-28">
+                    {Array.from({ length: 24 }, (_, h) => {
+                      const entry = hourly.find(x => x._id === h);
+                      const val = entry?.sessions || 0;
+                      const pct = val > 0 ? Math.max(4, (val / maxH) * 100) : 1;
+                      const isPeak = h === peakHour._id;
+                      return (
+                        <div key={h} className="flex-1 flex flex-col items-center group relative min-w-0">
+                          <div className="hidden group-hover:flex absolute -top-12 bg-gray-900 text-white text-[10px] px-2 py-1.5 rounded-lg whitespace-nowrap z-20 shadow-xl flex-col items-center pointer-events-none">
+                            <span className="font-semibold">{val}</span>
+                            <span className="text-gray-400">{h}h</span>
+                          </div>
+                          <div
+                            className={`w-full rounded-t-sm transition-colors ${isPeak ? 'bg-amber-500' : 'bg-amber-300 hover:bg-amber-400'}`}
+                            style={{ height: `${pct}%` }}
+                          />
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="flex justify-between mt-1.5">
-                  <span className="text-[10px] text-gray-400">0h</span>
-                  <span className="text-[10px] text-gray-400">12h</span>
-                  <span className="text-[10px] text-gray-400">23h</span>
-                </div>
-              </>
-            ) : <p className="text-xs text-gray-400">Aucune donnée</p>}
+                      );
+                    })}
+                  </div>
+                  <div className="flex justify-between mt-1.5">
+                    {[0, 3, 6, 9, 12, 15, 18, 21, 23].map(h => (
+                      <span key={h} className="text-[9px] text-gray-400">{h}h</span>
+                    ))}
+                  </div>
+                </>
+              );
+            })() : <p className="text-xs text-gray-400">Aucune donnée</p>}
           </SectionCard>
         </div>
 
@@ -723,7 +743,7 @@ const SuperAdminAnalytics = () => {
         <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
         <p className="text-base font-bold text-amber-700 mb-4">{error}</p>
         <button
-          onClick={() => loadTab(tab, range, activityPage)}
+          onClick={() => loadTab(tab, buildParams(activityPage))}
           className="inline-flex items-center gap-2 px-6 py-3 text-sm font-bold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all duration-300 shadow-md hover:shadow-lg"
         >
           <RotateCcw className="w-4 h-4" />
@@ -758,20 +778,51 @@ const SuperAdminAnalytics = () => {
             </div>
           </div>
 
-          {/* Range selector */}
-          <div className="flex gap-2 p-1.5 bg-slate-100 rounded-xl border-2 border-slate-200">
-            {RANGES.map(r => (
-              <button
-                key={r.value}
-                onClick={() => setRange(r.value)}
-                className={`px-4 py-2.5 text-sm font-bold rounded-lg transition-all duration-300 ${range === r.value
-                  ? 'bg-white text-slate-900 shadow-md ring-2 ring-emerald-600/20'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
+          {/* Range selector + date picker */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-1 p-1 bg-slate-100 rounded-xl border-2 border-slate-200">
+              {RANGES.map(r => (
+                <button
+                  key={r.value}
+                  onClick={() => setRange(r.value)}
+                  className={`px-3 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${
+                    range === r.value
+                      ? 'bg-white text-slate-900 shadow-md ring-2 ring-emerald-600/20'
+                      : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
                   }`}
-              >
-                {r.label}
-              </button>
-            ))}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Date picker custom */}
+            {range === 'custom' && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={e => setStartDate(e.target.value)}
+                  className="text-xs border-2 border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-emerald-500 font-medium text-slate-700"
+                />
+                <span className="text-xs text-slate-400 font-medium">→</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  min={startDate}
+                  onChange={e => setEndDate(e.target.value)}
+                  className="text-xs border-2 border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-emerald-500 font-medium text-slate-700"
+                />
+                {startDate && (
+                  <button
+                    onClick={() => loadTab(tab, buildParams(activityPage))}
+                    className="px-3 py-2 text-xs font-bold bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition-colors shadow-sm"
+                  >
+                    Appliquer
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

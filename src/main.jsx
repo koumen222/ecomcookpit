@@ -2,13 +2,10 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './ecom/App.jsx';
-import { initAnalytics } from './ecom/services/posthog.js';
 import './ecom/tailwind-base.css';
 import './ecom/index.css';
 
-// Initialize PostHog before first render (no-op if VITE_POSTHOG_KEY is missing)
-initAnalytics();
-
+// Render first, analytics later (non-blocking)
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
@@ -16,3 +13,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </BrowserRouter>
   </React.StrictMode>
 );
+
+// Defer analytics to idle time — never blocks first paint
+const _initAnalytics = () => import('./ecom/services/posthog.js').then(m => m.initAnalytics());
+if ('requestIdleCallback' in window) {
+  requestIdleCallback(_initAnalytics, { timeout: 3000 });
+} else {
+  setTimeout(_initAnalytics, 1500);
+}

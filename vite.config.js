@@ -6,22 +6,23 @@ import compression from 'vite-plugin-compression'
 export default defineConfig({
   plugins: [
     react({
-      // Fast refresh for optimized dev experience
-      jsxImportSource: 'react',
-      babel: {
-        plugins: [
-          ['@babel/plugin-transform-class-properties', { loose: true }],
-          ['@babel/plugin-transform-private-methods', { loose: true }]
-        ]
-      }
+      jsxRuntime: 'automatic',
     }),
-    // Gzip + brotli compression (only in production)
+    // Gzip compression (production only)
     process.env.NODE_ENV === 'production' && compression({
-      verbose: true,
+      verbose: false,
       disable: false,
       threshold: 1024,
       algorithm: 'gzip',
       ext: '.gz'
+    }),
+    // Brotli compression (production only) — 20-30% smaller than gzip
+    process.env.NODE_ENV === 'production' && compression({
+      verbose: false,
+      disable: false,
+      threshold: 1024,
+      algorithm: 'brotliCompress',
+      ext: '.br'
     })
   ].filter(Boolean),
   base: '/',
@@ -55,40 +56,24 @@ export default defineConfig({
     minify: 'esbuild',
     target: 'es2020',
     cssCodeSplit: true,
+    cssMinify: 'esbuild',
     reportCompressedSize: false,
-    // Optimized for modern bundlers
-    terserOptions: {
-      compress: {
-        drop_console: process.env.NODE_ENV === 'production',
-        drop_debugger: true,
-        pure_funcs: ['console.log', 'console.info'],
-        passes: 2
-      },
-      mangle: true
-    },
+    modulePreload: { polyfill: false },
     rollupOptions: {
       output: {
-        // Improved chunking strategy
-        manualChunks: {
-          // Core React runtime
-          'react-core': ['react', 'react-dom', 'react-router-dom'],
-          
-          // Network utilities
-          'network': ['axios', 'socket.io-client'],
-          
-          // UI components
-          'ui-icons': ['react-icons', 'lucide-react'],
-          
-          // Large dependencies
-          'markdown': ['react-markdown'],
-          'excel': ['xlsx', 'papaparse'],
-          
-          // Vendor bundle (everything else)
-          'vendor': [
-            'posthog-js',
-            '@socket.io/component-emitter',
-            'engine.io-client'
-          ]
+        manualChunks(id) {
+          // Core React — cached long-term, ~140KB
+          if (id.includes('react-dom') || id.includes('/react/')) return 'react-core';
+          if (id.includes('react-router')) return 'react-router';
+          // Network — loaded when app needs API
+          if (id.includes('axios') || id.includes('socket.io') || id.includes('engine.io') || id.includes('component-emitter')) return 'network';
+          // Icons — loaded on demand with pages
+          if (id.includes('lucide-react')) return 'ui-icons';
+          // Heavy libs — only loaded by specific pages
+          if (id.includes('react-markdown')) return 'markdown';
+          if (id.includes('xlsx') || id.includes('papaparse')) return 'excel';
+          // Analytics — deferred, non-critical
+          if (id.includes('posthog')) return 'analytics';
         },
         // Optimize chunk naming
         chunkFileNames: (chunkInfo) => {
@@ -119,8 +104,7 @@ export default defineConfig({
         main: 'index.html'
       }
     },
-    chunkSizeWarningLimit: 1000,
-    lib: undefined
+    chunkSizeWarningLimit: 500,
   },
   publicDir: 'public',
   // Optimize resolver
@@ -130,26 +114,22 @@ export default defineConfig({
     },
     extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json']
   },
-  // Module optimization
-  ssr: undefined,
-  // Esbuild options
   esbuild: {
+    drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
     supported: {
       bigint: true,
       'top-level-await': true
     }
   },
-  // Optimize deps
   optimizeDeps: {
-    // Pre-bundle frequently used deps
     include: [
       'react',
       'react-dom',
+      'react-dom/client',
       'react-router-dom',
       'axios',
       'socket.io-client'
     ],
-    // Exclude problematic deps
     exclude: ['ecomcookpit-shared']
   }
 })

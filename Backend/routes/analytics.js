@@ -38,9 +38,21 @@ function parseUserAgent(ua) {
 
 // ──────────────────────────────────────────────────────────
 // Helper: date range filter builder
+// Supports range shortcuts (24h,7d,30d,90d) OR custom startDate/endDate
+// Returns { since, until } pair
 // ──────────────────────────────────────────────────────────
-function dateFilter(range = '30d') {
+function dateFilter(range = '30d', startDate = null, endDate = null) {
   const now = new Date();
+
+  // Custom date range takes priority
+  if (startDate) {
+    const since = new Date(startDate);
+    since.setHours(0, 0, 0, 0);
+    const until = endDate ? new Date(endDate) : now;
+    until.setHours(23, 59, 59, 999);
+    return { since, until };
+  }
+
   const ms = {
     '24h': 24 * 60 * 60 * 1000,
     '7d': 7 * 24 * 60 * 60 * 1000,
@@ -48,7 +60,7 @@ function dateFilter(range = '30d') {
     '90d': 90 * 24 * 60 * 60 * 1000
   };
   const delta = ms[range] || ms['30d'];
-  return new Date(now.getTime() - delta);
+  return { since: new Date(now.getTime() - delta), until: now };
 }
 
 // ──────────────────────────────────────────────────────────
@@ -151,12 +163,12 @@ router.get('/overview',
   requireSuperAdmin,
   async (req, res) => {
     try {
-      const { range = '30d' } = req.query;
-      const since = dateFilter(range);
+      const { range = '30d', startDate, endDate } = req.query;
+      const { since, until } = dateFilter(range, startDate, endDate);
 
       // Sessions & page views
       const [sessionStats] = await AnalyticsSession.aggregate([
-        { $match: { startedAt: { $gte: since } } },
+        { $match: { startedAt: { $gte: since, $lte: until } } },
         {
           $group: {
             _id: null,
@@ -178,16 +190,16 @@ router.get('/overview',
         : 0;
 
       // Signups in period
-      const signups = await EcomUser.countDocuments({ createdAt: { $gte: since } });
+      const signups = await EcomUser.countDocuments({ createdAt: { $gte: since, $lte: until } });
 
       // Active users with workspace
       const activatedUsers = await EcomUser.countDocuments({
-        createdAt: { $gte: since },
+        createdAt: { $gte: since, $lte: until },
         workspaceId: { $ne: null }
       });
 
       // Workspaces created
-      const workspacesCreated = await Workspace.countDocuments({ createdAt: { $gte: since } });
+      const workspacesCreated = await Workspace.countDocuments({ createdAt: { $gte: since, $lte: until } });
 
       // DAU / WAU / MAU
       const now = new Date();
@@ -196,15 +208,15 @@ router.get('/overview',
       const day30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
       const [dauResult] = await AnalyticsEvent.aggregate([
-        { $match: { createdAt: { $gte: day1 }, userId: { $ne: null } } },
+        { $match: { createdAt: { $gte: day1, $lte: until }, userId: { $ne: null } } },
         { $group: { _id: null, users: { $addToSet: '$userId' } } }
       ]);
       const [wauResult] = await AnalyticsEvent.aggregate([
-        { $match: { createdAt: { $gte: day7 }, userId: { $ne: null } } },
+        { $match: { createdAt: { $gte: day7, $lte: until }, userId: { $ne: null } } },
         { $group: { _id: null, users: { $addToSet: '$userId' } } }
       ]);
       const [mauResult] = await AnalyticsEvent.aggregate([
-        { $match: { createdAt: { $gte: day30 }, userId: { $ne: null } } },
+        { $match: { createdAt: { $gte: day30, $lte: until }, userId: { $ne: null } } },
         { $group: { _id: null, users: { $addToSet: '$userId' } } }
       ]);
 
@@ -240,7 +252,7 @@ router.get('/overview',
 
       // Trend: daily sessions over period
       const dailySessions = await AnalyticsSession.aggregate([
-        { $match: { startedAt: { $gte: since } } },
+        { $match: { startedAt: { $gte: since, $lte: until } } },
         {
           $group: {
             _id: { $dateToString: { format: '%Y-%m-%d', date: '$startedAt' } },
@@ -262,7 +274,7 @@ router.get('/overview',
 
       // Daily signups trend
       const dailySignups = await EcomUser.aggregate([
-        { $match: { createdAt: { $gte: since } } },
+        { $match: { createdAt: { $gte: since, $lte: until } } },
         {
           $group: {
             _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
@@ -313,28 +325,28 @@ router.get('/funnel',
   requireSuperAdmin,
   async (req, res) => {
     try {
-      const { range = '30d' } = req.query;
-      const since = dateFilter(range);
+      const { range = '30d', startDate, endDate } = req.query;
+      const { since, until } = dateFilter(range, startDate, endDate);
 
       // 1. Unique visitors (sessions)
       const [visitorsResult] = await AnalyticsSession.aggregate([
-        { $match: { startedAt: { $gte: since } } },
+        { $match: { startedAt: { $gte: since, $lte: until } } },
         { $group: { _id: null, count: { $sum: 1 } } }
       ]);
       const visitors = visitorsResult?.count || 0;
 
       // 2. Accounts created
-      const accountsCreated = await EcomUser.countDocuments({ createdAt: { $gte: since } });
+      const accountsCreated = await EcomUser.countDocuments({ createdAt: { $gte: since, $lte: until } });
 
       // 3. Email verified (users who logged in at least once = verified)
       const emailVerified = await EcomUser.countDocuments({
-        createdAt: { $gte: since },
+        createdAt: { $gte: since, $lte: until },
         lastLogin: { $ne: null }
       });
 
       // 4. Joined a workspace
       const joinedWorkspace = await EcomUser.countDocuments({
-        createdAt: { $gte: since },
+        createdAt: { $gte: since, $lte: until },
         workspaceId: { $ne: null }
       });
 
@@ -346,7 +358,7 @@ router.get('/funnel',
       const [activeResult] = await AnalyticsEvent.aggregate([
         {
           $match: {
-            createdAt: { $gte: since },
+            createdAt: { $gte: since, $lte: until },
             eventType: { $in: businessEvents },
             userId: { $ne: null }
           }
@@ -398,12 +410,12 @@ router.get('/traffic',
   requireSuperAdmin,
   async (req, res) => {
     try {
-      const { range = '30d' } = req.query;
-      const since = dateFilter(range);
+      const { range = '30d', startDate, endDate } = req.query;
+      const { since, until } = dateFilter(range, startDate, endDate);
 
       // By device
       const byDevice = await AnalyticsSession.aggregate([
-        { $match: { startedAt: { $gte: since } } },
+        { $match: { startedAt: { $gte: since, $lte: until } } },
         {
           $group: {
             _id: '$device',
@@ -418,7 +430,7 @@ router.get('/traffic',
 
       // By browser
       const byBrowser = await AnalyticsSession.aggregate([
-        { $match: { startedAt: { $gte: since } } },
+        { $match: { startedAt: { $gte: since, $lte: until } } },
         {
           $group: {
             _id: '$browser',
@@ -431,7 +443,7 @@ router.get('/traffic',
 
       // By OS
       const byOS = await AnalyticsSession.aggregate([
-        { $match: { startedAt: { $gte: since } } },
+        { $match: { startedAt: { $gte: since, $lte: until } } },
         {
           $group: {
             _id: '$os',
@@ -444,7 +456,7 @@ router.get('/traffic',
 
       // Hourly distribution (for "best times")
       const hourly = await AnalyticsSession.aggregate([
-        { $match: { startedAt: { $gte: since } } },
+        { $match: { startedAt: { $gte: since, $lte: until } } },
         {
           $group: {
             _id: { $hour: '$startedAt' },
@@ -456,7 +468,7 @@ router.get('/traffic',
 
       // By referrer source
       const byReferrer = await AnalyticsSession.aggregate([
-        { $match: { startedAt: { $gte: since }, referrer: { $ne: null } } },
+        { $match: { startedAt: { $gte: since, $lte: until }, referrer: { $ne: null } } },
         {
           $group: {
             _id: '$referrer',
@@ -487,11 +499,11 @@ router.get('/countries',
   requireSuperAdmin,
   async (req, res) => {
     try {
-      const { range = '30d' } = req.query;
-      const since = dateFilter(range);
+      const { range = '30d', startDate, endDate } = req.query;
+      const { since, until } = dateFilter(range, startDate, endDate);
 
       const countries = await AnalyticsSession.aggregate([
-        { $match: { startedAt: { $gte: since }, country: { $ne: null } } },
+        { $match: { startedAt: { $gte: since, $lte: until }, country: { $ne: null } } },
         {
           $group: {
             _id: '$country',
@@ -524,7 +536,7 @@ router.get('/countries',
 
       // Signups by country
       const signupsByCountry = await AnalyticsEvent.aggregate([
-        { $match: { createdAt: { $gte: since }, eventType: 'signup_completed', country: { $ne: null } } },
+        { $match: { createdAt: { $gte: since, $lte: until }, eventType: 'signup_completed', country: { $ne: null } } },
         { $group: { _id: '$country', signups: { $sum: 1 } } }
       ]);
 
@@ -559,11 +571,11 @@ router.get('/pages',
   requireSuperAdmin,
   async (req, res) => {
     try {
-      const { range = '30d' } = req.query;
-      const since = dateFilter(range);
+      const { range = '30d', startDate, endDate } = req.query;
+      const { since, until } = dateFilter(range, startDate, endDate);
 
       const pages = await AnalyticsEvent.aggregate([
-        { $match: { createdAt: { $gte: since }, eventType: 'page_view', page: { $ne: null } } },
+        { $match: { createdAt: { $gte: since, $lte: until }, eventType: 'page_view', page: { $ne: null } } },
         {
           $group: {
             _id: '$page',
@@ -586,7 +598,7 @@ router.get('/pages',
 
       // Exit pages (sessions where this was the last page)
       const exitPages = await AnalyticsSession.aggregate([
-        { $match: { startedAt: { $gte: since }, exitPage: { $ne: null } } },
+        { $match: { startedAt: { $gte: since, $lte: until }, exitPage: { $ne: null } } },
         { $group: { _id: '$exitPage', exits: { $sum: 1 } } }
       ]);
       const exitMap = {};
@@ -594,7 +606,7 @@ router.get('/pages',
 
       // Entry pages
       const entryPages = await AnalyticsSession.aggregate([
-        { $match: { startedAt: { $gte: since }, entryPage: { $ne: null } } },
+        { $match: { startedAt: { $gte: since, $lte: until }, entryPage: { $ne: null } } },
         { $group: { _id: '$entryPage', entries: { $sum: 1 } } }
       ]);
       const entryMap = {};
@@ -627,13 +639,13 @@ router.get('/users-activity',
   requireSuperAdmin,
   async (req, res) => {
     try {
-      const { range = '30d', page = 1, limit = 50 } = req.query;
-      const since = dateFilter(range);
+      const { range = '30d', startDate, endDate, page = 1, limit = 50 } = req.query;
+      const { since, until } = dateFilter(range, startDate, endDate);
       const skip = (parseInt(page) - 1) * parseInt(limit);
 
       // Recent logins
       const recentLogins = await AnalyticsEvent.aggregate([
-        { $match: { createdAt: { $gte: since }, eventType: 'login' } },
+        { $match: { createdAt: { $gte: since, $lte: until }, eventType: 'login' } },
         { $sort: { createdAt: -1 } },
         { $skip: skip },
         { $limit: parseInt(limit) },
@@ -661,13 +673,13 @@ router.get('/users-activity',
       ]);
 
       const totalLogins = await AnalyticsEvent.countDocuments({
-        createdAt: { $gte: since },
+        createdAt: { $gte: since, $lte: until },
         eventType: 'login'
       });
 
       // Active by role
       const activeByRole = await AnalyticsEvent.aggregate([
-        { $match: { createdAt: { $gte: since }, userId: { $ne: null } } },
+        { $match: { createdAt: { $gte: since, $lte: until }, userId: { $ne: null } } },
         {
           $lookup: {
             from: 'ecom_users',
@@ -736,12 +748,12 @@ router.get('/user-flow',
   requireSuperAdmin,
   async (req, res) => {
     try {
-      const { range = '30d' } = req.query;
-      const since = dateFilter(range);
+      const { range = '30d', startDate, endDate } = req.query;
+      const { since, until } = dateFilter(range, startDate, endDate);
 
       // Get sessions with their page visit sequences
       const flows = await AnalyticsSession.aggregate([
-        { $match: { startedAt: { $gte: since }, pageViews: { $gte: 2 } } },
+        { $match: { startedAt: { $gte: since, $lte: until }, pageViews: { $gte: 2 } } },
         {
           $project: {
             path: {
@@ -766,7 +778,7 @@ router.get('/user-flow',
 
       // Entry → Exit patterns
       const entryExitPatterns = await AnalyticsSession.aggregate([
-        { $match: { startedAt: { $gte: since }, entryPage: { $ne: null }, exitPage: { $ne: null } } },
+        { $match: { startedAt: { $gte: since, $lte: until }, entryPage: { $ne: null }, exitPage: { $ne: null } } },
         {
           $group: {
             _id: { entry: '$entryPage', exit: '$exitPage' },

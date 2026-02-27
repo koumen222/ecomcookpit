@@ -57,12 +57,13 @@ export function trackPageView(path) {
 }
 
 // Analytics API for Super Admin dashboard
+// params: { range, startDate, endDate } — startDate/endDate (YYYY-MM-DD) override range
 export const analyticsApi = {
-  getOverview: (range = '30d') => ecomApi.get('/analytics/overview', { params: { range } }),
-  getFunnel: (range = '30d') => ecomApi.get('/analytics/funnel', { params: { range } }),
-  getTraffic: (range = '30d') => ecomApi.get('/analytics/traffic', { params: { range } }),
-  getCountries: (range = '30d') => ecomApi.get('/analytics/countries', { params: { range } }),
-  getPages: (range = '30d') => ecomApi.get('/analytics/pages', { params: { range } }),
-  getUsersActivity: (range = '30d', page = 1) => ecomApi.get('/analytics/users-activity', { params: { range, page } }),
-  getUserFlow: (range = '30d') => ecomApi.get('/analytics/user-flow', { params: { range } })
+  getOverview: (params = {}) => ecomApi.get('/analytics/overview', { params }),
+  getFunnel: (params = {}) => ecomApi.get('/analytics/funnel', { params }),
+  getTraffic: (params = {}) => ecomApi.get('/analytics/traffic', { params }),
+  getCountries: (params = {}) => ecomApi.get('/analytics/countries', { params }),
+  getPages: (params = {}) => ecomApi.get('/analytics/pages', { params }),
+  getUsersActivity: (params = {}) => ecomApi.get('/analytics/users-activity', { params }),
+  getUserFlow: (params = {}) => ecomApi.get('/analytics/user-flow', { params })
 };

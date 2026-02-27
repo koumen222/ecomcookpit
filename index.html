@@ -32,11 +32,26 @@
       <link rel="manifest" href="/manifest.json" />
       <link rel="icon" type="image/png" href="/icon.png" />
 
-      <!-- Fonts -->
+      <!-- DNS prefetch for external domains -->
+      <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+      <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+      <link rel="dns-prefetch" href="https://api.fontshare.com" />
+
+      <!-- Preconnect to font origins -->
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-      <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700,800&display=swap" rel="stylesheet" />
+      <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+
+      <!-- Non-blocking font loading (media=print trick: loads async, swaps when ready) -->
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'" />
+      <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700,800&display=swap" media="print" onload="this.media='all'" />
+      <noscript>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+        <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700,800&display=swap" rel="stylesheet" />
+      </noscript>
+
+      <!-- Preload critical assets -->
+      <link rel="preload" href="/icon.png" as="image" />
 
       <style>
         /* Safe-area pour iPhone avec Dynamic Island / home indicator */
@@ -54,32 +69,47 @@
           min-height: 100dvh;
           /* dvh = dynamic viewport height, correct sur iOS Safari */
         }
-        /* Splash screen natif pendant le chargement React */
-        #root:empty::before {
-          content: '';
-          display: block;
+        /* Instant splash screen while React hydrates */
+        #root:empty {
+          display: flex;
+          align-items: center;
+          justify-content: center;
           position: fixed;
           inset: 0;
           background: #0F1115;
           z-index: 9999;
         }
+        #root:empty::before {
+          content: '';
+          display: block;
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          border: 3px solid rgba(15,107,79,0.2);
+          border-top-color: #0F6B4F;
+          animation: _splash-spin 0.6s linear infinite;
+        }
+        @keyframes _splash-spin {
+          to { transform: rotate(360deg); }
+        }
       </style>
     </head>
 
-  
-    <body>
-      <div id="root"></div>
-      <script type="module" src="/src/main.jsx"></script>
-      <script>
-        if ('serviceWorker' in navigator) {
-          window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js')
-              .then(reg => console.log('✅ Service Worker enregistré:', reg.scope))
-              .catch(err => console.error('❌ SW error:', err));
-          });
-        }
-      </script>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+  <script>
+    // Defer SW registration to after page is interactive (doesn't compete with main bundle)
+    if ('serviceWorker' in navigator) {
+      var _swTimer = setTimeout(function() {
+        navigator.serviceWorker.register('/sw.js').catch(function(){});
+      }, 3000);
+      window.addEventListener('load', function() {
+        clearTimeout(_swTimer);
+        navigator.serviceWorker.register('/sw.js').catch(function(){});
+      });
+    }
+  </script>
 
-      
-    </body>
-  </html>
+</body>
+</html>

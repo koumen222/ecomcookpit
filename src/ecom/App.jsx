@@ -123,8 +123,15 @@ const IconFillLoader = ({ backgroundClassName = 'bg-white' }) => {
   );
 };
 
-// Fallback de chargement minimal
-const PageLoader = () => <IconFillLoader backgroundClassName="bg-gray-50" />;
+// Lightweight spinner for page transitions — pure CSS, no image loads, no RAF
+const SpinnerLoader = () => (
+  <div className="fixed inset-0 bg-gray-50 z-50 flex items-center justify-center">
+    <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid #e5e7eb', borderTopColor: '#0F6B4F', animation: 'spin 0.7s linear infinite' }} />
+  </div>
+);
+
+// Alias used by Suspense fallback
+const PageLoader = SpinnerLoader;
 
 
 
@@ -179,12 +186,13 @@ class ErrorBoundary extends React.Component {
 const ProtectedRoute = ({ children, requiredRole }) => {
   const { user, isAuthenticated, loading } = useEcomAuth();
 
-  // Si on charge ET qu'on n'a pas de données locales → spinner
-  // Si on a déjà token+user en local → afficher directement (vérification réseau en arrière-plan)
+  // Session active : JAMAIS de loader, affichage instantané
+  // Le loader n'apparaît QUE si pas de session locale ET en cours de chargement
   const hasLocalSession = !!localStorage.getItem('ecomToken') && !!localStorage.getItem('ecomUser');
-  if (loading && !hasLocalSession) {
-    return <IconFillLoader backgroundClassName="bg-gray-50" />;
-  }
+  // Désactivé : plus de loader pour les sessions actives
+  // if (loading && !hasLocalSession) {
+  //   return <SpinnerLoader />;
+  // }
 
   // Après le chargement : vérifier l'authentification
   // Utiliser isAuthenticated du contexte OU les données locales en fallback
@@ -199,7 +207,7 @@ const ProtectedRoute = ({ children, requiredRole }) => {
 
   if (requiredRole) {
     const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-    // Le Super Admin peut accéder ù  toutes les routes
+    // Le Super Admin peut accéder à toutes les routes
     if (effectiveUser?.role === 'super_admin') {
       return children;
     }
@@ -223,9 +231,10 @@ const DashboardRedirect = () => {
   const { user, isAuthenticated, loading } = useEcomAuth();
 
   const hasLocalSession = !!localStorage.getItem('ecomToken') && !!localStorage.getItem('ecomUser');
-  if (loading && !hasLocalSession) {
-    return <IconFillLoader backgroundClassName="bg-gray-50" />;
-  }
+  // Désactivé : plus de loader, redirection instantanée
+  // if (loading && !hasLocalSession) {
+  //   return <SpinnerLoader />;
+  // }
 
   const hasToken = !!localStorage.getItem('ecomToken');
   const localUser = !user ? JSON.parse(localStorage.getItem('ecomUser') || 'null') : user;
@@ -249,16 +258,23 @@ const DashboardRedirect = () => {
   return <Navigate to={dashboardPath} replace />;
 };
 
+// Layout stable mémorisé — sidebar/header ne se remontent JAMAIS lors de la navigation.
+// Suspense est INSIDE le layout: seul le contenu de page suspend, pas le shell.
+const StableLayout = React.memo(({ children }) => (
+  <EcomLayout>
+    <Suspense fallback={<SpinnerLoader />}>
+      <ErrorBoundary>{children}</ErrorBoundary>
+    </Suspense>
+  </EcomLayout>
+));
+StableLayout.displayName = 'StableLayout';
+
 // Wrapper qui ajoute le layout aux routes protégées
-const LayoutRoute = ({ children, requiredRole }) => {
-  return (
-    <ProtectedRoute requiredRole={requiredRole}>
-      <EcomLayout>
-        <ErrorBoundary>{children}</ErrorBoundary>
-      </EcomLayout>
-    </ProtectedRoute>
-  );
-};
+const LayoutRoute = ({ children, requiredRole }) => (
+  <ProtectedRoute requiredRole={requiredRole}>
+    <StableLayout>{children}</StableLayout>
+  </ProtectedRoute>
+);
 
 // Redirection racine: dashboard si connecté, landing page sinon
 const RootRedirect = () => {
@@ -298,6 +314,29 @@ const PageViewTracker = () => {
   return null;
 };
 
+// Prefetch likely routes on idle — makes navigation feel instant
+const PREFETCH_ROUTES = [
+  () => import('./pages/AdminDashboard.jsx'),
+  () => import('./pages/OrdersList.jsx'),
+  () => import('./pages/ProductsList.jsx'),
+  () => import('./pages/ClientsList.jsx'),
+  () => import('./pages/ReportsList.jsx'),
+];
+let _prefetched = false;
+const PrefetchOnIdle = () => {
+  useEffect(() => {
+    if (_prefetched) return;
+    _prefetched = true;
+    const run = () => PREFETCH_ROUTES.forEach(fn => fn().catch(() => {}));
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(run, { timeout: 5000 });
+    } else {
+      setTimeout(run, 3000);
+    }
+  }, []);
+  return null;
+};
+
 const EcomApp = () => {
   return (
     <EcomAuthProvider>
@@ -305,26 +344,26 @@ const EcomApp = () => {
         <div className="min-h-screen bg-gray-50">
           <ErrorBoundary>
             <PageViewTracker />
-            <Suspense fallback={<PageLoader />}>
+            <PrefetchOnIdle />
             <Routes>
               {/* Route racine - redirection auto selon session */}
               <Route path="/" element={<RootRedirect />} />
               <Route path="/ecom" element={<RootRedirect />} />
 
-              {/* Routes publiques (sans layout) */}
-              <Route path="/ecom/landing" element={<EcomLandingPage />} />
-              <Route path="/ecom/why-scalor" element={<WhyScalor />} />
-              <Route path="/ecom/tarifs" element={<Tarifs />} />
-              <Route path="/ecom/privacy" element={<PrivacyPolicy />} />
-              <Route path="/ecom/terms" element={<TermsOfService />} />
+              {/* Routes publiques (sans layout) — wrapped in leur propre Suspense */}
+              <Route path="/ecom/landing" element={<Suspense fallback={<SpinnerLoader />}><EcomLandingPage /></Suspense>} />
+              <Route path="/ecom/why-scalor" element={<Suspense fallback={<SpinnerLoader />}><WhyScalor /></Suspense>} />
+              <Route path="/ecom/tarifs" element={<Suspense fallback={<SpinnerLoader />}><Tarifs /></Suspense>} />
+              <Route path="/ecom/privacy" element={<Suspense fallback={<SpinnerLoader />}><PrivacyPolicy /></Suspense>} />
+              <Route path="/ecom/terms" element={<Suspense fallback={<SpinnerLoader />}><TermsOfService /></Suspense>} />
               <Route path="/ecom/security" element={<LayoutRoute><SecurityDashboard /></LayoutRoute>} />
-              <Route path="/ecom/login" element={<Login />} />
-              <Route path="/ecom/register" element={<Register />} />
-              <Route path="/ecom/forgot-password" element={<ForgotPassword />} />
-              <Route path="/ecom/reset-password" element={<ResetPassword />} />
-              <Route path="/ecom/setup-admin" element={<SetupSuperAdmin />} />
-              <Route path="/ecom/invite/:token" element={<InviteAccept />} />
-              <Route path="/ecom/workspace-setup" element={<WorkspaceSetup />} />
+              <Route path="/ecom/login" element={<Suspense fallback={<SpinnerLoader />}><Login /></Suspense>} />
+              <Route path="/ecom/register" element={<Suspense fallback={<SpinnerLoader />}><Register /></Suspense>} />
+              <Route path="/ecom/forgot-password" element={<Suspense fallback={<SpinnerLoader />}><ForgotPassword /></Suspense>} />
+              <Route path="/ecom/reset-password" element={<Suspense fallback={<SpinnerLoader />}><ResetPassword /></Suspense>} />
+              <Route path="/ecom/setup-admin" element={<Suspense fallback={<SpinnerLoader />}><SetupSuperAdmin /></Suspense>} />
+              <Route path="/ecom/invite/:token" element={<Suspense fallback={<SpinnerLoader />}><InviteAccept /></Suspense>} />
+              <Route path="/ecom/workspace-setup" element={<Suspense fallback={<SpinnerLoader />}><WorkspaceSetup /></Suspense>} />
               <Route path="/ecom/dashboard" element={<LayoutRoute><Dashboard /></LayoutRoute>} />
 
               {/* Routes produits */}
@@ -451,7 +490,6 @@ const EcomApp = () => {
               {/* Route catch-all */}
               <Route path="*" element={<Navigate to="/ecom/login" replace />} />
             </Routes>
-            </Suspense>
           </ErrorBoundary>
           <PrivacyBanner />
         </div>
