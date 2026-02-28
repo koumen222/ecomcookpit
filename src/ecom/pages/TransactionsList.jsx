@@ -435,6 +435,37 @@ const OverviewTab = ({ summary, budgets, forecast, fmt, fmtC, setTab, periodLabe
         <Metric label="Santé" value={`${score}/100`} sub={f.healthLabel||'—'} icon={I.heart} color={scoreColor} iconBg="bg-gray-100"/>
       </div>
 
+      {/* Alerte: Entrées non soldées */}
+      {(() => {
+        const paidIncomeCount = summary.paidIncomeCount || 0;
+        const totalIncomeCount = summary.incomeCount || 0;
+        const paidPercentage = totalIncomeCount > 0 ? (paidIncomeCount / totalIncomeCount * 100) : 0;
+        
+        if (totalIncomeCount > 0 && paidPercentage < 30) {
+          return (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <Ico d={I.alert} className="w-5 h-5 text-amber-600"/>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-bold text-amber-900 mb-1">⚠️ Attention : Entrées non soldées</h4>
+                <p className="text-xs text-amber-700 leading-relaxed">
+                  Seulement <strong>{Math.round(paidPercentage)}%</strong> de vos entrées sont soldées ({paidIncomeCount}/{totalIncomeCount}). 
+                  Il est recommandé d'avoir au moins <strong>30%</strong> des entrées payées pour maintenir une trésorerie saine.
+                </p>
+                <button 
+                  onClick={() => setTab('transactions')} 
+                  className="mt-2 text-xs font-semibold text-amber-700 hover:text-amber-900 underline"
+                >
+                  Voir les transactions →
+                </button>
+              </div>
+            </div>
+          );
+        }
+        return null;
+      })()}
+
       {/* Row 2: Score + Orders + Budgets */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="p-5">
@@ -754,6 +785,7 @@ const TransactionsTab = ({ transactions, summary, balance, filters, setFilters, 
             <th className="px-2 sm:px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider text-left hidden sm:table-cell">Cat</th>
             <th className="px-2 sm:px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider text-left hidden md:table-cell">Desc</th>
             <th className="px-2 sm:px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider text-right">Montant</th>
+            <th className="px-2 sm:px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider text-center hidden lg:table-cell">Soldé</th>
             <th className="px-2 sm:px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider text-right"></th>
           </tr></thead>
           <tbody className="divide-y divide-gray-50">
@@ -775,6 +807,26 @@ const TransactionsTab = ({ transactions, summary, balance, filters, setFilters, 
                 <td className={`px-2 sm:px-4 py-1.5 sm:py-3 text-sm font-bold text-right tabular-nums ${tx.type==='income'?'text-emerald-600':'text-red-500'}`}>
                   <span className="sm:hidden">{tx.type==='income'?'+':'-'}{fmtCompact(tx.amount)}</span>
                   <span className="hidden sm:inline">{tx.type==='income'?'+':'-'}{fmt(tx.amount)}</span>
+                </td>
+                <td className="px-2 sm:px-4 py-1.5 sm:py-3 text-center hidden lg:table-cell">
+                  {tx.type === 'income' ? (
+                    <input
+                      type="checkbox"
+                      checked={tx.isPaid || false}
+                      onChange={async (e) => {
+                        try {
+                          await ecomApi.put(`/transactions/${tx._id}`, { isPaid: e.target.checked });
+                          loadTab();
+                        } catch (err) {
+                          console.error('Erreur mise à jour isPaid:', err);
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                      title={tx.isPaid ? 'Marquer comme non soldé' : 'Marquer comme soldé'}
+                    />
+                  ) : (
+                    <span className="text-gray-300">—</span>
+                  )}
                 </td>
                 <td className="px-2 sm:px-4 py-1.5 sm:py-3 text-right whitespace-nowrap">
                   <div className="flex items-center justify-end gap-1">

@@ -106,6 +106,13 @@ router.get('/summary',
         }
       ]);
 
+      // Compter les entrées soldées (isPaid = true)
+      const paidIncomeCount = await Transaction.countDocuments({
+        ...matchStage,
+        type: 'income',
+        isPaid: true
+      });
+
       // Résumé par catégorie
       const byCategory = await Transaction.aggregate([
         { $match: matchStage },
@@ -147,6 +154,7 @@ router.get('/summary',
           balance: incomeData.total - expenseData.total,
           incomeCount: incomeData.count,
           expenseCount: expenseData.count,
+          paidIncomeCount: paidIncomeCount,
           byCategory,
           byMonth
         }

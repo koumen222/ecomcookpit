@@ -58,6 +58,10 @@ const transactionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'EcomUser',
     required: true
+  },
+  isPaid: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true,

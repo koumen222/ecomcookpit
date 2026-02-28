@@ -3219,12 +3219,11 @@ router.post('/sync-clients', requireEcomAuth, async (req, res) => {
       : Object.keys(orderStatusMap);
     console.log('🎯 Statuts à synchroniser:', statusesToSync);
 
-    // Récupérer toutes les commandes avec clientPhone et statut filtré
-    console.log('🔍 Recherche des commandes avec téléphone...');
+    // Récupérer toutes les commandes avec clientPhone (TOUS les statuts)
+    console.log('🔍 Recherche des commandes avec téléphone (tous statuts)...');
     const orders = await Order.find({ 
       workspaceId: req.workspaceId,
-      clientPhone: { $exists: true, $ne: '' },
-      status: { $in: statusesToSync }
+      clientPhone: { $exists: true, $ne: '' }
     }).lean();
 
     console.log(`📦 ${orders.length} commandes trouvées pour synchronisation`);
@@ -3278,7 +3277,7 @@ router.post('/sync-clients', requireEcomAuth, async (req, res) => {
       let client = await Client.findOne({ workspaceId: req.workspaceId, phone });
 
       if (!client) {
-        // Créer nouveau client
+        // Créer nouveau client uniquement
         console.log(`  ➕ Création nouveau client: ${firstName} ${lastName} (${phone})`);
         client = new Client({
           workspaceId: req.workspaceId,
@@ -3300,53 +3299,9 @@ router.post('/sync-clients', requireEcomAuth, async (req, res) => {
         created++;
         console.log(`  ✅ Client créé avec ID: ${client._id}`);
       } else {
-        // Mettre à jour client existant
-        console.log(`  🔄 Mise à jour client existant: ${client.firstName} (${phone}) - statut actuel: ${client.status}`);
-        let hasChanges = false;
-        
-        // Mettre à jour le statut si priorité plus élevée
-        if (mapping && statusPriority[mapping.clientStatus] > statusPriority[client.status]) {
-          console.log(`    📈 Changement statut: ${client.status} → ${mapping.clientStatus} (priorité ${statusPriority[mapping.clientStatus]} > ${statusPriority[client.status]})`);
-          client.status = mapping.clientStatus;
-          hasChanges = true;
-        }
-        
-        // Ajouter le tag si non présent
-        if (mapping && !client.tags.includes(mapping.tag)) {
-          console.log(`    🏷️ Ajout tag: ${mapping.tag}`);
-          client.tags.push(mapping.tag);
-          hasChanges = true;
-        }
-        
-        // Mettre à jour l'adresse si elle n'existe pas
-        if (order.address && !client.address) {
-          console.log(`    📍 Ajout adresse: ${order.address}`);
-          client.address = order.address;
-          hasChanges = true;
-        }
-        
-        // Ajouter le produit s'il n'est pas déjà dans la liste
-        if (productName && !client.products.includes(productName)) {
-          console.log(`    📦 Ajout produit: ${productName}`);
-          client.products.push(productName);
-          hasChanges = true;
-        }
-        
-        // Mettre à jour les totaux
-        const oldOrders = client.totalOrders || 0;
-        const oldSpent = client.totalSpent || 0;
-        client.totalOrders = oldOrders + 1;
-        client.totalSpent = oldSpent + orderTotal;
-        client.lastOrderAt = order.date;
-        client.lastContactAt = order.date;
-        
-        console.log(`    💰 Mise à jour totaux: ${oldOrders}→${client.totalOrders} commandes, ${oldSpent}→${client.totalSpent}€ dépensés`);
-        
-        if (hasChanges || true) { // Toujours sauvegarder pour les totaux
-          await client.save();
-          updated++;
-          console.log(`  ✅ Client mis à jour`);
-        }
+        // Client existe déjà - on l'ignore complètement
+        console.log(`  ⏭️ Client existant ignoré: ${client.firstName} (${phone})`);
+        // Ne rien faire, passer au suivant
       }
 
       // Emit progress every 10 orders or at the end
@@ -3369,19 +3324,18 @@ router.post('/sync-clients', requireEcomAuth, async (req, res) => {
     console.log(`✅ ===== SYNCHRONISATION TERMINÉE =====`);
     console.log(`📊 Résultats:`);
     console.log(`  • Total commandes traitées: ${totalOrders}`);
-    console.log(`  • Clients créés: ${created}`);
-    console.log(`  • Clients mis à jour: ${updated}`);
-    console.log(`  • Total clients traités: ${created + updated}`);
-    console.log(`� Répartition par statut:`, statusGroups);
+    console.log(`  • Nouveaux clients créés: ${created}`);
+    console.log(`  • Clients existants ignorés: ${totalOrders - created}`);
+    console.log(`📊 Répartition par statut:`, statusGroups);
 
     // Emit completion
     req.app.get('io')?.emit(`sync-clients-progress-${req.workspaceId}`, {
       type: 'complete',
       created,
-      updated,
-      total: created + updated,
+      updated: 0,
+      total: created,
       statusGroups,
-      message: 'Synchronisation terminée avec succès !'
+      message: `Synchronisation terminée ! ${created} nouveaux clients créés.`
     });
 
     res.json({ 
@@ -3389,8 +3343,8 @@ router.post('/sync-clients', requireEcomAuth, async (req, res) => {
       message: 'Synchronisation terminée',
       data: {
         created,
-        updated,
-        total: created + updated,
+        updated: 0,
+        total: created,
         statusGroups
       }
     });
