@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, Image, Plus, X, Loader2, AlertCircle, CheckCircle, Search, PackageSearch, Link, Sparkles, Globe, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { ArrowLeft, Save, Image, Plus, X, Loader2, AlertCircle, CheckCircle, Search, PackageSearch, Link, Sparkles, Globe, FileText, ChevronDown, ChevronUp, ShoppingBag } from 'lucide-react';
 import { storeProductsApi } from '../services/storeApi.js';
+import AlibabaImportModal from '../components/AlibabaImportModal.jsx';
 
 /**
  * StoreProductForm — Create or edit a store catalog product.
@@ -12,7 +13,11 @@ import { storeProductsApi } from '../services/storeApi.js';
 const StoreProductForm = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const location = useLocation();
   const isEdit = !!id;
+
+  // Pre-fill from navigation state (e.g. from StoreProductsList Alibaba import)
+  const navState = location.state?.prefill || null;
 
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
@@ -27,6 +32,9 @@ const StoreProductForm = () => {
   const [pickerLoading, setPickerLoading] = useState(false);
   const [linkedProduct, setLinkedProduct] = useState(null);
   const searchTimeout = useRef(null);
+
+  // ─── Alibaba Import state ─────────────────────────────────────────────────
+  const [showAlibabaModal, setShowAlibabaModal] = useState(false);
 
   // ─── AI Generation state ──────────────────────────────────────────────────
   const [showAiModal, setShowAiModal] = useState(false);
@@ -69,18 +77,32 @@ const StoreProductForm = () => {
     setAiError('');
   };
 
+  const handleAlibabaApply = (productData) => {
+    setForm(prev => ({
+      ...prev,
+      name: productData.name || prev.name,
+      description: productData.description || prev.description,
+      price: productData.price || prev.price,
+      category: productData.category || prev.category,
+      tags: productData.tags || prev.tags,
+      seoTitle: productData.seoTitle || prev.seoTitle,
+      seoDescription: productData.seoDescription || prev.seoDescription,
+      images: productData.images?.length > 0 ? productData.images : prev.images
+    }));
+  };
+
   const [form, setForm] = useState({
-    name: '',
-    description: '',
-    price: '',
+    name: navState?.name || '',
+    description: navState?.description || '',
+    price: navState?.price || '',
     compareAtPrice: '',
     stock: '0',
-    category: '',
-    tags: '',
+    category: navState?.category || '',
+    tags: navState?.tags || '',
     isPublished: false,
-    seoTitle: '',
-    seoDescription: '',
-    images: [],
+    seoTitle: navState?.seoTitle || '',
+    seoDescription: navState?.seoDescription || '',
+    images: navState?.images || [],
     linkedProductId: null
   });
 
@@ -288,14 +310,24 @@ const StoreProductForm = () => {
             {isEdit ? 'Modifier le produit' : 'Nouveau produit boutique'}
           </h1>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowAiModal(true)}
-          className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-medium rounded-lg hover:from-violet-700 hover:to-indigo-700 transition shadow-sm"
-        >
-          <Sparkles className="w-4 h-4" />
-          Générer avec IA
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowAlibabaModal(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white text-sm font-medium rounded-lg hover:from-orange-600 hover:to-red-600 transition shadow-sm"
+          >
+            <ShoppingBag className="w-4 h-4" />
+            <span className="hidden sm:inline">Alibaba</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowAiModal(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-medium rounded-lg hover:from-violet-700 hover:to-indigo-700 transition shadow-sm"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span className="hidden sm:inline">Générer IA</span>
+          </button>
+        </div>
       </div>
 
       {/* Status messages */}
@@ -353,6 +385,14 @@ const StoreProductForm = () => {
           )}
           <p className="text-xs text-gray-400 mt-2">Lier ce produit boutique à un produit de votre catalogue pour synchroniser les commandes.</p>
         </div>
+
+        {/* ── Alibaba Import Modal ──────────────────────────────────────── */}
+        {showAlibabaModal && (
+          <AlibabaImportModal
+            onClose={() => setShowAlibabaModal(false)}
+            onApply={handleAlibabaApply}
+          />
+        )}
 
         {/* ── AI Generation Modal ──────────────────────────────────────── */}
         {showAiModal && (

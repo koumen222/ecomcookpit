@@ -182,6 +182,8 @@ const startServer = async () => {
       ['./routes/publicStore.js',             '/api/public/store'],
       // ─── New unified Store API (called by SPA on *.scalor.net via api.scalor.net) ──
       ['./routes/storeApi.js',                '/api/store'],
+      // ─── Alibaba AI Import ────────────────────────────────────────────────
+      ['./routes/alibabaImport.js',           '/api/ecom/alibaba-import'],
     ];
 
     for (const [file, mountPath] of routes) {

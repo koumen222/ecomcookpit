@@ -4,7 +4,7 @@ import Workspace from '../models/Workspace.js';
 import EcomWorkspace from '../models/Workspace.js';
 import Order from '../models/Order.js';
 import Transaction from '../models/Transaction.js';
-import { requireEcomAuth, validateEcomAccess, generateEcomToken } from '../middleware/ecomAuth.js';
+import { requireEcomAuth, validateEcomAccess, generateEcomToken, invalidateUserCache } from '../middleware/ecomAuth.js';
 import { logAudit, AuditLog } from '../middleware/security.js';
 
 const router = express.Router();
@@ -420,6 +420,9 @@ router.post('/me/switch-workspace', requireEcomAuth, async (req, res) => {
     user.workspaceId = workspaceId;
     user.role = newRole;
     await user.save();
+    
+    // Invalider le cache utilisateur pour que les futures requêtes voient le nouveau workspace
+    invalidateUserCache(user._id);
     
     // Générer un nouveau token avec le nouveau workspace
     const newToken = generateEcomToken(user);

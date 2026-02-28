@@ -98,10 +98,31 @@ export const requireEcomAuth = async (req, res, next) => {
 
     req.user = decoded;
     req.ecomUser = user;
-    // IMPORTANT: Utiliser le workspaceId de l'utilisateur en base (source de vérité)
-    // et non celui du token qui peut être obsolète après un changement de workspace
-    req.workspaceId = user.workspaceId;
-    req.ecomUserRole = user.getRoleInWorkspace ? (user.getRoleInWorkspace(user.workspaceId) || user.role) : user.role;
+
+    // Déterminer le workspaceId actif :
+    // 1. D'abord vérifier si la requête envoie un workspaceId (query, body ou header)
+    // 2. Si oui ET l'utilisateur y a accès → l'utiliser
+    // 3. Sinon → fallback sur le workspaceId par défaut de l'utilisateur en base
+    const requestedWsId = req.query?.workspaceId || req.body?.workspaceId || req.headers['x-workspace-id'];
+
+    if (requestedWsId && requestedWsId !== String(user.workspaceId)) {
+      // Vérifier que l'utilisateur a accès au workspace demandé
+      const hasAccess = user.hasWorkspaceAccess
+        ? user.hasWorkspaceAccess(requestedWsId)
+        : false;
+      
+      if (hasAccess) {
+        req.workspaceId = requestedWsId;
+        req.ecomUserRole = user.getRoleInWorkspace ? (user.getRoleInWorkspace(requestedWsId) || user.role) : user.role;
+      } else {
+        // Pas d'accès au workspace demandé → utiliser le workspace par défaut
+        req.workspaceId = user.workspaceId;
+        req.ecomUserRole = user.getRoleInWorkspace ? (user.getRoleInWorkspace(user.workspaceId) || user.role) : user.role;
+      }
+    } else {
+      req.workspaceId = user.workspaceId;
+      req.ecomUserRole = user.getRoleInWorkspace ? (user.getRoleInWorkspace(user.workspaceId) || user.role) : user.role;
+    }
     
     next();
   } catch (error) {

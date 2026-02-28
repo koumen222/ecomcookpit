@@ -2,8 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import EcomUser from '../models/EcomUser.js';
 import EcomWorkspace from '../models/Workspace.js';
-import { requireEcomAuth } from '../middleware/ecomAuth.js';
-import { generateEcomToken } from '../middleware/ecomAuth.js';
+import { requireEcomAuth, generateEcomToken, invalidateUserCache } from '../middleware/ecomAuth.js';
 import { notifyTeamInvitation, notifyRoleChanged, notifyMemberRemoved } from '../core/notifications/notification.service.js';
 
 const router = express.Router();
@@ -257,6 +256,9 @@ router.put('/switch-workspace/:workspaceId', requireEcomAuth, async (req, res) =
     req.ecomUser.workspaceId = workspaceId;
     req.ecomUser.role = role;
     await req.ecomUser.save();
+
+    // Invalider le cache utilisateur pour que les futures requêtes voient le nouveau workspace
+    invalidateUserCache(req.ecomUser._id);
 
     // Générer un nouveau token avec le nouveau workspace
     const token = generateEcomToken(req.ecomUser);

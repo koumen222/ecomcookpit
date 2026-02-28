@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
+import { playCashRegisterSound, playConfirmSound } from '../services/soundService.js';
 import { getContextualError } from '../utils/errorMessages';
 import { getCache, setCache, invalidatePrefix } from '../utils/cacheUtils.js';
 
@@ -841,11 +842,15 @@ const OrdersList = () => {
         return newStats;
       });
       
-      // 3. Son de notification
-      if (newStatus === 'delivered') {
-        playCashRegisterSound();
-      } else if (['confirmed', 'shipped'].includes(newStatus)) {
-        playConfirmSound();
+      // 3. Son de notification (ne doit jamais bloquer l'update statut)
+      try {
+        if (newStatus === 'delivered') {
+          playCashRegisterSound();
+        } else if (['confirmed', 'shipped'].includes(newStatus)) {
+          playConfirmSound();
+        }
+      } catch (soundErr) {
+        console.warn('⚠️ Erreur audio non bloquante:', soundErr?.message || soundErr);
       }
 
       // 4. API call en arrière-plan (non bloquant, pas de await)

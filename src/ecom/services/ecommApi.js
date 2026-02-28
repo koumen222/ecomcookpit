@@ -105,7 +105,9 @@ ecomApi.interceptors.response.use(
       logApiError(error);
       window.dispatchEvent(new Event('toploader:stop'));
       console.error('🌐 Erreur réseau - backend inaccessible:', error.message);
-      throw new Error('Impossible de contacter le serveur. Vérifiez votre connexion.');
+      // Important: keep original Axios error metadata (code/message/config)
+      // so contextual handlers can distinguish timeout vs network vs other failures.
+      return Promise.reject(error);
     }
 
     // Auto-refresh sur 401 (token expiré)

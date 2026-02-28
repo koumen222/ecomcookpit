@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Plus, Search, Edit, Trash2, Eye, EyeOff, ChevronLeft, ChevronRight, Loader2, AlertCircle, Image } from 'lucide-react';
+import { Package, Plus, Search, Edit, Trash2, Eye, EyeOff, ChevronLeft, ChevronRight, Loader2, AlertCircle, Image, ShoppingBag } from 'lucide-react';
 import { storeProductsApi } from '../services/storeApi.js';
+import AlibabaImportModal from '../components/AlibabaImportModal.jsx';
 
 /**
  * StoreProductsList — Dashboard page listing all store catalog products.
@@ -14,6 +15,11 @@ const StoreProductsList = () => {
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 });
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
+  const [showAlibabaModal, setShowAlibabaModal] = useState(false);
+
+  const handleAlibabaApply = (productData) => {
+    navigate('/ecom/store/products/new', { state: { prefill: productData } });
+  };
 
   const fetchProducts = useCallback(async (page = 1, searchTerm = '') => {
     setLoading(true);
@@ -80,13 +86,22 @@ const StoreProductsList = () => {
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">{pagination.total} produit{pagination.total !== 1 ? 's' : ''}</p>
         </div>
-        <button
-          onClick={() => navigate('/ecom/store/products/new')}
-          className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition"
-        >
-          <Plus className="w-4 h-4" />
-          Ajouter un produit
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowAlibabaModal(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg text-sm font-medium hover:from-orange-600 hover:to-red-600 transition shadow-sm"
+          >
+            <ShoppingBag className="w-4 h-4" />
+            <span className="hidden sm:inline">Importer Alibaba</span>
+          </button>
+          <button
+            onClick={() => navigate('/ecom/store/products/new')}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition"
+          >
+            <Plus className="w-4 h-4" />
+            Ajouter un produit
+          </button>
+        </div>
       </div>
 
       {/* Search */}
@@ -100,6 +115,13 @@ const StoreProductsList = () => {
           className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
         />
       </div>
+
+      {showAlibabaModal && (
+        <AlibabaImportModal
+          onClose={() => setShowAlibabaModal(false)}
+          onApply={handleAlibabaApply}
+        />
+      )}
 
       {error && (
         <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
