@@ -87,6 +87,11 @@ const storeOrderSchema = new mongoose.Schema({
     type: String,
     trim: true,
     default: ''
+  },
+  linkedOrderId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Order',
+    default: null
   }
 }, {
   collection: 'store_orders',

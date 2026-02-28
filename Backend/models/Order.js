@@ -81,8 +81,13 @@ const orderSchema = new mongoose.Schema({
   },
   source: {
     type: String,
-    enum: ['google_sheets', 'manual'],
+    enum: ['google_sheets', 'manual', 'boutique'],
     default: 'manual'
+  },
+  storeOrderId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'StoreOrder',
+    default: null
   },
   rawData: {
     type: mongoose.Schema.Types.Mixed,

@@ -2,6 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import multer from 'multer';
 import StoreProduct from '../models/StoreProduct.js';
+import Product from '../models/Product.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { requireStoreOwner } from '../middleware/storeAuth.js';
 import { uploadImage, isConfigured } from '../services/cloudflareImagesService.js';
@@ -191,6 +192,42 @@ router.post(
     }
   }
 );
+
+/**
+ * GET /store-products/system-products
+ * Return main system products for the store product picker.
+ * Lets the store owner pick an existing product to pre-fill name + price.
+ * Supports ?search= and ?limit=
+ * MUST be declared before /:id to avoid Express routing conflict.
+ */
+router.get('/system-products', requireEcomAuth, requireWorkspace, async (req, res) => {
+  try {
+    const { search, limit = 50 } = req.query;
+    const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 50));
+
+    const filter = {
+      workspaceId: req.workspaceId,
+      isActive: true
+    };
+
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const products = await Product.find(filter)
+      .select('_id name sellingPrice stock status')
+      .sort({ name: 1 })
+      .limit(limitNum)
+      .lean();
+
+    res.json({ success: true, data: products });
+  } catch (error) {
+    console.error('Erreur GET /store-products/system-products:', error.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
 
 /**
  * GET /store-products/:id

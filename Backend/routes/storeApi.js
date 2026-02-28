@@ -25,6 +25,7 @@ import mongoose from 'mongoose';
 import Workspace from '../models/Workspace.js';
 import StoreProduct from '../models/StoreProduct.js';
 import StoreOrder from '../models/StoreOrder.js';
+import Order from '../models/Order.js';
 
 const router = express.Router();
 
@@ -400,6 +401,34 @@ router.post('/:subdomain/orders', async (req, res) => {
     });
 
     await order.save();
+
+    // ── Sync to main system orders ──────────────────────────────────────────
+    // Creates a standard Order in the main system so the team sees it
+    // in the dashboard orders view with source='boutique'
+    try {
+      const productSummary = orderProducts.map(p => `${p.name} x${p.quantity}`).join(', ');
+      const mainOrder = new Order({
+        workspaceId: workspace._id,
+        clientName: order.customerName,
+        clientPhone: order.phone,
+        city: order.city,
+        address: order.address,
+        product: productSummary,
+        quantity: orderProducts.reduce((sum, p) => sum + p.quantity, 0),
+        price: order.total,
+        status: 'pending',
+        source: 'boutique',
+        storeOrderId: order._id,
+        notes: [order.orderNumber, order.notes].filter(Boolean).join(' — '),
+        date: new Date()
+      });
+      await mainOrder.save();
+      // Link back
+      order.linkedOrderId = mainOrder._id;
+      await order.save();
+    } catch (syncErr) {
+      console.error('⚠️ Could not sync store order to main orders:', syncErr.message);
+    }
 
     // Decrement stock atomically
     const bulkOps = products.map(item => ({

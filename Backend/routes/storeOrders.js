@@ -2,7 +2,18 @@ import express from 'express';
 import mongoose from 'mongoose';
 import StoreOrder from '../models/StoreOrder.js';
 import StoreProduct from '../models/StoreProduct.js';
+import Order from '../models/Order.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
+
+// Map StoreOrder statuses to main Order statuses
+const STATUS_MAP = {
+  pending: 'pending',
+  confirmed: 'confirmed',
+  processing: 'processing',
+  shipped: 'shipped',
+  delivered: 'delivered',
+  cancelled: 'annulé'
+};
 
 const router = express.Router();
 
@@ -150,6 +161,18 @@ router.put('/:id/status', requireEcomAuth, requireWorkspace, async (req, res) =>
       }));
       if (bulkOps.length > 0) {
         await StoreProduct.bulkWrite(bulkOps);
+      }
+    }
+
+    // Sync status to linked main system order
+    if (order.linkedOrderId) {
+      try {
+        await Order.findByIdAndUpdate(
+          order.linkedOrderId,
+          { $set: { status: STATUS_MAP[status] || status, updatedAt: new Date() } }
+        );
+      } catch (syncErr) {
+        console.error('⚠️ Could not sync status to main order:', syncErr.message);
       }
     }
 

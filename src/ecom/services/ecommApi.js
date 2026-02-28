@@ -17,6 +17,14 @@ const ecomApi = axios.create({
 // Intercepteur pour ajouter le token d'authentification et le workspaceId
 ecomApi.interceptors.request.use(
   (config) => {
+    const isFormData = typeof FormData !== 'undefined' && config.data instanceof FormData;
+
+    // For multipart requests, let the browser/axios set Content-Type with boundary.
+    if (isFormData && config.headers) {
+      delete config.headers['Content-Type'];
+      delete config.headers['content-type'];
+    }
+
     const token = localStorage.getItem('ecomToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -40,7 +48,11 @@ ecomApi.interceptors.request.use(
         config.params = { workspaceId: wsId };
       }
       // Ajouter workspaceId au body si c'est une requête POST/PUT/DELETE
-      else if (['post', 'put', 'patch'].includes(config.method) && config.data) {
+      else if (['post', 'put', 'patch'].includes(config.method) && isFormData) {
+        if (!config.data.has('workspaceId')) {
+          config.data.append('workspaceId', wsId);
+        }
+      } else if (['post', 'put', 'patch'].includes(config.method) && config.data) {
         config.data.workspaceId = wsId;
       } else if (['post', 'put', 'patch'].includes(config.method) && !config.data) {
         config.data = { workspaceId: wsId };

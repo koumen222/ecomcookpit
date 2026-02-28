@@ -29,8 +29,12 @@ export const storeProductsApi = {
   updateProduct: (id, data) => ecomApi.put(`/store-products/${id}`, data),
   deleteProduct: (id) => ecomApi.delete(`/store-products/${id}`),
   getCategories: () => ecomApi.get('/store-products/categories/list'),
-  
-  // ─── Image Upload (Cloudflare Images) ──────────────────────────────────
+
+  // ─── System product picker (link store product to main catalogue) ─────
+  getSystemProducts: (search = '') =>
+    ecomApi.get('/store-products/system-products', { params: { search, limit: 100 } }),
+
+  // ─── Image Upload via R2 ──────────────────────────────────────────────
   uploadImages: (files) => {
     const formData = new FormData();
     files.forEach(file => formData.append('images', file));
