@@ -29,6 +29,15 @@ export const storeProductsApi = {
   updateProduct: (id, data) => ecomApi.put(`/store-products/${id}`, data),
   deleteProduct: (id) => ecomApi.delete(`/store-products/${id}`),
   getCategories: () => ecomApi.get('/store-products/categories/list'),
+  
+  // ─── Image Upload (Cloudflare Images) ──────────────────────────────────
+  uploadImages: (files) => {
+    const formData = new FormData();
+    files.forEach(file => formData.append('images', file));
+    return ecomApi.post('/store-products/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  }
 };
 
 export const storeOrdersApi = {

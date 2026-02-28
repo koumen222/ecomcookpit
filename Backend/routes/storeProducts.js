@@ -1,10 +1,29 @@
 import express from 'express';
 import mongoose from 'mongoose';
+import multer from 'multer';
 import StoreProduct from '../models/StoreProduct.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { requireStoreOwner } from '../middleware/storeAuth.js';
+import { uploadImage, isConfigured } from '../services/cloudflareImagesService.js';
 
 const router = express.Router();
+
+// Configure multer for memory storage (files uploaded to Cloudflare, not local disk)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB max
+    files: 5 // Max 5 files per upload
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept only images
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  }
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD ROUTES (authenticated, workspace-scoped)
@@ -73,6 +92,73 @@ router.get('/categories/list', requireEcomAuth, requireWorkspace, async (req, re
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
+
+/**
+ * POST /store-products/upload
+ * Upload product images to Cloudflare Images.
+ * Returns array of uploaded image URLs with metadata.
+ * Max 5 images, 5MB each.
+ */
+router.post(
+  '/upload',
+  requireEcomAuth,
+  requireWorkspace,
+  requireStoreOwner,
+  upload.array('images', 5),
+  async (req, res) => {
+    try {
+      if (!isConfigured()) {
+        return res.status(503).json({
+          success: false,
+          message: 'Cloudflare Images not configured',
+          code: 'CLOUDFLARE_NOT_CONFIGURED'
+        });
+      }
+
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'No images provided'
+        });
+      }
+
+      const uploadedImages = [];
+
+      for (const file of req.files) {
+        const result = await uploadImage(
+          file.buffer,
+          file.originalname,
+          {
+            workspaceId: req.workspaceId.toString(),
+            uploadedBy: req.user.id,
+            filename: file.originalname
+          }
+        );
+
+        uploadedImages.push({
+          id: result.id,
+          url: result.url,
+          variants: result.variants,
+          filename: file.originalname,
+          size: file.size
+        });
+      }
+
+      res.json({
+        success: true,
+        message: `${uploadedImages.length} image(s) uploaded`,
+        data: uploadedImages
+      });
+
+    } catch (error) {
+      console.error('❌ Image upload error:', error.message);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Image upload failed'
+      });
+    }
+  }
+);
 
 /**
  * GET /store-products/:id
