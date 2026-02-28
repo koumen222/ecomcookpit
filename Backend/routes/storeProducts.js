@@ -6,6 +6,15 @@ import Product from '../models/Product.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { requireStoreOwner } from '../middleware/storeAuth.js';
 import { uploadImage, isConfigured } from '../services/cloudflareImagesService.js';
+import OpenAI from 'openai';
+
+let openai = null;
+const getOpenAI = () => {
+  if (!openai && process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return openai;
+};
 
 const router = express.Router();
 
@@ -194,6 +203,94 @@ router.post(
 );
 
 /**
+ * POST /store-products/generate
+ * Generate product fields using AI from a URL or detailed description.
+ * Body: { input: string, inputType: 'url' | 'description' }
+ * Returns: { name, description, category, tags, seoTitle, seoDescription, suggestedPrice, features }
+ */
+router.post('/generate', requireEcomAuth, requireWorkspace, async (req, res) => {
+  try {
+    const ai = getOpenAI();
+    if (!ai) {
+      return res.status(503).json({
+        success: false,
+        message: 'Génération IA non configurée. Veuillez configurer OPENAI_API_KEY.'
+      });
+    }
+
+    const { input, inputType = 'description' } = req.body;
+    if (!input?.trim()) {
+      return res.status(400).json({ success: false, message: 'Contenu requis (URL ou description)' });
+    }
+
+    let context = input.trim();
+
+    // If URL: fetch and strip HTML to get plain text (max 4000 chars for token budget)
+    if (inputType === 'url') {
+      try {
+        const { default: nodeFetch } = await import('node-fetch');
+        const response = await nodeFetch(input.trim(), {
+          headers: { 'User-Agent': 'Mozilla/5.0' },
+          signal: AbortSignal.timeout(8000)
+        });
+        const html = await response.text();
+        // Strip HTML tags and condense whitespace
+        context = html
+          .replace(/<script[\s\S]*?<\/script>/gi, '')
+          .replace(/<style[\s\S]*?<\/style>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .substring(0, 4000);
+      } catch {
+        return res.status(422).json({ success: false, message: 'Impossible de récupérer la page. Essayez avec une description.' });
+      }
+    }
+
+    const systemPrompt = `Tu es un expert en e-commerce. À partir du texte fourni, génère les informations d'une page produit en JSON.
+Réponds UNIQUEMENT avec un objet JSON valide, sans markdown, sans explication.
+Format strict:
+{
+  "name": "Nom commercial accrocheur (max 80 chars)",
+  "description": "Description persuasive pour le client final, 2-4 paragraphes, ton commercial",
+  "category": "Catégorie courte (ex: Vêtements, Électronique, Beauté)",
+  "tags": ["tag1", "tag2", "tag3"],
+  "seoTitle": "Titre SEO optimisé (max 60 chars)",
+  "seoDescription": "Méta description SEO (max 155 chars)",
+  "features": ["Avantage 1", "Avantage 2", "Avantage 3"],
+  "suggestedPrice": 0
+}
+Si le prix n'est pas mentionné, mettre 0. Répondre en français.`;
+
+    const completion = await ai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: context }
+      ],
+      temperature: 0.7,
+      max_tokens: 800,
+      response_format: { type: 'json_object' }
+    });
+
+    let generated;
+    try {
+      generated = JSON.parse(completion.choices[0].message.content);
+    } catch {
+      return res.status(500).json({ success: false, message: 'Réponse IA invalide, réessayez.' });
+    }
+
+    res.json({ success: true, data: generated });
+
+  } catch (error) {
+    console.error('❌ POST /store-products/generate error:', error.message);
+    if (error?.status === 429) {
+      return res.status(429).json({ success: false, message: 'Quota OpenAI dépassé. Réessayez plus tard.' });
+    }
+    res.status(500).json({ success: false, message: 'Erreur lors de la génération IA' });
+  }
+});
+
+/**
  * GET /store-products/system-products
  * Return main system products for the store product picker.
  * Lets the store owner pick an existing product to pre-fill name + price.
@@ -202,23 +299,34 @@ router.post(
  */
 router.get('/system-products', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
-    const { search, limit = 50 } = req.query;
+    const { search, status, isActive, limit = 50 } = req.query;
     const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 50));
 
     const filter = {
-      workspaceId: req.workspaceId,
-      isActive: true
+      workspaceId: req.workspaceId
     };
 
     if (search) {
       filter.$or = [
-        { name: { $regex: search, $options: 'i' } }
+        { name: { $regex: search, $options: 'i' } },
+        { status: { $regex: search, $options: 'i' } }
       ];
     }
 
+    if (status) {
+      const statuses = String(status).split(',').map(s => s.trim()).filter(Boolean);
+      if (statuses.length) {
+        filter.status = statuses.length > 1 ? { $in: statuses } : statuses[0];
+      }
+    }
+
+    if (isActive !== undefined) {
+      filter.isActive = isActive === 'true';
+    }
+
     const products = await Product.find(filter)
-      .select('_id name sellingPrice stock status')
-      .sort({ name: 1 })
+      .select('_id name sellingPrice stock status isActive createdAt')
+      .sort({ createdAt: -1 })
       .limit(limitNum)
       .lean();
 

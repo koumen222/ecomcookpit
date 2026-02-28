@@ -32,7 +32,12 @@ export const storeProductsApi = {
 
   // ─── System product picker (link store product to main catalogue) ─────
   getSystemProducts: (search = '') =>
-    ecomApi.get('/store-products/system-products', { params: { search, limit: 100 } }),
+    // Same source as /ecom/products page
+    ecomApi.get('/products', { params: { search } }),
+
+  // ─── AI product generation ────────────────────────────────────────────
+  generateProduct: (input, inputType) =>
+    ecomApi.post('/store-products/generate', { input, inputType }),
 
   // ─── Image Upload via R2 ──────────────────────────────────────────────
   uploadImages: (files) => {

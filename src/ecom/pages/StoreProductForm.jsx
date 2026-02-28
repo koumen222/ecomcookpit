@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Save, Image, Plus, X, Loader2, AlertCircle, CheckCircle, Search, PackageSearch, Link } from 'lucide-react';
+import { ArrowLeft, Save, Image, Plus, X, Loader2, AlertCircle, CheckCircle, Search, PackageSearch, Link, Sparkles, Globe, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import { storeProductsApi } from '../services/storeApi.js';
 
 /**
@@ -27,6 +27,47 @@ const StoreProductForm = () => {
   const [pickerLoading, setPickerLoading] = useState(false);
   const [linkedProduct, setLinkedProduct] = useState(null);
   const searchTimeout = useRef(null);
+
+  // ─── AI Generation state ──────────────────────────────────────────────────
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [aiInputType, setAiInputType] = useState('description');
+  const [aiInput, setAiInput] = useState('');
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [aiGenerated, setAiGenerated] = useState(null);
+
+  const handleAiGenerate = async () => {
+    if (!aiInput.trim()) return;
+    setAiGenerating(true);
+    setAiError('');
+    setAiGenerated(null);
+    try {
+      const res = await storeProductsApi.generateProduct(aiInput.trim(), aiInputType);
+      setAiGenerated(res.data?.data || null);
+    } catch (err) {
+      setAiError(err?.response?.data?.message || 'Erreur lors de la génération');
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const applyAiGenerated = () => {
+    if (!aiGenerated) return;
+    setForm(prev => ({
+      ...prev,
+      name: aiGenerated.name || prev.name,
+      description: aiGenerated.description || prev.description,
+      category: aiGenerated.category || prev.category,
+      tags: (aiGenerated.tags || []).join(', '),
+      seoTitle: aiGenerated.seoTitle || prev.seoTitle,
+      seoDescription: aiGenerated.seoDescription || prev.seoDescription,
+      price: aiGenerated.suggestedPrice > 0 ? String(aiGenerated.suggestedPrice) : prev.price
+    }));
+    setShowAiModal(false);
+    setAiInput('');
+    setAiGenerated(null);
+    setAiError('');
+  };
 
   const [form, setForm] = useState({
     name: '',
@@ -242,9 +283,19 @@ const StoreProductForm = () => {
         >
           <ArrowLeft className="w-5 h-5 text-gray-600" />
         </button>
-        <h1 className="text-xl font-bold text-gray-900">
-          {isEdit ? 'Modifier le produit' : 'Nouveau produit boutique'}
-        </h1>
+        <div className="flex-1">
+          <h1 className="text-xl font-bold text-gray-900">
+            {isEdit ? 'Modifier le produit' : 'Nouveau produit boutique'}
+          </h1>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowAiModal(true)}
+          className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-medium rounded-lg hover:from-violet-700 hover:to-indigo-700 transition shadow-sm"
+        >
+          <Sparkles className="w-4 h-4" />
+          Générer avec IA
+        </button>
       </div>
 
       {/* Status messages */}
@@ -302,6 +353,166 @@ const StoreProductForm = () => {
           )}
           <p className="text-xs text-gray-400 mt-2">Lier ce produit boutique à un produit de votre catalogue pour synchroniser les commandes.</p>
         </div>
+
+        {/* ── AI Generation Modal ──────────────────────────────────────── */}
+        {showAiModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-violet-600" />
+                  <h3 className="font-semibold text-gray-900">Générer la fiche produit avec l'IA</h3>
+                </div>
+                <button type="button" onClick={() => { setShowAiModal(false); setAiGenerated(null); setAiError(''); }} className="p-1 hover:bg-gray-100 rounded">
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {/* Input type toggle */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAiInputType('description')}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition ${
+                      aiInputType === 'description'
+                        ? 'bg-violet-50 border-violet-400 text-violet-700'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <FileText className="w-4 h-4" />
+                    Description détaillée
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAiInputType('url')}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition ${
+                      aiInputType === 'url'
+                        ? 'bg-violet-50 border-violet-400 text-violet-700'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Globe className="w-4 h-4" />
+                    Lien source (URL)
+                  </button>
+                </div>
+
+                {/* Input */}
+                {aiInputType === 'description' ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Décrivez votre produit en détail
+                    </label>
+                    <textarea
+                      autoFocus
+                      value={aiInput}
+                      onChange={(e) => setAiInput(e.target.value)}
+                      placeholder="Ex: Robe en wax africain 100% coton, taille 38-42, disponible en rouge/bleu/vert, produite artisanalement au Cameroun, lavage à 30°C..."
+                      rows={5}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      URL de la source produit
+                    </label>
+                    <input
+                      autoFocus
+                      type="url"
+                      value={aiInput}
+                      onChange={(e) => setAiInput(e.target.value)}
+                      placeholder="https://www.alibaba.com/product/..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Alibaba, Amazon, AliExpress, site fournisseur...</p>
+                  </div>
+                )}
+
+                {/* Error */}
+                {aiError && (
+                  <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" /> {aiError}
+                  </div>
+                )}
+
+                {/* Generated preview */}
+                {aiGenerated && (
+                  <div className="border border-violet-200 bg-violet-50 rounded-xl p-4 space-y-3">
+                    <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">Prévisualisation générée</p>
+                    <div>
+                      <p className="text-xs text-gray-500">Nom</p>
+                      <p className="text-sm font-semibold text-gray-900">{aiGenerated.name}</p>
+                    </div>
+                    {aiGenerated.category && (
+                      <div>
+                        <p className="text-xs text-gray-500">Catégorie</p>
+                        <p className="text-sm text-gray-800">{aiGenerated.category}</p>
+                      </div>
+                    )}
+                    {aiGenerated.suggestedPrice > 0 && (
+                      <div>
+                        <p className="text-xs text-gray-500">Prix suggéré</p>
+                        <p className="text-sm font-bold text-emerald-700">{aiGenerated.suggestedPrice.toLocaleString()} XAF</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-xs text-gray-500">Description</p>
+                      <p className="text-sm text-gray-700 line-clamp-3">{aiGenerated.description}</p>
+                    </div>
+                    {aiGenerated.features?.length > 0 && (
+                      <div>
+                        <p className="text-xs text-gray-500">Avantages clés</p>
+                        <ul className="text-sm text-gray-700 space-y-0.5">
+                          {aiGenerated.features.map((f, i) => <li key={i}>• {f}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {aiGenerated.tags?.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {aiGenerated.tags.map((t, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-white border border-violet-200 text-violet-700 text-xs rounded-full">{t}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-gray-100 flex gap-3">
+                {!aiGenerated ? (
+                  <button
+                    type="button"
+                    onClick={handleAiGenerate}
+                    disabled={!aiInput.trim() || aiGenerating}
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-medium rounded-lg hover:from-violet-700 hover:to-indigo-700 disabled:opacity-50 transition"
+                  >
+                    {aiGenerating ? <><Loader2 className="w-4 h-4 animate-spin" /> Génération...</> : <><Sparkles className="w-4 h-4" /> Générer</> }
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => { setAiGenerated(null); setAiError(''); }}
+                      className="px-4 py-2.5 border border-gray-300 text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 transition"
+                    >
+                      Regénérer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={applyAiGenerated}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition"
+                    >
+                      <CheckCircle className="w-4 h-4" /> Appliquer au formulaire
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Picker Modal ─────────────────────────────────────────────── */}
         {showPicker && (
