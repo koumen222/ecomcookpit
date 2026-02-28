@@ -13,14 +13,22 @@
 
 export const extractSubdomain = (req, res, next) => {
   try {
-    // Get host from headers (works behind Cloudflare)
-    const host = req.headers.host || req.hostname || '';
+    // Get host from headers (works behind Cloudflare / Railway proxy)
+    // Priority: X-Forwarded-Host (set by Cloudflare/proxy) > Host > hostname
+    const host = req.headers['x-forwarded-host'] || req.headers.host || req.hostname || '';
     
     // Remove port if present (e.g., localhost:8080)
-    const hostname = host.split(':')[0];
+    const hostname = host.split(':')[0].toLowerCase();
     
     // Split by dots
     const parts = hostname.split('.');
+    
+    // Ignore Railway internal domains (e.g., ecomcookpit-production.up.railway.app)
+    if (hostname.endsWith('.railway.app') || hostname.endsWith('.railway.internal')) {
+      req.subdomain = null;
+      req.isRootDomain = true;
+      return next();
+    }
     
     // Root domain patterns to ignore
     const rootDomains = ['scalor.net', 'localhost', '127.0.0.1'];
@@ -33,7 +41,7 @@ export const extractSubdomain = (req, res, next) => {
       return next();
     }
     
-    // Extract subdomain
+    // Extract subdomain from *.scalor.net
     // For nike.scalor.net → parts = ['nike', 'scalor', 'net']
     // For www.nike.scalor.net → parts = ['www', 'nike', 'scalor', 'net']
     let subdomain = null;
@@ -43,21 +51,19 @@ export const extractSubdomain = (req, res, next) => {
       subdomain = parts[0] === 'www' ? parts[1] : parts[0];
     }
     
-    // Validate subdomain format (alphanumeric, hyphens, 3-63 chars)
+    // Validate subdomain format (alphanumeric, hyphens, 1-63 chars)
     if (subdomain) {
-      const isValid = /^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$/i.test(subdomain);
+      const isValid = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(subdomain);
       if (!isValid) {
         subdomain = null;
       }
     }
     
-    req.subdomain = subdomain;
+    req.subdomain = subdomain || null;
     req.isRootDomain = !subdomain;
     
-    // Log for debugging (remove in production or use proper logger)
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`🌐 Host: ${hostname} → Subdomain: ${subdomain || 'root'}`);
-    }
+    // Debug logging (always log for now to diagnose production issues)
+    console.log(`🌐 [subdomain] Host: ${hostname} | X-Forwarded-Host: ${req.headers['x-forwarded-host'] || 'none'} → Subdomain: ${subdomain || 'root'}`);
     
     next();
   } catch (error) {

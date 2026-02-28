@@ -84,7 +84,8 @@ export const resolveWorkspace = async (req, res, next) => {
       // Cache miss - query database
       workspace = await Workspace.findOne({ 
         subdomain: req.subdomain,
-        isActive: true // Only active workspaces
+        isActive: true,
+        'storeSettings.isStoreEnabled': true
       })
       .select('_id name subdomain owner storeSettings isActive')
       .lean(); // Use lean() for better performance

@@ -9,6 +9,7 @@ import helmet from 'helmet';
 import { connectDB } from './config/database.js';
 import { connectPrisma } from './config/prismaClient.js';
 import prisma from './config/prismaClient.js';
+import { extractSubdomain } from './middleware/subdomain.js';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -69,6 +70,10 @@ app.use((req, res, next) => {
   res.set('Content-Type', 'application/json; charset=utf-8');
   next();
 });
+
+// ─── Subdomain extraction (GLOBAL - runs on every request) ─────────────────
+// Must be BEFORE all routes so req.subdomain is always available
+app.use(extractSubdomain);
 
 // ─── Health check ────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {
@@ -220,10 +225,25 @@ const startServer = async () => {
       console.warn('⚠️ WebSocket non initialisé:', err.message);
     }
 
+    // ─── Centralized error handler ───────────────────────────────────────
+    app.use((err, req, res, next) => {
+      console.error('❌ Unhandled error:', err);
+      res.status(err.status || 500).json({
+        success: false,
+        message: process.env.NODE_ENV === 'production'
+          ? 'Internal server error'
+          : err.message || 'Internal server error'
+      });
+    });
+
     // ─── 404 handler ─────────────────────────────────────────────────────
     app.use((req, res) => {
       res.status(404).json({
-        error: `Route non trouvée: ${req.method} ${req.originalUrl}`
+        success: false,
+        error: `Route non trouvée: ${req.method} ${req.originalUrl}`,
+        hint: req.subdomain
+          ? `Subdomain "${req.subdomain}" detected. Make sure the store exists.`
+          : 'No subdomain detected. This is the root SaaS domain.'
       });
     });
 

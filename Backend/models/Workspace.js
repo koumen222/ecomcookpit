@@ -132,5 +132,7 @@ workspaceSchema.methods.createInviteLink = function (createdBy) {
 workspaceSchema.index({ owner: 1 });
 // Subdomain lookup for public store routing
 workspaceSchema.index({ subdomain: 1 }, { unique: true, sparse: true });
+// Compound index for resolveWorkspace middleware query
+workspaceSchema.index({ subdomain: 1, isActive: 1, 'storeSettings.isStoreEnabled': 1 });
 
 export default mongoose.model('EcomWorkspace', workspaceSchema);
