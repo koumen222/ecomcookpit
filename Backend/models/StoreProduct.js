@@ -118,10 +118,25 @@ storeProductSchema.pre('save', function () {
 storeProductSchema.index({ workspaceId: 1, createdAt: -1 });
 // Public store listing — only published products, sorted by newest
 storeProductSchema.index({ workspaceId: 1, isPublished: 1, createdAt: -1 });
-// Slug lookup for product pages
+// ─── Indexes for Multi-Tenant Performance ───────────────────────────────────
+// CRITICAL: These indexes ensure queries scale to 10,000+ workspaces
+
+// 1. Unique slug per workspace (SEO-friendly URLs)
 storeProductSchema.index({ workspaceId: 1, slug: 1 }, { unique: true });
-// Category filtering
+
+// 2. Public storefront queries (most common)
+// Filters published products by workspace, sorted by date
+storeProductSchema.index({ workspaceId: 1, isPublished: 1, createdAt: -1 });
+
+// 3. Category filtering on public store
 storeProductSchema.index({ workspaceId: 1, category: 1, isPublished: 1 });
+
+// 4. Dashboard product management
+// Admin queries all products (published + unpublished) by workspace
+storeProductSchema.index({ workspaceId: 1, createdAt: -1 });
+
+// 5. Search optimization (text search)
+storeProductSchema.index({ workspaceId: 1, name: 'text', description: 'text', tags: 'text' });
 // Text search for store search bar
 storeProductSchema.index({ name: 'text', description: 'text', category: 'text' });
 
