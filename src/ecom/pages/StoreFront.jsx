@@ -2,16 +2,26 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Search, ShoppingBag, ChevronLeft, ChevronRight, Loader2, Phone, MessageCircle, Filter } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
+import { useSubdomain } from '../hooks/useSubdomain.js';
 
 /**
  * StoreFront — Public-facing product grid page.
  * Mobile-first, SEO-friendly, fast loading.
  * Loads only published products for the specific store (workspace).
  * Uses lazy loading for images to minimize bandwidth (African markets).
+ * 
+ * Subdomain detection:
+ * - On koumen.scalor.net → useSubdomain() returns "koumen"
+ * - On scalor.net/store/koumen → useParams() returns "koumen"
  */
 const StoreFront = () => {
-  const { subdomain } = useParams();
+  const { subdomain: paramSubdomain } = useParams();
+  const { subdomain: hostSubdomain, isStoreDomain } = useSubdomain();
+  const subdomain = hostSubdomain || paramSubdomain;
   const navigate = useNavigate();
+
+  // Build store-relative paths (subdomain: /product/x, root: /store/sub/product/x)
+  const storePath = (path) => isStoreDomain ? path : `/store/${subdomain}${path}`;
 
   const [store, setStore] = useState(null);
   const [products, setProducts] = useState([]);
@@ -215,7 +225,7 @@ const StoreFront = () => {
               {products.map((product) => (
                 <button
                   key={product._id}
-                  onClick={() => navigate(`/store/${subdomain}/product/${product.slug}`)}
+                  onClick={() => navigate(storePath(`/product/${product.slug}`))}
                   className="bg-white rounded-xl border border-gray-100 overflow-hidden text-left hover:shadow-md transition group"
                 >
                   {/* Product image */}

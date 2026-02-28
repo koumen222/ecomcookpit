@@ -5,6 +5,7 @@ import { CurrencyProvider } from './contexts/CurrencyContext.jsx';
 import { useEcomAuth } from './hooks/useEcomAuth.jsx';
 import { trackPageView } from './services/analytics.js';
 import { usePosthogPageViews } from './hooks/usePosthogPageViews.js';
+import { useSubdomain } from './hooks/useSubdomain.js';
 import EcomLayout from './components/EcomLayout.jsx';
 import PrivacyBanner from './components/PrivacyBanner.jsx';
 
@@ -347,7 +348,36 @@ const PrefetchOnIdle = () => {
   return null;
 };
 
+/**
+ * StoreApp — Rendered when accessing via subdomain (e.g., koumen.scalor.net).
+ * Only loads public store routes. No SaaS dashboard, no auth required.
+ * Routes: / (store home), /product/:slug, /checkout
+ */
+const StoreApp = () => {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/" element={<Suspense fallback={<SpinnerLoader />}><StoreFront /></Suspense>} />
+          <Route path="/product/:slug" element={<Suspense fallback={<SpinnerLoader />}><StoreProductPage /></Suspense>} />
+          <Route path="/checkout" element={<Suspense fallback={<SpinnerLoader />}><StoreCheckout /></Suspense>} />
+          {/* Fallback: redirect unknown paths to store home */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </ErrorBoundary>
+    </div>
+  );
+};
+
 const EcomApp = () => {
+  const { subdomain, isStoreDomain } = useSubdomain();
+
+  // Subdomain detected → render public store app (no auth, no dashboard)
+  if (isStoreDomain) {
+    return <StoreApp />;
+  }
+
+  // Root domain → render full SaaS application
   return (
     <EcomAuthProvider>
       <CurrencyProvider>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, ShoppingCart, CheckCircle, AlertCircle, Loader2, MessageCircle, User, Phone, MapPin, FileText } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
+import { useSubdomain } from '../hooks/useSubdomain.js';
 
 /**
  * StoreCheckout — Public guest checkout page.
@@ -10,9 +11,14 @@ import { publicStoreApi } from '../services/storeApi.js';
  * Places order via public API and shows confirmation + WhatsApp link.
  */
 const StoreCheckout = () => {
-  const { subdomain } = useParams();
+  const { subdomain: paramSubdomain } = useParams();
+  const { subdomain: hostSubdomain, isStoreDomain } = useSubdomain();
+  const subdomain = hostSubdomain || paramSubdomain;
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Build store-relative paths (subdomain: /path, root: /store/sub/path)
+  const storePath = (path) => isStoreDomain ? path : `/store/${subdomain}${path}`;
 
   const [store, setStore] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -48,7 +54,7 @@ const StoreCheckout = () => {
   // Redirect if no products
   useEffect(() => {
     if (!loading && cartProducts.length === 0) {
-      navigate(`/store/${subdomain}`, { replace: true });
+      navigate(storePath('/'), { replace: true });
     }
   }, [loading, cartProducts, navigate, subdomain]);
 
@@ -152,7 +158,7 @@ const StoreCheckout = () => {
             )}
 
             <button
-              onClick={() => navigate(`/store/${subdomain}`)}
+              onClick={() => navigate(storePath('/'))}
               className="w-full px-4 py-3 border border-gray-200 text-gray-700 rounded-xl font-medium text-sm hover:bg-gray-50 transition"
             >
               Continuer les achats

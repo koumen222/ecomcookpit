@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ShoppingCart, MessageCircle, Minus, Plus, Loader2, ShoppingBag, ChevronLeft, ChevronRight } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
+import { useSubdomain } from '../hooks/useSubdomain.js';
 
 /**
  * StoreProductPage — Public product detail page.
@@ -9,8 +10,13 @@ import { publicStoreApi } from '../services/storeApi.js';
  * Optimized for low bandwidth: lazy images, minimal DOM.
  */
 const StoreProductPage = () => {
-  const { subdomain, slug } = useParams();
+  const { subdomain: paramSubdomain, slug } = useParams();
+  const { subdomain: hostSubdomain, isStoreDomain } = useSubdomain();
+  const subdomain = hostSubdomain || paramSubdomain;
   const navigate = useNavigate();
+
+  // Build store-relative paths (subdomain: /path, root: /store/sub/path)
+  const storePath = (path) => isStoreDomain ? path : `/store/${subdomain}${path}`;
 
   const [store, setStore] = useState(null);
   const [product, setProduct] = useState(null);
@@ -49,7 +55,7 @@ const StoreProductPage = () => {
 
   const handleAddToCart = () => {
     // Navigate to checkout with product info in state
-    navigate(`/store/${subdomain}/checkout`, {
+    navigate(storePath('/checkout'), {
       state: {
         products: [{
           productId: product._id,
@@ -77,7 +83,7 @@ const StoreProductPage = () => {
           <ShoppingBag className="w-16 h-16 text-gray-300 mx-auto" />
           <h1 className="text-xl font-bold text-gray-900 mt-4">Produit introuvable</h1>
           <button
-            onClick={() => navigate(`/store/${subdomain}`)}
+            onClick={() => navigate(storePath('/'))}
             className="mt-4 px-4 py-2 text-sm font-medium text-white rounded-lg transition"
             style={{ backgroundColor: themeColor }}
           >
@@ -99,7 +105,7 @@ const StoreProductPage = () => {
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-gray-100 px-4 py-3">
         <div className="max-w-4xl mx-auto flex items-center gap-3">
           <button
-            onClick={() => navigate(`/store/${subdomain}`)}
+            onClick={() => navigate(storePath('/'))}
             className="p-1.5 rounded-lg hover:bg-gray-100 transition"
           >
             <ArrowLeft className="w-5 h-5 text-gray-600" />
