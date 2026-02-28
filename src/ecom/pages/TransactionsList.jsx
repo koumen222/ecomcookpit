@@ -177,7 +177,15 @@ const TransactionsList = () => {
   const { fmt, fmtCompact } = useMoney();
   const [tab, setTab] = useState('overview');
   const [period, setPeriod] = useState('month');
-  const [customDates, setCustomDates] = useState({ startDate:'', endDate:'' });
+  const [customDates, setCustomDates] = useState(() => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return {
+      startDate: firstDay.toISOString().split('T')[0],
+      endDate: lastDay.toISOString().split('T')[0]
+    };
+  });
   const [showCustom, setShowCustom] = useState(false);
   const [budgetMonth, setBudgetMonth] = useState(() => {
     const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
@@ -357,14 +365,14 @@ const TransactionsList = () => {
               </span>
             )}
             {showCustom && (
-              <div className="w-full flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100 mt-1">
-                <label className="text-[11px] font-medium text-gray-400">Du</label>
+              <div className="w-full flex flex-wrap items-center gap-1.5 sm:gap-2 pt-2 border-t border-gray-100 mt-1">
+                <label className="text-[10px] sm:text-[11px] font-medium text-gray-400">Du</label>
                 <input type="date" value={customDates.startDate} onChange={e=>setCustomDates(p=>({...p,startDate:e.target.value}))}
-                  className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:ring-2 focus:ring-gray-900/10"/>
-                <label className="text-[11px] font-medium text-gray-400">Au</label>
+                  className="px-1.5 sm:px-2.5 py-1 sm:py-1.5 border border-gray-200 rounded-lg text-[10px] sm:text-xs bg-gray-50 focus:ring-2 focus:ring-gray-900/10 w-[110px] sm:w-auto"/>
+                <label className="text-[10px] sm:text-[11px] font-medium text-gray-400">Au</label>
                 <input type="date" value={customDates.endDate} onChange={e=>setCustomDates(p=>({...p,endDate:e.target.value}))}
-                  className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:ring-2 focus:ring-gray-900/10"/>
-                <button onClick={()=>loadTab()} className="px-3 py-1.5 bg-gray-900 text-white rounded-lg text-xs font-semibold hover:bg-gray-800 transition">Appliquer</button>
+                  className="px-1.5 sm:px-2.5 py-1 sm:py-1.5 border border-gray-200 rounded-lg text-[10px] sm:text-xs bg-gray-50 focus:ring-2 focus:ring-gray-900/10 w-[110px] sm:w-auto"/>
+                <button onClick={()=>loadTab()} className="px-2.5 sm:px-3 py-1 sm:py-1.5 bg-gray-900 text-white rounded-lg text-[10px] sm:text-xs font-semibold hover:bg-gray-800 transition">Appliquer</button>
               </div>
             )}
           </div>
@@ -435,27 +443,33 @@ const OverviewTab = ({ summary, budgets, forecast, fmt, fmtC, setTab, periodLabe
         <Metric label="Santé" value={`${score}/100`} sub={f.healthLabel||'—'} icon={I.heart} color={scoreColor} iconBg="bg-gray-100"/>
       </div>
 
-      {/* Alerte: Entrées non soldées */}
+      {/* Alerte: Montant en caisse insuffisant */}
       {(() => {
-        const paidIncomeCount = summary.paidIncomeCount || 0;
-        const totalIncomeCount = summary.incomeCount || 0;
-        const paidPercentage = totalIncomeCount > 0 ? (paidIncomeCount / totalIncomeCount * 100) : 0;
+        const totalIncome = summary.totalIncome || 0;
+        const totalExpense = summary.totalExpense || 0;
+        const cashBalance = bal;
+        const minCashRequired = totalIncome * 0.30;
+        const expenseRatio = totalIncome > 0 ? (totalExpense / totalIncome * 100) : 0;
         
-        if (totalIncomeCount > 0 && paidPercentage < 30) {
+        if (totalIncome > 0 && cashBalance < minCashRequired) {
           return (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
-                <Ico d={I.alert} className="w-5 h-5 text-amber-600"/>
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3 mt-4">
+              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                <Ico d={I.alert} className="w-5 h-5 text-red-600"/>
               </div>
               <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-bold text-amber-900 mb-1">⚠️ Attention : Entrées non soldées</h4>
-                <p className="text-xs text-amber-700 leading-relaxed">
-                  Seulement <strong>{Math.round(paidPercentage)}%</strong> de vos entrées sont soldées ({paidIncomeCount}/{totalIncomeCount}). 
-                  Il est recommandé d'avoir au moins <strong>30%</strong> des entrées payées pour maintenir une trésorerie saine.
+                <h4 className="text-sm font-bold text-red-900 mb-1">🚨 Alerte : Déséquilibre financier critique</h4>
+                <p className="text-xs text-red-700 leading-relaxed">
+                  Vos dépenses ({fmt(totalExpense)}) représentent <strong>{expenseRatio.toFixed(0)}%</strong> de vos entrées. 
+                  Vous avez trop dépensé par rapport à vos revenus. Il est recommandé de maintenir au moins <strong>30%</strong> des entrées en caisse.
+                  <br/>
+                  <span className="text-[11px] opacity-90 mt-1 block">
+                    Entrées: {fmt(totalIncome)} • Sorties: {fmt(totalExpense)} • Caisse: {fmt(cashBalance)} • Min. requis: {fmt(minCashRequired)}
+                  </span>
                 </p>
                 <button 
                   onClick={() => setTab('transactions')} 
-                  className="mt-2 text-xs font-semibold text-amber-700 hover:text-amber-900 underline"
+                  className="mt-2 text-xs font-semibold text-red-700 hover:text-red-900 underline"
                 >
                   Voir les transactions →
                 </button>
@@ -689,8 +703,36 @@ const exportToCSV = (transactions, periodLabel) => {
 const TransactionsTab = ({ transactions, summary, balance, filters, setFilters, handleDelete, fmt, fmtCompact, periodLabel }) => {
   const [showExportMenu, setShowExportMenu] = useState(false);
 
+  // Calcul des alertes de trésorerie
+  const totalIncome = summary?.totalIncome || 0;
+  const totalExpense = summary?.totalExpense || 0;
+  const cashBalance = balance || 0;
+  const minCashRequired = totalIncome * 0.30;
+  const expenseRatio = totalIncome > 0 ? (totalExpense / totalIncome * 100) : 0;
+  const showCashAlert = totalIncome > 0 && cashBalance < minCashRequired;
+
   return (
   <div className="space-y-4">
+    {/* Alerte de trésorerie */}
+    {showCashAlert && (
+      <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+        <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+          <Ico d={I.alert} className="w-5 h-5 text-red-600"/>
+        </div>
+        <div className="flex-1 min-w-0">
+          <h4 className="text-sm font-bold text-red-900 mb-1">🚨 Alerte : Déséquilibre financier critique</h4>
+          <p className="text-xs text-red-700 leading-relaxed">
+            Vos dépenses ({fmt(totalExpense)}) représentent <strong>{expenseRatio.toFixed(0)}%</strong> de vos entrées. 
+            Vous avez trop dépensé par rapport à vos revenus. Il est recommandé de maintenir au moins <strong>30%</strong> des entrées en caisse.
+            <br/>
+            <span className="text-[11px] opacity-90 mt-1 block">
+              Entrées: {fmt(totalIncome)} • Sorties: {fmt(totalExpense)} • Caisse: {fmt(cashBalance)} • Min. requis: {fmt(minCashRequired)}
+            </span>
+          </p>
+        </div>
+      </div>
+    )}
+
     <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-2 sm:gap-3">
       <Metric label="Entrées" value={fmt(summary.totalIncome)} mobileValue={fmtCompact(summary.totalIncome)} sub={`${summary.incomeCount||0} opérations`} icon={I.trend} color="text-emerald-600" iconBg="bg-emerald-50"/>
       <Metric label="Dépenses" value={fmt(summary.totalExpense)} mobileValue={fmtCompact(summary.totalExpense)} sub={`${summary.expenseCount||0} opérations`} icon={I.down} color="text-red-500" iconBg="bg-red-50"/>
@@ -1051,6 +1093,96 @@ const AnalyseTab = ({ accountingSummary, fmt, fmtC, periodLabel, pStart, pEnd })
         <Metric label="Solde global" value={fmt(a.balance)} mobileValue={fmtC(a.balance)} icon={I.wallet} color={(a.balance||0)>=0?'text-emerald-600':'text-red-500'} iconBg={(a.balance||0)>=0?'bg-emerald-50':'bg-red-50'}/>
         <Metric label="Mois précédent" value={fmt(lastBal)} mobileValue={fmtC(lastBal)} sub={lastBal>=0?'Excédentaire':'Déficitaire'} icon={I.cal} color={lastBal>=0?'text-emerald-600':'text-red-500'} iconBg="bg-gray-100"/>
       </div>
+
+      {/* Analyse Stratégique */}
+      {(() => {
+        const categoryBreakdown = a.categoryBreakdown || [];
+        const totalIncome = a.totalIncome || 0;
+        const totalExpense = a.totalExpenses || 0;
+        
+        if (categoryBreakdown.length === 0) return null;
+        
+        // Filtrer par type
+        const expensesByCat = categoryBreakdown.filter(c => c._id.type === 'expense').sort((a, b) => b.total - a.total);
+        const incomeByCat = categoryBreakdown.filter(c => c._id.type === 'income').sort((a, b) => b.total - a.total);
+        
+        // Top catégories
+        const topExpense = expensesByCat[0];
+        const topExpenseName = topExpense ? (CAT[topExpense._id.category] || topExpense._id.category) : '';
+        const topExpensePct = totalExpense > 0 && topExpense ? (topExpense.total / totalExpense * 100) : 0;
+        
+        // Analyse stratégique
+        const pubExpense = expensesByCat.find(c => c._id.category === 'publicite');
+        const productExpense = expensesByCat.find(c => c._id.category === 'produit');
+        const livraisonExpense = expensesByCat.find(c => c._id.category === 'livraison');
+        
+        const pubRatio = totalIncome > 0 && pubExpense ? (pubExpense.total / totalIncome * 100) : 0;
+        const productRatio = totalIncome > 0 && productExpense ? (productExpense.total / totalIncome * 100) : 0;
+        const livraisonRatio = totalIncome > 0 && livraisonExpense ? (livraisonExpense.total / totalIncome * 100) : 0;
+        
+        // Déterminer les alertes stratégiques
+        const insights = [];
+        if (pubRatio > 30) insights.push({ type: 'warning', text: `Publicité: ${pubRatio.toFixed(0)}% des entrées - optimiser vos campagnes` });
+        if (productRatio > 50) insights.push({ type: 'warning', text: `Coût produits: ${productRatio.toFixed(0)}% - renégocier les prix fournisseurs` });
+        if (livraisonRatio > 15) insights.push({ type: 'warning', text: `Livraison: ${livraisonRatio.toFixed(0)}% - revoir vos tarifs de livraison` });
+        if (topExpensePct > 40) insights.push({ type: 'info', text: `${topExpenseName} représente ${topExpensePct.toFixed(0)}% des dépenses` });
+        
+        // Calcul de marge estimée
+        const venteIncome = incomeByCat.find(c => c._id.category === 'vente');
+        const venteTotal = venteIncome?.total || 0;
+        const productCost = productExpense?.total || 0;
+        const livraisonCost = livraisonExpense?.total || 0;
+        const pubCost = pubExpense?.total || 0;
+        const estimatedMargin = venteTotal > 0 ? ((venteTotal - productCost - livraisonCost - pubCost) / venteTotal * 100) : 0;
+        
+        return (
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <Ico d={I.chart} className="w-5 h-5 text-blue-600"/>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-bold text-blue-900 mb-2">📊 Analyse stratégique</h4>
+                
+                {/* Répartition des dépenses */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                  {expensesByCat.slice(0, 4).map((cat, idx) => {
+                    const pct = totalExpense > 0 ? (cat.total / totalExpense * 100) : 0;
+                    const catName = CAT[cat._id.category] || cat._id.category;
+                    return (
+                      <div key={idx} className="bg-white/60 rounded-lg p-2">
+                        <p className="text-[10px] text-blue-600 font-semibold uppercase">{catName}</p>
+                        <p className="text-sm font-bold text-blue-900">{fmt(cat.total)}</p>
+                        <p className="text-[10px] text-blue-700">{pct.toFixed(0)}%</p>
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {/* Insights */}
+                {insights.length > 0 && (
+                  <div className="space-y-1 mb-3">
+                    {insights.map((insight, idx) => (
+                      <div key={idx} className={`flex items-center gap-2 text-xs ${insight.type === 'warning' ? 'text-amber-700' : 'text-blue-700'}`}>
+                        <span>{insight.type === 'warning' ? '⚠️' : '💡'}</span>
+                        <span>{insight.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Marge estimée */}
+                <div className="bg-white/80 rounded-lg p-2 flex items-center justify-between">
+                  <span className="text-xs text-blue-700 font-medium">Marge nette estimée</span>
+                  <span className={`text-sm font-bold ${estimatedMargin >= 20 ? 'text-emerald-600' : estimatedMargin >= 10 ? 'text-amber-600' : 'text-red-600'}`}>
+                    {estimatedMargin.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Category breakdowns */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

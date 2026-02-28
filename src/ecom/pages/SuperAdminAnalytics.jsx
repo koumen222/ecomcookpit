@@ -175,8 +175,16 @@ const DailyBarChart = ({ data, valueKey = 'sessions', color = 'bg-emerald-600', 
 const SuperAdminAnalytics = () => {
   const [tab, setTab] = useState('overview');
   const [range, setRange] = useState('30d');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState(() => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    return firstDay.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const now = new Date();
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return lastDay.toISOString().split('T')[0];
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -819,20 +827,20 @@ const SuperAdminAnalytics = () => {
 
             {/* Date picker custom */}
             {range === 'custom' && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2">
                 <input
                   type="date"
                   value={startDate}
                   onChange={e => setStartDate(e.target.value)}
-                  className="text-xs border-2 border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-emerald-500 font-medium text-slate-700"
+                  className="text-[10px] sm:text-xs border-2 border-slate-200 rounded-lg px-1.5 sm:px-3 py-1 sm:py-2 bg-white focus:outline-none focus:border-emerald-500 font-medium text-slate-700 w-[110px] sm:w-auto"
                 />
-                <span className="text-xs text-slate-400 font-medium">→</span>
+                <span className="text-[10px] sm:text-xs text-slate-400 font-medium">→</span>
                 <input
                   type="date"
                   value={endDate}
                   min={startDate}
                   onChange={e => setEndDate(e.target.value)}
-                  className="text-xs border-2 border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-emerald-500 font-medium text-slate-700"
+                  className="text-[10px] sm:text-xs border-2 border-slate-200 rounded-lg px-1.5 sm:px-3 py-1 sm:py-2 bg-white focus:outline-none focus:border-emerald-500 font-medium text-slate-700 w-[110px] sm:w-auto"
                 />
                 {startDate && (
                   <button

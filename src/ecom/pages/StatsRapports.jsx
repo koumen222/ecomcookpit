@@ -59,8 +59,16 @@ const StatsRapports = () => {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('sold');
   const [dateRange, setDateRange] = useState('all');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState(() => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    return firstDay.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const now = new Date();
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return lastDay.toISOString().split('T')[0];
+  });
 
   const fetchData = async () => {
     setLoading(true);
@@ -187,10 +195,10 @@ const StatsRapports = () => {
           {dateRange === 'custom' && (
             <>
               <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm" />
-              <span className="text-gray-400">→</span>
+                className="px-1.5 sm:px-3 py-1 sm:py-2 border border-gray-200 rounded-lg text-[10px] sm:text-sm w-[110px] sm:w-auto" />
+              <span className="text-gray-400 text-[10px] sm:text-sm">→</span>
               <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+                className="px-1.5 sm:px-3 py-1 sm:py-2 border border-gray-200 rounded-lg text-[10px] sm:text-sm w-[110px] sm:w-auto" />
             </>
           )}
           <button onClick={fetchData} className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition shadow-sm">

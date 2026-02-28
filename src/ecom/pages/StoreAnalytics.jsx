@@ -68,7 +68,7 @@ const StoreAnalytics = () => {
     );
   }
 
-  const storeUrl = storeConfig?.subdomain ? `https://${storeConfig.subdomain}.scalor.app` : null;
+  const storeUrl = storeConfig?.subdomain ? `https://${storeConfig.subdomain}.scalor.net` : null;
   const isStoreEnabled = storeConfig?.storeSettings?.isStoreEnabled;
   const currency = storeConfig?.storeSettings?.storeCurrency || 'XAF';
 

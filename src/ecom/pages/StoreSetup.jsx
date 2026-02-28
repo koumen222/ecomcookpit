@@ -133,7 +133,7 @@ const StoreSetup = () => {
     );
   }
 
-  const storeUrl = existingSubdomain ? `https://${existingSubdomain}.scalor.app` : null;
+  const storeUrl = existingSubdomain ? `https://${existingSubdomain}.scalor.net` : null;
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
@@ -221,7 +221,7 @@ const StoreSetup = () => {
               maxLength={30}
             />
             <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg text-sm text-gray-500">
-              .scalor.app
+              .scalor.net
             </span>
           </div>
 
