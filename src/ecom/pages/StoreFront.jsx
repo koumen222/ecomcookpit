@@ -33,19 +33,18 @@ const StoreFront = () => {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
 
-  // Load store info + initial products + categories in parallel
+  // Load store config + products + categories in a SINGLE call
+  // The unified /api/store/:subdomain endpoint returns everything at once
+  // This reduces 3 HTTP requests to 1 — critical for African market latency
   useEffect(() => {
     (async () => {
       try {
-        const [storeRes, productsRes, catRes] = await Promise.all([
-          publicStoreApi.getStore(subdomain),
-          publicStoreApi.getProducts(subdomain, { page: 1, limit: 20 }),
-          publicStoreApi.getCategories(subdomain)
-        ]);
-        setStore(storeRes.data?.data);
-        setProducts(productsRes.data?.data?.products || []);
-        setPagination(productsRes.data?.data?.pagination || { page: 1, limit: 20, total: 0, pages: 0 });
-        setCategories(catRes.data?.data || []);
+        const res = await publicStoreApi.getStore(subdomain);
+        const data = res.data?.data;
+        setStore(data?.store);
+        setProducts(data?.products || []);
+        setPagination(data?.pagination || { page: 1, limit: 20, total: 0, pages: 0 });
+        setCategories(data?.categories || []);
       } catch {
         setError('Boutique introuvable');
       } finally {

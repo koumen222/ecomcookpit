@@ -40,22 +40,28 @@ export const storeOrdersApi = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PUBLIC STORE APIs (no auth — direct calls to public endpoints)
+// PUBLIC STORE APIs (no auth — direct calls to api.scalor.net)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
+// API base URL:
+// Production: https://api.scalor.net (wildcard DNS → Railway)
+// Dev: falls back to VITE_BACKEND_URL or Railway direct URL
+const API_BASE = import.meta.env.VITE_STORE_API_URL
+  || (import.meta.env.PROD ? 'https://api.scalor.net' : null)
+  || import.meta.env.VITE_BACKEND_URL
+  || 'https://ecomcookpit-production-7a08.up.railway.app';
 
 const publicApi = axios.create({
-  baseURL: `${BACKEND_URL}/api/public/store`,
+  baseURL: `${API_BASE}/api/store`,
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' }
 });
 
 export const publicStoreApi = {
-  // Get store info (shell data: name, logo, theme)
+  // Get store config + initial products (single call — optimized for African markets)
   getStore: (subdomain) => publicApi.get(`/${subdomain}`),
 
-  // Get published products (paginated)
+  // Get published products (paginated, filtered)
   getProducts: (subdomain, params = {}) => publicApi.get(`/${subdomain}/products`, { params }),
 
   // Get single product by slug

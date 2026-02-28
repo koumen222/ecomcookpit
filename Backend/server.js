@@ -20,6 +20,7 @@ const allowedOrigins = [
   "https://www.ecomcookpit.site",
   "https://scalor.net",
   "https://www.scalor.net",
+  "https://api.scalor.net",
   "http://ecomcookpit.site",
   "http://www.ecomcookpit.site",
   "https://ecomcookpit.pages.dev",
@@ -64,16 +65,21 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// ✅ FORCE UTF-8 GLOBAL - Fix définitif encodage
+// ─── Subdomain extraction (GLOBAL - runs on every request) ─────────────────
+// Must be BEFORE all other middleware that depends on req.subdomain / req.isApiDomain
+app.use(extractSubdomain);
+
+// ✅ FORCE UTF-8 for API routes only — store subdomains serve HTML, not JSON
+// Must be AFTER extractSubdomain so req.isApiDomain is available
 app.use((req, res, next) => {
   res.charset = 'utf-8';
-  res.set('Content-Type', 'application/json; charset=utf-8');
+  // Only set JSON Content-Type for API routes
+  // Store subdomains serve HTML (React build) — don't override their Content-Type
+  if (req.path.startsWith('/api') || req.isApiDomain) {
+    res.set('Content-Type', 'application/json; charset=utf-8');
+  }
   next();
 });
-
-// ─── Subdomain extraction (GLOBAL - runs on every request) ─────────────────
-// Must be BEFORE all routes so req.subdomain is always available
-app.use(extractSubdomain);
 
 // ─── Health check ────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {
@@ -174,6 +180,8 @@ const startServer = async () => {
       ['./routes/storeOrders.js',             '/api/ecom/store-orders'],
       ['./routes/storeManagement.js',         '/api/ecom/store-manage'],
       ['./routes/publicStore.js',             '/api/public/store'],
+      // ─── New unified Store API (called by SPA on *.scalor.net via api.scalor.net) ──
+      ['./routes/storeApi.js',                '/api/store'],
     ];
 
     for (const [file, mountPath] of routes) {
@@ -237,13 +245,23 @@ const startServer = async () => {
     });
 
     // ─── 404 handler ─────────────────────────────────────────────────────
+    // Note: store subdomains should never reach here — the SPA fallback in
+    // publicStorefront.js catches all non-API routes with '*'.
+    // This 404 only fires for unknown /api/* routes or api.scalor.net paths.
     app.use((req, res) => {
+      // If it's a store domain and somehow got here, redirect to store root
+      if (req.isStoreDomain && !req.path.startsWith('/api')) {
+        return res.redirect('/');
+      }
+      
       res.status(404).json({
         success: false,
         error: `Route non trouvée: ${req.method} ${req.originalUrl}`,
-        hint: req.subdomain
-          ? `Subdomain "${req.subdomain}" detected. Make sure the store exists.`
-          : 'No subdomain detected. This is the root SaaS domain.'
+        hint: req.isApiDomain
+          ? 'api.scalor.net — Check the API route path.'
+          : req.subdomain
+            ? `Subdomain "${req.subdomain}" detected. Make sure the store exists.`
+            : 'No subdomain detected. This is the root SaaS domain.'
       });
     });
 

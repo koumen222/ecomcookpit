@@ -8,8 +8,19 @@
  * - Uses req.headers.host (works with Cloudflare proxy)
  * - Ignores "www" and root domain
  * - Attaches req.subdomain for downstream use
+ * - Detects api.scalor.net → req.isApiDomain = true (API-only, no React build)
+ * - Detects *.scalor.net → req.isStoreDomain = true (serve React build)
  * - Lightweight and performant (no DB queries)
+ * 
+ * Routing matrix:
+ *   scalor.net          → isRootDomain=true  (redirect to Cloudflare Pages)
+ *   api.scalor.net      → isApiDomain=true   (API routes only)
+ *   koumen.scalor.net   → isStoreDomain=true (serve React build + API)
+ *   *.railway.app       → isRootDomain=true  (health checks, internal)
  */
+
+// System subdomains that are NOT tenant stores
+const SYSTEM_SUBDOMAINS = ['api', 'admin', 'mail', 'smtp', 'ftp', 'cdn', 'static'];
 
 export const extractSubdomain = (req, res, next) => {
   try {
@@ -23,9 +34,14 @@ export const extractSubdomain = (req, res, next) => {
     // Split by dots
     const parts = hostname.split('.');
     
+    // Default flags
+    req.subdomain = null;
+    req.isRootDomain = false;
+    req.isApiDomain = false;
+    req.isStoreDomain = false;
+    
     // Ignore Railway internal domains (e.g., ecomcookpit-production.up.railway.app)
     if (hostname.endsWith('.railway.app') || hostname.endsWith('.railway.internal')) {
-      req.subdomain = null;
       req.isRootDomain = true;
       return next();
     }
@@ -35,8 +51,6 @@ export const extractSubdomain = (req, res, next) => {
     const isRootDomain = rootDomains.some(domain => hostname === domain || hostname === `www.${domain}`);
     
     if (isRootDomain) {
-      // No subdomain - root domain access
-      req.subdomain = null;
       req.isRootDomain = true;
       return next();
     }
@@ -59,17 +73,38 @@ export const extractSubdomain = (req, res, next) => {
       }
     }
     
+    // Detect api.scalor.net → API-only domain (no React build serving)
+    if (subdomain === 'api') {
+      req.isApiDomain = true;
+      req.subdomain = null;
+      req.isRootDomain = false;
+      return next();
+    }
+    
+    // Detect other system subdomains (admin, cdn, etc.)
+    if (subdomain && SYSTEM_SUBDOMAINS.includes(subdomain)) {
+      req.subdomain = null;
+      req.isRootDomain = true;
+      return next();
+    }
+    
+    // Valid tenant subdomain → store domain
     req.subdomain = subdomain || null;
     req.isRootDomain = !subdomain;
+    req.isStoreDomain = !!subdomain;
     
-    // Debug logging (always log for now to diagnose production issues)
-    console.log(`🌐 [subdomain] Host: ${hostname} | X-Forwarded-Host: ${req.headers['x-forwarded-host'] || 'none'} → Subdomain: ${subdomain || 'root'}`);
+    // Debug logging (reduce in production later)
+    if (process.env.NODE_ENV !== 'production' || subdomain) {
+      console.log(`🌐 [subdomain] Host: ${hostname} → ${subdomain ? `Store: ${subdomain}` : 'root'} | API: ${req.isApiDomain}`);
+    }
     
     next();
   } catch (error) {
     console.error('❌ Subdomain extraction error:', error);
     req.subdomain = null;
     req.isRootDomain = true;
+    req.isApiDomain = false;
+    req.isStoreDomain = false;
     next();
   }
 };
