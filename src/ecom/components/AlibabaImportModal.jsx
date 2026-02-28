@@ -152,7 +152,12 @@ const AlibabaImportModal = ({ onClose, onApply }) => {
     } catch (err) {
       clearTimeout(safetyTimer);
       if (err.name === 'AbortError') return;
-      setError(err.message || 'Erreur lors de l\'import');
+      const isNetworkFetchError = err?.name === 'TypeError' && String(err?.message || '').toLowerCase().includes('failed to fetch');
+      setError(
+        isNetworkFetchError
+          ? 'Connexion API impossible (CORS/réseau). Vérifiez le backend puis réessayez.'
+          : (err.message || 'Erreur lors de l\'import')
+      );
       setPhase('input');
     } finally {
       clearTimeout(safetyTimer);
