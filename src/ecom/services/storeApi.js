@@ -34,9 +34,7 @@ export const storeProductsApi = {
   uploadImages: (files) => {
     const formData = new FormData();
     files.forEach(file => formData.append('images', file));
-    return ecomApi.post('/store-products/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
+    return ecomApi.post('/store-products/upload', formData);
   }
 };
 

@@ -16,9 +16,6 @@
  * Docs: https://developers.cloudflare.com/images/
  */
 
-import axios from 'axios';
-import FormData from 'form-data';
-
 const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID;
 const API_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
 
@@ -36,7 +33,8 @@ export async function uploadImage(fileBuffer, filename, metadata = {}) {
   }
 
   const form = new FormData();
-  form.append('file', fileBuffer, { filename });
+  const blob = new Blob([fileBuffer]);
+  form.append('file', blob, filename);
   
   // Add metadata as JSON string
   if (Object.keys(metadata).length > 0) {
@@ -44,24 +42,27 @@ export async function uploadImage(fileBuffer, filename, metadata = {}) {
   }
 
   try {
-    const response = await axios.post(
+    const response = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/images/v1`,
-      form,
       {
+        method: 'POST',
         headers: {
-          ...form.getHeaders(),
-          'Authorization': `Bearer ${API_TOKEN}`
+          Authorization: `Bearer ${API_TOKEN}`
         },
-        maxBodyLength: 10 * 1024 * 1024, // 10MB max
-        maxContentLength: 10 * 1024 * 1024
+        body: form
       }
     );
 
-    if (!response.data.success) {
-      throw new Error(response.data.errors?.[0]?.message || 'Cloudflare upload failed');
+    const payload = await response.json();
+
+    if (!response.ok || !payload.success) {
+      const detail = payload?.errors?.[0]?.message || `HTTP ${response.status}`;
+      const err = new Error(`Cloudflare upload failed: ${detail}`);
+      err.status = response.status;
+      throw err;
     }
 
-    const result = response.data.result;
+    const result = payload.result;
     
     return {
       id: result.id,
@@ -71,10 +72,7 @@ export async function uploadImage(fileBuffer, filename, metadata = {}) {
 
   } catch (error) {
     console.error('❌ Cloudflare Images upload error:', error.message);
-    if (error.response) {
-      console.error('   Status:', error.response.status);
-      console.error('   Data:', error.response.data);
-    }
+    if (error.status) console.error('   Status:', error.status);
     throw new Error(`Image upload failed: ${error.message}`);
   }
 }
@@ -123,16 +121,18 @@ export async function deleteImage(imageId) {
   }
 
   try {
-    const response = await axios.delete(
+    const response = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/images/v1/${imageId}`,
       {
+        method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${API_TOKEN}`
+          Authorization: `Bearer ${API_TOKEN}`
         }
       }
     );
 
-    return response.data.success;
+    const payload = await response.json();
+    return Boolean(response.ok && payload?.success);
 
   } catch (error) {
     console.error('❌ Cloudflare Images delete error:', error.message);

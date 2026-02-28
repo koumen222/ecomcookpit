@@ -104,7 +104,28 @@ router.post(
   requireEcomAuth,
   requireWorkspace,
   requireStoreOwner,
-  upload.array('images', 5),
+  (req, res, next) => {
+    // Accept both "images" and "image" field names from frontend forms
+    const uploader = upload.fields([
+      { name: 'images', maxCount: 5 },
+      { name: 'image', maxCount: 5 }
+    ]);
+
+    uploader(req, res, (err) => {
+      if (!err) return next();
+
+      if (err instanceof multer.MulterError) {
+        const message = err.code === 'LIMIT_FILE_SIZE'
+          ? 'Image too large. Max size is 5MB per file.'
+          : err.code === 'LIMIT_FILE_COUNT'
+            ? 'Too many files. Max 5 images per upload.'
+            : err.message;
+        return res.status(400).json({ success: false, message, code: err.code });
+      }
+
+      return res.status(400).json({ success: false, message: err.message || 'Invalid upload payload' });
+    });
+  },
   async (req, res) => {
     try {
       if (!isConfigured()) {
@@ -115,7 +136,12 @@ router.post(
         });
       }
 
-      if (!req.files || req.files.length === 0) {
+      const files = [
+        ...(req.files?.images || []),
+        ...(req.files?.image || [])
+      ];
+
+      if (!files.length) {
         return res.status(400).json({
           success: false,
           message: 'No images provided'
@@ -124,7 +150,7 @@ router.post(
 
       const uploadedImages = [];
 
-      for (const file of req.files) {
+      for (const file of files) {
         const result = await uploadImage(
           file.buffer,
           file.originalname,
@@ -152,7 +178,12 @@ router.post(
 
     } catch (error) {
       console.error('❌ Image upload error:', error.message);
-      res.status(500).json({
+      const status = /configured/i.test(error.message)
+        ? 503
+        : /Cloudflare upload failed/i.test(error.message)
+          ? 502
+          : 500;
+      res.status(status).json({
         success: false,
         message: error.message || 'Image upload failed'
       });

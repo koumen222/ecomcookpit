@@ -15,6 +15,9 @@ export function initSocketServer(httpServer) {
   const allowedOrigins = [
     'https://ecomcookpit.site',
     'https://www.ecomcookpit.site',
+    'https://scalor.net',
+    'https://www.scalor.net',
+    'https://api.scalor.net',
     'http://ecomcookpit.site',
     'http://www.ecomcookpit.site',
     'https://ecomcookpit.pages.dev',
@@ -37,8 +40,13 @@ export function initSocketServer(httpServer) {
         // Allow requests with no origin (mobile apps, curl, etc.)
         if (!origin) return callback(null, true);
         
-        // Check if origin is in allowed list or is a Cloudflare Pages preview
-        if (allowedOrigins.includes(origin) || origin.endsWith('.ecomcookpit.pages.dev')) {
+        // Check if origin is in allowed list or is an allowed wildcard domain
+        if (
+          allowedOrigins.includes(origin) ||
+          origin.endsWith('.ecomcookpit.pages.dev') ||
+          origin.endsWith('.scalor.net') ||
+          origin.endsWith('.scalor.app')
+        ) {
           return callback(null, true);
         }
         
