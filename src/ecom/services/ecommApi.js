@@ -540,9 +540,7 @@ export const dmApi = {
 
 export const mediaApi = {
   // Upload un média
-  upload: (formData) => ecomApi.post('/media/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }),
+  upload: (formData) => ecomApi.post('/media/upload', formData),
 
   // Supprimer un média
   deleteMedia: (key) => ecomApi.delete(`/media/${key}`)
