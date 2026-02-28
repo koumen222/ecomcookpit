@@ -1,150 +1,104 @@
 /**
- * Cloudflare Images Service
+ * Product Image Upload Service — Cloudflare R2
  * 
- * Handles direct image uploads to Cloudflare Images API.
+ * Uploads product images to Cloudflare R2 (S3-compatible).
+ * Uses the same s3Client/R2_CONFIG already configured for media uploads.
  * 
- * Prerequisites:
- * - CLOUDFLARE_ACCOUNT_ID (from Cloudflare dashboard)
- * - CLOUDFLARE_API_TOKEN (with Cloudflare Images:Edit permission)
- * 
- * Cloudflare Images provides:
- * - Automatic format optimization (WebP, AVIF)
- * - Resizing via URL parameters (width, height, fit)
- * - Global CDN delivery
- * - 100,000 images free tier
- * 
- * Docs: https://developers.cloudflare.com/images/
+ * Storage path: ecom/{workspaceId}/store/products/{uuid}.{ext}
+ * Public URL:   R2_PUBLIC_URL/{key}  (e.g. https://pub-xxx.r2.dev/...)
  */
 
-const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID;
-const API_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
+import { Upload } from '@aws-sdk/lib-storage';
+import { DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { s3Client, R2_CONFIG, getR2PublicUrl } from '../config/r2.js';
+import { randomUUID } from 'crypto';
+import path from 'path';
 
 /**
- * Upload an image to Cloudflare Images
- * 
- * @param {Buffer|Stream} fileBuffer - Image file buffer
- * @param {string} filename - Original filename
- * @param {Object} metadata - Optional metadata (productId, workspaceId, etc.)
- * @returns {Promise<{id: string, url: string, variants: string[]}>}
+ * Upload a product image to Cloudflare R2
+ *
+ * @param {Buffer} fileBuffer - Image file buffer (from multer memoryStorage)
+ * @param {string} filename - Original filename (used for extension)
+ * @param {Object} metadata - { workspaceId, uploadedBy, ... }
+ * @returns {Promise<{ id: string, url: string, key: string }>}
  */
 export async function uploadImage(fileBuffer, filename, metadata = {}) {
-  if (!ACCOUNT_ID || !API_TOKEN) {
-    throw new Error('Cloudflare Images not configured. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN');
+  if (!isConfigured()) {
+    throw new Error('R2 not configured. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME');
   }
 
-  const form = new FormData();
-  const blob = new Blob([fileBuffer]);
-  form.append('file', blob, filename);
-  
-  // Add metadata as JSON string
-  if (Object.keys(metadata).length > 0) {
-    form.append('metadata', JSON.stringify(metadata));
-  }
+  const workspaceId = metadata.workspaceId || 'unknown';
+  const ext = path.extname(filename) || '.jpg';
+  const storageKey = `ecom/${workspaceId}/store/products/${randomUUID()}${ext}`;
 
-  try {
-    const response = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/images/v1`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${API_TOKEN}`
-        },
-        body: form
+  // Normalize extension to valid MIME type (jpg → jpeg)
+  const extNorm = ext.replace('.', '').toLowerCase();
+  const mimeType = metadata.mimeType
+    || `image/${extNorm === 'jpg' ? 'jpeg' : extNorm || 'jpeg'}`;
+
+  const uploader = new Upload({
+    client: s3Client,
+    params: {
+      Bucket: R2_CONFIG.bucket,
+      Key: storageKey,
+      Body: fileBuffer,
+      ContentType: mimeType,
+      Metadata: {
+        uploadedBy: String(metadata.uploadedBy || ''),
+        workspaceId: workspaceId,
+        originalName: filename
       }
-    );
-
-    const payload = await response.json();
-
-    if (!response.ok || !payload.success) {
-      const detail = payload?.errors?.[0]?.message || `HTTP ${response.status}`;
-      const err = new Error(`Cloudflare upload failed: ${detail}`);
-      err.status = response.status;
-      throw err;
     }
+  });
 
-    const result = payload.result;
-    
-    return {
-      id: result.id,
-      url: result.variants?.[0] || `https://imagedelivery.net/${ACCOUNT_ID}/${result.id}/public`,
-      variants: result.variants || []
-    };
+  await uploader.done();
 
-  } catch (error) {
-    console.error('❌ Cloudflare Images upload error:', error.message);
-    if (error.status) console.error('   Status:', error.status);
-    throw new Error(`Image upload failed: ${error.message}`);
-  }
+  const publicUrl = getR2PublicUrl(storageKey);
+
+  return {
+    id: storageKey,
+    url: publicUrl,
+    key: storageKey
+  };
 }
 
 /**
- * Get optimized image URL with transformation parameters
- * 
- * @param {string} imageId - Cloudflare image ID
- * @param {Object} options - Transformation options
- * @param {number} options.width - Resize width
- * @param {number} options.height - Resize height
- * @param {string} options.fit - 'cover', 'contain', 'fill', 'inside', 'outside'
- * @param {string} options.format - 'auto', 'webp', 'avif', 'jpeg'
+ * Get the public URL of a stored image by its storage key
+ *
+ * @param {string} storageKey - R2 object key
  * @returns {string}
  */
-export function getImageUrl(imageId, options = {}) {
-  if (!ACCOUNT_ID) {
-    throw new Error('CLOUDFLARE_ACCOUNT_ID not configured');
-  }
-
-  const { width, height, fit = 'cover', format = 'auto' } = options;
-  
-  // Build transformation string
-  let transform = '';
-  if (width) transform += `width=${width},`;
-  if (height) transform += `height=${height},`;
-  if (fit) transform += `fit=${fit},`;
-  if (format && format !== 'auto') transform += `format=${format},`;
-  
-  // Remove trailing comma
-  transform = transform.replace(/,$/, '');
-  
-  const variant = transform || 'public';
-  
-  return `https://imagedelivery.net/${ACCOUNT_ID}/${imageId}/${variant}`;
+export function getImageUrl(storageKey) {
+  return getR2PublicUrl(storageKey);
 }
 
 /**
- * Delete an image from Cloudflare Images
- * 
- * @param {string} imageId - Cloudflare image ID
+ * Delete a product image from R2
+ *
+ * @param {string} storageKey - R2 object key (the `id` returned by uploadImage)
  */
-export async function deleteImage(imageId) {
-  if (!ACCOUNT_ID || !API_TOKEN) {
-    throw new Error('Cloudflare Images not configured');
+export async function deleteImage(storageKey) {
+  if (!isConfigured()) {
+    throw new Error('R2 not configured');
   }
 
   try {
-    const response = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/images/v1/${imageId}`,
-      {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${API_TOKEN}`
-        }
-      }
-    );
-
-    const payload = await response.json();
-    return Boolean(response.ok && payload?.success);
-
+    await s3Client.send(new DeleteObjectCommand({
+      Bucket: R2_CONFIG.bucket,
+      Key: storageKey
+    }));
+    return true;
   } catch (error) {
-    console.error('❌ Cloudflare Images delete error:', error.message);
+    console.error('❌ R2 delete error:', error.message);
     throw new Error(`Image delete failed: ${error.message}`);
   }
 }
 
 /**
- * Check if Cloudflare Images is configured
+ * Check if R2 is configured
  */
 export function isConfigured() {
-  return !!(ACCOUNT_ID && API_TOKEN);
+  return !!(R2_CONFIG.bucket && R2_CONFIG.accountId);
 }
 
 export default {

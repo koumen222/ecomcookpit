@@ -157,14 +157,15 @@ router.post(
           {
             workspaceId: req.workspaceId.toString(),
             uploadedBy: req.user.id,
-            filename: file.originalname
+            filename: file.originalname,
+            mimeType: file.mimetype
           }
         );
 
         uploadedImages.push({
           id: result.id,
           url: result.url,
-          variants: result.variants,
+          key: result.key,
           filename: file.originalname,
           size: file.size
         });
