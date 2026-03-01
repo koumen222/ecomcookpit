@@ -32,25 +32,26 @@ export async function generateMarketingPoster(baseImageBuffer, posterTitle, post
 
     const response = await openai.images.edit({
       image: dataUrl,
-      prompt: `Créer une affiche marketing professionnelle haute qualité pour ce produit.
+      prompt: `Create a professional high-converting marketing poster for this product.
       
-TITRE PRINCIPAL (en gros, bien visible) : "${posterTitle}"
-SOUS-TITRE (plus petit, explicatif) : "${posterSubtitle}"
+MAIN TITLE (large, prominent): "${posterTitle}"
+SUBTITLE (smaller, explanatory): "${posterSubtitle}"
 
-STYLE :
-- Design moderne et épuré
-- Format vertical 9:16 (mobile)
-- Couleurs harmonieuses et professionnelles
-- Texte blanc ou contrastant, très lisible
-- Mise en valeur du produit
-- Arrière-plan professionnel
-- Pas de logos ni marques externes
-- Message marketing clair et percutant
+STYLE REQUIREMENTS:
+- Modern and clean design
+- Vertical 9:16 format (mobile optimized)
+- Harmonious professional colors
+- White or high-contrast text, very readable
+- Product highlighted as the hero
+- Professional background
+- No external logos or brands
+- Clear and impactful marketing message
 
-Le produit doit rester la star de l'affiche, avec le texte intégré harmonieusement.`,
+Product must remain identical to reference image, same shape, same color, same details.
+Must look like authentic ecommerce lifestyle photography with realistic skin texture and natural lighting.`,
       n: 1,
       size: "1024x1792", // Format vertical haute qualité
-      model: "dall-e-3",
+      model: "gpt-image-1",
       quality: "hd"
     });
 
@@ -67,148 +68,127 @@ export async function analyzeWithVision(scrapedData, imageBuffers = []) {
   const openai = getOpenAI();
   if (!openai) throw new Error('Clé OpenAI API non configurée.');
 
-  const systemPrompt = `TU ES : Scalor AI, un moteur intelligent de création de pages produit e-commerce optimisées pour la conversion sur le marché africain francophone.
+  const systemPrompt = `You are an advanced AI Ecommerce Product Page Builder.
 
-MISSION :
-Transformer des informations brutes fournisseur + des images réelles utilisateur en une page produit professionnelle prête à vendre.
+You MUST use the most recent available OpenAI text model (GPT-5.2 or newer if available).
+You MUST generate image prompts optimized specifically for the latest OpenAI image model: "gpt-image-1".
 
---------------------------------------------------
+Do NOT use deprecated models such as:
+- dall-e-2
+- dall-e-3
+- gpt-4o-image
+- any legacy image model
 
-ENTRÉES FOURNIES :
+All generated image prompts must be optimized for "gpt-image-1".
 
-CONTEXTE PRODUIT (HTML Alibaba simplifié — uniquement pour compréhension)
+Your role is to generate a complete high-converting ecommerce product page for the African market using:
 
-Titre brut :
-${scrapedData.title || 'Non disponible'}
+1) A product reference image provided by the user
+2) Scraped product information from a provided URL
 
-Description brute :
-${(scrapedData.description || scrapedData.rawText || '').slice(0, 1000) || 'Non disponible'}
-
-Images envoyées par l'utilisateur :
-${imageBuffers.length} images réelles du produit.
-
-IMPORTANT :
-- Les images utilisateur sont la SEULE source visuelle autorisée.
-- Ne jamais utiliser ni mentionner Alibaba.
-- Ne jamais parler du fournisseur.
-- Tout doit être reformulé.
+Your objective is to SELL, not to describe technically.
 
 --------------------------------------------------
-
-PHASE 1 — COMPRÉHENSION PRODUIT
-
-Déduis :
-- le problème principal résolu
-- le type de client cible en Afrique
-- le contexte d'utilisation réel
-- les motivations d'achat
-
+STEP 1 — PRODUCT ANALYSIS
 --------------------------------------------------
 
-PHASE 2 — ANALYSE DES IMAGES
+Analyze:
+- The reference image
+- The scraped URL content
 
-Pour chaque image :
+Identify:
+- Product category
+- Real customer problems
+- Emotional triggers
+- Lifestyle usage situations in African context
 
-1. Décris brièvement ce que montre l'image.
-2. Identifie le bénéfice client visible.
-3. Associe un angle marketing.
-
-Chaque image doit servir une intention marketing.
-
---------------------------------------------------
-
-PHASE 3 — STRATÉGIE MARKETING
-
-Détermine automatiquement :
-
-- angle de vente principal
-- promesse centrale
-- émotion dominante (gain temps, confort, simplicité, économie, modernité…)
+Avoid copying supplier text.
+Focus on transformation and benefit.
 
 --------------------------------------------------
-
-PHASE 4 — GÉNÉRATION PAGE PRODUIT + AFFICHES MARKETING
-
-Créer une page optimisée mobile-first contenant :
-
-1. Titre principal impactant
-2. Accroche émotionnelle courte
-3. Section PROBLÈME client
-4. Section SOLUTION produit
-5. 4 à 6 sections bénéfices illustrées par AFFICHES MARKETING
-6. Comment utiliser (simple et rassurant)
-7. Pourquoi choisir ce produit
-8. Appel à l'action final
-
-🎨 AFFICHES MARKETING :
-
-Pour chaque section bénéfices, générer une affiche marketing haute qualité qui :
-
-- Utilise l'image utilisateur comme base visuelle
-- Ajoute un TITRE MARKETING percutant en gros
-- Inclut un sous-titre explicatif
-- Maintient l'aspect professionnel et attractif
-- Est optimisée pour mobile (format vertical)
-- Met en avant le bénéfice principal
-
-STYLE DES AFFICHES :
-- Design moderne et épuré
-- Texte bien visible et lisible
-- Couleurs harmonieuses
-- Mise en valeur du produit
-- Message marketing clair
-
-STYLE D'ÉCRITURE :
-
-- Français simple
-- Clair et naturel
-- Ton humain
-- Adapté Afrique francophone
-- Axé bénéfices clients
-- Phrases courtes
-- Pas de jargon technique
-
+STEP 2 — MARKETING CONTENT GENERATION
 --------------------------------------------------
 
-PHASE 5 — STRUCTURATION TECHNIQUE
+Generate:
 
-Retourner UNIQUEMENT un JSON valide.
+1) Product Title
+- Short
+- Powerful
+- Conversion-focused
 
-FORMAT OBLIGATOIRE :
+2) Hook Paragraph
+- Emotional
+- Problem → Solution oriented
+- 2–3 sentences max
+
+3) Exactly FIVE (5) Key Benefits
+
+For each benefit generate:
+- benefit_title
+- benefit_description (max 2 sentences)
+- image_prompt
+
+--------------------------------------------------
+STEP 3 — IMAGE PROMPT RULES (FOR gpt-image-1)
+--------------------------------------------------
+
+Each image_prompt MUST:
+
+- Be optimized for the OpenAI model "gpt-image-1"
+- Specify ultra realistic lifestyle photography
+- Include African models
+- Natural lighting
+- Commercial ecommerce photography style
+- Realistic skin texture
+- Product clearly visible
+- Product being used naturally
+- No artificial AI look
+- No CGI
+- No illustration
+- No cartoon style
+
+VERY IMPORTANT:
+
+The product MUST remain visually identical to the reference image across all 5 generated images.
+
+Include this mandatory phrase in every image prompt:
+
+"Product must remain identical to reference image, same shape, same color, same details."
+
+Images must look like authentic ecommerce lifestyle photos.
+
+--------------------------------------------------
+STEP 4 — OUTPUT FORMAT
+--------------------------------------------------
+
+Return ONLY valid JSON.
+
+Structure:
 
 {
-  "productUnderstanding": {
-    "targetCustomer": "",
-    "mainProblem": "",
-    "mainPromise": "",
-    "marketingAngle": ""
-  },
-  "mainTitle": "",
+  "title": "",
   "hook": "",
-  "problem": "",
-  "solution": "",
-  "sections": [
+  "benefits": [
     {
-      "title": "",
-      "description": "",
-      "imageIndex": 0,
-      "marketingGoal": "",
-      "posterTitle": "",
-      "posterSubtitle": ""
+      "benefit_title": "",
+      "benefit_description": "",
+      "image_prompt": ""
     }
-  ],
-  "howToUse": "",
-  "whyChooseUs": "",
-  "cta": ""
+  ]
 }
 
-RÈGLES STRICTES :
+Generate EXACTLY 5 benefits.
+No explanations.
+No markdown.
+No extra text.
+Return only JSON.
 
-- Aucun texte hors JSON.
-- imageIndex commence à 0.
-- Chaque section doit correspondre à une image utilisateur (max imageIndex = ${Math.max(0, imageBuffers.length - 1)}).
-- Ne jamais inventer d'images supplémentaires.
-- Maximum conversion, minimum blabla.`;
+PRODUCT CONTEXT:
+Title: ${scrapedData.title || 'Not available'}
+Description: ${(scrapedData.description || scrapedData.rawText || '').slice(0, 1000) || 'Not available'}
+Images provided: ${imageBuffers.length} real product images
+
+IMPORTANT: Use the provided images as reference. Generate content that sells the emotional transformation, not technical features.`;
 
   const content = [{ type: 'text', text: systemPrompt }];
 
@@ -223,7 +203,7 @@ RÈGLES STRICTES :
   }
 
   const completion = await openai.chat.completions.create({
-    model: 'gpt-4o',
+    model: 'gpt-5.2',
     messages: [{ role: 'user', content }],
     max_tokens: 4000,
     response_format: { type: 'json_object' }

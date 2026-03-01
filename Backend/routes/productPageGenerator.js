@@ -9,11 +9,21 @@
 import express from 'express';
 import multer from 'multer';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
-import { analyzeWithVision, generateMarketingPoster } from '../services/productPageGeneratorService.js';
+import { analyzeWithVision } from '../services/productPageGeneratorService.js';
 import { uploadImage } from '../services/cloudflareImagesService.js';
 import { scrapeAlibaba } from '../services/alibabaScraper.js';
+import OpenAI from 'openai';
 
 const router = express.Router();
+
+// ── OpenAI instance for gpt-image-1 ───────────────────────────────────────
+let _openai = null;
+function getOpenAI() {
+  if (!_openai && process.env.OPENAI_API_KEY) {
+    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return _openai;
+}
 
 // ── Global generation lock — prevents concurrent generations (production) ─────
 if (!globalThis.__aiProductGeneratorLock) {
@@ -116,87 +126,88 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       if (uploaded?.url) realPhotos.push(uploaded.url);
     }
 
-    // ── Step 3.5: Generate marketing posters with DALL-E ───────────────────────
-    console.log('🎨 Step 3.5: Generating marketing posters...');
-    console.log('🐛 pageStructure.sections length:', pageStructure.sections?.length);
+    // ── Step 3.5: Generate marketing images with gpt-image-1 ─────────────────────
+    console.log('🎨 Step 3.5: Generating marketing images...');
+    console.log('🐛 pageStructure.benefits length:', pageStructure.benefits?.length);
     console.log('🐛 imageFiles length:', imageFiles?.length);
     
-    const marketingPosters = [];
-    const maxPosters = Math.min(pageStructure.sections?.length || 0, imageFiles?.length || 0);
-    console.log('🐛 maxPosters:', maxPosters);
+    const marketingImages = [];
+    const maxImages = Math.min(pageStructure.benefits?.length || 0, imageFiles?.length || 0);
+    console.log('🐛 maxImages:', maxImages);
     
-    for (let i = 0; i < maxPosters; i++) {
-      const section = pageStructure.sections[i];
+    for (let i = 0; i < maxImages; i++) {
+      const benefit = pageStructure.benefits[i];
       const baseImage = imageFiles[i];
       
-      console.log(`🐛 Processing poster ${i}:`, {
-        hasSection: !!section,
-        hasPosterTitle: !!section?.posterTitle,
-        hasPosterSubtitle: !!section?.posterSubtitle,
+      console.log(`🐛 Processing benefit ${i}:`, {
+        hasBenefit: !!benefit,
+        hasImagePrompt: !!benefit?.image_prompt,
         hasBaseImage: !!baseImage
       });
       
-      if (section.posterTitle && section.posterSubtitle && baseImage) {
+      if (benefit.image_prompt && baseImage) {
         try {
-          console.log(`🎨 Generating poster ${i + 1}: "${section.posterTitle}"`);
-          const poster = await generateMarketingPoster(
-            baseImage.buffer, 
-            section.posterTitle, 
-            section.posterSubtitle
-          );
+          console.log(`🎨 Generating marketing image ${i + 1} for: "${benefit.benefit_title}"`);
           
-          // Upload poster to R2
-          const posterUrl = await uploadImage(
-            Buffer.from(poster.url.split(',')[1], 'base64'), // Convert data URL to buffer
-            `poster-${i + 1}-${Date.now()}.png`,
+          // Generate image using the prompt from GPT-5.2
+          const openai = getOpenAI();
+          const response = await openai.images.generate({
+            model: 'gpt-image-1',
+            prompt: benefit.image_prompt,
+            n: 1,
+            size: '1024x1024',
+            quality: 'hd'
+          });
+          
+          const generatedImage = response.data[0];
+          
+          // Upload generated image to R2
+          const imageUrl = await uploadImage(
+            Buffer.from(generatedImage.url.split(',')[1], 'base64'),
+            `marketing-${i + 1}-${Date.now()}.png`,
             {
               workspaceId: req.workspaceId,
               uploadedBy: userId,
               mimeType: 'image/png'
             }
           );
-          if (posterUrl?.url) {
-            marketingPosters.push(posterUrl.url);
-            console.log(`✅ Poster ${i + 1} uploaded successfully`);
+          
+          if (imageUrl?.url) {
+            marketingImages.push({
+              ...benefit,
+              generated_image_url: imageUrl.url,
+              original_image_url: realPhotos[i] || null
+            });
+            console.log(`✅ Marketing image ${i + 1} uploaded successfully`);
           }
         } catch (error) {
-          console.warn(`⚠️ Failed to generate poster ${i + 1}:`, error.message);
+          console.warn(`⚠️ Failed to generate marketing image ${i + 1}:`, error.message);
           // Fallback: use original image
-          marketingPosters.push(realPhotos[i]);
+          marketingImages.push({
+            ...benefit,
+            generated_image_url: realPhotos[i] || null,
+            original_image_url: realPhotos[i] || null
+          });
         }
       } else {
         // Fallback: use original image
-        marketingPosters.push(realPhotos[i]);
+        marketingImages.push({
+          ...benefit,
+          generated_image_url: realPhotos[i] || null,
+          original_image_url: realPhotos[i] || null
+        });
       }
     }
 
-    // ── Step 4: Assemble final product using imageIndex mapping ───────────────
+    // ── Step 4: Assemble final product with new structure ─────────────────────
     console.log('✅ Step 4: Assembling product page');
 
-    // Map each section to the marketing poster (or fallback to original)
-    const sections = (pageStructure.sections || []).map((s, index) => ({
-      title: s.title || '',
-      description: s.description || '',
-      marketingGoal: s.marketingGoal || '',
-      posterTitle: s.posterTitle || '',
-      posterSubtitle: s.posterSubtitle || '',
-      image: marketingPosters[index] ?? realPhotos[index] ?? realPhotos[0] ?? null
-    }));
-
     const productPage = {
-      title: pageStructure.mainTitle || scraped.title || '',
+      title: pageStructure.title || scraped.title || '',
       hook: pageStructure.hook || '',
-      problem: pageStructure.problem || '',
-      solution: pageStructure.solution || '',
-      howToUse: pageStructure.howToUse || '',
-      whyChooseUs: pageStructure.whyChooseUs || '',
-      cta: pageStructure.cta || '',
-      productUnderstanding: pageStructure.productUnderstanding || {},
-      sections,
+      benefits: marketingImages || [],
       heroImage: realPhotos[0] || null,
       realPhotos,
-      marketingPosters,
-      allImages: [...realPhotos.filter(Boolean), ...marketingPosters.filter(Boolean)],
       sourceUrl: cleanUrl,
       createdByAI: true,
       generatedAt: new Date().toISOString()

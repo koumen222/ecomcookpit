@@ -319,7 +319,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     ['🎯', 'Titre & accroche impactants'],
                     ['😩', 'Section Problème client'],
                     ['✅', 'Section Solution produit'],
-                    ['🎨', '4–6 sections bénéfices + affiches marketing'],
+                    ['🎨', '5 benefits avec images marketing IA'],
                     ['📖', 'Mode d\'utilisation'],
                     ['🏆', 'Pourquoi nous choisir'],
                     ['📣', 'Appel à l\'action final'],
@@ -481,39 +481,30 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     </div>
                   )}
 
-                  {/* Sections bénéfices avec affiches marketing */}
-                  {(product.sections || []).map((section, i) => (
+                  {/* Benefits avec images marketing générées par IA */}
+                  {(product.benefits || []).map((benefit, i) => (
                     <div key={i} className="border border-gray-100 rounded-xl overflow-hidden">
-                      {section.image && (
+                      {benefit.generated_image_url && (
                         <div className="relative">
-                          <ImagePreview src={section.image} className="w-full h-40" />
-                          {(section.posterTitle || section.posterSubtitle) && (
-                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
-                              {section.posterTitle && (
-                                <p className="text-white font-bold text-sm">{section.posterTitle}</p>
-                              )}
-                              {section.posterSubtitle && (
-                                <p className="text-white/90 text-xs">{section.posterSubtitle}</p>
-                              )}
-                            </div>
-                          )}
+                          <ImagePreview src={benefit.generated_image_url} className="w-full h-40" />
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
+                            <p className="text-white font-bold text-sm">{benefit.benefit_title}</p>
+                          </div>
                         </div>
                       )}
                       <div className="p-4">
-                        <h4 className="text-sm font-bold text-gray-800 mb-1">{section.title}</h4>
-                        <p className="text-sm text-gray-600">{section.description}</p>
-                        {section.marketingGoal && (
-                          <p className="text-xs text-violet-500 mt-1 italic">🎯 {section.marketingGoal}</p>
+                        <h4 className="text-sm font-bold text-gray-800 mb-1">{benefit.benefit_title}</h4>
+                        <p className="text-sm text-gray-600">{benefit.benefit_description}</p>
+                        {benefit.original_image_url && (
+                          <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-100">
+                            <p className="text-xs font-bold text-blue-700 mb-1">📸 Image Originale</p>
+                            <ImagePreview src={benefit.original_image_url} className="w-16 h-16 rounded" />
+                          </div>
                         )}
-                        {(section.posterTitle || section.posterSubtitle) && (
+                        {benefit.image_prompt && (
                           <div className="mt-2 p-2 bg-violet-50 rounded border border-violet-100">
-                            <p className="text-xs font-bold text-violet-700 mb-1">🎨 Affiche Marketing</p>
-                            {section.posterTitle && (
-                              <p className="text-xs text-gray-700 font-medium">Titre: "{section.posterTitle}"</p>
-                            )}
-                            {section.posterSubtitle && (
-                              <p className="text-xs text-gray-600">Sous-titre: "{section.posterSubtitle}"</p>
-                            )}
+                            <p className="text-xs font-bold text-violet-700 mb-1">🎨 Prompt IA</p>
+                            <p className="text-xs text-gray-600 italic">{benefit.image_prompt.slice(0, 100)}...</p>
                           </div>
                         )}
                       </div>
