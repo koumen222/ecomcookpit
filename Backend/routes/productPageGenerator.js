@@ -76,96 +76,28 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
     return res.status(400).json({ success: false, message: 'URL Alibaba ou AliExpress requise' });
   }
 
-  // ── SSE Headers et heartbeat ─────────────────────────────────────────────
-  let heartbeat = null;
-
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.status(200);
-  res.flushHeaders();
-
-  const send = (type, payload) => {
-    if (!res.writableEnded) {
-      const data = JSON.stringify({ type, timestamp: Date.now(), ...payload });
-      res.write(`data: ${data}\n\n`);
-    }
-  };
-
-  const cleanup = () => {
-    console.log('⏹️ Client disconnected during generation');
-
-    if (heartbeat !== null) {
-      clearInterval(heartbeat);
-      heartbeat = null;
-    }
-
-    if (!res.writableEnded) {
-      res.end();
-    }
-
-    if (globalThis.__aiProductGeneratorLock?.userId === userId) {
-      globalThis.__aiProductGeneratorLock.locked = false;
-      globalThis.__aiProductGeneratorLock.userId = null;
-      globalThis.__aiProductGeneratorLock.startedAt = null;
-    }
-  };
-
-  req.on('close', cleanup);
-  req.on('end', cleanup);
-
-  heartbeat = setInterval(() => {
-    try {
-      res.write(`event: ping\ndata: {}\n\n`);
-    } catch (err) {
-      console.log('⚠️ SSE write failed');
-    }
-  }, 15000);
-
-  // ── Safety timeout: release lock after 5 minutes ─────────────────────────
-  const safetyTimer = setTimeout(() => {
-    if (!res.writableEnded) {
-      console.warn('⏱️ Product generator timeout (300s) for userId:', userId);
-      send('error', { message: 'Timeout : la génération a dépassé 5 minutes. Réessayez.' });
-      cleanup();
-    }
-  }, 300000);
-
   try {
     // ── Step 1: Scrape Alibaba ────────────────────────────────────────────────
-    // ── Step 1: Scrape Alibaba ────────────────────────────────────────────────
     console.log('📡 Step 1: Scraping', cleanUrl);
-    send('progress', { step: 1, total: 4, label: '🔍 Analyse de la page Alibaba...' });
     const scraped = await scrapeAlibaba(cleanUrl);
     console.log('✅ Scraping done:', { title: scraped.title, images: scraped.images.length });
-    if (res.writableEnded) return;
 
     // ── Step 2: GPT-4o Vision + Copywriting ──────────────────────────────────
     console.log('🧠 Step 2: Vision analysis, photos:', imageFiles.length);
-    send('progress', {
-      step: 2, total: 4,
-      label: `🧠 Copywriting IA${imageFiles.length > 0 ? ` (${imageFiles.length} photo(s) analysées)` : ''}...`
-    });
     const imageBuffers = imageFiles.map(f => f.buffer);
     const pageStructure = await analyzeWithVision(scraped, imageBuffers);
     console.log('✅ Vision done:', { title: pageStructure.mainTitle, sections: pageStructure.sections?.length });
-    if (res.writableEnded) return;
 
     // ── Step 3: Upload user photos to R2 ──────────────────────────────────────
     console.log('📸 Step 3: Uploading photos:', imageFiles.length);
-    send('progress', { step: 3, total: 4, label: `📸 Sauvegarde des photos (${imageFiles.length})...` });
     const realPhotos = [];
     for (const f of imageFiles.slice(0, 8)) {
-      if (res.writableEnded) break;
       const uploaded = await uploadBufferToR2(f.buffer, f.mimetype, req.workspaceId, userId);
       if (uploaded?.url) realPhotos.push(uploaded.url);
     }
-    if (res.writableEnded) return;
 
     // ── Step 4: Assemble final product using imageIndex mapping ───────────────
     console.log('✅ Step 4: Assembling product page');
-    send('progress', { step: 4, total: 4, label: '✅ Assemblage de la page produit...' });
 
     // Map each section to the user photo indicated by imageIndex
     const sections = (pageStructure.sections || []).map((s) => ({
@@ -193,18 +125,21 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
       generatedAt: new Date().toISOString()
     };
 
-    send('done', { product: productPage });
-    if (!res.writableEnded) res.end();
+    res.json({ success: true, product: productPage });
 
   } catch (error) {
     console.error('❌ Product page generator error:', error.message);
-    if (!res.writableEnded) {
-      send('error', { message: error.message || 'Erreur lors de la génération de la page produit' });
-      res.end();
-    }
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Erreur lors de la génération de la page produit' 
+    });
   } finally {
-    clearTimeout(safetyTimer);
-    cleanup();
+    // Release lock
+    if (globalThis.__aiProductGeneratorLock?.userId === userId) {
+      globalThis.__aiProductGeneratorLock.locked = false;
+      globalThis.__aiProductGeneratorLock.userId = null;
+      globalThis.__aiProductGeneratorLock.startedAt = null;
+    }
   }
 });
 

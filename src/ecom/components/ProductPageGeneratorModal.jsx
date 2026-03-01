@@ -149,49 +149,14 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
         throw new Error(errorData.message || `HTTP ${resp.status}: ${resp.statusText}`);
       }
 
-      // SSE streaming
-      const reader = resp.body.getReader();
-      readerRef.current = reader;
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let productReceived = false;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop();
-
-        for (const line of lines) {
-          if (!line.startsWith('data:')) continue;
-          
-          let data;
-          try {
-            data = JSON.parse(line.slice(5).trim());
-          } catch (parseErr) {
-            console.warn('Failed to parse SSE data:', line, parseErr);
-            continue;
-          }
-
-          if (data.type === 'progress') {
-            setCurrentStep(data.step || 0);
-            setStepLabel(data.label || '');
-          } else if (data.type === 'done') {
-            productReceived = true;
-            setProduct(data.product);
-            setPhase('preview');
-            setActiveTab('page');
-            break;
-          } else if (data.type === 'error') {
-            throw new Error(data.message || 'Erreur inconnue du serveur');
-          }
-        }
-      }
-
-      if (!productReceived) {
-        throw new Error('La génération s\'est interrompue sans retourner de produit. Réessayez.');
+      const result = await resp.json();
+      
+      if (result.success && result.product) {
+        setProduct(result.product);
+        setPhase('preview');
+        setActiveTab('page');
+      } else {
+        throw new Error(result.error || 'Erreur inconnue lors de la génération');
       }
 
     } catch (error) {
@@ -210,8 +175,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       setPhase('input');
     } finally {
       clearTimeout(safetyTimer);
-      try { readerRef.current?.cancel(); } catch {}
-      readerRef.current = null;
       abortRef.current = null;
       isGeneratingRef.current = false;
     }
