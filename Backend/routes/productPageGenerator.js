@@ -8,7 +8,7 @@
 
 import express from 'express';
 import multer from 'multer';
-import { requireEcomAuth } from '../middleware/ecomAuth.js';
+import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { analyzeWithVision, generateMarketingPoster } from '../services/productPageGeneratorService.js';
 import { uploadBufferToR2 } from '../services/cloudflareImagesService.js';
 import { scrapeAlibaba } from '../services/alibabaScraper.js';
@@ -29,7 +29,19 @@ const upload = multer({
   }
 });
 
-router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) => {
+// Log middleware pour diagnostiquer CORS
+router.use((req, res, next) => {
+  console.log('🔍 Product Generator Route Hit:', {
+    method: req.method,
+    path: req.path,
+    origin: req.headers.origin,
+    contentType: req.headers['content-type'],
+    authorization: req.headers.authorization ? '***' : 'none'
+  });
+  next();
+});
+
+router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), upload.array('images', 8), async (req, res) => {
   const userId = req.user?.id || req.user?._id || 'anonymous';
 
   // ── Anti double-génération (verrou global) ────────────────────────────────

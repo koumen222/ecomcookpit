@@ -33,12 +33,26 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: function (origin, callback) {
+    console.log('🌐 CORS Request from origin:', origin);
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    if (origin.endsWith(".ecomcookpit.pages.dev")) return callback(null, true);
-    if (origin.endsWith(".scalor.net")) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      console.log('✅ CORS Allowed (explicit):', origin);
+      return callback(null, true);
+    }
+    if (origin.endsWith(".ecomcookpit.pages.dev")) {
+      console.log('✅ CORS Allowed (pages.dev):', origin);
+      return callback(null, true);
+    }
+    if (origin.endsWith(".scalor.net")) {
+      console.log('✅ CORS Allowed (scalor.net):', origin);
+      return callback(null, true);
+    }
     // Allow all *.scalor.app subdomains (public stores)
-    if (origin.endsWith(".scalor.app")) return callback(null, true);
+    if (origin.endsWith(".scalor.app")) {
+      console.log('✅ CORS Allowed (scalor.app):', origin);
+      return callback(null, true);
+    }
+    console.log('❌ CORS Blocked:', origin);
     callback(null, false);
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
