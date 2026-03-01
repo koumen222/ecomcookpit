@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Plus, Search, Edit, Trash2, Eye, EyeOff, ChevronLeft, ChevronRight, Loader2, AlertCircle, Image, ShoppingBag } from 'lucide-react';
+import { Package, Plus, Search, Edit, Trash2, Eye, EyeOff, ChevronLeft, ChevronRight, Loader2, AlertCircle, Image, ShoppingBag, Sparkles } from 'lucide-react';
 import { storeProductsApi } from '../services/storeApi.js';
 import AlibabaImportModal from '../components/AlibabaImportModal.jsx';
+import ProductPageGeneratorModal from '../components/ProductPageGeneratorModal.jsx';
 
 /**
  * StoreProductsList — Dashboard page listing all store catalog products.
@@ -16,8 +17,13 @@ const StoreProductsList = () => {
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
   const [showAlibabaModal, setShowAlibabaModal] = useState(false);
+  const [showPageGeneratorModal, setShowPageGeneratorModal] = useState(false);
 
   const handleAlibabaApply = (productData) => {
+    navigate('/ecom/store/products/new', { state: { prefill: productData } });
+  };
+
+  const handlePageGeneratorApply = (productData) => {
     navigate('/ecom/store/products/new', { state: { prefill: productData } });
   };
 
@@ -88,6 +94,13 @@ const StoreProductsList = () => {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => setShowPageGeneratorModal(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-lg text-sm font-medium hover:from-violet-600 hover:to-purple-700 transition shadow-sm"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span className="hidden sm:inline">Générer Page IA</span>
+          </button>
+          <button
             onClick={() => setShowAlibabaModal(true)}
             className="inline-flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg text-sm font-medium hover:from-orange-600 hover:to-red-600 transition shadow-sm"
           >
@@ -120,6 +133,13 @@ const StoreProductsList = () => {
         <AlibabaImportModal
           onClose={() => setShowAlibabaModal(false)}
           onApply={handleAlibabaApply}
+        />
+      )}
+
+      {showPageGeneratorModal && (
+        <ProductPageGeneratorModal
+          onClose={() => setShowPageGeneratorModal(false)}
+          onApply={handlePageGeneratorApply}
         />
       )}
 
