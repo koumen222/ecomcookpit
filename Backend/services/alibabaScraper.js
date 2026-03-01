@@ -6,10 +6,14 @@
 
 import { JSDOM } from 'jsdom';
 
-const SCRAPE_DO_TOKEN = '5b8507e34085484ba155aa91e11c74b54addd04c1ec';
+const SCRAPE_DO_TOKEN = process.env.SCRAPE_DO_TOKEN;
 const SCRAPE_DO_API = 'https://api.scrape.do/';
 
 export async function scrapeAlibaba(url) {
+  if (!SCRAPE_DO_TOKEN) {
+    throw new Error('SCRAPE_DO_TOKEN non configuré. Ajoutez-le dans votre .env');
+  }
+  
   console.log('🚀 Scrape.do scraping:', url);
 
   try {
