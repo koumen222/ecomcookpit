@@ -319,7 +319,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     ['🎯', 'Titre & accroche impactants'],
                     ['😩', 'Section Problème client'],
                     ['✅', 'Section Solution produit'],
-                    ['📸', '4–6 sections bénéfices + photos'],
+                    ['🎨', '4–6 sections bénéfices + affiches marketing'],
                     ['📖', 'Mode d\'utilisation'],
                     ['🏆', 'Pourquoi nous choisir'],
                     ['📣', 'Appel à l\'action final'],
@@ -481,17 +481,40 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     </div>
                   )}
 
-                  {/* Sections bénéfices */}
+                  {/* Sections bénéfices avec affiches marketing */}
                   {(product.sections || []).map((section, i) => (
                     <div key={i} className="border border-gray-100 rounded-xl overflow-hidden">
                       {section.image && (
-                        <ImagePreview src={section.image} className="w-full h-40" />
+                        <div className="relative">
+                          <ImagePreview src={section.image} className="w-full h-40" />
+                          {(section.posterTitle || section.posterSubtitle) && (
+                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
+                              {section.posterTitle && (
+                                <p className="text-white font-bold text-sm">{section.posterTitle}</p>
+                              )}
+                              {section.posterSubtitle && (
+                                <p className="text-white/90 text-xs">{section.posterSubtitle}</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       )}
                       <div className="p-4">
                         <h4 className="text-sm font-bold text-gray-800 mb-1">{section.title}</h4>
                         <p className="text-sm text-gray-600">{section.description}</p>
                         {section.marketingGoal && (
                           <p className="text-xs text-violet-500 mt-1 italic">🎯 {section.marketingGoal}</p>
+                        )}
+                        {(section.posterTitle || section.posterSubtitle) && (
+                          <div className="mt-2 p-2 bg-violet-50 rounded border border-violet-100">
+                            <p className="text-xs font-bold text-violet-700 mb-1">🎨 Affiche Marketing</p>
+                            {section.posterTitle && (
+                              <p className="text-xs text-gray-700 font-medium">Titre: "{section.posterTitle}"</p>
+                            )}
+                            {section.posterSubtitle && (
+                              <p className="text-xs text-gray-600">Sous-titre: "{section.posterSubtitle}"</p>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>

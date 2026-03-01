@@ -19,6 +19,48 @@ function getOpenAI() {
 
 export { scrapeAlibaba };
 
+// ─── Génération d'affiches marketing avec DALL-E ───────────────────────────────
+
+export async function generateMarketingPoster(baseImageBuffer, posterTitle, posterSubtitle) {
+  const openai = getOpenAI();
+  if (!openai) throw new Error('Clé OpenAI API non configurée.');
+
+  try {
+    // Convertir l'image en base64
+    const base64Image = baseImageBuffer.toString('base64');
+    const dataUrl = `data:image/jpeg;base64,${base64Image}`;
+
+    const response = await openai.images.edit({
+      image: dataUrl,
+      prompt: `Créer une affiche marketing professionnelle haute qualité pour ce produit.
+      
+TITRE PRINCIPAL (en gros, bien visible) : "${posterTitle}"
+SOUS-TITRE (plus petit, explicatif) : "${posterSubtitle}"
+
+STYLE :
+- Design moderne et épuré
+- Format vertical 9:16 (mobile)
+- Couleurs harmonieuses et professionnelles
+- Texte blanc ou contrastant, très lisible
+- Mise en valeur du produit
+- Arrière-plan professionnel
+- Pas de logos ni marques externes
+- Message marketing clair et percutant
+
+Le produit doit rester la star de l'affiche, avec le texte intégré harmonieusement.`,
+      n: 1,
+      size: "1024x1792", // Format vertical haute qualité
+      model: "dall-e-3",
+      quality: "hd"
+    });
+
+    return response.data[0];
+  } catch (error) {
+    console.error('Erreur génération affiche:', error);
+    throw new Error('Impossible de générer l\'affiche marketing');
+  }
+}
+
 // ─── GPT-4o Vision: analyze product + build full page structure ───────────────
 
 export async function analyzeWithVision(scrapedData, imageBuffers = []) {
@@ -85,7 +127,7 @@ Détermine automatiquement :
 
 --------------------------------------------------
 
-PHASE 4 — GÉNÉRATION PAGE PRODUIT
+PHASE 4 — GÉNÉRATION PAGE PRODUIT + AFFICHES MARKETING
 
 Créer une page optimisée mobile-first contenant :
 
@@ -93,10 +135,28 @@ Créer une page optimisée mobile-first contenant :
 2. Accroche émotionnelle courte
 3. Section PROBLÈME client
 4. Section SOLUTION produit
-5. 4 à 6 sections bénéfices illustrées par images
+5. 4 à 6 sections bénéfices illustrées par AFFICHES MARKETING
 6. Comment utiliser (simple et rassurant)
 7. Pourquoi choisir ce produit
 8. Appel à l'action final
+
+🎨 AFFICHES MARKETING :
+
+Pour chaque section bénéfices, générer une affiche marketing haute qualité qui :
+
+- Utilise l'image utilisateur comme base visuelle
+- Ajoute un TITRE MARKETING percutant en gros
+- Inclut un sous-titre explicatif
+- Maintient l'aspect professionnel et attractif
+- Est optimisée pour mobile (format vertical)
+- Met en avant le bénéfice principal
+
+STYLE DES AFFICHES :
+- Design moderne et épuré
+- Texte bien visible et lisible
+- Couleurs harmonieuses
+- Mise en valeur du produit
+- Message marketing clair
 
 STYLE D'ÉCRITURE :
 
@@ -132,7 +192,9 @@ FORMAT OBLIGATOIRE :
       "title": "",
       "description": "",
       "imageIndex": 0,
-      "marketingGoal": ""
+      "marketingGoal": "",
+      "posterTitle": "",
+      "posterSubtitle": ""
     }
   ],
   "howToUse": "",

@@ -9,10 +9,8 @@
 import express from 'express';
 import multer from 'multer';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
-import {
-  analyzeWithVision,
-  uploadBufferToR2
-} from '../services/productPageGeneratorService.js';
+import { analyzeWithVision, generateMarketingPoster } from '../services/productPageGeneratorService.js';
+import { uploadBufferToR2 } from '../services/cloudflareImagesService.js';
 import { scrapeAlibaba } from '../services/alibabaScraper.js';
 
 const router = express.Router();
@@ -96,15 +94,50 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
       if (uploaded?.url) realPhotos.push(uploaded.url);
     }
 
+    // ── Step 3.5: Generate marketing posters with DALL-E ───────────────────────
+    console.log('🎨 Step 3.5: Generating marketing posters...');
+    const marketingPosters = [];
+    for (let i = 0; i < Math.min(pageStructure.sections.length, imageFiles.length); i++) {
+      const section = pageStructure.sections[i];
+      const baseImage = imageFiles[i];
+      
+      if (section.posterTitle && section.posterSubtitle && baseImage) {
+        try {
+          console.log(`🎨 Generating poster ${i + 1}: "${section.posterTitle}"`);
+          const poster = await generateMarketingPoster(
+            baseImage.buffer, 
+            section.posterTitle, 
+            section.posterSubtitle
+          );
+          
+          // Upload poster to R2
+          const posterUrl = await uploadImage(poster.url, req.workspaceId, userId);
+          if (posterUrl) {
+            marketingPosters.push(posterUrl);
+            console.log(`✅ Poster ${i + 1} uploaded successfully`);
+          }
+        } catch (error) {
+          console.warn(`⚠️ Failed to generate poster ${i + 1}:`, error.message);
+          // Fallback: use original image
+          marketingPosters.push(realPhotos[i]);
+        }
+      } else {
+        // Fallback: use original image
+        marketingPosters.push(realPhotos[i]);
+      }
+    }
+
     // ── Step 4: Assemble final product using imageIndex mapping ───────────────
     console.log('✅ Step 4: Assembling product page');
 
-    // Map each section to the user photo indicated by imageIndex
-    const sections = (pageStructure.sections || []).map((s) => ({
+    // Map each section to the marketing poster (or fallback to original)
+    const sections = (pageStructure.sections || []).map((s, index) => ({
       title: s.title || '',
       description: s.description || '',
       marketingGoal: s.marketingGoal || '',
-      image: realPhotos[s.imageIndex] ?? realPhotos[0] ?? null
+      posterTitle: s.posterTitle || '',
+      posterSubtitle: s.posterSubtitle || '',
+      image: marketingPosters[index] ?? realPhotos[index] ?? realPhotos[0] ?? null
     }));
 
     const productPage = {
@@ -119,7 +152,8 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
       sections,
       heroImage: realPhotos[0] || null,
       realPhotos,
-      allImages: realPhotos.filter(Boolean),
+      marketingPosters,
+      allImages: [...realPhotos.filter(Boolean), ...marketingPosters.filter(Boolean)],
       sourceUrl: cleanUrl,
       createdByAI: true,
       generatedAt: new Date().toISOString()
