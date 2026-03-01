@@ -66,7 +66,10 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
   res.flushHeaders();
 
   let closed = false;
-  req.on('close', () => { closed = true; });
+  req.on('close', () => {
+    closed = true;
+    clearInterval(heartbeat);
+  });
 
   const send = (type, payload = {}) => {
     if (closed) return;
@@ -76,6 +79,15 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
       if (typeof res.flush === 'function') res.flush();
     } catch (_) {}
   };
+
+  // Heartbeat every 5s — keeps Railway/proxy connection alive during long GPT/DALL-E calls
+  const heartbeat = setInterval(() => {
+    if (closed) return clearInterval(heartbeat);
+    try {
+      res.write('data: {"type":"ping"}\n\n');
+      if (typeof res.flush === 'function') res.flush();
+    } catch (_) { clearInterval(heartbeat); }
+  }, 5000);
 
   try {
     // ── Step 1: Scrape Alibaba ─────────────────────────────────────────────────
@@ -177,6 +189,7 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
       generatedAt: new Date().toISOString()
     };
 
+    clearInterval(heartbeat);
     send('done', { product: productPage });
     if (!closed) res.end();
 
@@ -200,6 +213,7 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
       errorMessage = 'Erreur upload fichier. Vérifiez le format et la taille des images.';
     }
     
+    clearInterval(heartbeat);
     send('error', { message: errorMessage });
     if (!closed) res.end();
   }

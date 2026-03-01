@@ -187,6 +187,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               const data = JSON.parse(dataLine);
               console.log('SSE received:', data);
 
+              if (data.type === 'ping') continue; // heartbeat, ignore
               if (data.type === 'progress') {
                 setCurrentStep(data.step || 0);
                 setStepLabel(data.label || '');

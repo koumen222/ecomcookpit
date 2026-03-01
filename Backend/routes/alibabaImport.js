@@ -65,16 +65,27 @@ router.post(
     res.flushHeaders();
 
     let closed = false;
-    req.on('close', () => { closed = true; });
+    req.on('close', () => {
+      closed = true;
+      clearInterval(heartbeat);
+    });
 
     const send = (type, payload = {}) => {
       if (closed) return;
       try {
         res.write(`data: ${JSON.stringify({ type, ...payload })}\n\n`);
-        // Force immediate delivery — bypass any remaining buffers
         if (typeof res.flush === 'function') res.flush();
       } catch (_) {}
     };
+
+    // Heartbeat every 5s — keeps Railway/proxy connection alive during long GPT/DALL-E calls
+    const heartbeat = setInterval(() => {
+      if (closed) return clearInterval(heartbeat);
+      try {
+        res.write('data: {"type":"ping"}\n\n');
+        if (typeof res.flush === 'function') res.flush();
+      } catch (_) { clearInterval(heartbeat); }
+    }, 5000);
 
     try {
       // ── Step 1: Scraping ───────────────────────────────────────────────
@@ -142,6 +153,7 @@ router.post(
       // ── Step 4: Done ───────────────────────────────────────────────────
       send('progress', { step: 4, steps: 4, label: '✅ Produit prêt !' });
 
+      clearInterval(heartbeat);
       send('done', {
         product: {
           ...generated,
@@ -172,6 +184,7 @@ router.post(
         errorMessage = 'Impossible d\'accéder à la page Alibaba. Vérifiez l\'URL.';
       }
       
+      clearInterval(heartbeat);
       send('error', { message: errorMessage });
       if (!closed) res.end();
     }
