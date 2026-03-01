@@ -53,20 +53,18 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
     return res.status(400).json({ success: false, message: 'URL Alibaba ou AliExpress requise' });
   }
 
-  // ── SSE headers ──────────────────────────────────────────────────────────────
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache, no-transform',
-    'Connection': 'keep-alive',
-    'X-Accel-Buffering': 'no',
-    'Transfer-Encoding': 'identity',
-    'Access-Control-Allow-Origin': req.headers.origin || '*'
-  });
+  // ── SSE headers (use setHeader to preserve CORS headers set by middleware) ────
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.status(200);
   // Flush headers immediately so client knows the stream is open
   res.flushHeaders();
 
   let closed = false;
   req.on('close', () => {
+    console.log('⚠️ SSE connection closed by client (product-generator)');
     closed = true;
     clearInterval(heartbeat);
   });
