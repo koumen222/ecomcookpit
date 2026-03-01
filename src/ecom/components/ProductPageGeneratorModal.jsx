@@ -428,18 +428,48 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                 <p className="text-sm text-violet-600 min-h-[20px]">{stepLabel}</p>
               </div>
 
-              <div className="w-full max-w-xs space-y-2">
+              <div className="w-full max-w-sm space-y-3">
                 {STEPS.map(step => {
                   const isDone = step.id < currentStep;
                   const isActive = step.id === currentStep;
                   return (
-                    <div key={step.id} className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${
-                      isActive ? 'bg-violet-50 border border-violet-200' : isDone ? 'opacity-50' : 'opacity-25'
-                    }`}>
-                      <span className="text-base">
-                        {isDone ? '✅' : isActive ? <Loader2 className="w-4 h-4 text-violet-600 animate-spin inline" /> : step.icon}
-                      </span>
-                      <span className={`text-sm ${isActive ? 'font-semibold text-violet-700' : 'text-gray-600'}`}>{step.label}</span>
+                    <div
+                      key={step.id}
+                      className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                        isActive ? 'bg-violet-50 border-violet-200 shadow-sm' :
+                        isDone ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200 opacity-50'
+                      }`}
+                    >
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-medium ${
+                        isDone ? 'bg-emerald-500 text-white' :
+                        isActive ? 'bg-violet-100 border-2 border-violet-300' : 'bg-gray-200 text-gray-500'
+                      }`}>
+                        {isDone ? '✓' : isActive ? <Loader2 className="w-4 h-4 animate-spin text-violet-500" /> : step.id}
+                      </div>
+                      <div className="flex-1">
+                        <div className={`text-sm font-medium ${
+                          isActive ? 'text-violet-700' : isDone ? 'text-emerald-700' : 'text-gray-500'
+                        }`}>
+                          {step.label}
+                        </div>
+                        {isDone && (
+                          <div className="text-xs text-emerald-600 font-semibold mt-0.5">
+                            ✅ Terminé
+                          </div>
+                        )}
+                        {isActive && (
+                          <div className="text-xs text-violet-600 font-medium mt-0.5">
+                            En cours...
+                          </div>
+                        )}
+                      </div>
+                      {isDone && (
+                        <div className="text-emerald-500">
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

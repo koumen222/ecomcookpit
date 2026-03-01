@@ -374,27 +374,48 @@ const AlibabaImportModal = ({ onClose, onApply }) => {
               </div>
 
               {/* Steps */}
-              <div className="w-full max-w-xs space-y-2.5">
+              <div className="w-full max-w-sm space-y-3">
                 {STEPS.map(step => {
                   const done = currentStep > step.id;
                   const active = currentStep === step.id;
                   return (
                     <div
                       key={step.id}
-                      className={`flex items-center gap-3 p-2.5 rounded-lg transition-all ${
-                        active ? 'bg-orange-50 border border-orange-200' :
-                        done ? 'opacity-60' : 'opacity-30'
+                      className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                        active ? 'bg-orange-50 border-orange-200 shadow-sm' :
+                        done ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200 opacity-50'
                       }`}
                     >
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-sm ${
-                        done ? 'bg-emerald-100 text-emerald-600' :
-                        active ? 'bg-orange-100' : 'bg-gray-100'
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-medium ${
+                        done ? 'bg-emerald-500 text-white' :
+                        active ? 'bg-orange-100 border-2 border-orange-300' : 'bg-gray-200 text-gray-500'
                       }`}>
-                        {done ? '✓' : active ? <Loader2 className="w-3.5 h-3.5 animate-spin text-orange-500" /> : step.icon}
+                        {done ? '✓' : active ? <Loader2 className="w-4 h-4 animate-spin text-orange-500" /> : step.id}
                       </div>
-                      <span className={`text-xs font-medium ${active ? 'text-orange-700' : done ? 'text-emerald-700' : 'text-gray-400'}`}>
-                        {step.label}
-                      </span>
+                      <div className="flex-1">
+                        <div className={`text-sm font-medium ${
+                          active ? 'text-orange-700' : done ? 'text-emerald-700' : 'text-gray-500'
+                        }`}>
+                          {step.label}
+                        </div>
+                        {done && (
+                          <div className="text-xs text-emerald-600 font-semibold mt-0.5">
+                            ✅ Terminé
+                          </div>
+                        )}
+                        {active && (
+                          <div className="text-xs text-orange-600 font-medium mt-0.5">
+                            En cours...
+                          </div>
+                        )}
+                      </div>
+                      {done && (
+                        <div className="text-emerald-500">
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
