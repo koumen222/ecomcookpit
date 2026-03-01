@@ -10,12 +10,12 @@ import express from 'express';
 import multer from 'multer';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import {
-  scrapeAlibaba,
   analyzeWithVision,
   generateSceneImage,
   downloadAndUploadToR2,
   uploadBufferToR2
 } from '../services/productPageGeneratorService.js';
+import { scrapeAlibaba } from '../services/alibabaScraper.js';
 
 const router = express.Router();
 

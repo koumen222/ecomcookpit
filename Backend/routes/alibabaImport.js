@@ -9,11 +9,11 @@
 import express from 'express';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import {
-  scrapeAlibaba,
   analyzeWithGPT,
   generateMarketingImages,
   downloadAndUploadImage
 } from '../services/alibabaImportService.js';
+import { scrapeAlibaba } from '../services/alibabaScraper.js';
 
 const router = express.Router();
 
