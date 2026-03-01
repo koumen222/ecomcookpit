@@ -1,133 +1,153 @@
 /**
- * Alibaba Scraper with Puppeteer
- * Utilise Chromium installé via Nixpacks sur Railway
- * PUPPETEER_SKIP_DOWNLOAD=true → utilise le Chromium système, pas le bundled
+ * Alibaba Scraper avec scrape.do API
+ * Plus fiable que Puppeteer, pas de gestion de Chromium
+ * API: https://scrape.do/
  */
 
-import puppeteer from 'puppeteer';
-import { execSync } from 'child_process';
+import { JSDOM } from 'jsdom';
 
-// Résolution dynamique du chemin Chromium installé par Nixpacks/Nix sur Railway
-function getChromiumPath() {
-  // Variable d'env prioritaire (configurable dans Railway Dashboard)
-  if (process.env.CHROMIUM_PATH) return process.env.CHROMIUM_PATH;
-  // Cherche chromium dans le PATH (installé par Nixpacks)
-  try {
-    const path = execSync('which chromium', { timeout: 3000 }).toString().trim();
-    if (path) return path;
-  } catch (_) {}
-  // Fallback paths Nix courants
-  const fallbacks = [
-    '/run/current-system/sw/bin/chromium',
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome-stable'
-  ];
-  for (const p of fallbacks) {
-    try { execSync(`test -x ${p}`, { timeout: 1000 }); return p; } catch (_) {}
-  }
-  return undefined; // laisse Puppeteer trouver tout seul
-}
+const SCRAPE_DO_TOKEN = '5b8507e34085484ba155aa91e11c74b54addd04c1ec';
+const SCRAPE_DO_API = 'https://api.scrape.do/';
 
 export async function scrapeAlibaba(url) {
-  let browser;
-  const chromiumPath = getChromiumPath();
-  console.log('🚀 Puppeteer scraping:', url);
-  console.log('🔧 Chromium path:', chromiumPath || 'auto-detect');
+  console.log('🚀 Scrape.do scraping:', url);
 
   try {
-    browser = await puppeteer.launch({
-      executablePath: chromiumPath,
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process',
-        '--disable-extensions'
-      ]
-    });
-    console.log('✅ Browser launched successfully');
+    // URL encode pour scrape.do
+    const encodedUrl = encodeURIComponent(url);
+    const scrapeUrl = `${SCRAPE_DO_API}?token=${SCRAPE_DO_TOKEN}&url=${encodedUrl}&render=true&customWait=2000&device=desktop&super=true`;
 
-    const page = await browser.newPage();
-
-    await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    );
-    await page.setViewport({ width: 1920, height: 1080 });
-
-    // Bloque fonts/styles/media pour charger plus vite
-    await page.setRequestInterception(true);
-    page.on('request', (req) => {
-      if (['font', 'stylesheet', 'media'].includes(req.resourceType())) {
-        req.abort();
-      } else {
-        req.continue();
-      }
+    console.log('� Calling scrape.do API...');
+    const response = await fetch(scrapeUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      },
+      timeout: 60000
     });
 
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
-    console.log('✅ Page loaded');
+    if (!response.ok) {
+      throw new Error(`scrape.do API error: ${response.status} ${response.statusText}`);
+    }
 
-    await page.waitForSelector('h1, .product-title, title', { timeout: 15000 });
+    const html = await response.text();
+    console.log('✅ HTML received, length:', html.length);
 
-    const title = await page.evaluate(() => {
-      for (const sel of ['h1', '.product-title', '.title-module h1', '.gallery-offer-title']) {
-        const el = document.querySelector(sel);
-        if (el?.innerText?.trim()) {
-          return el.innerText.trim()
-            .replace(/\s*[|–-]\s*Alibaba.*$/i, '')
-            .replace(/\s*\|\s*.*$/, '')
-            .trim();
-        }
+    if (html.length < 1000) {
+      throw new Error('Réponse HTML trop courte - page probablement bloquée');
+    }
+
+    // Parse HTML avec JSDOM
+    const dom = new JSDOM(html);
+    const document = dom.window.document;
+
+    // Extraction du titre
+    let title = '';
+    const titleSelectors = [
+      'h1',
+      '.product-title', 
+      '.title-module h1',
+      '.gallery-offer-title',
+      '.pdp-product-name',
+      '[data-spm-anchor-id] h1'
+    ];
+
+    for (const sel of titleSelectors) {
+      const el = document.querySelector(sel);
+      if (el?.textContent?.trim()) {
+        title = el.textContent.trim()
+          .replace(/\s*[|–-]\s*Alibaba.*$/i, '')
+          .replace(/\s*\|\s*.*$/, '')
+          .trim();
+        break;
       }
-      // Fallback: <title> tag
-      return (document.title || '')
+    }
+
+    // Fallback: balise <title>
+    if (!title || title.length < 3) {
+      title = (document.title || '')
         .replace(/\s*[|–-]\s*Alibaba.*$/i, '')
         .replace(/\s*\|\s*.*$/, '')
         .trim();
+    }
+
+    // Extraction des images
+    const imgElements = Array.from(document.querySelectorAll('img'));
+    const images = imgElements
+      .map(img => img.src || img.getAttribute('data-src') || img.getAttribute('data-lazy') || '')
+      .filter(src => 
+        src && 
+        (src.includes('alicdn.com') || src.includes('alibaba.com')) && 
+        !src.includes('icon') && 
+        !src.includes('logo') &&
+        !src.includes('avatar') &&
+        src.length > 20
+      )
+      .slice(0, 8)
+      .map(src => {
+        if (src.startsWith('//')) return 'https:' + src;
+        if (src.startsWith('/')) return 'https://www.alibaba.com' + src;
+        return src;
+      })
+      .filter(src => src.startsWith('http'));
+
+    // Extraction description (meta)
+    const metaDesc = document.querySelector('meta[name="description"]');
+    const description = (metaDesc?.content || '').slice(0, 500);
+
+    // Extraction du texte brut (pour GPT)
+    const clone = document.body.cloneNode(true);
+    const scripts = clone.querySelectorAll('script, style, nav, header, footer, .nav, .header, .footer');
+    scripts.forEach(el => el.remove());
+    
+    const rawText = (clone.textContent || '')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+      .slice(0, 3000);
+
+    console.log('✅ Scraping completed:', { 
+      title: title?.slice(0, 60), 
+      images: images.length,
+      rawLength: rawText.length 
     });
-
-    const images = await page.evaluate(() =>
-      Array.from(document.querySelectorAll('img'))
-        .map(img => img.src || img.dataset.src || '')
-        .filter(src => src.includes('alicdn.com') && !src.includes('icon') && !src.includes('logo'))
-        .slice(0, 6)
-        .map(src => src.startsWith('//') ? 'https:' + src : src)
-    );
-
-    const description = await page.evaluate(() => {
-      const meta = document.querySelector('meta[name="description"]');
-      return (meta?.content || '').slice(0, 500);
-    });
-
-    const rawText = await page.evaluate(() => {
-      const clone = document.body.cloneNode(true);
-      clone.querySelectorAll('script, style, nav, header, footer').forEach(el => el.remove());
-      return (clone.innerText || '').replace(/\s{2,}/g, ' ').trim().slice(0, 3000);
-    });
-
-    console.log('✅ Scraping completed:', { title: title?.slice(0, 60), images: images.length });
 
     if (!title || title.length < 3) {
-      throw new Error('Titre non trouvé - Alibaba a peut-être bloqué la requête');
+      throw new Error('Titre non trouvé - page Alibaba invalide ou bloquée');
     }
 
-    return { url, title, description, images, specs: {}, rawText };
+    if (rawText.length < 50) {
+      throw new Error('Contenu insuffisant - page probablement bloquée par Alibaba');
+    }
+
+    return { 
+      url, 
+      title, 
+      description, 
+      images, 
+      specs: {}, 
+      rawText 
+    };
 
   } catch (error) {
-    console.warn('❌ Puppeteer scraping failed:', error.message);
-    if (error.message.includes('timeout') || error.message.includes('Timeout')) {
-      throw new Error('Timeout - Alibaba met trop de temps à charger. Réessayez.');
+    console.error('❌ scrape.do scraping failed:', error.message);
+    
+    if (error.message.includes('timeout') || error.message.includes('TIMEOUT')) {
+      throw new Error('Timeout - Alibaba met trop de temps à répondre. Réessayez dans 30s.');
     }
-    if (error.message.includes('Titre non trouvé') || error.message.includes('bloqué')) {
-      throw new Error('Alibaba a bloqué le scraping. Attendez 30 secondes et réessayez.');
+    
+    if (error.message.includes('403') || error.message.includes('blocked') || error.message.includes('bloqué')) {
+      throw new Error('Alibaba a temporairement bloqué l\'accès. Attendez 1 minute et réessayez.');
     }
+    
+    if (error.message.includes('429') || error.message.includes('rate limit')) {
+      throw new Error('Limite de requêtes atteinte. Attendez quelques minutes.');
+    }
+
+    if (error.message.includes('API error')) {
+      throw new Error('Service de scraping temporairement indisponible. Réessayez plus tard.');
+    }
+    
     throw new Error(`Erreur scraping: ${error.message}`);
-  } finally {
-    if (browser) await browser.close();
   }
 }

@@ -1,29 +1,5 @@
 [phases.setup]
-nixPkgs = [
-  "nodejs_22",
-  "chromium",
-  "glib",
-  "nss",
-  "atk",
-  "at-spi2-atk",
-  "cups",
-  "libdrm",
-  "gtk3",
-  "mesa",
-  "pango",
-  "cairo",
-  "libxkbcommon",
-  "alsa-lib",
-  "xorg.libX11",
-  "xorg.libXcomposite",
-  "xorg.libXdamage",
-  "xorg.libXext",
-  "xorg.libXfixes",
-  "xorg.libXrandr"
-]
-
-[variables]
-PUPPETEER_SKIP_DOWNLOAD = "true"
+nixPkgs = ["nodejs_22"]
 
 [phases.install]
 cmds = [

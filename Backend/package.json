@@ -33,7 +33,7 @@
     "node-cron": "^3.0.3",
     "node-fetch": "^3.3.2",
     "openai": "^4.80.1",
-    "puppeteer": "^24.37.5",
+    "jsdom": "^25.0.1",
     "resend": "^3.5.0",
     "socket.io": "^4.8.3",
     "uuid": "^13.0.0",
