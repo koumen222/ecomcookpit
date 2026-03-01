@@ -7,8 +7,6 @@ import cookieParser from 'cookie-parser';
 import compression from 'compression';
 import helmet from 'helmet';
 import { connectDB } from './config/database.js';
-import { connectPrisma } from './config/prismaClient.js';
-import prisma from './config/prismaClient.js';
 import { extractSubdomain } from './middleware/subdomain.js';
 
 const app = express();
@@ -118,17 +116,9 @@ try {
 // ─── Start server ────────────────────────────────────────────────────────────
 const startServer = async () => {
   try {
-    // Connexion MongoDB (pour les données existantes)
+    // Connexion MongoDB uniquement
     await connectDB();
-
-    // Connexion PostgreSQL (pour les nouvelles données)
-    try {
-      await connectPrisma();
-      console.log('💡 Mode hybride activé: MongoDB (anciennes données) + PostgreSQL (nouvelles données)');
-    } catch (error) {
-      console.warn('⚠️  PostgreSQL non connecté - Mode MongoDB uniquement');
-      console.warn('   Les nouvelles données seront stockées dans MongoDB');
-    }
+    console.log('💡 Mode MongoDB activé');
 
     console.log('\n🚀 Build timestamp:', new Date().toISOString());
 

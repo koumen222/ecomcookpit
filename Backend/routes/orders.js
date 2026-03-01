@@ -228,7 +228,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), async
     
     // 📱 Push notification
     try {
-      const { sendPushNotification } = await import('../../backend/services/pushService.js');
+      const { sendPushNotification } = await import('../services/pushService.js');
       await sendPushNotification(req.workspaceId, {
         title: '🛒 Nouvelle commande',
         body: `${order.clientName || order.clientPhone} - ${order.product || 'Produit'} (${order.quantity}x)`,
