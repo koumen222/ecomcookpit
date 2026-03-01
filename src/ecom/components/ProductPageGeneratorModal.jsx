@@ -91,6 +91,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
   const abortRef = useRef(null);
+  const readerRef = useRef(null);
+  const isGeneratingRef = useRef(false);
 
   const isValidUrl = url.trim().length > 10 && (url.includes('alibaba.com') || url.includes('aliexpress.com'));
 
@@ -112,6 +114,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
 
   const handleGenerate = useCallback(async () => {
     if (!isValidUrl) return;
+    if (isGeneratingRef.current) return;
+    isGeneratingRef.current = true;
     setPhase('loading');
     setError('');
     setCurrentStep(0);
@@ -165,6 +169,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       }
 
       const reader = resp.body.getReader();
+      readerRef.current = reader;
       const decoder = new TextDecoder();
       let buffer = '';
 
@@ -195,6 +200,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                 setProduct(data.product);
                 setPhase('preview');
                 setActiveTab('page');
+                try { readerRef.current?.cancel(); } catch {}
+                readerRef.current = null;
+                return;
               } else if (data.type === 'error') {
                 throw new Error(data.message || 'Erreur inattendue');
               }
@@ -211,6 +219,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       
       if (err.name === 'AbortError') {
         console.log('Generation cancelled by user');
+        setPhase('input');
         return;
       }
       
@@ -228,6 +237,10 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       setPhase('input');
     } finally {
       clearTimeout(safetyTimer);
+      try { readerRef.current?.cancel(); } catch {}
+      readerRef.current = null;
+      abortRef.current = null;
+      isGeneratingRef.current = false;
     }
   }, [url, withImages, photos, isValidUrl]);
 

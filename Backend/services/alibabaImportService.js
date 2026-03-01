@@ -32,15 +32,20 @@ export async function scrapeAlibaba(url) {
   const result = { url, title: '', description: '', images: [], specs: {}, rawText: '' };
 
   try {
-    const resp = await axios.get(url, {
-      headers: SCRAPE_HEADERS,
-      timeout: 20000,
-      maxRedirects: 3,
-      responseType: 'text',
-      validateStatus: (s) => s < 500
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 20000);
+    const resp = await fetch(url, {
+      signal: controller.signal,
+      redirect: 'follow',
+      headers: SCRAPE_HEADERS
     });
+    clearTimeout(t);
 
-    const html = String(resp.data || '');
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status}`);
+    }
+
+    const html = String(await resp.text());
 
     // Title
     const titleMatch = html.match(/<title[^>]*>([^<]{3,200})<\/title>/i);
@@ -82,6 +87,12 @@ export async function scrapeAlibaba(url) {
 
   } catch (err) {
     console.warn(`⚠️  Alibaba scrape failed (${url}): ${err.message}`);
+    throw new Error(`Impossible d'accéder à la page Alibaba : ${err.message}`);
+  }
+
+  // Si le titre ET le texte brut sont vides → Alibaba a bloqué la requête
+  if (!result.title && result.rawText.length < 200) {
+    throw new Error('Alibaba a bloqué le scraping. Attendez 30 secondes et réessayez, ou essayez une autre URL.');
   }
 
   return result;
