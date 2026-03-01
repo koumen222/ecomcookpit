@@ -2,7 +2,16 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import api from '../../lib/api.js';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || '';
+const resolveSocketUrl = () => {
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  if (import.meta.env.VITE_BACKEND_URL) return import.meta.env.VITE_BACKEND_URL;
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) {
+    return 'https://api.scalor.net';
+  }
+  return 'https://ecomcookpit-production-7a08.up.railway.app';
+};
+
+const SOCKET_URL = resolveSocketUrl();
 
 let globalSocket = null;
 let listeners = [];
@@ -12,7 +21,7 @@ function getSocket(token) {
   if (!globalSocket || globalSocket.disconnected) {
     globalSocket = io(SOCKET_URL, {
       auth: { token },
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 2000,

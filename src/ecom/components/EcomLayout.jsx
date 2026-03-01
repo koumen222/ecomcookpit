@@ -693,6 +693,12 @@ const getPageTitle = (pathname) => {
   if (pathname.includes('/profile')) return 'Mon profil';
   if (pathname.includes('/dashboard')) return 'Scalor';
   if (pathname.includes('/data')) return 'Data';
+  if (pathname.includes('/store/products/new')) return 'Nouveau produit boutique';
+  if (pathname.includes('/store/products') && pathname.includes('/edit')) return 'Modifier le produit boutique';
+  if (pathname.includes('/store/products')) return 'Produits boutique';
+  if (pathname.includes('/store/orders')) return 'Commandes boutique';
+  if (pathname.includes('/store/setup')) return 'Configuration boutique';
+  if (pathname.includes('/store')) return 'Boutique';
   if (pathname.includes('/products/new')) return 'Nouveau produit';
   if (pathname.includes('/products') && pathname.includes('/edit')) return 'Modifier le produit';
   if (pathname.match(/\/products\/[a-f0-9]+$/)) return 'Détail du produit';

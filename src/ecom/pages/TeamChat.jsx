@@ -6,7 +6,16 @@ import { useMediaUpload } from '../hooks/useMediaUpload.js';
 import { io } from 'socket.io-client';
 import api from '../../lib/api.js';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
+const resolveSocketUrl = () => {
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  if (import.meta.env.VITE_BACKEND_URL) return import.meta.env.VITE_BACKEND_URL;
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) {
+    return 'https://api.scalor.net';
+  }
+  return 'https://ecomcookpit-production-7a08.up.railway.app';
+};
+
+const SOCKET_URL = resolveSocketUrl();
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
 
 const ROLE_COLORS = { 
@@ -520,7 +529,11 @@ export default function TeamChat() {
   // WebSocket
   useEffect(() => {
     if (!token) return;
-    const socket = io(SOCKET_URL, { auth: { token }, transports: ['websocket', 'polling'], reconnection: true });
+    const socket = io(SOCKET_URL, {
+      auth: { token },
+      transports: ['polling', 'websocket'],
+      reconnection: true
+    });
     socketRef.current = socket;
 
     socket.on('message:new', (msg) => {

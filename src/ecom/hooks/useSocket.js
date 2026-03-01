@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || 'https://plateforme-backend-production-2ec6.up.railway.app';
+const resolveSocketUrl = () => {
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  if (import.meta.env.VITE_BACKEND_URL) return import.meta.env.VITE_BACKEND_URL;
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) {
+    return 'https://api.scalor.net';
+  }
+  return 'https://ecomcookpit-production-7a08.up.railway.app';
+};
+
+const SOCKET_URL = resolveSocketUrl();
 
 /**
  * Custom hook for WebSocket connection with auto-reconnection
@@ -25,7 +34,9 @@ export function useSocket() {
 
     const socket = io(SOCKET_URL, {
       auth: { token },
-      transports: ['websocket', 'polling'],
+      // Start with polling, then upgrade to websocket when possible.
+      // This avoids noisy hard websocket failures behind some proxies.
+      transports: ['polling', 'websocket'],
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 2000, // 2 secondes minimum
