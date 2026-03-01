@@ -125,21 +125,30 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
       generatedAt: new Date().toISOString()
     };
 
-    res.json({ success: true, product: productPage });
-
-  } catch (error) {
-    console.error('❌ Product page generator error:', error.message);
-    res.status(500).json({ 
-      success: false, 
-      error: error.message || 'Erreur lors de la génération de la page produit' 
-    });
-  } finally {
-    // Release lock
+    // Release lock before response
     if (globalThis.__aiProductGeneratorLock?.userId === userId) {
       globalThis.__aiProductGeneratorLock.locked = false;
       globalThis.__aiProductGeneratorLock.userId = null;
       globalThis.__aiProductGeneratorLock.startedAt = null;
     }
+
+    console.log('✅ Product generated successfully');
+    return res.json({ success: true, product: productPage });
+
+  } catch (error) {
+    console.error('❌ Product page generator error:', error.message);
+    
+    // Release lock on error
+    if (globalThis.__aiProductGeneratorLock?.userId === userId) {
+      globalThis.__aiProductGeneratorLock.locked = false;
+      globalThis.__aiProductGeneratorLock.userId = null;
+      globalThis.__aiProductGeneratorLock.startedAt = null;
+    }
+    
+    return res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Erreur lors de la génération de la page produit' 
+    });
   }
 });
 
