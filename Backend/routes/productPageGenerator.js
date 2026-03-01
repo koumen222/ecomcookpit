@@ -123,15 +123,15 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
     } catch (_) { clearInterval(heartbeat); }
   }, 5000);
 
-  // ── Hard timeout: 60s max — libère le verrou quoi qu'il arrive ────────────
+  // ── Hard timeout: 300s max — Puppeteer+GPT+DALL-E peut prendre 3-4 min ────
   const safetyTimeout = setTimeout(() => {
     if (!closed) {
-      console.warn('⏱️ Product generator timeout (60s) for userId:', userId);
-      send('error', { message: 'Timeout : la génération a dépassé 60 secondes. Réessayez.' });
+      console.warn('⏱️ Product generator timeout (300s) for userId:', userId);
+      send('error', { message: 'Timeout : la génération a dépassé 5 minutes. Désactivez les images IA et réessayez.' });
       res.end();
       cleanup();
     }
-  }, 60000);
+  }, 300000);
 
   try {
     // ── Step 1: Scrape Alibaba ────────────────────────────────────────────────

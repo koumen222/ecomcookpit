@@ -172,6 +172,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       readerRef.current = reader;
       const decoder = new TextDecoder();
       let buffer = '';
+      let productReceived = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -183,35 +184,45 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
 
         for (const line of lines) {
           if (!line.trim()) continue;
-          
-          if (line.startsWith('data:')) {
-            const dataLine = line.slice(5).trim();
-            if (!dataLine) continue;
-            
-            try {
-              const data = JSON.parse(dataLine);
-              console.log('SSE received:', data);
+          if (!line.startsWith('data:')) continue;
 
-              if (data.type === 'ping') continue; // heartbeat, ignore
-              if (data.type === 'progress') {
-                setCurrentStep(data.step || 0);
-                setStepLabel(data.label || '');
-              } else if (data.type === 'done') {
-                setProduct(data.product);
-                setPhase('preview');
-                setActiveTab('page');
-                try { readerRef.current?.cancel(); } catch {}
-                readerRef.current = null;
-                return;
-              } else if (data.type === 'error') {
-                throw new Error(data.message || 'Erreur inattendue');
-              }
-            } catch (parseErr) {
-              console.warn('Failed to parse SSE data:', dataLine, parseErr);
-              // Continue processing other lines instead of failing
-            }
+          const dataLine = line.slice(5).trim();
+          if (!dataLine) continue;
+
+          // Parse JSON — only swallow parse errors, NOT logic errors below
+          let data;
+          try {
+            data = JSON.parse(dataLine);
+          } catch (parseErr) {
+            console.warn('Failed to parse SSE line:', dataLine);
+            continue;
+          }
+
+          console.log('SSE received:', data);
+
+          if (data.type === 'ping') continue;
+
+          if (data.type === 'progress') {
+            setCurrentStep(data.step || 0);
+            setStepLabel(data.label || '');
+          } else if (data.type === 'done') {
+            productReceived = true;
+            setProduct(data.product);
+            setPhase('preview');
+            setActiveTab('page');
+            try { readerRef.current?.cancel(); } catch {}
+            readerRef.current = null;
+            return;
+          } else if (data.type === 'error') {
+            // Propagates to outer catch — NOT swallowed
+            throw new Error(data.message || 'Erreur inattendue');
           }
         }
+      }
+
+      // Stream ended without a 'done' event → show error instead of staying stuck
+      if (!productReceived) {
+        throw new Error('La génération s\'est interrompue avant la fin. Réessayez.');
       }
     } catch (err) {
       clearTimeout(safetyTimer);
