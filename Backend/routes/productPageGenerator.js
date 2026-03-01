@@ -93,7 +93,13 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     console.log('✅ Scraping done:', { title: scraped.title, images: scraped.images.length });
 
     // ── Step 2: GPT-4o Vision + Copywriting ──────────────────────────────────
-    console.log('🧠 Step 2: Vision analysis, photos:', imageFiles.length);
+    console.log('🧠 Step 2: Vision analysis, photos:', imageFiles?.length || 'undefined');
+    console.log('🐛 imageFiles type:', typeof imageFiles, 'isArray:', Array.isArray(imageFiles));
+    
+    if (!imageFiles || !Array.isArray(imageFiles)) {
+      throw new Error('imageFiles is not a valid array');
+    }
+    
     const imageBuffers = imageFiles.map(f => f.buffer);
     const pageStructure = await analyzeWithVision(scraped, imageBuffers);
     console.log('✅ Vision done:', { title: pageStructure.mainTitle, sections: pageStructure.sections?.length });
@@ -112,10 +118,23 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     // ── Step 3.5: Generate marketing posters with DALL-E ───────────────────────
     console.log('🎨 Step 3.5: Generating marketing posters...');
+    console.log('🐛 pageStructure.sections length:', pageStructure.sections?.length);
+    console.log('🐛 imageFiles length:', imageFiles?.length);
+    
     const marketingPosters = [];
-    for (let i = 0; i < Math.min(pageStructure.sections.length, imageFiles.length); i++) {
+    const maxPosters = Math.min(pageStructure.sections?.length || 0, imageFiles?.length || 0);
+    console.log('🐛 maxPosters:', maxPosters);
+    
+    for (let i = 0; i < maxPosters; i++) {
       const section = pageStructure.sections[i];
       const baseImage = imageFiles[i];
+      
+      console.log(`🐛 Processing poster ${i}:`, {
+        hasSection: !!section,
+        hasPosterTitle: !!section?.posterTitle,
+        hasPosterSubtitle: !!section?.posterSubtitle,
+        hasBaseImage: !!baseImage
+      });
       
       if (section.posterTitle && section.posterSubtitle && baseImage) {
         try {
@@ -195,6 +214,16 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
   } catch (error) {
     console.error('❌ Product page generator error:', error.message);
+    console.error('❌ Stack trace:', error.stack);
+    
+    // Debug variables
+    console.error('🐛 Debug info:', {
+      imageFilesLength: imageFiles?.length,
+      pageStructureSectionsLength: pageStructure?.sections?.length,
+      scrapedTitle: !!scraped?.title,
+      realPhotosLength: realPhotos?.length,
+      marketingPostersLength: marketingPosters?.length
+    });
     
     // Release lock on error
     if (globalThis.__aiProductGeneratorLock?.userId === userId) {
