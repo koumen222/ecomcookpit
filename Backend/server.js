@@ -49,7 +49,18 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
-app.use(compression());
+
+// ─── Compression (disabled for SSE routes to prevent buffering) ──────────────
+app.use(compression({
+  filter: (req, res) => {
+    // NEVER compress SSE — gzip buffering breaks streaming events
+    const path = req.path || '';
+    if (path.includes('alibaba-import') || path.includes('product-generator')) {
+      return false;
+    }
+    return compression.filter(req, res);
+  }
+}));
 
 // ─── Security with Helmet ────────────────────────────────────────────────────
 app.use(
@@ -73,7 +84,10 @@ app.use((req, res, next) => {
   res.charset = 'utf-8';
   // Only set JSON Content-Type for API routes
   // Store subdomains serve HTML (React build) — don't override their Content-Type
-  if (req.path.startsWith('/api') || req.isApiDomain) {
+  // Skip for SSE routes — they manage their own Content-Type via res.writeHead
+  const path = req.path || '';
+  const isSSERoute = path.includes('alibaba-import') || path.includes('product-generator');
+  if (!isSSERoute && (path.startsWith('/api') || req.isApiDomain)) {
     res.set('Content-Type', 'application/json; charset=utf-8');
   }
   next();

@@ -56,18 +56,25 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
   // ── SSE headers ──────────────────────────────────────────────────────────────
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
+    'Cache-Control': 'no-cache, no-transform',
     'Connection': 'keep-alive',
     'X-Accel-Buffering': 'no',
+    'Transfer-Encoding': 'identity',
     'Access-Control-Allow-Origin': req.headers.origin || '*'
   });
+  // Flush headers immediately so client knows the stream is open
+  res.flushHeaders();
 
   let closed = false;
   req.on('close', () => { closed = true; });
 
   const send = (type, payload = {}) => {
     if (closed) return;
-    try { res.write(`data: ${JSON.stringify({ type, ...payload })}\n\n`); } catch (_) {}
+    try {
+      res.write(`data: ${JSON.stringify({ type, ...payload })}\n\n`);
+      // Force immediate delivery — bypass any remaining buffers
+      if (typeof res.flush === 'function') res.flush();
+    } catch (_) {}
   };
 
   try {
