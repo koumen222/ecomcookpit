@@ -176,6 +176,8 @@ const startServer = async () => {
       ['./routes/alibabaImport.js',           '/api/ecom/alibaba-import'],
       // ─── AI Product Page Generator ───────────────────────────────────────
       ['./routes/productPageGenerator.js',    '/api/ai/product-generator'],
+      // ─── Diagnostics ──────────────────────────────────────────────────────
+      ['./routes/diagnostics.js',             '/api/ecom/diagnostics'],
     ];
 
     for (const [file, mountPath] of routes) {

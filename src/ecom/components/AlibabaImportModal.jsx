@@ -100,6 +100,8 @@ const AlibabaImportModal = ({ onClose, onApply }) => {
     const safetyTimer = setTimeout(() => controller.abort(), 180000);
 
     try {
+      console.log('Starting Alibaba import:', { url: url.trim(), withImages, wsId, token: !!token });
+      
       const resp = await fetch(`${BACKEND_URL}/api/ecom/alibaba-import`, {
         method: 'POST',
         signal: controller.signal,
@@ -110,10 +112,26 @@ const AlibabaImportModal = ({ onClose, onApply }) => {
         },
         body: JSON.stringify({ url: url.trim(), withImages, workspaceId: wsId })
       });
+      
+      console.log('Response status:', resp.status, resp.statusText);
 
       if (!resp.ok) {
-        const json = await resp.json().catch(() => ({}));
-        throw new Error(json.message || `Erreur serveur ${resp.status}`);
+        let errorMessage = `Erreur serveur ${resp.status}`;
+        try {
+          const json = await resp.json();
+          errorMessage = json.message || json.error || errorMessage;
+          console.error('Server error details:', json);
+        } catch (jsonErr) {
+          console.error('Failed to parse error response:', jsonErr);
+          // Try to get text response instead
+          try {
+            const text = await resp.text();
+            console.error('Error response text:', text);
+            if (text.includes('OpenAI')) errorMessage = 'Clé API OpenAI manquante ou invalide';
+            else if (text.includes('auth')) errorMessage = 'Problème d\'authentification';
+          } catch {}
+        }
+        throw new Error(errorMessage);
       }
 
       const reader = resp.body.getReader();
@@ -129,35 +147,53 @@ const AlibabaImportModal = ({ onClose, onApply }) => {
         buffer = lines.pop(); // keep incomplete last line
 
         for (const line of lines) {
-          if (!line.startsWith('data:')) continue;
-          try {
-            const data = JSON.parse(line.slice(5).trim());
+          if (!line.trim()) continue;
+          
+          if (line.startsWith('data:')) {
+            const dataLine = line.slice(5).trim();
+            if (!dataLine) continue;
+            
+            try {
+              const data = JSON.parse(dataLine);
+              console.log('SSE received:', data);
 
-            if (data.type === 'progress') {
-              setCurrentStep(data.step || 0);
-              setStepLabel(data.label || '');
-            } else if (data.type === 'done') {
-              setProduct(data.product);
-              setPhase('preview');
-              setActiveTab('content');
-            } else if (data.type === 'error') {
-              throw new Error(data.message || 'Erreur inattendue');
+              if (data.type === 'progress') {
+                setCurrentStep(data.step || 0);
+                setStepLabel(data.label || '');
+              } else if (data.type === 'done') {
+                setProduct(data.product);
+                setPhase('preview');
+                setActiveTab('content');
+              } else if (data.type === 'error') {
+                throw new Error(data.message || 'Erreur inattendue');
+              }
+            } catch (parseErr) {
+              console.warn('Failed to parse SSE data:', dataLine, parseErr);
+              // Continue processing other lines instead of failing
             }
-          } catch (parseErr) {
-            if (parseErr.message !== 'Erreur inattendue') continue;
-            throw parseErr;
           }
         }
       }
     } catch (err) {
       clearTimeout(safetyTimer);
-      if (err.name === 'AbortError') return;
-      const isNetworkFetchError = err?.name === 'TypeError' && String(err?.message || '').toLowerCase().includes('failed to fetch');
-      setError(
-        isNetworkFetchError
-          ? 'Connexion API impossible (CORS/réseau). Vérifiez le backend puis réessayez.'
-          : (err.message || 'Erreur lors de l\'import')
-      );
+      console.error('Import error:', err);
+      
+      if (err.name === 'AbortError') {
+        console.log('Import cancelled by user');
+        return;
+      }
+      
+      let errorMessage = err.message || 'Erreur lors de l\'import';
+      
+      if (err?.name === 'TypeError' && String(err?.message || '').toLowerCase().includes('failed to fetch')) {
+        errorMessage = `Connexion impossible au backend (${BACKEND_URL}). Vérifiez que le serveur fonctionne.`;
+      } else if (errorMessage.includes('OpenAI')) {
+        errorMessage = 'Configuration OpenAI manquante. Vérifiez la clé API dans les variables d\'environnement.';
+      } else if (errorMessage.includes('auth')) {
+        errorMessage = 'Problème d\'authentification. Reconnectez-vous et réessayez.';
+      }
+      
+      setError(errorMessage);
       setPhase('input');
     } finally {
       clearTimeout(safetyTimer);

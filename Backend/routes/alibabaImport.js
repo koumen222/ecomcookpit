@@ -27,15 +27,25 @@ router.post(
   requireEcomAuth,
   validateEcomAccess('products', 'write'),
   async (req, res) => {
+    console.log('🚀 Alibaba import started:', {
+      url: req.body?.url,
+      withImages: req.body?.withImages,
+      workspaceId: req.body?.workspaceId,
+      userId: req.user?.id,
+      hasAuth: !!req.user
+    });
+    
     const { url, withImages = true } = req.body || {};
 
     if (!url || typeof url !== 'string' || url.trim().length < 10) {
+      console.error('❌ Invalid URL provided:', url);
       return res.status(400).json({ success: false, message: 'URL requise' });
     }
 
     const cleanUrl = url.trim();
     const isAlibaba = cleanUrl.includes('alibaba.com') || cleanUrl.includes('aliexpress.com');
     if (!isAlibaba) {
+      console.error('❌ Non-Alibaba URL:', cleanUrl);
       return res.status(400).json({
         success: false,
         message: 'URL Alibaba ou AliExpress requise (ex: https://www.alibaba.com/product-detail/...)'
@@ -63,14 +73,18 @@ router.post(
 
     try {
       // ── Step 1: Scraping ───────────────────────────────────────────────
+      console.log('📡 Starting step 1: Scraping');
       send('progress', { step: 1, steps: 4, label: '🔍 Analyse de la page Alibaba...' });
       const scraped = await scrapeAlibaba(cleanUrl);
+      console.log('✅ Scraping completed:', { title: scraped.title, imagesCount: scraped.images.length });
 
       if (closed) return;
 
       // ── Step 2: GPT Copywriting ────────────────────────────────────────
+      console.log('🧠 Starting step 2: GPT Analysis');
       send('progress', { step: 2, steps: 4, label: '🧠 Génération du copywriting IA...' });
       const generated = await analyzeWithGPT(scraped);
+      console.log('✅ GPT Analysis completed:', { name: generated.name, price: generated.suggestedPrice });
 
       if (closed) return;
 
@@ -136,8 +150,24 @@ router.post(
       if (!closed) res.end();
 
     } catch (error) {
-      console.error('❌ Alibaba import error:', error.message);
-      send('error', { message: error.message || 'Erreur inattendue lors de l\'import' });
+      console.error('❌ Alibaba import error:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      
+      let errorMessage = error.message || 'Erreur inattendue lors de l\'import';
+      
+      // Check specific error types
+      if (error.message?.includes('OpenAI API key')) {
+        errorMessage = 'Clé API OpenAI manquante. Configurez OPENAI_API_KEY dans les variables d\'environnement.';
+      } else if (error.message?.includes('timeout')) {
+        errorMessage = 'Timeout lors de l\'analyse. Veuillez réessayer avec une URL plus simple.';
+      } else if (error.message?.includes('fetch')) {
+        errorMessage = 'Impossible d\'accéder à la page Alibaba. Vérifiez l\'URL.';
+      }
+      
+      send('error', { message: errorMessage });
       if (!closed) res.end();
     }
   }

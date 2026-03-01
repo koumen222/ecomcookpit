@@ -29,16 +29,27 @@ const upload = multer({
 });
 
 router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) => {
+  console.log('🎨 Product Page Generator started:', {
+    url: req.body?.url,
+    withImages: req.body?.withImages,
+    filesCount: req.files?.length || 0,
+    workspaceId: req.body?.workspaceId,
+    userId: req.user?.id,
+    hasAuth: !!req.user
+  });
+  
   const { url, withImages } = req.body || {};
   const imageFiles = req.files || [];
   const doImages = withImages !== 'false' && withImages !== false;
 
   if (!url || typeof url !== 'string' || url.trim().length < 10) {
+    console.error('❌ Invalid URL provided:', url);
     return res.status(400).json({ success: false, message: 'URL Alibaba requise' });
   }
 
   const cleanUrl = url.trim();
   if (!cleanUrl.includes('alibaba.com') && !cleanUrl.includes('aliexpress.com')) {
+    console.error('❌ Non-Alibaba URL:', cleanUrl);
     return res.status(400).json({ success: false, message: 'URL Alibaba ou AliExpress requise' });
   }
 
@@ -61,11 +72,14 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
 
   try {
     // ── Step 1: Scrape Alibaba ─────────────────────────────────────────────────
+    console.log('📡 Starting step 1: Scraping');
     send('progress', { step: 1, total: 5, label: '🔍 Analyse de la page Alibaba...' });
     const scraped = await scrapeAlibaba(cleanUrl);
+    console.log('✅ Scraping completed:', { title: scraped.title, imagesCount: scraped.images.length });
     if (closed) return;
 
     // ── Step 2: GPT-4o Vision analysis ────────────────────────────────────────
+    console.log('🧠 Starting step 2: Vision Analysis with', imageFiles.length, 'photos');
     const photoCount = imageFiles.length;
     send('progress', {
       step: 2, total: 5,
@@ -73,6 +87,7 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
     });
     const imageBuffers = imageFiles.map(f => f.buffer);
     const pageStructure = await analyzeWithVision(scraped, imageBuffers);
+    console.log('✅ Vision Analysis completed:', { title: pageStructure.product_title, sectionsCount: pageStructure.sections?.length });
     if (closed) return;
 
     // ── Upload user real photos to R2 ──────────────────────────────────────────
@@ -159,8 +174,26 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
     if (!closed) res.end();
 
   } catch (error) {
-    console.error('❌ Product page generator error:', error.message);
-    send('error', { message: error.message || 'Erreur inattendue lors de la génération' });
+    console.error('❌ Product page generator error:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    
+    let errorMessage = error.message || 'Erreur inattendue lors de la génération';
+    
+    // Check specific error types
+    if (error.message?.includes('OpenAI API key')) {
+      errorMessage = 'Clé API OpenAI manquante. Configurez OPENAI_API_KEY dans les variables d\'environnement.';
+    } else if (error.message?.includes('timeout')) {
+      errorMessage = 'Timeout lors de l\'analyse. Veuillez réessayer avec une URL plus simple.';
+    } else if (error.message?.includes('fetch')) {
+      errorMessage = 'Impossible d\'accéder à la page Alibaba. Vérifiez l\'URL.';
+    } else if (error.message?.includes('multer')) {
+      errorMessage = 'Erreur upload fichier. Vérifiez le format et la taille des images.';
+    }
+    
+    send('error', { message: errorMessage });
     if (!closed) res.end();
   }
 });
