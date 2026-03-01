@@ -110,13 +110,12 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   };
 
   const handleGenerate = useCallback(async () => {
-    if (!isValidUrl) return;
     if (isGeneratingRef.current) return;
     isGeneratingRef.current = true;
     setPhase('loading');
     setError('');
-    setCurrentStep(0);
-    setStepLabel('');
+    setCurrentStep(1);
+    setStepLabel('Génération en cours...');
 
     const token = localStorage.getItem('ecomToken');
     const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
@@ -127,7 +126,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     formData.append('withImages', 'false');
     if (wsId) formData.append('workspaceId', wsId);
     photos.forEach(f => formData.append('images', f));
-
+    
     const controller = new AbortController();
     abortRef.current = controller;
     const safetyTimer = setTimeout(() => controller.abort(), 300000);
@@ -144,109 +143,38 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
         },
         body: formData
       });
-      
-      console.log('Response status:', resp.status, resp.statusText);
 
       if (!resp.ok) {
-        let errorMessage = `Erreur serveur ${resp.status}`;
-        try {
-          const json = await resp.json();
-          errorMessage = json.message || json.error || errorMessage;
-          console.error('Server error details:', json);
-        } catch (jsonErr) {
-          console.error('Failed to parse error response:', jsonErr);
-          try {
-            const text = await resp.text();
-            console.error('Error response text:', text);
-            if (text.includes('OpenAI')) errorMessage = 'Clé API OpenAI manquante ou invalide';
-            else if (text.includes('auth')) errorMessage = 'Problème d\'authentification';
-          } catch {}
-        }
-        throw new Error(errorMessage);
+        const errorData = await resp.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${resp.status}: ${resp.statusText}`);
       }
 
-      const reader = resp.body.getReader();
-      readerRef.current = reader;
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let productReceived = false;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop();
-
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          if (!line.startsWith('data:')) continue;
-
-          const dataLine = line.slice(5).trim();
-          if (!dataLine) continue;
-
-          // Parse JSON — only swallow parse errors, NOT logic errors below
-          let data;
-          try {
-            data = JSON.parse(dataLine);
-          } catch (parseErr) {
-            console.warn('Failed to parse SSE line:', dataLine);
-            continue;
-          }
-
-          console.log('SSE received:', data);
-
-          if (data.type === 'ping') continue;
-
-          if (data.type === 'progress') {
-            setCurrentStep(data.step || 0);
-            setStepLabel(data.label || '');
-          } else if (data.type === 'done') {
-            productReceived = true;
-            setProduct(data.product);
-            setPhase('preview');
-            setActiveTab('page');
-            try { readerRef.current?.cancel(); } catch {}
-            readerRef.current = null;
-            return;
-          } else if (data.type === 'error') {
-            // Propagates to outer catch — NOT swallowed
-            throw new Error(data.message || 'Erreur inattendue');
-          }
-        }
-      }
-
-      // Stream ended without a 'done' event → show error instead of staying stuck
-      if (!productReceived) {
-        throw new Error('La génération s\'est interrompue avant la fin. Réessayez.');
-      }
-    } catch (err) {
-      clearTimeout(safetyTimer);
-      console.error('Product Page Generation error:', err);
+      const result = await resp.json();
       
-      if (err.name === 'AbortError') {
-        console.log('Generation cancelled by user');
-        setPhase('input');
+      if (result.success && result.product) {
+        setProduct(result.product);
+        setPhase('preview');
+        setActiveTab('page');
+      } else {
+        throw new Error(result.error || 'Erreur inconnue lors de la génération');
+      }
+
+    } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('Product generation aborted');
         return;
       }
       
-      let errorMessage = err.message || 'Erreur lors de la génération';
-      
-      if (err?.name === 'TypeError' && String(err?.message || '').toLowerCase().includes('failed to fetch')) {
-        errorMessage = `Connexion impossible au backend (${BACKEND_URL}). Vérifiez que le serveur fonctionne.`;
-      } else if (errorMessage.includes('OpenAI')) {
-        errorMessage = 'Configuration OpenAI manquante. Vérifiez la clé API dans les variables d\'environnement.';
-      } else if (errorMessage.includes('auth')) {
-        errorMessage = 'Problème d\'authentification. Reconnectez-vous et réessayez.';
+      console.error('Product generation error:', error);
+      let errorMessage = error.message;
+      if (error.message.includes('fetch')) {
+        errorMessage = 'Erreur de connexion. Vérifiez votre internet et réessayez.';
       }
       
       setError(errorMessage);
       setPhase('input');
     } finally {
       clearTimeout(safetyTimer);
-      try { readerRef.current?.cancel(); } catch {}
-      readerRef.current = null;
       abortRef.current = null;
       isGeneratingRef.current = false;
     }

@@ -100,33 +100,17 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
   };
 
   req.on('close', () => {
-    console.log('⚠️ SSE client disconnected (product-generator) userId:', userId);
+    console.log('⏹️ Client disconnected during generation');
     cleanup();
   });
 
-  const send = (type, payload = {}) => {
-    if (closed) return;
-    try {
-      res.write(`data: ${JSON.stringify({ type, ...payload })}\n\n`);
-      if (typeof res.flush === 'function') res.flush();
-    } catch (_) {}
-  };
-
-  // ── Heartbeat every 5s — keeps Railway proxy alive during GPT/DALL-E ──────
-  const heartbeat = setInterval(() => {
-    if (closed) return clearInterval(heartbeat);
-    try {
-      res.write('data: {"type":"ping"}\n\n');
-      if (typeof res.flush === 'function') res.flush();
-    } catch (_) { clearInterval(heartbeat); }
-  }, 5000);
-
-  // ── Hard timeout: 300s max — Puppeteer+GPT+DALL-E peut prendre 3-4 min ────
-  const safetyTimeout = setTimeout(() => {
+  // ── Safety timeout: release lock after 5 minutes ─────────────────────────
+  const safetyTimer = setTimeout(() => {
     if (!closed) {
       console.warn('⏱️ Product generator timeout (300s) for userId:', userId);
-      send('error', { message: 'Timeout : la génération a dépassé 5 minutes. Désactivez les images IA et réessayez.' });
-      res.end();
+      if (!res.headersSent) {
+        res.status(408).json({ success: false, error: 'Timeout : la génération a dépassé 5 minutes. Réessayez.' });
+      }
       cleanup();
     }
   }, 300000);
@@ -134,24 +118,19 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
   try {
     // ── Step 1: Scrape Alibaba ────────────────────────────────────────────────
     console.log('📡 Step 1: Scraping', cleanUrl);
-    send('progress', { step: 1, total: 4, label: '🔍 Analyse de la page Alibaba...' });
     const scraped = await scrapeAlibaba(cleanUrl);
     console.log('✅ Scraping done:', { title: scraped.title, images: scraped.images.length });
     if (closed) return;
 
     // ── Step 2: GPT-4o Vision + Copywriting ──────────────────────────────────
     console.log('🧠 Step 2: Vision analysis, photos:', imageFiles.length);
-    send('progress', {
-      step: 2, total: 4,
-      label: `🧠 Copywriting IA${imageFiles.length > 0 ? ` (${imageFiles.length} photo(s) analysées)` : ''}...`
-    });
     const imageBuffers = imageFiles.map(f => f.buffer);
     const pageStructure = await analyzeWithVision(scraped, imageBuffers);
     console.log('✅ Vision done:', { title: pageStructure.mainTitle, sections: pageStructure.sections?.length });
     if (closed) return;
 
     // ── Step 3: Upload user photos to R2 ──────────────────────────────────────
-    send('progress', { step: 3, total: 4, label: `📸 Sauvegarde des photos (${imageFiles.length})...` });
+    console.log('📸 Step 3: Uploading photos:', imageFiles.length);
     const realPhotos = [];
     for (const f of imageFiles.slice(0, 8)) {
       if (closed) break;
@@ -161,7 +140,7 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
     if (closed) return;
 
     // ── Step 4: Assemble final product using imageIndex mapping ───────────────
-    send('progress', { step: 4, total: 4, label: '✅ Assemblage de la page produit...' });
+    console.log('✅ Step 4: Assembling product page');
 
     // Map each section to the user photo indicated by imageIndex
     const sections = (pageStructure.sections || []).map((s) => ({
@@ -189,25 +168,18 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
       generatedAt: new Date().toISOString()
     };
 
-    send('done', { product: productPage });
-    if (!closed) res.end();
+    res.json({ success: true, product: productPage });
 
   } catch (error) {
     console.error('❌ Product page generator error:', error.message);
-
-    let msg = error.message || 'Erreur inattendue lors de la génération';
-    if (msg.includes('bloqué') || msg.includes('blocked')) {
-      msg = 'Alibaba a bloqué le scraping. Attendez 30 secondes et réessayez.';
-    } else if (msg.includes('OpenAI') || msg.includes('API key')) {
-      msg = 'Clé API OpenAI manquante ou invalide. Vérifiez OPENAI_API_KEY.';
-    } else if (msg.includes('timeout') || msg.includes('Timeout')) {
-      msg = 'Timeout dépassé. Désactivez les images IA et réessayez.';
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        success: false, 
+        error: error.message || 'Erreur lors de la génération de la page produit' 
+      });
     }
-
-    send('error', { message: msg });
-    if (!closed) res.end();
-
   } finally {
+    clearTimeout(safetyTimer);
     cleanup();
   }
 });
