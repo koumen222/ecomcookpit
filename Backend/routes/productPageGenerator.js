@@ -10,7 +10,7 @@ import express from 'express';
 import multer from 'multer';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { analyzeWithVision, generateMarketingPoster } from '../services/productPageGeneratorService.js';
-import { uploadBufferToR2 } from '../services/cloudflareImagesService.js';
+import { uploadImage } from '../services/cloudflareImagesService.js';
 import { scrapeAlibaba } from '../services/alibabaScraper.js';
 
 const router = express.Router();
@@ -102,7 +102,11 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     console.log('📸 Step 3: Uploading photos:', imageFiles.length);
     const realPhotos = [];
     for (const f of imageFiles.slice(0, 8)) {
-      const uploaded = await uploadBufferToR2(f.buffer, f.mimetype, req.workspaceId, userId);
+      const uploaded = await uploadImage(f.buffer, f.originalname || `photo-${Date.now()}.jpg`, {
+        workspaceId: req.workspaceId,
+        uploadedBy: userId,
+        mimeType: f.mimetype
+      });
       if (uploaded?.url) realPhotos.push(uploaded.url);
     }
 
@@ -123,9 +127,17 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
           );
           
           // Upload poster to R2
-          const posterUrl = await uploadImage(poster.url, req.workspaceId, userId);
-          if (posterUrl) {
-            marketingPosters.push(posterUrl);
+          const posterUrl = await uploadImage(
+            Buffer.from(poster.url.split(',')[1], 'base64'), // Convert data URL to buffer
+            `poster-${i + 1}-${Date.now()}.png`,
+            {
+              workspaceId: req.workspaceId,
+              uploadedBy: userId,
+              mimeType: 'image/png'
+            }
+          );
+          if (posterUrl?.url) {
+            marketingPosters.push(posterUrl.url);
             console.log(`✅ Poster ${i + 1} uploaded successfully`);
           }
         } catch (error) {
