@@ -11,8 +11,6 @@ import multer from 'multer';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import {
   analyzeWithVision,
-  generateSceneImage,
-  downloadAndUploadToR2,
   uploadBufferToR2
 } from '../services/productPageGeneratorService.js';
 import { scrapeAlibaba } from '../services/alibabaScraper.js';
@@ -136,87 +134,56 @@ router.post('/', requireEcomAuth, upload.array('images', 8), async (req, res) =>
   try {
     // ── Step 1: Scrape Alibaba ────────────────────────────────────────────────
     console.log('📡 Step 1: Scraping', cleanUrl);
-    send('progress', { step: 1, total: 5, label: '🔍 Analyse de la page Alibaba...' });
+    send('progress', { step: 1, total: 4, label: '🔍 Analyse de la page Alibaba...' });
     const scraped = await scrapeAlibaba(cleanUrl);
     console.log('✅ Scraping done:', { title: scraped.title, images: scraped.images.length });
     if (closed) return;
 
-    // ── Step 2: GPT-4o Vision ─────────────────────────────────────────────────
+    // ── Step 2: GPT-4o Vision + Copywriting ──────────────────────────────────
     console.log('🧠 Step 2: Vision analysis, photos:', imageFiles.length);
     send('progress', {
-      step: 2, total: 5,
-      label: `🧠 Analyse IA${imageFiles.length > 0 ? ` avec ${imageFiles.length} photo(s)` : ''}...`
+      step: 2, total: 4,
+      label: `🧠 Copywriting IA${imageFiles.length > 0 ? ` (${imageFiles.length} photo(s) analysées)` : ''}...`
     });
     const imageBuffers = imageFiles.map(f => f.buffer);
     const pageStructure = await analyzeWithVision(scraped, imageBuffers);
-    console.log('✅ Vision done:', { title: pageStructure.product_title, sections: pageStructure.sections?.length });
+    console.log('✅ Vision done:', { title: pageStructure.mainTitle, sections: pageStructure.sections?.length });
     if (closed) return;
 
-    // ── Upload user photos to R2 ──────────────────────────────────────────────
+    // ── Step 3: Upload user photos to R2 ──────────────────────────────────────
+    send('progress', { step: 3, total: 4, label: `📸 Sauvegarde des photos (${imageFiles.length})...` });
     const realPhotos = [];
-    for (const f of imageFiles.slice(0, 4)) {
+    for (const f of imageFiles.slice(0, 8)) {
       if (closed) break;
       const uploaded = await uploadBufferToR2(f.buffer, f.mimetype, req.workspaceId, userId);
       if (uploaded?.url) realPhotos.push(uploaded.url);
     }
-
-    // ── Step 3–4: Generate & upload DALL-E scene images ──────────────────────
-    const finalImages = {};
-
-    if (doImages) {
-      const allPrompts = [
-        { key: 'hero', prompt: pageStructure.hero_image_prompt },
-        ...(pageStructure.sections || []).map((s, i) => ({
-          key: `section_${i}`,
-          prompt: s.image_scene_prompt
-        })),
-        { key: 'advantages', prompt: pageStructure.advantages_infographic_prompt }
-      ].filter(p => p.prompt);
-
-      for (let i = 0; i < allPrompts.length; i++) {
-        if (closed) break;
-        const { key, prompt } = allPrompts[i];
-
-        send('progress', { step: 3, total: 5, label: `🎨 Génération image ${i + 1}/${allPrompts.length}...` });
-        const generatedUrl = await generateSceneImage(prompt);
-        if (!generatedUrl) continue;
-
-        send('progress', { step: 4, total: 5, label: `☁️ Sauvegarde image ${i + 1}/${allPrompts.length}...` });
-        const uploaded = await downloadAndUploadToR2(generatedUrl, req.workspaceId, userId);
-        if (uploaded?.url) finalImages[key] = uploaded.url;
-      }
-    }
-
     if (closed) return;
 
-    // ── Step 5: Assemble & send final product ─────────────────────────────────
-    send('progress', { step: 5, total: 5, label: '✅ Assemblage de la page produit...' });
+    // ── Step 4: Assemble final product using imageIndex mapping ───────────────
+    send('progress', { step: 4, total: 4, label: '✅ Assemblage de la page produit...' });
 
-    const sections = (pageStructure.sections || []).map((s, i) => ({
+    // Map each section to the user photo indicated by imageIndex
+    const sections = (pageStructure.sections || []).map((s) => ({
       title: s.title || '',
       description: s.description || '',
-      image: finalImages[`section_${i}`] || realPhotos[i + 1] || null
+      marketingGoal: s.marketingGoal || '',
+      image: realPhotos[s.imageIndex] ?? realPhotos[0] ?? null
     }));
 
     const productPage = {
-      title: pageStructure.product_title || scraped.title || '',
-      hook: pageStructure.emotional_hook || '',
-      heroImage: finalImages.hero || realPhotos[0] || null,
+      title: pageStructure.mainTitle || scraped.title || '',
+      hook: pageStructure.hook || '',
+      problem: pageStructure.problem || '',
+      solution: pageStructure.solution || '',
+      howToUse: pageStructure.howToUse || '',
+      whyChooseUs: pageStructure.whyChooseUs || '',
+      cta: pageStructure.cta || '',
+      productUnderstanding: pageStructure.productUnderstanding || {},
       sections,
-      advantagesImage: finalImages.advantages || null,
-      faq: pageStructure.faq || [],
-      category: pageStructure.category || '',
-      tags: pageStructure.tags || [],
-      suggestedPrice: pageStructure.suggested_price || 0,
-      seoTitle: pageStructure.seo_title || '',
-      seoDescription: pageStructure.seo_description || '',
-      whatsappMessage: pageStructure.whatsapp_message || '',
+      heroImage: realPhotos[0] || null,
       realPhotos,
-      allImages: [
-        finalImages.hero || realPhotos[0],
-        ...sections.map(s => s.image),
-        finalImages.advantages
-      ].filter(Boolean),
+      allImages: realPhotos.filter(Boolean),
       sourceUrl: cleanUrl,
       createdByAI: true,
       generatedAt: new Date().toISOString()

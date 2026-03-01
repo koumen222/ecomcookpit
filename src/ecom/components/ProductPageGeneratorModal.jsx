@@ -1,18 +1,16 @@
 import React, { useState, useRef, useCallback } from 'react';
 import {
   X, Sparkles, Loader2, CheckCircle, AlertCircle, Upload,
-  Image, Copy, ExternalLink, Zap, MessageCircle, HelpCircle,
-  Package, ArrowRight, Trash2, ChevronDown, ChevronUp, Star
+  Image, Copy, ExternalLink, Zap, Package, ArrowRight, Star
 } from 'lucide-react';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
 
 const STEPS = [
-  { id: 1, icon: '🔍', label: 'Analyse Alibaba' },
-  { id: 2, icon: '🧠', label: 'Vision IA + Copywriting' },
-  { id: 3, icon: '🎨', label: 'Génération des images' },
-  { id: 4, icon: '☁️', label: 'Sauvegarde' },
-  { id: 5, icon: '✅', label: 'Page prête !' }
+  { id: 1, icon: '🔍', label: 'Analyse de la page produit' },
+  { id: 2, icon: '🧠', label: 'Copywriting IA (Scalor AI)' },
+  { id: 3, icon: '📸', label: 'Sauvegarde des photos' },
+  { id: 4, icon: '✅', label: 'Page prête !' }
 ];
 
 function CopyButton({ text }) {
@@ -82,7 +80,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const [phase, setPhase] = useState('input');
   const [url, setUrl] = useState('');
   const [photos, setPhotos] = useState([]);
-  const [withImages, setWithImages] = useState(true);
   const [currentStep, setCurrentStep] = useState(0);
   const [stepLabel, setStepLabel] = useState('');
   const [product, setProduct] = useState(null);
@@ -127,7 +124,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
 
     const formData = new FormData();
     formData.append('url', url.trim());
-    formData.append('withImages', String(withImages));
+    formData.append('withImages', 'false');
     if (wsId) formData.append('workspaceId', wsId);
     photos.forEach(f => formData.append('images', f));
 
@@ -136,7 +133,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     const safetyTimer = setTimeout(() => controller.abort(), 300000);
 
     try {
-      console.log('Starting Product Page Generation:', { url: url.trim(), withImages, photosCount: photos.length, wsId, token: !!token });
+      console.log('Starting Product Page Generation:', { url: url.trim(), photosCount: photos.length, wsId, token: !!token });
       
       const resp = await fetch(`${BACKEND_URL}/api/ai/product-generator`, {
         method: 'POST',
@@ -253,25 +250,24 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       abortRef.current = null;
       isGeneratingRef.current = false;
     }
-  }, [url, withImages, photos, isValidUrl]);
+  }, [url, photos, isValidUrl]);
 
   const handleApply = () => {
     if (!product) return;
     const descParts = [];
     if (product.hook) descParts.push(`**${product.hook}**\n\n`);
+    if (product.problem) descParts.push(`**Le problème**\n${product.problem}\n\n`);
+    if (product.solution) descParts.push(`**La solution**\n${product.solution}\n\n`);
     if (product.sections?.length) {
       product.sections.forEach(s => {
         descParts.push(`**${s.title}**\n${s.description}\n\n`);
       });
     }
+    if (product.howToUse) descParts.push(`**Comment utiliser**\n${product.howToUse}\n\n`);
+    if (product.whyChooseUs) descParts.push(`**Pourquoi nous choisir**\n${product.whyChooseUs}\n\n`);
     onApply({
       name: product.title || '',
       description: descParts.join('').trim(),
-      price: product.suggestedPrice > 0 ? String(product.suggestedPrice) : '',
-      category: product.category || '',
-      tags: (product.tags || []).join(', '),
-      seoTitle: product.seoTitle || '',
-      seoDescription: product.seoDescription || '',
       images: (product.allImages || []).filter(Boolean).map((url, i) => ({
         url, alt: product.title || 'Product', order: i
       })),
@@ -392,14 +388,14 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                 <p className="text-xs font-bold text-violet-700 mb-3 uppercase tracking-wide">CE QUI SERA GÉNÉRÉ</p>
                 <div className="grid grid-cols-2 gap-2 text-xs text-gray-700">
                   {[
-                    ['🖼️', 'Image hero ultra-réaliste'],
-                    ['📝', '3 à 5 sections avantages'],
-                    ['🎨', 'Image marketing par section'],
-                    ['📊', 'Infographie avantages'],
-                    ['❓', 'FAQ 5 questions'],
-                    ['💬', 'Message WhatsApp'],
-                    ['🔍', 'SEO titre + description'],
-                    ['🏷️', 'Tags & catégorie']
+                    ['🎯', 'Titre & accroche impactants'],
+                    ['😩', 'Section Problème client'],
+                    ['✅', 'Section Solution produit'],
+                    ['📸', '4–6 sections bénéfices + photos'],
+                    ['📖', 'Mode d\'utilisation'],
+                    ['🏆', 'Pourquoi nous choisir'],
+                    ['📣', 'Appel à l\'action final'],
+                    ['🎯', 'Angle marketing Afrique']
                   ].map(([icon, label]) => (
                     <div key={label} className="flex items-center gap-1.5">
                       <span>{icon}</span>
@@ -407,26 +403,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     </div>
                   ))}
                 </div>
-              </div>
-
-              {/* Image generation toggle */}
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
-                    <Sparkles className="w-4 h-4 text-violet-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">Générer les images marketing IA</p>
-                    <p className="text-xs text-gray-500">DALL-E 3 — hero + sections + infographie • +45s</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setWithImages(p => !p)}
-                  className={`w-11 h-6 rounded-full transition-colors relative ${withImages ? 'bg-violet-600' : 'bg-gray-300'}`}
-                >
-                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${withImages ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                </button>
               </div>
 
               {error && (
@@ -518,9 +494,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
                 {[
                   { id: 'page', label: 'Page', icon: Package },
-                  { id: 'faq', label: 'FAQ', icon: HelpCircle },
-                  { id: 'marketing', label: 'Marketing', icon: Zap },
-                  { id: 'images', label: 'Images', icon: Image }
+                  { id: 'strategie', label: 'Stratégie', icon: Zap },
+                  { id: 'marketing', label: 'Marketing', icon: Star },
+                  { id: 'images', label: 'Photos', icon: Image }
                 ].map(({ id, label, icon: Icon }) => (
                   <button
                     key={id}
@@ -539,11 +515,13 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               {/* Tab: Page */}
               {activeTab === 'page' && (
                 <div className="space-y-4">
-                  {/* Hero */}
+                  {/* Hero photo */}
                   {product.heroImage && (
-                    <ImagePreview src={product.heroImage} label="Image Hero" className="w-full h-48" />
+                    <ImagePreview src={product.heroImage} label="Photo principale" className="w-full h-52" />
                   )}
-                  <div>
+
+                  {/* Titre + Accroche */}
+                  <div className="p-4 bg-violet-50 rounded-xl border border-violet-100">
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="text-lg font-bold text-gray-900">{product.title}</h3>
                       <CopyButton text={product.title} />
@@ -553,7 +531,29 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     )}
                   </div>
 
-                  {/* Sections */}
+                  {/* Problème */}
+                  {product.problem && (
+                    <div className="p-4 bg-red-50 rounded-xl border border-red-100">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-bold text-red-600 uppercase tracking-wide">😩 Le Problème</p>
+                        <CopyButton text={product.problem} />
+                      </div>
+                      <p className="text-sm text-gray-700">{product.problem}</p>
+                    </div>
+                  )}
+
+                  {/* Solution */}
+                  {product.solution && (
+                    <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide">✅ La Solution</p>
+                        <CopyButton text={product.solution} />
+                      </div>
+                      <p className="text-sm text-gray-700">{product.solution}</p>
+                    </div>
+                  )}
+
+                  {/* Sections bénéfices */}
                   {(product.sections || []).map((section, i) => (
                     <div key={i} className="border border-gray-100 rounded-xl overflow-hidden">
                       {section.image && (
@@ -562,106 +562,138 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                       <div className="p-4">
                         <h4 className="text-sm font-bold text-gray-800 mb-1">{section.title}</h4>
                         <p className="text-sm text-gray-600">{section.description}</p>
+                        {section.marketingGoal && (
+                          <p className="text-xs text-violet-500 mt-1 italic">🎯 {section.marketingGoal}</p>
+                        )}
                       </div>
                     </div>
                   ))}
 
-                  {/* Advantages infographic */}
-                  {product.advantagesImage && (
-                    <ImagePreview src={product.advantagesImage} label="Infographie avantages" className="w-full h-48" />
+                  {/* Comment utiliser */}
+                  {product.howToUse && (
+                    <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-bold text-blue-600 uppercase tracking-wide">📖 Comment utiliser</p>
+                        <CopyButton text={product.howToUse} />
+                      </div>
+                      <p className="text-sm text-gray-700">{product.howToUse}</p>
+                    </div>
                   )}
 
-                  {/* Pricing + SEO */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                      <p className="text-xs text-emerald-600 font-medium mb-0.5">Prix suggéré</p>
-                      <p className="text-base font-bold text-emerald-700">
-                        {product.suggestedPrice > 0 ? `${product.suggestedPrice.toLocaleString()} FCFA` : '—'}
-                      </p>
+                  {/* Pourquoi nous choisir */}
+                  {product.whyChooseUs && (
+                    <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-bold text-amber-600 uppercase tracking-wide">🏆 Pourquoi nous choisir</p>
+                        <CopyButton text={product.whyChooseUs} />
+                      </div>
+                      <p className="text-sm text-gray-700">{product.whyChooseUs}</p>
                     </div>
-                    <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
-                      <p className="text-xs text-blue-600 font-medium mb-0.5">Catégorie</p>
-                      <p className="text-base font-bold text-blue-700">{product.category || '—'}</p>
-                    </div>
-                  </div>
+                  )}
 
-                  {/* Tags */}
-                  {product.tags?.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {product.tags.map(tag => (
-                        <span key={tag} className="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">{tag}</span>
-                      ))}
+                  {/* CTA */}
+                  {product.cta && (
+                    <div className="p-4 bg-violet-600 rounded-xl">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-bold text-white">📣 {product.cta}</p>
+                        <CopyButton text={product.cta} />
+                      </div>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Tab: FAQ */}
-              {activeTab === 'faq' && (
+              {/* Tab: Stratégie */}
+              {activeTab === 'strategie' && (
                 <div className="space-y-3">
-                  <p className="text-xs text-gray-500 font-medium">FAQ générée par l'IA ({(product.faq || []).length} questions)</p>
-                  <FaqAccordion items={product.faq || []} />
+                  {product.productUnderstanding && (
+                    <>
+                      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
+                        {[[
+                          '👤 Client cible', product.productUnderstanding.targetCustomer
+                        ],[
+                          '😩 Problème résolu', product.productUnderstanding.mainProblem
+                        ],[
+                          '🎯 Promesse', product.productUnderstanding.mainPromise
+                        ],[
+                          '📣 Angle marketing', product.productUnderstanding.marketingAngle
+                        ]].map(([label, value]) => value && (
+                          <div key={label}>
+                            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-0.5">{label}</p>
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-sm text-gray-800">{value}</p>
+                              <CopyButton text={value} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
               {/* Tab: Marketing */}
               {activeTab === 'marketing' && (
                 <div className="space-y-4">
-                  {/* SEO */}
-                  <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 space-y-2">
-                    <p className="text-xs font-bold text-blue-700 uppercase tracking-wide">SEO</p>
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-xs text-gray-500">Titre ({(product.seoTitle || '').length} chars)</p>
-                        <p className="text-sm font-semibold text-gray-800">{product.seoTitle || '—'}</p>
+                  {product.hook && (
+                    <div className="p-4 bg-violet-50 rounded-xl border border-violet-100">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-bold text-violet-700 uppercase tracking-wide">💥 Accroche</p>
+                        <CopyButton text={product.hook} />
                       </div>
-                      <CopyButton text={product.seoTitle || ''} />
-                    </div>
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-xs text-gray-500">Description ({(product.seoDescription || '').length} chars)</p>
-                        <p className="text-sm text-gray-700">{product.seoDescription || '—'}</p>
-                      </div>
-                      <CopyButton text={product.seoDescription || ''} />
-                    </div>
-                  </div>
-
-                  {/* WhatsApp */}
-                  {product.whatsappMessage && (
-                    <div className="p-4 bg-green-50 rounded-xl border border-green-100">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-bold text-green-700 uppercase tracking-wide flex items-center gap-1">
-                          <MessageCircle className="w-3.5 h-3.5" /> Message WhatsApp
-                        </p>
-                        <CopyButton text={product.whatsappMessage} />
-                      </div>
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{product.whatsappMessage}</p>
+                      <p className="text-sm text-gray-800 italic">"{product.hook}"</p>
                     </div>
                   )}
+                  {product.cta && (
+                    <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide">📣 Call to Action</p>
+                        <CopyButton text={product.cta} />
+                      </div>
+                      <p className="text-sm text-gray-800">{product.cta}</p>
+                    </div>
+                  )}
+                  {product.whyChooseUs && (
+                    <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">🏆 Argument principal</p>
+                        <CopyButton text={product.whyChooseUs} />
+                      </div>
+                      <p className="text-sm text-gray-700">{product.whyChooseUs}</p>
+                    </div>
+                  )}
+                  {(product.sections || []).map((s, i) => (
+                    <div key={i} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <p className="text-xs font-semibold text-gray-500 mb-0.5">{s.title}</p>
+                      {s.marketingGoal && <p className="text-xs text-violet-600 italic">🎯 {s.marketingGoal}</p>}
+                    </div>
+                  ))}
                 </div>
               )}
 
-              {/* Tab: Images */}
+              {/* Tab: Photos */}
               {activeTab === 'images' && (
                 <div className="space-y-3">
-                  <p className="text-xs text-gray-500 font-medium">{(product.allImages || []).filter(Boolean).length} images générées</p>
+                  <p className="text-xs text-gray-500 font-medium">{(product.realPhotos || []).length} photos utilisées</p>
                   <div className="grid grid-cols-2 gap-3">
-                    {product.heroImage && (
-                      <ImagePreview src={product.heroImage} label="Hero" className="aspect-square col-span-2" />
-                    )}
-                    {(product.sections || []).map((s, i) => s.image && (
-                      <ImagePreview key={i} src={s.image} label={s.title} className="aspect-square" />
+                    {(product.realPhotos || []).map((url, i) => (
+                      <ImagePreview
+                        key={i}
+                        src={url}
+                        label={i === 0 ? 'Photo principale' : `Photo ${i + 1}`}
+                        className="aspect-square"
+                      />
                     ))}
-                    {product.advantagesImage && (
-                      <ImagePreview src={product.advantagesImage} label="Infographie" className="aspect-square col-span-2" />
-                    )}
                   </div>
-                  {product.realPhotos?.length > 0 && (
+                  {(product.sections || []).some(s => s.image) && (
                     <div>
-                      <p className="text-xs text-gray-500 font-medium mb-2">Tes photos originales ({product.realPhotos.length})</p>
-                      <div className="grid grid-cols-4 gap-2">
-                        {product.realPhotos.map((url, i) => (
-                          <ImagePreview key={i} src={url} className="aspect-square" />
+                      <p className="text-xs text-gray-500 font-medium mb-2">Photos assignées aux sections</p>
+                      <div className="space-y-2">
+                        {(product.sections || []).filter(s => s.image).map((s, i) => (
+                          <div key={i} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+                            <img src={s.image} alt={s.title} className="w-12 h-12 object-cover rounded-lg shrink-0" />
+                            <p className="text-xs font-medium text-gray-700">{s.title}</p>
+                          </div>
                         ))}
                       </div>
                     </div>
