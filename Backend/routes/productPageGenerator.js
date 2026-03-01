@@ -111,8 +111,20 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     }
     
     const imageBuffers = imageFiles.map(f => f.buffer);
-    const pageStructure = await analyzeWithVision(scraped, imageBuffers);
-    console.log('✅ Vision done:', { title: pageStructure.mainTitle, sections: pageStructure.sections?.length });
+    let pageStructure;
+    
+    try {
+      pageStructure = await analyzeWithVision(scraped, imageBuffers);
+      console.log('✅ Vision done:', { title: pageStructure.title, benefits: pageStructure.benefits?.length });
+    } catch (visionError) {
+      console.error('❌ Vision analysis failed:', visionError.message);
+      throw new Error(`Vision analysis failed: ${visionError.message}`);
+    }
+
+    // Safety check before accessing pageStructure properties
+    if (!pageStructure) {
+      throw new Error('Failed to generate valid page structure from vision analysis');
+    }
 
     // ── Step 3: Upload user photos to R2 ──────────────────────────────────────
     console.log('📸 Step 3: Uploading photos:', imageFiles.length);
@@ -128,6 +140,12 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     // ── Step 3.5: Generate marketing images with gpt-image-1 ─────────────────────
     console.log('🎨 Step 3.5: Generating marketing images...');
+    
+    // Safety check for benefits array
+    if (!pageStructure.benefits || !Array.isArray(pageStructure.benefits)) {
+      throw new Error('Invalid page structure: benefits array is missing or not an array');
+    }
+    
     console.log('🐛 pageStructure.benefits length:', pageStructure.benefits?.length);
     console.log('🐛 imageFiles length:', imageFiles?.length);
     
@@ -136,7 +154,13 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     console.log('🐛 maxImages:', maxImages);
     
     for (let i = 0; i < maxImages; i++) {
+      // Safety check for benefit existence
       const benefit = pageStructure.benefits[i];
+      if (!benefit) {
+        console.warn(`⚠️ Benefit ${i} is undefined, skipping`);
+        continue;
+      }
+      
       const baseImage = imageFiles[i];
       
       console.log(`🐛 Processing benefit ${i}:`, {
@@ -151,15 +175,26 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
           
           // Generate image using the prompt from GPT-5.2
           const openai = getOpenAI();
-          const response = await openai.images.generate({
-            model: 'gpt-image-1',
-            prompt: benefit.image_prompt,
-            n: 1,
-            size: '1024x1024',
-            quality: 'hd'
-          });
+          let generatedImage;
           
-          const generatedImage = response.data[0];
+          try {
+            const response = await openai.images.generate({
+              model: 'gpt-image-1',
+              prompt: benefit.image_prompt,
+              n: 1,
+              size: '1024x1024',
+              quality: 'hd'
+            });
+            
+            generatedImage = response.data[0];
+            
+            if (!generatedImage || !generatedImage.url) {
+              throw new Error('No image generated from OpenAI');
+            }
+          } catch (imageError) {
+            console.warn(`⚠️ Failed to generate image for benefit ${i + 1}:`, imageError.message);
+            throw imageError;
+          }
           
           // Upload generated image to R2
           const imageUrl = await uploadImage(
@@ -202,9 +237,14 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     // ── Step 4: Assemble final product with new structure ─────────────────────
     console.log('✅ Step 4: Assembling product page');
 
+    // Safety check before accessing pageStructure properties
+    if (!pageStructure || typeof pageStructure !== 'object') {
+      throw new Error('Invalid page structure: not an object');
+    }
+
     const productPage = {
-      title: pageStructure.title || scraped.title || '',
-      hook: pageStructure.hook || '',
+      title: pageStructure?.title || scraped?.title || '',
+      hook: pageStructure?.hook || '',
       benefits: marketingImages || [],
       heroImage: realPhotos[0] || null,
       realPhotos,
@@ -227,13 +267,15 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     console.error('❌ Product page generator error:', error.message);
     console.error('❌ Stack trace:', error.stack);
     
-    // Debug variables
+    // Debug variables with safety checks
     console.error('🐛 Debug info:', {
       imageFilesLength: imageFiles?.length,
-      pageStructureSectionsLength: pageStructure?.sections?.length,
+      pageStructureBenefitsLength: pageStructure?.benefits?.length,
       scrapedTitle: !!scraped?.title,
       realPhotosLength: realPhotos?.length,
-      marketingPostersLength: marketingPosters?.length
+      marketingImagesLength: marketingImages?.length,
+      pageStructureExists: !!pageStructure,
+      pageStructureType: typeof pageStructure
     });
     
     // Release lock on error

@@ -202,21 +202,54 @@ IMPORTANT: Use the provided images as reference. Generate content that sells the
     } catch (_) {}
   }
 
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-5.2',
-    messages: [{ role: 'user', content }],
-    max_tokens: 4000,
-    response_format: { type: 'json_object' }
-  });
-
-  const raw = completion.choices[0]?.message?.content || '{}';
+  let pageStructure;
   try {
-    return JSON.parse(raw);
-  } catch {
-    const match = raw.match(/\{[\s\S]+\}/);
-    if (match) return JSON.parse(match[0]);
-    throw new Error('Réponse IA invalide — veuillez réessayer');
+    let response;
+    let raw;
+    
+    // Try modern responses API first
+    try {
+      response = await openai.responses.create({
+        model: "gpt-5.2",
+        input: content,
+        max_completion_tokens: 1500,
+        response_format: { type: "json_object" }
+      });
+      raw = response.output?.[0]?.message?.content || response.choices?.[0]?.message?.content || '{}';
+    } catch (responsesError) {
+      console.warn('⚠️ responses API failed, falling back to chat.completions:', responsesError.message);
+      
+      // Fallback to chat.completions with max_completion_tokens
+      response = await openai.chat.completions.create({
+        model: "gpt-5.2",
+        messages: [{ role: "user", content }],
+        max_completion_tokens: 1500,
+        response_format: { type: "json_object" }
+      });
+      raw = response.choices[0]?.message?.content || '{}';
+    }
+    
+    try {
+      pageStructure = JSON.parse(raw);
+    } catch {
+      const match = raw.match(/\{[\s\S]+\}/);
+      if (match) {
+        pageStructure = JSON.parse(match[0]);
+      } else {
+        throw new Error('Réponse IA invalide — veuillez réessayer');
+      }
+    }
+  } catch (error) {
+    console.error('❌ OpenAI API error:', error.message);
+    throw new Error(`OpenAI API error: ${error.message}`);
   }
+
+  // Safety check before accessing pageStructure
+  if (!pageStructure) {
+    throw new Error('Failed to generate valid page structure from OpenAI');
+  }
+
+  return pageStructure;
 }
 
 // ─── DALL-E 3: generate a single scene image ──────────────────────────────────
@@ -226,15 +259,15 @@ export async function generateSceneImage(prompt) {
   if (!openai) return null;
   try {
     const resp = await openai.images.generate({
-      model: 'dall-e-3',
+      model: 'gpt-image-1',
       prompt: String(prompt).slice(0, 4000),
       n: 1,
       size: '1024x1024',
-      quality: 'standard'
+      quality: 'hd'
     });
     return resp.data?.[0]?.url || null;
   } catch (err) {
-    console.warn(`⚠️  DALL-E scene error: ${err.message}`);
+    console.warn(`⚠️  gpt-image-1 scene error: ${err.message}`);
     return null;
   }
 }
