@@ -64,18 +64,23 @@ router.get('/theme', requireEcomAuth, requireWorkspace, async (req, res) => {
 
 router.put('/theme', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
+    console.log('🎨 PUT /store/theme - workspaceId:', req.workspaceId);
+    console.log('🎨 Request body:', JSON.stringify(req.body, null, 2));
+    
     await Workspace.findByIdAndUpdate(
       req.workspaceId,
       { $set: { storeTheme: req.body } },
       { new: true }
     );
 
+    console.log('✅ Theme updated successfully');
     res.json({
       success: true,
       message: 'Theme updated'
     });
   } catch (error) {
-    console.error('Error PUT /store/theme:', error);
+    console.error('❌ Error PUT /store/theme:', error);
+    console.error('❌ Error details:', error.message);
     res.status(500).json({ success: false, message: 'Error saving theme' });
   }
 });
@@ -100,18 +105,23 @@ router.get('/pages', requireEcomAuth, requireWorkspace, async (req, res) => {
 
 router.put('/pages', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
+    console.log('📄 PUT /store/pages - workspaceId:', req.workspaceId);
+    console.log('📄 Request body:', JSON.stringify(req.body, null, 2));
+    
     await Workspace.findByIdAndUpdate(
       req.workspaceId,
       { $set: { storePages: req.body } },
       { new: true }
     );
 
+    console.log('✅ Pages updated successfully');
     res.json({
       success: true,
       message: 'Pages updated'
     });
   } catch (error) {
-    console.error('Error PUT /store/pages:', error);
+    console.error('❌ Error PUT /store/pages:', error);
+    console.error('❌ Error details:', error.message);
     res.status(500).json({ success: false, message: 'Error saving pages' });
   }
 });
@@ -136,18 +146,23 @@ router.get('/pixels', requireEcomAuth, requireWorkspace, async (req, res) => {
 
 router.put('/pixels', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
+    console.log('📊 PUT /store/pixels - workspaceId:', req.workspaceId);
+    console.log('📊 Request body:', JSON.stringify(req.body, null, 2));
+    
     await Workspace.findByIdAndUpdate(
       req.workspaceId,
       { $set: { storePixels: req.body } },
       { new: true }
     );
 
+    console.log('✅ Pixels updated successfully');
     res.json({
       success: true,
       message: 'Pixels updated'
     });
   } catch (error) {
-    console.error('Error PUT /store/pixels:', error);
+    console.error('❌ Error PUT /store/pixels:', error);
+    console.error('❌ Error details:', error.message);
     res.status(500).json({ success: false, message: 'Error saving pixels' });
   }
 });
@@ -214,6 +229,9 @@ router.put('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
     const { subdomain, customDomain } = req.body;
     
+    console.log('🌐 PUT /store/domains - workspaceId:', req.workspaceId);
+    console.log('🌐 Request body:', { subdomain, customDomain });
+    
     const update = {};
     if (subdomain !== undefined) update.subdomain = subdomain;
     if (customDomain !== undefined) update['storeDomains.customDomain'] = customDomain;
@@ -224,12 +242,14 @@ router.put('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
       { new: true }
     );
 
+    console.log('✅ Domains updated successfully');
     res.json({
       success: true,
       message: 'Domains updated'
     });
   } catch (error) {
-    console.error('Error PUT /store/domains:', error);
+    console.error('❌ Error PUT /store/domains:', error);
+    console.error('❌ Error details:', error.message);
     res.status(500).json({ success: false, message: 'Error saving domains' });
   }
 });
@@ -266,18 +286,26 @@ router.get('/settings', requireEcomAuth, requireWorkspace, async (req, res) => {
 
 router.put('/settings', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
-    await Workspace.findByIdAndUpdate(
+    console.log('🔧 PUT /store/settings - workspaceId:', req.workspaceId);
+    console.log('🔧 Request body keys:', Object.keys(req.body || {}));
+    console.log('🔧 Request body sample:', JSON.stringify(req.body, null, 2).substring(0, 500));
+    
+    const result = await Workspace.findByIdAndUpdate(
       req.workspaceId,
       { $set: { storeSettings: req.body } },
       { new: true }
     );
-
+    
+    console.log('✅ Settings updated successfully for workspace:', req.workspaceId);
+    
     res.json({
       success: true,
       message: 'Settings updated'
     });
   } catch (error) {
-    console.error('Error PUT /store/settings:', error);
+    console.error('❌ Error PUT /store/settings:', error);
+    console.error('❌ Error details:', error.message);
+    console.error('❌ Stack:', error.stack);
     res.status(500).json({ success: false, message: 'Error saving settings' });
   }
 });

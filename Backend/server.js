@@ -75,13 +75,31 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
-// ─── Request Logger (debug) ──────────────────────────────────────────────────
-if (process.env.DEBUG_AUTH === 'true') {
-  app.use((req, res, next) => {
-    console.log(`📥 ${req.method} ${req.path}`);
-    next();
-  });
-}
+// ─── Request Logger (PRODUCTION DEBUG) ────────────────────────────────────────
+app.use((req, res, next) => {
+  const start = Date.now();
+  const originalSend = res.send;
+  
+  // Log request details
+  console.log(`🚀 ${req.method} ${req.path}`);
+  console.log(`   Headers: Authorization=${req.headers.authorization ? '[Bearer]' : 'NONE'}, X-Workspace-Id=${req.headers['x-workspace-id'] || 'NONE'}`);
+  console.log(`   Origin: ${req.headers.origin || 'NONE'}, User-Agent: ${req.headers['user-agent']?.substring(0, 50) || 'NONE'}...`);
+  
+  // Override res.send to log response
+  res.send = function(data) {
+    const duration = Date.now() - start;
+    console.log(`� Response ${res.statusCode} in ${duration}ms`);
+    
+    // Log error responses in detail
+    if (res.statusCode >= 400) {
+      console.log(`❌ ERROR RESPONSE:`, typeof data === 'string' ? data.substring(0, 200) : JSON.stringify(data, null, 2).substring(0, 300));
+    }
+    
+    originalSend.call(this, data);
+  };
+  
+  next();
+});
 
 // ─── Compression (disabled for SSE routes to prevent buffering) ──────────────
 app.use(compression({
@@ -281,12 +299,23 @@ const startServer = async () => {
 
     // ─── Centralized error handler ───────────────────────────────────────
     app.use((err, req, res, next) => {
-      console.error('❌ Unhandled error:', err);
+      console.error('💥 UNHANDLED ERROR:');
+      console.error('   Method:', req.method, 'URL:', req.path);
+      console.error('   Headers:', JSON.stringify(req.headers, null, 2));
+      console.error('   Body:', JSON.stringify(req.body, null, 2));
+      console.error('   Error:', err);
+      console.error('   Stack:', err.stack);
+      
       res.status(err.status || 500).json({
         success: false,
         message: process.env.NODE_ENV === 'production'
           ? 'Internal server error'
-          : err.message || 'Internal server error'
+          : err.message || 'Internal server error',
+        debug: process.env.NODE_ENV !== 'production' ? {
+          method: req.method,
+          path: req.path,
+          error: err.message
+        } : undefined
       });
     });
 
@@ -311,14 +340,23 @@ const startServer = async () => {
       });
     });
 
-
-
-
-
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`\n🚀 Serveur ecom démarré sur le port ${PORT}`);
+    connectDB().then(() => {
+      console.log('✅ MongoDB connected successfully');
+      console.log(`🚀 Server starting on port ${PORT}`);
+      console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🔍 Debug mode: ENABLED (all requests logged)`);
+      
+      app.listen(PORT, () => {
+        console.log(`🌐 Server ready on port ${PORT}`);
+        console.log(`📡 API: http://localhost:${PORT}/api`);
+        console.log(`🏪 Stores: http://localhost:${PORT}/store/:subdomain`);
+      });
+    }).catch(err => {
+      console.error('💥 MongoDB connection failed:');
+      console.error('   Error:', err.message);
+      console.error('   Stack:', err.stack);
+      process.exit(1);
     });
-
   } catch (error) {
     console.error('❌ Impossible de démarrer le serveur:', error);
     process.exit(1);

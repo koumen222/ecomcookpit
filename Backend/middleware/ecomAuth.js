@@ -61,9 +61,12 @@ export const generatePermanentToken = (user, deviceInfo) => {
 // Middleware pour vérifier l'authentification e-commerce
 export const requireEcomAuth = async (req, res, next) => {
   try {
+    console.log('🔐 requireEcomAuth - Method:', req.method, 'URL:', req.url);
     const authHeader = req.header('Authorization');
+    console.log('🔐 AuthHeader:', authHeader ? 'Bearer [hidden]' : 'MISSING');
     
     if (!authHeader) {
+      console.log('❌ No auth header provided');
       return res.status(401).json({ success: false, message: 'Token manquant' });
     }
 
@@ -98,12 +101,15 @@ export const requireEcomAuth = async (req, res, next) => {
 
     req.user = decoded;
     req.ecomUser = user;
+    console.log('🔐 Auth successful - User ID:', decoded.id, 'Email:', user.email, 'Role:', user.role);
 
     // Déterminer le workspaceId actif :
     // 1. D'abord vérifier si la requête envoie un workspaceId (query, body ou header)
     // 2. Si oui ET l'utilisateur y a accès → l'utiliser
     // 3. Sinon → fallback sur le workspaceId par défaut de l'utilisateur en base
     const requestedWsId = req.query?.workspaceId || req.body?.workspaceId || req.headers['x-workspace-id'];
+    console.log('🔐 User default workspaceId:', user.workspaceId);
+    console.log('🔐 Requested workspaceId:', requestedWsId);
 
     if (requestedWsId && requestedWsId !== String(user.workspaceId)) {
       // Vérifier que l'utilisateur a accès au workspace demandé
@@ -124,9 +130,11 @@ export const requireEcomAuth = async (req, res, next) => {
       req.ecomUserRole = user.getRoleInWorkspace ? (user.getRoleInWorkspace(user.workspaceId) || user.role) : user.role;
     }
     
+    console.log('🔐 Final workspaceId:', req.workspaceId, 'Role:', req.ecomUserRole);
     next();
   } catch (error) {
-    console.error('Erreur requireEcomAuth:', error.message);
+    console.error('❌ Erreur requireEcomAuth:', error.message);
+    console.error('❌ Full error:', error);
     return res.status(500).json({ success: false, message: 'Erreur serveur authentification' });
   }
 };
@@ -245,12 +253,15 @@ export const requireSuperAdmin = (req, res, next) => {
 
 // Middleware pour vérifier que l'utilisateur a un workspace
 export const requireWorkspace = (req, res, next) => {
+  console.log('🏢 requireWorkspace - workspaceId:', req.workspaceId);
   if (!req.workspaceId) {
+    console.log('❌ No workspaceId found in request');
     return res.status(403).json({
       success: false,
       message: 'Aucun espace de travail associé. Veuillez créer ou rejoindre un espace.'
     });
   }
+  console.log('✅ Workspace check passed');
   next();
 };
 
