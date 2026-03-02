@@ -29,7 +29,7 @@ const workspaceSchema = new mongoose.Schema({
       businessType: 'ecommerce'
     }
   },
-  // Public store subdomain — generates https://{subdomain}.scalor.app
+  // Public store subdomain — generates https://{subdomain}.scalor.net
   subdomain: {
     type: String,
     unique: true,
@@ -39,15 +39,43 @@ const workspaceSchema = new mongoose.Schema({
   },
   // Store configuration for public storefront
   storeSettings: {
-    isStoreEnabled: { type: Boolean, default: false },
-    storeName: { type: String, trim: true, default: '' },
-    storeDescription: { type: String, trim: true, default: '' },
-    storeLogo: { type: String, default: '' },
-    storeBanner: { type: String, default: '' },
-    storePhone: { type: String, default: '' },
-    storeWhatsApp: { type: String, default: '' },
-    storeThemeColor: { type: String, default: '#0F6B4F' },
-    storeCurrency: { type: String, default: 'XAF' }
+    type: mongoose.Schema.Types.Mixed,
+    default: {
+      isStoreEnabled: false,
+      storeName: '',
+      storeDescription: '',
+      storeLogo: '',
+      storeBanner: '',
+      storePhone: '',
+      storeWhatsApp: '',
+      storeThemeColor: '#0F6B4F',
+      storeCurrency: 'XAF'
+    }
+  },
+  // Theme config (colors, font, border-radius, template, section toggles)
+  storeTheme: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  // Page sections config (ordered list of sections with config)
+  storePages: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  // Pixel / tracking IDs
+  storePixels: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  // Payment providers config
+  storePayments: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  // Domain config (custom domain, SSL)
+  storeDomains: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   },
   whatsappConfig: {
     phoneNumber: { type: String, default: '' },

@@ -96,7 +96,7 @@ const BoutiqueTheme = () => {
   // Theme state
   const [theme, setTheme] = useState({
     template: 'classic',
-    primaryColor: '#7C3AED',
+    primaryColor: '#0F6B4F',
     ctaColor: '#059669',
     backgroundColor: '#FFFFFF',
     textColor: '#111827',

@@ -84,8 +84,8 @@ const BoutiqueSettings = () => {
     description: '',
     logo: '',
     favicon: '',
-    primaryColor: '#7C3AED',
-    ctaColor: '#059669',
+    primaryColor: '#0F6B4F',
+    ctaColor: '#0F6B4F',
     font: 'inter',
     currency: 'XAF',
     whatsapp: '',
@@ -122,7 +122,7 @@ const BoutiqueSettings = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.put('/store/settings', settings);
+      await api.put('/store/settings', { ...settings, isStoreEnabled: true });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch {

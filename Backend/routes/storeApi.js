@@ -71,7 +71,7 @@ async function resolveStore(subdomain) {
     isActive: true,
     'storeSettings.isStoreEnabled': true
   })
-  .select('_id name subdomain storeSettings')
+  .select('_id name subdomain storeSettings storeTheme storePages storePixels storePayments')
   .lean();
 
   if (workspace) {
@@ -138,20 +138,52 @@ router.get('/:subdomain', async (req, res) => {
       category: p.category
     }));
 
+    const theme = workspace.storeTheme || {};
+    const pages = workspace.storePages || {};
+    const pixels = workspace.storePixels || {};
+
     res.json({
       success: true,
       data: {
         store: {
           _id: workspace._id,
-          name: settings.storeName || workspace.name,
-          description: settings.storeDescription || '',
-          logo: settings.storeLogo || '',
-          banner: settings.storeBanner || '',
-          phone: settings.storePhone || '',
-          whatsapp: settings.storeWhatsApp || '',
-          themeColor: settings.storeThemeColor || '#0F6B4F',
-          currency: settings.storeCurrency || 'XAF',
-          subdomain: workspace.subdomain
+          name: settings.name || settings.storeName || workspace.name,
+          description: settings.description || settings.storeDescription || '',
+          logo: settings.logo || settings.storeLogo || '',
+          banner: settings.banner || settings.storeBanner || '',
+          phone: settings.phone || settings.storePhone || '',
+          whatsapp: settings.whatsapp || settings.storeWhatsApp || '',
+          themeColor: settings.themeColor || settings.storeThemeColor || '#0F6B4F',
+          currency: settings.currency || settings.storeCurrency || 'XAF',
+          subdomain: workspace.subdomain,
+          // Theme config
+          template: theme.template || 'classic',
+          primaryColor: theme.primaryColor || '#0F6B4F',
+          ctaColor: theme.ctaColor || settings.ctaColor || '#0F6B4F',
+          backgroundColor: theme.backgroundColor || '#FFFFFF',
+          textColor: theme.textColor || '#111827',
+          font: theme.font || settings.font || 'inter',
+          borderRadius: theme.borderRadius || 'lg',
+          sectionToggles: theme.sections || {},
+          // Settings extras
+          email: settings.email || '',
+          address: settings.address || '',
+          facebook: settings.facebook || '',
+          instagram: settings.instagram || '',
+          tiktok: settings.tiktok || '',
+          seoTitle: settings.seoTitle || '',
+          seoDescription: settings.seoDescription || '',
+          announcement: settings.announcement || '',
+          announcementEnabled: settings.announcementEnabled || false,
+        },
+        // Page sections (ordered, with config)
+        sections: pages.sections || [],
+        // Pixel IDs for tracking injection
+        pixels: {
+          metaPixelId: pixels.metaPixelId || '',
+          tiktokPixelId: pixels.tiktokPixelId || '',
+          googleTagId: pixels.googleTagId || '',
+          snapPixelId: pixels.snapPixelId || '',
         },
         products: lightProducts,
         categories: categories.sort(),

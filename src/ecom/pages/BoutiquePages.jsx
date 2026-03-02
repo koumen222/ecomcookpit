@@ -241,7 +241,7 @@ const BoutiquePages = () => {
     const id = `custom-${Date.now()}`;
     setSections(prev => [
       ...prev,
-      { id, type: 'custom', label: 'Nouvelle section', icon: '📝', enabled: false, config: { title: '', content: '' } }
+      { id, type: 'custom', label: 'Nouvelle section', enabled: false, config: { title: '', content: '' } }
     ]);
     setSaved(false);
   };

@@ -9,6 +9,8 @@ export const useStorefront = (subdomain) => {
   const [store, setStore] = useState(null);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [sections, setSections] = useState([]);
+  const [pixels, setPixels] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -28,9 +30,12 @@ export const useStorefront = (subdomain) => {
         const res = await axios.get(`${apiUrl}/api/store/${subdomain}`);
 
         if (res.data?.success) {
-          setStore(res.data.data.store);
-          setProducts(res.data.data.products || []);
-          setCategories(res.data.data.categories || []);
+          const d = res.data.data;
+          setStore(d.store);
+          setProducts(d.products || []);
+          setCategories(d.categories || []);
+          setSections(d.sections || []);
+          setPixels(d.pixels || null);
         } else {
           setError('Boutique introuvable');
         }
@@ -45,7 +50,7 @@ export const useStorefront = (subdomain) => {
     loadStore();
   }, [subdomain]);
 
-  return { store, products, categories, loading, error };
+  return { store, products, categories, sections, pixels, loading, error };
 };
 
 /**
