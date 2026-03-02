@@ -29,13 +29,21 @@ const MarkdownDescription = ({ content }) => {
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
             display: block;
           }
+          .product-description h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 0.75rem;
+            margin-top: 1.25rem;
+          }
           .product-description strong {
             color: #1f2937;
             font-weight: 700;
           }
           .product-description p {
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.75rem;
             line-height: 1.7;
+            color: #4b5563;
           }
           .product-description ul, .product-description ol {
             padding-left: 1.5rem;
@@ -43,91 +51,90 @@ const MarkdownDescription = ({ content }) => {
           }
         `}</style>
         <div 
-          className="product-description text-sm text-gray-600"
+          className="product-description text-sm"
           dangerouslySetInnerHTML={{ __html: content }}
         />
       </>
     );
   }
   
-  // Parse markdown content with images
-  // Regex to match markdown images: ![alt](url)
-  const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+  // Parse markdown content with images and formatting
+  const lines = content.split('\n');
   const parts = [];
-  let lastIndex = 0;
-  let match;
+  let currentParagraph = [];
   let partIndex = 0;
   
-  while ((match = imageRegex.exec(content)) !== null) {
-    // Add text before the image
-    if (match.index > lastIndex) {
-      const textBefore = content.slice(lastIndex, match.index).trim();
-      if (textBefore) {
-        // Split text into paragraphs
-        textBefore.split('\n\n').forEach((paragraph, pIndex) => {
-          if (paragraph.trim()) {
-            parts.push(
-              <p key={`text-${partIndex}-${pIndex}`} className="text-sm text-gray-600 leading-relaxed mb-4">
-                {paragraph.trim()}
-              </p>
-            );
-          }
-        });
-      }
-    }
-    
-    // Add the image
-    const [, alt, url] = match;
-    parts.push(
-      <div key={`img-container-${partIndex}`} className="my-6">
-        <img 
-          src={url} 
-          alt={alt}
-          className="w-full max-w-lg mx-auto rounded-xl shadow-lg"
-          loading="lazy"
-        />
-        {alt && alt !== 'Marketing Image' && (
-          <p className="text-center text-xs text-gray-500 mt-2 italic">{alt}</p>
-        )}
-      </div>
-    );
-    
-    lastIndex = match.index + match[0].length;
-    partIndex++;
-  }
-  
-  // Add remaining text after last image
-  if (lastIndex < content.length) {
-    const remainingText = content.slice(lastIndex).trim();
-    if (remainingText) {
-      remainingText.split('\n\n').forEach((paragraph, pIndex) => {
-        if (paragraph.trim()) {
+  const flushParagraph = () => {
+    if (currentParagraph.length > 0) {
+      const text = currentParagraph.join(' ').trim();
+      if (text) {
+        // Check if it's bold text (should be a heading)
+        const boldMatch = text.match(/^\*\*(.+)\*\*$/);
+        if (boldMatch) {
           parts.push(
-            <p key={`text-end-${pIndex}`} className="text-sm text-gray-600 leading-relaxed mb-4">
-              {paragraph.trim()}
+            <h3 key={`h3-${partIndex++}`} className="text-base font-bold text-gray-900 mb-2 mt-4">
+              {boldMatch[1]}
+            </h3>
+          );
+        } else {
+          // Regular paragraph - parse inline bold
+          const parsedText = text.split(/(\*\*[^*]+\*\*)/).map((segment, i) => {
+            const inlineBold = segment.match(/^\*\*(.+)\*\*$/);
+            if (inlineBold) {
+              return <strong key={i} className="font-bold text-gray-900">{inlineBold[1]}</strong>;
+            }
+            return segment;
+          });
+          
+          parts.push(
+            <p key={`p-${partIndex++}`} className="text-sm text-gray-600 leading-relaxed mb-3">
+              {parsedText}
             </p>
           );
         }
-      });
+      }
+      currentParagraph = [];
     }
+  };
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    
+    // Check for markdown image: ![alt](url)
+    const imageMatch = trimmed.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+    if (imageMatch) {
+      flushParagraph();
+      const [, alt, url] = imageMatch;
+      parts.push(
+        <div key={`img-${partIndex++}`} className="my-6">
+          <img 
+            src={url} 
+            alt={alt}
+            className="w-full max-w-lg mx-auto rounded-xl shadow-lg"
+            loading="lazy"
+          />
+          {alt && alt !== 'Marketing Image' && (
+            <p className="text-center text-xs text-gray-500 mt-2 italic">{alt}</p>
+          )}
+        </div>
+      );
+      continue;
+    }
+    
+    // Empty line = paragraph break
+    if (!trimmed) {
+      flushParagraph();
+      continue;
+    }
+    
+    // Add line to current paragraph
+    currentParagraph.push(trimmed);
   }
   
-  // If no images found, just render as paragraphs
-  if (parts.length === 0) {
-    return (
-      <div className="space-y-3">
-        {content.split('\n\n').map((paragraph, index) => (
-          paragraph.trim() && (
-            <p key={index} className="text-sm text-gray-600 leading-relaxed">
-              {paragraph.trim()}
-            </p>
-          )
-        ))}
-      </div>
-    );
-  }
+  // Flush remaining paragraph
+  flushParagraph();
   
-  return <div className="space-y-2">{parts}</div>;
+  return <div className="space-y-1">{parts}</div>;
 };
 
 /**
@@ -539,19 +546,10 @@ const StoreProductPage = () => {
             </div>
           )}
 
-          {/* Description accordion */}
+          {/* Description - Direct display without accordion */}
           {product.description && (
-            <div className="border border-gray-200 rounded-2xl overflow-hidden">
-              <button onClick={() => setDescOpen(o => !o)}
-                className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-50 transition">
-                <span className="font-semibold text-gray-900 text-sm">Description complète</span>
-                {descOpen ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
-              </button>
-              {descOpen && (
-                <div className="px-4 pb-4">
-                  <MarkdownDescription content={product.description} />
-                </div>
-              )}
+            <div className="border border-gray-200 rounded-2xl p-4">
+              <MarkdownDescription content={product.description} />
             </div>
           )}
 
