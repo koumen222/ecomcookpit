@@ -212,19 +212,42 @@ const StoreProductPage = () => {
     return benefits.slice(0, 5);
   };
 
-  // Parse FAQ from product metadata or description
-  const extractFAQ = () => {
-    // Default FAQ if not in product data
-    return [
-      { q: 'Quand vais-je avoir des résultats ?', a: 'Des milliers de femmes ressentent la différence dès 7 jours.' },
-      { q: 'Qu\'est-ce qui rend ce produit différent ?', a: 'Formule unique et efficace, testée et approuvée par des milliers de clients.' },
-      { q: 'Sont-ils naturels et sains ?', a: 'Oui, nos produits sont fabriqués avec des ingrédients naturels et sûrs.' },
-      { q: 'Y a-t-il des effets secondaires ?', a: 'Non, nos produits sont testés et sans effets secondaires connus.' }
-    ];
+  // Parse FAQ dynamically from description
+  // Supports formats: "Q: ..." / "R: ...", "**Question ?**" followed by answer
+  const extractFAQ = (desc) => {
+    if (!desc) return [];
+    const faqs = [];
+    const lines = desc.split('\n').map(l => l.trim()).filter(Boolean);
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      // Format: Q: question / R: answer
+      if (/^Q\s*:/i.test(line)) {
+        const q = line.replace(/^Q\s*:/i, '').trim();
+        let a = '';
+        if (i + 1 < lines.length && /^R\s*:/i.test(lines[i + 1])) {
+          a = lines[i + 1].replace(/^R\s*:/i, '').trim();
+          i++;
+        }
+        if (q) faqs.push({ q, a });
+      }
+      // Format: **Question ?** on its own line, followed by answer line
+      else if (/^\*\*[^*].+\?\*\*$/.test(line)) {
+        const q = line.replace(/^\*\*/, '').replace(/\*\*$/, '').trim();
+        let a = '';
+        if (i + 1 < lines.length && !/^\*\*/.test(lines[i + 1])) {
+          a = lines[i + 1].replace(/\*\*/g, '').trim();
+          i++;
+        }
+        faqs.push({ q, a });
+      }
+      i++;
+    }
+    return faqs.slice(0, 6);
   };
 
   const benefits = extractBenefits(product?.description);
-  const faqItems = extractFAQ();
+  const faqItems = extractFAQ(product?.description);
 
   const handleWhatsAppOrder = () => {
     if (!whatsappNum) return;
@@ -302,7 +325,7 @@ const StoreProductPage = () => {
 
         {/* LEFT: image gallery */}
         <div className="space-y-3">
-          <div className="relative bg-gray-50 rounded-2xl overflow-hidden" style={{ aspectRatio: '1 / 1' }}>
+          <div className="relative bg-gray-50 overflow-hidden" style={{ aspectRatio: '1 / 1' }}>
             {images.length > 0 ? (
               <>
                 <img src={images[activeImage]?.url} alt={images[activeImage]?.alt || product.name}
@@ -354,7 +377,7 @@ const StoreProductPage = () => {
                   className={`w-16 h-16 flex-shrink-0 rounded-xl overflow-hidden border-2 transition-all ${
                     i === activeImage ? 'opacity-100 shadow-md' : 'border-transparent opacity-55 hover:opacity-80'}`}
                   style={i === activeImage ? { borderColor: themeColor } : {}}>
-                  <img src={img.url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                  <img src={img.url} alt="" className="w-full h-full object-cover" loading="lazy" style={{ borderRadius: 0 }} />
                 </button>
               ))}
             </div>
@@ -364,11 +387,11 @@ const StoreProductPage = () => {
         {/* RIGHT: product info — sticky on desktop */}
         <div className="mt-6 lg:mt-0 lg:sticky lg:top-20 space-y-5">
 
-          {/* Promo banner */}
+          {/* Promo banner rouge */}
           {hasDiscount && (
-            <div className="bg-gradient-to-r from-orange-50 to-orange-100 border-l-4 px-4 py-3 rounded-lg" style={{ borderColor: '#f97316' }}>
-              <p className="text-sm font-bold text-orange-900">
-                🔥 PROFITEZ DE L'OFFRE AVANT QUE LE PRIX PASSE À {formatPrice(product.compareAtPrice)} {currency}
+            <div className="bg-red-600 px-4 py-3" style={{ borderRadius: 0 }}>
+              <p className="text-sm font-bold text-white text-center uppercase tracking-wide">
+                🔥 PROFITEZ DE LA RÉDUCTION — ÉCONOMISEZ {formatPrice(product.compareAtPrice - product.price)} {currency}
               </p>
             </div>
           )}
@@ -390,6 +413,16 @@ const StoreProductPage = () => {
               {product.seoDescription}
             </p>
           )}
+
+          {/* Stars + avis */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center">
+              {[1,2,3,4,5].map(s => (
+                <Star key={s} className={`w-4 h-4 ${s <= 4 ? 'text-yellow-400 fill-yellow-400' : 'text-yellow-300 fill-yellow-100'}`} />
+              ))}
+            </div>
+            <span className="text-sm font-semibold text-gray-700">(252 avis positifs)</span>
+          </div>
 
           {/* Price block */}
           <div className="space-y-2">
@@ -418,18 +451,13 @@ const StoreProductPage = () => {
               <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
               <span className="text-sm text-red-700 font-semibold">Rupture de stock</span>
             </div>
-          ) : lowStock ? (
+          ) : (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
               <div className="flex items-center gap-2 mb-1">
                 <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 animate-pulse" />
                 <span className="text-sm text-amber-900 font-bold">⚡ Il n'y a plus assez de pièces</span>
               </div>
-              <p className="text-xs text-amber-700">Plus que {product.stock} unités disponibles — Commandez maintenant avant rupture !</p>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 text-sm text-emerald-600 font-medium">
-              <Check className="w-4 h-4" />
-              En stock — Expédition rapide
+              <p className="text-xs text-amber-700">Commandez maintenant — stock limité !</p>
             </div>
           )}
 
@@ -515,9 +543,9 @@ const StoreProductPage = () => {
             </div>
           )}
 
-          {/* FAQ Section */}
+          {/* FAQ dynamique — extrait de la description */}
           {faqItems.length > 0 && (
-            <div className="border border-gray-200 rounded-2xl overflow-hidden">
+            <div className="border border-gray-200 overflow-hidden rounded-xl">
               <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
                 <h3 className="font-bold text-gray-900 text-sm">Vos questions fréquentes</h3>
               </div>
@@ -546,9 +574,9 @@ const StoreProductPage = () => {
             </div>
           )}
 
-          {/* Description - Direct display without accordion */}
+          {/* Description — affichage direct sans titre */}
           {product.description && (
-            <div className="border border-gray-200 rounded-2xl p-4">
+            <div className="pt-2">
               <MarkdownDescription content={product.description} />
             </div>
           )}
