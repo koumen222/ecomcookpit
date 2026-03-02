@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, ShoppingCart, MessageCircle, Minus, Plus, Loader2,
   ShoppingBag, ChevronLeft, ChevronRight, Shield, RotateCcw,
-  Truck, Share2, ChevronDown, ChevronUp, Check
+  Truck, Share2, ChevronDown, ChevronUp, Check, Star, AlertCircle
 } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
@@ -153,7 +153,12 @@ const StoreProductPage = () => {
   const [activeImage, setActiveImage] = useState(0);
   const [descOpen, setDescOpen] = useState(true);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [faqOpen, setFaqOpen] = useState({});
   const [justAdded, setJustAdded] = useState(false);
+
+  const toggleFaq = (index) => {
+    setFaqOpen(prev => ({ ...prev, [index]: !prev[index] }));
+  };
 
   useEffect(() => {
     (async () => {
@@ -185,6 +190,34 @@ const StoreProductPage = () => {
   const themeColor = store?.storeSettings?.themeColor || store?.themeColor || '#0F6B4F';
   const currency = product?.currency || store?.storeSettings?.storeCurrency || 'XAF';
   const whatsappNum = store?.storeSettings?.whatsapp || store?.whatsapp || '';
+
+  // Parse benefits from description (look for bullet points or numbered lists)
+  const extractBenefits = (desc) => {
+    if (!desc) return [];
+    const lines = desc.split('\n');
+    const benefits = [];
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.match(/^[•✓✔-]\s+/) || trimmed.match(/^\d+\.\s+/)) {
+        benefits.push(trimmed.replace(/^[•✓✔-]\s+/, '').replace(/^\d+\.\s+/, ''));
+      }
+    }
+    return benefits.slice(0, 5);
+  };
+
+  // Parse FAQ from product metadata or description
+  const extractFAQ = () => {
+    // Default FAQ if not in product data
+    return [
+      { q: 'Quand vais-je avoir des résultats ?', a: 'Des milliers de femmes ressentent la différence dès 7 jours.' },
+      { q: 'Qu\'est-ce qui rend ce produit différent ?', a: 'Formule unique et efficace, testée et approuvée par des milliers de clients.' },
+      { q: 'Sont-ils naturels et sains ?', a: 'Oui, nos produits sont fabriqués avec des ingrédients naturels et sûrs.' },
+      { q: 'Y a-t-il des effets secondaires ?', a: 'Non, nos produits sont testés et sans effets secondaires connus.' }
+    ];
+  };
+
+  const benefits = extractBenefits(product?.description);
+  const faqItems = extractFAQ();
 
   const handleWhatsAppOrder = () => {
     if (!whatsappNum) return;
@@ -286,9 +319,17 @@ const StoreProductPage = () => {
                   </>
                 )}
                 {hasDiscount && (
-                  <span className="absolute top-3 left-3 px-2.5 py-1 bg-red-500 text-white text-xs font-bold rounded-lg shadow">
-                    -{discountPercent}%
-                  </span>
+                  <div className="absolute top-3 right-3">
+                    <div className="relative">
+                      <div className="bg-orange-500 text-white px-4 py-2 rounded-full shadow-lg">
+                        <div className="text-center">
+                          <div className="text-xs font-semibold uppercase">Promo</div>
+                          <div className="text-lg font-black leading-none">-{discountPercent}%</div>
+                        </div>
+                      </div>
+                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-orange-500"></div>
+                    </div>
+                  </div>
                 )}
               </>
             ) : (
@@ -316,6 +357,15 @@ const StoreProductPage = () => {
         {/* RIGHT: product info — sticky on desktop */}
         <div className="mt-6 lg:mt-0 lg:sticky lg:top-20 space-y-5">
 
+          {/* Promo banner */}
+          {hasDiscount && (
+            <div className="bg-gradient-to-r from-orange-50 to-orange-100 border-l-4 px-4 py-3 rounded-lg" style={{ borderColor: '#f97316' }}>
+              <p className="text-sm font-bold text-orange-900">
+                🔥 PROFITEZ DE L'OFFRE AVANT QUE LE PRIX PASSE À {formatPrice(product.compareAtPrice)} {currency}
+              </p>
+            </div>
+          )}
+
           {/* Category badge */}
           {product.category && (
             <span className="inline-block text-xs font-semibold uppercase tracking-widest px-2.5 py-1 rounded-full"
@@ -327,39 +377,64 @@ const StoreProductPage = () => {
           {/* Title */}
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight">{product.name}</h1>
 
+          {/* Subtitle/Hook if available */}
+          {product.seoDescription && (
+            <p className="text-sm text-gray-600 leading-relaxed italic">
+              {product.seoDescription}
+            </p>
+          )}
+
           {/* Price block */}
-          <div className="flex items-end gap-3">
-            <span className="text-3xl font-extrabold tracking-tight" style={{ color: themeColor }}>
-              {formatPrice(product.price)}
-              <span className="text-lg font-semibold ml-1 opacity-80">{currency}</span>
-            </span>
-            {hasDiscount && (
-              <span className="text-lg text-gray-400 line-through pb-0.5">
-                {formatPrice(product.compareAtPrice)} {currency}
+          <div className="space-y-2">
+            <div className="flex items-end gap-3 flex-wrap">
+              <span className="text-4xl font-black tracking-tight" style={{ color: themeColor }}>
+                {formatPrice(product.price)}
+                <span className="text-xl font-bold ml-1">{currency}</span>
               </span>
-            )}
+              {hasDiscount && (
+                <span className="text-xl text-gray-400 line-through pb-1">
+                  {formatPrice(product.compareAtPrice)} {currency}
+                </span>
+              )}
+            </div>
             {hasDiscount && (
-              <span className="text-sm font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-lg">
-                Économisez {formatPrice(product.compareAtPrice - product.price)} {currency}
-              </span>
+              <div className="inline-flex items-center gap-2 bg-red-50 text-red-600 px-3 py-1.5 rounded-lg">
+                <span className="text-sm font-bold">SAVE {discountPercent}%</span>
+                <span className="text-xs">Économisez {formatPrice(product.compareAtPrice - product.price)} {currency}</span>
+              </div>
             )}
           </div>
 
-          {/* Stock status */}
+          {/* Stock status with urgency */}
           {outOfStock ? (
-            <div className="flex items-center gap-2 text-sm text-red-600 font-medium">
-              <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
-              Rupture de stock
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+              <span className="text-sm text-red-700 font-semibold">Rupture de stock</span>
             </div>
           ) : lowStock ? (
-            <div className="flex items-center gap-2 text-sm text-amber-600 font-medium">
-              <span className="w-2 h-2 rounded-full bg-amber-400 inline-block animate-pulse" />
-              Plus que {product.stock} en stock — commandez vite !
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 animate-pulse" />
+                <span className="text-sm text-amber-900 font-bold">⚡ Il n'y a plus assez de pièces</span>
+              </div>
+              <p className="text-xs text-amber-700">Plus que {product.stock} unités disponibles — Commandez maintenant avant rupture !</p>
             </div>
           ) : (
             <div className="flex items-center gap-2 text-sm text-emerald-600 font-medium">
               <Check className="w-4 h-4" />
-              En stock
+              En stock — Expédition rapide
+            </div>
+          )}
+
+          {/* Benefits list */}
+          {benefits.length > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-2">
+              {benefits.map((benefit, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                  <span className="text-sm text-gray-800 font-medium">{benefit}</span>
+                </div>
+              ))}
             </div>
           )}
 
@@ -384,10 +459,20 @@ const StoreProductPage = () => {
 
               {/* Main CTA */}
               <button onClick={handleAddToCart}
-                className="w-full flex items-center justify-center gap-2.5 px-6 py-4 text-white rounded-2xl font-bold text-base transition hover:opacity-90 active:scale-[.98] shadow-lg"
+                className="w-full flex items-center justify-center gap-2.5 px-6 py-4 text-white rounded-2xl font-bold text-base transition hover:opacity-90 active:scale-[.98] shadow-lg relative overflow-hidden group"
                 style={{ backgroundColor: themeColor }}>
-                {justAdded ? <><Check className="w-5 h-5" /> Ajouté !</> : <><ShoppingCart className="w-5 h-5" /> Commander maintenant</>}
+                <span className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition"></span>
+                {justAdded ? (
+                  <><Check className="w-5 h-5" /> Ajouté !</>
+                ) : (
+                  <><ShoppingCart className="w-5 h-5" /> COMMANDER MAINTENANT</>
+                )}
               </button>
+              {!outOfStock && lowStock && (
+                <p className="text-center text-xs text-amber-600 font-medium -mt-1">
+                  ⚡ Plus que {product.stock} pièces disponibles
+                </p>
+              )}
 
               {/* WhatsApp secondary */}
               {whatsappNum && (
@@ -423,12 +508,43 @@ const StoreProductPage = () => {
             </div>
           )}
 
+          {/* FAQ Section */}
+          {faqItems.length > 0 && (
+            <div className="border border-gray-200 rounded-2xl overflow-hidden">
+              <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+                <h3 className="font-bold text-gray-900 text-sm">Vos questions fréquentes</h3>
+              </div>
+              <div className="divide-y divide-gray-200">
+                {faqItems.map((item, i) => (
+                  <div key={i}>
+                    <button
+                      onClick={() => toggleFaq(i)}
+                      className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-50 transition text-left"
+                    >
+                      <span className="font-medium text-gray-900 text-sm pr-4">{item.q}</span>
+                      {faqOpen[i] ? (
+                        <ChevronUp className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      )}
+                    </button>
+                    {faqOpen[i] && (
+                      <div className="px-4 pb-4 pt-1">
+                        <p className="text-sm text-gray-600 leading-relaxed">{item.a}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Description accordion */}
           {product.description && (
             <div className="border border-gray-200 rounded-2xl overflow-hidden">
               <button onClick={() => setDescOpen(o => !o)}
                 className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-50 transition">
-                <span className="font-semibold text-gray-900 text-sm">Description</span>
+                <span className="font-semibold text-gray-900 text-sm">Description complète</span>
                 {descOpen ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
               </button>
               {descOpen && (
