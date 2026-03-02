@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
+import QuickOrderModal from '../components/QuickOrderModal.jsx';
 
 // Markdown/HTML renderer for product description with images
 const MarkdownDescription = ({ content }) => {
@@ -148,6 +149,7 @@ const StoreProductPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [quantity, setQuantity] = useState(1);
+  const [showOrderModal, setShowOrderModal] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
   const [descOpen, setDescOpen] = useState(true);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -192,19 +194,7 @@ const StoreProductPage = () => {
   };
 
   const handleAddToCart = () => {
-    setJustAdded(true);
-    setTimeout(() => setJustAdded(false), 1800);
-    navigate(storePath('/checkout'), {
-      state: {
-        products: [{
-          productId: product._id,
-          name: product.name,
-          price: product.price,
-          quantity,
-          image: product.images?.[0]?.url || ''
-        }]
-      }
-    });
+    setShowOrderModal(true);
   };
 
   if (loading) {
@@ -491,6 +481,16 @@ const StoreProductPage = () => {
           </div>
         </div>
       )}
+
+      {/* Modal de commande rapide */}
+      <QuickOrderModal
+        isOpen={showOrderModal}
+        onClose={() => setShowOrderModal(false)}
+        product={product}
+        quantity={quantity}
+        subdomain={subdomain}
+        store={store}
+      />
     </div>
   );
 };
