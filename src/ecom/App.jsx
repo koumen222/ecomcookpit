@@ -82,6 +82,8 @@ const SuperAdminWhatsAppLogs = lazy(() => import('./pages/SuperAdminWhatsAppLogs
 const SuperAdminPushCenter = lazy(() => import('./pages/SuperAdminPushCenter.jsx'));
 const WhyScalor = lazy(() => import('./pages/WhyScalor.jsx'));
 const Tarifs = lazy(() => import('./pages/Tarifs.jsx'));
+const SourcingList = lazy(() => import('./pages/SourcingList.jsx'));
+const SupplierDetail = lazy(() => import('./pages/SupplierDetail.jsx'));
 
 // ─── Store / Storefront pages ─────────────────────────────────────────────
 const StoreSetup = lazy(() => import('./pages/StoreSetup.jsx'));
@@ -446,6 +448,10 @@ const EcomApp = () => {
               <Route path="/ecom/transactions/new" element={<LayoutRoute><TransactionForm /></LayoutRoute>} />
               <Route path="/ecom/transactions/:id" element={<LayoutRoute><TransactionDetail /></LayoutRoute>} />
               <Route path="/ecom/transactions/:id/edit" element={<LayoutRoute><TransactionForm /></LayoutRoute>} />
+
+              {/* Routes Sourcing */}
+              <Route path="/ecom/sourcing" element={<LayoutRoute><SourcingList /></LayoutRoute>} />
+              <Route path="/ecom/sourcing/:id" element={<LayoutRoute><SupplierDetail /></LayoutRoute>} />
 
               {/* Routes décisions */}
               <Route path="/ecom/decisions" element={<LayoutRoute requiredRole="ecom_admin"><DecisionsList /></LayoutRoute>} />
