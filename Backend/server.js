@@ -187,16 +187,6 @@ const startServer = async () => {
 
     console.log('\n🚀 Build timestamp:', new Date().toISOString());
 
-    // ─── Public Storefront Routes (MUST BE FIRST) ───────────────────────
-    // These handle subdomain-based store access (e.g., koumen.scalor.net)
-    try {
-      const publicStorefrontMod = await import('./routes/publicStorefront.js');
-      app.use('/', publicStorefrontMod.default);
-      console.log('✅ / (Public Storefront - Subdomain System)');
-    } catch (err) {
-      console.error('⚠️ Public Storefront routes failed:', err.message);
-    }
-
     // ─── Route map: file → mount path ──────────────────────────────────
     const routes = [
       ['./routes/auth.js',                    '/api/ecom/auth'],
@@ -256,6 +246,17 @@ const startServer = async () => {
       } catch (err) {
         console.error(`⚠️ ${file}: ${err.message}`);
       }
+    }
+
+    // ─── Public Storefront Routes (MUST BE LAST) ───────────────────────
+    // These handle subdomain-based store access (e.g., koumen.scalor.net)
+    // Mounted AFTER all API routes to prevent intercepting API calls
+    try {
+      const publicStorefrontMod = await import('./routes/publicStorefront.js');
+      app.use('/', publicStorefrontMod.default);
+      console.log('✅ / (Public Storefront - Subdomain System - Fallback)');
+    } catch (err) {
+      console.error('⚠️ Public Storefront routes failed:', err.message);
     }
 
     // ─── Agent cron jobs ─────────────────────────────────────────────────
