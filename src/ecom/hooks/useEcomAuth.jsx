@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
 import { authApi } from '../services/ecommApi.js';
 import { logAuthEvent, logWorkspace, logUserAction } from '../services/prodLogger.js';
 import { identifyUser as phIdentify, track as phTrack, resetAnalytics as phReset } from '../services/posthog.js';
@@ -139,6 +139,9 @@ const authReducer = (state, action) => {
 // Provider d'authentification
 export const EcomAuthProvider = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
+  
+  // CRITICAL: Ref to prevent concurrent loadUser calls
+  const loadingRef = useRef(false);
 
   // Effacer le token du localStorage
   const clearToken = () => {
@@ -183,8 +186,17 @@ export const EcomAuthProvider = ({ children }) => {
     
     if (!token) {
       dispatch({ type: 'LOAD_USER_FAILURE' });
+      loadingRef.current = false;
       return;
     }
+
+    // CRITICAL: Use ref instead of state to prevent concurrent calls
+    if (loadingRef.current) {
+      logAuthEvent('load_user_already_loading', {});
+      return;
+    }
+
+    loadingRef.current = true;
 
     try {
       logAuthEvent('load_user_start', { tokenPrefix: token.slice(0, 20) + '…' });
@@ -222,6 +234,7 @@ export const EcomAuthProvider = ({ children }) => {
       // NE déconnecter que pour les vraies erreurs 401 (token invalide)
       // PAS pour les erreurs réseau (backend inaccessible)
       if (error.response?.status === 401) {
+        logAuthEvent('token_invalid_401', { message: 'Token invalide ou expiré, déconnexion' });
         clearToken();
         dispatch({ type: 'LOAD_USER_FAILURE' });
       } else if (!error.response) {
@@ -252,6 +265,9 @@ export const EcomAuthProvider = ({ children }) => {
           dispatch({ type: 'LOAD_USER_FAILURE' });
         }
       }
+    } finally {
+      // CRITICAL: Always reset loading ref
+      loadingRef.current = false;
     }
   };
 
@@ -608,11 +624,24 @@ export const EcomAuthProvider = ({ children }) => {
   };
 
   // Charger l'utilisateur au montage du composant
+  // CRITICAL: Only run ONCE on mount, never again
+  // Use global flag to prevent multiple instances
   useEffect(() => {
+    if (window.__ecomAuthInitialized) {
+      console.warn('[EcomAuth] Provider already initialized, skipping loadUser');
+      return;
+    }
+    window.__ecomAuthInitialized = true;
+    
     logAuthEvent('provider_mounted', { url: window.location.pathname });
     loadUser();
     // Restaurer l'incarnation si elle existe
     restoreImpersonation();
+
+    return () => {
+      // Ne pas reset le flag au unmount pour éviter re-init
+      // window.__ecomAuthInitialized = false;
+    };
   }, []);
 
   // Enregistrer un appareil pour la connexion permanente

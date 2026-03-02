@@ -36,6 +36,7 @@ const Goals = () => {
   const [products, setProducts] = useState([]);
   const [closeuses, setCloseuses] = useState([]);
   const [currentStats, setCurrentStats] = useState({});
+  const [globalOrdersCount, setGlobalOrdersCount] = useState(0);
   const [period, setPeriod] = useState({
     periodType: 'weekly',
     year: new Date().getFullYear(),
@@ -93,8 +94,50 @@ const Goals = () => {
     }
   };
 
+  const getDateRangeForPeriod = () => {
+    if (period.periodType === 'daily') {
+      return { date: period.day };
+    }
+
+    if (period.periodType === 'monthly') {
+      const startDate = new Date(period.year, period.month - 1, 1);
+      const endDate = new Date(period.year, period.month, 0);
+      return {
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0]
+      };
+    }
+
+    const jan4 = new Date(Date.UTC(period.year, 0, 4));
+    const jan4Day = jan4.getUTCDay() || 7;
+    const isoWeek1Monday = new Date(jan4);
+    isoWeek1Monday.setUTCDate(jan4.getUTCDate() - (jan4Day - 1));
+
+    const start = new Date(isoWeek1Monday);
+    start.setUTCDate(isoWeek1Monday.getUTCDate() + (period.week - 1) * 7);
+    const end = new Date(start);
+    end.setUTCDate(start.getUTCDate() + 6);
+
+    return {
+      startDate: new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate())).toISOString().split('T')[0],
+      endDate: new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate())).toISOString().split('T')[0]
+    };
+  };
+
+  const fetchGlobalOrdersCount = async () => {
+    try {
+      const params = getDateRangeForPeriod();
+      const res = await ecomApi.get('/reports/overview', { params });
+      const kpis = res.data?.data?.kpis || {};
+      setGlobalOrdersCount(kpis.totalOrdersDelivered || 0);
+    } catch (error) {
+      setGlobalOrdersCount(0);
+    }
+  };
+
   useEffect(() => {
     fetchGoals();
+    fetchGlobalOrdersCount();
   }, [period]);
 
   useEffect(() => {
@@ -310,8 +353,7 @@ const Goals = () => {
             {(() => {
               const ordersGoals = goals.filter(g => g.type === 'orders');
               const totalTarget = ordersGoals.reduce((sum, g) => sum + g.targetValue, 0);
-              const totalCurrent = ordersGoals.reduce((sum, g) => sum + g.currentValue, 0);
-              const avgProgress = ordersGoals.length > 0 ? ordersGoals.reduce((sum, g) => sum + g.progress, 0) / ordersGoals.length : 0;
+              const realProgress = totalTarget > 0 ? (globalOrdersCount / totalTarget) * 100 : 0;
               return ordersGoals.length > 0 && (
                 <div className="snap-start flex-shrink-0 w-[75vw] sm:w-auto bg-gray-50 rounded-xl p-3 sm:p-4 border border-gray-200">
                   <div className="flex items-center gap-2 mb-2">
@@ -319,12 +361,12 @@ const Goals = () => {
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 11-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
                     </div>
                     <p className="text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide truncate">Commandes</p>
-                    <span className={`ml-auto text-[10px] sm:text-xs font-bold ${avgProgress >= 100 ? 'text-emerald-600' : 'text-emerald-600'}`}>{avgProgress.toFixed(0)}%</span>
+                    <span className={`ml-auto text-[10px] sm:text-xs font-bold ${realProgress >= 100 ? 'text-emerald-600' : 'text-emerald-600'}`}>{realProgress.toFixed(0)}%</span>
                   </div>
-                  <p className="text-xl sm:text-2xl font-black text-gray-900">{totalCurrent}</p>
+                  <p className="text-xl sm:text-2xl font-black text-gray-900">{globalOrdersCount}</p>
                   <p className="text-[10px] text-gray-400">sur {totalTarget}</p>
                   <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2 overflow-hidden">
-                    <div className={`h-full transition-all duration-1000 ${avgProgress >= 100 ? 'bg-emerald-500' : 'bg-emerald-600'}`} style={{ width: `${Math.min(avgProgress, 100)}%` }}></div>
+                    <div className={`h-full transition-all duration-1000 ${realProgress >= 100 ? 'bg-emerald-500' : 'bg-emerald-600'}`} style={{ width: `${Math.min(realProgress, 100)}%` }}></div>
                   </div>
                 </div>
               );

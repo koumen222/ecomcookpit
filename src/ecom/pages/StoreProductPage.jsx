@@ -8,6 +8,127 @@ import {
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
 
+// Markdown/HTML renderer for product description with images
+const MarkdownDescription = ({ content }) => {
+  if (!content) return null;
+  
+  // Check if content is HTML (contains HTML tags)
+  const isHTML = /<[^>]+>/.test(content);
+  
+  if (isHTML) {
+    // Render HTML content directly with styled images
+    return (
+      <>
+        <style>{`
+          .product-description img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 0.75rem;
+            margin: 1rem 0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            display: block;
+          }
+          .product-description strong {
+            color: #1f2937;
+            font-weight: 700;
+          }
+          .product-description p {
+            margin-bottom: 0.5rem;
+            line-height: 1.7;
+          }
+          .product-description ul, .product-description ol {
+            padding-left: 1.5rem;
+            margin-bottom: 0.75rem;
+          }
+        `}</style>
+        <div 
+          className="product-description text-sm text-gray-600"
+          dangerouslySetInnerHTML={{ __html: content }}
+        />
+      </>
+    );
+  }
+  
+  // Parse markdown content with images
+  // Regex to match markdown images: ![alt](url)
+  const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+  let partIndex = 0;
+  
+  while ((match = imageRegex.exec(content)) !== null) {
+    // Add text before the image
+    if (match.index > lastIndex) {
+      const textBefore = content.slice(lastIndex, match.index).trim();
+      if (textBefore) {
+        // Split text into paragraphs
+        textBefore.split('\n\n').forEach((paragraph, pIndex) => {
+          if (paragraph.trim()) {
+            parts.push(
+              <p key={`text-${partIndex}-${pIndex}`} className="text-sm text-gray-600 leading-relaxed mb-4">
+                {paragraph.trim()}
+              </p>
+            );
+          }
+        });
+      }
+    }
+    
+    // Add the image
+    const [, alt, url] = match;
+    parts.push(
+      <div key={`img-container-${partIndex}`} className="my-6">
+        <img 
+          src={url} 
+          alt={alt}
+          className="w-full max-w-lg mx-auto rounded-xl shadow-lg"
+          loading="lazy"
+        />
+        {alt && alt !== 'Marketing Image' && (
+          <p className="text-center text-xs text-gray-500 mt-2 italic">{alt}</p>
+        )}
+      </div>
+    );
+    
+    lastIndex = match.index + match[0].length;
+    partIndex++;
+  }
+  
+  // Add remaining text after last image
+  if (lastIndex < content.length) {
+    const remainingText = content.slice(lastIndex).trim();
+    if (remainingText) {
+      remainingText.split('\n\n').forEach((paragraph, pIndex) => {
+        if (paragraph.trim()) {
+          parts.push(
+            <p key={`text-end-${pIndex}`} className="text-sm text-gray-600 leading-relaxed mb-4">
+              {paragraph.trim()}
+            </p>
+          );
+        }
+      });
+    }
+  }
+  
+  // If no images found, just render as paragraphs
+  if (parts.length === 0) {
+    return (
+      <div className="space-y-3">
+        {content.split('\n\n').map((paragraph, index) => (
+          paragraph.trim() && (
+            <p key={index} className="text-sm text-gray-600 leading-relaxed">
+              {paragraph.trim()}
+            </p>
+          )
+        ))}
+      </div>
+    );
+  }
+  
+  return <div className="space-y-2">{parts}</div>;
+};
+
 /**
  * StoreProductPage — Shopify-like product detail page.
  * Desktop: 2-column (gallery left, info right with sticky CTA).
@@ -322,7 +443,7 @@ const StoreProductPage = () => {
               </button>
               {descOpen && (
                 <div className="px-4 pb-4">
-                  <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{product.description}</p>
+                  <MarkdownDescription content={product.description} />
                 </div>
               )}
             </div>

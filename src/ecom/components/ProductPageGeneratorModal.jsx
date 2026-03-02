@@ -6,12 +6,6 @@ import {
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
 
-const STEPS = [
-  { id: 1, icon: '🔍', label: 'Analyse de la page produit' },
-  { id: 2, icon: '🧠', label: 'Copywriting IA (Scalor AI)' },
-  { id: 3, icon: '📸', label: 'Sauvegarde des photos' },
-  { id: 4, icon: '✅', label: 'Page prête !' }
-];
 
 function CopyButton({ text }) {
   const [copied, setCopied] = useState(false);
@@ -32,28 +26,6 @@ function CopyButton({ text }) {
   );
 }
 
-function FaqAccordion({ items }) {
-  const [open, setOpen] = useState(null);
-  return (
-    <div className="space-y-2">
-      {items.map((item, i) => (
-        <div key={i} className="border border-gray-100 rounded-lg overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setOpen(open === i ? null : i)}
-            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 text-left text-sm font-medium text-gray-700"
-          >
-            <span>{item.question}</span>
-            {open === i ? <ChevronUp className="w-4 h-4 text-gray-400 shrink-0 ml-2" /> : <ChevronDown className="w-4 h-4 text-gray-400 shrink-0 ml-2" />}
-          </button>
-          {open === i && (
-            <div className="px-4 py-3 text-sm text-gray-600 bg-white">{item.answer}</div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 function ImagePreview({ src, label, className = '' }) {
   if (!src) return (
@@ -78,7 +50,9 @@ function ImagePreview({ src, label, className = '' }) {
 
 const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const [phase, setPhase] = useState('input');
+  const [inputMode, setInputMode] = useState('url'); // 'url' ou 'description'
   const [url, setUrl] = useState('');
+  const [description, setDescription] = useState('');
   const [photos, setPhotos] = useState([]);
   const [currentStep, setCurrentStep] = useState(0);
   const [stepLabel, setStepLabel] = useState('');
@@ -92,6 +66,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const isGeneratingRef = useRef(false);
 
   const isValidUrl = url.trim().length > 10 && (url.includes('alibaba.com') || url.includes('aliexpress.com'));
+  const isValidDescription = description.trim().length > 20 && photos.length > 0;
 
   const addPhotos = useCallback((files) => {
     const imgs = Array.from(files).filter(f => f.type.startsWith('image/'));
@@ -109,30 +84,45 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     addPhotos(e.dataTransfer.files);
   };
 
-  const handleGenerate = useCallback(async () => {
-    if (isGeneratingRef.current) return;
-    isGeneratingRef.current = true;
+  const handleGenerate = async () => {
+    // Validation selon le mode
+    if (inputMode === 'url' && (!isValidUrl || photos.length === 0)) return;
+    if (inputMode === 'description' && !isValidDescription) return;
+    
     setPhase('loading');
-    setError('');
-    setCurrentStep(1);
     setStepLabel('Génération en cours...');
+    setError('');
+    setProduct(null);
+    isGeneratingRef.current = true;
 
     const token = localStorage.getItem('ecomToken');
-    const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
-    const wsId = workspace?._id || workspace?.id;
+    const wsId = localStorage.getItem('workspaceId');
 
     const formData = new FormData();
-    formData.append('url', url.trim());
-    formData.append('withImages', 'false');
-    if (wsId) formData.append('workspaceId', wsId);
+    
+    // Mode URL Alibaba
+    if (inputMode === 'url') {
+      formData.append('url', url.trim());
+    }
+    // Mode description directe
+    else {
+      formData.append('description', description.trim());
+      formData.append('skipScraping', 'true');
+    }
+    
+    formData.append('withImages', 'true');
     photos.forEach(f => formData.append('images', f));
     
     const controller = new AbortController();
     abortRef.current = controller;
-    const safetyTimer = setTimeout(() => controller.abort(), 300000);
+    const safetyTimer = setTimeout(() => {
+      controller.abort();
+      setError('Timeout: La génération a pris trop de temps (5 minutes max)');
+      setPhase('input');
+    }, 300000);
 
     try {
-      console.log('Starting Product Page Generation:', { url: url.trim(), photosCount: photos.length, wsId, token: !!token });
+      console.log('🚀 Starting Product Page Generation:', { url: url.trim(), photosCount: photos.length });
       
       const resp = await fetch(`${BACKEND_URL}/api/ai/product-generator`, {
         method: 'POST',
@@ -145,30 +135,52 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       });
 
       if (!resp.ok) {
-        const errorData = await resp.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP ${resp.status}: ${resp.statusText}`);
+        let errorMessage;
+        try {
+          const errorData = await resp.json();
+          errorMessage = errorData.message || errorData.error || `Erreur HTTP ${resp.status}`;
+        } catch {
+          errorMessage = `Erreur HTTP ${resp.status}: ${resp.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await resp.json();
       
       if (result.success && result.product) {
+        console.log('✅ Product generated successfully');
         setProduct(result.product);
         setPhase('preview');
         setActiveTab('page');
       } else {
-        throw new Error(result.error || 'Erreur inconnue lors de la génération');
+        throw new Error(result.message || result.error || 'Erreur: Aucun produit généré');
       }
 
     } catch (error) {
       if (error.name === 'AbortError') {
-        console.log('Product generation aborted');
+        console.log('⚠️ Product generation aborted by user or timeout');
+        if (!error.message.includes('Timeout')) {
+          setError('Génération annulée');
+          setPhase('input');
+        }
         return;
       }
       
-      console.error('Product generation error:', error);
+      console.error('❌ Product generation error:', error);
+      
+      // Clear, explicit error messages
       let errorMessage = error.message;
-      if (error.message.includes('fetch')) {
-        errorMessage = 'Erreur de connexion. Vérifiez votre internet et réessayez.';
+      
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        errorMessage = '❌ Erreur de connexion: Impossible de contacter le serveur. Vérifiez votre connexion internet.';
+      } else if (error.message.includes('OpenAI')) {
+        errorMessage = `❌ Erreur OpenAI: ${error.message}`;
+      } else if (error.message.includes('NanoBanana')) {
+        errorMessage = `❌ Erreur NanoBanana: ${error.message}`;
+      } else if (error.message.includes('Scraping')) {
+        errorMessage = `❌ Erreur Scraping: ${error.message}`;
+      } else if (!error.message.startsWith('❌')) {
+        errorMessage = `❌ ${error.message}`;
       }
       
       setError(errorMessage);
@@ -178,27 +190,88 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       abortRef.current = null;
       isGeneratingRef.current = false;
     }
-  }, [url, photos, isValidUrl]);
+  };
 
   const handleApply = () => {
     if (!product) return;
-    const descParts = [];
-    if (product.hook) descParts.push(`**${product.hook}**\n\n`);
-    if (product.problem) descParts.push(`**Le problème**\n${product.problem}\n\n`);
-    if (product.solution) descParts.push(`**La solution**\n${product.solution}\n\n`);
-    if (product.sections?.length) {
-      product.sections.forEach(s => {
-        descParts.push(`**${s.title}**\n${s.description}\n\n`);
+    
+    // Build rich HTML description with angles, images, raisons, FAQ
+    let descHtml = '';
+    
+    // Description optimisée avec images (déjà traitée par le backend)
+    if (product.description) {
+      let desc = product.description
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n\n/g, '</p><br/><p>')
+        .replace(/\n/g, '<br/>');
+      
+      // Convert markdown images to HTML img tags
+      desc = desc.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;height:auto;display:block;margin:10px 0;border-radius:8px;"/>');
+      
+      descHtml += `<p>${desc}</p>`;
+    }
+    
+    // 3 Angles marketing avec affiches
+    if (product.angles?.length) {
+      descHtml += '<br/><p><strong>🎯 Nos promesses</strong></p>';
+      product.angles.forEach(angle => {
+        descHtml += `<p><strong>${angle.titre_angle}</strong><br/>${angle.message_principal}</p>`;
+        if (angle.poster_url) {
+          descHtml += `<img src="${angle.poster_url}" alt="${angle.titre_angle}" style="max-width:100%;height:auto;display:block;margin:10px 0;border-radius:8px;"/>`;
+        }
       });
     }
-    if (product.howToUse) descParts.push(`**Comment utiliser**\n${product.howToUse}\n\n`);
-    if (product.whyChooseUs) descParts.push(`**Pourquoi nous choisir**\n${product.whyChooseUs}\n\n`);
+    
+    // Raisons d'acheter
+    if (product.raisons_acheter?.length) {
+      descHtml += '<br/><p><strong>✅ Pourquoi acheter ce produit ?</strong></p><ul>';
+      product.raisons_acheter.forEach(r => {
+        descHtml += `<li>${r}</li>`;
+      });
+      descHtml += '</ul>';
+    }
+    
+    // FAQ
+    if (product.faq?.length) {
+      descHtml += '<br/><p><strong>❓ Questions fréquentes</strong></p>';
+      product.faq.forEach(f => {
+        descHtml += `<p><strong>${f.question}</strong><br/>${f.reponse}</p>`;
+      });
+    }
+    
+    // Collect all images
+    const allImages = [];
+    
+    if (product.heroImage) {
+      allImages.push({ url: product.heroImage, alt: product.title || 'Produit', order: 0 });
+    }
+    
+    if (product.realPhotos?.length) {
+      product.realPhotos.forEach((imgUrl) => {
+        if (imgUrl && !allImages.find(img => img.url === imgUrl)) {
+          allImages.push({ url: imgUrl, alt: product.title || 'Produit', order: allImages.length });
+        }
+      });
+    }
+    
+    // Poster images from angles
+    if (product.angles?.length) {
+      product.angles.forEach((angle, i) => {
+        if (angle.poster_url && !allImages.find(img => img.url === angle.poster_url)) {
+          allImages.push({ 
+            url: angle.poster_url, 
+            alt: angle.titre_angle || `Affiche ${i + 1}`, 
+            order: allImages.length,
+            type: 'poster'
+          });
+        }
+      });
+    }
+    
     onApply({
       name: product.title || '',
-      description: descParts.join('').trim(),
-      images: (product.allImages || []).filter(Boolean).map((url, i) => ({
-        url, alt: product.title || 'Product', order: i
-      })),
+      description: descHtml,
+      images: allImages,
       _pageData: product
     });
   };
@@ -229,26 +302,78 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
           {phase === 'input' && (
             <div className="p-6 space-y-5">
 
-              {/* URL */}
+              {/* Mode Selection Tabs */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  🔗 Lien Alibaba ou AliExpress
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  📝 Mode de génération
                 </label>
-                <div className="relative">
-                  <input
-                    type="url"
-                    value={url}
-                    onChange={e => setUrl(e.target.value)}
-                    placeholder="https://www.alibaba.com/product-detail/..."
-                    className="w-full px-4 py-3 pr-10 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                  />
-                  {url && (
-                    <a href={url} target="_blank" rel="noopener noreferrer" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-violet-600">
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
-                  )}
+                <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setInputMode('url')}
+                    className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition ${
+                      inputMode === 'url'
+                        ? 'bg-white text-violet-700 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    🔗 URL Alibaba
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInputMode('description')}
+                    className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition ${
+                      inputMode === 'description'
+                        ? 'bg-white text-violet-700 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    ✍️ Description directe
+                  </button>
                 </div>
               </div>
+
+              {/* URL Input (mode URL) */}
+              {inputMode === 'url' && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    🔗 Lien Alibaba ou AliExpress
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="url"
+                      value={url}
+                      onChange={e => setUrl(e.target.value)}
+                      placeholder="https://www.alibaba.com/product-detail/..."
+                      className="w-full px-4 py-3 pr-10 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    />
+                    {url && (
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-violet-600">
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Description Input (mode description) */}
+              {inputMode === 'description' && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    ✍️ Description du produit
+                  </label>
+                  <textarea
+                    value={description}
+                    onChange={e => setDescription(e.target.value)}
+                    placeholder="Décris ton produit ici... (ex: Gélules de Graviola bio, 60 capsules de 600mg, extrait naturel de feuilles de corossol, riche en antioxydants, aide à renforcer le système immunitaire...)"
+                    rows={5}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Minimum 20 caractères • Décris les bénéfices, caractéristiques et usages du produit
+                  </p>
+                </div>
+              )}
 
               {/* Photo Upload */}
               <div>
@@ -316,14 +441,12 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                 <p className="text-xs font-bold text-violet-700 mb-3 uppercase tracking-wide">CE QUI SERA GÉNÉRÉ</p>
                 <div className="grid grid-cols-2 gap-2 text-xs text-gray-700">
                   {[
-                    ['🎯', 'Titre & accroche impactants'],
-                    ['😩', 'Section Problème client'],
-                    ['✅', 'Section Solution produit'],
-                    ['🎨', '5 benefits avec images marketing IA'],
-                    ['📖', 'Mode d\'utilisation'],
-                    ['🏆', 'Pourquoi nous choisir'],
-                    ['📣', 'Appel à l\'action final'],
-                    ['🎯', 'Angle marketing Afrique']
+                    ['🎯', 'Titre percutant en français'],
+                    ['🎨', '3 angles marketing + 3 affiches IA'],
+                    ['✅', '3 raisons d\'acheter persuasives'],
+                    ['❓', 'FAQ professionnelle (5 questions)'],
+                    ['�', 'Description e-commerce optimisée'],
+                    ['🖼️', 'Affiches publicitaires complètes']
                   ].map(([icon, label]) => (
                     <div key={label} className="flex items-center gap-1.5">
                       <span>{icon}</span>
@@ -343,71 +466,32 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
 
           {/* ─── LOADING PHASE ─── */}
           {phase === 'loading' && (
-            <div className="p-8 flex flex-col items-center justify-center gap-6 min-h-[320px]">
-              <div className="relative w-16 h-16">
+            <div className="p-8 flex flex-col items-center justify-center gap-6 min-h-[400px]">
+              <div className="relative w-20 h-20">
                 <div className="absolute inset-0 rounded-full border-4 border-violet-100" />
                 <div className="absolute inset-0 rounded-full border-4 border-violet-600 border-t-transparent animate-spin" />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <Sparkles className="w-6 h-6 text-violet-600" />
+                  <Sparkles className="w-8 h-8 text-violet-600 animate-pulse" />
                 </div>
               </div>
 
-              <div className="text-center">
-                <p className="text-base font-bold text-gray-800 mb-1">Génération en cours...</p>
-                <p className="text-sm text-violet-600 min-h-[20px]">{stepLabel}</p>
-              </div>
-
-              <div className="w-full max-w-sm space-y-3">
-                {STEPS.map(step => {
-                  const isDone = step.id < currentStep;
-                  const isActive = step.id === currentStep;
-                  return (
-                    <div
-                      key={step.id}
-                      className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
-                        isActive ? 'bg-violet-50 border-violet-200 shadow-sm' :
-                        isDone ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200 opacity-50'
-                      }`}
-                    >
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-medium ${
-                        isDone ? 'bg-emerald-500 text-white' :
-                        isActive ? 'bg-violet-100 border-2 border-violet-300' : 'bg-gray-200 text-gray-500'
-                      }`}>
-                        {isDone ? '✓' : isActive ? <Loader2 className="w-4 h-4 animate-spin text-violet-500" /> : step.id}
-                      </div>
-                      <div className="flex-1">
-                        <div className={`text-sm font-medium ${
-                          isActive ? 'text-violet-700' : isDone ? 'text-emerald-700' : 'text-gray-500'
-                        }`}>
-                          {step.label}
-                        </div>
-                        {isDone && (
-                          <div className="text-xs text-emerald-600 font-semibold mt-0.5">
-                            ✅ Terminé
-                          </div>
-                        )}
-                        {isActive && (
-                          <div className="text-xs text-violet-600 font-medium mt-0.5">
-                            En cours...
-                          </div>
-                        )}
-                      </div>
-                      {isDone && (
-                        <div className="text-emerald-500">
-                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+              <div className="text-center space-y-4">
+                <p className="text-xl font-bold text-gray-900">Génération en cours...</p>
+                <p className="text-sm text-gray-600">
+                  L'IA analyse votre produit et génère les images marketing.<br/>
+                  Cela peut prendre jusqu'à 2 minutes.
+                </p>
+                <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
+                  <div className="w-2 h-2 bg-violet-500 rounded-full animate-pulse" />
+                  <span>Scraping • Vision GPT-4o • NanoBanana IA</span>
+                  <div className="w-2 h-2 bg-violet-500 rounded-full animate-pulse" style={{ animationDelay: '0.5s' }} />
+                </div>
               </div>
 
               <button
                 type="button"
                 onClick={() => { abortRef.current?.abort(); setPhase('input'); }}
-                className="text-sm text-gray-400 hover:text-gray-600 transition mt-2"
+                className="text-sm text-gray-500 hover:text-gray-700 underline transition"
               >
                 Annuler
               </button>
@@ -422,8 +506,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
                 {[
                   { id: 'page', label: 'Page', icon: Package },
-                  { id: 'strategie', label: 'Stratégie', icon: Zap },
-                  { id: 'marketing', label: 'Marketing', icon: Star },
+                  { id: 'affiches', label: 'Affiches', icon: Image },
+                  { id: 'faq', label: 'FAQ', icon: Star },
                   { id: 'images', label: 'Photos', icon: Image }
                 ].map(({ id, label, icon: Icon }) => (
                   <button
@@ -440,202 +524,183 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                 ))}
               </div>
 
-              {/* Tab: Page */}
+              {/* Tab: Page (overview) */}
               {activeTab === 'page' && (
                 <div className="space-y-4">
-                  {/* Hero photo */}
+                  {/* Hero photo avec textes */}
                   {product.heroImage && (
-                    <ImagePreview src={product.heroImage} label="Photo principale" className="w-full h-52" />
+                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                      <ImagePreview src={product.heroImage} label="Image HERO principale" className="w-full h-52" />
+                      {(product.hero_headline || product.hero_slogan || product.hero_baseline) && (
+                        <div className="p-4 bg-gradient-to-br from-violet-50 to-indigo-50 border-t border-gray-200">
+                          {product.hero_headline && (
+                            <p className="text-sm font-bold text-gray-900 mb-1">📢 {product.hero_headline}</p>
+                          )}
+                          {product.hero_slogan && (
+                            <p className="text-sm text-violet-700 italic mb-1">✨ {product.hero_slogan}</p>
+                          )}
+                          {product.hero_baseline && (
+                            <p className="text-xs text-gray-600">{product.hero_baseline}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
 
-                  {/* Titre + Accroche */}
+                  {/* Titre */}
                   <div className="p-4 bg-violet-50 rounded-xl border border-violet-100">
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="text-lg font-bold text-gray-900">{product.title}</h3>
                       <CopyButton text={product.title} />
                     </div>
-                    {product.hook && (
-                      <p className="text-sm text-violet-700 font-medium mt-1 italic">"{product.hook}"</p>
-                    )}
                   </div>
 
-                  {/* Problème */}
-                  {product.problem && (
-                    <div className="p-4 bg-red-50 rounded-xl border border-red-100">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs font-bold text-red-600 uppercase tracking-wide">😩 Le Problème</p>
-                        <CopyButton text={product.problem} />
+                  {/* Description */}
+                  {product.description && (
+                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">� Description</p>
+                        <CopyButton text={product.description} />
                       </div>
-                      <p className="text-sm text-gray-700">{product.problem}</p>
+                      <p className="text-sm text-gray-700 whitespace-pre-line">{product.description?.replace(/\*\*(.+?)\*\*/g, '$1').slice(0, 500)}...</p>
                     </div>
                   )}
 
-                  {/* Solution */}
-                  {product.solution && (
-                    <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide">✅ La Solution</p>
-                        <CopyButton text={product.solution} />
-                      </div>
-                      <p className="text-sm text-gray-700">{product.solution}</p>
-                    </div>
-                  )}
-
-                  {/* Benefits avec images marketing générées par IA */}
-                  {(product.benefits || []).map((benefit, i) => (
-                    <div key={i} className="border border-gray-100 rounded-xl overflow-hidden">
-                      {benefit.generated_image_url && (
-                        <div className="relative">
-                          <ImagePreview src={benefit.generated_image_url} className="w-full h-40" />
-                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
-                            <p className="text-white font-bold text-sm">{benefit.benefit_title}</p>
-                          </div>
+                  {/* 3 Angles marketing */}
+                  <div>
+                    <p className="text-xs font-bold text-violet-700 uppercase tracking-wide mb-3">🎯 3 ANGLES MARKETING</p>
+                    {(product.angles || []).map((angle, i) => (
+                      <div key={i} className="mb-3 border border-gray-100 rounded-xl overflow-hidden">
+                        {angle.poster_url && (
+                          <ImagePreview src={angle.poster_url} label={`Affiche ${i + 1}`} className="w-full h-40" />
+                        )}
+                        <div className="p-4">
+                          <h4 className="text-sm font-bold text-gray-800 mb-2">{angle.titre_angle}</h4>
+                          {angle.explication && (
+                            <p className="text-sm text-gray-600 mb-2 leading-relaxed">{angle.explication}</p>
+                          )}
+                          <p className="text-sm text-violet-700 font-medium italic mb-1">📌 {angle.message_principal}</p>
+                          {angle.promesse && (
+                            <p className="text-xs text-gray-500 italic">💡 {angle.promesse}</p>
+                          )}
                         </div>
-                      )}
-                      <div className="p-4">
-                        <h4 className="text-sm font-bold text-gray-800 mb-1">{benefit.benefit_title}</h4>
-                        <p className="text-sm text-gray-600">{benefit.benefit_description}</p>
-                        {benefit.original_image_url && (
-                          <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-100">
-                            <p className="text-xs font-bold text-blue-700 mb-1">📸 Image Originale</p>
-                            <ImagePreview src={benefit.original_image_url} className="w-16 h-16 rounded" />
-                          </div>
-                        )}
-                        {benefit.image_prompt && (
-                          <div className="mt-2 p-2 bg-violet-50 rounded border border-violet-100">
-                            <p className="text-xs font-bold text-violet-700 mb-1">🎨 Prompt IA</p>
-                            <p className="text-xs text-gray-600 italic">{benefit.image_prompt.slice(0, 100)}...</p>
-                          </div>
-                        )}
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
 
-                  {/* Comment utiliser */}
-                  {product.howToUse && (
-                    <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs font-bold text-blue-600 uppercase tracking-wide">📖 Comment utiliser</p>
-                        <CopyButton text={product.howToUse} />
-                      </div>
-                      <p className="text-sm text-gray-700">{product.howToUse}</p>
-                    </div>
-                  )}
-
-                  {/* Pourquoi nous choisir */}
-                  {product.whyChooseUs && (
-                    <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs font-bold text-amber-600 uppercase tracking-wide">🏆 Pourquoi nous choisir</p>
-                        <CopyButton text={product.whyChooseUs} />
-                      </div>
-                      <p className="text-sm text-gray-700">{product.whyChooseUs}</p>
-                    </div>
-                  )}
-
-                  {/* CTA */}
-                  {product.cta && (
-                    <div className="p-4 bg-violet-600 rounded-xl">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-bold text-white">📣 {product.cta}</p>
-                        <CopyButton text={product.cta} />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Tab: Stratégie */}
-              {activeTab === 'strategie' && (
-                <div className="space-y-3">
-                  {product.productUnderstanding && (
-                    <>
-                      <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
-                        {[[
-                          '👤 Client cible', product.productUnderstanding.targetCustomer
-                        ],[
-                          '😩 Problème résolu', product.productUnderstanding.mainProblem
-                        ],[
-                          '🎯 Promesse', product.productUnderstanding.mainPromise
-                        ],[
-                          '📣 Angle marketing', product.productUnderstanding.marketingAngle
-                        ]].map(([label, value]) => value && (
-                          <div key={label}>
-                            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-0.5">{label}</p>
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="text-sm text-gray-800">{value}</p>
-                              <CopyButton text={value} />
-                            </div>
+                  {/* Raisons d'acheter */}
+                  {product.raisons_acheter?.length > 0 && (
+                    <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                      <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide mb-2">✅ RAISONS D'ACHETER</p>
+                      <div className="space-y-2">
+                        {product.raisons_acheter.map((r, i) => (
+                          <div key={i} className="flex items-start gap-2">
+                            <span className="text-emerald-500 font-bold text-sm mt-0.5">✓</span>
+                            <p className="text-sm text-gray-700">{r}</p>
                           </div>
                         ))}
                       </div>
-                    </>
+                    </div>
                   )}
                 </div>
               )}
 
-              {/* Tab: Marketing */}
-              {activeTab === 'marketing' && (
+              {/* Tab: Affiches publicitaires */}
+              {activeTab === 'affiches' && (
                 <div className="space-y-4">
-                  {product.hook && (
-                    <div className="p-4 bg-violet-50 rounded-xl border border-violet-100">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs font-bold text-violet-700 uppercase tracking-wide">💥 Accroche</p>
-                        <CopyButton text={product.hook} />
+                  <p className="text-xs text-gray-500 font-medium">3 affiches publicitaires générées par IA</p>
+                  {(product.angles || []).map((angle, i) => (
+                    <div key={i} className="border border-gray-100 rounded-xl overflow-hidden">
+                      {angle.poster_url ? (
+                        <div className="relative">
+                          <img src={angle.poster_url} alt={angle.titre_angle} className="w-full aspect-square object-cover" />
+                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+                            <p className="text-white font-bold text-sm">{angle.titre_angle}</p>
+                            <p className="text-white/80 text-xs">{angle.promesse}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-6 bg-gray-50 text-center">
+                          <Image className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                          <p className="text-xs text-gray-400">Affiche non générée</p>
+                        </div>
+                      )}
+                      <div className="p-3 bg-violet-50">
+                        <p className="text-xs text-violet-600 italic">{angle.message_principal}</p>
                       </div>
-                      <p className="text-sm text-gray-800 italic">"{product.hook}"</p>
-                    </div>
-                  )}
-                  {product.cta && (
-                    <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide">📣 Call to Action</p>
-                        <CopyButton text={product.cta} />
-                      </div>
-                      <p className="text-sm text-gray-800">{product.cta}</p>
-                    </div>
-                  )}
-                  {product.whyChooseUs && (
-                    <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">🏆 Argument principal</p>
-                        <CopyButton text={product.whyChooseUs} />
-                      </div>
-                      <p className="text-sm text-gray-700">{product.whyChooseUs}</p>
-                    </div>
-                  )}
-                  {(product.sections || []).map((s, i) => (
-                    <div key={i} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <p className="text-xs font-semibold text-gray-500 mb-0.5">{s.title}</p>
-                      {s.marketingGoal && <p className="text-xs text-violet-600 italic">🎯 {s.marketingGoal}</p>}
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Tab: FAQ */}
+              {activeTab === 'faq' && (
+                <div className="space-y-4">
+                  {/* FAQ */}
+                  <div>
+                    <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">❓ FAQ — 5 QUESTIONS</p>
+                    <div className="space-y-2">
+                      {(product.faq || []).map((item, i) => (
+                        <div key={i} className="border border-gray-100 rounded-xl overflow-hidden">
+                          <div className="px-4 py-3 bg-gray-50 flex items-start justify-between gap-2">
+                            <p className="text-sm font-semibold text-gray-800">{item.question}</p>
+                            <CopyButton text={`${item.question}\n${item.reponse}`} />
+                          </div>
+                          <div className="px-4 py-3">
+                            <p className="text-sm text-gray-600">{item.reponse}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Raisons d'acheter */}
+                  {product.raisons_acheter?.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide mb-3">✅ 3 RAISONS D'ACHETER</p>
+                      {product.raisons_acheter.map((r, i) => (
+                        <div key={i} className="flex items-start gap-2 p-3 mb-2 bg-emerald-50 rounded-lg border border-emerald-100">
+                          <span className="text-emerald-500 font-bold">{i + 1}.</span>
+                          <div className="flex-1 flex items-start justify-between gap-2">
+                            <p className="text-sm text-gray-700">{r}</p>
+                            <CopyButton text={r} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
               {/* Tab: Photos */}
               {activeTab === 'images' && (
-                <div className="space-y-3">
-                  <p className="text-xs text-gray-500 font-medium">{(product.realPhotos || []).length} photos utilisées</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    {(product.realPhotos || []).map((url, i) => (
-                      <ImagePreview
-                        key={i}
-                        src={url}
-                        label={i === 0 ? 'Photo principale' : `Photo ${i + 1}`}
-                        className="aspect-square"
-                      />
-                    ))}
+                <div className="space-y-4">
+                  {/* Photos réelles */}
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium mb-2">{(product.realPhotos || []).length} photos réelles uploadées</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {(product.realPhotos || []).map((imgUrl, i) => (
+                        <ImagePreview
+                          key={i}
+                          src={imgUrl}
+                          label={i === 0 ? 'Photo principale' : `Photo ${i + 1}`}
+                          className="aspect-square"
+                        />
+                      ))}
+                    </div>
                   </div>
-                  {(product.sections || []).some(s => s.image) && (
+                  {/* Affiches générées */}
+                  {(product.angles || []).some(a => a.poster_url) && (
                     <div>
-                      <p className="text-xs text-gray-500 font-medium mb-2">Photos assignées aux sections</p>
-                      <div className="space-y-2">
-                        {(product.sections || []).filter(s => s.image).map((s, i) => (
-                          <div key={i} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
-                            <img src={s.image} alt={s.title} className="w-12 h-12 object-cover rounded-lg shrink-0" />
-                            <p className="text-xs font-medium text-gray-700">{s.title}</p>
-                          </div>
+                      <p className="text-xs text-gray-500 font-medium mb-2">Affiches publicitaires IA</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {(product.angles || []).filter(a => a.poster_url).map((angle, i) => (
+                          <ImagePreview
+                            key={i}
+                            src={angle.poster_url}
+                            label={angle.titre_angle}
+                            className="aspect-square"
+                          />
                         ))}
                       </div>
                     </div>
@@ -652,7 +717,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
             <button
               type="button"
               onClick={handleGenerate}
-              disabled={!isValidUrl}
+              disabled={inputMode === 'url' ? !isValidUrl || photos.length === 0 : !isValidDescription}
               className="w-full py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-semibold text-sm hover:from-violet-700 hover:to-purple-700 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               <Sparkles className="w-4 h-4" />

@@ -4,6 +4,12 @@ import ecomApi from '../services/ecommApi';
 import { useMoney } from '../hooks/useMoney';
 import { getContextualError } from '../utils/errorMessages';
 
+const EMPTY_ORDER_FORM = {
+  productId: '', productName: '', sourcing: 'local', quantity: '',
+  weightKg: '', pricePerKg: '', purchasePrice: '', sellingPrice: '',
+  supplierName: '', expectedArrival: '', trackingNumber: '', notes: ''
+};
+
 const I = {
   plus: 'M12 4v16m8-8H4',
   search: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
@@ -22,26 +28,46 @@ const Ico = ({d, className="w-5 h-5"}) => (
 );
 
 export default function SourcingList() {
+  const navigate = useNavigate();
+  const { fmt: formatMoney } = useMoney();
+  
+  // Tab state
+  const [activeTab, setActiveTab] = useState('commandes');
+  
+  // Suppliers state
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   
-  // Modal state
-  const [showModal, setShowModal] = useState(false);
+  // Supplier Modal state
+  const [showSupplierModal, setShowSupplierModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({
-    name: '', phone: '', link: '', email: '', notes: ''
-  });
+  const [formData, setFormData] = useState({ name: '', phone: '', link: '', email: '', notes: '' });
   
-  const navigate = useNavigate();
-  const { formatMoney } = useMoney();
+  // Orders state
+  const [orders, setOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const [products, setProducts] = useState([]);
+  
+  // Order Modal state
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [editingOrderId, setEditingOrderId] = useState(null);
+  const [orderFormData, setOrderFormData] = useState(EMPTY_ORDER_FORM);
+  const [orderFormLoading, setOrderFormLoading] = useState(false);
+  const [orderFormError, setOrderFormError] = useState('');
+
+  useEffect(() => {
+    loadSuppliers();
+    loadOrders();
+    loadProducts();
+  }, []);
 
   const loadSuppliers = async () => {
     try {
       setLoading(true);
       const res = await ecomApi.get('/sourcing/suppliers');
-      setSuppliers(res.data.data);
+      setSuppliers(res.data.data || []);
       setError(null);
     } catch (err) {
       setError(getContextualError(err, 'load_sourcing'));
@@ -50,15 +76,34 @@ export default function SourcingList() {
     }
   };
 
-  useEffect(() => {
-    loadSuppliers();
-  }, []);
+  const loadOrders = async () => {
+    try {
+      setOrdersLoading(true);
+      const response = await ecomApi.get('/stock/orders');
+      const ordersData = response.data?.data?.orders || response.data?.data || [];
+      setOrders(Array.isArray(ordersData) ? ordersData : []);
+    } catch (err) {
+      console.error('Erreur chargement commandes:', err);
+      setOrders([]);
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  const loadProducts = async () => {
+    try {
+      const r = await ecomApi.get('/products', { params: { isActive: true } });
+      const d = r.data?.data || [];
+      setProducts(Array.isArray(d) ? d : []);
+    } catch { setProducts([]); }
+  };
 
   const filteredSuppliers = suppliers.filter(s => 
-    s.name.toLowerCase().includes(search.toLowerCase()) || 
+    s.name?.toLowerCase().includes(search.toLowerCase()) || 
     (s.phone && s.phone.includes(search))
   );
 
+  // Supplier handlers
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -67,7 +112,7 @@ export default function SourcingList() {
       } else {
         await ecomApi.post('/sourcing/suppliers', formData);
       }
-      closeModal();
+      closeSupplierModal();
       loadSuppliers();
     } catch (err) {
       alert(getContextualError(err, 'save_sourcing'));
@@ -76,10 +121,7 @@ export default function SourcingList() {
 
   const handleDelete = async (id, e) => {
     e.stopPropagation();
-    if (!window.confirm("Supprimer ce fournisseur ? Toutes ses commandes seront également supprimées. Cette action est irréversible.")) {
-      return;
-    }
-    
+    if (!window.confirm("Supprimer ce fournisseur ?")) return;
     try {
       await ecomApi.delete(`/sourcing/suppliers/${id}`);
       loadSuppliers();
@@ -88,26 +130,111 @@ export default function SourcingList() {
     }
   };
 
-  const openModal = (supplier = null) => {
+  const openSupplierModal = (supplier = null) => {
     if (supplier) {
       setEditingId(supplier._id);
-      setFormData({
-        name: supplier.name || '',
-        phone: supplier.phone || '',
-        link: supplier.link || '',
-        email: supplier.email || '',
-        notes: supplier.notes || ''
-      });
+      setFormData({ name: supplier.name || '', phone: supplier.phone || '', link: supplier.link || '', email: supplier.email || '', notes: supplier.notes || '' });
     } else {
       setEditingId(null);
       setFormData({ name: '', phone: '', link: '', email: '', notes: '' });
     }
-    setShowModal(true);
+    setShowSupplierModal(true);
   };
 
-  const closeModal = () => {
-    setShowModal(false);
+  const closeSupplierModal = () => {
+    setShowSupplierModal(false);
     setEditingId(null);
+  };
+
+  // Order handlers
+  const openOrderModal = (order = null) => {
+    if (order) {
+      setEditingOrderId(order._id);
+      setOrderFormData({
+        productId: order.productId?._id || order.productId || '',
+        productName: order.productName || '',
+        sourcing: order.sourcing || 'local',
+        quantity: order.quantity?.toString() || '',
+        weightKg: order.weightKg?.toString() || '',
+        pricePerKg: order.pricePerKg?.toString() || '',
+        purchasePrice: order.purchasePrice?.toString() || '',
+        sellingPrice: order.sellingPrice?.toString() || '',
+        supplierName: order.supplierName || '',
+        expectedArrival: order.expectedArrival ? new Date(order.expectedArrival).toISOString().split('T')[0] : '',
+        trackingNumber: order.trackingNumber || '',
+        notes: order.notes || ''
+      });
+    } else {
+      setEditingOrderId(null);
+      setOrderFormData(EMPTY_ORDER_FORM);
+    }
+    setOrderFormError('');
+    setShowOrderModal(true);
+  };
+
+  const closeOrderModal = () => {
+    setShowOrderModal(false);
+    setEditingOrderId(null);
+    setOrderFormData(EMPTY_ORDER_FORM);
+    setOrderFormError('');
+  };
+
+  const handleOrderSubmit = async (e) => {
+    e.preventDefault();
+    setOrderFormLoading(true);
+    setOrderFormError('');
+    
+    const qty = parseInt(orderFormData.quantity) || 0;
+    const wKg = parseFloat(orderFormData.weightKg) || 0;
+    const pKg = parseFloat(orderFormData.pricePerKg) || 0;
+    const pp = parseFloat(orderFormData.purchasePrice) || 0;
+    const sp = parseFloat(orderFormData.sellingPrice) || 0;
+    const tc = wKg * pKg;
+    
+    const payload = {
+      productId: orderFormData.productId || undefined,
+      productName: orderFormData.productName,
+      sourcing: orderFormData.sourcing,
+      quantity: qty, weightKg: wKg, pricePerKg: pKg,
+      purchasePrice: pp, sellingPrice: sp, transportCost: tc,
+      supplierName: orderFormData.supplierName,
+      expectedArrival: orderFormData.expectedArrival || undefined,
+      trackingNumber: orderFormData.trackingNumber,
+      notes: orderFormData.notes
+    };
+    
+    try {
+      if (editingOrderId) {
+        await ecomApi.put(`/stock/orders/${editingOrderId}`, payload);
+      } else {
+        await ecomApi.post('/stock/orders', payload);
+      }
+      closeOrderModal();
+      loadOrders();
+    } catch (err) {
+      setOrderFormError(getContextualError(err, 'save_order'));
+    } finally {
+      setOrderFormLoading(false);
+    }
+  };
+
+  const updateOrderStatus = async (orderId, action) => {
+    try {
+      await ecomApi.put(`/stock/orders/${orderId}/${action}`);
+      loadOrders();
+    } catch (err) {
+      setError(getContextualError(err, 'save_order'));
+    }
+  };
+
+  const deleteOrder = async (orderId) => {
+    if (!window.confirm('Supprimer cette commande ? Cette action est irréversible.')) return;
+    try {
+      await ecomApi.delete(`/stock/orders/${orderId}`);
+      loadOrders();
+    } catch (err) {
+      setError(getContextualError(err, 'delete_order'));
+    }
   };
 
   return (
@@ -123,10 +250,22 @@ export default function SourcingList() {
               </h1>
               <p className="text-sm text-gray-500 mt-1 font-medium">Gérez vos fournisseurs et commandes d'approvisionnement</p>
             </div>
-            <button onClick={() => openModal()}
-              className="inline-flex items-center justify-center gap-2 bg-gray-900 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-800 transition active:scale-95 shadow-sm">
+            <button onClick={() => openOrderModal()}
+              className="inline-flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition active:scale-95 shadow-sm">
               <Ico d={I.plus} className="w-4 h-4" />
-              Nouveau fournisseur
+              + Commande fournisseur
+            </button>
+          </div>
+          
+          {/* Tabs */}
+          <div className="flex gap-1 mt-4 border-b border-gray-200 -mb-px">
+            <button onClick={() => setActiveTab('commandes')}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-all ${activeTab === 'commandes' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              Commandes
+            </button>
+            <button onClick={() => setActiveTab('fournisseurs')}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-all ${activeTab === 'fournisseurs' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              Fournisseurs
             </button>
           </div>
         </div>
@@ -140,7 +279,7 @@ export default function SourcingList() {
           </div>
         )}
 
-        {/* Stats globales (optionnel, pour plus tard) */}
+        {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
             <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
@@ -156,10 +295,8 @@ export default function SourcingList() {
               <Ico d={I.box} className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-500">Commandes passées</p>
-              <p className="text-2xl font-black text-gray-900">
-                {suppliers.reduce((acc, s) => acc + (s.stats?.totalOrders || 0), 0)}
-              </p>
+              <p className="text-sm font-medium text-gray-500">Commandes</p>
+              <p className="text-2xl font-black text-gray-900">{orders.length}</p>
             </div>
           </div>
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
@@ -169,162 +306,282 @@ export default function SourcingList() {
             <div>
               <p className="text-sm font-medium text-gray-500">Total dépensé</p>
               <p className="text-2xl font-black text-gray-900">
-                {formatMoney(suppliers.reduce((acc, s) => acc + (s.stats?.totalSpent || 0), 0))}
+                {formatMoney(orders.reduce((acc, o) => acc + ((o.purchasePrice || 0) * (o.quantity || 0) + (o.transportCost || 0)), 0))}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Search */}
-        <div className="mb-6 relative">
-          <Ico d={I.search} className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Rechercher un fournisseur..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-300 transition-all font-medium"
-          />
-        </div>
-
-        {/* List */}
-        {loading ? (
-          <div className="text-center py-12 text-gray-500 font-medium animate-pulse">Chargement...</div>
-        ) : filteredSuppliers.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-2xl border border-gray-100">
-            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
-              <Ico d={I.building} className="w-8 h-8" />
-            </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-1">Aucun fournisseur</h3>
-            <p className="text-gray-500 text-sm font-medium mb-6">Commencez par ajouter votre premier fournisseur.</p>
-            <button onClick={() => openModal()} className="inline-flex bg-gray-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-800 transition">
-              Ajouter un fournisseur
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredSuppliers.map(supplier => (
-              <div key={supplier._id} 
-                onClick={() => navigate(`/ecom/sourcing/${supplier._id}`)}
-                className="bg-white border border-gray-100 rounded-2xl p-5 hover:border-gray-300 hover:shadow-md transition-all cursor-pointer group relative">
-                
-                <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={(e) => { e.stopPropagation(); openModal(supplier); }} className="p-2 bg-gray-50 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100 transition">
-                    <Ico d={I.edit} className="w-4 h-4" />
-                  </button>
-                  <button onClick={(e) => handleDelete(supplier._id, e)} className="p-2 bg-red-50 text-red-500 hover:text-red-700 rounded-lg hover:bg-red-100 transition">
-                    <Ico d={I.trash} className="w-4 h-4" />
-                  </button>
+        {/* TAB: COMMANDES */}
+        {activeTab === 'commandes' && (
+          <div>
+            {ordersLoading ? (
+              <div className="text-center py-12 text-gray-500 font-medium animate-pulse">Chargement des commandes...</div>
+            ) : orders.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-2xl border border-gray-100">
+                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
+                  <Ico d={I.box} className="w-8 h-8" />
                 </div>
-
-                <div className="flex items-start gap-4 pr-20">
-                  <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center flex-shrink-0 text-gray-500 font-bold text-lg">
-                    {supplier.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-lg mb-1">{supplier.name}</h3>
-                    
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500 font-medium mt-2">
-                      {supplier.phone && (
-                        <div className="flex items-center gap-1.5">
-                          <Ico d={I.phone} className="w-4 h-4" />
-                          <span>{supplier.phone}</span>
-                        </div>
-                      )}
-                      {supplier.email && (
-                        <div className="flex items-center gap-1.5">
-                          <Ico d={I.mail} className="w-4 h-4" />
-                          <span className="truncate max-w-[150px]">{supplier.email}</span>
-                        </div>
-                      )}
-                      {supplier.link && (
-                        <a href={supplier.link.startsWith('http') ? supplier.link : `https://${supplier.link}`} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="flex items-center gap-1.5 text-blue-600 hover:underline">
-                          <Ico d={I.link} className="w-4 h-4" />
-                          <span>Lien externe</span>
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="mt-5 pt-4 border-t border-gray-50 flex items-center justify-between">
-                  <div className="flex gap-6">
-                    <div>
-                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Commandes</p>
-                      <p className="font-bold text-gray-900">{supplier.stats?.totalOrders || 0}</p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Dépenses</p>
-                      <p className="font-bold text-gray-900 text-emerald-600">{formatMoney(supplier.stats?.totalSpent || 0)}</p>
-                    </div>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-gray-900 group-hover:text-white transition-colors">
-                    <Ico d={I.chevronRight} className="w-4 h-4" />
-                  </div>
-                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-1">Aucune commande</h3>
+                <p className="text-gray-500 text-sm font-medium mb-6">Créez votre première commande fournisseur.</p>
+                <button onClick={() => openOrderModal()} className="inline-flex bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition">
+                  + Commande fournisseur
+                </button>
               </div>
-            ))}
+            ) : (
+              <div className="bg-white shadow rounded-xl overflow-hidden overflow-x-auto border border-gray-100">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Produit</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase hidden sm:table-cell">Sourcing</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Qté</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase hidden md:table-cell">Achat</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase hidden md:table-cell">Vente</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase hidden lg:table-cell">Transport</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Total</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Statut</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-100">
+                    {orders.map((order) => {
+                      const totalCost = (order.purchasePrice || 0) * (order.quantity || 0) + (order.transportCost || 0);
+                      return (
+                        <tr key={order._id} className="hover:bg-gray-50">
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <button onClick={() => openOrderModal(order)} className="text-sm font-medium text-emerald-600 hover:underline text-left">{order.productName || 'N/A'}</button>
+                            {order.supplierName && <div className="text-xs text-gray-500">{order.supplierName}</div>}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap hidden sm:table-cell">
+                            <span className={`px-2 text-xs font-semibold rounded-full ${order.sourcing === 'chine' ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                              {order.sourcing === 'chine' ? 'Chine' : 'Local'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <div className="text-sm font-bold text-gray-900">{order.quantity || 0}</div>
+                            {order.weightKg > 0 && <div className="text-xs text-gray-500">{order.weightKg} kg</div>}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap hidden md:table-cell text-sm text-gray-900">{formatMoney(order.purchasePrice)}</td>
+                          <td className="px-4 py-4 whitespace-nowrap hidden md:table-cell text-sm text-gray-900">{formatMoney(order.sellingPrice)}</td>
+                          <td className="px-4 py-4 whitespace-nowrap hidden lg:table-cell text-sm text-gray-900">{formatMoney(order.transportCost)}</td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{formatMoney(totalCost)}</td>
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            <span className={`px-2 text-xs font-semibold rounded-full ${order.status === 'received' ? 'bg-green-100 text-green-800' : order.status === 'cancelled' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                              {order.status === 'received' ? 'Reçue' : order.status === 'cancelled' ? 'Annulée' : 'En transit'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                            <button onClick={() => openOrderModal(order)} className="text-emerald-600 hover:text-emerald-900 mr-3">Modifier</button>
+                            {order.status === 'in_transit' && (
+                              <button onClick={() => updateOrderStatus(order._id, 'receive')} className="text-green-600 hover:text-green-900">Recevoir</button>
+                            )}
+                            <button onClick={() => deleteOrder(order._id)} className="text-red-600 hover:text-red-900 ml-3">Supprimer</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB: FOURNISSEURS */}
+        {activeTab === 'fournisseurs' && (
+          <div>
+            <div className="mb-6 flex flex-col sm:flex-row gap-4">
+              <div className="flex-1 relative">
+                <Ico d={I.search} className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input type="text" placeholder="Rechercher un fournisseur..." value={search} onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10" />
+              </div>
+              <button onClick={() => openSupplierModal()}
+                className="inline-flex items-center justify-center gap-2 bg-gray-900 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-800 transition">
+                <Ico d={I.plus} className="w-4 h-4" />
+                Nouveau fournisseur
+              </button>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-12 text-gray-500 font-medium animate-pulse">Chargement...</div>
+            ) : filteredSuppliers.length === 0 ? (
+              <div className="text-center py-12 bg-white rounded-2xl border border-gray-100">
+                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
+                  <Ico d={I.building} className="w-8 h-8" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-1">Aucun fournisseur</h3>
+                <p className="text-gray-500 text-sm font-medium mb-6">Commencez par ajouter votre premier fournisseur.</p>
+                <button onClick={() => openSupplierModal()} className="inline-flex bg-gray-900 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-800 transition">
+                  Ajouter un fournisseur
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredSuppliers.map(supplier => (
+                  <div key={supplier._id} onClick={() => navigate(`/ecom/sourcing/${supplier._id}`)}
+                    className="bg-white border border-gray-100 rounded-2xl p-5 hover:border-gray-300 hover:shadow-md transition-all cursor-pointer group relative">
+                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={(e) => { e.stopPropagation(); openSupplierModal(supplier); }} className="p-2 bg-gray-50 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100 transition">
+                        <Ico d={I.edit} className="w-4 h-4" />
+                      </button>
+                      <button onClick={(e) => handleDelete(supplier._id, e)} className="p-2 bg-red-50 text-red-500 hover:text-red-700 rounded-lg hover:bg-red-100 transition">
+                        <Ico d={I.trash} className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="flex items-start gap-4 pr-20">
+                      <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center flex-shrink-0 text-gray-500 font-bold text-lg">
+                        {supplier.name?.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-gray-900 text-lg mb-1">{supplier.name}</h3>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500 font-medium mt-2">
+                          {supplier.phone && <div className="flex items-center gap-1.5"><Ico d={I.phone} className="w-4 h-4" /><span>{supplier.phone}</span></div>}
+                          {supplier.email && <div className="flex items-center gap-1.5"><Ico d={I.mail} className="w-4 h-4" /><span className="truncate max-w-[150px]">{supplier.email}</span></div>}
+                          {supplier.link && <a href={supplier.link.startsWith('http') ? supplier.link : `https://${supplier.link}`} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} className="flex items-center gap-1.5 text-blue-600 hover:underline"><Ico d={I.link} className="w-4 h-4" /><span>Lien</span></a>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-5 pt-4 border-t border-gray-50 flex items-center justify-between">
+                      <div className="flex gap-6">
+                        <div><p className="text-[11px] font-bold text-gray-400 uppercase mb-0.5">Commandes</p><p className="font-bold text-gray-900">{supplier.stats?.totalOrders || 0}</p></div>
+                        <div><p className="text-[11px] font-bold text-gray-400 uppercase mb-0.5">Dépenses</p><p className="font-bold text-emerald-600">{formatMoney(supplier.stats?.totalSpent || 0)}</p></div>
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-gray-900 group-hover:text-white transition-colors">
+                        <Ico d={I.chevronRight} className="w-4 h-4" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Modal Ajout/Edit */}
-      {showModal && (
+      {/* MODAL: FOURNISSEUR */}
+      {showSupplierModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-              <h3 className="font-bold text-gray-900 text-lg">
-                {editingId ? 'Modifier le fournisseur' : 'Nouveau fournisseur'}
-              </h3>
-              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 transition">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
+              <h3 className="font-bold text-gray-900 text-lg">{editingId ? 'Modifier le fournisseur' : 'Nouveau fournisseur'}</h3>
+              <button onClick={closeSupplierModal} className="text-gray-400 hover:text-gray-600 transition text-2xl">&times;</button>
             </div>
-            
-            <form onSubmit={handleSubmit} className="p-6">
-              <div className="space-y-4">
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1.5">Nom du fournisseur *</label>
+                <input type="text" required value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-gray-900/10 outline-none text-sm" placeholder="Ex: Alibaba"/>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Nom du fournisseur *</label>
-                  <input type="text" required value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 outline-none transition-all font-medium text-sm" 
-                    placeholder="Ex: Alibaba, Yiwu Tech, etc."/>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Téléphone</label>
+                  <input type="text" value={formData.phone} onChange={e=>setFormData({...formData, phone: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-gray-900/10 outline-none text-sm" placeholder="+86..."/>
                 </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1.5">Téléphone / WhatsApp</label>
-                    <input type="text" value={formData.phone} onChange={e=>setFormData({...formData, phone: e.target.value})}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 outline-none transition-all font-medium text-sm" 
-                      placeholder="+86..."/>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1.5">Email</label>
-                    <input type="email" value={formData.email} onChange={e=>setFormData({...formData, email: e.target.value})}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 outline-none transition-all font-medium text-sm" 
-                      placeholder="contact@..."/>
-                  </div>
-                </div>
-
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Lien (Site, Alibaba...)</label>
-                  <input type="text" value={formData.link} onChange={e=>setFormData({...formData, link: e.target.value})}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 outline-none transition-all font-medium text-sm" 
-                    placeholder="https://..."/>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Notes internes</label>
-                  <textarea value={formData.notes} onChange={e=>setFormData({...formData, notes: e.target.value})}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400 outline-none transition-all font-medium text-sm resize-none" 
-                    rows="3" placeholder="Informations importantes..."></textarea>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Email</label>
+                  <input type="email" value={formData.email} onChange={e=>setFormData({...formData, email: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-gray-900/10 outline-none text-sm" placeholder="contact@..."/>
                 </div>
               </div>
-
-              <div className="mt-8 flex gap-3">
-                <button type="button" onClick={closeModal} className="flex-1 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-50 transition">Annuler</button>
-                <button type="submit" className="flex-1 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-gray-800 transition active:scale-95">Enregistrer</button>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1.5">Lien</label>
+                <input type="text" value={formData.link} onChange={e=>setFormData({...formData, link: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-gray-900/10 outline-none text-sm" placeholder="https://..."/>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1.5">Notes</label>
+                <textarea value={formData.notes} onChange={e=>setFormData({...formData, notes: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-gray-900/10 outline-none text-sm resize-none" rows="3" placeholder="Notes..."></textarea>
+              </div>
+              <div className="mt-6 flex gap-3">
+                <button type="button" onClick={closeSupplierModal} className="flex-1 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-50 transition">Annuler</button>
+                <button type="submit" className="flex-1 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-gray-800 transition">Enregistrer</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: COMMANDE */}
+      {showOrderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeOrderModal} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+              <h2 className="text-lg font-bold text-gray-900">{editingOrderId ? 'Modifier la commande' : 'Nouvelle commande de stock'}</h2>
+              <button onClick={closeOrderModal} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition text-gray-400 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-6 py-5">
+              <form id="order-form" onSubmit={handleOrderSubmit} className="space-y-5">
+                {orderFormError && <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">{orderFormError}</div>}
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Produit et sourcing</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Produit *</label>
+                      <select name="productId" required value={orderFormData.productId}
+                        onChange={(e) => { const sel = products.find(p => p._id === e.target.value); setOrderFormData(prev => ({ ...prev, productId: e.target.value, productName: sel?.name || prev.productName })); }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600">
+                        <option value="">Sélectionnez un produit</option>
+                        {products.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Sourcing *</label>
+                      <select name="sourcing" value={orderFormData.sourcing} onChange={(e) => setOrderFormData(prev => ({ ...prev, sourcing: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600">
+                        <option value="local">Local</option>
+                        <option value="chine">Chine</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Quantité *</label>
+                      <input type="number" name="quantity" required min="1" value={orderFormData.quantity} onChange={(e) => setOrderFormData(prev => ({ ...prev, quantity: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" placeholder="100" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Fournisseur</label>
+                      <input type="text" name="supplierName" value={orderFormData.supplierName} onChange={(e) => setOrderFormData(prev => ({ ...prev, supplierName: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" placeholder="Nom du fournisseur" />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Prix et poids</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Poids total (kg)</label>
+                      <input type="number" step="0.01" value={orderFormData.weightKg} onChange={(e) => setOrderFormData(prev => ({ ...prev, weightKg: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" placeholder="0.00" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Prix par kg (FCFA)</label>
+                      <input type="number" value={orderFormData.pricePerKg} onChange={(e) => setOrderFormData(prev => ({ ...prev, pricePerKg: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" placeholder="0" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Prix d'achat unitaire (FCFA) *</label>
+                      <input type="number" required value={orderFormData.purchasePrice} onChange={(e) => setOrderFormData(prev => ({ ...prev, purchasePrice: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" placeholder="0" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Prix de vente unitaire (FCFA) *</label>
+                      <input type="number" required value={orderFormData.sellingPrice} onChange={(e) => setOrderFormData(prev => ({ ...prev, sellingPrice: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" placeholder="0" />
+                    </div>
+                  </div>
+                </div>
+              </form>
+            </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 flex-shrink-0 bg-gray-50/50">
+              <button type="button" onClick={closeOrderModal} className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition">Annuler</button>
+              <button type="submit" form="order-form" disabled={orderFormLoading} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition disabled:opacity-50">
+                {orderFormLoading ? 'Enregistrement...' : 'Créer la commande'}
+              </button>
+            </div>
           </div>
         </div>
       )}

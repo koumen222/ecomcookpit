@@ -99,10 +99,6 @@ api.interceptors.response.use(
     const key = error.config?._cacheKey;
     if (key) _inflight.delete(key);
 
-    if (error.response?.status === 401) {
-      localStorage.removeItem("token");
-      window.location.href = "/login";
-    }
     return Promise.reject(error);
   }
 );

@@ -33,23 +33,34 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: function (origin, callback) {
-    console.log('🌐 CORS Request from origin:', origin);
+    const debugCors = process.env.DEBUG_CORS === 'true';
+    if (debugCors) {
+      console.log('🌐 CORS Request from origin:', origin);
+    }
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) {
-      console.log('✅ CORS Allowed (explicit):', origin);
+      if (debugCors) {
+        console.log('✅ CORS Allowed (explicit):', origin);
+      }
       return callback(null, true);
     }
     if (origin.endsWith(".ecomcookpit.pages.dev")) {
-      console.log('✅ CORS Allowed (pages.dev):', origin);
+      if (debugCors) {
+        console.log('✅ CORS Allowed (pages.dev):', origin);
+      }
       return callback(null, true);
     }
     if (origin.endsWith(".scalor.net")) {
-      console.log('✅ CORS Allowed (scalor.net):', origin);
+      if (debugCors) {
+        console.log('✅ CORS Allowed (scalor.net):', origin);
+      }
       return callback(null, true);
     }
     // Allow all *.scalor.app subdomains (public stores)
     if (origin.endsWith(".scalor.app")) {
-      console.log('✅ CORS Allowed (scalor.app):', origin);
+      if (debugCors) {
+        console.log('✅ CORS Allowed (scalor.app):', origin);
+      }
       return callback(null, true);
     }
     console.log('❌ CORS Blocked:', origin);
@@ -63,6 +74,14 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
+
+// ─── Request Logger (debug) ──────────────────────────────────────────────────
+if (process.env.DEBUG_AUTH === 'true') {
+  app.use((req, res, next) => {
+    console.log(`📥 ${req.method} ${req.path}`);
+    next();
+  });
+}
 
 // ─── Compression (disabled for SSE routes to prevent buffering) ──────────────
 app.use(compression({

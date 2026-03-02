@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
-import api from '../../lib/api.js';
+import ecomApi from '../services/ecommApi.js';
 
 const resolveSocketUrl = () => {
   if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
@@ -36,22 +36,28 @@ export function useDmUnread() {
   const [lastMessage, setLastMessage] = useState(null);
   const socketRef = useRef(null);
 
-  // Charger le nombre de non-lus depuis l'API
-  const fetchUnread = useCallback(async () => {
+  // CRITICAL: Use ref to avoid recreating function and causing re-renders
+  const fetchUnreadRef = useRef(null);
+  fetchUnreadRef.current = async () => {
     if (!token) return;
     try {
-      const response = await api.get('/dm/conversations');
+      const response = await ecomApi.get('/dm/conversations');
       const data = response.data;
       if (data.success) {
         const total = (data.conversations || []).reduce((sum, c) => sum + (c.unread || 0), 0);
         setUnreadDm(total);
       }
     } catch (e) { /* silencieux */ }
-  }, [token]);
+  };
+
+  // Wrapper stable pour exposer au composant
+  const fetchUnread = useCallback(() => {
+    return fetchUnreadRef.current?.();
+  }, []);
 
   useEffect(() => {
     if (!token) return;
-    fetchUnread();
+    fetchUnreadRef.current();
 
     const socket = getSocket(token);
     socketRef.current = socket;
@@ -59,7 +65,7 @@ export function useDmUnread() {
     const onNewMessage = (msg) => {
       // Incrémenter le badge et re-fetch pour avoir le bon compte
       setUnreadDm(prev => prev + 1);
-      fetchUnread();
+      fetchUnreadRef.current();
       // Stocker le dernier message pour le toast
       if (msg) {
         setLastMessage({
@@ -85,7 +91,7 @@ export function useDmUnread() {
       socket.off('message:new', onNewMessage);
       socket.off('notification:new', onNotification);
     };
-  }, [token, fetchUnread]);
+  }, [token]); // ✅ Seulement token - fetchUnread retiré
 
   const clearUnread = useCallback(() => {
     setUnreadDm(0);

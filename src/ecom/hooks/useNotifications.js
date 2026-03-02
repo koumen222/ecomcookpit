@@ -12,7 +12,9 @@ export function useNotifications() {
   // Protège contre le double-mount React 18 StrictMode
   const mountedRef = useRef(false);
 
-  const fetchUnreadCount = useCallback(async () => {
+  // CRITICAL: Use ref to avoid recreating function on every render
+  const fetchUnreadCountRef = useRef(null);
+  fetchUnreadCountRef.current = async () => {
     try {
       const res = await notificationsApi.getUnreadCount();
       if (mountedRef.current) {
@@ -22,6 +24,11 @@ export function useNotifications() {
     } catch {
       failCountRef.current += 1;
     }
+  };
+
+  // Wrapper stable pour exposer au composant
+  const fetchUnreadCount = useCallback(() => {
+    return fetchUnreadCountRef.current?.();
   }, []);
 
   useEffect(() => {
@@ -29,12 +36,12 @@ export function useNotifications() {
     if (mountedRef.current) return;
     mountedRef.current = true;
 
-    fetchUnreadCount();
+    fetchUnreadCountRef.current();
 
     const schedule = () => {
       const backoff = Math.min(BASE_INTERVAL * Math.pow(2, failCountRef.current), MAX_INTERVAL);
       timerRef.current = setTimeout(async () => {
-        await fetchUnreadCount();
+        await fetchUnreadCountRef.current();
         schedule();
       }, backoff);
     };
@@ -44,24 +51,24 @@ export function useNotifications() {
       mountedRef.current = false;
       clearTimeout(timerRef.current);
     };
-  }, [fetchUnreadCount]);
+  }, []); // ✅ Pas de dépendances - s'exécute UNE FOIS
 
   // Écouter les push SW pour refresh immédiat
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
     const handler = (e) => {
-      if (e.data?.type === 'PUSH_RECEIVED') fetchUnreadCount();
+      if (e.data?.type === 'PUSH_RECEIVED') fetchUnreadCountRef.current();
     };
     navigator.serviceWorker.addEventListener('message', handler);
     return () => navigator.serviceWorker.removeEventListener('message', handler);
-  }, [fetchUnreadCount]);
+  }, []); // ✅ Pas de dépendances
 
   // Écouter les events WebSocket relayés par useDmUnread
   useEffect(() => {
-    const handler = () => fetchUnreadCount();
+    const handler = () => fetchUnreadCountRef.current();
     window.addEventListener('ecom:notification', handler);
     return () => window.removeEventListener('ecom:notification', handler);
-  }, [fetchUnreadCount]);
+  }, []); // ✅ Pas de dépendances
 
   return { unreadCount, refreshCount: fetchUnreadCount };
 }

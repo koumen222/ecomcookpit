@@ -155,7 +155,13 @@ const Login = () => {
 
   // Rediriger automatiquement si déjà connecté
   useEffect(() => {
-    if (!authLoading && isAuthenticated && user) {
+    // CRITIQUE: Ne rediriger QUE si authLoading est terminé ET que l'utilisateur est authentifié
+    // Cela évite la boucle causée par une redirection prématurée pendant loadUser()
+    if (authLoading) {
+      return;
+    }
+
+    if (isAuthenticated && user) {
       if (!user.workspaceId && user.role !== 'super_admin') {
         navigate('/ecom/workspace-setup', { replace: true });
         return;
@@ -173,7 +179,19 @@ const Login = () => {
   }, [authLoading, isAuthenticated, user, navigate]);
 
   // Afficher un loader pendant la vérification de l'authentification
-  if (authLoading) {
+  // CRITICAL: Timeout de sécurité pour éviter le loader infini
+  const [loaderTimeout, setLoaderTimeout] = useState(false);
+  useEffect(() => {
+    if (authLoading) {
+      const timer = setTimeout(() => {
+        console.warn('[Login] authLoading timeout - forcing display');
+        setLoaderTimeout(true);
+      }, 5000); // 5 secondes max
+      return () => clearTimeout(timer);
+    }
+  }, [authLoading]);
+
+  if (authLoading && !loaderTimeout) {
     return <IconFillLoader backgroundClassName="bg-white" />;
   }
 

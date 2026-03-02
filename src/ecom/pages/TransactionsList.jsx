@@ -295,12 +295,16 @@ const TransactionsList = () => {
         category: budgetForm.category,
         amount: Number(budgetForm.amount),
         productId: budgetForm.productId || null,
+        month: monthValue,
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString()
       };
       
       if (editingBudget) await ecomApi.put(`/transactions/budgets/${editingBudget._id}`, payload);
       else await ecomApi.post('/transactions/budgets', payload);
+      
+      invalidatePrefix('tx:'); // Invalider le cache
+      
       setShowBudgetForm(false); setEditingBudget(null);
       setBudgetForm({ name:'', category:'publicite', amount:'', productId:'', month:'' }); loadTab();
     } catch (err) { 
@@ -314,6 +318,7 @@ const TransactionsList = () => {
       console.log('🗑️ Tentative de suppression du budget:', id);
       const response = await ecomApi.delete(`/transactions/budgets/${id}`);
       console.log('✅ Budget supprimé avec succès:', response);
+      invalidatePrefix('tx:'); // Invalider le cache
       loadTab(); // Recharger la liste des budgets
     } catch (err) {
       console.error('❌ Erreur suppression budget:', err);

@@ -23,6 +23,12 @@ function isEnabled() {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 // Call once at app startup (main.jsx). No-op if key is missing or already init.
 export function initAnalytics() {
+  // CRITICAL: Guard against multiple initializations (React StrictMode, hot reload, etc.)
+  if (typeof window !== 'undefined' && window.posthogInitialized) {
+    console.log('[PostHog] Already initialized, skipping...');
+    return;
+  }
+
   if (_initialized || !POSTHOG_KEY) {
     if (!POSTHOG_KEY) {
       console.warn('[PostHog] Missing POSTHOG key (VITE_POSTHOG_KEY or VITE_PUBLIC_POSTHOG_KEY) — analytics disabled.');
@@ -34,14 +40,19 @@ export function initAnalytics() {
   const consent = JSON.parse(localStorage.getItem('ecom_privacy_consent') || 'null');
   const hasRefused = consent && consent.accepted === false;
 
+  // Detect dev environment
+  const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development';
+
   posthog.init(POSTHOG_KEY, {
     api_host: POSTHOG_HOST,
     // SPA: we capture pageviews manually via the hook
     capture_pageview: false,
     capture_pageleave: true,
     // Autocapture enabled for clicks / heatmaps
-    autocapture: true,
+    autocapture: !isDev, // Disable in dev to reduce noise
     // Session recording (heatmaps, session replays)
+    // CRITICAL: Disable in dev to prevent request spam and loops
+    disable_session_recording: isDev,
     enable_recording_consent_check: true,
     // Privacy: mask sensitive inputs by default
     mask_all_text: false,
@@ -89,6 +100,13 @@ export function initAnalytics() {
   });
 
   _initialized = true;
+  
+  // Mark as initialized globally to prevent re-init in React StrictMode
+  if (typeof window !== 'undefined') {
+    window.posthogInitialized = true;
+  }
+  
+  console.log('[PostHog] Initialized successfully', { isDev });
 }
 
 // ─── Identify ─────────────────────────────────────────────────────────────────

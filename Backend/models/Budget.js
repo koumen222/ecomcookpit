@@ -11,6 +11,7 @@ const budgetSchema = new mongoose.Schema({
   amount: { type: Number, required: true, min: 0 },
   productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', default: null },
   period: { type: String, enum: ['monthly', 'quarterly', 'yearly', 'custom'], default: 'monthly' },
+  month: { type: String }, // Format YYYY-MM
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true },
   color: { type: String, default: '#6366f1' },

@@ -186,7 +186,16 @@ router.get('/budgets',
       }
 
       const [budgetDocs, categorySpending, productSpending] = await Promise.all([
-        Budget.find({ workspaceId: req.workspaceId, isActive: true }).populate('productId', 'name status sellingPrice').lean(),
+        Budget.find({ 
+          workspaceId: req.workspaceId, 
+          isActive: true,
+          $or: [
+            // Budgets du mois spécifique (nouveau système avec startDate/endDate)
+            { startDate: { $lte: endOfMonth }, endDate: { $gte: startOfMonth } },
+            // Rétrocompatibilité pour les anciens budgets sans startDate
+            { startDate: { $exists: false } }
+          ]
+        }).populate('productId', 'name status sellingPrice').lean(),
         Transaction.aggregate([
           { $match: { workspaceId: wid, type: 'expense', date: { $gte: startOfMonth, $lte: endOfMonth } } },
           { $group: { _id: '$category', totalSpent: { $sum: '$amount' }, count: { $sum: 1 } } }
@@ -507,8 +516,15 @@ router.get('/forecast',
         ]),
         // Produits actifs
         Product.find({ workspaceId: wsId, isActive: true }).select('name status sellingPrice productCost deliveryCost avgAdsCost stock').lean(),
-        // Budgets actifs
-        Budget.find({ workspaceId: wsId, isActive: true }).populate('productId', 'name').lean(),
+        // Budgets actifs pour ce mois
+        Budget.find({ 
+          workspaceId: wsId, 
+          isActive: true,
+          $or: [
+            { startDate: { $lte: endOfMonth }, endDate: { $gte: startOfMonth } },
+            { startDate: { $exists: false } }
+          ]
+        }).populate('productId', 'name').lean(),
         // Tendance hebdomadaire (4 dernières semaines)
         Transaction.aggregate([
           { $match: { workspaceId: wid, date: { $gte: new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000) } } },
@@ -1005,8 +1021,15 @@ router.post('/strategic-analysis',
         ]),
         // Produits actifs
         Product.find({ workspaceId: wsId, isActive: true }).select('name status sellingPrice productCost deliveryCost avgAdsCost stock reorderThreshold').lean(),
-        // Budgets actifs
-        Budget.find({ workspaceId: wsId, isActive: true }).populate('productId', 'name').lean(),
+        // Budgets actifs pour ce mois
+        Budget.find({ 
+          workspaceId: wsId, 
+          isActive: true,
+          $or: [
+            { startDate: { $lte: endOfMonth }, endDate: { $gte: startOfMonth } },
+            { startDate: { $exists: false } }
+          ]
+        }).populate('productId', 'name').lean(),
         // Campagnes récentes (30 jours)
         Campaign.find({ workspaceId: wsId, createdAt: { $gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) } })
           .select('name type status stats sentAt').sort({ createdAt: -1 }).limit(10).lean(),
@@ -1479,7 +1502,15 @@ async function _checkBudgetAlerts(workspaceId, category, actor) {
     const wid = new mongoose.Types.ObjectId(workspaceId);
 
     const [budgets, spending] = await Promise.all([
-      Budget.find({ workspaceId, isActive: true, category }).lean(),
+      Budget.find({ 
+        workspaceId, 
+        isActive: true, 
+        category,
+        $or: [
+          { startDate: { $lte: endOfMonth }, endDate: { $gte: startOfMonth } },
+          { startDate: { $exists: false } }
+        ]
+      }).lean(),
       Transaction.aggregate([
         { $match: { workspaceId: wid, type: 'expense', category, date: { $gte: startOfMonth, $lte: endOfMonth } } },
         { $group: { _id: null, total: { $sum: '$amount' } } }

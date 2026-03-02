@@ -27,9 +27,22 @@ const StoreProductForm = () => {
 
   // ─── System product picker state ────────────────────────────────────────
   const [showPicker, setShowPicker] = useState(false);
-  const [pickerSearch, setPickerSearch] = useState('');
   const [pickerProducts, setPickerProducts] = useState([]);
+  const [pickerSearch, setPickerSearch] = useState('');
   const [pickerLoading, setPickerLoading] = useState(false);
+  const [showImageDropdown, setShowImageDropdown] = useState(false);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showImageDropdown && !event.target.closest('.relative')) {
+        setShowImageDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showImageDropdown]);
   const [linkedProduct, setLinkedProduct] = useState(null);
   const searchTimeout = useRef(null);
 
@@ -61,15 +74,48 @@ const StoreProductForm = () => {
 
   const applyAiGenerated = () => {
     if (!aiGenerated) return;
+    
+    // Process description to replace image placeholders with actual markdown
+    let processedDescription = aiGenerated.description || '';
+    if (aiGenerated.benefits && Array.isArray(aiGenerated.benefits)) {
+      aiGenerated.benefits.forEach((benefit, index) => {
+        if (benefit.generated_image_url) {
+          // Handle {{IMAGE_X}} format
+          const placeholder1 = `{{IMAGE_${index + 1}}}`;
+          const replacement = `![${benefit.benefit_title || 'Marketing Image'}](${benefit.generated_image_url})`;
+          processedDescription = processedDescription.replace(placeholder1, replacement);
+          
+          // Also handle old format for backwards compatibility
+          const placeholder2 = `![Marketing Image ${index + 1}](image_${index + 1})`;
+          processedDescription = processedDescription.replace(placeholder2, replacement);
+        }
+      });
+    }
+    
     setForm(prev => ({
       ...prev,
       name: aiGenerated.name || prev.name,
-      description: aiGenerated.description || prev.description,
+      description: processedDescription || prev.description,
       category: aiGenerated.category || prev.category,
       tags: (aiGenerated.tags || []).join(', '),
       seoTitle: aiGenerated.seoTitle || prev.seoTitle,
       seoDescription: aiGenerated.seoDescription || prev.seoDescription,
-      price: aiGenerated.suggestedPrice > 0 ? String(aiGenerated.suggestedPrice) : prev.price
+      price: aiGenerated.suggestedPrice > 0 ? String(aiGenerated.suggestedPrice) : prev.price,
+      // Add hero image if available
+      heroImage: aiGenerated.heroImage || prev.heroImage,
+      // Add marketing images to gallery
+      images: aiGenerated.benefits && aiGenerated.benefits.length > 0 
+        ? [
+            ...(prev.images || []),
+            ...aiGenerated.benefits
+              .filter(b => b.generated_image_url)
+              .map(b => ({
+                url: b.generated_image_url,
+                alt: b.benefit_title || 'Marketing Image',
+                isMarketing: true
+              }))
+          ]
+        : prev.images
     }));
     setShowAiModal(false);
     setAiInput('');
@@ -78,17 +124,54 @@ const StoreProductForm = () => {
   };
 
   const handleAlibabaApply = (productData) => {
-    setForm(prev => ({
-      ...prev,
-      name: productData.name || prev.name,
-      description: productData.description || prev.description,
-      price: productData.price || prev.price,
-      category: productData.category || prev.category,
-      tags: productData.tags || prev.tags,
-      seoTitle: productData.seoTitle || prev.seoTitle,
-      seoDescription: productData.seoDescription || prev.seoDescription,
-      images: productData.images?.length > 0 ? productData.images : prev.images
-    }));
+    // Process description to replace image placeholders with actual URLs
+    let processedDescription = productData.description || '';
+    if (productData.benefits && Array.isArray(productData.benefits)) {
+      productData.benefits.forEach((benefit, index) => {
+        if (benefit.generated_image_url) {
+          // Handle {{IMAGE_X}} format
+          const placeholder1 = `{{IMAGE_${index + 1}}}`;
+          const replacement = `![${benefit.benefit_title || 'Marketing Image'}](${benefit.generated_image_url})`;
+          processedDescription = processedDescription.replace(placeholder1, replacement);
+          
+          // Also handle old format for backwards compatibility
+          const placeholder2 = `![Marketing Image ${index + 1}](image_${index + 1})`;
+          processedDescription = processedDescription.replace(placeholder2, replacement);
+        }
+      });
+    }
+    
+    setForm(prev => {
+      const allImages = [
+        // Add hero image first if available
+        ...(productData.heroImage ? [{ url: productData.heroImage, alt: productData.name || 'Hero Image', isHero: true }] : []),
+        // Add existing product images
+        ...(productData.realPhotos?.map(url => ({ url, alt: productData.name || 'Product Image', isReal: true })) || []),
+        // Add marketing images
+        ...(productData.benefits && productData.benefits.length > 0 
+          ? productData.benefits
+              .filter(b => b.generated_image_url)
+              .map(b => ({
+                url: b.generated_image_url,
+                alt: b.benefit_title || 'Marketing Image',
+                isMarketing: true
+              }))
+          : []
+        )
+      ];
+      
+      return {
+        ...prev,
+        name: productData.name || prev.name,
+        description: processedDescription || prev.description,
+        price: productData.price || prev.price,
+        category: productData.category || prev.category,
+        tags: productData.tags || prev.tags,
+        seoTitle: productData.seoTitle || prev.seoTitle,
+        seoDescription: productData.seoDescription || prev.seoDescription,
+        images: allImages.length > 0 ? allImages : prev.images
+      };
+    });
   };
 
   const [form, setForm] = useState({
@@ -244,6 +327,125 @@ const StoreProductForm = () => {
       images: [...prev.images, { url: imageUrlInput.trim(), alt: prev.name, order: prev.images.length }]
     }));
     setImageUrlInput('');
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    addPhotos(e.dataTransfer.files);
+  };
+
+  const handleImageUploadNew = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const formData = new FormData();
+        formData.append('image', file);
+        formData.append('workspaceId', localStorage.getItem('workspaceId') || 'default');
+        
+        const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
+        
+        try {
+          const response = await fetch(`${BACKEND_URL}/api/ecom/store-products/upload`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('ecomToken')}`,
+              'X-Workspace-Id': localStorage.getItem('workspaceId') || ''
+            },
+            body: formData
+          });
+          
+          console.log('Upload response status:', response.status);
+          const result = await response.json();
+          console.log('Upload result:', result);
+          
+          if (result.success && result.data && result.data.length > 0) {
+            // Use the first uploaded image
+            const imageUrl = result.data[0].url;
+            console.log('Inserting image:', imageUrl);
+            
+            // Get the contentEditable div
+            const editor = document.querySelector('[contenteditable="true"]');
+            if (editor) {
+              editor.focus();
+              // Insert image at cursor position
+              const img = document.createElement('img');
+              img.src = imageUrl;
+              img.style.maxWidth = '100%';
+              img.style.height = 'auto';
+              img.style.display = 'block';
+              img.style.margin = '10px 0';
+              
+              // Insert at cursor or at end
+              const selection = window.getSelection();
+              if (selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                range.deleteContents();
+                range.insertNode(img);
+                // Move cursor after image
+                range.setStartAfter(img);
+                range.setEndAfter(img);
+                selection.removeAllRanges();
+                selection.addRange(range);
+              } else {
+                editor.appendChild(img);
+              }
+              
+              // Trigger input event to update form state
+              editor.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+          } else {
+            console.error('Upload failed:', result);
+            alert('Erreur lors de l\'upload: ' + (result.message || JSON.stringify(result)));
+          }
+        } catch (error) {
+          console.error('Upload error:', error);
+          alert('Erreur de connexion: ' + error.message);
+        }
+      }
+      setShowImageDropdown(false);
+    };
+    input.click();
+  };
+
+  const handleImageUrlNew = () => {
+    const url = prompt('URL de l\'image:');
+    if (url && url.trim()) {
+      // Get the contentEditable div
+      const editor = document.querySelector('[contenteditable="true"]');
+      if (editor) {
+        editor.focus();
+        // Insert image at cursor position
+        const img = document.createElement('img');
+        img.src = url.trim();
+        img.style.maxWidth = '100%';
+        img.style.height = 'auto';
+        img.style.display = 'block';
+        img.style.margin = '10px 0';
+        
+        // Insert at cursor or at end
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          range.deleteContents();
+          range.insertNode(img);
+          // Move cursor after image
+          range.setStartAfter(img);
+          range.setEndAfter(img);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        } else {
+          editor.appendChild(img);
+        }
+        
+        // Trigger input event to update form state
+        editor.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }
+    setShowImageDropdown(false);
   };
 
   const handleSubmit = async (e) => {
@@ -632,13 +834,115 @@ const StoreProductForm = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea
-              value={form.description}
-              onChange={(e) => handleChange('description', e.target.value)}
-              placeholder="Décrivez le produit pour vos clients..."
-              rows={4}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-            />
+            <div className="border border-gray-300 rounded-lg overflow-hidden">
+              {/* Toolbar */}
+              <div className="flex items-center gap-1 p-2 bg-gray-50 border-b border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => document.execCommand('bold')}
+                  className="p-1.5 hover:bg-gray-200 rounded text-gray-700"
+                  title="Gras"
+                >
+                  <strong className="text-sm font-bold">B</strong>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => document.execCommand('italic')}
+                  className="p-1.5 hover:bg-gray-200 rounded text-gray-700"
+                  title="Italique"
+                >
+                  <em className="text-sm">I</em>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => document.execCommand('underline')}
+                  className="p-1.5 hover:bg-gray-200 rounded text-gray-700"
+                  title="Souligné"
+                >
+                  <span className="text-sm underline">U</span>
+                </button>
+                <div className="w-px h-6 bg-gray-300 mx-1" />
+                <button
+                  type="button"
+                  onClick={() => document.execCommand('insertUnorderedList')}
+                  className="p-1.5 hover:bg-gray-200 rounded text-gray-700"
+                  title="Liste à puces"
+                >
+                  <span className="text-sm">• Liste</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => document.execCommand('insertOrderedList')}
+                  className="p-1.5 hover:bg-gray-200 rounded text-gray-700"
+                  title="Liste numérotée"
+                >
+                  <span className="text-sm">1. Liste</span>
+                </button>
+                <div className="w-px h-6 bg-gray-300 mx-1" />
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowImageDropdown(!showImageDropdown)}
+                    className="p-1.5 hover:bg-gray-200 rounded text-gray-700"
+                    title="Insérer une image"
+                  >
+                    <Image className="w-4 h-4" />
+                  </button>
+                  
+                  {showImageDropdown && (
+                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-50 min-w-[180px]">
+                      <button
+                        type="button"
+                        onClick={handleImageUploadNew}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        Uploader une image
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleImageUrlNew}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                        URL de l'image
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {/* Editor */}
+              <div
+                contentEditable="true"
+                suppressContentEditableWarning
+                dir="ltr"
+                onInput={(e) => {
+                  handleChange('description', e.currentTarget.innerHTML);
+                }}
+                onPaste={(e) => {
+                  e.preventDefault();
+                  const text = e.clipboardData.getData('text/plain');
+                  document.execCommand('insertText', false, text);
+                }}
+                className="min-h-[120px] max-h-[300px] overflow-y-auto px-3 py-2 text-sm focus:outline-none"
+                style={{ 
+                  direction: 'ltr',
+                  textAlign: 'left',
+                  whiteSpace: 'pre-wrap'
+                }}
+                key={`editor-${form.description?.length || 0}`}
+                ref={(el) => {
+                  if (el && !el.hasAttribute('data-initialized')) {
+                    el.innerHTML = form.description || '';
+                    el.setAttribute('data-initialized', 'true');
+                  }
+                }}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -718,7 +1022,7 @@ const StoreProductForm = () => {
                   <img
                     src={img.url}
                     alt={img.alt || form.name}
-                    className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg object-cover border border-gray-200"
+                    className={`w-20 h-20 sm:w-24 sm:h-24 rounded-lg object-cover border ${img.isMarketing ? 'border-emerald-400 ring-2 ring-emerald-200' : 'border-gray-200'}`}
                     loading="lazy"
                   />
                   <button
@@ -731,6 +1035,21 @@ const StoreProductForm = () => {
                   {i === 0 && (
                     <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-[10px] rounded">
                       Principale
+                    </span>
+                  )}
+                  {img.isMarketing && (
+                    <span className="absolute top-1 right-1 px-1.5 py-0.5 bg-emerald-600 text-white text-[10px] rounded">
+                      IA
+                    </span>
+                  )}
+                  {img.isHero && (
+                    <span className="absolute top-1 right-1 px-1.5 py-0.5 bg-blue-600 text-white text-[10px] rounded">
+                      Hero
+                    </span>
+                  )}
+                  {img.isReal && (
+                    <span className="absolute top-1 right-1 px-1.5 py-0.5 bg-orange-600 text-white text-[10px] rounded">
+                      Original
                     </span>
                   )}
                 </div>

@@ -870,14 +870,20 @@ router.get('/me', async (req, res) => {
     const authHeader = req.header('Authorization');
     const token = authHeader?.replace('Bearer ', '');
 
-    console.log('🔐 /auth/me appelé');
-    console.log('   Authorization header:', authHeader ? 'Présent' : 'Manquant');
-    console.log('   Token length:', token?.length || 0);
-    console.log('   Token starts with:', token?.substring(0, 20) + '...');
-    console.log('   Origin:', req.headers.origin);
+    const debugAuth = process.env.DEBUG_AUTH === 'true';
+
+    if (debugAuth) {
+      console.log('🔐 /auth/me appelé');
+      console.log('   Authorization header:', authHeader ? 'Présent' : 'Manquant');
+      console.log('   Token length:', token?.length || 0);
+      console.log('   Token starts with:', token?.substring(0, 20) + '...');
+      console.log('   Origin:', req.headers.origin);
+    }
 
     if (!token) {
-      console.log('❌ Token manquant');
+      if (debugAuth) {
+        console.log('❌ Token manquant');
+      }
       return res.status(401).json({
         success: false,
         message: 'Token manquant'
@@ -885,7 +891,9 @@ router.get('/me', async (req, res) => {
     }
 
     if (!isSupportedAuthToken(token)) {
-      console.log('❌ Token format non supporté. Raw check:', token.split('.').length === 3 ? 'JWT brut' : 'Format inconnu');
+      if (debugAuth) {
+        console.log('❌ Token format non supporté. Raw check:', token.split('.').length === 3 ? 'JWT brut' : 'Format inconnu');
+      }
       return res.status(401).json({
         success: false,
         message: 'Token invalide'
@@ -893,18 +901,28 @@ router.get('/me', async (req, res) => {
     }
 
     const normalizedToken = normalizeToken(token);
-    console.log('✅ Token normalisé, longueur:', normalizedToken.length);
+    if (debugAuth) {
+      console.log('✅ Token normalisé, longueur:', normalizedToken.length);
+    }
 
     const decoded = jwt.verify(normalizedToken, ECOM_JWT_SECRET);
-    console.log('✅ Token vérifié, userId:', decoded.id);
+    if (debugAuth) {
+      console.log('✅ Token vérifié, userId:', decoded.id);
+    }
 
-    console.log('🔍 Recherche utilisateur avec ID:', decoded.id);
+    if (debugAuth) {
+      console.log('🔍 Recherche utilisateur avec ID:', decoded.id);
+    }
     const user = await EcomUser.findById(decoded.id).select('-password');
-    console.log('👤 Utilisateur trouvé:', user ? user.email : 'Non trouvé');
-    console.log('🔑 Utilisateur actif:', user?.isActive);
+    if (debugAuth) {
+      console.log('👤 Utilisateur trouvé:', user ? user.email : 'Non trouvé');
+      console.log('🔑 Utilisateur actif:', user?.isActive);
+    }
 
     if (!user || !user.isActive) {
-      console.log('❌ Utilisateur non trouvé ou inactif');
+      if (debugAuth) {
+        console.log('❌ Utilisateur non trouvé ou inactif');
+      }
       return res.status(401).json({
         success: false,
         message: 'Utilisateur non trouvé ou inactif'

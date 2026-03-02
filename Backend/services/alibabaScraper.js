@@ -6,7 +6,7 @@
 
 import { JSDOM } from 'jsdom';
 
-const SCRAPE_DO_TOKEN = process.env.SCRAPE_DO_TOKEN;
+const SCRAPE_DO_TOKEN = process.env.SCRAPE_DO_TOKEN 
 const SCRAPE_DO_API = 'https://api.scrape.do/';
 
 export async function scrapeAlibaba(url) {

@@ -12,6 +12,14 @@ function getSessionId() {
 
 export function trackEvent(eventType, extra = {}) {
   try {
+    // CRITICAL: Disable custom analytics in dev to prevent infinite loops
+    // PostHog handles all analytics in dev mode
+    const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development';
+    if (isDev) {
+      // Silent skip in dev - PostHog handles tracking
+      return;
+    }
+
     const user = JSON.parse(localStorage.getItem('ecomUser') || 'null');
     const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
     const sessionId = getSessionId();

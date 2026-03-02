@@ -321,9 +321,13 @@ const RootRedirect = () => {
 const PageViewTracker = () => {
   const location = useLocation();
   usePosthogPageViews();
-  useEffect(() => {
-    trackPageView(location.pathname);
-  }, [location.pathname]);
+  
+  // DÉSACTIVÉ TEMPORAIREMENT: trackPageView causait une boucle infinie
+  // Le tracking est déjà fait par PostHog via usePosthogPageViews
+  // useEffect(() => {
+  //   trackPageView(location.pathname);
+  // }, [location.pathname]);
+  
   return null;
 };
 
@@ -380,7 +384,8 @@ const EcomApp = () => {
   }
 
   // Root domain → render full SaaS application
-  return (
+  // CRITICAL: Wrap in useMemo to prevent EcomAuthProvider from remounting
+  return React.useMemo(() => (
     <EcomAuthProvider>
       <CurrencyProvider>
         <div className="min-h-screen bg-gray-50">
@@ -554,7 +559,7 @@ const EcomApp = () => {
         </div>
       </CurrencyProvider>
     </EcomAuthProvider>
-  );
+  ), []); // ✅ Pas de dépendances - le provider ne se remonte jamais
 };
 
 export default EcomApp;

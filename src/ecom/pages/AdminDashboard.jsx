@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
@@ -224,9 +224,8 @@ const AdminDashboard = () => {
   const [currentCalendarMonth, setCurrentCalendarMonth] = useState(new Date());
   const [isSelectingEnd, setIsSelectingEnd] = useState(false);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, [timeRange, customStartDate, customEndDate]);
+  // CRITICAL: Create ref first, assign after function declaration
+  const loadDashboardDataRef = useRef(null);
 
   // Animation de progression du chargement
   useEffect(() => {
@@ -531,6 +530,13 @@ const AdminDashboard = () => {
       setIsRefreshing(false);
     }
   };
+
+  // Assign function to ref after declaration to avoid TDZ
+  loadDashboardDataRef.current = loadDashboardData;
+
+  useEffect(() => {
+    loadDashboardDataRef.current();
+  }, [timeRange, customStartDate, customEndDate]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();

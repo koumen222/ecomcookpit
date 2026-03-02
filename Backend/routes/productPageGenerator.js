@@ -2,30 +2,25 @@
  * Product Page Generator Route
  * POST /api/ai/product-generator
  *
- * Accepts multipart/form-data: { url, withImages?, images[] }
- * Streams progress via SSE, then returns full structured product page.
+ * Architecture simple & fiable :
+ * 1. Scrape title + description (minimal)
+ * 2. Clean text
+ * 3. GPT → JSON structuré (angles, raisons, FAQ, description, prompts affiches)
+ * 4. Parse JSON
+ * 5. Loop angles → generate 3 affiches publicitaires
+ * 6. Assemble product page
  */
 
 import express from 'express';
 import multer from 'multer';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
-import { analyzeWithVision } from '../services/productPageGeneratorService.js';
+import { analyzeWithVision, generatePosterImage } from '../services/productPageGeneratorService.js';
 import { uploadImage } from '../services/cloudflareImagesService.js';
 import { scrapeAlibaba } from '../services/alibabaScraper.js';
-import OpenAI from 'openai';
 
 const router = express.Router();
 
-// ── OpenAI instance for gpt-image-1 ───────────────────────────────────────
-let _openai = null;
-function getOpenAI() {
-  if (!_openai && process.env.OPENAI_API_KEY) {
-    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  }
-  return _openai;
-}
-
-// ── Global generation lock — prevents concurrent generations (production) ─────
+// ── Global generation lock ──────────────────────────────────────────────────
 if (!globalThis.__aiProductGeneratorLock) {
   globalThis.__aiProductGeneratorLock = { locked: false, userId: null, startedAt: null };
 }
@@ -39,255 +34,269 @@ const upload = multer({
   }
 });
 
-// Log middleware pour diagnostiquer CORS
-router.use((req, res, next) => {
-  console.log('🔍 Product Generator Route Hit:', {
-    method: req.method,
-    path: req.path,
-    origin: req.headers.origin,
-    contentType: req.headers['content-type'],
-    authorization: req.headers.authorization ? '***' : 'none'
-  });
-  next();
-});
+function releaseLock(userId) {
+  if (globalThis.__aiProductGeneratorLock?.userId === userId) {
+    globalThis.__aiProductGeneratorLock.locked = false;
+    globalThis.__aiProductGeneratorLock.userId = null;
+    globalThis.__aiProductGeneratorLock.startedAt = null;
+  }
+}
 
 router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), upload.array('images', 8), async (req, res) => {
   const userId = req.user?.id || req.user?._id || 'anonymous';
 
-  // ── Anti double-génération (verrou global) ────────────────────────────────
+  // ── Anti double-génération ────────────────────────────────────────────────
   const lock = globalThis.__aiProductGeneratorLock;
   if (lock.locked) {
-    return res.status(429).json({
-      success: false,
-      message: 'Already generating'
-    });
+    return res.status(429).json({ success: false, message: 'Génération déjà en cours' });
   }
   lock.locked = true;
   lock.userId = userId;
   lock.startedAt = Date.now();
 
-  console.log('🎨 Product Page Generator started:', {
-    url: req.body?.url,
-    withImages: req.body?.withImages,
-    filesCount: req.files?.length || 0,
-    userId
-  });
-
-  const { url, withImages } = req.body || {};
+  const { url, description, skipScraping } = req.body || {};
   const imageFiles = req.files || [];
-  const doImages = withImages !== 'false' && withImages !== false;
 
-  if (!url || typeof url !== 'string' || url.trim().length < 10) {
-    if (globalThis.__aiProductGeneratorLock?.userId === userId) {
-      globalThis.__aiProductGeneratorLock.locked = false;
-      globalThis.__aiProductGeneratorLock.userId = null;
-      globalThis.__aiProductGeneratorLock.startedAt = null;
+  // ── Validation selon le mode ──────────────────────────────────────────────
+  const isDescriptionMode = skipScraping === 'true' || skipScraping === true;
+  
+  if (isDescriptionMode) {
+    // Mode description directe
+    if (!description || typeof description !== 'string' || description.trim().length < 20) {
+      releaseLock(userId);
+      return res.status(400).json({ success: false, message: 'Description requise (minimum 20 caractères)' });
     }
-    return res.status(400).json({ success: false, message: 'URL Alibaba requise' });
+    if (!imageFiles || imageFiles.length === 0) {
+      releaseLock(userId);
+      return res.status(400).json({ success: false, message: 'Au moins une photo requise en mode description' });
+    }
+  } else {
+    // Mode URL Alibaba
+    if (!url || typeof url !== 'string' || url.trim().length < 10) {
+      releaseLock(userId);
+      return res.status(400).json({ success: false, message: 'URL Alibaba requise' });
+    }
+    const cleanUrl = url.trim();
+    if (!cleanUrl.includes('alibaba.com') && !cleanUrl.includes('aliexpress.com')) {
+      releaseLock(userId);
+      return res.status(400).json({ success: false, message: 'URL Alibaba ou AliExpress requise' });
+    }
   }
 
-  const cleanUrl = url.trim();
-  if (!cleanUrl.includes('alibaba.com') && !cleanUrl.includes('aliexpress.com')) {
-    if (globalThis.__aiProductGeneratorLock?.userId === userId) {
-      globalThis.__aiProductGeneratorLock.locked = false;
-      globalThis.__aiProductGeneratorLock.userId = null;
-      globalThis.__aiProductGeneratorLock.startedAt = null;
-    }
-    return res.status(400).json({ success: false, message: 'URL Alibaba ou AliExpress requise' });
-  }
+  let scraped;
+  let gptResult;
+  let realPhotos = [];
+  let posterImages = [];
+  const cleanUrl = url?.trim() || '';
 
   try {
-    // ── Step 1: Scrape Alibaba ────────────────────────────────────────────────
-    console.log('📡 Step 1: Scraping', cleanUrl);
-    const scraped = await scrapeAlibaba(cleanUrl);
-    console.log('✅ Scraping done:', { title: scraped.title, images: scraped.images.length });
-
-    // ── Step 2: GPT-4o Vision + Copywriting ──────────────────────────────────
-    console.log('🧠 Step 2: Vision analysis, photos:', imageFiles?.length || 'undefined');
-    console.log('🐛 imageFiles type:', typeof imageFiles, 'isArray:', Array.isArray(imageFiles));
-    
-    if (!imageFiles || !Array.isArray(imageFiles)) {
-      throw new Error('imageFiles is not a valid array');
-    }
-    
-    const imageBuffers = imageFiles.map(f => f.buffer);
-    let pageStructure;
-    
-    try {
-      pageStructure = await analyzeWithVision(scraped, imageBuffers);
-      console.log('✅ Vision done:', { title: pageStructure.title, benefits: pageStructure.benefits?.length });
-    } catch (visionError) {
-      console.error('❌ Vision analysis failed:', visionError.message);
-      throw new Error(`Vision analysis failed: ${visionError.message}`);
+    // ══════════════════════════════════════════════════════════════════════════
+    // ÉTAPE 1 : Scraping minimal OU utilisation de la description directe
+    // ══════════════════════════════════════════════════════════════════════════
+    if (isDescriptionMode) {
+      console.log('📝 Étape 1: Mode description directe (skip scraping)');
+      scraped = {
+        title: 'Produit',
+        description: description.trim(),
+        rawText: description.trim()
+      };
+      console.log('✅ Description utilisée:', description.slice(0, 100));
+    } else {
+      console.log('📡 Étape 1: Scraping', cleanUrl);
+      scraped = await scrapeAlibaba(cleanUrl);
+      console.log('✅ Scraping OK:', { title: scraped.title?.slice(0, 50) });
     }
 
-    // Safety check before accessing pageStructure properties
-    if (!pageStructure) {
-      throw new Error('Failed to generate valid page structure from vision analysis');
-    }
+    // ══════════════════════════════════════════════════════════════════════════
+    // ÉTAPE 2 : GPT-4o Vision → JSON structuré
+    // ══════════════════════════════════════════════════════════════════════════
+    console.log('🧠 Étape 2: GPT-4o analyse + copywriting, photos:', imageFiles.length);
+    
+    const imageBuffers = (imageFiles || []).map(f => f.buffer);
+    
+    gptResult = await analyzeWithVision(scraped, imageBuffers);
+    
+    console.log('✅ GPT OK:', {
+      title: gptResult.title?.slice(0, 40),
+      angles: gptResult.angles?.length,
+      raisons: gptResult.raisons_acheter?.length,
+      faq: gptResult.faq?.length
+    });
 
-    // ── Step 3: Upload user photos to R2 ──────────────────────────────────────
-    console.log('📸 Step 3: Uploading photos:', imageFiles.length);
-    const realPhotos = [];
+    // ══════════════════════════════════════════════════════════════════════════
+    // ÉTAPE 3 : Upload des photos utilisateur → R2
+    // ══════════════════════════════════════════════════════════════════════════
+    console.log('📸 Étape 3: Upload', imageFiles.length, 'photos');
     for (const f of imageFiles.slice(0, 8)) {
-      const uploaded = await uploadImage(f.buffer, f.originalname || `photo-${Date.now()}.jpg`, {
-        workspaceId: req.workspaceId,
-        uploadedBy: userId,
-        mimeType: f.mimetype
-      });
-      if (uploaded?.url) realPhotos.push(uploaded.url);
+      try {
+        const uploaded = await uploadImage(f.buffer, f.originalname || `photo-${Date.now()}.jpg`, {
+          workspaceId: req.workspaceId,
+          uploadedBy: userId,
+          mimeType: f.mimetype
+        });
+        if (uploaded?.url) realPhotos.push(uploaded.url);
+      } catch (uploadErr) {
+        console.warn('⚠️ Upload photo échoué:', uploadErr.message);
+      }
+    }
+    console.log('✅ Photos uploadées:', realPhotos.length);
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ÉTAPE 4 : Générer l'AFFICHE HERO (image principale)
+    // ══════════════════════════════════════════════════════════════════════════
+    console.log('🎨 Étape 4a: Génération de l\'affiche HERO...');
+    let heroImageUrl = null;
+    
+    if (gptResult.prompt_affiche_hero) {
+      try {
+        const baseImageBuffer = imageFiles[0]?.buffer || null;
+        const generatedDataUrl = await generatePosterImage(gptResult.prompt_affiche_hero, baseImageBuffer);
+        
+        if (generatedDataUrl) {
+          let imageBuffer;
+          if (generatedDataUrl.startsWith('data:')) {
+            const base64Data = generatedDataUrl.split(',')[1];
+            imageBuffer = Buffer.from(base64Data, 'base64');
+          } else {
+            const axios = (await import('axios')).default;
+            const resp = await axios.get(generatedDataUrl, { responseType: 'arraybuffer', timeout: 15000 });
+            imageBuffer = Buffer.from(resp.data);
+          }
+
+          const uploaded = await uploadImage(
+            imageBuffer,
+            `hero-${Date.now()}.png`,
+            { workspaceId: req.workspaceId, uploadedBy: userId, mimeType: 'image/png' }
+          );
+          heroImageUrl = uploaded?.url || null;
+          console.log('✅ Affiche HERO générée et uploadée');
+        }
+      } catch (heroErr) {
+        console.warn('⚠️ Affiche HERO échouée:', heroErr.message);
+        heroImageUrl = realPhotos[0] || null;
+      }
     }
 
-    // ── Step 3.5: Generate marketing images with gpt-image-1 ─────────────────────
-    console.log('🎨 Step 3.5: Generating marketing images...');
+    // ══════════════════════════════════════════════════════════════════════════
+    // ÉTAPE 4b : Générer 3 AFFICHES PUBLICITAIRES avec NanoBanana
+    // ══════════════════════════════════════════════════════════════════════════
+    console.log('🎨 Étape 4b: Génération de 3 affiches publicitaires...');
     
-    // Safety check for benefits array
-    if (!pageStructure.benefits || !Array.isArray(pageStructure.benefits)) {
-      throw new Error('Invalid page structure: benefits array is missing or not an array');
-    }
-    
-    console.log('🐛 pageStructure.benefits length:', pageStructure.benefits?.length);
-    console.log('🐛 imageFiles length:', imageFiles?.length);
-    
-    const marketingImages = [];
-    const maxImages = Math.min(pageStructure.benefits?.length || 0, imageFiles?.length || 0);
-    console.log('🐛 maxImages:', maxImages);
-    
-    for (let i = 0; i < maxImages; i++) {
-      // Safety check for benefit existence
-      const benefit = pageStructure.benefits[i];
-      if (!benefit) {
-        console.warn(`⚠️ Benefit ${i} is undefined, skipping`);
+    for (let i = 0; i < 3; i++) {
+      const angle = gptResult.angles[i];
+      if (!angle || !angle.prompt_affiche) {
+        console.warn(`⚠️ Angle ${i + 1} manquant ou sans prompt, skip`);
+        posterImages.push({
+          ...angle,
+          poster_url: realPhotos[i] || realPhotos[0] || null,
+          index: i + 1
+        });
         continue;
       }
-      
-      const baseImage = imageFiles[i];
-      
-      console.log(`🐛 Processing benefit ${i}:`, {
-        hasBenefit: !!benefit,
-        hasImagePrompt: !!benefit?.image_prompt,
-        hasBaseImage: !!baseImage
-      });
-      
-      if (benefit.image_prompt && baseImage) {
-        try {
-          console.log(`🎨 Generating marketing image ${i + 1} for: "${benefit.benefit_title}"`);
-          
-          // Generate image using the prompt from GPT-5.2
-          const openai = getOpenAI();
-          let generatedImage;
-          
-          try {
-            const response = await openai.images.generate({
-              model: 'gpt-image-1',
-              prompt: benefit.image_prompt,
-              n: 1,
-              size: '1024x1024',
-              quality: 'hd'
-            });
-            
-            generatedImage = response.data[0];
-            
-            if (!generatedImage || !generatedImage.url) {
-              throw new Error('No image generated from OpenAI');
-            }
-          } catch (imageError) {
-            console.warn(`⚠️ Failed to generate image for benefit ${i + 1}:`, imageError.message);
-            throw imageError;
-          }
-          
-          // Upload generated image to R2
-          const imageUrl = await uploadImage(
-            Buffer.from(generatedImage.url.split(',')[1], 'base64'),
-            `marketing-${i + 1}-${Date.now()}.png`,
-            {
-              workspaceId: req.workspaceId,
-              uploadedBy: userId,
-              mimeType: 'image/png'
-            }
-          );
-          
-          if (imageUrl?.url) {
-            marketingImages.push({
-              ...benefit,
-              generated_image_url: imageUrl.url,
-              original_image_url: realPhotos[i] || null
-            });
-            console.log(`✅ Marketing image ${i + 1} uploaded successfully`);
-          }
-        } catch (error) {
-          console.warn(`⚠️ Failed to generate marketing image ${i + 1}:`, error.message);
-          // Fallback: use original image
-          marketingImages.push({
-            ...benefit,
-            generated_image_url: realPhotos[i] || null,
-            original_image_url: realPhotos[i] || null
-          });
+
+      try {
+        console.log(`🎨 Affiche ${i + 1}/3: "${angle.titre_angle}"`);
+        
+        // Use original image for image-to-image (first image as reference)
+        const baseImageBuffer = imageFiles[i]?.buffer || imageFiles[0]?.buffer || null;
+        
+        const generatedDataUrl = await generatePosterImage(angle.prompt_affiche, baseImageBuffer);
+        
+        if (!generatedDataUrl) {
+          throw new Error('Aucune image générée par NanoBanana');
         }
-      } else {
-        // Fallback: use original image
-        marketingImages.push({
-          ...benefit,
-          generated_image_url: realPhotos[i] || null,
-          original_image_url: realPhotos[i] || null
+
+        // Convert data URL or URL to buffer for R2 upload
+        let imageBuffer;
+        if (generatedDataUrl.startsWith('data:')) {
+          const base64Data = generatedDataUrl.split(',')[1];
+          imageBuffer = Buffer.from(base64Data, 'base64');
+        } else {
+          const axios = (await import('axios')).default;
+          const resp = await axios.get(generatedDataUrl, { responseType: 'arraybuffer', timeout: 15000 });
+          imageBuffer = Buffer.from(resp.data);
+        }
+
+        // Upload to R2
+        const uploaded = await uploadImage(
+          imageBuffer,
+          `poster-${i + 1}-${Date.now()}.png`,
+          { workspaceId: req.workspaceId, uploadedBy: userId, mimeType: 'image/png' }
+        );
+
+        posterImages.push({
+          ...angle,
+          poster_url: uploaded?.url || realPhotos[i] || null,
+          index: i + 1
+        });
+        console.log(`✅ Affiche ${i + 1} uploadée`);
+
+      } catch (posterErr) {
+        console.warn(`⚠️ Affiche ${i + 1} échouée:`, posterErr.message);
+        posterImages.push({
+          ...angle,
+          poster_url: realPhotos[i] || realPhotos[0] || null,
+          index: i + 1
         });
       }
     }
 
-    // ── Step 4: Assemble final product with new structure ─────────────────────
-    console.log('✅ Step 4: Assembling product page');
+    console.log('✅ Affiches générées:', posterImages.filter(p => p.poster_url).length, '/ 3');
 
-    // Safety check before accessing pageStructure properties
-    if (!pageStructure || typeof pageStructure !== 'object') {
-      throw new Error('Invalid page structure: not an object');
-    }
+    // ══════════════════════════════════════════════════════════════════════════
+    // ÉTAPE 5 : Assembler la description avec les images
+    // ══════════════════════════════════════════════════════════════════════════
+    console.log('📝 Étape 5: Assemblage de la description');
+    
+    let description = gptResult.description_optimisee || '';
+    
+    // Replace {{IMAGE_X}} with actual poster URLs
+    posterImages.forEach((poster) => {
+      if (poster.poster_url && poster.index) {
+        const placeholder = `{{IMAGE_${poster.index}}}`;
+        const imgTag = `![${poster.titre_angle || 'Affiche'}](${poster.poster_url})`;
+        description = description.replace(placeholder, imgTag);
+      }
+    });
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ÉTAPE 6 : Assemblage final du produit
+    // ══════════════════════════════════════════════════════════════════════════
+    console.log('✅ Étape 6: Assemblage final');
 
     const productPage = {
-      title: pageStructure?.title || scraped?.title || '',
-      hook: pageStructure?.hook || '',
-      benefits: marketingImages || [],
-      heroImage: realPhotos[0] || null,
+      title: gptResult.title || scraped.title || '',
+      hero_headline: gptResult.hero_headline || null,
+      hero_slogan: gptResult.hero_slogan || null,
+      hero_baseline: gptResult.hero_baseline || null,
+      heroImage: heroImageUrl || realPhotos[0] || null,
+      angles: posterImages,
+      raisons_acheter: gptResult.raisons_acheter || [],
+      faq: gptResult.faq || [],
+      description: description,
       realPhotos,
+      allImages: [
+        ...(heroImageUrl ? [heroImageUrl] : []),
+        ...realPhotos,
+        ...posterImages.map(p => p.poster_url).filter(Boolean)
+      ],
       sourceUrl: cleanUrl,
       createdByAI: true,
       generatedAt: new Date().toISOString()
     };
 
-    // Release lock before response
-    if (globalThis.__aiProductGeneratorLock?.userId === userId) {
-      globalThis.__aiProductGeneratorLock.locked = false;
-      globalThis.__aiProductGeneratorLock.userId = null;
-      globalThis.__aiProductGeneratorLock.startedAt = null;
-    }
-
-    console.log('✅ Product generated successfully');
+    releaseLock(userId);
+    console.log('✅ Page produit générée avec succès');
     return res.json({ success: true, product: productPage });
 
   } catch (error) {
-    console.error('❌ Product page generator error:', error.message);
-    console.error('❌ Stack trace:', error.stack);
+    console.error('❌ Erreur génération:', error.message);
+    console.error('❌ Stack:', error.stack);
+    releaseLock(userId);
     
-    // Debug variables with safety checks
-    console.error('🐛 Debug info:', {
-      imageFilesLength: imageFiles?.length,
-      pageStructureBenefitsLength: pageStructure?.benefits?.length,
-      scrapedTitle: !!scraped?.title,
-      realPhotosLength: realPhotos?.length,
-      marketingImagesLength: marketingImages?.length,
-      pageStructureExists: !!pageStructure,
-      pageStructureType: typeof pageStructure
-    });
-    
-    // Release lock on error
-    if (globalThis.__aiProductGeneratorLock?.userId === userId) {
-      globalThis.__aiProductGeneratorLock.locked = false;
-      globalThis.__aiProductGeneratorLock.userId = null;
-      globalThis.__aiProductGeneratorLock.startedAt = null;
-    }
-    
-    return res.status(500).json({ 
-      success: false, 
-      error: error.message || 'Erreur lors de la génération de la page produit' 
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Erreur lors de la génération'
     });
   }
 });
