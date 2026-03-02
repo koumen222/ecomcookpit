@@ -148,13 +148,28 @@ router.post(
 
       if (closed) return;
 
-      // ── Step 4: Done ───────────────────────────────────────────────────
+      // ── Step 4: Inject marketing images into description HTML ─────────
+      let finalDescription = generated.description || '';
+      
+      // Replace PLACEHOLDER_IMG_1, PLACEHOLDER_IMG_2, etc. with actual image URLs
+      if (uploadedImages.length > 0 && finalDescription.includes('PLACEHOLDER_IMG')) {
+        uploadedImages.forEach((img, index) => {
+          const placeholder = `PLACEHOLDER_IMG_${index + 1}`;
+          finalDescription = finalDescription.replace(
+            new RegExp(placeholder, 'g'),
+            img.url
+          );
+        });
+      }
+      
+      // ── Step 5: Done ───────────────────────────────────────────────────
       send('progress', { step: 4, steps: 4, label: '✅ Produit prêt !' });
 
       clearInterval(heartbeat);
       send('done', {
         product: {
           ...generated,
+          description: finalDescription,
           images: uploadedImages,
           sourceUrl: cleanUrl,
           createdByAI: true,

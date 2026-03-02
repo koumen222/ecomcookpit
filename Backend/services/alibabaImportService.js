@@ -138,7 +138,7 @@ Réponds UNIQUEMENT avec ce JSON valide (aucun texte avant/après, aucun markdow
     "Situation d'usage réelle #2",
     "Situation d'usage réelle #3"
   ],
-  "description": "Description storytelling complète (4-5 paragraphes, 350-500 mots). Structure: problème → solution → bénéfices → confiance → CTA. Phrases courtes pour mobile.",
+  "description": "Description storytelling complète en HTML (4-5 sections, 350-500 mots). Utilise <h3> pour les titres de section (en gras), <p> pour les paragraphes, <img> pour les images marketing. Structure: problème → solution → bénéfices → confiance → CTA. Phrases courtes pour mobile. Exemple: '<h3>Pourquoi ce produit ?</h3><p>Texte du paragraphe...</p><img src=\"PLACEHOLDER_IMG_1\" alt=\"Marketing Image\" /><h3>Bénéfices clés</h3><p>Texte...</p>'",
   "specs": [
     {"label": "Matière", "value": "..."},
     {"label": "Dimensions", "value": "..."},

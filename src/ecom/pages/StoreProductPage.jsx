@@ -30,11 +30,11 @@ const MarkdownDescription = ({ content }) => {
             display: block;
           }
           .product-description h3 {
-            font-size: 1rem;
+            font-size: 1.125rem;
             font-weight: 700;
             color: #111827;
             margin-bottom: 0.75rem;
-            margin-top: 1.25rem;
+            margin-top: 1.5rem;
           }
           .product-description strong {
             color: #1f2937;
@@ -72,7 +72,7 @@ const MarkdownDescription = ({ content }) => {
         const boldMatch = text.match(/^\*\*(.+)\*\*$/);
         if (boldMatch) {
           parts.push(
-            <h3 key={`h3-${partIndex++}`} className="text-base font-bold text-gray-900 mb-2 mt-4">
+            <h3 key={`h3-${partIndex++}`} className="text-lg font-bold text-gray-900 mb-3 mt-6">
               {boldMatch[1]}
             </h3>
           );
@@ -445,19 +445,11 @@ const StoreProductPage = () => {
             )}
           </div>
 
-          {/* Stock status with urgency */}
-          {outOfStock ? (
+          {/* Stock status - only show if out of stock */}
+          {outOfStock && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
               <span className="text-sm text-red-700 font-semibold">Rupture de stock</span>
-            </div>
-          ) : (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-              <div className="flex items-center gap-2 mb-1">
-                <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 animate-pulse" />
-                <span className="text-sm text-amber-900 font-bold">⚡ Il n'y a plus assez de pièces</span>
-              </div>
-              <p className="text-xs text-amber-700">Commandez maintenant — stock limité !</p>
             </div>
           )}
 
