@@ -59,7 +59,7 @@ const BoutiqueDomains = () => {
     }
   };
 
-  const subdomainUrl = subdomain ? `${subdomain}.scalor.shop` : '';
+  const subdomainUrl = subdomain ? `${subdomain}.scalor.net` : '';
 
   return (
     <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6">

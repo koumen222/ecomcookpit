@@ -46,7 +46,7 @@ router.get('/config', requireEcomAuth, requireWorkspace, async (req, res) => {
           storeThemeColor: '#0F6B4F',
           storeCurrency: 'XAF'
         },
-        storeUrl: workspace.subdomain ? `https://${workspace.subdomain}.scalor.app` : null
+        storeUrl: workspace.subdomain ? `https://${workspace.subdomain}.scalor.net` : null
       }
     });
   } catch (error) {
@@ -96,7 +96,7 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
         name: workspace.name,
         subdomain: workspace.subdomain,
         storeSettings: workspace.storeSettings,
-        storeUrl: workspace.subdomain ? `https://${workspace.subdomain}.scalor.app` : null
+        storeUrl: workspace.subdomain ? `https://${workspace.subdomain}.scalor.net` : null
       }
     });
   } catch (error) {
@@ -159,7 +159,7 @@ router.put('/subdomain', requireEcomAuth, requireWorkspace, requireStoreOwner, a
       message: 'Sous-domaine configuré',
       data: {
         subdomain: workspace.subdomain,
-        storeUrl: `https://${workspace.subdomain}.scalor.app`
+        storeUrl: `https://${workspace.subdomain}.scalor.net`
       }
     });
   } catch (error) {
