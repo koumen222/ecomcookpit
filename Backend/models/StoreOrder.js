@@ -21,7 +21,8 @@ const storeOrderSchema = new mongoose.Schema({
   // Auto-generated human-readable order number
   orderNumber: {
     type: String,
-    required: true
+    required: true,
+    default: () => `SC-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
   },
   // Customer info — no account needed (guest checkout)
   customerName: {

@@ -54,7 +54,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   lock.userId = userId;
   lock.startedAt = Date.now();
 
-  const { url, description, skipScraping } = req.body || {};
+  const { url, description: userDescription, skipScraping } = req.body || {};
   const imageFiles = req.files || [];
 
   // ── Validation selon le mode ──────────────────────────────────────────────
@@ -62,7 +62,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   
   if (isDescriptionMode) {
     // Mode description directe
-    if (!description || typeof description !== 'string' || description.trim().length < 20) {
+    if (!userDescription || typeof userDescription !== 'string' || userDescription.trim().length < 20) {
       releaseLock(userId);
       return res.status(400).json({ success: false, message: 'Description requise (minimum 20 caractères)' });
     }
@@ -97,10 +97,10 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       console.log('📝 Étape 1: Mode description directe (skip scraping)');
       scraped = {
         title: 'Produit',
-        description: description.trim(),
-        rawText: description.trim()
+        description: userDescription.trim(),
+        rawText: userDescription.trim()
       };
-      console.log('✅ Description utilisée:', description.slice(0, 100));
+      console.log('✅ Description utilisée:', userDescription.slice(0, 100));
     } else {
       console.log('📡 Étape 1: Scraping', cleanUrl);
       scraped = await scrapeAlibaba(cleanUrl);
