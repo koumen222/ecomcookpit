@@ -325,29 +325,45 @@ router.get('/:subdomain/categories', async (req, res) => {
  */
 router.post('/:subdomain/orders', async (req, res) => {
   try {
+    console.log('🛒 [POST /api/store/:subdomain/orders] Début de la requête');
+    console.log('📝 Subdomain:', req.params.subdomain);
+    console.log('📦 Corps de la requête:', JSON.stringify(req.body, null, 2));
+    
     const workspace = await resolveStore(req.params.subdomain);
+    console.log('🏢 Workspace trouvé:', workspace ? 'OUI' : 'NON');
+    
     if (!workspace) {
+      console.log('❌ Store non trouvé pour subdomain:', req.params.subdomain);
       return res.status(404).json({ success: false, message: 'Store not found' });
     }
 
     const { customerName, phone, email, address, city, products, notes, channel } = req.body;
+    console.log('👤 Données client extraites:', { customerName, phone, email, address, city, products, notes, channel });
 
     if (!customerName || !phone || !products?.length) {
+      console.log('❌ Validation échouée - champs manquants:', { customerName: !!customerName, phone: !!phone, products: products?.length });
       return res.status(400).json({
         success: false,
         message: 'Nom, téléphone et au moins un produit requis'
       });
     }
 
+    console.log('🔍 Validation des produits...');
     // Validate products exist and are in stock
     const productIds = products.map(p => p.productId);
+    console.log('🆔 Product IDs à vérifier:', productIds);
+    
     const dbProducts = await StoreProduct.find({
       _id: { $in: productIds },
       workspaceId: workspace._id,
       isPublished: true
     }).lean();
+    
+    console.log('📋 Produits trouvés en DB:', dbProducts.length, 'attendus:', products.length);
+    console.log('📋 Détails produits DB:', dbProducts.map(p => ({ id: p._id, name: p.name, stock: p.stock })));
 
     if (dbProducts.length !== products.length) {
+      console.log('❌ Certains produits sont introuvables');
       return res.status(400).json({
         success: false,
         message: 'Un ou plusieurs produits sont introuvables'
@@ -358,9 +374,12 @@ router.post('/:subdomain/orders', async (req, res) => {
     let total = 0;
     const orderProducts = [];
 
+    console.log('💰 Calcul du total et validation du stock...');
     for (const item of products) {
+      console.log('🔄 Traitement produit:', item);
       const dbProduct = productMap.get(item.productId);
       if (!dbProduct) {
+        console.log('❌ Produit non trouvé dans le map:', item.productId);
         return res.status(400).json({
           success: false,
           message: `Produit ${item.productId} introuvable`
@@ -368,7 +387,10 @@ router.post('/:subdomain/orders', async (req, res) => {
       }
 
       const qty = Math.max(1, parseInt(item.quantity) || 1);
+      console.log('📊 Quantité demandée:', qty, 'Stock disponible:', dbProduct.stock);
+      
       if (dbProduct.stock < qty) {
+        console.log('❌ Stock insuffisant pour', dbProduct.name);
         return res.status(400).json({
           success: false,
           message: `Stock insuffisant pour "${dbProduct.name}" (${dbProduct.stock} disponible)`
@@ -384,8 +406,12 @@ router.post('/:subdomain/orders', async (req, res) => {
       });
 
       total += dbProduct.price * qty;
+      console.log('💵 Sous-total pour', dbProduct.name, ':', dbProduct.price * qty);
     }
 
+    console.log('💰 Total de la commande:', total);
+
+    console.log('📝 Création de la commande StoreOrder...');
     const order = new StoreOrder({
       workspaceId: workspace._id,
       customerName: customerName.trim(),
@@ -400,13 +426,18 @@ router.post('/:subdomain/orders', async (req, res) => {
       notes: notes?.trim() || ''
     });
 
+    console.log('💾 Sauvegarde de la commande StoreOrder...');
     await order.save();
+    console.log('✅ StoreOrder sauvegardée avec ID:', order._id);
 
     // ── Sync to main system orders ──────────────────────────────────────────
     // Creates a standard Order in the main system so the team sees it
     // in the dashboard orders view with source='boutique'
     try {
+      console.log('🔄 Synchronisation vers le système principal...');
       const productSummary = orderProducts.map(p => `${p.name} x${p.quantity}`).join(', ');
+      console.log('📋 Résumé produits:', productSummary);
+      
       const mainOrder = new Order({
         workspaceId: workspace._id,
         clientName: order.customerName,
@@ -422,14 +453,21 @@ router.post('/:subdomain/orders', async (req, res) => {
         notes: [order.orderNumber, order.notes].filter(Boolean).join(' — '),
         date: new Date()
       });
+      
+      console.log('💾 Sauvegarde de la commande principale...');
       await mainOrder.save();
+      console.log('✅ Commande principale sauvegardée avec ID:', mainOrder._id);
+      
       // Link back
       order.linkedOrderId = mainOrder._id;
       await order.save();
+      console.log('🔗 Liaison des commandes effectuée');
     } catch (syncErr) {
       console.error('⚠️ Could not sync store order to main orders:', syncErr.message);
+      console.error('⚠️ Stack trace:', syncErr.stack);
     }
 
+    console.log('📉 Décrémentation du stock...');
     // Decrement stock atomically
     const bulkOps = products.map(item => ({
       updateOne: {
@@ -437,8 +475,12 @@ router.post('/:subdomain/orders', async (req, res) => {
         update: { $inc: { stock: -(parseInt(item.quantity) || 1) } }
       }
     }));
+    
+    console.log('🔄 Opérations bulk de stock:', bulkOps);
     await StoreProduct.bulkWrite(bulkOps);
+    console.log('✅ Stock décrémenté avec succès');
 
+    console.log('📤 Envoi de la réponse succès...');
     res.status(201).json({
       success: true,
       message: 'Commande passée avec succès',
@@ -452,6 +494,12 @@ router.post('/:subdomain/orders', async (req, res) => {
 
   } catch (error) {
     console.error('❌ POST /api/store/:subdomain/orders error:', error);
+    console.error('❌ Stack trace complet:', error.stack);
+    console.error('❌ Détails de l\'erreur:', {
+      message: error.message,
+      name: error.name,
+      code: error.code
+    });
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
