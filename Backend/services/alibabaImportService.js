@@ -111,14 +111,16 @@ export async function analyzeWithGPT(scraped) {
     scraped.rawText && `Texte brut page: ${scraped.rawText.slice(0, 3500)}`
   ].filter(Boolean).join('\n\n');
 
-  const prompt = `Tu es un copywriter e-commerce expert en pages produits haute conversion pour les marchés africains (Cameroun, Sénégal, Côte d'Ivoire, Togo, Bénin, Mali…).
+  const prompt = `Tu es un copywriter premium spécialisé en transformation de produits Alibaba en fiches produits haut de gamme pour les marchés africains modernes (Cameroun, Sénégal, Côte d'Ivoire, Togo, Bénin, Mali…).
+
+Ton style: inspiré des plus grandes marques (Apple, Samsung, Nike) mais adapté au marché africain. Tu vends du RÊVE et de la TRANSFORMATION, pas des caractéristiques.
 
 On t'a fourni des données brutes extraites de cette page Alibaba: ${scraped.url}
 
 DONNÉES EXTRAITES:
-${contextLines || 'Seule l\'URL est disponible — déduis le produit depuis l\'URL et génère un contenu plausible.'}
+${contextLines || 'Seule l\'URL est disponible — déduis le produit depuis l\'URL et génère un contenu premium.'}
 
-TON OBJECTIF: Transformer ces données fournisseur en une FICHE PRODUIT COMPLÈTE haute conversion en FRANÇAIS.
+TON OBJECTIF: Transformer ces données fournisseur basiques en une FICHE PRODUIT PREMIUM ultra-désirable en FRANÇAIS, avec positionnement haut de gamme.
 
 Réponds UNIQUEMENT avec ce JSON valide (aucun texte avant/après, aucun markdown):
 {
@@ -175,12 +177,14 @@ Réponds UNIQUEMENT avec ce JSON valide (aucun texte avant/après, aucun markdow
 }
 
 RÈGLES STRICTES:
-- Français simple, naturel, adapté à l'Afrique de l'Ouest
-- NE JAMAIS copier le texte Alibaba — TOUT réécrire
-- Phrases courtes (mobile-first)
-- Accent sur les BÉNÉFICES, pas les caractéristiques techniques
-- suggestedPrice en FCFA (XAF): si prix USD trouvé multiplier × 650, sinon estime selon catégorie
-- Les specs: utilise les vraies données si disponibles, sinon génère des specs plausibles
+- Français premium, naturel, adapté au marché africain moderne
+- NE JAMAIS copier le texte Alibaba — TOUT réécrire avec style premium
+- Phrases courtes (mobile-first) mais langage élevé, professionnel
+- Accent sur les BÉNÉFICES ÉMOTIONNELS et transformation, pas caractéristiques
+- Positionnement premium: qualité supérieure, design moderne, résultats garantis
+- suggestedPrice en FCFA (XAF): si prix USD trouvé × 750 (premium), sinon estime selon catégorie + 30%
+- Les specs: utilise les vraies données si disponibles, sinon génère des specs premium
+- Marketing style: inspiré des grandes marques (Apple, Samsung, Nike) mais adapté Afrique
 - Retourne UNIQUEMENT du JSON valide, sans \`\`\`json ni aucune explication`;
 
   const completion = await openai.chat.completions.create({
@@ -212,27 +216,57 @@ export async function generateMarketingImages(productName, description) {
   const desc = (description || '').slice(0, 200);
 
   const prompts = [
-    `Ultra-clean professional ecommerce product photography. Isolated on pure white background. Perfect studio lighting from above. Product: ${name}. Sharp details, 4K quality, minimal shadows. Commercial product photo.`,
-    `Lifestyle photo: young African professional (25-35 years old) using ${name} in a modern, bright urban setting. Natural daylight, candid moment, aspirational yet authentic. African city background. High quality photography.`
+    // Image 1: Product studio shot ultra-réaliste
+    `Premium commercial product photography, professional studio setup. ${name} showcased on pristine white seamless background. Ultra-detailed macro shot, crystal clear focus, perfect exposure. Professional lighting setup: softbox overhead + two rim lights creating subtle depth. DSLR camera, 85mm f/1.8 lens, 4K resolution. Photorealistic, commercial grade, no shadows, clean aesthetic. Product centered, rule of thirds composition. Vibrant yet accurate colors, sharp textures visible. High-end ecommerce catalog style.`,
+    
+    // Image 2: Lifestyle scene ultra-réaliste  
+    `Cinematic lifestyle photography featuring ${name}. Setting: modern minimalist workspace or contemporary African urban environment. Natural golden hour lighting streaming through large windows. Subject: stylish young African professional (28-35) authentically interacting with product. Depth of field with subject in sharp focus, beautiful bokeh background. Shot on Sony A7R IV with prime lens, 4K quality. Realistic skin tones, genuine expression, product integration feels natural. Architectural elements, warm color palette, aspirational yet relatable mood. Professional commercial photography style.`
   ];
 
   const urls = [];
-  for (const p of prompts) {
+  for (let i = 0; i < prompts.length; i++) {
     try {
+      console.log(`🎨 Generating DALL-E image ${i + 1}/2 for: ${name}`);
       const resp = await openai.images.generate({
         model: 'dall-e-3',
-        prompt: p,
+        prompt: prompts[i],
         n: 1,
         size: '1024x1024',
-        quality: 'standard'
+        quality: 'hd', // HD quality for more realistic images
+        style: 'vivid' // More vibrant and realistic
       });
       const url = resp.data?.[0]?.url;
-      if (url) urls.push(url);
+      if (url) {
+        urls.push(url);
+        console.log(`✅ DALL-E image ${i + 1} generated successfully`);
+      }
     } catch (err) {
-      console.warn(`⚠️  DALL-E error: ${err.message}`);
+      console.warn(`⚠️  DALL-E error image ${i + 1}: ${err.message}`);
+      // Fallback to standard quality if HD fails
+      if (err.message.includes('quality')) {
+        try {
+          console.log(`🔄 Retrying image ${i + 1} with standard quality...`);
+          const resp = await openai.images.generate({
+            model: 'dall-e-3',
+            prompt: prompts[i],
+            n: 1,
+            size: '1024x1024',
+            quality: 'standard',
+            style: 'vivid'
+          });
+          const url = resp.data?.[0]?.url;
+          if (url) {
+            urls.push(url);
+            console.log(`✅ DALL-E image ${i + 1} generated with standard quality`);
+          }
+        } catch (retryErr) {
+          console.warn(`⚠️  DALL-E retry failed for image ${i + 1}: ${retryErr.message}`);
+        }
+      }
     }
   }
 
+  console.log(`🎯 Generated ${urls.length}/2 marketing images for: ${name}`);
   return urls;
 }
 

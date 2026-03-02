@@ -120,13 +120,24 @@ const BoutiqueSettings = () => {
   };
 
   const handleSave = async () => {
+    console.log('💾 BoutiqueSettings - Starting save...');
+    console.log('💾 Current settings:', settings);
+    
     setSaving(true);
     try {
-      await api.put('/store/settings', { ...settings, isStoreEnabled: true });
+      const payload = { ...settings, isStoreEnabled: true };
+      console.log('💾 Sending payload:', payload);
+      
+      const response = await api.put('/store/settings', payload);
+      console.log('💾 Save response:', response);
+      
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    } catch {
-      alert('Erreur lors de la sauvegarde');
+    } catch (error) {
+      console.error('💾 Save error:', error);
+      console.error('💾 Error response:', error.response);
+      console.error('💾 Error message:', error.message);
+      alert(`Erreur lors de la sauvegarde: ${error.response?.data?.message || error.message}`);
     } finally {
       setSaving(false);
     }
