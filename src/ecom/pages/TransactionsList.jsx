@@ -310,7 +310,16 @@ const TransactionsList = () => {
   };
   const handleDeleteBudget = async (id) => {
     if (!window.confirm('Supprimer ce budget ?')) return;
-    try { await ecomApi.delete(`/transactions/budgets/${id}`); loadTab(); } catch (err) { setError(getContextualError(err, 'delete_transaction')); }
+    try {
+      console.log('🗑️ Tentative de suppression du budget:', id);
+      const response = await ecomApi.delete(`/transactions/budgets/${id}`);
+      console.log('✅ Budget supprimé avec succès:', response);
+      loadTab(); // Recharger la liste des budgets
+    } catch (err) {
+      console.error('❌ Erreur suppression budget:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'Erreur lors de la suppression';
+      setError(errorMessage);
+    }
   };
 
   const bal = (summary.totalIncome||0) - (summary.totalExpense||0);

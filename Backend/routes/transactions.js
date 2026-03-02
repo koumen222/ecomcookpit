@@ -249,12 +249,31 @@ router.post('/budgets',
   async (req, res) => {
     try {
       console.log('📊 Budget creation payload:', JSON.stringify(req.body, null, 2));
+      
+      // Validation des dates
+      if (!req.body.startDate || !req.body.endDate) {
+        console.error('❌ Dates manquantes dans le payload');
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Les dates de début et de fin sont requises' 
+        });
+      }
+      
       const budget = new Budget({
         ...req.body,
         workspaceId: req.workspaceId,
         createdBy: req.ecomUser._id
       });
+      
+      console.log('📅 Budget dates:', {
+        startDate: budget.startDate,
+        endDate: budget.endDate,
+        month: budget.startDate.getMonth() + 1,
+        year: budget.startDate.getFullYear()
+      });
+      
       await budget.save();
+      console.log('✅ Budget créé avec succès:', budget.name);
       res.status(201).json({ success: true, data: budget });
     } catch (error) {
       console.error('❌ Erreur create budget:', error.message);
@@ -277,15 +296,27 @@ router.put('/budgets/:id',
   validateEcomAccess('finance', 'write'),
   async (req, res) => {
     try {
+      console.log('📝 Budget update payload:', { 
+        budgetId: req.params.id, 
+        workspaceId: req.workspaceId,
+        updates: req.body 
+      });
+      
       const budget = await Budget.findOneAndUpdate(
         { _id: req.params.id, workspaceId: req.workspaceId },
         req.body,
         { new: true }
       );
-      if (!budget) return res.status(404).json({ success: false, message: 'Budget non trouvé' });
+      
+      if (!budget) {
+        console.error('❌ Budget non trouvé pour modification:', { budgetId: req.params.id, workspaceId: req.workspaceId });
+        return res.status(404).json({ success: false, message: 'Budget non trouvé' });
+      }
+      
+      console.log('✅ Budget mis à jour avec succès:', budget.name);
       res.json({ success: true, data: budget });
     } catch (error) {
-      console.error('Erreur update budget:', error);
+      console.error('❌ Erreur update budget:', error);
       res.status(500).json({ success: false, message: 'Erreur serveur' });
     }
   }
@@ -297,11 +328,31 @@ router.delete('/budgets/:id',
   validateEcomAccess('finance', 'write'),
   async (req, res) => {
     try {
-      const budget = await Budget.findOneAndDelete({ _id: req.params.id, workspaceId: req.workspaceId });
-      if (!budget) return res.status(404).json({ success: false, message: 'Budget non trouvé' });
-      res.json({ success: true, message: 'Budget supprimé' });
+      console.log('🗑️ Delete budget request:', { 
+        budgetId: req.params.id, 
+        workspaceId: req.workspaceId,
+        userId: req.ecomUser?._id 
+      });
+      
+      if (!req.params.id) {
+        console.error('❌ Budget ID manquant dans la requête');
+        return res.status(400).json({ success: false, message: 'ID de budget manquant' });
+      }
+      
+      const budget = await Budget.findOneAndDelete({ 
+        _id: req.params.id, 
+        workspaceId: req.workspaceId 
+      });
+      
+      if (!budget) {
+        console.error('❌ Budget non trouvé:', { budgetId: req.params.id, workspaceId: req.workspaceId });
+        return res.status(404).json({ success: false, message: 'Budget non trouvé' });
+      }
+      
+      console.log('✅ Budget supprimé avec succès:', budget.name);
+      res.json({ success: true, message: 'Budget supprimé avec succès' });
     } catch (error) {
-      console.error('Erreur delete budget:', error);
+      console.error('❌ Erreur delete budget:', error);
       res.status(500).json({ success: false, message: 'Erreur serveur' });
     }
   }
