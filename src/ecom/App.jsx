@@ -91,7 +91,7 @@ const StoreProductsList = lazy(() => import('./pages/StoreProductsList.jsx'));
 const StoreProductForm = lazy(() => import('./pages/StoreProductForm.jsx'));
 const StoreAnalytics = lazy(() => import('./pages/StoreAnalytics.jsx'));
 const StoreOrdersDashboard = lazy(() => import('./pages/StoreOrdersDashboard.jsx'));
-const StoreFront = lazy(() => import('./pages/StoreFront.jsx'));
+const PublicStorefront = lazy(() => import('./pages/PublicStorefront.jsx'));
 const StoreProductPage = lazy(() => import('./pages/StoreProductPage.jsx'));
 const StoreCheckout = lazy(() => import('./pages/StoreCheckout.jsx'));
 
@@ -374,7 +374,7 @@ const StoreApp = () => {
     <div className="min-h-screen bg-gray-50">
       <ErrorBoundary>
         <Routes>
-          <Route path="/" element={<Suspense fallback={<SpinnerLoader />}><StoreFront /></Suspense>} />
+          <Route path="/" element={<Suspense fallback={<SpinnerLoader />}><PublicStorefront /></Suspense>} />
           <Route path="/product/:slug" element={<Suspense fallback={<SpinnerLoader />}><StoreProductPage /></Suspense>} />
           <Route path="/checkout" element={<Suspense fallback={<SpinnerLoader />}><StoreCheckout /></Suspense>} />
           {/* Fallback: redirect unknown paths to store home */}
@@ -578,7 +578,7 @@ const EcomApp = () => {
               </Route>
 
               {/* ─── Public Store Routes (no auth, customer-facing) ─────── */}
-              <Route path="/store/:subdomain" element={<Suspense fallback={<SpinnerLoader />}><StoreFront /></Suspense>} />
+              <Route path="/store/:subdomain" element={<Suspense fallback={<SpinnerLoader />}><PublicStorefront /></Suspense>} />
               <Route path="/store/:subdomain/product/:slug" element={<Suspense fallback={<SpinnerLoader />}><StoreProductPage /></Suspense>} />
               <Route path="/store/:subdomain/checkout" element={<Suspense fallback={<SpinnerLoader />}><StoreCheckout /></Suspense>} />
 
