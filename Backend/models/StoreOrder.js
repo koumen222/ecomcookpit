@@ -99,12 +99,13 @@ const storeOrderSchema = new mongoose.Schema({
 });
 
 // Generate human-readable order number before save
-storeOrderSchema.pre('save', function () {
+storeOrderSchema.pre('save', function (next) {
   if (this.isNew && !this.orderNumber) {
     // Format: SC-XXXXXX (short, easy to communicate via WhatsApp)
     const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
     this.orderNumber = `SC-${rand}`;
   }
+  next();
 });
 
 // ─── Performance indexes ──────────────────────────────────────────────────────
