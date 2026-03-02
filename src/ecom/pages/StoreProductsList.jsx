@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Package, Plus, Search, Edit, Trash2, Eye, EyeOff, ChevronLeft, ChevronRight, Loader2, AlertCircle, Image, ShoppingBag, Sparkles } from 'lucide-react';
 import { storeProductsApi } from '../services/storeApi.js';
 import AlibabaImportModal from '../components/AlibabaImportModal.jsx';
@@ -11,6 +11,8 @@ import ProductPageGeneratorModal from '../components/ProductPageGeneratorModal.j
  */
 const StoreProductsList = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const basePath = location.pathname.startsWith('/ecom/boutique') ? '/ecom/boutique' : '/ecom/store';
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 });
@@ -20,11 +22,11 @@ const StoreProductsList = () => {
   const [showPageGeneratorModal, setShowPageGeneratorModal] = useState(false);
 
   const handleAlibabaApply = (productData) => {
-    navigate('/ecom/store/products/new', { state: { prefill: productData } });
+    navigate(`${basePath}/products/new`, { state: { prefill: productData } });
   };
 
   const handlePageGeneratorApply = (productData) => {
-    navigate('/ecom/store/products/new', { state: { prefill: productData } });
+    navigate(`${basePath}/products/new`, { state: { prefill: productData } });
   };
 
   const fetchProducts = useCallback(async (page = 1, searchTerm = '') => {
@@ -108,7 +110,7 @@ const StoreProductsList = () => {
             <span className="hidden sm:inline">Importer Alibaba</span>
           </button>
           <button
-            onClick={() => navigate('/ecom/store/products/new')}
+            onClick={() => navigate(`${basePath}/products/new`)}
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition"
           >
             <Plus className="w-4 h-4" />
@@ -159,7 +161,7 @@ const StoreProductsList = () => {
           <Package className="w-12 h-12 text-gray-300 mx-auto" />
           <p className="text-gray-500 mt-3 text-sm">Aucun produit dans la boutique</p>
           <button
-            onClick={() => navigate('/ecom/store/products/new')}
+            onClick={() => navigate(`${basePath}/products/new`)}
             className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition"
           >
             <Plus className="w-4 h-4" />
@@ -224,7 +226,7 @@ const StoreProductsList = () => {
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <button
-                          onClick={() => navigate(`/ecom/store/products/${product._id}/edit`)}
+                          onClick={() => navigate(`${basePath}/products/${product._id}/edit`)}
                           className="p-1.5 text-gray-400 hover:text-emerald-600 rounded-lg hover:bg-emerald-50 transition"
                           title="Modifier"
                         >
@@ -269,7 +271,7 @@ const StoreProductsList = () => {
                   </button>
                 </div>
                 <div className="flex items-center gap-2 justify-end">
-                  <button onClick={() => navigate(`/ecom/store/products/${product._id}/edit`)} className="px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg">Modifier</button>
+                  <button onClick={() => navigate(`${basePath}/products/${product._id}/edit`)} className="px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg">Modifier</button>
                   <button onClick={() => handleDelete(product._id)} className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg">Supprimer</button>
                 </div>
               </div>

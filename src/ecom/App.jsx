@@ -95,6 +95,16 @@ const StoreFront = lazy(() => import('./pages/StoreFront.jsx'));
 const StoreProductPage = lazy(() => import('./pages/StoreProductPage.jsx'));
 const StoreCheckout = lazy(() => import('./pages/StoreCheckout.jsx'));
 
+// ─── Boutique Module (sub-app) ───────────────────────────────────────────
+const BoutiqueLayout = lazy(() => import('./components/BoutiqueLayout.jsx'));
+const BoutiqueDashboard = lazy(() => import('./pages/BoutiqueDashboard.jsx'));
+const BoutiqueTheme = lazy(() => import('./pages/BoutiqueTheme.jsx'));
+const BoutiquePixel = lazy(() => import('./pages/BoutiquePixel.jsx'));
+const BoutiquePages = lazy(() => import('./pages/BoutiquePages.jsx'));
+const BoutiquePayments = lazy(() => import('./pages/BoutiquePayments.jsx'));
+const BoutiqueDomains = lazy(() => import('./pages/BoutiqueDomains.jsx'));
+const BoutiqueSettings = lazy(() => import('./pages/BoutiqueSettings.jsx'));
+
 const IconFillLoader = ({ backgroundClassName = 'bg-white' }) => {
   const [p, setP] = useState(0);
 
@@ -545,6 +555,27 @@ const EcomApp = () => {
               <Route path="/ecom/store/products/new" element={<LayoutRoute requiredRole="ecom_admin"><StoreProductForm /></LayoutRoute>} />
               <Route path="/ecom/store/products/:id/edit" element={<LayoutRoute requiredRole="ecom_admin"><StoreProductForm /></LayoutRoute>} />
               <Route path="/ecom/store/orders" element={<LayoutRoute requiredRole="ecom_admin"><StoreOrdersDashboard /></LayoutRoute>} />
+
+              {/* ─── Boutique Module (sub-app with dedicated layout) ─────── */}
+              <Route path="/ecom/boutique" element={
+                <ProtectedRoute requiredRole="ecom_admin">
+                  <Suspense fallback={<SpinnerLoader />}>
+                    <BoutiqueLayout />
+                  </Suspense>
+                </ProtectedRoute>
+              }>
+                <Route index element={<Suspense fallback={<SpinnerLoader />}><BoutiqueDashboard /></Suspense>} />
+                <Route path="products" element={<Suspense fallback={<SpinnerLoader />}><StoreProductsList /></Suspense>} />
+                <Route path="products/new" element={<Suspense fallback={<SpinnerLoader />}><StoreProductForm /></Suspense>} />
+                <Route path="products/:id/edit" element={<Suspense fallback={<SpinnerLoader />}><StoreProductForm /></Suspense>} />
+                <Route path="orders" element={<Suspense fallback={<SpinnerLoader />}><StoreOrdersDashboard /></Suspense>} />
+                <Route path="theme" element={<Suspense fallback={<SpinnerLoader />}><BoutiqueTheme /></Suspense>} />
+                <Route path="pages" element={<Suspense fallback={<SpinnerLoader />}><BoutiquePages /></Suspense>} />
+                <Route path="pixel" element={<Suspense fallback={<SpinnerLoader />}><BoutiquePixel /></Suspense>} />
+                <Route path="payments" element={<Suspense fallback={<SpinnerLoader />}><BoutiquePayments /></Suspense>} />
+                <Route path="domains" element={<Suspense fallback={<SpinnerLoader />}><BoutiqueDomains /></Suspense>} />
+                <Route path="settings" element={<Suspense fallback={<SpinnerLoader />}><BoutiqueSettings /></Suspense>} />
+              </Route>
 
               {/* ─── Public Store Routes (no auth, customer-facing) ─────── */}
               <Route path="/store/:subdomain" element={<Suspense fallback={<SpinnerLoader />}><StoreFront /></Suspense>} />

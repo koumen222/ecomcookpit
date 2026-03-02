@@ -1,0 +1,209 @@
+import React, { useState, useEffect } from 'react';
+import { useEcomAuth } from '../hooks/useEcomAuth';
+import api from '../../lib/api';
+
+const BoutiqueDomains = () => {
+  const { workspace } = useEcomAuth();
+  const [subdomain, setSubdomain] = useState('');
+  const [customDomain, setCustomDomain] = useState('');
+  const [sslStatus, setSslStatus] = useState('none');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [dnsOk, setDnsOk] = useState(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await api.get('/store/domains');
+        if (res.data?.data) {
+          setSubdomain(res.data.data.subdomain || '');
+          setCustomDomain(res.data.data.customDomain || '');
+          setSslStatus(res.data.data.sslStatus || 'none');
+        }
+      } catch { /* defaults */ }
+    };
+    load();
+  }, []);
+
+  useEffect(() => {
+    if (!subdomain && workspace?.storeSettings?.subdomain) {
+      setSubdomain(workspace.storeSettings.subdomain);
+    }
+  }, [workspace]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.put('/store/domains', { subdomain: subdomain.trim().toLowerCase(), customDomain: customDomain.trim() });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Erreur lors de la sauvegarde');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const checkDns = async () => {
+    if (!customDomain) return;
+    setChecking(true);
+    setDnsOk(null);
+    try {
+      const res = await api.post('/store/domains/check-dns', { domain: customDomain });
+      setDnsOk(res.data?.data?.ok ?? false);
+    } catch {
+      setDnsOk(false);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const subdomainUrl = subdomain ? `${subdomain}.scalor.shop` : '';
+
+  return (
+    <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6">
+
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Domaines</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Configurez l'adresse de votre boutique</p>
+        </div>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className={`px-5 py-2.5 rounded-xl text-sm font-bold text-white transition shadow-md ${
+            saved ? 'bg-green-500' : 'bg-[#0F6B4F] hover:bg-[#0A5740]'
+          } disabled:opacity-60`}
+        >
+          {saving ? 'Enregistrement...' : saved ? '✓ Sauvegardé' : 'Sauvegarder'}
+        </button>
+      </div>
+
+      {/* ── Sous-domaine automatique ──────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-[#E6F2ED] flex items-center justify-center">
+            <svg className="w-5 h-5 text-[#0F6B4F]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" /></svg>
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-gray-900">Sous-domaine gratuit</h2>
+            <p className="text-xs text-gray-500">Votre boutique est accessible immédiatement</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={subdomain}
+            onChange={(e) => { setSubdomain(e.target.value.replace(/[^a-z0-9-]/gi, '').toLowerCase()); setSaved(false); }}
+            placeholder="ma-boutique"
+            className="flex-1 px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent transition bg-gray-50 focus:bg-white font-mono"
+          />
+          <span className="text-sm font-semibold text-gray-500 whitespace-nowrap">.scalor.net</span>
+        </div>
+
+        {subdomainUrl && (
+          <div className="mt-3 flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">
+            <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <a href={`https://${subdomainUrl}`} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-green-700 hover:underline">
+              https://{subdomainUrl}
+            </a>
+          </div>
+        )}
+      </div>
+
+      {/* ── Domaine personnalisé ──────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+            <span className="text-xl">🌐</span>
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-gray-900">Domaine personnalisé</h2>
+            <p className="text-xs text-gray-500">Utilisez votre propre nom de domaine (ex: maboutique.com)</p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <input
+            type="text"
+            value={customDomain}
+            onChange={(e) => { setCustomDomain(e.target.value.trim()); setSaved(false); setDnsOk(null); }}
+            placeholder="maboutique.com"
+            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent transition bg-gray-50 focus:bg-white font-mono"
+          />
+
+          {customDomain && (
+            <button
+              onClick={checkDns}
+              disabled={checking}
+              className="px-4 py-2 text-xs font-bold text-[#0A5740] bg-[#E6F2ED] rounded-xl hover:bg-[#C0DDD2] transition disabled:opacity-60"
+            >
+              {checking ? 'Vérification...' : 'Vérifier le DNS'}
+            </button>
+          )}
+
+          {dnsOk !== null && (
+            <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl ${dnsOk ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+              {dnsOk ? (
+                <>
+                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  <span className="text-sm text-green-700 font-semibold">DNS configuré correctement !</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  <span className="text-sm text-red-700 font-semibold">DNS pas encore configuré</span>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* DNS instructions */}
+        <div className="mt-4 bg-gray-50 rounded-xl p-4">
+          <p className="text-xs font-bold text-gray-700 mb-2">Configuration DNS requise :</p>
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 text-xs font-mono">
+              <span className="px-2 py-0.5 bg-gray-200 rounded text-gray-700 font-bold">CNAME</span>
+              <span className="text-gray-500">@</span>
+              <span className="text-gray-500">→</span>
+              <span className="text-gray-900 font-bold">shops.scalor.net</span>
+            </div>
+            <div className="flex items-center gap-3 text-xs font-mono">
+              <span className="px-2 py-0.5 bg-gray-200 rounded text-gray-700 font-bold">CNAME</span>
+              <span className="text-gray-500">www</span>
+              <span className="text-gray-500">→</span>
+              <span className="text-gray-900 font-bold">shops.scalor.net</span>
+            </div>
+          </div>
+          <p className="text-[11px] text-gray-500 mt-2">
+            Ajoutez ces enregistrements dans votre gestionnaire DNS (Namecheap, GoDaddy, Cloudflare...). La propagation peut prendre 24-48h.
+          </p>
+        </div>
+      </div>
+
+      {/* SSL status */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-5">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-gray-900">Certificat SSL</h2>
+            <p className="text-xs text-gray-500">HTTPS automatique et gratuit sur tous les domaines</p>
+          </div>
+          <span className="ml-auto px-3 py-1 text-[10px] font-bold bg-green-100 text-green-700 rounded-full uppercase">Actif</span>
+        </div>
+      </div>
+
+    </div>
+  );
+};
+
+export default BoutiqueDomains;
