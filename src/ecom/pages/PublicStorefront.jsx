@@ -14,6 +14,55 @@ const FONTS = {
   'space-grotesk': '"Space Grotesk", sans-serif',
   satoshi: 'Satoshi, Inter, system-ui, sans-serif',
 };
+
+// ── FAQ ──────────────────────────────────────────────────────────────────────
+const FaqSection = ({ config, t }) => {
+  const { title = 'Questions fréquentes', items = [] } = config || {};
+  const faqItems = items.length > 0
+    ? items
+    : [
+      { question: 'Quels sont les délais de livraison ?', answer: 'Les livraisons prennent généralement entre 24h et 72h selon votre zone.' },
+      { question: 'Comment passer commande ?', answer: 'Ajoutez vos produits puis finalisez via WhatsApp ou le checkout selon la boutique.' },
+      { question: 'Puis-je retourner un produit ?', answer: 'Oui, selon les conditions de retour indiquées par la boutique.' },
+    ];
+
+  return (
+    <section id="faq" className="py-16 px-4">
+      <div className="max-w-4xl mx-auto">
+        <h2 className="text-2xl md:text-3xl font-black text-center mb-8" style={{ color: t.text, fontFamily: t.font }}>{title}</h2>
+        <div className="space-y-3">
+          {faqItems.map((item, i) => (
+            <details key={i} className="bg-white border border-gray-100 p-4" style={{ borderRadius: t.radius }}>
+              <summary className="cursor-pointer font-semibold text-gray-800">{item.question}</summary>
+              <p className="text-sm text-gray-600 mt-2">{item.answer}</p>
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+// ── CTA ──────────────────────────────────────────────────────────────────────
+const CtaSection = ({ config, t }) => {
+  const { title, buttonText = 'Commander', buttonUrl } = config || {};
+  if (!title && !buttonUrl) return null;
+
+  return (
+    <section className="py-14 px-4">
+      <div className="max-w-4xl mx-auto text-center p-8 md:p-10 border border-gray-100 bg-white" style={{ borderRadius: t.radius }}>
+        {title && <h2 className="text-2xl md:text-3xl font-black mb-4" style={{ color: t.text, fontFamily: t.font }}>{title}</h2>}
+        <a
+          href={buttonUrl || '#products'}
+          className="inline-block px-8 py-3.5 text-sm md:text-base font-bold text-white"
+          style={{ backgroundColor: t.cta, borderRadius: t.radius }}
+        >
+          {buttonText}
+        </a>
+      </div>
+    </section>
+  );
+};
 const RADII = { none: '0', sm: '0.375rem', md: '0.75rem', lg: '1rem', xl: '1.5rem', full: '9999px' };
 const font = (id) => FONTS[id] || FONTS.inter;
 const radius = (id) => RADII[id] || RADII.lg;
@@ -74,51 +123,106 @@ const AnnouncementBar = ({ store, t }) => {
 };
 
 // ── Header ───────────────────────────────────────────────────────────────────
-const StoreHeader = ({ store, t, categories }) => (
-  <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
-    <div className="max-w-7xl mx-auto px-4">
-      <div className="h-16 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {store.logo ? (
-            <img src={store.logo} alt={store.name} className="h-9 object-contain" />
-          ) : (
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: t.cta + '18' }}>
-              <svg className="w-5 h-5" style={{ color: t.cta }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-              </svg>
-            </div>
-          )}
-          <span className="font-bold text-lg" style={{ color: t.text, fontFamily: t.font }}>
-            {store.name}
-          </span>
-        </div>
+const StoreHeader = ({ store, t, categories, sections }) => {
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-        {/* Nav links (categories) */}
-        {categories.length > 0 && (
-          <nav className="hidden md:flex items-center gap-6">
-            <a href="#products" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">Tous</a>
-            {categories.slice(0, 4).map(c => (
-              <a key={c} href="#products" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">{c}</a>
+  const navLinks = useMemo(() => {
+    const links = [{ label: 'Accueil', href: '#home' }];
+    const hasType = (type) => sections?.some((s) => s.enabled && s.type === type);
+
+    if (hasType('featured_products')) links.push({ label: 'Produits', href: '#products' });
+    if (hasType('reviews') || hasType('testimonials')) links.push({ label: 'Avis', href: '#reviews' });
+    if (hasType('faq')) links.push({ label: 'FAQ', href: '#faq' });
+    if (hasType('newsletter')) links.push({ label: 'Newsletter', href: '#newsletter' });
+    if (hasType('footer')) links.push({ label: 'Contact', href: '#footer' });
+
+    return links;
+  }, [sections]);
+
+  return (
+    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="h-16 flex items-center justify-between gap-3">
+          <a href="#home" className="flex items-center gap-3 min-w-0">
+            {store.logo ? (
+              <img src={store.logo} alt={store.name} className="h-9 object-contain" />
+            ) : (
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: t.cta + '18' }}>
+                <svg className="w-5 h-5" style={{ color: t.cta }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                </svg>
+              </div>
+            )}
+            <span className="font-bold text-lg truncate" style={{ color: t.text, fontFamily: t.font }}>
+              {store.name}
+            </span>
+          </a>
+
+          <nav className="hidden md:flex items-center gap-5">
+            {navLinks.map((link) => (
+              <a key={link.label} href={link.href} className="text-sm font-medium text-gray-600 hover:text-gray-900 transition">
+                {link.label}
+              </a>
+            ))}
+            {categories?.slice(0, 3).map((c) => (
+              <a key={c} href="#products" className="text-sm font-medium text-gray-500 hover:text-gray-800 transition">{c}</a>
             ))}
           </nav>
-        )}
 
-        <div className="flex items-center gap-3">
-          {store.whatsapp && (
-            <a
-              href={`https://wa.me/${store.whatsapp.replace(/[^0-9]/g, '')}`}
-              target="_blank" rel="noopener noreferrer"
-              className="px-5 py-2.5 font-bold text-white text-sm hover:opacity-90 transition shadow-md"
-              style={{ backgroundColor: t.cta, borderRadius: t.radius }}
+          <div className="flex items-center gap-2">
+            {store.whatsapp && (
+              <a
+                href={`https://wa.me/${store.whatsapp.replace(/[^0-9]/g, '')}`}
+                target="_blank" rel="noopener noreferrer"
+                className="hidden sm:inline-flex px-5 py-2.5 font-bold text-white text-sm hover:opacity-90 transition shadow-md"
+                style={{ backgroundColor: t.cta, borderRadius: t.radius }}
+              >
+                Commander
+              </a>
+            )}
+
+            <button
+              type="button"
+              className="md:hidden p-2 rounded-lg border border-gray-200"
+              onClick={() => setMobileOpen((v) => !v)}
+              aria-label="Ouvrir le menu"
             >
-              Commander
-            </a>
-          )}
+              <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
         </div>
+
+        {mobileOpen && (
+          <nav className="md:hidden pb-4 pt-1 flex flex-col gap-1 border-t border-gray-100">
+            {navLinks.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                onClick={() => setMobileOpen(false)}
+                className="px-2 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg"
+              >
+                {link.label}
+              </a>
+            ))}
+            {store.whatsapp && (
+              <a
+                href={`https://wa.me/${store.whatsapp.replace(/[^0-9]/g, '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 px-4 py-2.5 text-center text-sm font-bold text-white"
+                style={{ backgroundColor: t.cta, borderRadius: t.radius }}
+              >
+                Commander sur WhatsApp
+              </a>
+            )}
+          </nav>
+        )}
       </div>
-    </div>
-  </header>
-);
+    </header>
+  );
+};
 
 // ── Hero ─────────────────────────────────────────────────────────────────────
 const HeroSection = ({ config, t, store }) => {
@@ -128,6 +232,7 @@ const HeroSection = ({ config, t, store }) => {
 
   return (
     <section
+      id="home"
       className="relative overflow-hidden"
       style={{
         backgroundColor: hasBg ? '#000' : (t.cta + '08'),
@@ -296,7 +401,7 @@ const Testimonials = ({ config, t }) => {
   const reviews = items.length > 0 ? items : defaults;
 
   return (
-    <section className="py-16 px-4" style={{ backgroundColor: t.cta + '06' }}>
+    <section id="reviews" className="py-16 px-4" style={{ backgroundColor: t.cta + '06' }}>
       <div className="max-w-5xl mx-auto">
         <h2 className="text-2xl md:text-3xl font-black text-center mb-10" style={{ color: t.text, fontFamily: t.font }}>
           {title}
@@ -325,7 +430,7 @@ const Testimonials = ({ config, t }) => {
 const Newsletter = ({ config, t }) => {
   const { title = 'Restez informé', subtitle = 'Recevez nos offres exclusives' } = config || {};
   return (
-    <section className="py-16 px-4">
+    <section id="newsletter" className="py-16 px-4">
       <div className="max-w-xl mx-auto text-center">
         <h2 className="text-2xl font-black mb-2" style={{ color: t.text, fontFamily: t.font }}>{title}</h2>
         <p className="text-sm text-gray-500 mb-6">{subtitle}</p>
@@ -360,7 +465,7 @@ const CustomSection = ({ config, t }) => {
 const StoreFooter = ({ store, t }) => {
   const year = new Date().getFullYear();
   return (
-    <footer className="py-12 px-4 border-t border-gray-200" style={{ backgroundColor: '#f9fafb' }}>
+    <footer id="footer" className="py-12 px-4 border-t border-gray-200" style={{ backgroundColor: '#f9fafb' }}>
       <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
           <div>
@@ -486,8 +591,11 @@ const PublicStorefront = () => {
   const sections = (apiSections && apiSections.length > 0) ? apiSections : [
     { type: 'hero', enabled: true, config: { title: '', subtitle: '', ctaText: 'Voir nos produits' } },
     { type: 'featured_products', enabled: true, config: { count: 8, title: 'Nos Produits' } },
+    { type: 'promo_banner', enabled: true, config: { text: '', bgColor: '#EF4444' } },
     { type: 'trust_badges', enabled: true, config: {} },
-    { type: 'testimonials', enabled: true, config: {} },
+    { type: 'reviews', enabled: true, config: {} },
+    { type: 'faq', enabled: true, config: {} },
+    { type: 'cta', enabled: false, config: { title: '', buttonText: 'Commander', buttonUrl: '' } },
     { type: 'footer', enabled: true, config: {} },
   ];
 
@@ -500,7 +608,10 @@ const PublicStorefront = () => {
       case 'featured_products': return <FeaturedProducts key={key} config={section.config} products={products} currency={store.currency} t={t} getProductHref={getProductHref} />;
       case 'promo_banner': return <PromoBanner key={key} config={section.config} t={t} />;
       case 'trust_badges': return <TrustBadges key={key} t={t} />;
-      case 'testimonials': return <Testimonials key={key} config={section.config} t={t} />;
+      case 'testimonials':
+      case 'reviews': return <Testimonials key={key} config={section.config} t={t} />;
+      case 'faq': return <FaqSection key={key} config={section.config} t={t} />;
+      case 'cta': return <CtaSection key={key} config={section.config} t={t} />;
       case 'newsletter': return <Newsletter key={key} config={section.config} t={t} />;
       case 'custom': return <CustomSection key={key} config={section.config} t={t} />;
       case 'footer': return <StoreFooter key={key} store={store} t={t} />;
@@ -511,7 +622,7 @@ const PublicStorefront = () => {
   return (
     <div className="min-h-screen" style={{ backgroundColor: t.bg, fontFamily: t.font }}>
       <AnnouncementBar store={store} t={t} />
-      <StoreHeader store={store} t={t} categories={categories || []} />
+      <StoreHeader store={store} t={t} categories={categories || []} sections={sections} />
       {sections.map(renderSection)}
       {/* Always render footer if not in sections */}
       {!sections.some(s => s.type === 'footer' && s.enabled) && <StoreFooter store={store} t={t} />}
