@@ -209,13 +209,13 @@ const StoreProductPage = () => {
 
   const formatPrice = (price) => new Intl.NumberFormat('fr-FR').format(price);
   
-  // Theme configuration (consistent with PublicStorefront)
+  // Theme configuration (consistent with PublicStorefront) - with safe fallbacks
   const t = {
     cta: store?.storeSettings?.themeColor || store?.themeColor || '#0F6B4F',
     text: store?.storeSettings?.textColor || store?.textColor || '#111827',
     bg: store?.storeSettings?.backgroundColor || store?.backgroundColor || '#FFFFFF',
-    font: font(store?.storeSettings?.font || store?.font),
-    radius: radius(store?.storeSettings?.borderRadius || store?.borderRadius),
+    font: font(store?.storeSettings?.font || store?.font || 'inter'),
+    radius: radius(store?.storeSettings?.borderRadius || store?.borderRadius || 'lg'),
   };
   
   const currency = product?.currency || store?.storeSettings?.storeCurrency || 'XAF';
@@ -301,7 +301,7 @@ const StoreProductPage = () => {
           <button
             onClick={() => navigate(storePath('/'))}
             className="mt-5 px-5 py-2.5 text-sm font-medium text-white rounded-xl transition hover:opacity-90"
-            style={{ backgroundColor: themeColor }}
+            style={{ backgroundColor: t.cta }}
           >
             Retour à la boutique
           </button>
@@ -400,7 +400,7 @@ const StoreProductPage = () => {
                 <button key={i} onClick={() => setActiveImage(i)}
                   className={`w-16 h-16 flex-shrink-0 rounded-xl overflow-hidden border-2 transition-all ${
                     i === activeImage ? 'opacity-100 shadow-md' : 'border-transparent opacity-55 hover:opacity-80'}`}
-                  style={i === activeImage ? { borderColor: themeColor } : {}}>
+                  style={i === activeImage ? { borderColor: t.cta } : {}}>
                   <img src={img.url} alt="" className="w-full h-full object-cover" loading="lazy" style={{ borderRadius: 0 }} />
                 </button>
               ))}
