@@ -211,7 +211,14 @@ const StoreProductPage = () => {
   
   // Theme configuration (consistent with PublicStorefront) - with safe fallbacks
   const t = {
-    cta: store?.storeSettings?.themeColor || store?.themeColor || '#0F6B4F',
+    cta:
+      store?.ctaColor ||
+      store?.primaryColor ||
+      store?.storeSettings?.ctaColor ||
+      store?.storeSettings?.primaryColor ||
+      store?.storeSettings?.themeColor ||
+      store?.themeColor ||
+      '#0F6B4F',
     text: store?.storeSettings?.textColor || store?.textColor || '#111827',
     bg: store?.storeSettings?.backgroundColor || store?.backgroundColor || '#FFFFFF',
     font: font(store?.storeSettings?.font || store?.font || 'inter'),
