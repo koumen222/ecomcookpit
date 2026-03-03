@@ -2,11 +2,56 @@ import axios from 'axios';
 import { logApiRequest, logApiResponse, logApiError, logAuthEvent, logPushEvent } from './prodLogger.js';
 
 // Configuration de base pour l'API e-commerce
-// Appel direct vers Railway backend (CORS configuré côté backend)
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
-console.log('🔧 [API] BACKEND_URL =', BACKEND_URL, '| VITE_BACKEND_URL =', import.meta.env.VITE_BACKEND_URL);
+function normalizeBackendBaseUrl(raw = '') {
+  const value = String(raw || '').trim();
+  if (!value) return '';
+
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      const parsed = new URL(value);
+      const pathname = parsed.pathname.replace(/\/+$/, '');
+
+      // Si l'URL pointe déjà sur /api/ecom on la garde telle quelle.
+      if (pathname.endsWith('/api/ecom')) {
+        return `${parsed.origin}/api/ecom`;
+      }
+
+      // Sinon on suffixe vers le namespace API attendu.
+      return `${parsed.origin}${pathname}/api/ecom`.replace(/\/api\/ecom\/api\/ecom$/, '/api/ecom');
+    } catch {
+      return value.replace(/\/+$/, '');
+    }
+  }
+
+  const relative = value.startsWith('/') ? value : `/${value}`;
+  if (relative.endsWith('/api/ecom')) return relative;
+  return `${relative}/api/ecom`.replace(/\/api\/ecom\/api\/ecom$/, '/api/ecom');
+}
+
+function resolveEcomApiBaseUrl() {
+  const envBackend = import.meta.env.VITE_BACKEND_URL;
+  const envApi = import.meta.env.VITE_API_URL;
+
+  // priorité: VITE_API_URL, puis VITE_BACKEND_URL
+  const normalizedFromApi = normalizeBackendBaseUrl(envApi);
+  if (normalizedFromApi) return normalizedFromApi;
+
+  const normalizedFromBackend = normalizeBackendBaseUrl(envBackend);
+  if (normalizedFromBackend) return normalizedFromBackend;
+
+  // En prod scalor.net, on force l'API publique pour éviter CORS/redirect.
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) {
+    return 'https://api.scalor.net/api/ecom';
+  }
+
+  return 'https://ecomcookpit-production-7a08.up.railway.app/api/ecom';
+}
+
+const ECOM_API_BASE_URL = resolveEcomApiBaseUrl();
+console.log('🔧 [API] ECOM_API_BASE_URL =', ECOM_API_BASE_URL, '| VITE_API_URL =', import.meta.env.VITE_API_URL, '| VITE_BACKEND_URL =', import.meta.env.VITE_BACKEND_URL);
+
 const ecomApi = axios.create({
-  baseURL: `${BACKEND_URL}/api/ecom`,
+  baseURL: ECOM_API_BASE_URL,
   timeout: 30000,
   withCredentials: false,
   headers: {
