@@ -9,6 +9,20 @@ import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
 import QuickOrderModal from '../components/QuickOrderModal.jsx';
 
+// Theme helpers (same as PublicStorefront)
+const FONTS = {
+  inter: 'Inter, system-ui, sans-serif',
+  poppins: 'Poppins, sans-serif',
+  'dm-sans': '"DM Sans", sans-serif',
+  montserrat: 'Montserrat, sans-serif',
+  playfair: '"Playfair Display", serif',
+  'space-grotesk': '"Space Grotesk", sans-serif',
+  satoshi: 'Satoshi, Inter, system-ui, sans-serif',
+};
+const RADII = { none: '0', sm: '0.375rem', md: '0.75rem', lg: '1rem', xl: '1.5rem', full: '9999px' };
+const font = (id) => FONTS[id] || FONTS.inter;
+const radius = (id) => RADII[id] || RADII.lg;
+
 // Markdown/HTML renderer for product description with images
 const MarkdownDescription = ({ content }) => {
   if (!content) return null;
@@ -194,7 +208,16 @@ const StoreProductPage = () => {
   }, [subdomain, slug]);
 
   const formatPrice = (price) => new Intl.NumberFormat('fr-FR').format(price);
-  const themeColor = store?.storeSettings?.themeColor || store?.themeColor || '#0F6B4F';
+  
+  // Theme configuration (consistent with PublicStorefront)
+  const t = {
+    cta: store?.storeSettings?.themeColor || store?.themeColor || '#0F6B4F',
+    text: store?.storeSettings?.textColor || store?.textColor || '#111827',
+    bg: store?.storeSettings?.backgroundColor || store?.backgroundColor || '#FFFFFF',
+    font: font(store?.storeSettings?.font || store?.font),
+    radius: radius(store?.storeSettings?.borderRadius || store?.borderRadius),
+  };
+  
   const currency = product?.currency || store?.storeSettings?.storeCurrency || 'XAF';
   const whatsappNum = store?.storeSettings?.whatsapp || store?.whatsapp || '';
 
@@ -263,7 +286,7 @@ const StoreProductPage = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: themeColor }} />
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: t.cta }} />
       </div>
     );
   }
@@ -294,30 +317,31 @@ const StoreProductPage = () => {
   const lowStock = !outOfStock && product.stock <= 5;
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen" style={{ backgroundColor: t.bg, fontFamily: t.font }}>
 
       {/* ── Sticky header ──────────────────────────── */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-gray-100">
+      <header className="sticky top-0 z-40 backdrop-blur-sm border-b border-gray-100" style={{ backgroundColor: t.bg + 'f0' }}>
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <button onClick={() => navigate(storePath('/'))}
-            className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition font-medium">
+            className="flex items-center gap-2 text-sm transition font-medium hover:opacity-70"
+            style={{ color: t.text }}>
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline">{store?.name || 'Boutique'}</span>
           </button>
-          <p className="text-sm font-semibold text-gray-900 truncate max-w-[180px] sm:max-w-xs">{product.name}</p>
+          <p className="text-sm font-semibold truncate max-w-[180px] sm:max-w-xs" style={{ color: t.text, fontFamily: t.font }}>{product.name}</p>
           <button onClick={() => navigator?.share?.({ title: product.name, url: window.location.href })}
-            className="p-2 rounded-lg hover:bg-gray-100 transition">
-            <Share2 className="w-4 h-4 text-gray-500" />
+            className="p-2 hover:opacity-70 transition" style={{ borderRadius: t.radius }}>
+            <Share2 className="w-4 h-4" style={{ color: t.text + '80' }} />
           </button>
         </div>
       </header>
 
       {/* ── Breadcrumb (desktop only) ───────────────── */}
-      <div className="max-w-6xl mx-auto px-4 pt-2 pb-1 hidden sm:flex items-center gap-1.5 text-xs text-gray-400">
-        <button onClick={() => navigate(storePath('/'))} className="hover:text-gray-600 transition">Accueil</button>
+      <div className="max-w-6xl mx-auto px-4 pt-2 pb-1 hidden sm:flex items-center gap-1.5 text-xs" style={{ color: t.text + '60' }}>
+        <button onClick={() => navigate(storePath('/'))} className="hover:opacity-70 transition" style={{ color: t.text + '80' }}>Accueil</button>
         {product.category && <><span>/</span><span>{product.category}</span></>}
         <span>/</span>
-        <span className="text-gray-700 font-medium truncate max-w-xs">{product.name}</span>
+        <span className="font-medium truncate max-w-xs" style={{ color: t.text, fontFamily: t.font }}>{product.name}</span>
       </div>
 
       {/* ── Main 2-column grid ─────────────────────── */}
@@ -398,18 +422,18 @@ const StoreProductPage = () => {
 
           {/* Category badge */}
           {product.category && (
-            <span className="inline-block text-xs font-semibold uppercase tracking-widest px-2.5 py-1 rounded-full"
-              style={{ color: themeColor, backgroundColor: themeColor + '18' }}>
+            <span className="inline-block text-xs font-semibold uppercase tracking-widest px-2.5 py-1"
+              style={{ color: t.cta, backgroundColor: t.cta + '18', borderRadius: t.radius, fontFamily: t.font }}>
               {product.category}
             </span>
           )}
 
           {/* Title */}
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight">{product.name}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold leading-tight" style={{ color: t.text, fontFamily: t.font }}>{product.name}</h1>
 
           {/* Subtitle/Hook if available */}
           {product.seoDescription && (
-            <p className="text-sm text-gray-600 leading-relaxed italic">
+            <p className="text-sm leading-relaxed italic" style={{ color: t.text + 'aa' }}>
               {product.seoDescription}
             </p>
           )}
@@ -421,18 +445,18 @@ const StoreProductPage = () => {
                 <Star key={s} className={`w-4 h-4 ${s <= 4 ? 'text-yellow-400 fill-yellow-400' : 'text-yellow-300 fill-yellow-100'}`} />
               ))}
             </div>
-            <span className="text-sm font-semibold text-gray-700">(252 avis positifs)</span>
+            <span className="text-sm font-semibold" style={{ color: t.text + 'cc', fontFamily: t.font }}>(252 avis positifs)</span>
           </div>
 
           {/* Price block */}
           <div className="space-y-2">
             <div className="flex items-end gap-3 flex-wrap">
-              <span className="text-4xl font-black tracking-tight" style={{ color: themeColor }}>
+              <span className="text-4xl font-black tracking-tight" style={{ color: t.cta, fontFamily: t.font }}>
                 {formatPrice(product.price)}
                 <span className="text-xl font-bold ml-1">{currency}</span>
               </span>
               {hasDiscount && (
-                <span className="text-xl text-gray-400 line-through pb-1">
+                <span className="text-xl line-through pb-1" style={{ color: t.text + '60' }}>
                   {formatPrice(product.compareAtPrice)} {currency}
                 </span>
               )}
@@ -455,11 +479,11 @@ const StoreProductPage = () => {
 
           {/* Benefits list */}
           {benefits.length > 0 && (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-2">
+            <div className="border border-green-200 p-4 space-y-2" style={{ backgroundColor: t.cta + '08', borderRadius: t.radius }}>
               {benefits.map((benefit, i) => (
                 <div key={i} className="flex items-start gap-2">
                   <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm text-gray-800 font-medium">{benefit}</span>
+                  <span className="text-sm font-medium" style={{ color: t.text + 'dd', fontFamily: t.font }}>{benefit}</span>
                 </div>
               ))}
             </div>
@@ -469,25 +493,25 @@ const StoreProductPage = () => {
           {!outOfStock && (
             <div className="space-y-3 pt-1">
               <div className="flex items-center gap-4">
-                <span className="text-sm font-medium text-gray-700">Quantité</span>
-                <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden">
+                <span className="text-sm font-medium" style={{ color: t.text + 'cc', fontFamily: t.font }}>Quantité</span>
+                <div className="flex items-center border border-gray-200 overflow-hidden" style={{ borderRadius: t.radius }}>
                   <button onClick={() => setQuantity(q => Math.max(1, q - 1))}
-                    className="px-3 py-2.5 hover:bg-gray-50 transition text-gray-600 font-bold text-lg">−</button>
-                  <span className="px-5 py-2.5 text-sm font-bold text-gray-900 min-w-[3rem] text-center border-x border-gray-200">
+                    className="px-3 py-2.5 hover:opacity-70 transition font-bold text-lg" style={{ color: t.text + '80' }}>−</button>
+                  <span className="px-5 py-2.5 text-sm font-bold min-w-[3rem] text-center border-x border-gray-200" style={{ color: t.text, fontFamily: t.font }}>
                     {quantity}
                   </span>
                   <button onClick={() => setQuantity(q => Math.min(product.stock, q + 1))}
-                    className="px-3 py-2.5 hover:bg-gray-50 transition text-gray-600 font-bold text-lg">+</button>
+                    className="px-3 py-2.5 hover:opacity-70 transition font-bold text-lg" style={{ color: t.text + '80' }}>+</button>
                 </div>
-                <span className="text-sm text-gray-500 font-medium">
+                <span className="text-sm font-medium" style={{ color: t.text + '80', fontFamily: t.font }}>
                   = {formatPrice(product.price * quantity)} {currency}
                 </span>
               </div>
 
               {/* Main CTA */}
               <button onClick={handleAddToCart}
-                className="w-full flex items-center justify-center gap-2.5 px-6 py-4 text-white rounded-2xl font-bold text-base transition hover:opacity-90 active:scale-[.98] shadow-lg relative overflow-hidden group"
-                style={{ backgroundColor: themeColor }}>
+                className="w-full flex items-center justify-center gap-2.5 px-6 py-4 text-white font-bold text-base transition hover:opacity-90 active:scale-[.98] shadow-lg relative overflow-hidden group"
+                style={{ backgroundColor: t.cta, borderRadius: t.radius, fontFamily: t.font }}>
                 <span className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition"></span>
                 {justAdded ? (
                   <><Check className="w-5 h-5" /> Ajouté !</>
@@ -519,9 +543,9 @@ const StoreProductPage = () => {
               { icon: <RotateCcw className="w-4 h-4" />, label: 'Retour facile' },
               { icon: <Shield className="w-4 h-4" />, label: 'Paiement sécurisé' }
             ].map(({ icon, label }) => (
-              <div key={label} className="flex flex-col items-center gap-1 p-2 bg-gray-50 rounded-xl text-center">
-                <span style={{ color: themeColor }}>{icon}</span>
-                <span className="text-[10px] text-gray-500 font-medium leading-tight">{label}</span>
+              <div key={label} className="flex flex-col items-center gap-1 p-2 text-center" style={{ backgroundColor: t.text + '08', borderRadius: t.radius }}>
+                <span style={{ color: t.cta }}>{icon}</span>
+                <span className="text-[10px] font-medium leading-tight" style={{ color: t.text + '80', fontFamily: t.font }}>{label}</span>
               </div>
             ))}
           </div>
@@ -530,34 +554,34 @@ const StoreProductPage = () => {
           {product.tags?.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pt-1">
               {product.tags.map((tag, i) => (
-                <span key={i} className="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs rounded-full font-medium">{tag}</span>
+                <span key={i} className="px-2.5 py-1 text-xs font-medium" style={{ backgroundColor: t.text + '10', color: t.text + 'aa', borderRadius: t.radius, fontFamily: t.font }}>{tag}</span>
               ))}
             </div>
           )}
 
           {/* FAQ dynamique — extrait de la description */}
           {faqItems.length > 0 && (
-            <div className="border border-gray-200 overflow-hidden rounded-xl">
-              <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                <h3 className="font-bold text-gray-900 text-sm">Vos questions fréquentes</h3>
+            <div className="border border-gray-200 overflow-hidden" style={{ borderRadius: t.radius }}>
+              <div className="px-4 py-3 border-b border-gray-200" style={{ backgroundColor: t.text + '06' }}>
+                <h3 className="font-bold text-sm" style={{ color: t.text, fontFamily: t.font }}>Vos questions fréquentes</h3>
               </div>
               <div className="divide-y divide-gray-200">
                 {faqItems.map((item, i) => (
                   <div key={i}>
                     <button
                       onClick={() => toggleFaq(i)}
-                      className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-50 transition text-left"
+                      className="w-full flex items-center justify-between px-4 py-3.5 hover:opacity-70 transition text-left"
                     >
-                      <span className="font-medium text-gray-900 text-sm pr-4">{item.q}</span>
+                      <span className="font-medium text-sm pr-4" style={{ color: t.text, fontFamily: t.font }}>{item.q}</span>
                       {faqOpen[i] ? (
-                        <ChevronUp className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                        <ChevronUp className="w-4 h-4 flex-shrink-0" style={{ color: t.text + '80' }} />
                       ) : (
-                        <ChevronDown className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                        <ChevronDown className="w-4 h-4 flex-shrink-0" style={{ color: t.text + '80' }} />
                       )}
                     </button>
                     {faqOpen[i] && (
                       <div className="px-4 pb-4 pt-1">
-                        <p className="text-sm text-gray-600 leading-relaxed">{item.a}</p>
+                        <p className="text-sm leading-relaxed" style={{ color: t.text + 'bb', fontFamily: t.font }}>{item.a}</p>
                       </div>
                     )}
                   </div>
@@ -575,16 +599,16 @@ const StoreProductPage = () => {
 
           {/* Details accordion */}
           {(product.category || product.tags?.length > 0) && (
-            <div className="border border-gray-200 rounded-2xl overflow-hidden">
+            <div className="border border-gray-200 overflow-hidden" style={{ borderRadius: t.radius }}>
               <button onClick={() => setDetailsOpen(o => !o)}
-                className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-50 transition">
-                <span className="font-semibold text-gray-900 text-sm">Détails du produit</span>
-                {detailsOpen ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+                className="w-full flex items-center justify-between px-4 py-3.5 hover:opacity-70 transition">
+                <span className="font-semibold text-sm" style={{ color: t.text, fontFamily: t.font }}>Détails du produit</span>
+                {detailsOpen ? <ChevronUp className="w-4 h-4" style={{ color: t.text + '80' }} /> : <ChevronDown className="w-4 h-4" style={{ color: t.text + '80' }} />}
               </button>
               {detailsOpen && (
-                <div className="px-4 pb-4 space-y-2 text-sm text-gray-600">
-                  {product.category && <p><span className="font-medium text-gray-800">Catégorie :</span> {product.category}</p>}
-                  {product.stock > 0 && <p><span className="font-medium text-gray-800">Stock :</span> {product.stock} unités</p>}
+                <div className="px-4 pb-4 space-y-2 text-sm" style={{ color: t.text + 'bb', fontFamily: t.font }}>
+                  {product.category && <p><span className="font-medium" style={{ color: t.text }}>Catégorie :</span> {product.category}</p>}
+                  {product.stock > 0 && <p><span className="font-medium" style={{ color: t.text }}>Stock :</span> {product.stock} unités</p>}
                 </div>
               )}
             </div>
@@ -595,7 +619,7 @@ const StoreProductPage = () => {
       {/* ── Related products ──────────────────────── */}
       {relatedProducts.length > 0 && (
         <div className="max-w-6xl mx-auto px-4 pb-12 mt-10">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Vous aimerez aussi</h2>
+          <h2 className="text-lg font-bold mb-4" style={{ color: t.text, fontFamily: t.font }}>Vous aimerez aussi</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {relatedProducts.map(p => (
               <button key={p._id} onClick={() => navigate(storePath(`/products/${p.slug}`))}
@@ -607,8 +631,8 @@ const StoreProductPage = () => {
                   }
                 </div>
                 <div className="p-3">
-                  <p className="text-sm font-semibold text-gray-900 truncate">{p.name}</p>
-                  <p className="text-sm font-bold mt-0.5" style={{ color: themeColor }}>{formatPrice(p.price)} {currency}</p>
+                  <p className="text-sm font-semibold truncate" style={{ color: t.text, fontFamily: t.font }}>{p.name}</p>
+                  <p className="text-sm font-bold mt-0.5" style={{ color: t.cta, fontFamily: t.font }}>{formatPrice(p.price)} {currency}</p>
                 </div>
               </button>
             ))}

@@ -102,6 +102,7 @@ const BoutiqueDashboard = lazy(() => import('./pages/BoutiqueDashboard.jsx'));
 const BoutiqueTheme = lazy(() => import('./pages/BoutiqueTheme.jsx'));
 const BoutiquePixel = lazy(() => import('./pages/BoutiquePixel.jsx'));
 const BoutiquePages = lazy(() => import('./pages/BoutiquePages.jsx'));
+const VisualBuilder = lazy(() => import('./pages/VisualBuilder.jsx'));
 const BoutiquePayments = lazy(() => import('./pages/BoutiquePayments.jsx'));
 const BoutiqueDomains = lazy(() => import('./pages/BoutiqueDomains.jsx'));
 const BoutiqueSettings = lazy(() => import('./pages/BoutiqueSettings.jsx'));
@@ -573,6 +574,7 @@ const EcomApp = () => {
                 <Route path="orders" element={<Suspense fallback={<SpinnerLoader />}><StoreOrdersDashboard /></Suspense>} />
                 <Route path="theme" element={<Suspense fallback={<SpinnerLoader />}><BoutiqueTheme /></Suspense>} />
                 <Route path="pages" element={<Suspense fallback={<SpinnerLoader />}><BoutiquePages /></Suspense>} />
+                <Route path="builder" element={<Suspense fallback={<SpinnerLoader />}><VisualBuilder /></Suspense>} />
                 <Route path="pixel" element={<Suspense fallback={<SpinnerLoader />}><BoutiquePixel /></Suspense>} />
                 <Route path="payments" element={<Suspense fallback={<SpinnerLoader />}><BoutiquePayments /></Suspense>} />
                 <Route path="domains" element={<Suspense fallback={<SpinnerLoader />}><BoutiqueDomains /></Suspense>} />
