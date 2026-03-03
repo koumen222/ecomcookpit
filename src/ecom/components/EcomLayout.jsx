@@ -161,12 +161,7 @@ const EcomLayoutComponent = ({ children }) => {
       roles: ['ecom_admin', 'ecom_compta'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
     },
-    {
-      name: 'Stock', shortName: 'Stock', href: '/ecom/stock', primary: false,
-      roles: ['ecom_admin', 'ecom_closeuse'],
-      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-    },
-    {
+        {
       name: 'Ma Boutique', shortName: 'Boutique', href: '/ecom/boutique', primary: true,
       roles: ['ecom_admin'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
@@ -209,12 +204,7 @@ const EcomLayoutComponent = ({ children }) => {
       roles: ['ecom_admin', 'ecom_closeuse'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>
     },
-    {
-      name: 'Stock', shortName: 'Stock', href: '/ecom/stock-locations', primary: false,
-      roles: ['ecom_admin', 'ecom_closeuse'],
-      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
-    },
-    {
+        {
       name: 'Fournisseurs', shortName: 'Fournisseurs', href: '/ecom/suppliers', primary: false,
       roles: ['ecom_admin'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
@@ -715,8 +705,6 @@ const getPageTitle = (pathname) => {
   if (pathname.includes('/reports')) return 'Rapports';
   if (pathname.includes('/stock/orders/new')) return 'Nouvelle commande';
   if (pathname.includes('/stock/orders') && pathname.includes('/edit')) return 'Modifier commande';
-  if (pathname.includes('/stock-locations')) return 'Stock';
-  if (pathname.includes('/stock')) return 'Stock';
   if (pathname.includes('/suppliers')) return 'Fournisseurs';
   if (pathname.includes('/transactions/new')) return 'Nouvelle transaction';
   if (pathname.includes('/transactions') && pathname.includes('/edit')) return 'Modifier transaction';

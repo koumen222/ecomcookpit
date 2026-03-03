@@ -133,7 +133,7 @@ export default function SupplierDetail() {
   const handleDeleteOrder = async (orderId) => {
     if (!window.confirm("Supprimer cette commande ?")) return;
     try {
-      await ecomApi.delete(`/sourcing/orders/${orderId}`);
+      await ecomApi.delete(`/sourcing/suppliers/${id}/orders/${orderId}`);
       loadData();
     } catch (err) {
       alert(getContextualError(err, 'delete_order'));
@@ -142,7 +142,7 @@ export default function SupplierDetail() {
 
   const handleUpdateOrderStatus = async (orderId, newStatus) => {
     try {
-      await ecomApi.put(`/sourcing/orders/${orderId}`, { status: newStatus });
+      await ecomApi.put(`/sourcing/suppliers/${id}/orders/${orderId}`, { status: newStatus });
       loadData();
     } catch (err) {
       alert(getContextualError(err, 'update_order'));

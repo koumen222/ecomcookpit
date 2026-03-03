@@ -4,7 +4,6 @@ import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
-import { getCache, setCache, invalidatePrefix } from '../utils/cacheUtils.js';
 
 const ProductSkeleton = () => (
   <div className="p-3 sm:p-4 lg:p-6">
@@ -44,24 +43,14 @@ const ProductsList = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [isActiveFilter, setIsActiveFilter] = useState('');
 
-  const getCacheKey = useCallback(() => {
-    return `products:${searchTerm}:${statusFilter}:${isActiveFilter}`;
-  }, [searchTerm, statusFilter, isActiveFilter]);
-
   useEffect(() => {
-    const key = getCacheKey();
-    const cached = getCache(key);
-    if (cached) {
-      setProducts(cached);
-      setLoading(false);
-      return;
-    }
     loadProducts();
   }, [searchTerm, statusFilter, isActiveFilter]);
 
   const loadProducts = async () => {
     try {
       setLoading(true);
+      
       const params = new URLSearchParams();
       if (searchTerm) params.append('search', searchTerm);
       if (statusFilter) params.append('status', statusFilter);
@@ -69,7 +58,7 @@ const ProductsList = () => {
       const url = params.toString() ? `/products?${params.toString()}` : '/products';
       const response = await ecomApi.get(url);
       const productsData = Array.isArray(response.data?.data) ? response.data.data : [];
-      setCache(getCacheKey(), productsData);
+      
       setProducts(productsData);
     } catch (error) {
       setError(getContextualError(error, 'load_products'));

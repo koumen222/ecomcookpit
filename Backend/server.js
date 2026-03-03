@@ -236,6 +236,7 @@ const startServer = async () => {
       ['./routes/diagnostics.js',             '/api/ecom/diagnostics'],
       // ─── Sourcing ────────────────────────────────────────────────────────
       ['./routes/sourcing.js',                '/api/ecom/sourcing'],
+      ['./routes/sourcingStats.js',           '/api/ecom/sourcing/stats'],
     ];
 
     for (const [file, mountPath] of routes) {

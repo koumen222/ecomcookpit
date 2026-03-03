@@ -330,6 +330,38 @@ router.put('/orders/:id/cancel',
   }
 );
 
+// DELETE /api/ecom/stock/orders/:id - Supprimer une commande de stock
+router.delete('/orders/:id', 
+  requireEcomAuth, 
+  validateEcomAccess('products', 'write'),
+  async (req, res) => {
+    try {
+      const order = await StockOrder.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
+      
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: 'Commande de stock non trouvée'
+        });
+      }
+
+      // Supprimer la commande (tous les statuts autorisés)
+      await StockOrder.deleteOne({ _id: req.params.id, workspaceId: req.workspaceId });
+
+      res.json({
+        success: true,
+        message: 'Commande de stock supprimée avec succès'
+      });
+    } catch (error) {
+      console.error('Erreur delete stock order:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Erreur serveur'
+      });
+    }
+  }
+);
+
 // GET /api/ecom/stock/alerts - Alertes de stock bas
 router.get('/alerts', 
   requireEcomAuth, 

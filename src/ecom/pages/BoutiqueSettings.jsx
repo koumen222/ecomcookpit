@@ -13,6 +13,21 @@ const FONTS = [
 
 const CURRENCIES = ['XAF', 'XOF', 'USD', 'EUR', 'GHS', 'NGN', 'KES', 'MAD', 'TND'];
 
+const DEBUG_TAG = '[BoutiqueSettings]';
+
+const summarizeSettings = (settings = {}) => {
+  const logoValue = settings.logo || '';
+  const faviconValue = settings.favicon || '';
+
+  return {
+    ...settings,
+    logo: logoValue ? `[len:${logoValue.length}] ${logoValue.slice(0, 80)}` : '',
+    favicon: faviconValue ? `[len:${faviconValue.length}] ${faviconValue.slice(0, 80)}` : '',
+    logoIsDataUrl: logoValue.startsWith('data:'),
+    faviconIsDataUrl: faviconValue.startsWith('data:'),
+  };
+};
+
 const ImageUploader = ({ label, value, onChange, hint }) => {
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
@@ -20,19 +35,63 @@ const ImageUploader = ({ label, value, onChange, hint }) => {
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    console.log(`${DEBUG_TAG}[${label}] file selected`, {
+      name: file.name,
+      sizeBytes: file.size,
+      sizeMB: Number((file.size / (1024 * 1024)).toFixed(2)),
+      type: file.type,
+      lastModified: file.lastModified,
+    });
+
     setUploading(true);
+    const uploadStartedAt = Date.now();
+
     try {
       const formData = new FormData();
       formData.append('image', file);
+
+      console.log(`${DEBUG_TAG}[${label}] upload start`, {
+        endpoint: '/upload/image',
+        formFields: Array.from(formData.keys()),
+      });
+
       const res = await api.post('/upload/image', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+
       const url = res.data?.data?.url || res.data?.url;
+      console.log(`${DEBUG_TAG}[${label}] upload success`, {
+        status: res.status,
+        durationMs: Date.now() - uploadStartedAt,
+        responseKeys: Object.keys(res.data || {}),
+        hasUrl: Boolean(url),
+        urlPreview: url ? String(url).slice(0, 120) : null,
+      });
+
       if (url) onChange(url);
-    } catch {
+    } catch (error) {
+      console.error(`${DEBUG_TAG}[${label}] upload failed, using FileReader fallback`, {
+        durationMs: Date.now() - uploadStartedAt,
+        message: error?.message,
+        code: error?.code,
+        status: error?.response?.status,
+        responseData: error?.response?.data,
+        requestUrl: error?.config?.url,
+        method: error?.config?.method,
+        timeout: error?.config?.timeout,
+      });
+
       // fallback: use local preview
       const reader = new FileReader();
-      reader.onload = (ev) => onChange(ev.target.result);
+      reader.onload = (ev) => {
+        const dataUrl = ev.target.result;
+        console.warn(`${DEBUG_TAG}[${label}] fallback data URL generated`, {
+          dataUrlLength: typeof dataUrl === 'string' ? dataUrl.length : 0,
+          note: 'If this is very large, saving settings may timeout or fail in production.',
+        });
+        onChange(dataUrl);
+      };
       reader.readAsDataURL(file);
     } finally {
       setUploading(false);
@@ -104,15 +163,39 @@ const BoutiqueSettings = () => {
 
   useEffect(() => {
     const load = async () => {
+      const startedAt = Date.now();
+      console.log(`${DEBUG_TAG} loading settings`, {
+        workspaceId: workspace?._id || workspace?.id || null,
+      });
+
       try {
         const res = await api.get('/store/settings');
+        console.log(`${DEBUG_TAG} settings loaded`, {
+          status: res.status,
+          durationMs: Date.now() - startedAt,
+          hasData: Boolean(res.data?.data),
+          keys: Object.keys(res.data?.data || {}),
+        });
+
         if (res.data?.data) {
           setSettings(prev => ({ ...prev, ...res.data.data }));
         }
-      } catch { /* defaults */ }
+      } catch (error) {
+        console.error(`${DEBUG_TAG} failed to load settings`, {
+          durationMs: Date.now() - startedAt,
+          message: error?.message,
+          code: error?.code,
+          status: error?.response?.status,
+          responseData: error?.response?.data,
+          requestUrl: error?.config?.url,
+          method: error?.config?.method,
+        });
+        /* defaults */
+      }
     };
+
     load();
-  }, []);
+  }, [workspace?._id, workspace?.id]);
 
   const update = (key, value) => {
     setSettings(prev => ({ ...prev, [key]: value }));
@@ -120,23 +203,52 @@ const BoutiqueSettings = () => {
   };
 
   const handleSave = async () => {
-    console.log('💾 BoutiqueSettings - Starting save...');
-    console.log('💾 Current settings:', settings);
-    
+    const startedAt = Date.now();
+    console.log(`${DEBUG_TAG} save start`, {
+      workspaceId: workspace?._id || workspace?.id || null,
+      settingsSummary: summarizeSettings(settings),
+      online: typeof navigator !== 'undefined' ? navigator.onLine : undefined,
+    });
+
     setSaving(true);
+
     try {
       const payload = { ...settings, isStoreEnabled: true };
-      console.log('💾 Sending payload:', payload);
-      
+      const payloadString = JSON.stringify(payload);
+      console.log(`${DEBUG_TAG} save request payload`, {
+        payloadBytes: new Blob([payloadString]).size,
+        payloadChars: payloadString.length,
+        logoLength: (payload.logo || '').length,
+        faviconLength: (payload.favicon || '').length,
+        logoIsDataUrl: String(payload.logo || '').startsWith('data:'),
+        faviconIsDataUrl: String(payload.favicon || '').startsWith('data:'),
+      });
+
       const response = await api.put('/store/settings', payload);
-      console.log('💾 Save response:', response);
-      
+      console.log(`${DEBUG_TAG} save success`, {
+        durationMs: Date.now() - startedAt,
+        status: response.status,
+        data: response.data,
+      });
+
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (error) {
-      console.error('💾 Save error:', error);
-      console.error('💾 Error response:', error.response);
-      console.error('💾 Error message:', error.message);
+      console.error(`${DEBUG_TAG} save failed`, {
+        durationMs: Date.now() - startedAt,
+        message: error?.message,
+        code: error?.code,
+        isNetworkError: error?.message === 'Network Error',
+        status: error?.response?.status,
+        statusText: error?.response?.statusText,
+        responseHeaders: error?.response?.headers,
+        responseData: error?.response?.data,
+        requestUrl: error?.config?.url,
+        method: error?.config?.method,
+        timeout: error?.config?.timeout,
+        online: typeof navigator !== 'undefined' ? navigator.onLine : undefined,
+      });
+
       alert(`Erreur lors de la sauvegarde: ${error.response?.data?.message || error.message}`);
     } finally {
       setSaving(false);

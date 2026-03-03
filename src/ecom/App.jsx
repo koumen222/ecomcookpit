@@ -84,6 +84,7 @@ const WhyScalor = lazy(() => import('./pages/WhyScalor.jsx'));
 const Tarifs = lazy(() => import('./pages/Tarifs.jsx'));
 const SourcingList = lazy(() => import('./pages/SourcingList.jsx'));
 const SupplierDetail = lazy(() => import('./pages/SupplierDetail.jsx'));
+const SourcingStats = lazy(() => import('./pages/SourcingStats.jsx'));
 
 // ─── Store / Storefront pages ─────────────────────────────────────────────
 const StoreSetup = lazy(() => import('./pages/StoreSetup.jsx'));
@@ -466,6 +467,7 @@ const EcomApp = () => {
 
               {/* Routes Sourcing */}
               <Route path="/ecom/sourcing" element={<LayoutRoute><SourcingList /></LayoutRoute>} />
+              <Route path="/ecom/sourcing/stats" element={<LayoutRoute><SourcingStats /></LayoutRoute>} />
               <Route path="/ecom/sourcing/:id" element={<LayoutRoute><SupplierDetail /></LayoutRoute>} />
 
               {/* Routes décisions */}

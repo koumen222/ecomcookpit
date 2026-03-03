@@ -7,7 +7,8 @@ import { getContextualError } from '../utils/errorMessages';
 const EMPTY_ORDER_FORM = {
   productId: '', productName: '', sourcing: 'local', quantity: '',
   weightKg: '', pricePerKg: '', purchasePrice: '', sellingPrice: '',
-  supplierName: '', expectedArrival: '', trackingNumber: '', notes: ''
+  supplierName: '', expectedArrival: '', trackingNumber: '', notes: '',
+  paidPurchase: false, paidTransport: false, paid: false
 };
 
 const I = {
@@ -79,7 +80,8 @@ export default function SourcingList() {
   const loadOrders = async () => {
     try {
       setOrdersLoading(true);
-      const response = await ecomApi.get('/stock/orders');
+
+      const response = await ecomApi.get('/sourcing/orders');
       const ordersData = response.data?.data?.orders || response.data?.data || [];
       setOrders(Array.isArray(ordersData) ? ordersData : []);
     } catch (err) {
@@ -102,6 +104,45 @@ export default function SourcingList() {
     s.name?.toLowerCase().includes(search.toLowerCase()) || 
     (s.phone && s.phone.includes(search))
   );
+
+  // Calcul du montant à prévoir (en transit non payé) et chiffre d'affaires potentiel
+  const { amountToPlan, chinaPurchaseToPlan, chinaTransportToPlan, localToPlan, potentialRevenue } = React.useMemo(() => {
+    const inTransitOrders = orders.filter(o => o.status === 'in_transit');
+    
+    let chinaPurchase = 0;
+    let chinaTransport = 0;
+    let local = 0;
+    let revenue = 0;
+    
+    inTransitOrders.forEach(order => {
+      const totalSelling = (order.sellingPrice || 0) * (order.quantity || 0);
+      revenue += totalSelling;
+      
+      if (order.sourcing === 'chine') {
+        // Achat Chine payé ?
+        if (!order.paidPurchase) {
+          chinaPurchase += (order.purchasePrice || 0) * (order.quantity || 0);
+        }
+        // Transport payé ?
+        if (!order.paidTransport) {
+          chinaTransport += order.transportCost || 0;
+        }
+      } else if (order.sourcing === 'local') {
+        // Commande locale payée ?
+        if (!order.paid) {
+          local += (order.purchasePrice || 0) * (order.quantity || 0);
+        }
+      }
+    });
+    
+    return {
+      amountToPlan: chinaPurchase + chinaTransport + local,
+      chinaPurchaseToPlan: chinaPurchase,
+      chinaTransportToPlan: chinaTransport,
+      localToPlan: local,
+      potentialRevenue: revenue
+    };
+  }, [orders]);
 
   // Supplier handlers
   const handleSubmit = async (e) => {
@@ -162,7 +203,10 @@ export default function SourcingList() {
         supplierName: order.supplierName || '',
         expectedArrival: order.expectedArrival ? new Date(order.expectedArrival).toISOString().split('T')[0] : '',
         trackingNumber: order.trackingNumber || '',
-        notes: order.notes || ''
+        notes: order.notes || '',
+        paidPurchase: order.paidPurchase || false,
+        paidTransport: order.paidTransport || false,
+        paid: order.paid || false
       });
     } else {
       setEditingOrderId(null);
@@ -200,14 +244,17 @@ export default function SourcingList() {
       supplierName: orderFormData.supplierName,
       expectedArrival: orderFormData.expectedArrival || undefined,
       trackingNumber: orderFormData.trackingNumber,
-      notes: orderFormData.notes
+      notes: orderFormData.notes,
+      paidPurchase: orderFormData.paidPurchase,
+      paidTransport: orderFormData.paidTransport,
+      paid: orderFormData.paid
     };
     
     try {
       if (editingOrderId) {
-        await ecomApi.put(`/stock/orders/${editingOrderId}`, payload);
+        await ecomApi.put(`/sourcing/orders/${editingOrderId}`, payload);
       } else {
-        await ecomApi.post('/stock/orders', payload);
+        await ecomApi.post('/sourcing/orders', payload);
       }
       closeOrderModal();
       loadOrders();
@@ -220,7 +267,16 @@ export default function SourcingList() {
 
   const updateOrderStatus = async (orderId, action) => {
     try {
-      await ecomApi.put(`/stock/orders/${orderId}/${action}`);
+      // Si on reçoit le produit, on met automatiquement tous les paiements à payé
+      if (action === 'receive') {
+        await ecomApi.put(`/sourcing/orders/${orderId}`, {
+          paidPurchase: true,
+          paidTransport: true,
+          paid: true
+        });
+      } else {
+        await ecomApi.put(`/sourcing/orders/${orderId}/${action}`);
+      }
       loadOrders();
     } catch (err) {
       setError(getContextualError(err, 'save_order'));
@@ -230,7 +286,7 @@ export default function SourcingList() {
   const deleteOrder = async (orderId) => {
     if (!window.confirm('Supprimer cette commande ? Cette action est irréversible.')) return;
     try {
-      await ecomApi.delete(`/stock/orders/${orderId}`);
+      await ecomApi.delete(`/sourcing/orders/${orderId}`);
       loadOrders();
     } catch (err) {
       setError(getContextualError(err, 'delete_order'));
@@ -250,11 +306,18 @@ export default function SourcingList() {
               </h1>
               <p className="text-sm text-gray-500 mt-1 font-medium">Gérez vos fournisseurs et commandes d'approvisionnement</p>
             </div>
-            <button onClick={() => openOrderModal()}
-              className="inline-flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition active:scale-95 shadow-sm">
-              <Ico d={I.plus} className="w-4 h-4" />
-              + Commande fournisseur
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => navigate('/ecom/sourcing/stats')}
+                className="inline-flex items-center justify-center gap-2 bg-purple-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-purple-700 transition active:scale-95 shadow-sm">
+                <Ico d={I.chart} className="w-4 h-4" />
+                Statistiques
+              </button>
+              <button onClick={() => openOrderModal()}
+                className="inline-flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition active:scale-95 shadow-sm">
+                <Ico d={I.plus} className="w-4 h-4" />
+                + Commande fournisseur
+              </button>
+            </div>
           </div>
           
           {/* Tabs */}
@@ -280,35 +343,44 @@ export default function SourcingList() {
         )}
 
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
-              <Ico d={I.building} className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-500">Total fournisseurs</p>
-              <p className="text-2xl font-black text-gray-900">{suppliers.length}</p>
-            </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-6 overflow-x-auto">
+          <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 shadow-sm min-w-0">
+            <p className="text-xs font-medium text-blue-600 truncate">Total fournisseurs</p>
+            <p className="text-lg font-bold text-blue-900 truncate">{suppliers.length}</p>
           </div>
-          <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
-              <Ico d={I.box} className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-500">Commandes</p>
-              <p className="text-2xl font-black text-gray-900">{orders.length}</p>
-            </div>
+          <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 shadow-sm min-w-0">
+            <p className="text-xs font-medium text-emerald-600 truncate">Commandes</p>
+            <p className="text-lg font-bold text-emerald-900 truncate">{orders.length}</p>
           </div>
-          <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
-            <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600">
-              <span className="text-xl font-black">XAF</span>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-500">Total dépensé</p>
-              <p className="text-2xl font-black text-gray-900">
-                {formatMoney(orders.reduce((acc, o) => acc + ((o.purchasePrice || 0) * (o.quantity || 0) + (o.transportCost || 0)), 0))}
+          <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 shadow-sm min-w-0">
+            <p className="text-xs font-medium text-purple-600 truncate">Total dépensé</p>
+            <p className="text-lg font-bold text-purple-900 truncate">
+              {formatMoney(orders.reduce((acc, o) => acc + ((o.purchasePrice || 0) * (o.quantity || 0) + (o.transportCost || 0)), 0))}
+            </p>
+          </div>
+
+          <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 shadow-sm min-w-0">
+            <p className="text-xs font-medium text-orange-600 truncate">Montant à prévoir</p>
+            <p className="text-lg font-bold text-orange-900 truncate">{formatMoney(amountToPlan)}</p>
+            <p className="text-xs text-orange-600 font-medium mt-1 truncate">
+              Achat: {formatMoney(chinaPurchaseToPlan)}
+            </p>
+            <p className="text-xs text-orange-600 font-medium truncate">
+              Transport: {formatMoney(chinaTransportToPlan)}
+            </p>
+            {localToPlan > 0 && (
+              <p className="text-xs text-orange-600 font-medium truncate">
+                Local: {formatMoney(localToPlan)}
               </p>
-            </div>
+            )}
+          </div>
+
+          <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 shadow-sm min-w-0">
+            <p className="text-xs font-medium text-emerald-600 truncate">CA potentiel</p>
+            <p className="text-lg font-bold text-emerald-700 truncate">{formatMoney(potentialRevenue)}</p>
+            <p className="text-xs text-emerald-600 font-medium mt-1 truncate">
+              {orders.filter(o => o.status === 'in_transit').length} en transit
+            </p>
           </div>
         </div>
 
@@ -337,9 +409,9 @@ export default function SourcingList() {
                       <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase hidden sm:table-cell">Sourcing</th>
                       <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Qté</th>
                       <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase hidden md:table-cell">Achat</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase hidden md:table-cell">Vente</th>
                       <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase hidden lg:table-cell">Transport</th>
                       <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Total</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Paiement</th>
                       <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Statut</th>
                       <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">Actions</th>
                     </tr>
@@ -363,9 +435,27 @@ export default function SourcingList() {
                             {order.weightKg > 0 && <div className="text-xs text-gray-500">{order.weightKg} kg</div>}
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap hidden md:table-cell text-sm text-gray-900">{formatMoney(order.purchasePrice)}</td>
-                          <td className="px-4 py-4 whitespace-nowrap hidden md:table-cell text-sm text-gray-900">{formatMoney(order.sellingPrice)}</td>
                           <td className="px-4 py-4 whitespace-nowrap hidden lg:table-cell text-sm text-gray-900">{formatMoney(order.transportCost)}</td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{formatMoney(totalCost)}</td>
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            {order.sourcing === 'chine' ? (
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1">
+                                  <span className={`w-2 h-2 rounded-full ${order.paidPurchase ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                                  <span className="text-xs font-medium">{order.paidPurchase ? 'Achat payé' : 'Achat impayé'}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className={`w-2 h-2 rounded-full ${order.paidTransport ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                                  <span className="text-xs font-medium">{order.paidTransport ? 'Transport payé' : 'Transport impayé'}</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                <span className={`w-2 h-2 rounded-full ${order.paid ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                                <span className="text-xs font-medium">{order.paid ? 'Payé' : 'Impayé'}</span>
+                              </div>
+                            )}
+                          </td>
                           <td className="px-4 py-4 whitespace-nowrap">
                             <span className={`px-2 text-xs font-semibold rounded-full ${order.status === 'received' ? 'bg-green-100 text-green-800' : order.status === 'cancelled' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
                               {order.status === 'received' ? 'Reçue' : order.status === 'cancelled' ? 'Annulée' : 'En transit'}
@@ -374,9 +464,9 @@ export default function SourcingList() {
                           <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                             <button onClick={() => openOrderModal(order)} className="text-emerald-600 hover:text-emerald-900 mr-3">Modifier</button>
                             {order.status === 'in_transit' && (
-                              <button onClick={() => updateOrderStatus(order._id, 'receive')} className="text-green-600 hover:text-green-900">Recevoir</button>
+                              <button onClick={() => updateOrderStatus(order._id, 'receive')} className="text-green-600 hover:text-green-900 mr-3">Recevoir</button>
                             )}
-                            <button onClick={() => deleteOrder(order._id)} className="text-red-600 hover:text-red-900 ml-3">Supprimer</button>
+                            <button onClick={() => deleteOrder(order._id)} className="text-red-600 hover:text-red-900">Supprimer</button>
                           </td>
                         </tr>
                       );
@@ -571,6 +661,61 @@ export default function SourcingList() {
                       <label className="block text-xs font-medium text-gray-600 mb-1">Prix de vente unitaire (FCFA) *</label>
                       <input type="number" required value={orderFormData.sellingPrice} onChange={(e) => setOrderFormData(prev => ({ ...prev, sellingPrice: e.target.value }))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" placeholder="0" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Statuts de paiement */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Statut de paiement</p>
+                  {orderFormData.sourcing === 'chine' ? (
+                    <div className="space-y-3">
+                      <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
+                        <input type="checkbox" checked={orderFormData.paidPurchase} onChange={(e) => setOrderFormData(prev => ({ ...prev, paidPurchase: e.target.checked }))}
+                          className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">Achat Chine payé</p>
+                          <p className="text-xs text-gray-500">Cochez si l'achat en Chine a été payé</p>
+                        </div>
+                      </label>
+                      <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
+                        <input type="checkbox" checked={orderFormData.paidTransport} onChange={(e) => setOrderFormData(prev => ({ ...prev, paidTransport: e.target.checked }))}
+                          className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">Transport payé</p>
+                          <p className="text-xs text-gray-500">Cochez si le transport a été payé</p>
+                        </div>
+                      </label>
+                    </div>
+                  ) : (
+                    <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition">
+                      <input type="checkbox" checked={orderFormData.paid} onChange={(e) => setOrderFormData(prev => ({ ...prev, paid: e.target.checked }))}
+                        className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">Commande payée</p>
+                        <p className="text-xs text-gray-500">Cochez si la commande locale a été payée</p>
+                      </div>
+                    </label>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Informations complémentaires</p>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Date d'arrivée prévue</label>
+                      <input type="date" value={orderFormData.expectedArrival} onChange={(e) => setOrderFormData(prev => ({ ...prev, expectedArrival: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Numéro de suivi</label>
+                      <input type="text" value={orderFormData.trackingNumber} onChange={(e) => setOrderFormData(prev => ({ ...prev, trackingNumber: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600" placeholder="Tracking..." />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+                      <textarea value={orderFormData.notes} onChange={(e) => setOrderFormData(prev => ({ ...prev, notes: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 resize-none" rows="2" placeholder="Notes..."></textarea>
                     </div>
                   </div>
                 </div>

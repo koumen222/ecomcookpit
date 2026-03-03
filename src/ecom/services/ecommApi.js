@@ -287,6 +287,9 @@ export const stockApi = {
   // Annuler une commande de stock
   cancelStockOrder: (id) => ecomApi.put(`/stock/orders/${id}/cancel`),
 
+  // Supprimer une commande de stock
+  deleteStockOrder: (id) => ecomApi.delete(`/stock/orders/${id}`),
+
   // Alertes de stock
   getStockAlerts: () => ecomApi.get('/stock/alerts'),
 

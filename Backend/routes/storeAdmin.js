@@ -3,6 +3,30 @@ import Workspace from '../models/Workspace.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 
 const router = express.Router();
+const DEBUG_TAG = '[StoreAdmin:Settings]';
+
+function summarizeStoreSettingsPayload(payload = {}) {
+  const logoValue = payload.logo || '';
+  const faviconValue = payload.favicon || '';
+  const safePayload = { ...payload };
+
+  if (safePayload.logo) {
+    safePayload.logo = `[len:${String(logoValue).length}] ${String(logoValue).slice(0, 100)}`;
+  }
+  if (safePayload.favicon) {
+    safePayload.favicon = `[len:${String(faviconValue).length}] ${String(faviconValue).slice(0, 100)}`;
+  }
+
+  return {
+    keys: Object.keys(payload || {}),
+    logoLength: String(logoValue).length,
+    faviconLength: String(faviconValue).length,
+    logoIsDataUrl: String(logoValue).startsWith('data:'),
+    faviconIsDataUrl: String(faviconValue).startsWith('data:'),
+    payloadBytes: Buffer.byteLength(JSON.stringify(payload || {}), 'utf8'),
+    payloadPreview: safePayload,
+  };
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // STORE ADMIN ROUTES — Boutique configuration endpoints
@@ -269,22 +293,66 @@ router.post('/domains/check-dns', requireEcomAuth, requireWorkspace, async (req,
 // ─── SETTINGS ──────────────────────────────────────────────────────────────────
 
 router.get('/settings', requireEcomAuth, requireWorkspace, async (req, res) => {
+  const startedAt = Date.now();
+  console.log(`${DEBUG_TAG} GET start`, {
+    workspaceId: req.workspaceId,
+    userId: req.user?.id || req.user?._id || null,
+    method: req.method,
+    originalUrl: req.originalUrl,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+    origin: req.headers.origin,
+    referer: req.headers.referer,
+    requestId: req.headers['x-request-id'] || null,
+    cfRay: req.headers['cf-ray'] || null,
+  });
+
   try {
     const workspace = await Workspace.findById(req.workspaceId)
       .select('storeSettings')
       .lean();
+
+    console.log(`${DEBUG_TAG} GET success`, {
+      workspaceId: req.workspaceId,
+      durationMs: Date.now() - startedAt,
+      foundWorkspace: Boolean(workspace),
+      settingsKeys: Object.keys(workspace?.storeSettings || {}),
+    });
 
     res.json({
       success: true,
       data: workspace?.storeSettings || {}
     });
   } catch (error) {
-    console.error('Error GET /store/settings:', error);
+    console.error(`${DEBUG_TAG} GET failed`, {
+      durationMs: Date.now() - startedAt,
+      workspaceId: req.workspaceId,
+      message: error?.message,
+      name: error?.name,
+      stack: error?.stack,
+    });
     res.status(500).json({ success: false, message: 'Error loading settings' });
   }
 });
 
 router.put('/settings', requireEcomAuth, requireWorkspace, async (req, res) => {
+  const startedAt = Date.now();
+  console.log(`${DEBUG_TAG} PUT start`, {
+    workspaceId: req.workspaceId,
+    userId: req.user?.id || req.user?._id || null,
+    method: req.method,
+    originalUrl: req.originalUrl,
+    ip: req.ip,
+    userAgent: req.headers['user-agent'],
+    contentType: req.headers['content-type'],
+    contentLengthHeader: req.headers['content-length'],
+    origin: req.headers.origin,
+    referer: req.headers.referer,
+    requestId: req.headers['x-request-id'] || null,
+    cfRay: req.headers['cf-ray'] || null,
+    bodySummary: summarizeStoreSettingsPayload(req.body),
+  });
+
   try {
     console.log('🔧 PUT /store/settings - workspaceId:', req.workspaceId);
     console.log('🔧 Request body keys:', Object.keys(req.body || {}));
@@ -296,16 +364,36 @@ router.put('/settings', requireEcomAuth, requireWorkspace, async (req, res) => {
       { new: true }
     );
     
-    console.log('✅ Settings updated successfully for workspace:', req.workspaceId);
+    if (!result) {
+      console.warn(`${DEBUG_TAG} PUT workspace not found`, {
+        workspaceId: req.workspaceId,
+        durationMs: Date.now() - startedAt,
+      });
+      return res.status(404).json({ success: false, message: 'Workspace not found' });
+    }
+
+    console.log(`${DEBUG_TAG} PUT success`, {
+      workspaceId: req.workspaceId,
+      durationMs: Date.now() - startedAt,
+      updatedSettingsKeys: Object.keys(result.storeSettings || {}),
+      logoLength: String(result.storeSettings?.logo || '').length,
+      faviconLength: String(result.storeSettings?.favicon || '').length,
+    });
     
     res.json({
       success: true,
       message: 'Settings updated'
     });
   } catch (error) {
-    console.error('❌ Error PUT /store/settings:', error);
-    console.error('❌ Error details:', error.message);
-    console.error('❌ Stack:', error.stack);
+    console.error(`${DEBUG_TAG} PUT failed`, {
+      durationMs: Date.now() - startedAt,
+      workspaceId: req.workspaceId,
+      message: error?.message,
+      name: error?.name,
+      code: error?.code,
+      stack: error?.stack,
+      bodySummary: summarizeStoreSettingsPayload(req.body),
+    });
     res.status(500).json({ success: false, message: 'Error saving settings' });
   }
 });

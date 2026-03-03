@@ -80,6 +80,19 @@ const stockOrderSchema = new mongoose.Schema({
     type: String,
     maxlength: 500
   },
+  // Statuts de paiement
+  paidPurchase: {
+    type: Boolean,
+    default: false
+  },
+  paidTransport: {
+    type: Boolean,
+    default: false
+  },
+  paid: {
+    type: Boolean,
+    default: false
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'EcomUser',

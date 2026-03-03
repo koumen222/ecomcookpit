@@ -2,7 +2,7 @@
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
-import ecomApi from '../services/ecommApi.js';
+import { stockApi } from '../services/ecommApi.js';
 import StockManagement from './StockManagement.jsx';
 import { getContextualError } from '../utils/errorMessages';
 import { getCache, setCache } from '../utils/cacheUtils.js';
@@ -65,7 +65,7 @@ const StockOrdersList = () => {
   const loadOrders = async () => {
     try {
       setLoading(true);
-      const response = await ecomApi.get('/stock/orders');
+      const response = await stockApi.getStockOrders();
       const ordersData = response.data?.data?.orders || response.data?.data || [];
       setOrders(Array.isArray(ordersData) ? ordersData : []);
     } catch (err) { setError(getContextualError(err, 'load_orders')); setOrders([]); }
@@ -89,7 +89,7 @@ const StockOrdersList = () => {
     setEditingId(orderId); setFormData(EMPTY_FORM); setFormError('');
     setFormInitLoading(true); loadProducts(); setShowModal(true);
     try {
-      const res = await ecomApi.get(`/stock/orders/${orderId}`);
+      const res = await stockApi.getStockOrder(orderId);
       const o = res.data.data;
       setFormData({
         productId: o.productId?._id || o.productId || '', productName: o.productName || '',
@@ -130,15 +130,32 @@ const StockOrdersList = () => {
     };
     try {
       if (editingId) await ecomApi.put(`/stock/orders/${editingId}`, payload);
-      else await ecomApi.post('/stock/orders', payload);
+      else await stockApi.createStockOrder(payload);
       closeModal(); loadOrders();
     } catch (err) { setFormError(getContextualError(err, 'save_order')); }
     finally { setFormLoading(false); }
   };
 
   const updateOrderStatus = async (orderId, action) => {
-    try { await ecomApi.put(`/stock/orders/${orderId}/${action}`); loadOrders(); }
+    try { 
+      if (action === 'receive') {
+        await stockApi.receiveStockOrder(orderId);
+      } else if (action === 'cancel') {
+        await stockApi.cancelStockOrder(orderId);
+      }
+      loadOrders(); 
+    }
     catch (err) { setError(getContextualError(err, 'save_order')); }
+  };
+
+  const deleteOrder = async (orderId) => {
+    if (!window.confirm('Supprimer cette commande ? Cette action est irréversible.')) return;
+    try {
+      await stockApi.deleteStockOrder(orderId);
+      loadOrders();
+    } catch (err) {
+      setError(getContextualError(err, 'delete_order'));
+    }
   };
 
   const qty = parseInt(formData.quantity) || 0;
@@ -250,9 +267,10 @@ const StockOrdersList = () => {
                     {order.status === 'in_transit' && (
                       <>
                         <button onClick={() => updateOrderStatus(order._id, 'receive')} className="text-green-600 hover:text-green-900 mr-3">Recevoir</button>
-                        <button onClick={() => updateOrderStatus(order._id, 'cancel')} className="text-red-600 hover:text-red-900">Annuler</button>
+                        <button onClick={() => updateOrderStatus(order._id, 'cancel')} className="text-red-600 hover:text-red-900 mr-3">Annuler</button>
                       </>
                     )}
+                    <button onClick={() => deleteOrder(order._id)} className="text-red-600 hover:text-red-900">Supprimer</button>
                   </td>
                 </tr>
               );
