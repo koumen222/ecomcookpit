@@ -15,6 +15,48 @@ const _cache = new Map();
 const CACHE_TTL = 5000;
 const DEBUG_TAG = '[EcomApi]';
 
+function normalizeEnvBaseUrl(raw = '') {
+  const value = String(raw || '').trim();
+  if (!value) return '';
+
+  // Absolute URL
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      const parsed = new URL(value);
+      const pathname = parsed.pathname.replace(/\/+$/, '');
+
+      // Misconfiguration guard: origin only (e.g. https://xxx.up.railway.app)
+      // should target API namespace explicitly.
+      if (!pathname || pathname === '') {
+        return `${parsed.origin}/api/ecom`;
+      }
+
+      return `${parsed.origin}${pathname}`;
+    } catch {
+      return value.replace(/\/+$/, '');
+    }
+  }
+
+  // Relative URL
+  const withLeadingSlash = value.startsWith('/') ? value : `/${value}`;
+  return withLeadingSlash.replace(/\/+$/, '');
+}
+
+function resolveApiBaseUrl() {
+  const envBase = normalizeEnvBaseUrl(import.meta.env.VITE_API_URL);
+
+  // On scalor.net frontend, always target public API domain to avoid
+  // accidental Railway/origin redirects that break CORS preflight.
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) {
+    if (envBase.includes('api.scalor.net')) return envBase;
+    return 'https://api.scalor.net/api/ecom';
+  }
+
+  return envBase || '/api/ecom';
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
+
 function isDebugEndpoint(url = '') {
   return String(url).includes('/store/settings') || String(url).includes('/upload/image');
 }
@@ -27,13 +69,15 @@ function getCached(key) {
 }
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "/api/ecom",
+  baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json; charset=utf-8"
   },
   // Timeout to avoid hanging requests
   timeout: 15000,
 });
+
+console.log(`${DEBUG_TAG} initialized`, { baseURL: API_BASE_URL });
 
 // Intercepteur pour ajouter le token d'authentification
 api.interceptors.request.use(
