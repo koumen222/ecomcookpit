@@ -357,17 +357,24 @@ const StoreProductPage = () => {
                 {images.length > 1 && (
                   <>
                     <button onClick={() => setActiveImage(i => Math.max(0, i - 1))} disabled={activeImage === 0}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 p-2 bg-white rounded-full shadow-md disabled:opacity-30 hover:shadow-lg transition">
-                      <ChevronLeft className="w-4 h-4 text-gray-700" />
+                      className="absolute left-3 top-1/2 -translate-y-1/2 p-2 shadow-md disabled:opacity-30 hover:shadow-lg transition"
+                      style={{ backgroundColor: t.bg, borderRadius: t.radius }}>
+                      <ChevronLeft className="w-4 h-4" style={{ color: t.text }} />
                     </button>
                     <button onClick={() => setActiveImage(i => Math.min(images.length - 1, i + 1))} disabled={activeImage === images.length - 1}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-white rounded-full shadow-md disabled:opacity-30 hover:shadow-lg transition">
-                      <ChevronRight className="w-4 h-4 text-gray-700" />
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 shadow-md disabled:opacity-30 hover:shadow-lg transition"
+                      style={{ backgroundColor: t.bg, borderRadius: t.radius }}>
+                      <ChevronRight className="w-4 h-4" style={{ color: t.text }} />
                     </button>
                     <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
                       {images.map((_, i) => (
                         <button key={i} onClick={() => setActiveImage(i)}
-                          className={`w-2 h-2 rounded-full transition-all ${i === activeImage ? 'scale-125 bg-gray-700' : 'bg-gray-300'}`} />
+                          className="w-2 h-2 transition-all"
+                          style={{ 
+                            borderRadius: t.radius,
+                            backgroundColor: i === activeImage ? t.cta : t.text + '40',
+                            transform: i === activeImage ? 'scale(1.25)' : 'scale(1)'
+                          }} />
                       ))}
                     </div>
                   </>
@@ -375,13 +382,15 @@ const StoreProductPage = () => {
                 {hasDiscount && (
                   <div className="absolute top-3 right-3">
                     <div className="relative">
-                      <div className="bg-orange-500 text-white px-4 py-2 rounded-full shadow-lg">
+                      <div className="text-white px-4 py-2 shadow-lg"
+                        style={{ backgroundColor: t.cta, borderRadius: t.radius }}>
                         <div className="text-center">
-                          <div className="text-xs font-semibold uppercase">Promo</div>
-                          <div className="text-lg font-black leading-none">-{discountPercent}%</div>
+                          <div className="text-xs font-semibold uppercase" style={{ fontFamily: t.font }}>Promo</div>
+                          <div className="text-lg font-black leading-none" style={{ fontFamily: t.font }}>-{discountPercent}%</div>
                         </div>
                       </div>
-                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-orange-500"></div>
+                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px]" 
+                        style={{ borderTopColor: t.cta }}></div>
                     </div>
                   </div>
                 )}
@@ -413,8 +422,8 @@ const StoreProductPage = () => {
 
           {/* Promo banner rouge */}
           {hasDiscount && (
-            <div className="bg-red-600 px-4 py-3" style={{ borderRadius: 0 }}>
-              <p className="text-sm font-bold text-white text-center uppercase tracking-wide">
+            <div className="px-4 py-3" style={{ backgroundColor: t.cta, borderRadius: t.radius }}>
+              <p className="text-sm font-bold text-white text-center uppercase tracking-wide" style={{ fontFamily: t.font }}>
                 🔥 PROFITEZ DE LA RÉDUCTION — ÉCONOMISEZ {formatPrice(product.compareAtPrice - product.price)} {currency}
               </p>
             </div>
@@ -462,18 +471,20 @@ const StoreProductPage = () => {
               )}
             </div>
             {hasDiscount && (
-              <div className="inline-flex items-center gap-2 bg-red-50 text-red-600 px-3 py-1.5 rounded-lg">
-                <span className="text-sm font-bold">SAVE {discountPercent}%</span>
-                <span className="text-xs">Économisez {formatPrice(product.compareAtPrice - product.price)} {currency}</span>
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 text-white" 
+                style={{ backgroundColor: t.cta + '20', borderRadius: t.radius, color: t.cta }}>
+                <span className="text-sm font-bold" style={{ fontFamily: t.font }}>SAVE {discountPercent}%</span>
+                <span className="text-xs" style={{ fontFamily: t.font }}>Économisez {formatPrice(product.compareAtPrice - product.price)} {currency}</span>
               </div>
             )}
           </div>
 
           {/* Stock status - only show if out of stock */}
           {outOfStock && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
+            <div className="border p-3 flex items-center gap-2" 
+              style={{ backgroundColor: '#fef2f2', borderColor: '#fecaca', borderRadius: t.radius }}>
               <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-              <span className="text-sm text-red-700 font-semibold">Rupture de stock</span>
+              <span className="text-sm text-red-700 font-semibold" style={{ fontFamily: t.font }}>Rupture de stock</span>
             </div>
           )}
 
@@ -520,7 +531,8 @@ const StoreProductPage = () => {
                 )}
               </button>
               {!outOfStock && lowStock && (
-                <p className="text-center text-xs text-amber-600 font-medium -mt-1">
+                <p className="text-center text-xs font-medium -mt-1" 
+                  style={{ color: '#d97706', fontFamily: t.font }}>
                   ⚡ Plus que {product.stock} pièces disponibles
                 </p>
               )}
@@ -528,7 +540,8 @@ const StoreProductPage = () => {
               {/* WhatsApp secondary */}
               {whatsappNum && (
                 <button onClick={handleWhatsAppOrder}
-                  className="w-full flex items-center justify-center gap-2.5 px-6 py-3.5 bg-green-500 hover:bg-green-600 text-white rounded-2xl font-semibold text-sm transition active:scale-[.98]">
+                  className="w-full flex items-center justify-center gap-2.5 px-6 py-3.5 text-white font-semibold text-sm transition active:scale-[.98]"
+                  style={{ backgroundColor: '#25D366', borderRadius: t.radius, fontFamily: t.font }}>
                   <MessageCircle className="w-5 h-5" />
                   Commander via WhatsApp
                 </button>
@@ -543,13 +556,12 @@ const StoreProductPage = () => {
               { icon: <RotateCcw className="w-4 h-4" />, label: 'Retour facile' },
               { icon: <Shield className="w-4 h-4" />, label: 'Paiement sécurisé' }
             ].map(({ icon, label }) => (
-              <div key={label} className="flex flex-col items-center gap-1 p-2 text-center" style={{ backgroundColor: t.text + '08', borderRadius: t.radius }}>
+              <button key={label} className="flex flex-col items-center gap-1 p-2 text-center w-full hover:opacity-70 transition" style={{ backgroundColor: t.text + '08', borderRadius: t.radius }}>
                 <span style={{ color: t.cta }}>{icon}</span>
                 <span className="text-[10px] font-medium leading-tight" style={{ color: t.text + '80', fontFamily: t.font }}>{label}</span>
-              </div>
+              </button>
             ))}
           </div>
-
           {/* Tags */}
           {product.tags?.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pt-1">
@@ -623,7 +635,8 @@ const StoreProductPage = () => {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {relatedProducts.map(p => (
               <button key={p._id} onClick={() => navigate(storePath(`/products/${p.slug}`))}
-                className="text-left group rounded-2xl overflow-hidden border border-gray-100 hover:border-gray-300 hover:shadow-md transition">
+                className="text-left group overflow-hidden border hover:shadow-md transition"
+                style={{ borderRadius: t.radius, borderColor: t.text + '20' }}>
                 <div className="aspect-square bg-gray-50 overflow-hidden">
                   {p.images?.[0]?.url
                     ? <img src={p.images[0].url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
