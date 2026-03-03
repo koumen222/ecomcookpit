@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { useSubdomain, useStorefront } from '../hooks/useStorefront';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -161,9 +162,12 @@ const HeroSection = ({ config, t, store }) => {
 };
 
 // ── Featured Products ────────────────────────────────────────────────────────
-const ProductCard = ({ product, currency, t }) => (
-  <div className="bg-white border border-gray-100 overflow-hidden group hover:shadow-xl transition-all duration-300"
-    style={{ borderRadius: t.radius }}>
+const ProductCard = ({ product, currency, t, href }) => (
+  <a
+    href={href}
+    className="block bg-white border border-gray-100 overflow-hidden group hover:shadow-xl transition-all duration-300"
+    style={{ borderRadius: t.radius }}
+  >
     <div className="aspect-square bg-gray-50 overflow-hidden relative">
       {product.image ? (
         <img src={product.image} alt={product.name}
@@ -195,10 +199,10 @@ const ProductCard = ({ product, currency, t }) => (
         <p className="text-[11px] text-orange-600 mt-1.5 font-medium">Plus que {product.stock} en stock</p>
       )}
     </div>
-  </div>
+  </a>
 );
 
-const FeaturedProducts = ({ config, products, currency, t }) => {
+const FeaturedProducts = ({ config, products, currency, t, getProductHref }) => {
   const { count = 8, title = 'Nos Produits' } = config || {};
   const [activeCategory, setActiveCategory] = useState('all');
   const cats = useMemo(() => [...new Set(products.map(p => p.category).filter(Boolean))], [products]);
@@ -229,7 +233,15 @@ const FeaturedProducts = ({ config, products, currency, t }) => {
           </div>
         )}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-          {filtered.map(p => <ProductCard key={p._id} product={p} currency={currency} t={t} />)}
+          {filtered.map((p) => (
+            <ProductCard
+              key={p._id}
+              product={p}
+              currency={currency}
+              t={t}
+              href={getProductHref(p.slug)}
+            />
+          ))}
         </div>
       </div>
     </section>
@@ -397,8 +409,17 @@ const WhatsAppFloat = ({ whatsapp }) => {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 const PublicStorefront = () => {
-  const subdomain = useSubdomain();
+  const { subdomain: paramSubdomain } = useParams();
+  const hostSubdomain = useSubdomain();
+  const subdomain = hostSubdomain || paramSubdomain;
   const { store, products, categories, sections: apiSections, pixels, loading, error } = useStorefront(subdomain);
+
+  const getProductHref = (slug) => {
+    if (!slug) return '#products';
+    if (hostSubdomain) return `/product/${slug}`;
+    if (subdomain) return `/store/${subdomain}/product/${slug}`;
+    return `/product/${slug}`;
+  };
 
   // Inject tracking pixels
   usePixelInjection(pixels);
@@ -476,7 +497,7 @@ const PublicStorefront = () => {
     const key = `${section.type}-${idx}`;
     switch (section.type) {
       case 'hero': return <HeroSection key={key} config={section.config} t={t} store={store} />;
-      case 'featured_products': return <FeaturedProducts key={key} config={section.config} products={products} currency={store.currency} t={t} />;
+      case 'featured_products': return <FeaturedProducts key={key} config={section.config} products={products} currency={store.currency} t={t} getProductHref={getProductHref} />;
       case 'promo_banner': return <PromoBanner key={key} config={section.config} t={t} />;
       case 'trust_badges': return <TrustBadges key={key} t={t} />;
       case 'testimonials': return <Testimonials key={key} config={section.config} t={t} />;
