@@ -1,6 +1,20 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
+const resolvePublicStoreApiBase = () => {
+  const explicitStoreApi = import.meta.env.VITE_STORE_API_URL;
+  const backendUrl = import.meta.env.VITE_BACKEND_URL;
+
+  if (explicitStoreApi) return explicitStoreApi.replace(/\/+$/, '');
+  if (backendUrl) return backendUrl.replace(/\/+$/, '');
+
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) {
+    return 'https://api.scalor.net';
+  }
+
+  return 'http://localhost:8080';
+};
+
 /**
  * Hook pour charger les données d'une boutique publique
  * Utilisé par le storefront public (koumen1.scalor.net)
@@ -26,7 +40,8 @@ export const useStorefront = (subdomain) => {
         setError(null);
 
         // Appel à l'API publique
-        const apiUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080';
+        const apiUrl = resolvePublicStoreApiBase();
+        console.log('[useStorefront] API base resolved:', apiUrl, '| subdomain:', subdomain);
         const res = await axios.get(`${apiUrl}/api/store/${subdomain}`);
 
         if (res.data?.success) {

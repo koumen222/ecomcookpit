@@ -2,8 +2,29 @@ import axios from 'axios';
 
 // Configuration de base pour les API publiques (sans authentification)
 const isDev = import.meta.env.DEV;
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
-const API_BASE = isDev ? '/api/ecom' : `${BACKEND_URL}/api/ecom`;
+
+const resolvePublicApiBase = () => {
+  if (isDev) return '/api/ecom';
+
+  const explicitStoreApi = import.meta.env.VITE_STORE_API_URL;
+  const explicitApiBase = import.meta.env.VITE_API_BASE_URL;
+  const backendUrl = import.meta.env.VITE_BACKEND_URL;
+
+  const candidate = explicitStoreApi || explicitApiBase || backendUrl;
+  if (candidate) {
+    const clean = String(candidate).replace(/\/+$/, '');
+    return clean.endsWith('/api/ecom') ? clean : `${clean}/api/ecom`;
+  }
+
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) {
+    return 'https://api.scalor.net/api/ecom';
+  }
+
+  return 'http://localhost:8080/api/ecom';
+};
+
+const API_BASE = resolvePublicApiBase();
+console.log('[publicApi] API_BASE =', API_BASE);
 
 // Créer une instance axios pour les API publiques
 const publicApi = axios.create({
