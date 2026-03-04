@@ -491,7 +491,7 @@ const StoreFooter = ({ store, t }) => {
         </div>
         <div className="border-t border-gray-200 pt-6 text-center text-xs text-gray-400">
           <p>&copy; {year} {store.name}. Tous droits r&eacute;serv&eacute;s.</p>
-          <p className="mt-1">Propuls&eacute; par <a href="https://scalor.net" className="hover:underline" style={{ color: t.cta }}>Scalor</a></p>
+          <p className="mt-1">Propuls&eacute; par <a href="https://scalor.net" target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: t.cta }}>Scalor</a></p>
         </div>
       </div>
     </footer>
@@ -551,6 +551,11 @@ const PublicStorefront = () => {
     }
   }, [store]);
 
+  // Live theme override from builder (Socket.io)
+  // Must stay before any early return to keep hook order stable across renders.
+  const [liveTheme, setLiveTheme] = useState(null);
+  useThemeSocket(subdomain, (incoming) => setLiveTheme(prev => ({ ...prev, ...incoming })));
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -571,17 +576,13 @@ const PublicStorefront = () => {
           </svg>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Boutique introuvable</h1>
           <p className="text-gray-600 mb-6">{error || "Cette boutique n'existe pas ou n'est pas encore configuree."}</p>
-          <a href="https://scalor.net" className="inline-block px-6 py-3 bg-[#0F6B4F] text-white font-semibold rounded-xl hover:bg-[#0A5740] transition">
+          <a href="https://scalor.net" target="_blank" rel="noopener noreferrer" className="inline-block px-6 py-3 bg-[#0F6B4F] text-white font-semibold rounded-xl hover:bg-[#0A5740] transition">
             Creer ma boutique
           </a>
         </div>
       </div>
     );
   }
-
-  // Live theme override from builder (Socket.io)
-  const [liveTheme, setLiveTheme] = useState(null);
-  useThemeSocket(subdomain, (incoming) => setLiveTheme(prev => ({ ...prev, ...incoming })));
 
   // Build theme object — live overrides from builder win
   const merged = liveTheme ? { ...store, ...liveTheme } : store;

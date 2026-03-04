@@ -84,6 +84,16 @@ export function useThemeSocket(subdomain, onThemeUpdate) {
   useEffect(() => {
     if (!subdomain) return;
 
+    // Live theme updates are only needed in builder preview (iframe).
+    // Skip socket connection for normal storefront visits to avoid noisy retries.
+    let isIframePreview = false;
+    try {
+      isIframePreview = window.self !== window.top;
+    } catch {
+      isIframePreview = true;
+    }
+    if (!isIframePreview) return;
+
     const socket = getOrCreateSocket(subdomain);
 
     const handler = (theme) => {

@@ -47,6 +47,8 @@ const SECTION_FIELD_SCHEMAS = {
 };
 
 function inferFieldType(key, value) {
+  if (Array.isArray(value)) return 'list';
+  if (value && typeof value === 'object') return 'json';
   if (typeof value === 'number') return 'number';
   if (key.toLowerCase().includes('color')) return 'color';
   if (key.toLowerCase().includes('image') || key.toLowerCase().includes('bgimage')) return 'image';
@@ -56,14 +58,56 @@ function inferFieldType(key, value) {
 
 function getSectionFields(section) {
   const schema = SECTION_FIELD_SCHEMAS[section.type];
-  if (schema) return schema;
-  return Object.entries(section.config || {})
-    .filter(([, value]) => !Array.isArray(value) && typeof value !== 'object')
-    .map(([key, value]) => ({
-      key,
-      label: key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase()),
-      type: inferFieldType(key, value),
-    }));
+  const dynamic = Object.entries(section.config || {}).map(([key, value]) => ({
+    key,
+    label: key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase()),
+    type: inferFieldType(key, value),
+  }));
+
+  if (!schema) return dynamic;
+
+  const existingKeys = new Set(schema.map((f) => f.key));
+  const extras = dynamic.filter((f) => !existingKeys.has(f.key));
+  return [...schema, ...extras];
+}
+
+function buildDefaultSubItem(list = []) {
+  const first = list[0];
+  if (first && typeof first === 'object' && !Array.isArray(first)) {
+    return Object.keys(first).reduce((acc, key) => {
+      acc[key] = typeof first[key] === 'number' ? 0 : '';
+      return acc;
+    }, {});
+  }
+  if (typeof first === 'number') return 0;
+  if (typeof first === 'string') return '';
+  return { title: '', content: '' };
+}
+
+function humanizeKey(key) {
+  return key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase());
+}
+
+function renderInlineScalarInput(value, onChange) {
+  if (typeof value === 'number') {
+    return (
+      <input
+        type="number"
+        value={Number(value) || 0}
+        onChange={(e) => onChange(parseInt(e.target.value, 10) || 0)}
+        className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg"
+      />
+    );
+  }
+
+  return (
+    <input
+      type="text"
+      value={String(value ?? '')}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg"
+    />
+  );
 }
 
 // ─── Section editor modal ────────────────────────────────────────────────────
@@ -72,6 +116,21 @@ function SectionEditor({ section, onSave, onClose, onDelete }) {
   if (!section) return null;
   const fields = getSectionFields(section);
   const update = (k, v) => setConfig((p) => ({ ...p, [k]: v }));
+  const updateArrayItem = (key, index, nextItem) => {
+    const nextList = [...(config?.[key] || [])];
+    nextList[index] = nextItem;
+    update(key, nextList);
+  };
+
+  const removeArrayItem = (key, index) => {
+    const nextList = (config?.[key] || []).filter((_, i) => i !== index);
+    update(key, nextList);
+  };
+
+  const addArrayItem = (key) => {
+    const current = config?.[key] || [];
+    update(key, [...current, buildDefaultSubItem(current)]);
+  };
 
   const renderField = ({ key, label, type }) => {
     const value = config?.[key] ?? '';
@@ -84,6 +143,76 @@ function SectionEditor({ section, onSave, onClose, onDelete }) {
           rows={4}
           className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent"
         />
+      );
+    }
+
+    if (type === 'json') {
+      return (
+        <textarea
+          value={JSON.stringify(value || {}, null, 2)}
+          rows={4}
+          onChange={(e) => {
+            try {
+              update(key, JSON.parse(e.target.value || '{}'));
+            } catch {
+              // keep invalid JSON as-is in UI without crashing
+            }
+          }}
+          className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl font-mono focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent"
+        />
+      );
+    }
+
+    if (type === 'list') {
+      const list = Array.isArray(value) ? value : [];
+      return (
+        <div className="space-y-2">
+          {list.length === 0 && (
+            <p className="text-[11px] text-gray-400">Aucune sous-section.</p>
+          )}
+
+          {list.map((item, idx) => (
+            <div key={`${key}-${idx}`} className="rounded-lg border border-gray-200 bg-gray-50 p-2.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold text-gray-600">Sous-section {idx + 1}</p>
+                <button
+                  type="button"
+                  onClick={() => removeArrayItem(key, idx)}
+                  className="text-[11px] text-red-500 hover:text-red-600"
+                >
+                  Supprimer
+                </button>
+              </div>
+
+              {item && typeof item === 'object' && !Array.isArray(item) ? (
+                <div className="space-y-2">
+                  {Object.entries(item).map(([subKey, subValue]) => (
+                    <div key={subKey}>
+                      <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1 block">
+                        {humanizeKey(subKey)}
+                      </label>
+                      {renderInlineScalarInput(subValue, (nextValue) => {
+                        updateArrayItem(key, idx, { ...item, [subKey]: nextValue });
+                      })}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                renderInlineScalarInput(item, (nextValue) => {
+                  updateArrayItem(key, idx, nextValue);
+                })
+              )}
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={() => addArrayItem(key)}
+            className="w-full py-2 text-xs font-semibold text-[#0F6B4F] bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition"
+          >
+            + Ajouter une sous-section
+          </button>
+        </div>
       );
     }
 
@@ -860,12 +989,16 @@ const VisualBuilder = () => {
                           >
                             <GripVertical className="w-3 h-3 text-gray-300 flex-shrink-0" />
                             <span className="text-sm leading-none flex-shrink-0">{meta.icon}</span>
-                            <div className="flex-1 min-w-0">
+                            <button
+                              type="button"
+                              onClick={() => setEditingIdx(idx)}
+                              className="flex-1 min-w-0 text-left"
+                            >
                               <p className={`text-xs font-semibold truncate ${section.enabled ? 'text-gray-700' : 'text-gray-400'}`}>
                                 {meta.label}
                               </p>
                               <p className="text-[10px] text-gray-400 truncate">{section.type}</p>
-                            </div>
+                            </button>
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
                               <button
                                 onClick={() => setEditingIdx(idx)}
