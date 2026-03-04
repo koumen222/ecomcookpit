@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Check, ArrowRight, ArrowLeft, Loader2, Store, Image, Globe, MessageCircle } from 'lucide-react';
 import { storeManageApi } from '../services/storeApi.js';
 import { storeProductsApi } from '../services/storeApi.js';
+import { createEmptyStore, DEFAULT_EMPTY_STORE } from '../utils/storeDefaults.js';
 
 const CURRENCIES = [
   { code: 'XAF', label: 'Franc CFA (XAF)', flag: '🇨🇲' },
@@ -128,7 +129,20 @@ const StoreCreationWizard = ({ onComplete }) => {
     if (!validate()) return;
     setSaving(true);
     try {
+      // Create empty store with user settings
+      const emptyStore = createEmptyStore({
+        storeName: form.storeName,
+        storeDescription: form.storeDescription,
+        storeLogo: form.storeLogo,
+        currency: form.storeCurrency,
+        whatsapp: form.storeWhatsApp,
+        phone: form.storePhone,
+      });
+
+      // Set subdomain first
       await storeManageApi.setSubdomain(form.subdomain);
+      
+      // Update store config with empty page structure
       await storeManageApi.updateStoreConfig({
         storeName: form.storeName,
         storeDescription: form.storeDescription,
@@ -138,10 +152,22 @@ const StoreCreationWizard = ({ onComplete }) => {
         storeWhatsApp: form.storeWhatsApp,
         storePhone: form.storePhone,
         isStoreEnabled: true,
+        // Initialize with empty sections array - users build with drag & drop
+        sections: emptyStore.sections, // This will be []
       });
+
+      // Set the theme defaults
+      try {
+        await storeManageApi.updateTheme({
+          ...emptyStore.theme,
+          primaryColor: form.themeColor, // Use selected color as primary
+        });
+      } catch (themeError) {
+        console.warn('Theme initialization failed, will use defaults:', themeError);
+      }
+
       onComplete?.();
-      navigate('/ecom/boutique');
-      window.location.reload();
+      navigate('/ecom/boutique/builder'); // Navigate directly to builder for new stores
     } catch (err) {
       setErrors({ submit: err.response?.data?.message || 'Erreur lors de la création' });
     } finally {
