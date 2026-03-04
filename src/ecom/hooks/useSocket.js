@@ -2,12 +2,27 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
 const resolveSocketUrl = () => {
-  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
-  if (import.meta.env.VITE_BACKEND_URL) return import.meta.env.VITE_BACKEND_URL;
+  const candidates = [
+    import.meta.env.VITE_API_URL,
+    import.meta.env.VITE_BACKEND_URL,
+  ];
+
+  for (const raw of candidates) {
+    if (!raw) continue;
+    try {
+      // If it's an absolute URL, extract the origin
+      const url = new URL(raw.startsWith('http') ? raw : `${window.location.origin}${raw}`);
+      return url.origin;
+    } catch {
+      // ignore malformed
+    }
+  }
+
+  // Fallback: api.scalor.net in prod, localhost in dev
   if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) {
     return 'https://api.scalor.net';
   }
-  return 'https://ecomcookpit-production-7a08.up.railway.app';
+  return 'http://localhost:8080';
 };
 
 const SOCKET_URL = resolveSocketUrl();
