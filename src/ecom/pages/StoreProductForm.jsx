@@ -347,10 +347,22 @@ const StoreProductForm = () => {
         formData.append('image', file);
         formData.append('workspaceId', localStorage.getItem('workspaceId') || 'default');
         
-        const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
+        const API_ORIGIN = (() => {
+          const raw = String(import.meta.env.VITE_BACKEND_URL || '').trim();
+          if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) {
+            return 'https://api.scalor.net';
+          }
+          if (/^https?:\/\//i.test(raw)) {
+            try { return new URL(raw).origin; } catch { /* noop */ }
+          }
+          if (raw.startsWith('/')) {
+            return typeof window !== 'undefined' ? window.location.origin : 'https://ecomcookpit-production-7a08.up.railway.app';
+          }
+          return 'https://ecomcookpit-production-7a08.up.railway.app';
+        })();
         
         try {
-          const response = await fetch(`${BACKEND_URL}/api/ecom/store-products/upload`, {
+          const response = await fetch(`${API_ORIGIN}/api/ecom/store-products/upload`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('ecomToken')}`,

@@ -129,6 +129,29 @@ app.use(cookieParser());
 // Must be BEFORE all other middleware that depends on req.subdomain / req.isApiDomain
 app.use(extractSubdomain);
 
+// ─── Defensive API path normalization (stale bundle compatibility) ──────────
+// Some old frontend bundles may accidentally call:
+// - /api/ecom/api/ai/...
+// - /api/ecom/api/ecom/...
+// Rewrite them to the canonical routes so requests still succeed.
+app.use((req, _res, next) => {
+  const originalUrl = req.url || '';
+  let normalizedUrl = originalUrl;
+
+  if (normalizedUrl.startsWith('/api/ecom/api/ecom/')) {
+    normalizedUrl = normalizedUrl.replace('/api/ecom/api/ecom/', '/api/ecom/');
+  }
+  if (normalizedUrl.startsWith('/api/ecom/api/')) {
+    normalizedUrl = normalizedUrl.replace('/api/ecom/api/', '/api/');
+  }
+
+  if (normalizedUrl !== originalUrl) {
+    req.url = normalizedUrl;
+  }
+
+  next();
+});
+
 // ✅ FORCE UTF-8 for API routes only — store subdomains serve HTML, not JSON
 // Must be AFTER extractSubdomain so req.isApiDomain is available
 app.use((req, res, next) => {

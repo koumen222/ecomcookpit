@@ -6,7 +6,7 @@ import {
 
 // Product-generator is mounted at /api/ai/product-generator (outside /api/ecom).
 // We must always use API origin only, never a base path like /api/ecom.
-const BACKEND_URL = (() => {
+const API_ORIGIN = (() => {
   const raw = String(import.meta.env.VITE_BACKEND_URL || '').trim();
 
   // On scalor.net frontend, always target public API domain.
@@ -152,7 +152,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     try {
       console.log('🚀 Starting Product Page Generation:', { url: url.trim(), photosCount: photos.length });
       
-      const resp = await fetch(`${BACKEND_URL}/api/ai/product-generator`, {
+      const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator`, {
         method: 'POST',
         signal: controller.signal,
         headers: {
