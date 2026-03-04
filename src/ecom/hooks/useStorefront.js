@@ -23,7 +23,7 @@ export const useStorefront = (subdomain) => {
   const [store, setStore] = useState(null);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [sections, setSections] = useState([]);
+  const [sections, setSections] = useState(null);
   const [pixels, setPixels] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -49,7 +49,7 @@ export const useStorefront = (subdomain) => {
           setStore(d.store);
           setProducts(d.products || []);
           setCategories(d.categories || []);
-          setSections(d.sections || []);
+          setSections(d.sections ?? null); // null = pas configuré, [] = page vierge builder
           setPixels(d.pixels || null);
         } else {
           setError('Boutique introuvable');

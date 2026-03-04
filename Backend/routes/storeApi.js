@@ -139,7 +139,7 @@ router.get('/:subdomain', async (req, res) => {
     }));
 
     const theme = workspace.storeTheme || {};
-    const pages = workspace.storePages || {};
+    const pages = workspace.storePages;  // intentional: null if never set
     const pixels = workspace.storePixels || {};
 
     res.json({
@@ -176,8 +176,8 @@ router.get('/:subdomain', async (req, res) => {
           announcement: settings.announcement || '',
           announcementEnabled: settings.announcementEnabled || false,
         },
-        // Page sections (ordered, with config)
-        sections: pages.sections || [],
+        // Page sections: null = never configured (use defaults), [] = builder empty page
+        sections: pages ? (pages.sections ?? null) : null,
         // Pixel IDs for tracking injection
         pixels: {
           metaPixelId: pixels.metaPixelId || '',

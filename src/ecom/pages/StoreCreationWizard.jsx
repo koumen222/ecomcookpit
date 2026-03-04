@@ -142,7 +142,7 @@ const StoreCreationWizard = ({ onComplete }) => {
       // Set subdomain first
       await storeManageApi.setSubdomain(form.subdomain);
       
-      // Update store config with empty page structure
+      // Update store config
       await storeManageApi.updateStoreConfig({
         storeName: form.storeName,
         storeDescription: form.storeDescription,
@@ -152,22 +152,24 @@ const StoreCreationWizard = ({ onComplete }) => {
         storeWhatsApp: form.storeWhatsApp,
         storePhone: form.storePhone,
         isStoreEnabled: true,
-        // Initialize with empty sections array - users build with drag & drop
-        sections: emptyStore.sections, // This will be []
       });
+
+      // ⬇️ CRUCIAL: initialiser storePages avec sections:[] pour que le builder
+      // parte d'une page vierge (null = ancienne boutique avec sections par défaut)
+      await storeManageApi.updatePages({ sections: [] });
 
       // Set the theme defaults
       try {
         await storeManageApi.updateTheme({
           ...emptyStore.theme,
-          primaryColor: form.themeColor, // Use selected color as primary
+          primaryColor: form.themeColor,
         });
       } catch (themeError) {
         console.warn('Theme initialization failed, will use defaults:', themeError);
       }
 
       onComplete?.();
-      navigate('/ecom/boutique/builder'); // Navigate directly to builder for new stores
+      navigate('/ecom/boutique/builder');
     } catch (err) {
       setErrors({ submit: err.response?.data?.message || 'Erreur lors de la création' });
     } finally {

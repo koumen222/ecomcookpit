@@ -885,8 +885,11 @@ const PublicStorefront = () => {
     tpl:    merged.template || 'classic',
   };
 
-  // Sections: live socket override > API > defaults
-  const sections = liveSections || (apiSections && apiSections.length > 0) ? (liveSections || apiSections) : [
+  // Sections: live socket override > API sections
+  // If sections is explicitly [] (builder-based store with empty page), show nothing.
+  // Default sections only apply when storePages was never configured (null/undefined → apiSections is null).
+  const effectiveSections = liveSections ?? apiSections;
+  const DEFAULT_SECTIONS = [
     { type: 'hero', enabled: true, config: { title: '', subtitle: '', ctaText: 'Voir nos produits' } },
     { type: 'featured_products', enabled: true, config: { count: 8, title: 'Nos Produits' } },
     { type: 'promo_banner', enabled: true, config: { text: '', bgColor: '#EF4444' } },
@@ -896,6 +899,7 @@ const PublicStorefront = () => {
     { type: 'cta', enabled: false, config: { title: '', buttonText: 'Commander', buttonUrl: '' } },
     { type: 'footer', enabled: true, config: {} },
   ];
+  const sections = effectiveSections !== null ? effectiveSections : DEFAULT_SECTIONS;
 
   // Section renderer
   const renderSection = (section, idx) => {

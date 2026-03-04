@@ -2,7 +2,9 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { useBroadcastTheme } from '../hooks/useThemeSocket';
-import PageBuilder from '../components/PageBuilder';
+import { BlockLibrary, BuilderCanvas } from '../components/PageBuilder';
+import { DndProvider } from 'react-dnd';
+import { HTML5Backend } from 'react-dnd-html5-backend';
 import api from '../../lib/api';
 import {
   ArrowLeft, Save, Check, Loader2, Palette, LayoutGrid, Monitor,
@@ -298,182 +300,188 @@ const EnhancedVisualBuilder = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      {/* Header */}
-      <header className="flex items-center justify-between h-14 px-4 bg-white border-b border-gray-200 flex-shrink-0 shadow-sm">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/ecom/boutique')}
-            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800 transition"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Retour</span>
-          </button>
-          
-          <div className="w-px h-6 bg-gray-200" />
-          
-          <h1 className="text-lg font-bold text-gray-900">Site Builder</h1>
-          
-          {/* Live indicator */}
-          <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
-            isConnected ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-600'
-          }`}>
-            <Zap className="w-3 h-3" />
-            <span className="font-medium">{isConnected ? 'Live' : 'Connexion...'}</span>
-            {lastBroadcast && isConnected && (
-              <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Device switcher */}
-          <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
-            {[
-              { id: 'desktop', icon: <Monitor className="w-4 h-4" />, label: 'Bureau' },
-              { id: 'tablet', icon: <Tablet className="w-4 h-4" />, label: 'Tablette' },
-              { id: 'mobile', icon: <Smartphone className="w-4 h-4" />, label: 'Mobile' },
-            ].map(({ id, icon, label }) => (
-              <button
-                key={id}
-                onClick={() => setDevice(id)}
-                className={`p-2 rounded-md transition ${
-                  device === id ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
-                }`}
-                title={label}
-              >
-                {icon}
-              </button>
-            ))}
-          </div>
-
-          <div className="w-px h-6 bg-gray-200" />
-
-          {/* Actions */}
-          <button
-            onClick={() => setIframeKey(k => k + 1)}
-            className="p-2 rounded-lg text-gray-500 hover:text-gray-700 transition"
-            title="Rafraîchir l'aperçu"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
-
-          {subdomain && (
-            <a
-              href={`/store/${subdomain}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2 rounded-lg text-gray-500 hover:text-gray-700 transition"
-              title="Ouvrir la boutique"
+    <DndProvider backend={HTML5Backend}>
+      <div className="flex flex-col h-screen bg-gray-50">
+        {/* Header */}
+        <header className="flex items-center justify-between h-14 px-4 bg-white border-b border-gray-200 flex-shrink-0 shadow-sm z-10">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/ecom/boutique')}
+              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800 transition"
             >
-              <ExternalLink className="w-4 h-4" />
-            </a>
-          )}
-
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition ${
-              saved ? 'bg-green-500' : 'bg-blue-600 hover:bg-blue-700'
-            } disabled:opacity-50`}
-          >
-            {saving ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : saved ? (
-              <Check className="w-4 h-4" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            {saved ? 'Publié !' : 'Publier'}
-          </button>
-        </div>
-      </header>
-
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left sidebar */}
-        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
-          {/* Tab buttons */}
-          <div className="flex border-b border-gray-200">
-            {[
-              { id: 'builder', label: 'Builder', icon: <LayoutGrid className="w-4 h-4" /> },
-              { id: 'theme', label: 'Thème', icon: <Palette className="w-4 h-4" /> },
-              { id: 'settings', label: 'Config', icon: <Settings className="w-4 h-4" /> },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition border-b-2 ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600 bg-blue-50'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            ))}
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Retour</span>
+            </button>
+            
+            <div className="w-px h-6 bg-gray-200" />
+            <h1 className="text-lg font-bold text-gray-900">Site Builder</h1>
+            
+            <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
+              isConnected ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-600'
+            }`}>
+              <Zap className="w-3 h-3" />
+              <span className="font-medium">{isConnected ? 'Live' : 'Connexion...'}</span>
+              {lastBroadcast && isConnected && (
+                <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+              )}
+            </div>
           </div>
 
-          {/* Tab content */}
-          <div className="flex-1 overflow-y-auto">
-            {activeTab === 'builder' && (
-              <PageBuilder
-                sections={sections}
-                onUpdateSections={handleSectionsUpdate}
-              />
-            )}
-            
-            {activeTab === 'theme' && (
-              <ThemeCustomizer
-                theme={theme}
-                onThemeUpdate={handleThemeUpdate}
-              />
-            )}
-            
-            {activeTab === 'settings' && (
-              <div className="p-4">
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">Configuration</h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Sous-domaine
-                    </label>
-                    <input
-                      type="text"
-                      value={subdomain}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
-                      placeholder="monstore"
-                      readOnly
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      URL: {subdomain}.scalor.net
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Sections configurées
-                    </label>
-                    <p className="text-sm text-gray-600">
-                      {sections.length} section{sections.length > 1 ? 's' : ''}
-                    </p>
-                  </div>
-                </div>
+          <div className="flex items-center gap-2">
+            {/* Mode switcher: Edit / Preview */}
+            <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+              <button
+                onClick={() => setActiveTab('builder')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition ${
+                  activeTab !== 'preview' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <LayoutGrid className="w-4 h-4" />
+                Éditer
+              </button>
+              <button
+                onClick={() => setActiveTab('preview')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition ${
+                  activeTab === 'preview' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Eye className="w-4 h-4" />
+                Aperçu
+              </button>
+            </div>
+
+            {activeTab === 'preview' && (
+              <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+                {[
+                  { id: 'desktop', icon: <Monitor className="w-4 h-4" />, label: 'Bureau' },
+                  { id: 'tablet', icon: <Tablet className="w-4 h-4" />, label: 'Tablette' },
+                  { id: 'mobile', icon: <Smartphone className="w-4 h-4" />, label: 'Mobile' },
+                ].map(({ id, icon, label }) => (
+                  <button
+                    key={id}
+                    onClick={() => setDevice(id)}
+                    className={`p-2 rounded-md transition ${
+                      device === id ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                    title={label}
+                  >
+                    {icon}
+                  </button>
+                ))}
               </div>
             )}
-          </div>
-        </div>
 
-        {/* Main preview area */}
-        <div className="flex-1 flex flex-col">
-          <DeviceFrame
-            device={device}
-            subdomain={subdomain}
-            iframeKey={iframeKey}
-          />
+            <div className="w-px h-6 bg-gray-200" />
+
+            <button
+              onClick={() => setIframeKey(k => k + 1)}
+              className="p-2 rounded-lg text-gray-500 hover:text-gray-700 transition"
+              title="Rafraîchir l'aperçu"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+
+            {subdomain && (
+              <a
+                href={`/store/${subdomain}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 rounded-lg text-gray-500 hover:text-gray-700 transition"
+                title="Ouvrir la boutique"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            )}
+
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition ${
+                saved ? 'bg-green-500' : 'bg-blue-600 hover:bg-blue-700'
+              } disabled:opacity-50`}
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" />
+                : saved ? <Check className="w-4 h-4" />
+                : <Save className="w-4 h-4" />}
+              {saved ? 'Publié !' : 'Publier'}
+            </button>
+          </div>
+        </header>
+
+        <div className="flex flex-1 overflow-hidden">
+          {/* ── Mode Édition ─────────────────────────────────────────── */}
+          {activeTab !== 'preview' && (
+            <>
+              {/* Sidebar gauche : onglets Blocs / Thème / Config */}
+              <div className="w-72 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
+                <div className="flex border-b border-gray-200">
+                  {[
+                    { id: 'builder', label: 'Blocs',  icon: <LayoutGrid className="w-4 h-4" /> },
+                    { id: 'theme',   label: 'Thème',  icon: <Palette className="w-4 h-4" /> },
+                    { id: 'settings',label: 'Config', icon: <Settings className="w-4 h-4" /> },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold transition border-b-2 ${
+                        activeTab === tab.id
+                          ? 'border-blue-500 text-blue-600 bg-blue-50'
+                          : 'border-transparent text-gray-500 hover:text-gray-700'
+                      }`}
+                    >
+                      {tab.icon}
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex-1 overflow-y-auto">
+                  {activeTab === 'builder' && <BlockLibrary />}
+                  {activeTab === 'theme' && (
+                    <ThemeCustomizer theme={theme} onThemeUpdate={handleThemeUpdate} />
+                  )}
+                  {activeTab === 'settings' && (
+                    <div className="p-4 space-y-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Sous-domaine</label>
+                        <input
+                          type="text"
+                          value={subdomain}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-50"
+                          readOnly
+                        />
+                        <p className="text-xs text-gray-500 mt-1">{subdomain}.scalor.net</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Sections</label>
+                        <p className="text-sm text-gray-600">
+                          {sections.length} section{sections.length !== 1 ? 's' : ''} configurée{sections.length !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Canvas principal — glisser-déposer */}
+              <div className="flex-1 overflow-hidden">
+                <BuilderCanvas
+                  sections={sections}
+                  onUpdateSections={handleSectionsUpdate}
+                />
+              </div>
+            </>
+          )}
+
+          {/* ── Mode Aperçu ───────────────────────────────────────────── */}
+          {activeTab === 'preview' && (
+            <div className="flex-1 flex flex-col">
+              <DeviceFrame device={device} subdomain={subdomain} iframeKey={iframeKey} />
+            </div>
+          )}
         </div>
       </div>
-    </div>
+    </DndProvider>
   );
 };
 

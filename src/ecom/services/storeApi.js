@@ -19,6 +19,12 @@ export const storeManageApi = {
   updateStoreConfig: (data) => ecomApi.put('/store-manage/config', data),
   setSubdomain: (subdomain) => ecomApi.put('/store-manage/subdomain', { subdomain }),
   checkSubdomain: (subdomain) => ecomApi.get(`/store-manage/subdomain/check/${subdomain}`),
+
+  // ─── Theme & Pages (builder) ──────────────────────────────────────────
+  getTheme: () => ecomApi.get('/store/theme'),
+  updateTheme: (data) => ecomApi.put('/store/theme', data),
+  getPages: () => ecomApi.get('/store/pages'),
+  updatePages: (data) => ecomApi.put('/store/pages', data),
 };
 
 export const storeProductsApi = {

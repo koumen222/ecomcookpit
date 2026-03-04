@@ -401,14 +401,49 @@ function SectionEditModal({ section, onClose, onSave }) {
   );
 }
 
-// Main PageBuilder component
-const PageBuilder = ({ sections = [], onUpdateSections }) => {
+// ── BlockLibrary — sidebar des blocs droppables ─────────────────────────────
+export function BlockLibrary() {
+  const blocksByCategory = useMemo(() => {
+    return BLOCK_CATEGORIES.reduce((acc, category) => {
+      acc[category.id] = Object.entries(BLOCK_TYPES).filter(
+        ([, info]) => info.category.toLowerCase().replace(' ', '-') === category.id
+      );
+      return acc;
+    }, {});
+  }, []);
+
+  return (
+    <div className="h-full overflow-y-auto">
+      <div className="p-4 border-b border-gray-100">
+        <p className="text-xs text-gray-500">
+          🖱️ Glissez un bloc vers le canvas pour l'ajouter
+        </p>
+      </div>
+      <div className="p-4 space-y-5">
+        {BLOCK_CATEGORIES.map((category) => (
+          <div key={category.id}>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: category.color }} />
+              {category.name}
+            </h3>
+            <div className="space-y-2">
+              {blocksByCategory[category.id]?.map(([blockType, blockInfo]) => (
+                <DraggableBlock key={blockType} blockType={blockType} blockInfo={blockInfo} />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── BuilderCanvas — zone de construction glisser-déposer ─────────────────────
+export function BuilderCanvas({ sections = [], onUpdateSections }) {
   const [editingSection, setEditingSection] = useState(null);
 
-  // Generate unique ID for new sections
   const generateId = () => `section-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-  // Add new block to sections
   const addBlock = useCallback((blockType, blockInfo) => {
     const newSection = {
       id: generateId(),
@@ -416,11 +451,9 @@ const PageBuilder = ({ sections = [], onUpdateSections }) => {
       visible: true,
       config: { ...blockInfo.defaultConfig },
     };
-    
     onUpdateSections([...sections, newSection]);
   }, [sections, onUpdateSections]);
 
-  // Move section to new position
   const moveSection = useCallback((fromIndex, toIndex) => {
     const newSections = [...sections];
     const [moved] = newSections.splice(fromIndex, 1);
@@ -428,127 +461,83 @@ const PageBuilder = ({ sections = [], onUpdateSections }) => {
     onUpdateSections(newSections);
   }, [sections, onUpdateSections]);
 
-  // Toggle section visibility
   const toggleVisibility = useCallback((index) => {
     const newSections = [...sections];
     newSections[index] = { ...newSections[index], visible: !newSections[index].visible };
     onUpdateSections(newSections);
   }, [sections, onUpdateSections]);
 
-  // Duplicate section
   const duplicateSection = useCallback((index) => {
-    const sectionToDuplicate = sections[index];
-    const newSection = {
-      ...sectionToDuplicate,
-      id: generateId(),
-    };
+    const newSection = { ...sections[index], id: generateId() };
     const newSections = [...sections];
     newSections.splice(index + 1, 0, newSection);
     onUpdateSections(newSections);
   }, [sections, onUpdateSections]);
 
-  // Delete section
   const deleteSection = useCallback((index) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cette section ?')) {
-      const newSections = sections.filter((_, i) => i !== index);
-      onUpdateSections(newSections);
+    if (confirm('Supprimer cette section ?')) {
+      onUpdateSections(sections.filter((_, i) => i !== index));
     }
   }, [sections, onUpdateSections]);
 
-  // Save edited section
   const saveSection = useCallback((editedSection) => {
-    const sectionIndex = sections.findIndex(s => s.id === editedSection.id);
-    if (sectionIndex !== -1) {
+    const idx = sections.findIndex(s => s.id === editedSection.id);
+    if (idx !== -1) {
       const newSections = [...sections];
-      newSections[sectionIndex] = editedSection;
+      newSections[idx] = editedSection;
       onUpdateSections(newSections);
     }
   }, [sections, onUpdateSections]);
-
-  // Group blocks by category
-  const blocksByCategory = useMemo(() => {
-    return BLOCK_CATEGORIES.reduce((acc, category) => {
-      acc[category.id] = Object.entries(BLOCK_TYPES).filter(
-        ([type, info]) => info.category.toLowerCase().replace(' ', '-') === category.id
-      );
-      return acc;
-    }, {});
-  }, []);
 
   return (
-    <DndProvider backend={HTML5Backend}>
-      <div className="flex h-full">
-        {/* Sidebar with blocks */}
-        <div className="w-80 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Blocs disponibles</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              Faites glisser les blocs vers la page pour les ajouter
-            </p>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {BLOCK_CATEGORIES.map((category) => (
-              <div key={category.id}>
-                <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
-                  <div 
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: category.color }}
-                  />
-                  {category.name}
-                </h3>
-                <div className="space-y-2">
-                  {blocksByCategory[category.id]?.map(([blockType, blockInfo]) => (
-                    <DraggableBlock 
-                      key={blockType} 
-                      blockType={blockType} 
-                      blockInfo={blockInfo} 
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+    <div className="h-full bg-gray-50 overflow-y-auto">
+      <div className="p-6">
+        <div className="max-w-2xl mx-auto space-y-4">
+          {sections.length === 0 ? (
+            <DropZone onDrop={addBlock} isEmpty />
+          ) : (
+            <>
+              {sections.map((section, index) => (
+                <SectionItem
+                  key={section.id}
+                  section={section}
+                  index={index}
+                  moveSection={moveSection}
+                  onToggleVisibility={toggleVisibility}
+                  onEdit={() => setEditingSection(section)}
+                  onDuplicate={duplicateSection}
+                  onDelete={deleteSection}
+                />
+              ))}
+              <DropZone onDrop={addBlock} />
+            </>
+          )}
         </div>
-
-        {/* Canvas area */}
-        <div className="flex-1 bg-gray-50 overflow-y-auto">
-          <div className="p-6">
-            <div className="max-w-2xl mx-auto space-y-4">
-              {sections.length === 0 ? (
-                <DropZone onDrop={addBlock} isEmpty />
-              ) : (
-                <>
-                  {sections.map((section, index) => (
-                    <SectionItem
-                      key={section.id}
-                      section={section}
-                      index={index}
-                      moveSection={moveSection}
-                      onToggleVisibility={toggleVisibility}
-                      onEdit={() => setEditingSection(section)}
-                      onDuplicate={duplicateSection}
-                      onDelete={deleteSection}
-                    />
-                  ))}
-                  <DropZone onDrop={addBlock} />
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Edit modal */}
-        {editingSection && (
-          <SectionEditModal
-            section={editingSection}
-            onClose={() => setEditingSection(null)}
-            onSave={saveSection}
-          />
-        )}
       </div>
-    </DndProvider>
+
+      {editingSection && (
+        <SectionEditModal
+          section={editingSection}
+          onClose={() => setEditingSection(null)}
+          onSave={saveSection}
+        />
+      )}
+    </div>
   );
-};
+}
+
+// ── PageBuilder — version standalone (sidebar + canvas combinés) ─────────────
+const PageBuilder = ({ sections = [], onUpdateSections }) => (
+  <DndProvider backend={HTML5Backend}>
+    <div className="flex h-full">
+      <div className="w-72 border-r border-gray-200 bg-white">
+        <BlockLibrary />
+      </div>
+      <div className="flex-1">
+        <BuilderCanvas sections={sections} onUpdateSections={onUpdateSections} />
+      </div>
+    </div>
+  </DndProvider>
+);
 
 export default PageBuilder;
