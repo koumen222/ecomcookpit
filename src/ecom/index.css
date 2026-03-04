@@ -1,6 +1,9 @@
 /* Styles spécifiques au module E-commerce Cockpit */
 /* Import de Tailwind CSS (déjà configuré dans le projet principal) */
 
+/* Import dynamic theme system */
+@import './styles/dynamic-theme.css';
+
 /* Variables CSS pour le thème e-commerce */
 :root {
   --ecom-primary: #0F6B4F;

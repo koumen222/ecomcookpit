@@ -2,6 +2,7 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { EcomAuthProvider } from './hooks/useEcomAuth.jsx';
 import { CurrencyProvider } from './contexts/CurrencyContext.jsx';
+import { ThemeProvider } from './contexts/ThemeContext.jsx';
 import { useEcomAuth } from './hooks/useEcomAuth.jsx';
 import { trackPageView } from './services/analytics.js';
 import { usePosthogPageViews } from './hooks/usePosthogPageViews.js';
@@ -102,7 +103,8 @@ const BoutiqueDashboard = lazy(() => import('./pages/BoutiqueDashboard.jsx'));
 const BoutiqueTheme = lazy(() => import('./pages/BoutiqueTheme.jsx'));
 const BoutiquePixel = lazy(() => import('./pages/BoutiquePixel.jsx'));
 const BoutiquePages = lazy(() => import('./pages/BoutiquePages.jsx'));
-const VisualBuilder = lazy(() => import('./pages/VisualBuilder.jsx'));
+const EnhancedVisualBuilder = lazy(() => import('./pages/EnhancedVisualBuilder.jsx'));
+const ThemeTest = lazy(() => import('./components/ThemeTest.jsx'));
 const BoutiquePayments = lazy(() => import('./pages/BoutiquePayments.jsx'));
 const BoutiqueDomains = lazy(() => import('./pages/BoutiqueDomains.jsx'));
 const BoutiqueSettings = lazy(() => import('./pages/BoutiqueSettings.jsx'));
@@ -372,18 +374,22 @@ const PrefetchOnIdle = () => {
  * Routes: / (store home), /product/:slug, /checkout
  */
 const StoreApp = () => {
+  const { subdomain } = useSubdomain();
+  
   return (
-    <div className="min-h-screen bg-gray-50">
-      <ErrorBoundary>
-        <Routes>
-          <Route path="/" element={<Suspense fallback={<SpinnerLoader />}><PublicStorefront /></Suspense>} />
-          <Route path="/product/:slug" element={<Suspense fallback={<SpinnerLoader />}><StoreProductPage /></Suspense>} />
-          <Route path="/checkout" element={<Suspense fallback={<SpinnerLoader />}><StoreCheckout /></Suspense>} />
-          {/* Fallback: redirect unknown paths to store home */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </ErrorBoundary>
-    </div>
+    <ThemeProvider subdomain={subdomain}>
+      <div className="min-h-screen bg-gray-50">
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/" element={<Suspense fallback={<SpinnerLoader />}><PublicStorefront /></Suspense>} />
+            <Route path="/product/:slug" element={<Suspense fallback={<SpinnerLoader />}><StoreProductPage /></Suspense>} />
+            <Route path="/checkout" element={<Suspense fallback={<SpinnerLoader />}><StoreCheckout /></Suspense>} />
+            {/* Fallback: redirect unknown paths to store home */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </ErrorBoundary>
+      </div>
+    </ThemeProvider>
   );
 };
 
@@ -400,10 +406,11 @@ const EcomApp = () => {
   return React.useMemo(() => (
     <EcomAuthProvider>
       <CurrencyProvider>
-        <div className="min-h-screen bg-gray-50">
-          <ErrorBoundary>
-            <PageViewTracker />
-            <PrefetchOnIdle />
+        <ThemeProvider>
+          <div className="min-h-screen bg-gray-50">
+            <ErrorBoundary>
+              <PageViewTracker />
+              <PrefetchOnIdle />
             <Routes>
               {/* Route racine - redirection auto selon session */}
               <Route path="/" element={<RootRedirect />} />
@@ -584,7 +591,16 @@ const EcomApp = () => {
               <Route path="/ecom/boutique/builder" element={
                 <ProtectedRoute requiredRole="ecom_admin">
                   <Suspense fallback={<SpinnerLoader />}>
-                    <VisualBuilder />
+                    <EnhancedVisualBuilder />
+                  </Suspense>
+                </ProtectedRoute>
+              } />
+
+              {/* ─── Theme Test — for development testing ────────── */}
+              <Route path="/ecom/theme-test" element={
+                <ProtectedRoute requiredRole="ecom_admin">
+                  <Suspense fallback={<SpinnerLoader />}>
+                    <ThemeTest />
                   </Suspense>
                 </ProtectedRoute>
               } />
@@ -600,6 +616,7 @@ const EcomApp = () => {
           </ErrorBoundary>
           <PrivacyBanner />
         </div>
+        </ThemeProvider>
       </CurrencyProvider>
     </EcomAuthProvider>
   ), []); // ✅ Pas de dépendances - le provider ne se remonte jamais

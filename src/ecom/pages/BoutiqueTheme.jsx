@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useEcomAuth } from '../hooks/useEcomAuth';
+import { useTheme } from '../contexts/ThemeContext';
 import api from '../../lib/api';
 
 // ── Template previews ────────────────────────────────────────────────────────
@@ -90,59 +91,38 @@ const Toggle = ({ checked, onChange, label, desc }) => (
 
 const BoutiqueTheme = () => {
   const { workspace } = useEcomAuth();
+  const { theme, updateTheme: updateGlobalTheme, loading: themeLoading } = useTheme();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  // Theme state
-  const [theme, setTheme] = useState({
-    template: 'classic',
-    primaryColor: '#0F6B4F',
-    ctaColor: '#059669',
-    backgroundColor: '#FFFFFF',
-    textColor: '#111827',
-    font: 'inter',
-    borderRadius: 'lg',
-    sections: {
-      showReviews: true,
-      showFaq: true,
-      showStockCounter: false,
-      showPromoBanner: true,
-      showTrustBadges: true,
-      showRelatedProducts: true,
-      showWhatsappButton: true,
-      showBenefits: true,
-    },
-  });
+  // Local theme state for real-time preview
+  const [localTheme, setLocalTheme] = useState(theme);
 
-  // Load existing settings
+  // Update local theme when global theme changes
   useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await api.get('/store/theme');
-        if (res.data?.data) {
-          setTheme(prev => ({ ...prev, ...res.data.data }));
-        }
-      } catch {
-        // Use defaults
-      }
-    };
-    load();
-  }, []);
+    setLocalTheme(theme);
+  }, [theme]);
 
   const updateTheme = useCallback((key, value) => {
-    setTheme(prev => ({ ...prev, [key]: value }));
+    const newTheme = { ...localTheme, [key]: value };
+    setLocalTheme(newTheme);
+    // Update global theme immediately for real-time preview
+    updateGlobalTheme(newTheme, false); // Don't persist yet
     setSaved(false);
-  }, []);
+  }, [localTheme, updateGlobalTheme]);
 
   const updateSection = useCallback((key, value) => {
-    setTheme(prev => ({ ...prev, sections: { ...prev.sections, [key]: value } }));
+    const newTheme = { ...localTheme, sections: { ...localTheme.sections, [key]: value } };
+    setLocalTheme(newTheme);
+    // Update global theme immediately for real-time preview
+    updateGlobalTheme(newTheme, false); // Don't persist yet
     setSaved(false);
-  }, []);
+  }, [localTheme, updateGlobalTheme]);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.put('/store/theme', theme);
+      await updateGlobalTheme(localTheme, true); // Persist to backend
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
@@ -181,7 +161,7 @@ const BoutiqueTheme = () => {
               key={t.id}
               onClick={() => updateTheme('template', t.id)}
               className={`p-4 rounded-xl border-2 text-left transition-all ${
-                theme.template === t.id
+                localTheme.template === t.id
                   ? 'border-[#0F6B4F] bg-[#E6F2ED] shadow-md'
                   : 'border-gray-200 hover:border-gray-300'
               }`}
@@ -189,7 +169,7 @@ const BoutiqueTheme = () => {
               <span className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600 mb-3">{TEMPLATE_ICONS[t.id]}</span>
               <p className="text-sm font-bold text-gray-900">{t.name}</p>
               <p className="text-xs text-gray-500 mt-0.5">{t.desc}</p>
-              {theme.template === t.id && (
+              {localTheme.template === t.id && (
                 <span className="inline-block mt-2 px-2 py-0.5 text-[10px] font-bold text-[#0A5740] bg-[#C0DDD2] rounded-full">ACTIF</span>
               )}
             </button>
@@ -201,25 +181,25 @@ const BoutiqueTheme = () => {
       <section className="bg-white rounded-2xl border border-gray-200 p-5">
         <h2 className="text-sm font-bold text-gray-900 mb-4">Couleurs</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <ColorPicker label="Couleur principale" value={theme.primaryColor} onChange={(v) => updateTheme('primaryColor', v)} />
-          <ColorPicker label="Couleur CTA" value={theme.ctaColor} onChange={(v) => updateTheme('ctaColor', v)} />
-          <ColorPicker label="Fond" value={theme.backgroundColor} onChange={(v) => updateTheme('backgroundColor', v)} />
-          <ColorPicker label="Texte" value={theme.textColor} onChange={(v) => updateTheme('textColor', v)} />
+          <ColorPicker label="Couleur principale" value={localTheme.primaryColor} onChange={(v) => updateTheme('primaryColor', v)} />
+          <ColorPicker label="Couleur CTA" value={localTheme.ctaColor} onChange={(v) => updateTheme('ctaColor', v)} />
+          <ColorPicker label="Fond" value={localTheme.backgroundColor} onChange={(v) => updateTheme('backgroundColor', v)} />
+          <ColorPicker label="Texte" value={localTheme.textColor} onChange={(v) => updateTheme('textColor', v)} />
         </div>
 
         {/* Live preview bar */}
-        <div className="mt-5 p-4 rounded-xl border border-gray-200" style={{ backgroundColor: theme.backgroundColor }}>
-          <p className="text-sm font-bold mb-2" style={{ color: theme.textColor, fontFamily: FONTS.find(f => f.id === theme.font)?.family }}>
+        <div className="mt-5 p-4 rounded-xl border border-gray-200" style={{ backgroundColor: localTheme.backgroundColor }}>
+          <p className="text-sm font-bold mb-2" style={{ color: localTheme.textColor, fontFamily: FONTS.find(f => f.id === localTheme.font)?.family }}>
             Aperçu en temps réel
           </p>
-          <p className="text-xs mb-3" style={{ color: theme.textColor + 'AA' }}>
+          <p className="text-xs mb-3" style={{ color: localTheme.textColor + 'AA' }}>
             Voici à quoi ressemblera votre texte sur votre boutique.
           </p>
           <div className="flex gap-2">
-            <button className="px-4 py-2 text-xs font-bold text-white rounded-lg" style={{ backgroundColor: theme.primaryColor, borderRadius: RADIUS_OPTIONS.find(r => r.id === theme.borderRadius)?.value }}>
+            <button className="px-4 py-2 text-xs font-bold text-white rounded-lg" style={{ backgroundColor: localTheme.primaryColor, borderRadius: RADIUS_OPTIONS.find(r => r.id === localTheme.borderRadius)?.value }}>
               Bouton principal
             </button>
-            <button className="px-4 py-2 text-xs font-bold text-white rounded-lg" style={{ backgroundColor: theme.ctaColor, borderRadius: RADIUS_OPTIONS.find(r => r.id === theme.borderRadius)?.value }}>
+            <button className="px-4 py-2 text-xs font-bold text-white rounded-lg" style={{ backgroundColor: localTheme.ctaColor, borderRadius: RADIUS_OPTIONS.find(r => r.id === localTheme.borderRadius)?.value }}>
               Acheter
             </button>
           </div>
@@ -235,7 +215,7 @@ const BoutiqueTheme = () => {
               key={f.id}
               onClick={() => updateTheme('font', f.id)}
               className={`p-3 rounded-xl border-2 text-left transition-all ${
-                theme.font === f.id
+                localTheme.font === f.id
                   ? 'border-[#0F6B4F] bg-[#E6F2ED]'
                   : 'border-gray-200 hover:border-gray-300'
               }`}
@@ -256,7 +236,7 @@ const BoutiqueTheme = () => {
               key={r.id}
               onClick={() => updateTheme('borderRadius', r.id)}
               className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all min-w-[80px] ${
-                theme.borderRadius === r.id
+                localTheme.borderRadius === r.id
                   ? 'border-[#0F6B4F] bg-[#E6F2ED]'
                   : 'border-gray-200 hover:border-gray-300'
               }`}
@@ -281,7 +261,7 @@ const BoutiqueTheme = () => {
               key={s.key}
               label={s.label}
               desc={s.desc}
-              checked={theme.sections[s.key] ?? true}
+              checked={localTheme.sections[s.key] ?? true}
               onChange={(v) => updateSection(s.key, v)}
             />
           ))}
