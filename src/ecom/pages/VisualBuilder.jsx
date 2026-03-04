@@ -590,11 +590,21 @@ const VisualBuilder = () => {
   const [dragIdx, setDragIdx] = useState(null);
   const [editingIdx, setEditingIdx] = useState(null);
 
-  const { broadcast } = useBroadcastTheme(subdomain);
+  const { broadcast, isConnected } = useBroadcastTheme(subdomain);
 
   // Always reflects latest sections in broadcast without stale closures
   const sectionsRef = useRef([]);
   sectionsRef.current = sections;
+  
+  // Track last broadcast time for visual feedback
+  const [lastBroadcast, setLastBroadcast] = useState(null);
+  
+  // Clear broadcast indicator after 1 second
+  useEffect(() => {
+    if (!lastBroadcast) return;
+    const timer = setTimeout(() => setLastBroadcast(null), 1000);
+    return () => clearTimeout(timer);
+  }, [lastBroadcast]);
 
   // ── Load data on mount ────────────────────────────────────────────────────
   useEffect(() => {
@@ -634,6 +644,7 @@ const VisualBuilder = () => {
         historyIndexRef.current = historyRef.current.length - 1;
       }
       broadcast({ ...next, _pages: sectionsRef.current });
+      setLastBroadcast(Date.now());
       return next;
     });
     setSaved(false);
@@ -646,6 +657,7 @@ const VisualBuilder = () => {
     isUndoingRef.current = true;
     setTheme(prev);
     broadcast({ ...prev, _pages: sectionsRef.current });
+    setLastBroadcast(Date.now());
     setSaved(false);
     isUndoingRef.current = false;
   }, [broadcast]);
@@ -657,6 +669,7 @@ const VisualBuilder = () => {
     isUndoingRef.current = true;
     setTheme(next);
     broadcast({ ...next, _pages: sectionsRef.current });
+    setLastBroadcast(Date.now());
     setSaved(false);
     isUndoingRef.current = false;
   }, [broadcast]);
@@ -667,6 +680,7 @@ const VisualBuilder = () => {
   useEffect(() => {
     if (!subdomain || loading) return;
     broadcast({ ...themeRef.current, _pages: sections });
+    setLastBroadcast(Date.now());
   }, [sections]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Section (storePages) operations ─────────────────────────────────────
@@ -782,9 +796,23 @@ const VisualBuilder = () => {
           </button>
           <div className="w-px h-5 bg-gray-200" />
           <h1 className="text-sm font-bold text-gray-800 tracking-tight">Site Builder</h1>
-          <div className="flex items-center gap-1 px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded-full">
-            <Zap className="w-3 h-3 text-emerald-600" />
-            <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wide">Live</span>
+          <div 
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-full transition-all ${
+              isConnected 
+                ? 'bg-emerald-50 border border-emerald-200' 
+                : 'bg-orange-50 border border-orange-200'
+            }`}
+            title={isConnected ? 'Aperçu en temps réel actif' : 'Connexion au serveur...'}
+          >
+            <Zap className={`w-3 h-3 ${isConnected ? 'text-emerald-600' : 'text-orange-500 animate-pulse'}`} />
+            <span className={`text-[10px] font-bold uppercase tracking-wide ${
+              isConnected ? 'text-emerald-700' : 'text-orange-600'
+            }`}>
+              {isConnected ? 'Live' : 'Connexion...'}
+            </span>
+            {lastBroadcast && isConnected && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+            )}
           </div>
         </div>
 

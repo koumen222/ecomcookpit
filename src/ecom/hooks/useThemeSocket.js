@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { io } from 'socket.io-client';
 
 /**
@@ -120,7 +120,7 @@ export function useThemeSocket(subdomain, onThemeUpdate) {
  */
 export function useBroadcastTheme(subdomain) {
   const socketRef = useRef(null);
-  const isConnectedRef = useRef(false);
+  const [isConnected, setIsConnected] = useState(false);
   const debounceRef = useRef(null);
 
   useEffect(() => {
@@ -132,15 +132,24 @@ export function useBroadcastTheme(subdomain) {
     const socket = io(`${SOCKET_BASE}/store-live`, {
       transports: ['websocket', 'polling'],
       reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 10,
     });
 
     socket.on('connect', () => {
+      console.log('[Builder] WebSocket connected - Live preview active');
       socket.emit('store:join', { subdomain });
-      isConnectedRef.current = true;
+      setIsConnected(true);
     });
 
-    socket.on('disconnect', () => {
-      isConnectedRef.current = false;
+    socket.on('disconnect', (reason) => {
+      console.log('[Builder] WebSocket disconnected:', reason);
+      setIsConnected(false);
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('[Builder] WebSocket connection error:', error.message);
+      setIsConnected(false);
     });
 
     socketRef.current = socket;
@@ -148,7 +157,7 @@ export function useBroadcastTheme(subdomain) {
     return () => {
       socket.disconnect();
       socketRef.current = null;
-      isConnectedRef.current = false;
+      setIsConnected(false);
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [subdomain]);
@@ -159,14 +168,18 @@ export function useBroadcastTheme(subdomain) {
       debounceRef.current = setTimeout(() => {
         const socket = socketRef.current;
         const token = localStorage.getItem('ecomToken');
-        if (!socket?.connected || !token) return;
+        if (!socket?.connected || !token) {
+          console.warn('[Builder] Cannot broadcast - socket not connected');
+          return;
+        }
         socket.emit('theme:broadcast', { subdomain, theme, token });
+        console.log('[Builder] Theme broadcasted to store:', subdomain);
       }, 200);
     },
     [subdomain]
   );
 
-  return { broadcast };
+  return { broadcast, isConnected };
 }
 
 export default useThemeSocket;
