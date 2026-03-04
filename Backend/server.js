@@ -116,7 +116,8 @@ app.use(compression({
 // ─── Security with Helmet ────────────────────────────────────────────────────
 app.use(
   helmet({
-    contentSecurityPolicy: false
+    contentSecurityPolicy: false,
+    xFrameOptions: { action: 'sameorigin' }
   })
 );
 

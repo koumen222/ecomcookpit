@@ -179,8 +179,8 @@ export function securityHeaders(req, res, next) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   // Protection XSS
   res.setHeader('X-XSS-Protection', '1; mode=block');
-  // Empêcher le clickjacking
-  res.setHeader('X-Frame-Options', 'DENY');
+  // Empêcher le clickjacking (SAMEORIGIN permet l'iframe du builder)
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   // Strict Transport Security (only for HTTPS)
   if (req.secure) {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
