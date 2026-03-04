@@ -4,7 +4,35 @@ import {
   Image, Copy, ExternalLink, Zap, Package, ArrowRight, Star
 } from 'lucide-react';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
+// Product-generator is mounted at /api/ai/product-generator (outside /api/ecom).
+// We must always use API origin only, never a base path like /api/ecom.
+const BACKEND_URL = (() => {
+  const raw = String(import.meta.env.VITE_BACKEND_URL || '').trim();
+
+  // On scalor.net frontend, always target public API domain.
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) {
+    return 'https://api.scalor.net';
+  }
+
+  if (raw) {
+    // Absolute URL -> keep origin only.
+    if (/^https?:\/\//i.test(raw)) {
+      try {
+        return new URL(raw).origin;
+      } catch {
+        // fallthrough
+      }
+    }
+
+    // Relative path env like /api/ecom should NOT be reused as base here.
+    if (raw.startsWith('/')) {
+      if (typeof window !== 'undefined') return window.location.origin;
+      return 'https://ecomcookpit-production-7a08.up.railway.app';
+    }
+  }
+
+  return 'https://ecomcookpit-production-7a08.up.railway.app';
+})();
 
 
 function CopyButton({ text }) {
