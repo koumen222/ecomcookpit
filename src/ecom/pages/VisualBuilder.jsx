@@ -431,6 +431,9 @@ function IframePreview({ subdomain, device, iframeKey, onLoad }) {
 
   // Build the iframe URL — same origin React SPA route
   const iframeSrc = subdomain ? `/store/${subdomain}` : null;
+  
+  console.log('[IframePreview] subdomain:', subdomain);
+  console.log('[IframePreview] iframeSrc:', iframeSrc);
 
   if (!subdomain) {
     return (
@@ -622,7 +625,10 @@ const VisualBuilder = () => {
         historyRef.current = [loaded];
         historyIndexRef.current = 0;
 
-        setSubdomain(domainsRes.data?.data?.subdomain || '');
+        const loadedSubdomain = domainsRes.data?.data?.subdomain || '';
+        console.log('[VisualBuilder] Loaded subdomain:', loadedSubdomain);
+        console.log('[VisualBuilder] Domains response:', domainsRes.data);
+        setSubdomain(loadedSubdomain);
         setSections(pagesRes.data?.data?.sections || []);
         setStoreName(settingsRes.data?.data?.name || '');
       } catch (e) {
