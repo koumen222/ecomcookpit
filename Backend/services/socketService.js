@@ -2,6 +2,7 @@ import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 
 let io = null;
+let storeLiveNamespace = null;
 const userSockets = new Map(); // userId -> Set of socket ids
 const typingUsers = new Map(); // conversationKey -> Map of userId -> timeout
 
@@ -208,6 +209,29 @@ export function initSocketServer(httpServer) {
     });
   });
 
+  // ─── /store-live namespace (public — no auth, read-only for visitors) ────────
+  storeLiveNamespace = io.of('/store-live');
+
+  storeLiveNamespace.on('connection', (socket) => {
+    // Anyone (visitor or admin) can join a store room to receive theme updates
+    socket.on('store:join', ({ subdomain }) => {
+      if (!subdomain || typeof subdomain !== 'string') return;
+      socket.join(`store:${subdomain.toLowerCase()}`);
+    });
+
+    // Only authenticated admins can broadcast theme changes
+    socket.on('theme:broadcast', ({ subdomain, theme, token }) => {
+      if (!subdomain || !theme || !token) return;
+      try {
+        jwt.verify(token, JWT_SECRET);
+        // Broadcast to ALL visitors currently on this store (including the admin)
+        storeLiveNamespace.to(`store:${subdomain.toLowerCase()}`).emit('theme:update', theme);
+      } catch {
+        // Invalid token — silently ignore
+      }
+    });
+  });
+
   console.log('[Socket] WebSocket server initialized');
   return io;
 }
@@ -328,6 +352,14 @@ export function emitReactionUpdate(messageId, reactions, conversationKey) {
   });
 }
 
+/**
+ * Broadcast a theme update to all visitors of a store (called after DB save)
+ */
+export function emitThemeUpdate(subdomain, theme) {
+  if (!storeLiveNamespace || !subdomain) return;
+  storeLiveNamespace.to(`store:${subdomain.toLowerCase()}`).emit('theme:update', theme);
+}
+
 export default {
   initSocketServer,
   getIO,
@@ -337,5 +369,6 @@ export default {
   emitMessageStatus,
   emitConversationUpdate,
   emitMessageDeleted,
-  emitReactionUpdate
+  emitReactionUpdate,
+  emitThemeUpdate
 };

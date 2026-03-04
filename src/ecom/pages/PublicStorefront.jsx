@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSubdomain, useStorefront } from '../hooks/useStorefront';
+import { useThemeSocket } from '../hooks/useThemeSocket';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // HELPERS
@@ -578,13 +579,18 @@ const PublicStorefront = () => {
     );
   }
 
-  // Build theme object
+  // Live theme override from builder (Socket.io)
+  const [liveTheme, setLiveTheme] = useState(null);
+  useThemeSocket(subdomain, (incoming) => setLiveTheme(prev => ({ ...prev, ...incoming })));
+
+  // Build theme object — live overrides from builder win
+  const merged = liveTheme ? { ...store, ...liveTheme } : store;
   const t = {
-    cta: store.ctaColor || store.themeColor || '#0F6B4F',
-    text: store.textColor || '#111827',
-    bg: store.backgroundColor || '#FFFFFF',
-    font: font(store.font),
-    radius: radius(store.borderRadius),
+    cta: merged.ctaColor || merged.primaryColor || merged.themeColor || '#0F6B4F',
+    text: merged.textColor || '#111827',
+    bg: merged.backgroundColor || '#FFFFFF',
+    font: font(merged.font || store.font),
+    radius: radius(merged.borderRadius || store.borderRadius),
   };
 
   // Sections from API (configured in BoutiquePages) or defaults

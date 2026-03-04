@@ -572,14 +572,22 @@ const EcomApp = () => {
                 <Route path="products/new" element={<Suspense fallback={<SpinnerLoader />}><StoreProductForm /></Suspense>} />
                 <Route path="products/:id/edit" element={<Suspense fallback={<SpinnerLoader />}><StoreProductForm /></Suspense>} />
                 <Route path="orders" element={<Suspense fallback={<SpinnerLoader />}><StoreOrdersDashboard /></Suspense>} />
-                <Route path="theme" element={<Suspense fallback={<SpinnerLoader />}><BoutiqueTheme /></Suspense>} />
-                <Route path="pages" element={<Suspense fallback={<SpinnerLoader />}><BoutiquePages /></Suspense>} />
-                <Route path="builder" element={<Suspense fallback={<SpinnerLoader />}><VisualBuilder /></Suspense>} />
+                <Route path="theme" element={<Navigate to="/ecom/boutique/builder" replace />} />
+                <Route path="pages" element={<Navigate to="/ecom/boutique/builder" replace />} />
                 <Route path="pixel" element={<Suspense fallback={<SpinnerLoader />}><BoutiquePixel /></Suspense>} />
                 <Route path="payments" element={<Suspense fallback={<SpinnerLoader />}><BoutiquePayments /></Suspense>} />
                 <Route path="domains" element={<Suspense fallback={<SpinnerLoader />}><BoutiqueDomains /></Suspense>} />
                 <Route path="settings" element={<Suspense fallback={<SpinnerLoader />}><BoutiqueSettings /></Suspense>} />
               </Route>
+
+              {/* ─── Site Builder — full-screen, no BoutiqueLayout ────────── */}
+              <Route path="/ecom/boutique/builder" element={
+                <ProtectedRoute requiredRole="ecom_admin">
+                  <Suspense fallback={<SpinnerLoader />}>
+                    <VisualBuilder />
+                  </Suspense>
+                </ProtectedRoute>
+              } />
 
               {/* ─── Public Store Routes (no auth, customer-facing) ─────── */}
               <Route path="/store/:subdomain" element={<Suspense fallback={<SpinnerLoader />}><PublicStorefront /></Suspense>} />

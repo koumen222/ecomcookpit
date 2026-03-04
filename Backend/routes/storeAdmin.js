@@ -1,6 +1,7 @@
 import express from 'express';
 import Workspace from '../models/Workspace.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
+import { emitThemeUpdate } from '../services/socketService.js';
 
 const router = express.Router();
 const DEBUG_TAG = '[StoreAdmin:Settings]';
@@ -89,22 +90,22 @@ router.get('/theme', requireEcomAuth, requireWorkspace, async (req, res) => {
 router.put('/theme', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
     console.log('🎨 PUT /store/theme - workspaceId:', req.workspaceId);
-    console.log('🎨 Request body:', JSON.stringify(req.body, null, 2));
-    
-    await Workspace.findByIdAndUpdate(
+
+    const updated = await Workspace.findByIdAndUpdate(
       req.workspaceId,
       { $set: { storeTheme: req.body } },
       { new: true }
-    );
+    ).select('subdomain');
 
-    console.log('✅ Theme updated successfully');
-    res.json({
-      success: true,
-      message: 'Theme updated'
-    });
+    // Broadcast to all live visitors of this store
+    if (updated?.subdomain) {
+      emitThemeUpdate(updated.subdomain, req.body);
+    }
+
+    console.log('✅ Theme updated + broadcasted to store:', updated?.subdomain);
+    res.json({ success: true, message: 'Theme updated' });
   } catch (error) {
-    console.error('❌ Error PUT /store/theme:', error);
-    console.error('❌ Error details:', error.message);
+    console.error('❌ Error PUT /store/theme:', error.message);
     res.status(500).json({ success: false, message: 'Error saving theme' });
   }
 });

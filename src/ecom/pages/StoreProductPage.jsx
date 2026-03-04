@@ -8,6 +8,7 @@ import {
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
 import QuickOrderModal from '../components/QuickOrderModal.jsx';
+import { useThemeSocket } from '../hooks/useThemeSocket';
 
 // Theme helpers (same as PublicStorefront)
 const FONTS = {
@@ -208,21 +209,23 @@ const StoreProductPage = () => {
   }, [subdomain, slug]);
 
   const formatPrice = (price) => new Intl.NumberFormat('fr-FR').format(price);
-  
-  // Theme configuration (consistent with PublicStorefront) - with safe fallbacks
+
+  // Live theme override from builder (Socket.io) — zero flicker
+  const [liveTheme, setLiveTheme] = useState(null);
+  useThemeSocket(subdomain, (incoming) => setLiveTheme(prev => ({ ...prev, ...incoming })));
+
+  // Build theme — live socket overrides win over DB values
+  const merged = liveTheme ? { ...store, ...liveTheme } : store;
   const t = {
     cta:
-      store?.ctaColor ||
-      store?.primaryColor ||
-      store?.storeSettings?.ctaColor ||
-      store?.storeSettings?.primaryColor ||
-      store?.storeSettings?.themeColor ||
-      store?.themeColor ||
+      merged?.ctaColor ||
+      merged?.primaryColor ||
+      merged?.themeColor ||
       '#0F6B4F',
-    text: store?.storeSettings?.textColor || store?.textColor || '#111827',
-    bg: store?.storeSettings?.backgroundColor || store?.backgroundColor || '#FFFFFF',
-    font: font(store?.storeSettings?.font || store?.font || 'inter'),
-    radius: radius(store?.storeSettings?.borderRadius || store?.borderRadius || 'lg'),
+    text: merged?.textColor || '#111827',
+    bg: merged?.backgroundColor || '#FFFFFF',
+    font: font(merged?.font || 'inter'),
+    radius: radius(merged?.borderRadius || 'lg'),
   };
   
   const currency = product?.currency || store?.storeSettings?.storeCurrency || 'XAF';
