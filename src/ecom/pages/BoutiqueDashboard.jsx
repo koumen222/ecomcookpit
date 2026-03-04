@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import api from '../../lib/api';
+import { storeManageApi } from '../services/storeApi.js';
+import StoreCreationWizard from './StoreCreationWizard.jsx';
 
 const StatCard = ({ label, value, sub, icon, color }) => (
   <div className="bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
@@ -21,6 +23,7 @@ const BoutiqueDashboard = () => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [recentOrders, setRecentOrders] = useState([]);
+  const [hasStore, setHasStore] = useState(null); // null=loading, true/false
 
   const fmt = (n) => new Intl.NumberFormat('fr-FR').format(n || 0);
   const currency = workspace?.storeSettings?.storeCurrency || 'XAF';
@@ -28,6 +31,13 @@ const BoutiqueDashboard = () => {
   useEffect(() => {
     const load = async () => {
       try {
+        // Check if store exists
+        const configRes = await storeManageApi.getStoreConfig().catch(() => null);
+        const subdomain = configRes?.data?.data?.subdomain;
+        setHasStore(!!subdomain);
+
+        if (!subdomain) { setLoading(false); return; }
+
         const [statsRes, ordersRes] = await Promise.all([
           api.get('/store/analytics/summary').catch(() => ({ data: {} })),
           api.get('/store/orders?limit=5&sort=-createdAt').catch(() => ({ data: { data: { orders: [] } } })),
@@ -35,13 +45,18 @@ const BoutiqueDashboard = () => {
         setStats(statsRes.data?.data || statsRes.data || {});
         setRecentOrders(ordersRes.data?.data?.orders || []);
       } catch {
-        // silent
+        setHasStore(true); // assume store exists on error to not block
       } finally {
         setLoading(false);
       }
     };
     load();
   }, []);
+
+  // Show wizard if no store configured
+  if (!loading && hasStore === false) {
+    return <StoreCreationWizard onComplete={() => setHasStore(true)} />;
+  }
 
   const skeleton = (
     <div className="animate-pulse space-y-6 p-6">

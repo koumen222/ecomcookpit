@@ -216,16 +216,17 @@ const StoreProductPage = () => {
 
   // Build theme — live socket overrides win over DB values
   const merged = liveTheme ? { ...store, ...liveTheme } : store;
+
+  // Section toggles: live theme from builder wins over stored DB values
+  const sectionToggles = liveTheme?.sections || store?.sectionToggles || {};
+
   const t = {
-    cta:
-      merged?.ctaColor ||
-      merged?.primaryColor ||
-      merged?.themeColor ||
-      '#0F6B4F',
-    text: merged?.textColor || '#111827',
-    bg: merged?.backgroundColor || '#FFFFFF',
-    font: font(merged?.font || 'inter'),
+    cta:    merged?.ctaColor || merged?.primaryColor || merged?.themeColor || '#0F6B4F',
+    text:   merged?.textColor || '#111827',
+    bg:     merged?.backgroundColor || '#FFFFFF',
+    font:   font(merged?.font || 'inter'),
     radius: radius(merged?.borderRadius || 'lg'),
+    tpl:    merged?.template || 'classic',
   };
   
   const currency = product?.currency || store?.storeSettings?.storeCurrency || 'XAF';
@@ -326,19 +327,34 @@ const StoreProductPage = () => {
   const outOfStock = product.stock <= 0;
   const lowStock = !outOfStock && product.stock <= 5;
 
+  const isPremium = t.tpl === 'premium';
+  const isMinimal = t.tpl === 'minimal';
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: t.bg, fontFamily: t.font }}>
 
-      {/* ── Sticky header ──────────────────────────── */}
-      <header className="sticky top-0 z-40 backdrop-blur-sm border-b border-gray-100" style={{ backgroundColor: t.bg + 'f0' }}>
-        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+      {/* ── Sticky header ────────────────────────────── */}
+      <header
+        className={`sticky top-0 z-40 border-b ${
+          isPremium ? 'shadow-md border-b-2' : 'backdrop-blur-sm border-gray-100'
+        }`}
+        style={{
+          backgroundColor: t.bg + 'f0',
+          ...(isPremium ? { borderBottomColor: t.cta } : {}),
+        }}
+      >
+        <div className={`${isMinimal ? 'max-w-4xl' : 'max-w-6xl'} mx-auto px-4 ${isPremium ? 'h-16' : 'h-14'} flex items-center justify-between`}>
           <button onClick={() => navigate(storePath('/'))}
             className="flex items-center gap-2 text-sm transition font-medium hover:opacity-70"
             style={{ color: t.text }}>
             <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">{store?.name || 'Boutique'}</span>
+            <span className={isMinimal ? 'text-xs tracking-widest uppercase' : 'hidden sm:inline'}>
+              {isMinimal ? store?.name : (store?.name || 'Boutique')}
+            </span>
           </button>
-          <p className="text-sm font-semibold truncate max-w-[180px] sm:max-w-xs" style={{ color: t.text, fontFamily: t.font }}>{product.name}</p>
+          {!isMinimal && (
+            <p className="text-sm font-semibold truncate max-w-[180px] sm:max-w-xs" style={{ color: t.text, fontFamily: t.font }}>{product.name}</p>
+          )}
           <button onClick={() => navigator?.share?.({ title: product.name, url: window.location.href })}
             className="p-2 hover:opacity-70 transition" style={{ borderRadius: t.radius }}>
             <Share2 className="w-4 h-4" style={{ color: t.text + '80' }} />
@@ -354,8 +370,14 @@ const StoreProductPage = () => {
         <span className="font-medium truncate max-w-xs" style={{ color: t.text, fontFamily: t.font }}>{product.name}</span>
       </div>
 
-      {/* ── Main 2-column grid ─────────────────────── */}
-      <div className="max-w-6xl mx-auto px-4 py-4 lg:grid lg:grid-cols-[1fr_440px] lg:gap-12 lg:items-start">
+      {/* ── Main 2-column grid ────────────────────── */}
+      <div className={`${
+        isMinimal ? 'max-w-4xl' : 'max-w-6xl'
+      } mx-auto px-4 ${
+        isPremium ? 'py-8' : 'py-4'
+      } lg:grid ${
+        isPremium ? 'lg:grid-cols-[1.2fr_480px]' : 'lg:grid-cols-[1fr_440px]'
+      } lg:gap-12 lg:items-start`}>
 
         {/* LEFT: image gallery */}
         <div className="space-y-3">
@@ -448,7 +470,15 @@ const StoreProductPage = () => {
           )}
 
           {/* Title */}
-          <h1 className="text-2xl sm:text-3xl font-bold leading-tight" style={{ color: t.text, fontFamily: t.font }}>{product.name}</h1>
+          <h1
+            className={`font-black leading-tight ${
+              isPremium ? 'text-3xl sm:text-4xl tracking-tight'
+              : isMinimal ? 'text-2xl sm:text-3xl tracking-tight'
+              : 'text-2xl sm:text-3xl'
+            }`}
+            style={{ color: t.text, fontFamily: t.font }}>
+            {product.name}
+          </h1>
 
           {/* Subtitle/Hook if available */}
           {product.seoDescription && (
@@ -470,9 +500,13 @@ const StoreProductPage = () => {
           {/* Price block */}
           <div className="space-y-2">
             <div className="flex items-end gap-3 flex-wrap">
-              <span className="text-4xl font-black tracking-tight" style={{ color: t.cta, fontFamily: t.font }}>
+              <span
+                className={`font-black tracking-tight ${
+                  isPremium ? 'text-5xl' : isMinimal ? 'text-3xl' : 'text-4xl'
+                }`}
+                style={{ color: t.cta, fontFamily: t.font }}>
                 {formatPrice(product.price)}
-                <span className="text-xl font-bold ml-1">{currency}</span>
+                <span className={`font-bold ml-1 ${isPremium ? 'text-2xl' : 'text-xl'}`}>{currency}</span>
               </span>
               {hasDiscount && (
                 <span className="text-xl line-through pb-1" style={{ color: t.text + '60' }}>
@@ -499,7 +533,7 @@ const StoreProductPage = () => {
           )}
 
           {/* Benefits list */}
-          {benefits.length > 0 && (
+          {benefits.length > 0 && sectionToggles?.showBenefits !== false && (
             <div className="border border-green-200 p-4 space-y-2" style={{ backgroundColor: t.cta + '08', borderRadius: t.radius }}>
               {benefits.map((benefit, i) => (
                 <div key={i} className="flex items-start gap-2">
@@ -531,7 +565,11 @@ const StoreProductPage = () => {
 
               {/* Main CTA */}
               <button onClick={handleAddToCart}
-                className="w-full flex items-center justify-center gap-2.5 px-6 py-4 text-white font-bold text-base transition hover:opacity-90 active:scale-[.98] shadow-lg relative overflow-hidden group"
+                className={`w-full flex items-center justify-center gap-2.5 text-white font-bold transition active:scale-[.98] relative overflow-hidden group ${
+                  isPremium ? 'px-6 py-5 text-base shadow-2xl hover:opacity-90'
+                  : isMinimal ? 'px-6 py-3.5 text-sm hover:opacity-80'
+                  : 'px-6 py-4 text-base shadow-lg hover:opacity-90'
+                }`}
                 style={{ backgroundColor: t.cta, borderRadius: t.radius, fontFamily: t.font }}>
                 <span className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition"></span>
                 {justAdded ? (
@@ -540,7 +578,7 @@ const StoreProductPage = () => {
                   <><ShoppingCart className="w-5 h-5" /> COMMANDER MAINTENANT</>
                 )}
               </button>
-              {!outOfStock && lowStock && (
+              {!outOfStock && lowStock && sectionToggles?.showStockCounter !== false && (
                 <p className="text-center text-xs font-medium -mt-1" 
                   style={{ color: '#d97706', fontFamily: t.font }}>
                   ⚡ Plus que {product.stock} pièces disponibles
@@ -548,7 +586,7 @@ const StoreProductPage = () => {
               )}
 
               {/* WhatsApp secondary */}
-              {whatsappNum && (
+              {whatsappNum && sectionToggles?.showWhatsappButton !== false && (
                 <button onClick={handleWhatsAppOrder}
                   className="w-full flex items-center justify-center gap-2.5 px-6 py-3.5 text-white font-semibold text-sm transition active:scale-[.98]"
                   style={{ backgroundColor: '#25D366', borderRadius: t.radius, fontFamily: t.font }}>
@@ -560,18 +598,20 @@ const StoreProductPage = () => {
           )}
 
           {/* Trust badges */}
-          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-100">
-            {[
-              { icon: <Truck className="w-4 h-4" />, label: 'Livraison rapide' },
-              { icon: <RotateCcw className="w-4 h-4" />, label: 'Retour facile' },
-              { icon: <Shield className="w-4 h-4" />, label: 'Paiement sécurisé' }
-            ].map(({ icon, label }) => (
-              <button key={label} className="flex flex-col items-center gap-1 p-2 text-center w-full hover:opacity-70 transition" style={{ backgroundColor: t.text + '08', borderRadius: t.radius }}>
-                <span style={{ color: t.cta }}>{icon}</span>
-                <span className="text-[10px] font-medium leading-tight" style={{ color: t.text + '80', fontFamily: t.font }}>{label}</span>
-              </button>
-            ))}
-          </div>
+          {sectionToggles?.showTrustBadges !== false && (
+            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-100">
+              {[
+                { icon: <Truck className="w-4 h-4" />, label: 'Livraison rapide' },
+                { icon: <RotateCcw className="w-4 h-4" />, label: 'Retour facile' },
+                { icon: <Shield className="w-4 h-4" />, label: 'Paiement sécurisé' }
+              ].map(({ icon, label }) => (
+                <button key={label} className="flex flex-col items-center gap-1 p-2 text-center w-full hover:opacity-70 transition" style={{ backgroundColor: t.text + '08', borderRadius: t.radius }}>
+                  <span style={{ color: t.cta }}>{icon}</span>
+                  <span className="text-[10px] font-medium leading-tight" style={{ color: t.text + '80', fontFamily: t.font }}>{label}</span>
+                </button>
+              ))}
+            </div>
+          )}
           {/* Tags */}
           {product.tags?.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pt-1">
@@ -582,7 +622,7 @@ const StoreProductPage = () => {
           )}
 
           {/* FAQ dynamique — extrait de la description */}
-          {faqItems.length > 0 && (
+          {faqItems.length > 0 && sectionToggles?.showFaq !== false && (
             <div className="border border-gray-200 overflow-hidden" style={{ borderRadius: t.radius }}>
               <div className="px-4 py-3 border-b border-gray-200" style={{ backgroundColor: t.text + '06' }}>
                 <h3 className="font-bold text-sm" style={{ color: t.text, fontFamily: t.font }}>Vos questions fréquentes</h3>
@@ -639,7 +679,7 @@ const StoreProductPage = () => {
       </div>
 
       {/* ── Related products ──────────────────────── */}
-      {relatedProducts.length > 0 && (
+      {relatedProducts.length > 0 && sectionToggles?.showRelatedProducts !== false && (
         <div className="max-w-6xl mx-auto px-4 pb-12 mt-10">
           <h2 className="text-lg font-bold mb-4" style={{ color: t.text, fontFamily: t.font }}>Vous aimerez aussi</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

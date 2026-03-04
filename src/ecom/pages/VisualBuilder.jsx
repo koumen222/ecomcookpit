@@ -592,6 +592,10 @@ const VisualBuilder = () => {
 
   const { broadcast } = useBroadcastTheme(subdomain);
 
+  // Always reflects latest sections in broadcast without stale closures
+  const sectionsRef = useRef([]);
+  sectionsRef.current = sections;
+
   // ── Load data on mount ────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
@@ -629,7 +633,7 @@ const VisualBuilder = () => {
         historyRef.current = sliced.slice(-30);
         historyIndexRef.current = historyRef.current.length - 1;
       }
-      broadcast(next);
+      broadcast({ ...next, _pages: sectionsRef.current });
       return next;
     });
     setSaved(false);
@@ -641,7 +645,7 @@ const VisualBuilder = () => {
     const prev = historyRef.current[historyIndexRef.current];
     isUndoingRef.current = true;
     setTheme(prev);
-    broadcast(prev);
+    broadcast({ ...prev, _pages: sectionsRef.current });
     setSaved(false);
     isUndoingRef.current = false;
   }, [broadcast]);
@@ -652,10 +656,18 @@ const VisualBuilder = () => {
     const next = historyRef.current[historyIndexRef.current];
     isUndoingRef.current = true;
     setTheme(next);
-    broadcast(next);
+    broadcast({ ...next, _pages: sectionsRef.current });
     setSaved(false);
     isUndoingRef.current = false;
   }, [broadcast]);
+
+  // ── Broadcast sections whenever they change (e.g. toggle, move, add, delete) ──
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
+  useEffect(() => {
+    if (!subdomain || loading) return;
+    broadcast({ ...themeRef.current, _pages: sections });
+  }, [sections]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Section (storePages) operations ─────────────────────────────────────
   const toggleSection = useCallback((idx) => {
