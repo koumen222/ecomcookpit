@@ -100,10 +100,7 @@ const StoreCheckout = lazy(() => import('./pages/StoreCheckout.jsx'));
 // ─── Boutique Module (sub-app) ───────────────────────────────────────────
 const BoutiqueLayout = lazy(() => import('./components/BoutiqueLayout.jsx'));
 const BoutiqueDashboard = lazy(() => import('./pages/BoutiqueDashboard.jsx'));
-const BoutiqueTheme = lazy(() => import('./pages/BoutiqueTheme.jsx'));
 const BoutiquePixel = lazy(() => import('./pages/BoutiquePixel.jsx'));
-const BoutiquePages = lazy(() => import('./pages/BoutiquePages.jsx'));
-const EnhancedVisualBuilder = lazy(() => import('./pages/EnhancedVisualBuilder.jsx'));
 const ThemeTest = lazy(() => import('./components/ThemeTest.jsx'));
 const BoutiquePayments = lazy(() => import('./pages/BoutiquePayments.jsx'));
 const BoutiqueDomains = lazy(() => import('./pages/BoutiqueDomains.jsx'));
@@ -378,7 +375,7 @@ const StoreApp = () => {
   
   return (
     <ThemeProvider subdomain={subdomain}>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen">
         <ErrorBoundary>
           <Routes>
             <Route path="/" element={<Suspense fallback={<SpinnerLoader />}><PublicStorefront /></Suspense>} />
@@ -579,22 +576,16 @@ const EcomApp = () => {
                 <Route path="products/new" element={<Suspense fallback={<SpinnerLoader />}><StoreProductForm /></Suspense>} />
                 <Route path="products/:id/edit" element={<Suspense fallback={<SpinnerLoader />}><StoreProductForm /></Suspense>} />
                 <Route path="orders" element={<Suspense fallback={<SpinnerLoader />}><StoreOrdersDashboard /></Suspense>} />
-                <Route path="theme" element={<Navigate to="/ecom/boutique/builder" replace />} />
-                <Route path="pages" element={<Navigate to="/ecom/boutique/builder" replace />} />
+                <Route path="theme" element={<Navigate to="/ecom/boutique/settings" replace />} />
+                <Route path="pages" element={<Navigate to="/ecom/boutique/settings" replace />} />
                 <Route path="pixel" element={<Suspense fallback={<SpinnerLoader />}><BoutiquePixel /></Suspense>} />
                 <Route path="payments" element={<Suspense fallback={<SpinnerLoader />}><BoutiquePayments /></Suspense>} />
                 <Route path="domains" element={<Suspense fallback={<SpinnerLoader />}><BoutiqueDomains /></Suspense>} />
                 <Route path="settings" element={<Suspense fallback={<SpinnerLoader />}><BoutiqueSettings /></Suspense>} />
               </Route>
 
-              {/* ─── Site Builder — full-screen, no BoutiqueLayout ────────── */}
-              <Route path="/ecom/boutique/builder" element={
-                <ProtectedRoute requiredRole="ecom_admin">
-                  <Suspense fallback={<SpinnerLoader />}>
-                    <EnhancedVisualBuilder />
-                  </Suspense>
-                </ProtectedRoute>
-              } />
+              {/* ─── Site Builder removed — redirect to brand settings ─────── */}
+              <Route path="/ecom/boutique/builder" element={<Navigate to="/ecom/boutique/settings" replace />} />
 
               {/* ─── Theme Test — for development testing ────────── */}
               <Route path="/ecom/theme-test" element={

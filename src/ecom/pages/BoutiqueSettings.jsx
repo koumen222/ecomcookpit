@@ -1,404 +1,418 @@
+/**
+ * BoutiqueSettings — Unique page de configuration de la boutique.
+ * Radical & minimal : nom, logo, 4 couleurs, 1 police, description. C'est tout.
+ */
 import React, { useState, useEffect, useRef } from 'react';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import api from '../../lib/api';
+import { ExternalLink, Check, Upload, Palette, Type, Store } from 'lucide-react';
 
 const FONTS = [
-  { id: 'inter', name: 'Inter' },
-  { id: 'poppins', name: 'Poppins' },
-  { id: 'dm-sans', name: 'DM Sans' },
-  { id: 'montserrat', name: 'Montserrat' },
-  { id: 'playfair', name: 'Playfair Display' },
-  { id: 'space-grotesk', name: 'Space Grotesk' },
+  { id: 'inter',      name: 'Inter',      sample: 'Modern & Clean' },
+  { id: 'poppins',    name: 'Poppins',    sample: 'Friendly & Bold' },
+  { id: 'dm-sans',    name: 'DM Sans',    sample: 'Neutral & Sharp' },
+  { id: 'montserrat', name: 'Montserrat', sample: 'Strong & Elegant' },
+  { id: 'satoshi',    name: 'Satoshi',    sample: 'Future & Luxury' },
 ];
 
-const CURRENCIES = ['XAF', 'XOF', 'USD', 'EUR', 'GHS', 'NGN', 'KES', 'MAD', 'TND'];
-
-const DEBUG_TAG = '[BoutiqueSettings]';
-
-const summarizeSettings = (settings = {}) => {
-  const logoValue = settings.logo || '';
-  const faviconValue = settings.favicon || '';
-
-  return {
-    ...settings,
-    logo: logoValue ? `[len:${logoValue.length}] ${logoValue.slice(0, 80)}` : '',
-    favicon: faviconValue ? `[len:${faviconValue.length}] ${faviconValue.slice(0, 80)}` : '',
-    logoIsDataUrl: logoValue.startsWith('data:'),
-    faviconIsDataUrl: faviconValue.startsWith('data:'),
-  };
+const FONT_FAMILIES = {
+  inter:      'Inter, system-ui, sans-serif',
+  poppins:    'Poppins, sans-serif',
+  'dm-sans':  '"DM Sans", sans-serif',
+  montserrat: 'Montserrat, sans-serif',
+  satoshi:    '"Satoshi", Inter, system-ui, sans-serif',
 };
 
-const ImageUploader = ({ label, value, onChange, hint }) => {
-  const fileRef = useRef(null);
+const CURRENCIES = ['XAF', 'XOF', 'USD', 'EUR', 'GHS', 'NGN', 'MAD'];
+
+const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
+
+// ── Section wrapper ──────────────────────────────────────────────────────────
+const Section = ({ icon, title, desc, children }) => (
+  <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+    <div className="flex items-start gap-3 mb-5">
+      <span className="w-9 h-9 rounded-xl bg-[#E6F2ED] flex items-center justify-center text-[#0F6B4F] flex-shrink-0">
+        {icon}
+      </span>
+      <div>
+        <h2 className="text-sm font-bold text-gray-900">{title}</h2>
+        {desc && <p className="text-xs text-gray-500 mt-0.5">{desc}</p>}
+      </div>
+    </div>
+    {children}
+  </div>
+);
+
+// ── Label + Input helper ─────────────────────────────────────────────────────
+const Field = ({ label, hint, children }) => (
+  <div>
+    <label className="block text-xs font-semibold text-gray-700 mb-1.5">{label}</label>
+    {children}
+    {hint && <p className="text-[11px] text-gray-400 mt-1">{hint}</p>}
+  </div>
+);
+
+// ── Logo uploader ────────────────────────────────────────────────────────────
+const LogoUploader = ({ value, onChange }) => {
+  const ref = useRef(null);
   const [uploading, setUploading] = useState(false);
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    console.log(`${DEBUG_TAG}[${label}] file selected`, {
-      name: file.name,
-      sizeBytes: file.size,
-      sizeMB: Number((file.size / (1024 * 1024)).toFixed(2)),
-      type: file.type,
-      lastModified: file.lastModified,
-    });
-
     setUploading(true);
-    const uploadStartedAt = Date.now();
-
     try {
-      const formData = new FormData();
-      formData.append('image', file);
-
-      console.log(`${DEBUG_TAG}[${label}] upload start`, {
-        endpoint: '/upload/image',
-        formFields: Array.from(formData.keys()),
-      });
-
-      const res = await api.post('/upload/image', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
+      const fd = new FormData();
+      fd.append('image', file);
+      const res = await api.post('/upload/image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       const url = res.data?.data?.url || res.data?.url;
-      console.log(`${DEBUG_TAG}[${label}] upload success`, {
-        status: res.status,
-        durationMs: Date.now() - uploadStartedAt,
-        responseKeys: Object.keys(res.data || {}),
-        hasUrl: Boolean(url),
-        urlPreview: url ? String(url).slice(0, 120) : null,
-      });
-
-      if (url) onChange(url);
-    } catch (error) {
-      console.error(`${DEBUG_TAG}[${label}] upload failed, using FileReader fallback`, {
-        durationMs: Date.now() - uploadStartedAt,
-        message: error?.message,
-        code: error?.code,
-        status: error?.response?.status,
-        responseData: error?.response?.data,
-        requestUrl: error?.config?.url,
-        method: error?.config?.method,
-        timeout: error?.config?.timeout,
-      });
-
-      // fallback: use local preview
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const dataUrl = ev.target.result;
-        console.warn(`${DEBUG_TAG}[${label}] fallback data URL generated`, {
-          dataUrlLength: typeof dataUrl === 'string' ? dataUrl.length : 0,
-          note: 'If this is very large, saving settings may timeout or fail in production.',
-        });
-        onChange(dataUrl);
-      };
-      reader.readAsDataURL(file);
-    } finally {
-      setUploading(false);
-    }
+      if (url) { onChange(url); return; }
+    } catch (_) {}
+    // Fallback: data URL
+    const reader = new FileReader();
+    reader.onload = (ev) => onChange(ev.target.result);
+    reader.readAsDataURL(file);
+    setUploading(false);
   };
 
   return (
-    <div>
-      <label className="text-xs font-semibold text-gray-600 mb-2 block">{label}</label>
-      <div className="flex items-center gap-4">
-        <div
-          onClick={() => fileRef.current?.click()}
-          className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-[#4D9F82] hover:bg-[#E6F2ED] transition overflow-hidden"
-        >
-          {uploading ? (
-            <div className="w-6 h-6 border-2 border-[#0F6B4F] border-t-transparent rounded-full animate-spin" />
-          ) : value ? (
-            <img src={value} alt="" className="w-full h-full object-contain" />
-          ) : (
-            <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          )}
-        </div>
-        <div className="flex-1">
-          <button
-            onClick={() => fileRef.current?.click()}
-            className="px-3 py-1.5 text-xs font-semibold text-[#0A5740] bg-[#E6F2ED] rounded-lg hover:bg-[#C0DDD2] transition"
-          >
-            {value ? 'Changer' : 'Uploader'}
-          </button>
-          {value && (
-            <button onClick={() => onChange('')} className="ml-2 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition">
-              Supprimer
-            </button>
-          )}
-          {hint && <p className="text-[11px] text-gray-400 mt-1">{hint}</p>}
-        </div>
+    <div className="flex items-center gap-5">
+      <div
+        onClick={() => ref.current?.click()}
+        className="w-20 h-20 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center cursor-pointer hover:border-[#4D9F82] transition overflow-hidden flex-shrink-0 bg-gray-50"
+      >
+        {uploading ? (
+          <div className="w-5 h-5 border-2 border-[#0F6B4F] border-t-transparent rounded-full animate-spin" />
+        ) : value ? (
+          <img src={value} alt="Logo" className="w-full h-full object-contain p-1" />
+        ) : (
+          <Upload size={22} className="text-gray-300" />
+        )}
       </div>
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      <div className="flex flex-col gap-2">
+        <button
+          type="button"
+          onClick={() => ref.current?.click()}
+          className="px-4 py-2 text-xs font-bold text-[#0A5740] bg-[#E6F2ED] rounded-xl hover:bg-[#C0DDD2] transition"
+        >
+          {value ? 'Changer le logo' : 'Uploader un logo'}
+        </button>
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            className="px-4 py-2 text-xs font-bold text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition"
+          >
+            Supprimer
+          </button>
+        )}
+        <p className="text-[11px] text-gray-400">PNG, SVG ou WEBP recommandé</p>
+      </div>
+      <input ref={ref} type="file" accept="image/*" className="hidden" onChange={handleFile} />
     </div>
   );
 };
 
+// ── Color picker row ─────────────────────────────────────────────────────────
+const ColorPicker = ({ label, value, onChange }) => (
+  <div className="flex items-center gap-3">
+    <div className="relative flex-shrink-0">
+      <input
+        type="color"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-10 h-10 rounded-xl cursor-pointer border-2 border-gray-200 p-0.5 bg-white"
+      />
+    </div>
+    <div className="flex-1 min-w-0">
+      <p className="text-xs font-semibold text-gray-700 mb-1">{label}</p>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="text-xs font-mono text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 w-24 focus:ring-1 focus:ring-[#0F6B4F] focus:border-[#0F6B4F] outline-none"
+      />
+    </div>
+  </div>
+);
+
+// ── Main component ────────────────────────────────────────────────────────────
 const BoutiqueSettings = () => {
   const { workspace } = useEcomAuth();
-  const [settings, setSettings] = useState({
-    name: '',
-    description: '',
-    logo: '',
-    favicon: '',
+
+  const [form, setForm] = useState({
+    storeName: '',
+    storeDescription: '',
+    storeLogo: '',
+    storePhone: '',
+    storeWhatsApp: '',
+    storeCurrency: 'XAF',
+    isStoreEnabled: true,
     primaryColor: '#0F6B4F',
-    ctaColor: '#0F6B4F',
+    accentColor: '#059669',
+    backgroundColor: '#FFFFFF',
+    textColor: '#111827',
     font: 'inter',
-    currency: 'XAF',
-    whatsapp: '',
-    email: '',
-    address: '',
-    facebook: '',
-    instagram: '',
-    tiktok: '',
-    seoTitle: '',
-    seoDescription: '',
-    announcement: '',
-    announcementEnabled: false,
   });
+
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [subdomain, setSubdomain] = useState('');
 
+  // Load existing settings on mount
   useEffect(() => {
     const load = async () => {
-      const startedAt = Date.now();
-      console.log(`${DEBUG_TAG} loading settings`, {
-        workspaceId: workspace?._id || workspace?.id || null,
-      });
-
       try {
-        const res = await api.get('/store/settings');
-        console.log(`${DEBUG_TAG} settings loaded`, {
-          status: res.status,
-          durationMs: Date.now() - startedAt,
-          hasData: Boolean(res.data?.data),
-          keys: Object.keys(res.data?.data || {}),
-        });
-
-        if (res.data?.data) {
-          setSettings(prev => ({ ...prev, ...res.data.data }));
-        }
-      } catch (error) {
-        console.error(`${DEBUG_TAG} failed to load settings`, {
-          durationMs: Date.now() - startedAt,
-          message: error?.message,
-          code: error?.code,
-          status: error?.response?.status,
-          responseData: error?.response?.data,
-          requestUrl: error?.config?.url,
-          method: error?.config?.method,
-        });
-        /* defaults */
+        const [settingsRes, domainsRes] = await Promise.all([
+          api.get('/store/settings'),
+          api.get('/store/domains').catch(() => ({ data: {} })),
+        ]);
+        const s = settingsRes.data?.data || {};
+        setForm(prev => ({
+          ...prev,
+          storeName:       s.storeName       || workspace?.name || '',
+          storeDescription: s.storeDescription || '',
+          storeLogo:       s.storeLogo        || '',
+          storePhone:      s.storePhone       || '',
+          storeWhatsApp:   s.storeWhatsApp    || '',
+          storeCurrency:   s.storeCurrency    || 'XAF',
+          isStoreEnabled:  s.isStoreEnabled   ?? true,
+          primaryColor:    s.primaryColor     || s.storeThemeColor || '#0F6B4F',
+          accentColor:     s.accentColor      || '#059669',
+          backgroundColor: s.backgroundColor  || '#FFFFFF',
+          textColor:       s.textColor        || '#111827',
+          font:            s.font             || 'inter',
+        }));
+        setSubdomain(domainsRes.data?.data?.subdomain || '');
+      } catch (err) {
+        console.error('BoutiqueSettings load error:', err);
       }
     };
-
     load();
-  }, [workspace?._id, workspace?.id]);
+  }, [workspace]);
 
-  const update = (key, value) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
-    setSaved(false);
-  };
+  const set = (key, val) => setForm(p => ({ ...p, [key]: val }));
 
   const handleSave = async () => {
-    const startedAt = Date.now();
-    console.log(`${DEBUG_TAG} save start`, {
-      workspaceId: workspace?._id || workspace?.id || null,
-      settingsSummary: summarizeSettings(settings),
-      online: typeof navigator !== 'undefined' ? navigator.onLine : undefined,
-    });
-
     setSaving(true);
-
     try {
-      const payload = { ...settings, isStoreEnabled: true };
-      const payloadString = JSON.stringify(payload);
-      console.log(`${DEBUG_TAG} save request payload`, {
-        payloadBytes: new Blob([payloadString]).size,
-        payloadChars: payloadString.length,
-        logoLength: (payload.logo || '').length,
-        faviconLength: (payload.favicon || '').length,
-        logoIsDataUrl: String(payload.logo || '').startsWith('data:'),
-        faviconIsDataUrl: String(payload.favicon || '').startsWith('data:'),
+      await api.put('/store/settings', {
+        ...form,
+        storeThemeColor: form.primaryColor,
       });
-
-      const response = await api.put('/store/settings', payload);
-      console.log(`${DEBUG_TAG} save success`, {
-        durationMs: Date.now() - startedAt,
-        status: response.status,
-        data: response.data,
-      });
-
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    } catch (error) {
-      console.error(`${DEBUG_TAG} save failed`, {
-        durationMs: Date.now() - startedAt,
-        message: error?.message,
-        code: error?.code,
-        isNetworkError: error?.message === 'Network Error',
-        status: error?.response?.status,
-        statusText: error?.response?.statusText,
-        responseHeaders: error?.response?.headers,
-        responseData: error?.response?.data,
-        requestUrl: error?.config?.url,
-        method: error?.config?.method,
-        timeout: error?.config?.timeout,
-        online: typeof navigator !== 'undefined' ? navigator.onLine : undefined,
-      });
-
-      alert(`Erreur lors de la sauvegarde: ${error.response?.data?.message || error.message}`);
+    } catch (err) {
+      alert('Erreur lors de la sauvegarde. Veuillez réessayer.');
+      console.error(err);
     } finally {
       setSaving(false);
     }
   };
 
-  return (
-    <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-6">
+  const previewUrl = subdomain
+    ? (window.location.hostname === 'localhost'
+        ? `/store/${subdomain}`
+        : `https://${subdomain}.scalor.net`)
+    : null;
 
-      <div className="flex items-center justify-between">
+  return (
+    <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-5">
+
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Paramètres & Branding</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Configurez l'identité de votre boutique</p>
+          <h1 className="text-xl font-bold text-gray-900">Ma Boutique</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Nom, logo, couleurs et police — c'est tout.</p>
         </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          {previewUrl && (
+            <a
+              href={previewUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition"
+            >
+              <ExternalLink size={14} /> Voir la boutique
+            </a>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className={`px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition disabled:opacity-60 flex items-center gap-2 ${saved ? 'bg-green-500' : 'bg-[#0F6B4F] hover:bg-[#0A5740]'}`}
+          >
+            {saved ? (<><Check size={15} /> Sauvegardé</>) : saving ? 'Enregistrement…' : 'Sauvegarder'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── 1. Informations boutique ────────────────────────────────────── */}
+      <Section
+        icon={<Store size={18} />}
+        title="Informations"
+        desc="Le nom et la description que vos clients voient"
+      >
+        <div className="space-y-4">
+          <Field label="Nom de la boutique *">
+            <input
+              type="text"
+              value={form.storeName}
+              onChange={(e) => set('storeName', e.target.value)}
+              placeholder="Ma Super Boutique"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none transition"
+            />
+          </Field>
+
+          <Field label="Description courte" hint="Affichée dans le hero de votre homepage et dans les métadonnées SEO">
+            <textarea
+              rows={3}
+              value={form.storeDescription}
+              onChange={(e) => set('storeDescription', e.target.value)}
+              placeholder="Découvrez notre sélection de produits soigneusement choisis…"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none resize-none transition"
+            />
+          </Field>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Téléphone">
+              <input
+                type="tel"
+                value={form.storePhone}
+                onChange={(e) => set('storePhone', e.target.value)}
+                placeholder="+237 6XX XXX XXX"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none transition"
+              />
+            </Field>
+            <Field label="WhatsApp" hint="Activer le bouton 'Commander via WhatsApp'">
+              <input
+                type="tel"
+                value={form.storeWhatsApp}
+                onChange={(e) => set('storeWhatsApp', e.target.value)}
+                placeholder="237600000000"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none transition"
+              />
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Devise">
+              <select
+                value={form.storeCurrency}
+                onChange={(e) => set('storeCurrency', e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none transition bg-white"
+              >
+                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </Field>
+            <Field label="Boutique active">
+              <div className="flex items-center gap-3 mt-1">
+                <button
+                  type="button"
+                  onClick={() => set('isStoreEnabled', !form.isStoreEnabled)}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${form.isStoreEnabled ? 'bg-[#0F6B4F]' : 'bg-gray-300'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.isStoreEnabled ? 'translate-x-5' : ''}`} />
+                </button>
+                <span className="text-sm text-gray-600">{form.isStoreEnabled ? 'En ligne' : 'Hors ligne'}</span>
+              </div>
+            </Field>
+          </div>
+        </div>
+      </Section>
+
+      {/* ── 2. Logo ─────────────────────────────────────────────────────── */}
+      <Section
+        icon={<Upload size={18} />}
+        title="Logo"
+        desc="Affiché en header sur toutes les pages de votre boutique"
+      >
+        <LogoUploader value={form.storeLogo} onChange={(v) => set('storeLogo', v)} />
+      </Section>
+
+      {/* ── 3. Couleurs ─────────────────────────────────────────────────── */}
+      <Section
+        icon={<Palette size={18} />}
+        title="Couleurs"
+        desc="4 couleurs, injectées automatiquement partout dans votre boutique"
+      >
+        <div className="grid grid-cols-2 gap-5 mb-6">
+          <ColorPicker label="Couleur principale" value={form.primaryColor} onChange={(v) => set('primaryColor', v)} />
+          <ColorPicker label="Couleur accent" value={form.accentColor} onChange={(v) => set('accentColor', v)} />
+          <ColorPicker label="Fond de page" value={form.backgroundColor} onChange={(v) => set('backgroundColor', v)} />
+          <ColorPicker label="Couleur du texte" value={form.textColor} onChange={(v) => set('textColor', v)} />
+        </div>
+
+        {/* Live preview */}
+        <div
+          className="rounded-2xl border border-gray-100 p-5 overflow-hidden"
+          style={{ backgroundColor: form.backgroundColor, fontFamily: FONT_FAMILIES[form.font] }}
+        >
+          <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: form.primaryColor }}>
+            Aperçu
+          </p>
+          <p className="text-lg font-bold mb-1" style={{ color: form.textColor }}>
+            {form.storeName || 'Nom de la boutique'}
+          </p>
+          <p className="text-sm mb-4" style={{ color: form.textColor + '99' }}>
+            {form.storeDescription || 'La description de votre boutique apparaît ici.'}
+          </p>
+          <div className="flex gap-3 flex-wrap">
+            <span className="px-5 py-2.5 rounded-full text-sm font-bold text-white"
+              style={{ backgroundColor: form.primaryColor }}>
+              Voir les produits
+            </span>
+            <span className="px-5 py-2.5 rounded-full text-sm font-bold"
+              style={{ backgroundColor: form.accentColor + '18', color: form.accentColor }}>
+              {fmt(15000, form.storeCurrency)}
+            </span>
+          </div>
+        </div>
+      </Section>
+
+      {/* ── 4. Police ───────────────────────────────────────────────────── */}
+      <Section
+        icon={<Type size={18} />}
+        title="Police"
+        desc="Appliquée à l'ensemble de votre boutique"
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {FONTS.map(f => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => set('font', f.id)}
+              className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                form.font === f.id
+                  ? 'border-[#0F6B4F] bg-[#E6F2ED] shadow-sm'
+                  : 'border-gray-100 hover:border-gray-200 bg-white'
+              }`}
+            >
+              <p className="text-xl font-bold text-gray-900 leading-tight" style={{ fontFamily: FONT_FAMILIES[f.id] }}>
+                {f.name}
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5" style={{ fontFamily: FONT_FAMILIES[f.id] }}>
+                {f.sample}
+              </p>
+              {form.font === f.id && (
+                <span className="inline-flex items-center gap-1 mt-2 text-[10px] font-bold text-[#0A5740] bg-[#C0DDD2] px-2 py-0.5 rounded-full">
+                  <Check size={10} /> Actif
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </Section>
+
+      {/* ── Bottom save ─────────────────────────────────────────────────── */}
+      <div className="flex justify-end pb-8">
         <button
           onClick={handleSave}
           disabled={saving}
-          className={`px-5 py-2.5 rounded-xl text-sm font-bold text-white transition shadow-md ${
-            saved ? 'bg-green-500' : 'bg-[#0F6B4F] hover:bg-[#0A5740]'
-          } disabled:opacity-60`}
+          className={`px-8 py-3 rounded-xl text-sm font-bold text-white shadow-lg transition disabled:opacity-60 flex items-center gap-2 ${saved ? 'bg-green-500' : 'bg-[#0F6B4F] hover:bg-[#0A5740]'}`}
         >
-          {saving ? 'Enregistrement...' : saved ? '✓ Sauvegardé' : 'Sauvegarder'}
+          {saved ? (<><Check size={15} /> Sauvegardé !</>) : saving ? 'Enregistrement…' : 'Sauvegarder les modifications'}
         </button>
       </div>
-
-      {/* ── Branding ──────────────────────────────────────────────────────── */}
-      <section className="bg-white rounded-2xl border border-gray-200 p-5 space-y-5">
-        <h2 className="text-sm font-bold text-gray-900">Branding</h2>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <ImageUploader label="Logo" value={settings.logo} onChange={(v) => update('logo', v)} hint="PNG ou SVG, fond transparent recommandé" />
-          <ImageUploader label="Favicon" value={settings.favicon} onChange={(v) => update('favicon', v)} hint="32x32 ou 64x64 px" />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Couleur principale</label>
-            <div className="flex items-center gap-2">
-              <input type="color" value={settings.primaryColor} onChange={(e) => update('primaryColor', e.target.value)} className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer" />
-              <input type="text" value={settings.primaryColor} onChange={(e) => update('primaryColor', e.target.value)} className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl font-mono bg-gray-50" />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Couleur CTA</label>
-            <div className="flex items-center gap-2">
-              <input type="color" value={settings.ctaColor} onChange={(e) => update('ctaColor', e.target.value)} className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer" />
-              <input type="text" value={settings.ctaColor} onChange={(e) => update('ctaColor', e.target.value)} className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-xl font-mono bg-gray-50" />
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <label className="text-xs font-semibold text-gray-600 mb-1 block">Police</label>
-          <select value={settings.font} onChange={(e) => update('font', e.target.value)} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-[#0F6B4F]">
-            {FONTS.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
-        </div>
-      </section>
-
-      {/* ── Informations générales ─────────────────────────────────────────── */}
-      <section className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-        <h2 className="text-sm font-bold text-gray-900">Informations générales</h2>
-
-        <div>
-          <label className="text-xs font-semibold text-gray-600 mb-1 block">Nom de la boutique</label>
-          <input type="text" value={settings.name} onChange={(e) => update('name', e.target.value)} placeholder="Ma Super Boutique" className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-[#0F6B4F] focus:bg-white" />
-        </div>
-
-        <div>
-          <label className="text-xs font-semibold text-gray-600 mb-1 block">Description</label>
-          <textarea value={settings.description} onChange={(e) => update('description', e.target.value)} placeholder="Décrivez votre boutique en quelques mots..." rows={3} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-[#0F6B4F] focus:bg-white resize-none" />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Devise</label>
-            <select value={settings.currency} onChange={(e) => update('currency', e.target.value)} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-[#0F6B4F]">
-              {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">WhatsApp</label>
-            <input type="tel" value={settings.whatsapp} onChange={(e) => update('whatsapp', e.target.value)} placeholder="+237612345678" className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-[#0F6B4F] focus:bg-white" />
-          </div>
-        </div>
-
-        <div>
-          <label className="text-xs font-semibold text-gray-600 mb-1 block">Email de contact</label>
-          <input type="email" value={settings.email} onChange={(e) => update('email', e.target.value)} placeholder="contact@maboutique.com" className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-[#0F6B4F] focus:bg-white" />
-        </div>
-
-        <div>
-          <label className="text-xs font-semibold text-gray-600 mb-1 block">Adresse</label>
-          <input type="text" value={settings.address} onChange={(e) => update('address', e.target.value)} placeholder="Douala, Cameroun" className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-[#0F6B4F] focus:bg-white" />
-        </div>
-      </section>
-
-      {/* ── Réseaux sociaux ────────────────────────────────────────────────── */}
-      <section className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-        <h2 className="text-sm font-bold text-gray-900">Réseaux sociaux</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Facebook</label>
-            <input type="url" value={settings.facebook} onChange={(e) => update('facebook', e.target.value)} placeholder="https://facebook.com/..." className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-[#0F6B4F] focus:bg-white" />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Instagram</label>
-            <input type="url" value={settings.instagram} onChange={(e) => update('instagram', e.target.value)} placeholder="https://instagram.com/..." className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-[#0F6B4F] focus:bg-white" />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">TikTok</label>
-            <input type="url" value={settings.tiktok} onChange={(e) => update('tiktok', e.target.value)} placeholder="https://tiktok.com/@..." className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-[#0F6B4F] focus:bg-white" />
-          </div>
-        </div>
-      </section>
-
-      {/* ── SEO ────────────────────────────────────────────────────────────── */}
-      <section className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-        <h2 className="text-sm font-bold text-gray-900">SEO</h2>
-        <div>
-          <label className="text-xs font-semibold text-gray-600 mb-1 block">Titre SEO</label>
-          <input type="text" value={settings.seoTitle} onChange={(e) => update('seoTitle', e.target.value)} placeholder="Ma Boutique — Les meilleurs produits en Afrique" className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-[#0F6B4F] focus:bg-white" />
-          <p className="text-[11px] text-gray-400 mt-1">{(settings.seoTitle || '').length}/65 caractères</p>
-        </div>
-        <div>
-          <label className="text-xs font-semibold text-gray-600 mb-1 block">Description SEO</label>
-          <textarea value={settings.seoDescription} onChange={(e) => update('seoDescription', e.target.value)} placeholder="Découvrez nos produits de qualité livrés partout en Afrique..." rows={2} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-[#0F6B4F] focus:bg-white resize-none" />
-          <p className="text-[11px] text-gray-400 mt-1">{(settings.seoDescription || '').length}/155 caractères</p>
-        </div>
-      </section>
-
-      {/* ── Bandeau d'annonce ──────────────────────────────────────────────── */}
-      <section className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-gray-900">Bandeau d'annonce</h2>
-          <button
-            onClick={() => update('announcementEnabled', !settings.announcementEnabled)}
-            className={`relative w-11 h-6 rounded-full transition-colors ${settings.announcementEnabled ? 'bg-[#0F6B4F]' : 'bg-gray-300'}`}
-          >
-            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${settings.announcementEnabled ? 'translate-x-5' : ''}`} />
-          </button>
-        </div>
-        <input type="text" value={settings.announcement} onChange={(e) => update('announcement', e.target.value)} placeholder="🔥 Livraison gratuite sur toutes les commandes !" className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-[#0F6B4F] focus:bg-white" />
-        {settings.announcementEnabled && settings.announcement && (
-          <div className="bg-[#0F6B4F] text-white text-center py-2 px-4 rounded-xl text-xs font-semibold">
-            {settings.announcement}
-          </div>
-        )}
-      </section>
-
     </div>
   );
 };

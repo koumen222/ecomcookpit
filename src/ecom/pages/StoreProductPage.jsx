@@ -1,717 +1,588 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import {
-  ArrowLeft, ShoppingCart, MessageCircle, Minus, Plus, Loader2,
-  ShoppingBag, ChevronLeft, ChevronRight, Shield, RotateCcw,
-  Truck, Share2, ChevronDown, ChevronUp, Check, Star, AlertCircle
+  ChevronLeft, ChevronRight, ShoppingCart, MessageCircle,
+  ShoppingBag, Shield, RotateCcw, Truck, Check, Minus, Plus,
+  ChevronDown, ChevronUp, ArrowLeft,
 } from 'lucide-react';
-import { publicStoreApi } from '../services/storeApi.js';
-import { useSubdomain } from '../hooks/useSubdomain.js';
-import QuickOrderModal from '../components/QuickOrderModal.jsx';
-import { useThemeSocket } from '../hooks/useThemeSocket';
+import { useSubdomain } from '../hooks/useSubdomain';
+import { useStoreProduct } from '../hooks/useStoreData';
+import { useStoreCart } from '../hooks/useStoreCart';
+import QuickOrderModal from '../components/QuickOrderModal';
 
-// Theme helpers (same as PublicStorefront)
-const FONTS = {
-  inter: 'Inter, system-ui, sans-serif',
-  poppins: 'Poppins, sans-serif',
-  'dm-sans': '"DM Sans", sans-serif',
-  montserrat: 'Montserrat, sans-serif',
-  playfair: '"Playfair Display", serif',
-  'space-grotesk': '"Space Grotesk", sans-serif',
-  satoshi: 'Satoshi, Inter, system-ui, sans-serif',
-};
-const RADII = { none: '0', sm: '0.375rem', md: '0.75rem', lg: '1rem', xl: '1.5rem', full: '9999px' };
-const font = (id) => FONTS[id] || FONTS.inter;
-const radius = (id) => RADII[id] || RADII.lg;
+const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
 
-// Markdown/HTML renderer for product description with images
-const MarkdownDescription = ({ content }) => {
-  if (!content) return null;
-  
-  // Check if content is HTML (contains HTML tags)
-  const isHTML = /<[^>]+>/.test(content);
-  
-  if (isHTML) {
-    // Render HTML content directly with styled images
-    return (
-      <>
-        <style>{`
-          .product-description img {
-            max-width: 100%;
-            height: auto;
-            border-radius: 0.75rem;
-            margin: 1rem 0;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            display: block;
-          }
-          .product-description h3 {
-            font-size: 1.125rem;
-            font-weight: 700;
-            color: #111827;
-            margin-bottom: 0.75rem;
-            margin-top: 1.5rem;
-          }
-          .product-description strong {
-            color: #1f2937;
-            font-weight: 700;
-          }
-          .product-description p {
-            margin-bottom: 0.75rem;
-            line-height: 1.7;
-            color: #4b5563;
-          }
-          .product-description ul, .product-description ol {
-            padding-left: 1.5rem;
-            margin-bottom: 0.75rem;
-          }
-        `}</style>
-        <div 
-          className="product-description text-sm"
-          dangerouslySetInnerHTML={{ __html: content }}
-        />
-      </>
-    );
-  }
-  
-  // Parse markdown content with images and formatting
-  const lines = content.split('\n');
-  const parts = [];
-  let currentParagraph = [];
-  let partIndex = 0;
-  
-  const flushParagraph = () => {
-    if (currentParagraph.length > 0) {
-      const text = currentParagraph.join(' ').trim();
-      if (text) {
-        // Check if it's bold text (should be a heading)
-        const boldMatch = text.match(/^\*\*(.+)\*\*$/);
-        if (boldMatch) {
-          parts.push(
-            <h3 key={`h3-${partIndex++}`} className="text-lg font-bold text-gray-900 mb-3 mt-6">
-              {boldMatch[1]}
-            </h3>
-          );
-        } else {
-          // Regular paragraph - parse inline bold
-          const parsedText = text.split(/(\*\*[^*]+\*\*)/).map((segment, i) => {
-            const inlineBold = segment.match(/^\*\*(.+)\*\*$/);
-            if (inlineBold) {
-              return <strong key={i} className="font-bold text-gray-900">{inlineBold[1]}</strong>;
-            }
-            return segment;
-          });
-          
-          parts.push(
-            <p key={`p-${partIndex++}`} className="text-sm text-gray-600 leading-relaxed mb-3">
-              {parsedText}
-            </p>
-          );
-        }
-      }
-      currentParagraph = [];
-    }
-  };
-  
-  for (const line of lines) {
-    const trimmed = line.trim();
-    
-    // Check for markdown image: ![alt](url)
-    const imageMatch = trimmed.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
-    if (imageMatch) {
-      flushParagraph();
-      const [, alt, url] = imageMatch;
-      parts.push(
-        <div key={`img-${partIndex++}`} className="my-6">
-          <img 
-            src={url} 
-            alt={alt}
-            className="w-full max-w-lg mx-auto rounded-xl shadow-lg"
-            loading="lazy"
-          />
-          {alt && alt !== 'Marketing Image' && (
-            <p className="text-center text-xs text-gray-500 mt-2 italic">{alt}</p>
-          )}
-        </div>
-      );
-      continue;
-    }
-    
-    // Empty line = paragraph break
-    if (!trimmed) {
-      flushParagraph();
-      continue;
-    }
-    
-    // Add line to current paragraph
-    currentParagraph.push(trimmed);
-  }
-  
-  // Flush remaining paragraph
-  flushParagraph();
-  
-  return <div className="space-y-1">{parts}</div>;
-};
+// ── Shared Header ────────────────────────────────────────────────────────────
+const StorefrontHeader = ({ store, cartCount, prefix }) => (
+  <header style={{
+    position: 'sticky', top: 0, zIndex: 50,
+    backgroundColor: 'var(--s-bg)', borderBottom: '1px solid var(--s-border)',
+    fontFamily: 'var(--s-font)',
+  }}>
+    <div style={{
+      maxWidth: 1200, margin: '0 auto', padding: '0 24px',
+      height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    }}>
+      <a href={`${prefix}/`} style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
+        {store?.logo ? (
+          <img src={store.logo} alt={store?.name} style={{ height: 36, width: 'auto', maxWidth: 120, objectFit: 'contain' }} />
+        ) : (
+          <span style={{
+            width: 36, height: 36, borderRadius: 10, backgroundColor: 'var(--s-primary)',
+            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontWeight: 800, fontSize: 16, flexShrink: 0,
+          }}>
+            {(store?.name || 'S')[0].toUpperCase()}
+          </span>
+        )}
+        <span style={{ fontWeight: 700, fontSize: 17, color: 'var(--s-text)', letterSpacing: '-0.01em' }}>
+          {store?.name}
+        </span>
+      </a>
+      <a href={`${prefix}/checkout`} style={{
+        display: 'flex', alignItems: 'center', gap: 7,
+        padding: '8px 18px', borderRadius: 40, border: '1.5px solid',
+        borderColor: cartCount > 0 ? 'var(--s-primary)' : 'var(--s-border)',
+        backgroundColor: cartCount > 0 ? 'var(--s-primary)' : 'transparent',
+        color: cartCount > 0 ? '#fff' : 'var(--s-text)',
+        textDecoration: 'none', fontWeight: 600, fontSize: 14, fontFamily: 'var(--s-font)',
+      }}>
+        <ShoppingCart size={17} />
+        {cartCount > 0 && <span>{cartCount}</span>}
+      </a>
+    </div>
+  </header>
+);
 
-/**
- * StoreProductPage — Shopify-like product detail page.
- * Desktop: 2-column (gallery left, info right with sticky CTA).
- * Mobile: stacked. Trust badges, description accordion, related products.
- */
-const StoreProductPage = () => {
-  const { subdomain: paramSubdomain, slug } = useParams();
-  const { subdomain: hostSubdomain, isStoreDomain } = useSubdomain();
-  const subdomain = hostSubdomain || paramSubdomain;
-  const navigate = useNavigate();
+// ── Image Gallery ────────────────────────────────────────────────────────────
+const ImageGallery = ({ images = [] }) => {
+  const [active, setActive] = useState(0);
+  const [zoomed, setZoomed] = useState(false);
 
-  const storePath = (path) => isStoreDomain ? path : `/store/${subdomain}${path}`;
+  const go = (dir) => setActive(i => Math.max(0, Math.min(images.length - 1, i + dir)));
 
-  const [store, setStore] = useState(null);
-  const [product, setProduct] = useState(null);
-  const [relatedProducts, setRelatedProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [quantity, setQuantity] = useState(1);
-  const [showOrderModal, setShowOrderModal] = useState(false);
-  const [activeImage, setActiveImage] = useState(0);
-  const [descOpen, setDescOpen] = useState(true);
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [faqOpen, setFaqOpen] = useState({});
-  const [justAdded, setJustAdded] = useState(false);
-
-  const toggleFaq = (index) => {
-    setFaqOpen(prev => ({ ...prev, [index]: !prev[index] }));
+  // Touch swipe support
+  const touchStart = useRef(null);
+  const onTouchStart = (e) => { touchStart.current = e.touches[0].clientX; };
+  const onTouchEnd = (e) => {
+    if (touchStart.current === null) return;
+    const diff = touchStart.current - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 50) go(diff > 0 ? 1 : -1);
+    touchStart.current = null;
   };
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [storeRes, productRes] = await Promise.all([
-          publicStoreApi.getStore(subdomain),
-          publicStoreApi.getProduct(subdomain, slug)
-        ]);
-        const storeData = storeRes.data?.data;
-        const productData = productRes.data?.data;
-        setStore(storeData);
-        setProduct(productData);
-        if (productData?.category) {
-          try {
-            const relRes = await publicStoreApi.getProducts(subdomain, { category: productData.category, limit: 5 });
-            const all = relRes.data?.data?.products || [];
-            setRelatedProducts(all.filter(p => p._id !== productData._id).slice(0, 4));
-          } catch { /* non-blocking */ }
-        }
-      } catch {
-        setError('Produit introuvable');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [subdomain, slug]);
-
-  const formatPrice = (price) => new Intl.NumberFormat('fr-FR').format(price);
-
-  // Live theme override from builder (Socket.io) — zero flicker
-  const [liveTheme, setLiveTheme] = useState(null);
-  useThemeSocket(subdomain, (incoming) => setLiveTheme(prev => ({ ...prev, ...incoming })));
-
-  // Build theme — live socket overrides win over DB values
-  const merged = liveTheme ? { ...store, ...liveTheme } : store;
-
-  // Section toggles: live theme from builder wins over stored DB values
-  const sectionToggles = liveTheme?.sections || store?.sectionToggles || {};
-
-  const t = {
-    cta:    merged?.ctaColor || merged?.primaryColor || merged?.themeColor || '#0F6B4F',
-    text:   merged?.textColor || '#111827',
-    bg:     merged?.backgroundColor || '#FFFFFF',
-    font:   font(merged?.font || 'inter'),
-    radius: radius(merged?.borderRadius || 'lg'),
-    tpl:    merged?.template || 'classic',
-  };
-  
-  const currency = product?.currency || store?.storeSettings?.storeCurrency || 'XAF';
-  const whatsappNum = store?.storeSettings?.whatsapp || store?.whatsapp || '';
-
-  // Parse benefits from description (look for bullet points or numbered lists)
-  const extractBenefits = (desc) => {
-    if (!desc) return [];
-    const lines = desc.split('\n');
-    const benefits = [];
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.match(/^[•✓✔-]\s+/) || trimmed.match(/^\d+\.\s+/)) {
-        benefits.push(trimmed.replace(/^[•✓✔-]\s+/, '').replace(/^\d+\.\s+/, ''));
-      }
-    }
-    return benefits.slice(0, 5);
-  };
-
-  // Parse FAQ dynamically from description
-  // Supports formats: "Q: ..." / "R: ...", "**Question ?**" followed by answer
-  const extractFAQ = (desc) => {
-    if (!desc) return [];
-    const faqs = [];
-    const lines = desc.split('\n').map(l => l.trim()).filter(Boolean);
-    let i = 0;
-    while (i < lines.length) {
-      const line = lines[i];
-      // Format: Q: question / R: answer
-      if (/^Q\s*:/i.test(line)) {
-        const q = line.replace(/^Q\s*:/i, '').trim();
-        let a = '';
-        if (i + 1 < lines.length && /^R\s*:/i.test(lines[i + 1])) {
-          a = lines[i + 1].replace(/^R\s*:/i, '').trim();
-          i++;
-        }
-        if (q) faqs.push({ q, a });
-      }
-      // Format: **Question ?** on its own line, followed by answer line
-      else if (/^\*\*[^*].+\?\*\*$/.test(line)) {
-        const q = line.replace(/^\*\*/, '').replace(/\*\*$/, '').trim();
-        let a = '';
-        if (i + 1 < lines.length && !/^\*\*/.test(lines[i + 1])) {
-          a = lines[i + 1].replace(/\*\*/g, '').trim();
-          i++;
-        }
-        faqs.push({ q, a });
-      }
-      i++;
-    }
-    return faqs.slice(0, 6);
-  };
-
-  const benefits = extractBenefits(product?.description);
-  const faqItems = extractFAQ(product?.description);
-
-  const handleWhatsAppOrder = () => {
-    if (!whatsappNum) return;
-    const phone = whatsappNum.replace(/\D/g, '');
-    const msg = `Bonjour ! Je souhaite commander :\n\n*${product.name}*\nQuantité : ${quantity}\nTotal : ${formatPrice(product.price * quantity)} ${currency}\n\nMerci 🙏`;
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
-  };
-
-  const handleAddToCart = () => {
-    setShowOrderModal(true);
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: t.cta }} />
+  if (!images.length) return (
+    <div style={{
+      paddingBottom: '100%', position: 'relative', borderRadius: 20,
+      backgroundColor: '#f4f4f5', overflow: 'hidden',
+    }}>
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <ShoppingBag size={64} style={{ color: '#d1d5db' }} />
       </div>
-    );
-  }
-
-  if (error || !product) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="text-center">
-          <ShoppingBag className="w-16 h-16 text-gray-300 mx-auto" />
-          <h1 className="text-xl font-bold text-gray-900 mt-4">Produit introuvable</h1>
-          <p className="text-sm text-gray-500 mt-1">Ce produit n'existe pas ou n'est plus disponible.</p>
-          <button
-            onClick={() => navigate(storePath('/'))}
-            className="mt-5 px-5 py-2.5 text-sm font-medium text-white rounded-xl transition hover:opacity-90"
-            style={{ backgroundColor: t.cta }}
-          >
-            Retour à la boutique
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const images = product.images?.length > 0 ? product.images : [];
-  const hasDiscount = product.compareAtPrice && product.compareAtPrice > product.price;
-  const discountPercent = hasDiscount ? Math.round((1 - product.price / product.compareAtPrice) * 100) : 0;
-  const outOfStock = product.stock <= 0;
-  const lowStock = !outOfStock && product.stock <= 5;
-
-  const isPremium = t.tpl === 'premium';
-  const isMinimal = t.tpl === 'minimal';
+    </div>
+  );
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: t.bg, fontFamily: t.font }}>
-
-      {/* ── Sticky header ────────────────────────────── */}
-      <header
-        className={`sticky top-0 z-40 border-b ${
-          isPremium ? 'shadow-md border-b-2' : 'backdrop-blur-sm border-gray-100'
-        }`}
+    <div>
+      {/* Main image */}
+      <div
         style={{
-          backgroundColor: t.bg + 'f0',
-          ...(isPremium ? { borderBottomColor: t.cta } : {}),
+          position: 'relative', paddingBottom: '100%', borderRadius: 20,
+          backgroundColor: '#f4f4f5', overflow: 'hidden', cursor: 'zoom-in',
         }}
+        onClick={() => setZoomed(true)}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
       >
-        <div className={`${isMinimal ? 'max-w-4xl' : 'max-w-6xl'} mx-auto px-4 ${isPremium ? 'h-16' : 'h-14'} flex items-center justify-between`}>
-          <button onClick={() => navigate(storePath('/'))}
-            className="flex items-center gap-2 text-sm transition font-medium hover:opacity-70"
-            style={{ color: t.text }}>
-            <ArrowLeft className="w-4 h-4" />
-            <span className={isMinimal ? 'text-xs tracking-widest uppercase' : 'hidden sm:inline'}>
-              {isMinimal ? store?.name : (store?.name || 'Boutique')}
-            </span>
-          </button>
-          {!isMinimal && (
-            <p className="text-sm font-semibold truncate max-w-[180px] sm:max-w-xs" style={{ color: t.text, fontFamily: t.font }}>{product.name}</p>
-          )}
-          <button onClick={() => navigator?.share?.({ title: product.name, url: window.location.href })}
-            className="p-2 hover:opacity-70 transition" style={{ borderRadius: t.radius }}>
-            <Share2 className="w-4 h-4" style={{ color: t.text + '80' }} />
-          </button>
-        </div>
-      </header>
-
-      {/* ── Breadcrumb (desktop only) ───────────────── */}
-      <div className="max-w-6xl mx-auto px-4 pt-2 pb-1 hidden sm:flex items-center gap-1.5 text-xs" style={{ color: t.text + '60' }}>
-        <button onClick={() => navigate(storePath('/'))} className="hover:opacity-70 transition" style={{ color: t.text + '80' }}>Accueil</button>
-        {product.category && <><span>/</span><span>{product.category}</span></>}
-        <span>/</span>
-        <span className="font-medium truncate max-w-xs" style={{ color: t.text, fontFamily: t.font }}>{product.name}</span>
-      </div>
-
-      {/* ── Main 2-column grid ────────────────────── */}
-      <div className={`${
-        isMinimal ? 'max-w-4xl' : 'max-w-6xl'
-      } mx-auto px-4 ${
-        isPremium ? 'py-8' : 'py-4'
-      } lg:grid ${
-        isPremium ? 'lg:grid-cols-[1.2fr_480px]' : 'lg:grid-cols-[1fr_440px]'
-      } lg:gap-12 lg:items-start`}>
-
-        {/* LEFT: image gallery */}
-        <div className="space-y-3">
-          <div className="relative bg-gray-50 overflow-hidden" style={{ aspectRatio: '1 / 1' }}>
-            {images.length > 0 ? (
-              <>
-                <img src={images[activeImage]?.url} alt={images[activeImage]?.alt || product.name}
-                  className="w-full h-full object-contain" />
-                {images.length > 1 && (
-                  <>
-                    <button onClick={() => setActiveImage(i => Math.max(0, i - 1))} disabled={activeImage === 0}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 p-2 shadow-md disabled:opacity-30 hover:shadow-lg transition"
-                      style={{ backgroundColor: t.bg, borderRadius: t.radius }}>
-                      <ChevronLeft className="w-4 h-4" style={{ color: t.text }} />
-                    </button>
-                    <button onClick={() => setActiveImage(i => Math.min(images.length - 1, i + 1))} disabled={activeImage === images.length - 1}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2 shadow-md disabled:opacity-30 hover:shadow-lg transition"
-                      style={{ backgroundColor: t.bg, borderRadius: t.radius }}>
-                      <ChevronRight className="w-4 h-4" style={{ color: t.text }} />
-                    </button>
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-                      {images.map((_, i) => (
-                        <button key={i} onClick={() => setActiveImage(i)}
-                          className="w-2 h-2 transition-all"
-                          style={{ 
-                            borderRadius: t.radius,
-                            backgroundColor: i === activeImage ? t.cta : t.text + '40',
-                            transform: i === activeImage ? 'scale(1.25)' : 'scale(1)'
-                          }} />
-                      ))}
-                    </div>
-                  </>
-                )}
-                {hasDiscount && (
-                  <div className="absolute top-3 right-3">
-                    <div className="relative">
-                      <div className="text-white px-4 py-2 shadow-lg"
-                        style={{ backgroundColor: t.cta, borderRadius: t.radius }}>
-                        <div className="text-center">
-                          <div className="text-xs font-semibold uppercase" style={{ fontFamily: t.font }}>Promo</div>
-                          <div className="text-lg font-black leading-none" style={{ fontFamily: t.font }}>-{discountPercent}%</div>
-                        </div>
-                      </div>
-                      <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px]" 
-                        style={{ borderTopColor: t.cta }}></div>
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <ShoppingBag className="w-20 h-20 text-gray-200" />
-              </div>
-            )}
-          </div>
-
-          {/* Thumbnails */}
-          {images.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {images.map((img, i) => (
-                <button key={i} onClick={() => setActiveImage(i)}
-                  className={`w-16 h-16 flex-shrink-0 rounded-xl overflow-hidden border-2 transition-all ${
-                    i === activeImage ? 'opacity-100 shadow-md' : 'border-transparent opacity-55 hover:opacity-80'}`}
-                  style={i === activeImage ? { borderColor: t.cta } : {}}>
-                  <img src={img.url} alt="" className="w-full h-full object-cover" loading="lazy" style={{ borderRadius: 0 }} />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* RIGHT: product info — sticky on desktop */}
-        <div className="mt-6 lg:mt-0 lg:sticky lg:top-20 space-y-5">
-
-          {/* Promo banner rouge */}
-          {hasDiscount && (
-            <div className="px-4 py-3" style={{ backgroundColor: t.cta, borderRadius: t.radius }}>
-              <p className="text-sm font-bold text-white text-center uppercase tracking-wide" style={{ fontFamily: t.font }}>
-                🔥 PROFITEZ DE LA RÉDUCTION — ÉCONOMISEZ {formatPrice(product.compareAtPrice - product.price)} {currency}
-              </p>
-            </div>
-          )}
-
-          {/* Category badge */}
-          {product.category && (
-            <span className="inline-block text-xs font-semibold uppercase tracking-widest px-2.5 py-1"
-              style={{ color: t.cta, backgroundColor: t.cta + '18', borderRadius: t.radius, fontFamily: t.font }}>
-              {product.category}
-            </span>
-          )}
-
-          {/* Title */}
-          <h1
-            className={`font-black leading-tight ${
-              isPremium ? 'text-3xl sm:text-4xl tracking-tight'
-              : isMinimal ? 'text-2xl sm:text-3xl tracking-tight'
-              : 'text-2xl sm:text-3xl'
-            }`}
-            style={{ color: t.text, fontFamily: t.font }}>
-            {product.name}
-          </h1>
-
-          {/* Subtitle/Hook if available */}
-          {product.seoDescription && (
-            <p className="text-sm leading-relaxed italic" style={{ color: t.text + 'aa' }}>
-              {product.seoDescription}
-            </p>
-          )}
-
-          {/* Stars + avis */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center">
-              {[1,2,3,4,5].map(s => (
-                <Star key={s} className={`w-4 h-4 ${s <= 4 ? 'text-yellow-400 fill-yellow-400' : 'text-yellow-300 fill-yellow-100'}`} />
-              ))}
-            </div>
-            <span className="text-sm font-semibold" style={{ color: t.text + 'cc', fontFamily: t.font }}>(252 avis positifs)</span>
-          </div>
-
-          {/* Price block */}
-          <div className="space-y-2">
-            <div className="flex items-end gap-3 flex-wrap">
-              <span
-                className={`font-black tracking-tight ${
-                  isPremium ? 'text-5xl' : isMinimal ? 'text-3xl' : 'text-4xl'
-                }`}
-                style={{ color: t.cta, fontFamily: t.font }}>
-                {formatPrice(product.price)}
-                <span className={`font-bold ml-1 ${isPremium ? 'text-2xl' : 'text-xl'}`}>{currency}</span>
-              </span>
-              {hasDiscount && (
-                <span className="text-xl line-through pb-1" style={{ color: t.text + '60' }}>
-                  {formatPrice(product.compareAtPrice)} {currency}
-                </span>
-              )}
-            </div>
-            {hasDiscount && (
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 text-white" 
-                style={{ backgroundColor: t.cta + '20', borderRadius: t.radius, color: t.cta }}>
-                <span className="text-sm font-bold" style={{ fontFamily: t.font }}>SAVE {discountPercent}%</span>
-                <span className="text-xs" style={{ fontFamily: t.font }}>Économisez {formatPrice(product.compareAtPrice - product.price)} {currency}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Stock status - only show if out of stock */}
-          {outOfStock && (
-            <div className="border p-3 flex items-center gap-2" 
-              style={{ backgroundColor: '#fef2f2', borderColor: '#fecaca', borderRadius: t.radius }}>
-              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
-              <span className="text-sm text-red-700 font-semibold" style={{ fontFamily: t.font }}>Rupture de stock</span>
-            </div>
-          )}
-
-          {/* Benefits list */}
-          {benefits.length > 0 && sectionToggles?.showBenefits !== false && (
-            <div className="border border-green-200 p-4 space-y-2" style={{ backgroundColor: t.cta + '08', borderRadius: t.radius }}>
-              {benefits.map((benefit, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm font-medium" style={{ color: t.text + 'dd', fontFamily: t.font }}>{benefit}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Quantity + CTA */}
-          {!outOfStock && (
-            <div className="space-y-3 pt-1">
-              <div className="flex items-center gap-4">
-                <span className="text-sm font-medium" style={{ color: t.text + 'cc', fontFamily: t.font }}>Quantité</span>
-                <div className="flex items-center border border-gray-200 overflow-hidden" style={{ borderRadius: t.radius }}>
-                  <button onClick={() => setQuantity(q => Math.max(1, q - 1))}
-                    className="px-3 py-2.5 hover:opacity-70 transition font-bold text-lg" style={{ color: t.text + '80' }}>−</button>
-                  <span className="px-5 py-2.5 text-sm font-bold min-w-[3rem] text-center border-x border-gray-200" style={{ color: t.text, fontFamily: t.font }}>
-                    {quantity}
-                  </span>
-                  <button onClick={() => setQuantity(q => Math.min(product.stock, q + 1))}
-                    className="px-3 py-2.5 hover:opacity-70 transition font-bold text-lg" style={{ color: t.text + '80' }}>+</button>
-                </div>
-                <span className="text-sm font-medium" style={{ color: t.text + '80', fontFamily: t.font }}>
-                  = {formatPrice(product.price * quantity)} {currency}
-                </span>
-              </div>
-
-              {/* Main CTA */}
-              <button onClick={handleAddToCart}
-                className={`w-full flex items-center justify-center gap-2.5 text-white font-bold transition active:scale-[.98] relative overflow-hidden group ${
-                  isPremium ? 'px-6 py-5 text-base shadow-2xl hover:opacity-90'
-                  : isMinimal ? 'px-6 py-3.5 text-sm hover:opacity-80'
-                  : 'px-6 py-4 text-base shadow-lg hover:opacity-90'
-                }`}
-                style={{ backgroundColor: t.cta, borderRadius: t.radius, fontFamily: t.font }}>
-                <span className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition"></span>
-                {justAdded ? (
-                  <><Check className="w-5 h-5" /> Ajouté !</>
-                ) : (
-                  <><ShoppingCart className="w-5 h-5" /> COMMANDER MAINTENANT</>
-                )}
-              </button>
-              {!outOfStock && lowStock && sectionToggles?.showStockCounter !== false && (
-                <p className="text-center text-xs font-medium -mt-1" 
-                  style={{ color: '#d97706', fontFamily: t.font }}>
-                  ⚡ Plus que {product.stock} pièces disponibles
-                </p>
-              )}
-
-              {/* WhatsApp secondary */}
-              {whatsappNum && sectionToggles?.showWhatsappButton !== false && (
-                <button onClick={handleWhatsAppOrder}
-                  className="w-full flex items-center justify-center gap-2.5 px-6 py-3.5 text-white font-semibold text-sm transition active:scale-[.98]"
-                  style={{ backgroundColor: '#25D366', borderRadius: t.radius, fontFamily: t.font }}>
-                  <MessageCircle className="w-5 h-5" />
-                  Commander via WhatsApp
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Trust badges */}
-          {sectionToggles?.showTrustBadges !== false && (
-            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-100">
-              {[
-                { icon: <Truck className="w-4 h-4" />, label: 'Livraison rapide' },
-                { icon: <RotateCcw className="w-4 h-4" />, label: 'Retour facile' },
-                { icon: <Shield className="w-4 h-4" />, label: 'Paiement sécurisé' }
-              ].map(({ icon, label }) => (
-                <button key={label} className="flex flex-col items-center gap-1 p-2 text-center w-full hover:opacity-70 transition" style={{ backgroundColor: t.text + '08', borderRadius: t.radius }}>
-                  <span style={{ color: t.cta }}>{icon}</span>
-                  <span className="text-[10px] font-medium leading-tight" style={{ color: t.text + '80', fontFamily: t.font }}>{label}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          {/* Tags */}
-          {product.tags?.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {product.tags.map((tag, i) => (
-                <span key={i} className="px-2.5 py-1 text-xs font-medium" style={{ backgroundColor: t.text + '10', color: t.text + 'aa', borderRadius: t.radius, fontFamily: t.font }}>{tag}</span>
-              ))}
-            </div>
-          )}
-
-          {/* FAQ dynamique — extrait de la description */}
-          {faqItems.length > 0 && sectionToggles?.showFaq !== false && (
-            <div className="border border-gray-200 overflow-hidden" style={{ borderRadius: t.radius }}>
-              <div className="px-4 py-3 border-b border-gray-200" style={{ backgroundColor: t.text + '06' }}>
-                <h3 className="font-bold text-sm" style={{ color: t.text, fontFamily: t.font }}>Vos questions fréquentes</h3>
-              </div>
-              <div className="divide-y divide-gray-200">
-                {faqItems.map((item, i) => (
-                  <div key={i}>
-                    <button
-                      onClick={() => toggleFaq(i)}
-                      className="w-full flex items-center justify-between px-4 py-3.5 hover:opacity-70 transition text-left"
-                    >
-                      <span className="font-medium text-sm pr-4" style={{ color: t.text, fontFamily: t.font }}>{item.q}</span>
-                      {faqOpen[i] ? (
-                        <ChevronUp className="w-4 h-4 flex-shrink-0" style={{ color: t.text + '80' }} />
-                      ) : (
-                        <ChevronDown className="w-4 h-4 flex-shrink-0" style={{ color: t.text + '80' }} />
-                      )}
-                    </button>
-                    {faqOpen[i] && (
-                      <div className="px-4 pb-4 pt-1">
-                        <p className="text-sm leading-relaxed" style={{ color: t.text + 'bb', fontFamily: t.font }}>{item.a}</p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Description — affichage direct sans titre */}
-          {product.description && (
-            <div className="pt-2">
-              <MarkdownDescription content={product.description} />
-            </div>
-          )}
-
-          {/* Details accordion */}
-          {(product.category || product.tags?.length > 0) && (
-            <div className="border border-gray-200 overflow-hidden" style={{ borderRadius: t.radius }}>
-              <button onClick={() => setDetailsOpen(o => !o)}
-                className="w-full flex items-center justify-between px-4 py-3.5 hover:opacity-70 transition">
-                <span className="font-semibold text-sm" style={{ color: t.text, fontFamily: t.font }}>Détails du produit</span>
-                {detailsOpen ? <ChevronUp className="w-4 h-4" style={{ color: t.text + '80' }} /> : <ChevronDown className="w-4 h-4" style={{ color: t.text + '80' }} />}
-              </button>
-              {detailsOpen && (
-                <div className="px-4 pb-4 space-y-2 text-sm" style={{ color: t.text + 'bb', fontFamily: t.font }}>
-                  {product.category && <p><span className="font-medium" style={{ color: t.text }}>Catégorie :</span> {product.category}</p>}
-                  {product.stock > 0 && <p><span className="font-medium" style={{ color: t.text }}>Stock :</span> {product.stock} unités</p>}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Related products ──────────────────────── */}
-      {relatedProducts.length > 0 && sectionToggles?.showRelatedProducts !== false && (
-        <div className="max-w-6xl mx-auto px-4 pb-12 mt-10">
-          <h2 className="text-lg font-bold mb-4" style={{ color: t.text, fontFamily: t.font }}>Vous aimerez aussi</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {relatedProducts.map(p => (
-              <button key={p._id} onClick={() => navigate(storePath(`/products/${p.slug}`))}
-                className="text-left group overflow-hidden border hover:shadow-md transition"
-                style={{ borderRadius: t.radius, borderColor: t.text + '20' }}>
-                <div className="aspect-square bg-gray-50 overflow-hidden">
-                  {p.images?.[0]?.url
-                    ? <img src={p.images[0].url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
-                    : <div className="w-full h-full flex items-center justify-center"><ShoppingBag className="w-10 h-10 text-gray-200" /></div>
-                  }
-                </div>
-                <div className="p-3">
-                  <p className="text-sm font-semibold truncate" style={{ color: t.text, fontFamily: t.font }}>{p.name}</p>
-                  <p className="text-sm font-bold mt-0.5" style={{ color: t.cta, fontFamily: t.font }}>{formatPrice(p.price)} {currency}</p>
-                </div>
-              </button>
+        <img
+          src={images[active]?.url || images[active]}
+          alt={images[active]?.alt || ''}
+          style={{
+            position: 'absolute', inset: 0, width: '100%', height: '100%',
+            objectFit: 'cover', transition: 'opacity 0.2s',
+          }}
+        />
+        {/* Arrows */}
+        {images.length > 1 && (
+          <>
+            <button onClick={(e) => { e.stopPropagation(); go(-1); }} style={{
+              position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)',
+              width: 36, height: 36, borderRadius: '50%', border: 'none',
+              backgroundColor: 'rgba(255,255,255,0.9)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)', opacity: active === 0 ? 0.3 : 1,
+            }}>
+              <ChevronLeft size={18} />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); go(1); }} style={{
+              position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+              width: 36, height: 36, borderRadius: '50%', border: 'none',
+              backgroundColor: 'rgba(255,255,255,0.9)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)', opacity: active === images.length - 1 ? 0.3 : 1,
+            }}>
+              <ChevronRight size={18} />
+            </button>
+          </>
+        )}
+        {/* Dots */}
+        {images.length > 1 && (
+          <div style={{
+            position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)',
+            display: 'flex', gap: 6,
+          }}>
+            {images.map((_, i) => (
+              <button key={i} onClick={(e) => { e.stopPropagation(); setActive(i); }} style={{
+                width: i === active ? 20 : 7, height: 7, borderRadius: 4,
+                border: 'none', backgroundColor: i === active ? 'var(--s-primary)' : 'rgba(255,255,255,0.7)',
+                cursor: 'pointer', padding: 0, transition: 'width 0.2s, background 0.2s',
+              }} />
             ))}
           </div>
+        )}
+      </div>
+
+      {/* Thumbnails */}
+      {images.length > 1 && (
+        <div style={{ display: 'flex', gap: 10, marginTop: 12, overflowX: 'auto', paddingBottom: 4 }}>
+          {images.map((img, i) => (
+            <button key={i} onClick={() => setActive(i)} style={{
+              flexShrink: 0, width: 68, height: 68, borderRadius: 12, overflow: 'hidden', padding: 0,
+              border: '2.5px solid',
+              borderColor: i === active ? 'var(--s-primary)' : 'transparent',
+              cursor: 'pointer', transition: 'border-color 0.15s',
+              backgroundColor: '#f4f4f5',
+            }}>
+              <img
+                src={img?.url || img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            </button>
+          ))}
         </div>
       )}
 
-      {/* Modal de commande rapide */}
-      <QuickOrderModal
-        isOpen={showOrderModal}
-        onClose={() => setShowOrderModal(false)}
-        product={product}
-        quantity={quantity}
-        subdomain={subdomain}
-        store={store}
-      />
+      {/* Zoom modal */}
+      {zoomed && (
+        <div
+          onClick={() => setZoomed(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            backgroundColor: 'rgba(0,0,0,0.92)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'zoom-out',
+          }}
+        >
+          <img
+            src={images[active]?.url || images[active]}
+            alt=""
+            style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 12 }}
+          />
+          <button onClick={() => setZoomed(false)} style={{
+            position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.15)',
+            border: 'none', color: '#fff', fontSize: 24, cursor: 'pointer',
+            width: 44, height: 44, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>×</button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Description (handles both HTML and markdown) ─────────────────────────────
+const ProductDescription = ({ content }) => {
+  const [expanded, setExpanded] = useState(false);
+  if (!content) return null;
+  const isHTML = /<[^>]+>/.test(content);
+  const isLong = content.length > 400;
+
+  const bodyStyle = {
+    fontSize: 15, lineHeight: 1.75, color: 'var(--s-text2)',
+    fontFamily: 'var(--s-font)',
+    overflow: 'hidden',
+    maxHeight: !expanded && isLong ? 120 : 'none',
+    position: 'relative',
+  };
+
+  return (
+    <div>
+      {isHTML ? (
+        <div style={bodyStyle} dangerouslySetInnerHTML={{ __html: content }} />
+      ) : (
+        <p style={{ ...bodyStyle, whiteSpace: 'pre-wrap', margin: 0 }}>{content}</p>
+      )}
+      {isLong && (
+        <button onClick={() => setExpanded(e => !e)} style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          color: 'var(--s-primary)', fontWeight: 600, fontSize: 14,
+          background: 'none', border: 'none', cursor: 'pointer',
+          padding: '8px 0', fontFamily: 'var(--s-font)',
+        }}>
+          {expanded ? (<><ChevronUp size={15} /> Voir moins</>) : (<><ChevronDown size={15} /> Voir plus</>)}
+        </button>
+      )}
+    </div>
+  );
+};
+
+// ── Trust Badges ─────────────────────────────────────────────────────────────
+const TrustBadges = () => (
+  <div style={{
+    display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12,
+    marginTop: 24, padding: '20px 0', borderTop: '1px solid var(--s-border)',
+  }}>
+    {[
+      { icon: <Truck size={18} />, text: 'Livraison rapide' },
+      { icon: <Shield size={18} />, text: 'Paiement sécurisé' },
+      { icon: <RotateCcw size={18} />, text: 'Retours acceptés' },
+    ].map(({ icon, text }) => (
+      <div key={text} style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+        textAlign: 'center',
+      }}>
+        <span style={{ color: 'var(--s-primary)' }}>{icon}</span>
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>
+          {text}
+        </span>
+      </div>
+    ))}
+  </div>
+);
+
+// ── Related Products ─────────────────────────────────────────────────────────
+const RelatedCard = ({ product, prefix }) => {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <a href={`${prefix}/product/${product.slug}`} style={{ textDecoration: 'none' }}
+      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+      <div style={{
+        borderRadius: 14, overflow: 'hidden', border: '1px solid var(--s-border)',
+        boxShadow: hovered ? '0 8px 24px rgba(0,0,0,0.1)' : '0 1px 4px rgba(0,0,0,0.04)',
+        transform: hovered ? 'translateY(-2px)' : 'none', transition: 'all 0.2s',
+      }}>
+        <div style={{ paddingBottom: '100%', position: 'relative', backgroundColor: '#f4f4f5', overflow: 'hidden' }}>
+          {product.image ? (
+            <img src={product.image} alt={product.name} loading="lazy"
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
+                transform: hovered ? 'scale(1.04)' : 'scale(1)', transition: 'transform 0.3s' }} />
+          ) : (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <ShoppingBag size={32} style={{ color: '#d1d5db' }} />
+            </div>
+          )}
+        </div>
+        <div style={{ padding: '12px 14px' }}>
+          <p style={{
+            margin: '0 0 6px', fontWeight: 600, fontSize: 13.5, color: 'var(--s-text)',
+            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+            lineHeight: 1.35, fontFamily: 'var(--s-font)',
+          }}>
+            {product.name}
+          </p>
+          <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--s-primary)', fontFamily: 'var(--s-font)' }}>
+            {fmt(product.price, product.currency)}
+          </span>
+        </div>
+      </div>
+    </a>
+  );
+};
+
+// ── Skeleton ─────────────────────────────────────────────────────────────────
+const Sk = ({ h = 16, w = '100%', r = 8, mb = 0 }) => (
+  <div style={{
+    height: h, width: w, borderRadius: r, marginBottom: mb,
+    background: 'linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%)',
+    backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite',
+  }} />
+);
+
+// ── Footer ───────────────────────────────────────────────────────────────────
+const StorefrontFooter = ({ store }) => (
+  <footer style={{ borderTop: '1px solid var(--s-border)', marginTop: 80, padding: '40px 24px', fontFamily: 'var(--s-font)' }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 20 }}>
+      <div>
+        <p style={{ fontWeight: 700, fontSize: 15, color: 'var(--s-text)', margin: '0 0 4px' }}>{store?.name}</p>
+        {store?.description && <p style={{ fontSize: 13, color: 'var(--s-text2)', margin: 0, maxWidth: 320 }}>{store.description}</p>}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+        {store?.whatsapp && (
+          <a href={`https://wa.me/${store.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 40, backgroundColor: '#25D366', color: '#fff', textDecoration: 'none', fontWeight: 600, fontSize: 13 }}>
+            <MessageCircle size={15} /> Commander via WhatsApp
+          </a>
+        )}
+        <span style={{ fontSize: 12, color: 'var(--s-text2)' }}>
+          Propulsé par <a href="https://scalor.net" target="_blank" rel="noreferrer" style={{ color: 'var(--s-primary)', fontWeight: 600, textDecoration: 'none' }}>Scalor</a>
+        </span>
+      </div>
+    </div>
+  </footer>
+);
+
+// ── Main ─────────────────────────────────────────────────────────────────────
+const StoreProductPage = () => {
+  const { subdomain: paramSubdomain, slug } = useParams();
+  const { subdomain: detectedSubdomain, isStoreDomain } = useSubdomain();
+  const subdomain = paramSubdomain || detectedSubdomain;
+  const prefix = isStoreDomain ? '' : (subdomain ? `/store/${subdomain}` : '');
+
+  const { store, product, related, loading, error } = useStoreProduct(subdomain, slug);
+  const { cartCount, addToCart } = useStoreCart(subdomain);
+
+  const [qty, setQty] = useState(1);
+  const [addedToCart, setAddedToCart] = useState(false);
+  const [showOrderModal, setShowOrderModal] = useState(false);
+
+  useEffect(() => {
+    if (product?.name) document.title = `${product.name} — ${store?.name || ''}`;
+  }, [product?.name, store?.name]);
+
+  const handleAddToCart = () => {
+    if (!product) return;
+    addToCart({ ...product, image: product.images?.[0]?.url || '' }, qty);
+    setAddedToCart(true);
+    setTimeout(() => setAddedToCart(false), 2400);
+  };
+
+  if (error) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
+      <div style={{ textAlign: 'center', padding: 40 }}>
+        <p style={{ fontSize: 48, margin: '0 0 16px' }}>😕</p>
+        <h2 style={{ color: '#111', fontWeight: 700, margin: '0 0 8px' }}>Produit introuvable</h2>
+        <p style={{ color: '#6B7280', fontSize: 15 }}>{error}</p>
+        <a href={`${prefix}/`} style={{ marginTop: 20, display: 'inline-block', color: 'var(--s-primary)', fontWeight: 600, fontSize: 14 }}>← Retour à la boutique</a>
+      </div>
+    </div>
+  );
+
+  const images = product?.images?.length ? product.images : [];
+  const hasDiscount = product?.compareAtPrice && product.compareAtPrice > product.price;
+  const pct = hasDiscount ? Math.round((1 - product.price / product.compareAtPrice) * 100) : 0;
+  const inStock = !product || product.stock > 0;
+  const lowStock = product && product.stock > 0 && product.stock <= 5;
+
+  return (
+    <div style={{ minHeight: '100vh', backgroundColor: 'var(--s-bg)', fontFamily: 'var(--s-font)', color: 'var(--s-text)' }}>
+      <style>{`
+        @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+        *{box-sizing:border-box} body{margin:0;padding:0}
+        @media(max-width:768px){ .product-grid{ grid-template-columns: 1fr !important; } }
+      `}</style>
+
+      <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
+
+      {/* Breadcrumb */}
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 24px' }}>
+        <a href={`${prefix}/`} style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          color: 'var(--s-text2)', fontSize: 13.5, textDecoration: 'none',
+          fontWeight: 500, fontFamily: 'var(--s-font)',
+        }}
+        onMouseEnter={e => e.currentTarget.style.color = 'var(--s-primary)'}
+        onMouseLeave={e => e.currentTarget.style.color = 'var(--s-text2)'}
+        >
+          <ArrowLeft size={15} /> Retour à la boutique
+        </a>
+      </div>
+
+      {/* Product Detail */}
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '8px 24px 0' }}>
+        <div className="product-grid" style={{
+          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'start',
+        }}>
+          {/* ── Left: Gallery ─────────────────────────────────────────────── */}
+          <div style={{ position: 'sticky', top: 80 }}>
+            {loading ? (
+              <div>
+                <div style={{ paddingBottom: '100%', position: 'relative', borderRadius: 20, overflow: 'hidden' }}>
+                  <div style={{
+                    position: 'absolute', inset: 0,
+                    background: 'linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%)',
+                    backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite',
+                  }} />
+                </div>
+                <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+                  {[0,1,2].map(i => <Sk key={i} h={68} w={68} r={12} />)}
+                </div>
+              </div>
+            ) : (
+              <ImageGallery images={images} />
+            )}
+          </div>
+
+          {/* ── Right: Info ───────────────────────────────────────────────── */}
+          <div style={{ paddingBottom: 48 }}>
+            {loading ? (
+              <div>
+                <Sk h={12} w="30%" r={6} mb={12} />
+                <Sk h={36} r={8} mb={8} />
+                <Sk h={36} w="70%" r={8} mb={24} />
+                <Sk h={28} w="40%" r={6} mb={8} />
+                <Sk h={20} w="25%" r={6} mb={32} />
+                <Sk h={54} r={12} mb={12} />
+                <Sk h={54} r={12} mb={24} />
+                <Sk h={16} r={6} mb={8} />
+                <Sk h={16} w="80%" r={6} mb={8} />
+                <Sk h={16} w="60%" r={6} />
+              </div>
+            ) : product ? (
+              <>
+                {/* Category */}
+                {product.category && (
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, color: 'var(--s-primary)',
+                    textTransform: 'uppercase', letterSpacing: '0.08em',
+                  }}>
+                    {product.category}
+                  </span>
+                )}
+
+                {/* Name */}
+                <h1 style={{
+                  fontSize: 'clamp(22px, 3.5vw, 32px)', fontWeight: 800,
+                  color: 'var(--s-text)', margin: '8px 0 16px',
+                  lineHeight: 1.15, letterSpacing: '-0.02em', fontFamily: 'var(--s-font)',
+                }}>
+                  {product.name}
+                </h1>
+
+                {/* Price */}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
+                  <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--s-primary)', fontFamily: 'var(--s-font)', letterSpacing: '-0.02em' }}>
+                    {fmt(product.price, product.currency)}
+                  </span>
+                  {hasDiscount && (
+                    <>
+                      <span style={{ fontSize: 17, color: 'var(--s-text2)', textDecoration: 'line-through', fontFamily: 'var(--s-font)' }}>
+                        {fmt(product.compareAtPrice, product.currency)}
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 9px', borderRadius: 20, backgroundColor: '#FEE2E2', color: '#EF4444' }}>
+                        -{pct}%
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                {/* Stock badge */}
+                <div style={{ marginBottom: 24 }}>
+                  {!inStock ? (
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#EF4444', padding: '4px 12px', borderRadius: 20, backgroundColor: '#FEE2E2' }}>
+                      Rupture de stock
+                    </span>
+                  ) : lowStock ? (
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#F59E0B', padding: '4px 12px', borderRadius: 20, backgroundColor: '#FEF3C7' }}>
+                      ⚡ Plus que {product.stock} en stock
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#10B981', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <Check size={14} /> En stock
+                    </span>
+                  )}
+                </div>
+
+                {/* Quantity selector */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--s-text2)' }}>Quantité</span>
+                  <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid var(--s-border)', borderRadius: 40, overflow: 'hidden' }}>
+                    <button onClick={() => setQty(q => Math.max(1, q - 1))} style={{
+                      width: 38, height: 38, border: 'none', backgroundColor: 'transparent',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Minus size={14} />
+                    </button>
+                    <span style={{ minWidth: 32, textAlign: 'center', fontWeight: 700, fontSize: 15 }}>{qty}</span>
+                    <button onClick={() => setQty(q => q + 1)} style={{
+                      width: 38, height: 38, border: 'none', backgroundColor: 'transparent',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* CTA Buttons */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+                  <button
+                    onClick={handleAddToCart}
+                    disabled={!inStock}
+                    style={{
+                      width: '100%', padding: '15px 24px', borderRadius: 40, border: 'none',
+                      backgroundColor: addedToCart ? '#10B981' : inStock ? 'var(--s-primary)' : '#d1d5db',
+                      color: '#fff', fontWeight: 700, fontSize: 16, cursor: inStock ? 'pointer' : 'not-allowed',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
+                      transition: 'all 0.2s', fontFamily: 'var(--s-font)',
+                      boxShadow: inStock ? '0 4px 16px rgba(0,0,0,0.12)' : 'none',
+                    }}
+                  >
+                    {addedToCart ? (<><Check size={18} /> Ajouté au panier</>) : (<><ShoppingCart size={18} /> Ajouter au panier</>)}
+                  </button>
+
+                  {store?.whatsapp && (
+                    <button
+                      onClick={() => setShowOrderModal(true)}
+                      style={{
+                        width: '100%', padding: '14px 24px', borderRadius: 40, border: '1.5px solid #25D366',
+                        backgroundColor: 'transparent', color: '#25D366',
+                        fontWeight: 700, fontSize: 15, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
+                        fontFamily: 'var(--s-font)', transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#25D366'; e.currentTarget.style.color = '#fff'; }}
+                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#25D366'; }}
+                    >
+                      <MessageCircle size={17} /> Commander via WhatsApp
+                    </button>
+                  )}
+                </div>
+
+                {/* Description */}
+                {product.description && (
+                  <div style={{ marginBottom: 16, paddingTop: 20, borderTop: '1px solid var(--s-border)' }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--s-text)', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      Description
+                    </h3>
+                    <ProductDescription content={product.description} />
+                  </div>
+                )}
+
+                <TrustBadges />
+              </>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Related Products ───────────────────────────────────────────────── */}
+      {related.length > 0 && (
+        <section style={{ maxWidth: 1200, margin: '64px auto 0', padding: '0 24px' }}>
+          <h2 style={{
+            fontSize: 'clamp(20px, 3vw, 26px)', fontWeight: 800, color: 'var(--s-text)',
+            margin: '0 0 24px', letterSpacing: '-0.02em', fontFamily: 'var(--s-font)',
+          }}>
+            Vous aimerez aussi
+          </h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 16 }}>
+            {related.map(p => <RelatedCard key={p._id} product={p} prefix={prefix} />)}
+          </div>
+        </section>
+      )}
+
+      <StorefrontFooter store={store} />
+
+      {/* Quick Order Modal */}
+      {product && (
+        <QuickOrderModal
+          isOpen={showOrderModal}
+          product={product}
+          quantity={qty}
+          store={store}
+          subdomain={subdomain}
+          onClose={() => setShowOrderModal(false)}
+        />
+      )}
     </div>
   );
 };

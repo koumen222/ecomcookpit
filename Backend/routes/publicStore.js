@@ -33,7 +33,12 @@ router.get('/:subdomain', resolveStoreBySubdomain, async (req, res) => {
         whatsapp: store.storeSettings?.storeWhatsApp || '',
         themeColor: store.storeSettings?.storeThemeColor || '#0F6B4F',
         currency: store.storeSettings?.storeCurrency || 'XAF',
-        subdomain: store.subdomain
+        subdomain: store.subdomain,
+        primaryColor: store.storeSettings?.primaryColor || store.storeSettings?.storeThemeColor || '#0F6B4F',
+        accentColor: store.storeSettings?.accentColor || '#059669',
+        backgroundColor: store.storeSettings?.backgroundColor || '#FFFFFF',
+        textColor: store.storeSettings?.textColor || '#111827',
+        font: store.storeSettings?.font || 'inter'
       }
     });
   } catch (error) {
