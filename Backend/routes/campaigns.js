@@ -911,12 +911,42 @@ router.post('/:id/send', requireEcomAuth, validateEcomAccess('products', 'write'
       console.log(`🔄 Campagne ${campaign.name}: programmation annulée, envoi manuel initié`);
     }
 
-    const greenApiId = process.env.GREEN_API_ID_INSTANCE;
-    const greenApiToken = process.env.GREEN_API_TOKEN_INSTANCE;
-    const greenApiUrl = process.env.GREEN_API_URL || 'https://api.green-api.com';
-    if (!greenApiId || !greenApiToken) {
-      return res.status(500).json({ success: false, message: 'Green API non configuré' });
+    // Récupérer l'instance WhatsApp depuis la base de données
+    const whatsappInstanceId = req.body.whatsappInstanceId;
+    
+    if (!whatsappInstanceId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Veuillez sélectionner une instance WhatsApp' 
+      });
     }
+    
+    // Charger l'instance depuis la base de données
+    const WhatsAppInstance = (await import('../models/WhatsAppInstance.js')).default;
+    const whatsappInstance = await WhatsAppInstance.findOne({
+      _id: whatsappInstanceId,
+      workspaceId: req.workspaceId
+    });
+    
+    if (!whatsappInstance) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Instance WhatsApp non trouvée' 
+      });
+    }
+    
+    if (whatsappInstance.status !== 'active') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Instance WhatsApp inactive. Veuillez vérifier la configuration.' 
+      });
+    }
+    
+    const instanceId = whatsappInstance.instanceId;
+    const apiKey = whatsappInstance.apiKey;
+    const apiUrl = whatsappInstance.apiUrl || 'https://servicewhstapps.pages.dev';
+    
+    console.log(`📱 Utilisation de l'instance WhatsApp: ${whatsappInstance.name} (${instanceId})`);
 
     // 🆕 VALIDATION ANTI-SPAM du message avant envoi massif
     const analysis = analyzeSpamRisk(campaign.messageTemplate);
@@ -1228,21 +1258,26 @@ router.post('/:id/send', requireEcomAuth, validateEcomAccess('products', 'write'
 
     // 🆕 HEALTHCHECK Green API avant envoi en masse
     if (counters.preparedContacts > 0) {
-      console.log('🔍 Healthcheck Green API avant envoi en masse...');
+      console.log('🔍 Healthcheck ZeChat API avant envoi en masse...');
       try {
         const fetchModule = await import('node-fetch');
         const fetch = fetchModule.default;
         
-        const apiUrl = process.env.GREEN_API_URL || 'https://api.green-api.com';
-        const idInstance = process.env.GREEN_API_ID_INSTANCE;
-        const apiTokenInstance = process.env.GREEN_API_TOKEN_INSTANCE;
+        const apiUrl = process.env.WHATSAPP_API_URL || 'https://servicewhstapps.pages.dev';
+        const instanceId = process.env.WHATSAPP_INSTANCE_ID;
+        const apiKey = process.env.WHATSAPP_API_KEY;
         
-        const healthUrl = `${apiUrl}/waInstance${idInstance}/getStateInstance/${apiTokenInstance}`;
+        const healthUrl = `${apiUrl}/api/status`;
         
-        console.log('[GreenAPI Healthcheck] GET', healthUrl);
+        console.log('[ZeChat Healthcheck] POST', healthUrl);
         
         const healthResponse = await fetch(healthUrl, { 
-          method: 'GET'
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({ instanceId })
         });
         
         if (!healthResponse.ok) {
@@ -1250,19 +1285,19 @@ router.post('/:id/send', requireEcomAuth, validateEcomAccess('products', 'write'
         }
         
         const healthData = await healthResponse.json();
-        console.log('✅ Green API Healthcheck OK:', healthData.stateInstance);
+        console.log('✅ ZeChat API Healthcheck OK:', healthData);
         
-        if (healthData.stateInstance !== 'authorized') {
-          throw new Error(`Instance non autorisée: ${healthData.stateInstance}`);
+        if (!healthData.success) {
+          throw new Error(`Instance non disponible`);
         }
         
       } catch (healthError) {
-        console.error('❌ Green API Healthcheck FAILED:', healthError.message);
+        console.error('❌ ZeChat API Healthcheck FAILED:', healthError.message);
         return res.status(503).json({ 
           success: false, 
-          message: 'Service WhatsApp indisponible. Vérifiez la configuration Green API.',
+          message: 'Service WhatsApp indisponible. Vérifiez la configuration ZeChat API.',
           error: healthError.message,
-          details: 'Healthcheck a échoué - arrêt de la campagne pour éviter 28 échecs'
+          details: 'Healthcheck a échoué - arrêt de la campagne pour éviter des échecs'
         });
       }
     }
@@ -1350,14 +1385,15 @@ router.post('/:id/send', requireEcomAuth, validateEcomAccess('products', 'write'
           continue;
         }
 
-        // 🆕 Envoi avec système anti-spam + workspaceId pour le log
+        // 🆕 Envoi avec système anti-spam + workspaceId pour le log + config WhatsApp
         const messageData = {
           to: cleanedPhone,
           message: message,
           campaignId: campaign._id,
           userId: client._id,
           firstName: client.firstName,
-          workspaceId: req.workspaceId
+          workspaceId: req.workspaceId,
+          whatsappConfig: { instanceId, apiKey, apiUrl, phoneNumber }
         };
 
         const result = await sendWhatsAppMessage(messageData);

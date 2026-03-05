@@ -254,7 +254,10 @@ const startServer = async () => {
       ['./routes/storeApi.js',                '/api/store'],
       // ─── Alibaba AI Import ────────────────────────────────────────────────
       ['./routes/alibabaImport.js',           '/api/ecom/alibaba-import'],
-      // ─── AI Product Page Generator ───────────────────────────────────────
+      // ─── WhatsApp Configuration ──────────────────────────────────────
+      ['./routes/whatsappConfig.js',          '/api/ecom/whatsapp-config'],
+      ['./routes/whatsappInstances.js',       '/api/ecom/whatsapp-instances'],
+      // ─── AI Product Page Generator ───────────────────────────────────
       ['./routes/productPageGenerator.js',    '/api/ai/product-generator'],
       // ─── Diagnostics ──────────────────────────────────────────────────────
       ['./routes/diagnostics.js',             '/api/ecom/diagnostics'],

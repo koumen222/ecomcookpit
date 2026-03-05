@@ -2,8 +2,10 @@ import React, { useState, useRef, useCallback } from 'react';
 import {
   X, Sparkles, Loader2, CheckCircle, AlertCircle, ChevronDown,
   ChevronUp, Image, Copy, ExternalLink, Zap, MessageCircle,
-  TrendingUp, HelpCircle, Package, ArrowRight
+  TrendingUp, HelpCircle, Package, ArrowRight, Send, Settings
 } from 'lucide-react';
+import WhatsAppSendModal from './WhatsAppSendModal.jsx';
+import WhatsAppConfigModal from './WhatsAppConfigModal.jsx';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
 
@@ -79,6 +81,8 @@ const AlibabaImportModal = ({ onClose, onApply }) => {
   const [product, setProduct] = useState(null);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('content');
+  const [showWhatsAppSend, setShowWhatsAppSend] = useState(false);
+  const [showWhatsAppConfig, setShowWhatsAppConfig] = useState(false);
   const abortRef = useRef(null);
 
   const isValidUrl = url.trim().length > 10 && (url.includes('alibaba.com') || url.includes('aliexpress.com'));
@@ -583,10 +587,19 @@ const AlibabaImportModal = ({ onClose, onApply }) => {
 
                     {product.whatsappMessage && (
                       <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase mb-2">
-                          <MessageCircle className="w-3.5 h-3.5 inline mr-1 text-green-500" />
-                          Message WhatsApp
-                        </p>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-semibold text-gray-500 uppercase">
+                            <MessageCircle className="w-3.5 h-3.5 inline mr-1 text-green-500" />
+                            Message WhatsApp
+                          </p>
+                          <button
+                            onClick={() => setShowWhatsAppSend(true)}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition"
+                          >
+                            <Send className="w-3 h-3" />
+                            Envoyer
+                          </button>
+                        </div>
                         <div className="relative p-3 bg-green-50 border border-green-100 rounded-xl">
                           <p className="text-sm text-gray-700 whitespace-pre-line pr-6">{product.whatsappMessage}</p>
                           <div className="absolute top-2 right-2">
@@ -731,6 +744,36 @@ const AlibabaImportModal = ({ onClose, onApply }) => {
           )}
         </div>
       </div>
+
+      {/* Modales WhatsApp */}
+      {showWhatsAppSend && product && (
+        <WhatsAppSendModal
+          onClose={() => setShowWhatsAppSend(false)}
+          initialMessage={product.whatsappMessage || ''}
+          productData={{
+            name: product.name,
+            price: product.suggestedPrice,
+            link: product.sourceUrl
+          }}
+          onConfigNeeded={() => {
+            setShowWhatsAppSend(false);
+            setShowWhatsAppConfig(true);
+          }}
+        />
+      )}
+
+      {showWhatsAppConfig && (
+        <WhatsAppConfigModal
+          onClose={() => setShowWhatsAppConfig(false)}
+          onConfigSaved={() => {
+            setShowWhatsAppConfig(false);
+            // Optionellement rouvrir le modal d'envoi après configuration
+            if (product?.whatsappMessage) {
+              setTimeout(() => setShowWhatsAppSend(true), 500);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

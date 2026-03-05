@@ -5,31 +5,30 @@ let providerType = null;
 let warmupCompleted = false; // Flag pour le warm-up
 
 const initWhatsAppService = async () => {
-  // Configuration Green API uniquement
-  const greenApiId = process.env.GREEN_API_ID_INSTANCE;
-  const greenApiToken = process.env.GREEN_API_TOKEN_INSTANCE;
+  // Configuration ZeChat API
+  const instanceId = process.env.WHATSAPP_INSTANCE_ID;
+  const apiKey = process.env.WHATSAPP_API_KEY;
   
-  if (greenApiId && greenApiToken) {
-    providerType = 'green_api';
-    // ✅ 1️⃣ Utiliser l'URL correcte de Green API
-    const apiUrl = process.env.GREEN_API_URL || 'https://api.green-api.com';
+  if (instanceId && apiKey) {
+    providerType = 'zechat';
+    const apiUrl = process.env.WHATSAPP_API_URL || 'https://servicewhstapps.pages.dev';
     whatsappProvider = {
-      idInstance: greenApiId,
-      apiTokenInstance: greenApiToken,
+      instanceId: instanceId,
+      apiKey: apiKey,
       apiUrl: apiUrl
     };
     
-    console.log('✅ Service WhatsApp Green API configuré');
-    console.log(`   - Instance ID: ${greenApiId}`);
+    console.log('✅ Service WhatsApp ZeChat configuré');
+    console.log(`   - Instance ID: ${instanceId}`);
     console.log(`   - API URL: ${whatsappProvider.apiUrl}`);
     
-    // Warm-up automatique pour Green API
+    // Warm-up automatique pour ZeChat
     warmupCompleted = false;
     return;
   }
   
-  // Green API non configuré
-  throw new Error('Variables d\'environnement GREEN_API_ID_INSTANCE et GREEN_API_TOKEN_INSTANCE requises');
+  // ZeChat non configuré
+  throw new Error('Variables d\'environnement WHATSAPP_INSTANCE_ID et WHATSAPP_API_KEY requises');
 };
 
 /**
@@ -104,7 +103,7 @@ const isValidPhoneNumber = (phone) => {
  * Note: Cette fonction est optionnelle, le retry intelligent gère mieux les erreurs
  */
 const checkWhatsappNumber = async (phone) => {
-  if (!whatsappProvider || providerType !== 'green_api') {
+  if (!whatsappProvider || providerType !== 'zechat') {
     return { exists: true, error: null };
   }
   
@@ -116,8 +115,8 @@ const checkWhatsappNumber = async (phone) => {
   try {
     const fetchModule = await import('node-fetch');
     const fetch = fetchModule.default;
-    const apiUrl = whatsappProvider.apiUrl || `https://${whatsappProvider.idInstance}.api.greenapi.com`;
-    const endpoint = `${apiUrl}/waInstance${whatsappProvider.idInstance}/checkWhatsapp/${whatsappProvider.apiTokenInstance}`;
+    const apiUrl = whatsappProvider.apiUrl;
+    const endpoint = `${apiUrl}/api/check`;
     
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -182,7 +181,7 @@ const normalizePhone = (phone) => {
  * Ces messages ne créent PAS de logs dans la base de données (pas de campaignId)
  */
 const performWarmup = async () => {
-  if (warmupCompleted || !whatsappProvider || providerType !== 'green_api') {
+  if (warmupCompleted || !whatsappProvider || providerType !== 'zechat') {
     return;
   }
   
@@ -207,22 +206,26 @@ const performWarmup = async () => {
     
     try {
       const fetchModule = await import('node-fetch');
-    const fetch = fetchModule.default;
-      const apiUrl = whatsappProvider.apiUrl || `https://${whatsappProvider.idInstance}.api.greenapi.com`;
-      const endpoint = `${apiUrl}/waInstance${whatsappProvider.idInstance}/sendMessage/${whatsappProvider.apiTokenInstance}`;
-      
+      const fetch = fetchModule.default;
+      const apiUrl = whatsappProvider.apiUrl;
+      const endpoint = `${apiUrl}/api/send`;
+
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${whatsappProvider.apiKey}`
+        },
         body: JSON.stringify({
-          chatId: `${phone}@c.us`,
+          instanceId: whatsappProvider.instanceId,
+          phoneNumber: phone,
           message: warmupMessage
         })
       });
-      
+
       // ✅ 6️⃣ Sécuriser le JSON.parse
       const responseText = await response.text();
-      
+
       let data;
       try {
         data = responseText ? JSON.parse(responseText) : {};
@@ -230,12 +233,12 @@ const performWarmup = async () => {
         // Erreur silencieuse pour le warm-up
         continue;
       }
-      
+
       // Utiliser les VRAIES réponses de l'API Green API
       if (response.ok && data.idMessage) {
         successCount++;
       }
-      
+
       // Délai entre chaque message de warm-up
       if (i < Math.min(warmupPhones.length, 3) - 1) {
         await sleep(7000);
@@ -244,7 +247,7 @@ const performWarmup = async () => {
       // Erreur silencieuse pour le warm-up
     }
   }
-  
+
   warmupCompleted = true;
 };
 
@@ -254,32 +257,42 @@ const performWarmup = async () => {
  * ⚠️ IMPORTANT: Cette fonction REJETTE immédiatement les numéros mal formatés
  * 🆕 ANTI-SPAM: Validation du contenu avant envoi
  */
-const sendWhatsAppMessage = async ({ to, message, campaignId, previewId, userId, firstName, workspaceId, attemptNumber = 1 }) => {
-  if (!whatsappProvider || providerType !== 'green_api') {
-    throw new Error('Service WhatsApp Green API non configuré');
+const sendWhatsAppMessage = async ({ to, message, campaignId, previewId, userId, firstName, workspaceId, whatsappConfig, attemptNumber = 1 }) => {
+  // Utiliser la config fournie ou celle par défaut
+  let config = whatsappConfig;
+  if (!config && whatsappProvider && providerType === 'zechat') {
+    config = {
+      instanceId: whatsappProvider.instanceId,
+      apiKey: whatsappProvider.apiKey,
+      apiUrl: whatsappProvider.apiUrl
+    };
   }
   
-  // Warm-up automatique (une seule fois)
-  if (!warmupCompleted) {
+  if (!config || !config.instanceId || !config.apiKey) {
+    throw new Error('Service WhatsApp ZeChat non configuré');
+  }
+
+  // Warm-up automatique (une seule fois) - seulement si on utilise la config globale
+  if (!whatsappConfig && !warmupCompleted) {
     await performWarmup();
   }
-  
+
   // 1️⃣ Nettoyage du numéro (OBLIGATOIRE)
   const cleanedPhone = sanitizePhoneNumber(to);
   if (!cleanedPhone) {
     throw new Error('Numéro de téléphone invalide ou vide');
   }
-  
+
   // 2️⃣ Validation STRICTE du format (OBLIGATOIRE)
   if (!isValidPhoneNumber(cleanedPhone)) {
     throw new Error(`Numéro invalide: ${cleanedPhone} (doit commencer par un indicatif pays valide et avoir 8-15 chiffres)`);
   }
-  
+
   // 🆕 3️⃣ VALIDATION ANTI-SPAM du contenu
   if (!validateMessageBeforeSend(message, userId)) {
     throw new Error('Message rejeté - risque spam trop élevé');
   }
-  
+
   const whatsappLog = new WhatsAppLog({
     campaignId,
     previewId,  // ✅ Ajouter previewId pour les previews
@@ -290,32 +303,34 @@ const sendWhatsAppMessage = async ({ to, message, campaignId, previewId, userId,
     messageSent: message || null,
     status: 'pending'
   });
-  
+
   try {
     // 🆕 Simulation de comportement humain avant envoi
     await simulateHumanBehavior();
-    
+
     const fetchModule = await import('node-fetch');
     const fetch = fetchModule.default;
-    
-    // Envoi via Green API uniquement
-    const apiUrl = whatsappProvider.apiUrl;
-    const endpoint = `${apiUrl}/waInstance${whatsappProvider.idInstance}/sendMessage/${whatsappProvider.apiTokenInstance}`;
-    
+
+    // Envoi via ZeChat API
+    const apiUrl = config.apiUrl || 'https://servicewhstapps.pages.dev';
+    const endpoint = `${apiUrl}/api/send`;
+
     // 🆕 Log "1 fois" pour vérifier l'URL appelée
-    console.log('[GreenAPI] POST', endpoint);
-    
+    console.log('[ZeChat] POST', endpoint);
+
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.apiKey}`
       },
       body: JSON.stringify({
-        chatId: `${cleanedPhone}@c.us`,
+        instanceId: config.instanceId,
+        phone: cleanedPhone,
         message: message
       })
     });
-    
+
     // ✅ 2️⃣ Sécuriser le JSON.parse
     const responseText = await response.text();
     
@@ -533,12 +548,12 @@ const sendBulkWhatsApp = async (messages) => {
   let activeMessages = 0;
   const MAX_ACTIVE_MESSAGES = 5; // Pause 5min après chaque 5 messages envoyés
   
-  if (!whatsappProvider || providerType !== 'green_api') {
-    throw new Error('Service WhatsApp Green API non configuré');
+  if (!whatsappProvider || providerType !== 'zechat') {
+    throw new Error('Service WhatsApp ZeChat non configuré');
   }
   
   // Log initial uniquement pour le démarrage
-  console.log(`📱 Envoi de ${messages.length} messages WhatsApp via Green API (mode anti-spam)`);
+  console.log(`📱 Envoi de ${messages.length} messages WhatsApp via ZeChat (mode anti-spam)`);
   
   // Warm-up automatique au début (une seule fois)
   if (!warmupCompleted) {
@@ -805,8 +820,8 @@ const sendNewsletterCampaign = async (contacts, variants, onProgress = null) => 
   let paused = false;
   let quotaReached = false;
   
-  if (!whatsappProvider || providerType !== 'green_api') {
-    throw new Error('Service WhatsApp Green API non configuré');
+  if (!whatsappProvider || providerType !== 'zechat') {
+    throw new Error('Service WhatsApp ZeChat non configuré');
   }
   
   // Vérifier la plage horaire

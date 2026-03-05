@@ -4,22 +4,22 @@ let whatsappConfig = null;
 
 // Initialiser la configuration WhatsApp
 export const initWhatsApp = () => {
-  const greenApiId = process.env.GREEN_API_ID_INSTANCE;
-  const greenApiToken = process.env.GREEN_API_TOKEN_INSTANCE;
-  const greenApiUrl = process.env.GREEN_API_URL;
+  const instanceId = process.env.WHATSAPP_INSTANCE_ID;
+  const apiKey = process.env.WHATSAPP_API_KEY;
+  const apiUrl = process.env.WHATSAPP_API_URL;
 
-  if (greenApiId && greenApiToken) {
+  if (instanceId && apiKey) {
     whatsappConfig = {
-      idInstance: greenApiId,
-      apiTokenInstance: greenApiToken,
-      apiUrl: greenApiUrl || `https://${greenApiId}.api.greenapi.com`
+      instanceId: instanceId,
+      apiKey: apiKey,
+      apiUrl: apiUrl || 'https://servicewhstapps.pages.dev'
     };
-    console.log('✅ WhatsApp Service initialisé');
-    console.log('📱 Instance ID:', greenApiId);
+    console.log('✅ WhatsApp Service initialisé (ZeChat)');
+    console.log('📱 Instance ID:', instanceId);
     return true;
   }
 
-  console.error('❌ WhatsApp non configuré - variables GREEN_API manquantes');
+  console.error('❌ WhatsApp non configuré - variables WHATSAPP_INSTANCE_ID et WHATSAPP_API_KEY manquantes');
   return false;
 };
 
@@ -69,35 +69,38 @@ export const sendMessage = async (phoneNumber, message) => {
     console.log('🔍 Vérification format: ' + (chatId.includes('@c.us') ? '✅' : '❌'));
     console.log('🔍 Longueur numéro: ' + chatId.replace('@c.us', '').length);
 
-    // Construire l'URL de l'API Green API
-    const url = `${whatsappConfig.apiUrl}/waInstance${whatsappConfig.idInstance}/sendMessage/${whatsappConfig.apiTokenInstance}`;
+    // Construire l'URL de l'API ZeChat
+    const url = `${whatsappConfig.apiUrl}/api/send`;
     console.log('🔗 URL API:', url);
 
     // Importer fetch
     const fetchModule = await import('node-fetch');
     const fetch = fetchModule.default;
 
-    // Préparer le payload
+    // Nettoyer le numéro pour ZeChat (sans @c.us)
+    const cleanPhone = chatId.replace('@c.us', '');
+
+    // Préparer le payload ZeChat
     const payload = {
-      chatId: chatId,
+      instanceId: whatsappConfig.instanceId,
+      phone: cleanPhone,
       message: message
     };
-    
-    console.log('📤 Envoi vers Green API:');
-    console.log('   ChatId:', chatId);
-    console.log('   Message:', message);
-    console.log('   Payload complet:', JSON.stringify(payload, null, 2));
+    console.log('📦 Payload:', JSON.stringify(payload, null, 2));
 
+    // Envoyer la requête
+    console.log('📤 Envoi de la requête...');
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${whatsappConfig.apiKey}`
       },
       body: JSON.stringify(payload)
     });
 
     const data = await response.json();
-    console.log('📥 Réponse Green API:');
+    console.log('📥 Réponse ZeChat API:');
     console.log('   Status HTTP:', response.status, response.statusText);
     console.log('   Body:', JSON.stringify(data, null, 2));
 

@@ -8,21 +8,21 @@ let whatsappConfig = null;
 // Plus de cache anti-doublon - chatbot normal
 
 const initAgentWhatsapp = () => {
-  const greenApiId = process.env.GREEN_API_ID_INSTANCE;
-  const greenApiToken = process.env.GREEN_API_TOKEN_INSTANCE;
-  const greenApiUrl = process.env.GREEN_API_URL;
+  const instanceId = process.env.WHATSAPP_INSTANCE_ID;
+  const apiKey = process.env.WHATSAPP_API_KEY;
+  const apiUrl = process.env.WHATSAPP_API_URL;
 
-  if (greenApiId && greenApiToken) {
+  if (instanceId && apiKey) {
     whatsappConfig = {
-      idInstance: greenApiId,
-      apiTokenInstance: greenApiToken,
-      apiUrl: greenApiUrl || `https://${greenApiId}.api.greenapi.com`
+      instanceId: instanceId,
+      apiKey: apiKey,
+      apiUrl: apiUrl || 'https://servicewhstapps.pages.dev'
     };
-    console.log('✅ Agent WhatsApp Service initialisé');
+    console.log('✅ Agent WhatsApp Service initialisé (ZeChat)');
     return true;
   }
 
-  console.warn('⚠️ Agent WhatsApp non configuré - variables GREEN_API manquantes');
+  console.warn('⚠️ Agent WhatsApp non configuré - variables WHATSAPP_INSTANCE_ID et WHATSAPP_API_KEY manquantes');
   return false;
 };
 
@@ -87,20 +87,27 @@ const sendWhatsAppMessage = async (chatId, message) => {
     const fetchModule = await import('node-fetch');
     const fetch = fetchModule.default;
 
-    const endpoint = `${whatsappConfig.apiUrl}/waInstance${whatsappConfig.idInstance}/sendMessage/${whatsappConfig.apiTokenInstance}`;
+    // Nettoyer le numéro pour ZeChat (sans @c.us)
+    const cleanPhone = chatId.replace('@c.us', '');
+
+    const endpoint = `${whatsappConfig.apiUrl}/api/send`;
     console.log('🔗 Endpoint:', endpoint);
 
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${whatsappConfig.apiKey}`
+      },
       body: JSON.stringify({
-        chatId: chatId,
+        instanceId: whatsappConfig.instanceId,
+        phone: cleanPhone,
         message: message
       })
     });
 
     const data = await response.json();
-    console.log('📥 Réponse Green API:', data);
+    console.log('📥 Réponse ZeChat API:', data);
 
     if (!response.ok) {
       throw new Error(data.error || `HTTP ${response.status}`);
