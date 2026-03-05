@@ -193,14 +193,8 @@ try {
 }
 
 // ─── WhatsApp service init (optional) ────────────────────────────────────────
-try {
-  const whatsappModule = await import('./services/whatsappService.js');
-  if (whatsappModule.initWhatsAppService) {
-    await whatsappModule.initWhatsAppService();
-  }
-} catch (error) {
-  console.warn('⚠️ WhatsApp non configuré:', error.message);
-}
+// WhatsApp est maintenant géré dynamiquement par instances utilisateur
+// Plus besoin d'initialiser un service global au démarrage
 
 // ─── Start server ────────────────────────────────────────────────────────────
 const startServer = async () => {

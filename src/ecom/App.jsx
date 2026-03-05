@@ -86,6 +86,7 @@ const Tarifs = lazy(() => import('./pages/Tarifs.jsx'));
 const SourcingList = lazy(() => import('./pages/SourcingList.jsx'));
 const SupplierDetail = lazy(() => import('./pages/SupplierDetail.jsx'));
 const SourcingStats = lazy(() => import('./pages/SourcingStats.jsx'));
+const WhatsAppInstancesList = lazy(() => import('./pages/WhatsAppInstancesList.jsx'));
 
 // ─── Store / Storefront pages ─────────────────────────────────────────────
 const StoreSetup = lazy(() => import('./pages/StoreSetup.jsx'));
@@ -506,6 +507,9 @@ const EcomApp = () => {
 
               {/* Route WhatsApp en savoir plus */}
               <Route path="/ecom/whatsapp-en-savoir-plus" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppEnSavoirPlus /></LayoutRoute>} />
+
+              {/* Route instances WhatsApp */}
+              <Route path="/ecom/whatsapp/instances" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppInstancesList /></LayoutRoute>} />
 
               {/* Routes gestion utilisateurs (admin) */}
               <Route path="/ecom/users" element={<LayoutRoute requiredRole="ecom_admin"><UserManagement /></LayoutRoute>} />

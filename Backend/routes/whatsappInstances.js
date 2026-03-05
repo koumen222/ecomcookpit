@@ -8,9 +8,9 @@ const router = express.Router();
  * GET /api/ecom/whatsapp-instances
  * Récupère toutes les instances WhatsApp du workspace
  */
-router.get('/', requireEcomAuth, validateEcomAccess, async (req, res) => {
+router.get('/', requireEcomAuth, async (req, res) => {
   try {
-    const workspaceId = req.user.defaultWorkspace;
+    const workspaceId = req.workspaceId || req.user.defaultWorkspace;
     
     const instances = await WhatsAppInstance.find({ workspaceId })
       .select('-apiKey') // Ne pas exposer la clé API dans la liste
@@ -33,9 +33,9 @@ router.get('/', requireEcomAuth, validateEcomAccess, async (req, res) => {
  * GET /api/ecom/whatsapp-instances/:id
  * Récupère une instance WhatsApp spécifique
  */
-router.get('/:id', requireEcomAuth, validateEcomAccess, async (req, res) => {
+router.get('/:id', requireEcomAuth, async (req, res) => {
   try {
-    const workspaceId = req.user.defaultWorkspace;
+    const workspaceId = req.workspaceId || req.user.defaultWorkspace;
     const { id } = req.params;
     
     const instance = await WhatsAppInstance.findOne({ 
@@ -67,13 +67,40 @@ router.get('/:id', requireEcomAuth, validateEcomAccess, async (req, res) => {
  * POST /api/ecom/whatsapp-instances
  * Crée une nouvelle instance WhatsApp
  */
-router.post('/', requireEcomAuth, validateEcomAccess, async (req, res) => {
+router.post('/', requireEcomAuth, async (req, res) => {
   try {
-    console.log('📱 Création instance WhatsApp - Body:', req.body);
-    const workspaceId = req.user.defaultWorkspace;
+    console.log('\n� === DÉBUT CRÉATION INSTANCE WHATSAPP ===');
+    console.log('📱 Timestamp:', new Date().toISOString());
+    console.log('📱 Request Headers:', {
+      authorization: req.headers.authorization ? 'Bearer [HIDDEN]' : 'MISSING',
+      'x-workspace-id': req.headers['x-workspace-id'],
+      'content-type': req.headers['content-type']
+    });
+    console.log('📱 Request Body:', {
+      name: req.body.name,
+      instanceId: req.body.instanceId,
+      apiKey: req.body.apiKey ? '[HIDDEN]' : 'MISSING'
+    });
+    console.log('📱 Request User:', {
+      id: req.user?.id,
+      email: req.ecomUser?.email,
+      role: req.ecomUser?.role,
+      userWorkspaceId: req.user?.defaultWorkspace,
+      reqWorkspaceId: req.workspaceId
+    });
+    
+    const workspaceId = req.workspaceId || req.user?.defaultWorkspace;
     const { name, instanceId, apiKey } = req.body;
     
-    console.log('📱 WorkspaceId:', workspaceId);
+    console.log('📱 Final workspaceId utilisé:', workspaceId);
+    console.log('📱 WorkspaceId type:', typeof workspaceId);
+    
+    if (!workspaceId) {
+      return res.status(400).json({
+        success: false,
+        message: 'WorkspaceId manquant. Vérifiez votre configuration.'
+      });
+    }
     
     // Validation
     if (!name || !instanceId || !apiKey) {
@@ -85,12 +112,15 @@ router.post('/', requireEcomAuth, validateEcomAccess, async (req, res) => {
     }
     
     // Vérifier si l'instance existe déjà
+    console.log('📱 Recherche instance existante...');
     const existingInstance = await WhatsAppInstance.findOne({
       workspaceId,
       instanceId
     });
+    console.log('📱 Instance existante trouvée:', !!existingInstance);
     
     if (existingInstance) {
+      console.log('❌ Instance déjà existante');
       return res.status(400).json({
         success: false,
         message: 'Une instance avec cet Instance ID existe déjà'
@@ -98,13 +128,17 @@ router.post('/', requireEcomAuth, validateEcomAccess, async (req, res) => {
     }
     
     // Tester la connexion à l'API (non bloquant, timeout 5s)
+    console.log('📱 Test de connexion API...');
     let status = 'active';
     try {
       const fetchModule = await import('node-fetch');
       const fetch = fetchModule.default;
       
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
+      const timeout = setTimeout(() => {
+        console.log('⏰ Timeout API test atteint');
+        controller.abort();
+      }, 5000);
       
       const testResponse = await fetch('https://servicewhstapps.pages.dev/api/status', {
         method: 'POST',
@@ -117,16 +151,21 @@ router.post('/', requireEcomAuth, validateEcomAccess, async (req, res) => {
       });
       
       clearTimeout(timeout);
+      console.log('📱 API test response status:', testResponse.status);
       
       if (!testResponse.ok) {
+        console.log('⚠️ API test failed, marking as inactive');
         status = 'inactive';
+      } else {
+        console.log('✅ API test successful');
       }
     } catch (err) {
-      console.log('Test API WhatsApp échoué (non bloquant):', err.message);
+      console.log('📱 Test API WhatsApp échoué (non bloquant):', err.message);
       status = 'inactive';
     }
     
     // Créer l'instance
+    console.log('📱 Création de l\'instance en base de données...');
     const instance = new WhatsAppInstance({
       workspaceId,
       name,
@@ -135,24 +174,50 @@ router.post('/', requireEcomAuth, validateEcomAccess, async (req, res) => {
       status
     });
     
-    await instance.save();
-    
-    console.log('✅ Instance créée avec succès:', instance._id);
+    console.log('📱 Instance créée en mémoire, sauvegarde...');
+    const savedInstance = await instance.save();
+    console.log('✅ Instance sauvegardée avec succès:', savedInstance._id, 'Status:', savedInstance.status);
     
     // Retourner sans la clé API
-    const instanceResponse = instance.toObject();
+    console.log('📱 Préparation de la réponse...');
+    const instanceResponse = savedInstance.toObject();
     delete instanceResponse.apiKey;
     
-    res.json({
+    console.log('📱 Envoi de la réponse de succès');
+    const response = {
       success: true,
       message: 'Instance WhatsApp créée avec succès',
       instance: instanceResponse
+    };
+    console.log('📱 Response à envoyer:', {
+      success: response.success,
+      message: response.message,
+      instanceId: response.instance?._id,
+      instanceName: response.instance?.name
     });
+    
+    res.json(response);
+    console.log('✅ === CRÉATION INSTANCE TERMINÉE AVEC SUCCÈS ===\n');
   } catch (error) {
-    console.error('❌ Erreur création instance WhatsApp:', error);
+    console.error('\n💥 === ERREUR CRÉATION INSTANCE WHATSAPP ===');
+    console.error('❌ Error type:', error.constructor.name);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Request info:', {
+      method: req.method,
+      url: req.url,
+      headers: Object.keys(req.headers),
+      body: req.body ? Object.keys(req.body) : 'NO_BODY'
+    });
+    console.error('💥 === FIN ERREUR ===\n');
+    
     res.status(500).json({
       success: false,
-      message: 'Erreur lors de la création de l\'instance'
+      message: 'Erreur lors de la création de l\'instance',
+      debug: process.env.NODE_ENV !== 'production' ? {
+        errorType: error.constructor.name,
+        errorMessage: error.message
+      } : undefined
     });
   }
 });
@@ -161,9 +226,9 @@ router.post('/', requireEcomAuth, validateEcomAccess, async (req, res) => {
  * PUT /api/ecom/whatsapp-instances/:id
  * Met à jour une instance WhatsApp
  */
-router.put('/:id', requireEcomAuth, validateEcomAccess, async (req, res) => {
+router.put('/:id', requireEcomAuth, async (req, res) => {
   try {
-    const workspaceId = req.user.defaultWorkspace;
+    const workspaceId = req.workspaceId || req.user.defaultWorkspace;
     const { id } = req.params;
     const { name, instanceId, apiKey } = req.body;
     
@@ -208,9 +273,9 @@ router.put('/:id', requireEcomAuth, validateEcomAccess, async (req, res) => {
  * DELETE /api/ecom/whatsapp-instances/:id
  * Supprime une instance WhatsApp
  */
-router.delete('/:id', requireEcomAuth, validateEcomAccess, async (req, res) => {
+router.delete('/:id', requireEcomAuth, async (req, res) => {
   try {
-    const workspaceId = req.user.defaultWorkspace;
+    const workspaceId = req.workspaceId || req.user.defaultWorkspace;
     const { id } = req.params;
     
     const instance = await WhatsAppInstance.findOneAndDelete({ 

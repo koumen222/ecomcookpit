@@ -95,7 +95,7 @@ const startAgentCronJobs = () => {
   const whatsappReady = initAgentWhatsapp();
   
   if (!whatsappReady) {
-    console.warn('⚠️ WhatsApp non configuré, cron jobs agent non démarrés');
+    // WhatsApp agent non configuré globalement, cron jobs non démarrés
     return false;
   }
 

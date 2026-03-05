@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   X, Smartphone, Key, Globe, CheckCircle, AlertCircle, Loader2,
   MessageCircle, Send, QrCode, RefreshCw, ExternalLink, Copy,
@@ -8,6 +9,7 @@ import {
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
 
 const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
+  const navigate = useNavigate();
   const [step, setStep] = useState('config'); // 'config' | 'qr' | 'test' | 'success'
   const [config, setConfig] = useState({
     name: '',
@@ -63,9 +65,24 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
     setError('');
     setSuccess('');
     
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      setError('Timeout : la requête a pris trop de temps');
+      setLoading(false);
+    }, 30000); // 30 secondes
+    
     try {
       const token = localStorage.getItem('ecomToken');
       const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+      
+      if (!token) {
+        throw new Error('Token d\'authentification manquant');
+      }
+      
+      if (!workspace?._id && !workspace?.id) {
+        throw new Error('Workspace non configuré');
+      }
       
       console.log('Envoi instance WhatsApp:', { name: config.name, instanceId: config.instanceId });
       
@@ -76,34 +93,58 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
           'Authorization': `Bearer ${token}`,
           'X-Workspace-Id': workspace?._id || workspace?.id
         },
-        body: JSON.stringify(config)
+        body: JSON.stringify(config),
+        signal: controller.signal
       });
       
+      clearTimeout(timeoutId);
       console.log('Réponse status:', response.status);
+      console.log('Réponse headers:', Object.fromEntries(response.headers.entries()));
       
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+      let data;
+      const contentType = response.headers.get('content-type');
+      
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const textResponse = await response.text();
+        console.log('Réponse non-JSON:', textResponse);
+        throw new Error(`Réponse inattendue du serveur (${response.status}): ${textResponse.substring(0, 100)}`);
       }
       
-      const data = await response.json();
       console.log('Réponse data:', data);
       
-      if (data.success) {
-        setSuccess(data.message);
-        setStep('success');
+      if (response.ok && data.success) {
+        setSuccess(data.message || 'Instance WhatsApp créée avec succès');
         
         // Réinitialiser le formulaire
         setConfig({ name: '', instanceId: '', apiKey: '' });
         
-        if (onConfigSaved) {
-          setTimeout(() => onConfigSaved(), 1500);
-        }
+        // Rediriger vers la page des instances après un court délai
+        setTimeout(() => {
+          if (onConfigSaved) onConfigSaved();
+          navigate('/ecom/whatsapp/instances');
+        }, 1500);
       } else {
-        setError(data.message || 'Erreur lors de la sauvegarde');
+        const errorMessage = data.message || `Erreur HTTP ${response.status}`;
+        console.error('Erreur serveur:', errorMessage);
+        setError(errorMessage);
       }
     } catch (err) {
+      clearTimeout(timeoutId);
       console.error('Erreur sauvegarde instance:', err);
-      setError('Erreur de connexion au serveur');
+      
+      if (err.name === 'AbortError') {
+        setError('Requête annulée (timeout)');
+      } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+        setError('Erreur de connexion réseau. Vérifiez votre connexion internet.');
+      } else if (err.message.includes('Token')) {
+        setError('Problème d\'authentification. Reconnectez-vous.');
+      } else if (err.message.includes('Workspace')) {
+        setError('Workspace non configuré. Contactez le support.');
+      } else {
+        setError(err.message || 'Erreur de connexion au serveur');
+      }
     } finally {
       setLoading(false);
     }
@@ -459,9 +500,9 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
               </div>
               
               <div>
-                <h3 className="font-semibold text-gray-900 mb-1">ZeChat configuré !</h3>
+                <h3 className="font-semibold text-gray-900 mb-1">Instance créée !</h3>
                 <p className="text-gray-600 text-xs">
-                  Prêt pour vos campagnes marketing
+                  Redirection vers vos instances...
                 </p>
               </div>
 
@@ -489,10 +530,10 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
               )}
 
               <button
-                onClick={onClose}
+                onClick={() => navigate('/ecom/whatsapp/instances')}
                 className="w-full py-2 px-4 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition text-sm"
               >
-                Terminer
+                Voir mes instances
               </button>
             </div>
           )}

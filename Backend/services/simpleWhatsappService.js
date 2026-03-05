@@ -19,7 +19,7 @@ export const initWhatsApp = () => {
     return true;
   }
 
-  console.error('❌ WhatsApp non configuré - variables WHATSAPP_INSTANCE_ID et WHATSAPP_API_KEY manquantes');
+  // WhatsApp n'est pas configuré globalement (utilisation par instances)
   return false;
 };
 

@@ -22,7 +22,7 @@ const initAgentWhatsapp = () => {
     return true;
   }
 
-  console.warn('⚠️ Agent WhatsApp non configuré - variables WHATSAPP_INSTANCE_ID et WHATSAPP_API_KEY manquantes');
+  // Agent WhatsApp n'est pas configuré globalement (utilisation par instances)
   return false;
 };
 

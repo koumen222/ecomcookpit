@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
@@ -60,6 +60,7 @@ const typeLabels = { relance_pending: 'Relance en attente', relance_cancelled: '
 
 const CampaignsList = () => {
   const { user } = useEcomAuth();
+  const navigate = useNavigate();
   const { fmt } = useMoney(); // 🆕 Hook pour formater les montants
   const isAdmin = user?.role === 'ecom_admin';
   const [campaigns, setCampaigns] = useState([]);
@@ -313,13 +314,20 @@ const CampaignsList = () => {
                   >
                     Configurer ZeChat
                   </button>
+                  <button 
+                    onClick={() => navigate('/ecom/whatsapp/instances')}
+                    className="px-4 py-2 bg-white/20 text-white font-medium rounded-lg hover:bg-white/30 transition border border-white/30 text-sm"
+                  >
+                    Voir mes instances
+                  </button>
                   <a 
                     href="https://servicewhstapps.pages.dev/docs" 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="px-4 py-2 bg-white/20 text-white font-medium rounded-lg hover:bg-white/30 transition border border-white/30 text-sm"
                   >
-Voir la documentation                  </a>
+                    Documentation
+                  </a>
                 </div>
               </div>
             </div>
