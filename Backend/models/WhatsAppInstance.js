@@ -23,7 +23,7 @@ const whatsAppInstanceSchema = new mongoose.Schema({
   },
   apiUrl: {
     type: String,
-    default: 'https://servicewhstapps.pages.dev'
+    default: 'https://api.ecomcookpit.site'
   },
   status: {
     type: String,

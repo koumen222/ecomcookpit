@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   MessageCircle, Plus, Edit, Trash2, Eye, EyeOff,
   Shield, Globe, Clock, CheckCircle, AlertCircle,
-  RefreshCw, Settings, ExternalLink
+  RefreshCw, Settings, ExternalLink, Loader2
 } from 'lucide-react';
 import WhatsAppConfigModal from '../components/WhatsAppConfigModal.jsx';
 
@@ -14,6 +14,7 @@ const WhatsAppInstancesList = () => {
   const [error, setError] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showApiKey, setShowApiKey] = useState({});
+  const [checkingStatus, setCheckingStatus] = useState({});
 
   useEffect(() => {
     loadInstances();
@@ -76,6 +77,31 @@ const WhatsAppInstancesList = () => {
     } catch (err) {
       console.error('Erreur suppression instance:', err);
       setError('Erreur de connexion au serveur');
+    }
+  };
+
+  const handleCheckStatus = async (instanceId) => {
+    setCheckingStatus(prev => ({ ...prev, [instanceId]: true }));
+    try {
+      const token = localStorage.getItem('ecomToken');
+      const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+
+      const response = await fetch(`${BACKEND_URL}/api/ecom/whatsapp-instances/${instanceId}/check-status`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'X-Workspace-Id': workspace?._id || workspace?.id
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setInstances(prev => prev.map(i => i._id === instanceId ? { ...i, status: data.status } : i));
+      }
+    } catch (err) {
+      console.error('Erreur check-status:', err);
+    } finally {
+      setCheckingStatus(prev => ({ ...prev, [instanceId]: false }));
     }
   };
 
@@ -255,6 +281,17 @@ const WhatsAppInstancesList = () => {
                   
                   <div className="flex gap-2">
                     <button
+                      onClick={() => handleCheckStatus(instance._id)}
+                      disabled={checkingStatus[instance._id]}
+                      className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition disabled:opacity-50"
+                      title="Vérifier le statut"
+                    >
+                      {checkingStatus[instance._id]
+                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                        : <RefreshCw className="w-4 h-4" />
+                      }
+                    </button>
+                    <button
                       onClick={() => handleDeleteInstance(instance._id)}
                       className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"
                       title="Supprimer"
@@ -280,7 +317,7 @@ const WhatsAppInstancesList = () => {
                       <span>API URL</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-gray-900">{instance.apiUrl || 'servicewhstapps.pages.dev'}</span>
+                      <span className="text-gray-900">{instance.apiUrl || 'api.ecomcookpit.site'}</span>
                       <ExternalLink className="w-3 h-3 text-gray-400" />
                     </div>
                   </div>

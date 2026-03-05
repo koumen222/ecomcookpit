@@ -12,7 +12,7 @@ export const initWhatsApp = () => {
     whatsappConfig = {
       instanceId: instanceId,
       apiKey: apiKey,
-      apiUrl: apiUrl || 'https://servicewhstapps.pages.dev'
+      apiUrl: apiUrl || 'https://api.ecomcookpit.site'
     };
     console.log('✅ WhatsApp Service initialisé (ZeChat)');
     console.log('📱 Instance ID:', instanceId);

@@ -120,10 +120,14 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
         // Réinitialiser le formulaire
         setConfig({ name: '', instanceId: '', apiKey: '' });
         
-        // Rediriger vers la page des instances après un court délai
+        // Fermer le modal et recharger après un court délai
         setTimeout(() => {
-          if (onConfigSaved) onConfigSaved();
-          navigate('/ecom/whatsapp/instances');
+          if (onConfigSaved) {
+            onConfigSaved();
+          }
+          if (onClose) {
+            onClose();
+          }
         }, 1500);
       } else {
         const errorMessage = data.message || `Erreur HTTP ${response.status}`;
@@ -330,7 +334,7 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
                   📱 Configuration ZeChat
                 </h4>
                 <div className="text-xs text-blue-700 space-y-1">
-                  <p>1. Compte sur <a href="https://servicewhstapps.pages.dev/dashboard/instances" target="_blank" rel="noopener noreferrer" className="underline font-semibold">servicewhstapps.pages.dev</a></p>
+                  <p>1. Compte sur <a href="https://api.ecomcookpit.site/dashboard/instances" target="_blank" rel="noopener noreferrer" className="underline font-semibold">api.ecomcookpit.site</a></p>
                   <p>2. Instance ID + Clé API → Prêt !</p>
                 </div>
               </div>

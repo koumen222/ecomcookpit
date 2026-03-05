@@ -944,7 +944,7 @@ router.post('/:id/send', requireEcomAuth, validateEcomAccess('products', 'write'
     
     const instanceId = whatsappInstance.instanceId;
     const apiKey = whatsappInstance.apiKey;
-    const apiUrl = whatsappInstance.apiUrl || 'https://servicewhstapps.pages.dev';
+    const apiUrl = whatsappInstance.apiUrl || 'https://api.ecomcookpit.site';
     
     console.log(`📱 Utilisation de l'instance WhatsApp: ${whatsappInstance.name} (${instanceId})`);
 
@@ -1263,7 +1263,7 @@ router.post('/:id/send', requireEcomAuth, validateEcomAccess('products', 'write'
         const fetchModule = await import('node-fetch');
         const fetch = fetchModule.default;
         
-        const apiUrl = process.env.WHATSAPP_API_URL || 'https://servicewhstapps.pages.dev';
+        const apiUrl = process.env.WHATSAPP_API_URL || 'https://api.ecomcookpit.site';
         const instanceId = process.env.WHATSAPP_INSTANCE_ID;
         const apiKey = process.env.WHATSAPP_API_KEY;
         

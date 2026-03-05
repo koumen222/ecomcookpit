@@ -4,21 +4,91 @@ import WhatsAppInstance from '../models/WhatsAppInstance.js';
 
 const router = express.Router();
 
+const WA_API_BASE = 'https://api.ecomcookpit.site';
+
+/**
+ * Vérifie le statut réel d'une instance via l'API WhatsApp
+ * @returns {'active'|'inactive'|'error'}
+ */
+async function checkRealStatus(instanceId, apiKey) {
+  try {
+    const fetchModule = await import('node-fetch');
+    const fetch = fetchModule.default;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    const response = await fetch(`${WA_API_BASE}/api/status`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({ instanceId }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeout);
+
+    if (!response.ok) return 'inactive';
+
+    const data = await response.json().catch(() => null);
+    if (!data) return 'inactive';
+
+    // L'API peut retourner { status: 'connected' } ou { connected: true } etc.
+    const connected = data.status === 'connected' || data.status === 'active' || data.connected === true || data.success === true;
+    return connected ? 'active' : 'inactive';
+  } catch (err) {
+    console.log(`[WA Status] Check failed for ${instanceId}:`, err.message);
+    return 'error';
+  }
+}
+
 /**
  * GET /api/ecom/whatsapp-instances
  * Récupère toutes les instances WhatsApp du workspace
+ * Query param: ?checkStatus=true pour vérifier le statut réel (plus lent)
  */
 router.get('/', requireEcomAuth, async (req, res) => {
   try {
     const workspaceId = req.workspaceId || req.user.defaultWorkspace;
-    
+    const shouldCheckStatus = req.query.checkStatus === 'true';
+
     const instances = await WhatsAppInstance.find({ workspaceId })
-      .select('-apiKey') // Ne pas exposer la clé API dans la liste
       .sort({ createdAt: -1 });
-    
+
+    // Vérifier le statut réel seulement si demandé explicitement
+    if (shouldCheckStatus) {
+      const instancesWithStatus = await Promise.all(
+        instances.map(async (inst) => {
+          const realStatus = await checkRealStatus(inst.instanceId, inst.apiKey);
+          // Mettre à jour en DB si le statut a changé
+          if (inst.status !== realStatus) {
+            inst.status = realStatus;
+            await inst.save();
+          }
+          const obj = inst.toObject();
+          delete obj.apiKey;
+          return obj;
+        })
+      );
+
+      return res.json({
+        success: true,
+        instances: instancesWithStatus
+      });
+    }
+
+    // Sinon, retourner les instances avec le statut en DB (rapide)
+    const instancesData = instances.map(inst => {
+      const obj = inst.toObject();
+      delete obj.apiKey;
+      return obj;
+    });
+
     res.json({
       success: true,
-      instances
+      instances: instancesData
     });
   } catch (error) {
     console.error('Erreur récupération instances WhatsApp:', error);
@@ -127,42 +197,10 @@ router.post('/', requireEcomAuth, async (req, res) => {
       });
     }
     
-    // Tester la connexion à l'API (non bloquant, timeout 5s)
-    console.log('📱 Test de connexion API...');
-    let status = 'active';
-    try {
-      const fetchModule = await import('node-fetch');
-      const fetch = fetchModule.default;
-      
-      const controller = new AbortController();
-      const timeout = setTimeout(() => {
-        console.log('⏰ Timeout API test atteint');
-        controller.abort();
-      }, 5000);
-      
-      const testResponse = await fetch('https://servicewhstapps.pages.dev/api/status', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({ instanceId }),
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeout);
-      console.log('📱 API test response status:', testResponse.status);
-      
-      if (!testResponse.ok) {
-        console.log('⚠️ API test failed, marking as inactive');
-        status = 'inactive';
-      } else {
-        console.log('✅ API test successful');
-      }
-    } catch (err) {
-      console.log('📱 Test API WhatsApp échoué (non bloquant):', err.message);
-      status = 'inactive';
-    }
+    // Tester la connexion à l'API (non bloquant, timeout 8s)
+    console.log('📱 Test de connexion API via', WA_API_BASE);
+    const status = await checkRealStatus(instanceId, apiKey);
+    console.log('📱 Statut réel détecté:', status);
     
     // Créer l'instance
     console.log('📱 Création de l\'instance en base de données...');
@@ -219,6 +257,38 @@ router.post('/', requireEcomAuth, async (req, res) => {
         errorMessage: error.message
       } : undefined
     });
+  }
+});
+
+/**
+ * POST /api/ecom/whatsapp-instances/:id/check-status
+ * Vérifie le statut réel d'une instance et met à jour en DB
+ */
+router.post('/:id/check-status', requireEcomAuth, async (req, res) => {
+  try {
+    const workspaceId = req.workspaceId || req.user.defaultWorkspace;
+    const { id } = req.params;
+
+    const instance = await WhatsAppInstance.findOne({ _id: id, workspaceId });
+    if (!instance) {
+      return res.status(404).json({ success: false, message: 'Instance non trouvée' });
+    }
+
+    const realStatus = await checkRealStatus(instance.instanceId, instance.apiKey);
+    instance.status = realStatus;
+    await instance.save();
+
+    const obj = instance.toObject();
+    delete obj.apiKey;
+
+    res.json({
+      success: true,
+      status: realStatus,
+      instance: obj
+    });
+  } catch (error) {
+    console.error('Erreur check-status:', error);
+    res.status(500).json({ success: false, message: 'Erreur vérification statut' });
   }
 });
 

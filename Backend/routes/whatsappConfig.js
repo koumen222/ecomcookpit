@@ -72,7 +72,7 @@ router.post('/', requireEcomAuth, validateEcomAccess, async (req, res) => {
     let verificationMessage = '';
     
     try {
-      const testUrl = apiUrl || 'https://servicewhstapps.pages.dev';
+      const testUrl = apiUrl || 'https://api.ecomcookpit.site';
       const endpoint = `${testUrl}/api/status`;
       
       const response = await fetch(endpoint, {
@@ -106,7 +106,7 @@ router.post('/', requireEcomAuth, validateEcomAccess, async (req, res) => {
       phoneNumber: cleanedPhone,
       instanceId: instanceId.trim(),
       apiKey: apiKey.trim(),
-      apiUrl: (apiUrl || 'https://servicewhstapps.pages.dev').trim(),
+      apiUrl: (apiUrl || 'https://api.ecomcookpit.site').trim(),
       status: verificationStatus,
       lastVerified: new Date(),
       messagesSent: whatsappConfigs.get(workspaceId)?.messagesSent || 0,

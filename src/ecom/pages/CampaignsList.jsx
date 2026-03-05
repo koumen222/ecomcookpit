@@ -127,7 +127,6 @@ const CampaignsList = () => {
 
   useEffect(() => {
     loadWhatsAppConfig();
-    loadWhatsAppInstances();
   }, []);
 
   // Charger les instances WhatsApp sauvegardées
@@ -187,6 +186,8 @@ const CampaignsList = () => {
         setSending(null); 
       }
     } else {
+      // Charger les instances avant d'afficher le modal
+      loadWhatsAppInstances();
       // Afficher le modal de sélection de service WhatsApp
       setPendingCampaignId(id);
       setShowServiceSelector(true);
@@ -321,7 +322,7 @@ const CampaignsList = () => {
                     Voir mes instances
                   </button>
                   <a 
-                    href="https://servicewhstapps.pages.dev/docs" 
+                    href="https://api.ecomcookpit.site/docs" 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="px-4 py-2 bg-white/20 text-white font-medium rounded-lg hover:bg-white/30 transition border border-white/30 text-sm"

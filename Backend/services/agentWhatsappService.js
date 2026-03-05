@@ -16,7 +16,7 @@ const initAgentWhatsapp = () => {
     whatsappConfig = {
       instanceId: instanceId,
       apiKey: apiKey,
-      apiUrl: apiUrl || 'https://servicewhstapps.pages.dev'
+      apiUrl: apiUrl || 'https://api.ecomcookpit.site'
     };
     console.log('✅ Agent WhatsApp Service initialisé (ZeChat)');
     return true;

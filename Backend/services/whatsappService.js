@@ -11,7 +11,7 @@ const initWhatsAppService = async () => {
   
   if (instanceId && apiKey) {
     providerType = 'zechat';
-    const apiUrl = process.env.WHATSAPP_API_URL || 'https://servicewhstapps.pages.dev';
+    const apiUrl = process.env.WHATSAPP_API_URL || 'https://api.ecomcookpit.site';
     whatsappProvider = {
       instanceId: instanceId,
       apiKey: apiKey,
@@ -312,7 +312,7 @@ const sendWhatsAppMessage = async ({ to, message, campaignId, previewId, userId,
     const fetch = fetchModule.default;
 
     // Envoi via ZeChat API
-    const apiUrl = config.apiUrl || 'https://servicewhstapps.pages.dev';
+    const apiUrl = config.apiUrl || 'https://api.ecomcookpit.site';
     const endpoint = `${apiUrl}/api/send`;
 
     // 🆕 Log "1 fois" pour vérifier l'URL appelée
