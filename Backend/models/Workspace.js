@@ -77,12 +77,13 @@ const workspaceSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     default: {}
   },
-  whatsappConfig: {
-    phoneNumber: { type: String, default: '' },
-    status: { type: String, enum: ['none', 'pending', 'active'], default: 'none' },
-    requestedAt: { type: Date },
-    activatedAt: { type: Date },
-    note: { type: String, default: '' }
+  // WhatsApp SaaS integration (Evolution API)
+  whatsapp: {
+    instanceName: { type: String, default: '' },
+    instanceId: { type: String, default: '' },
+    apiKey: { type: String, default: '' },
+    connected: { type: Boolean, default: false },
+    verifiedAt: { type: Date }
   },
   isActive: {
     type: Boolean,

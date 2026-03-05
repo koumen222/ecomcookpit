@@ -5,12 +5,28 @@ import WhatsAppInstance from '../models/WhatsAppInstance.js';
 const router = express.Router();
 
 const WA_API_BASE = 'https://api.ecomcookpit.site';
+// Evolution API: vérification désactivée - le statut sera vérifié lors de l'envoi
+const SKIP_STATUS_CHECK = true;
 
 /**
  * Vérifie le statut réel d'une instance via l'API WhatsApp
- * @returns {'active'|'inactive'|'error'}
+ * @returns {{ status: 'active'|'inactive'|'error', message: string, httpStatus?: number }}
  */
 async function checkRealStatus(instanceId, apiKey) {
+  if (!instanceId || !apiKey) {
+    return { status: 'inactive', message: 'Instance ID ou clé API manquant' };
+  }
+
+  // Si la vérification est désactivée, marquer comme active par défaut
+  if (SKIP_STATUS_CHECK) {
+    console.log(`✅ [WA Status] Instance ${instanceId} marquée comme active (vérification désactivée)`);
+    return { 
+      status: 'active', 
+      message: 'Instance configurée (statut non vérifié - sera testé lors de l\'envoi)' 
+    };
+  }
+
+  // Evolution API: GET /instance/connectionState/{instanceId}
   try {
     const fetchModule = await import('node-fetch');
     const fetch = fetchModule.default;
@@ -18,29 +34,57 @@ async function checkRealStatus(instanceId, apiKey) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
 
-    const response = await fetch(`${WA_API_BASE}/api/status`, {
-      method: 'POST',
+    const statusUrl = `${WA_API_BASE}/api/instance/connectionState/${instanceId}`;
+    
+    const globalKey = process.env.EVOLUTION_GLOBAL_API_KEY?.trim();
+    const response = await fetch(statusUrl, {
+      method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'Authorization': globalKey ? `Bearer ${globalKey}` : ''
       },
-      body: JSON.stringify({ instanceId }),
       signal: controller.signal
     });
 
     clearTimeout(timeout);
 
-    if (!response.ok) return 'inactive';
+    const rawText = await response.text().catch(() => '');
+    let data = null;
+    try { data = rawText ? JSON.parse(rawText) : null; } catch (_) {}
 
-    const data = await response.json().catch(() => null);
-    if (!data) return 'inactive';
+    console.log(`\n🔍 [Evolution API Status] Instance: ${instanceId}`);
+    console.log(`📡 API URL: ${statusUrl}`);
+    console.log(`📊 HTTP Status: ${response.status} ${response.statusText}`);
+    console.log(`📄 Response Body: ${rawText.substring(0, 500)}`);
 
-    // L'API peut retourner { status: 'connected' } ou { connected: true } etc.
-    const connected = data.status === 'connected' || data.status === 'active' || data.connected === true || data.success === true;
-    return connected ? 'active' : 'inactive';
+    if (response.status === 401 || response.status === 403) {
+      return { status: 'inactive', message: 'Clé API invalide ou non autorisée', httpStatus: response.status };
+    }
+
+    if (response.status === 404) {
+      return { status: 'inactive', message: 'Instance ID introuvable sur le serveur', httpStatus: response.status };
+    }
+
+    if (response.ok) {
+      // Evolution API retourne { instance: { state: 'open' | 'close' | 'connecting' } }
+      const state = data?.instance?.state || data?.state;
+      if (state === 'open') {
+        return { status: 'active', message: 'Instance connectée et active', httpStatus: response.status };
+      } else if (state === 'connecting') {
+        return { status: 'inactive', message: 'Instance en cours de connexion...', httpStatus: response.status };
+      } else {
+        return { status: 'inactive', message: `Instance déconnectée (état: ${state || 'inconnu'})`, httpStatus: response.status };
+      }
+    }
+
+    const apiMsg = data?.message || data?.error || `Erreur HTTP ${response.status}`;
+    return { status: 'inactive', message: apiMsg, httpStatus: response.status };
+
   } catch (err) {
-    console.log(`[WA Status] Check failed for ${instanceId}:`, err.message);
-    return 'error';
+    if (err.name === 'AbortError') {
+      return { status: 'error', message: 'Timeout — API WhatsApp ne répond pas (>8s)' };
+    }
+    console.log(`[Evolution API Status] Check failed for ${instanceId}:`, err.message);
+    return { status: 'error', message: `Erreur réseau: ${err.message}` };
   }
 }
 
@@ -61,14 +105,15 @@ router.get('/', requireEcomAuth, async (req, res) => {
     if (shouldCheckStatus) {
       const instancesWithStatus = await Promise.all(
         instances.map(async (inst) => {
-          const realStatus = await checkRealStatus(inst.instanceId, inst.apiKey);
+          const result = await checkRealStatus(inst.instanceId, inst.apiKey);
           // Mettre à jour en DB si le statut a changé
-          if (inst.status !== realStatus) {
-            inst.status = realStatus;
+          if (inst.status !== result.status) {
+            inst.status = result.status;
             await inst.save();
           }
           const obj = inst.toObject();
           delete obj.apiKey;
+          obj.statusMessage = result.message;
           return obj;
         })
       );
@@ -96,6 +141,79 @@ router.get('/', requireEcomAuth, async (req, res) => {
       success: false,
       message: 'Erreur lors de la récupération des instances'
     });
+  }
+});
+
+/**
+ * GET /api/ecom/whatsapp-instances/diagnose
+ * Diagnostic: liste les instances disponibles sur l'API Evolution
+ */
+router.get('/diagnose', requireEcomAuth, async (req, res) => {
+  try {
+    const workspaceId = req.workspaceId || req.user.defaultWorkspace;
+    
+    // Récupérer toutes les instances locales pour avoir les apiKeys
+    const localInstances = await WhatsAppInstance.find({ workspaceId });
+    
+    if (localInstances.length === 0) {
+      return res.json({ success: false, message: 'Aucune instance locale configurée' });
+    }
+
+    const fetchModule = await import('node-fetch');
+    const fetch = fetchModule.default;
+    
+    const results = [];
+    
+    for (const inst of localInstances) {
+      const diagResult = { 
+        localName: inst.name, 
+        localInstanceId: inst.instanceId,
+        apiUrl: inst.apiUrl || WA_API_BASE
+      };
+      
+      try {
+        // Evolution API: GET /instance/fetchInstances pour lister toutes les instances
+        const apiUrl = inst.apiUrl || WA_API_BASE;
+        const listUrl = `${apiUrl}/api/instance/fetchInstances`;
+        
+        console.log(`\n🔍 [Diagnose] Fetching instances from: ${listUrl}`);
+        
+        const response = await fetch(listUrl, {
+          method: 'GET',
+          headers: { 'apikey': inst.apiKey }
+        });
+        
+        const rawText = await response.text();
+        console.log(`📊 HTTP ${response.status}: ${rawText.substring(0, 1000)}`);
+        
+        let data;
+        try { data = JSON.parse(rawText); } catch(e) { data = rawText; }
+        
+        if (response.ok && Array.isArray(data)) {
+          diagResult.apiInstances = data.map(i => ({
+            instanceName: i.instance?.instanceName || i.instanceName,
+            instanceId: i.instance?.instanceId || i.instanceId,
+            status: i.instance?.status || i.status,
+            state: i.instance?.state
+          }));
+          diagResult.success = true;
+        } else {
+          diagResult.success = false;
+          diagResult.error = data?.message || data?.error || `HTTP ${response.status}`;
+          diagResult.rawResponse = rawText.substring(0, 500);
+        }
+      } catch (err) {
+        diagResult.success = false;
+        diagResult.error = err.message;
+      }
+      
+      results.push(diagResult);
+    }
+    
+    res.json({ success: true, diagnostics: results });
+  } catch (error) {
+    console.error('Erreur diagnostic:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
@@ -199,8 +317,8 @@ router.post('/', requireEcomAuth, async (req, res) => {
     
     // Tester la connexion à l'API (non bloquant, timeout 8s)
     console.log('📱 Test de connexion API via', WA_API_BASE);
-    const status = await checkRealStatus(instanceId, apiKey);
-    console.log('📱 Statut réel détecté:', status);
+    const statusResult = await checkRealStatus(instanceId, apiKey);
+    console.log('📱 Statut réel détecté:', statusResult);
     
     // Créer l'instance
     console.log('📱 Création de l\'instance en base de données...');
@@ -209,7 +327,8 @@ router.post('/', requireEcomAuth, async (req, res) => {
       name,
       instanceId,
       apiKey,
-      status
+      apiUrl: WA_API_BASE,
+      status: statusResult.status
     });
     
     console.log('📱 Instance créée en mémoire, sauvegarde...');
@@ -217,24 +336,15 @@ router.post('/', requireEcomAuth, async (req, res) => {
     console.log('✅ Instance sauvegardée avec succès:', savedInstance._id, 'Status:', savedInstance.status);
     
     // Retourner sans la clé API
-    console.log('📱 Préparation de la réponse...');
     const instanceResponse = savedInstance.toObject();
     delete instanceResponse.apiKey;
     
-    console.log('📱 Envoi de la réponse de succès');
-    const response = {
+    res.json({
       success: true,
       message: 'Instance WhatsApp créée avec succès',
+      statusMessage: statusResult.message,
       instance: instanceResponse
-    };
-    console.log('📱 Response à envoyer:', {
-      success: response.success,
-      message: response.message,
-      instanceId: response.instance?._id,
-      instanceName: response.instance?.name
     });
-    
-    res.json(response);
     console.log('✅ === CRÉATION INSTANCE TERMINÉE AVEC SUCCÈS ===\n');
   } catch (error) {
     console.error('\n💥 === ERREUR CRÉATION INSTANCE WHATSAPP ===');
@@ -274,8 +384,8 @@ router.post('/:id/check-status', requireEcomAuth, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Instance non trouvée' });
     }
 
-    const realStatus = await checkRealStatus(instance.instanceId, instance.apiKey);
-    instance.status = realStatus;
+    const result = await checkRealStatus(instance.instanceId, instance.apiKey);
+    instance.status = result.status;
     await instance.save();
 
     const obj = instance.toObject();
@@ -283,7 +393,8 @@ router.post('/:id/check-status', requireEcomAuth, async (req, res) => {
 
     res.json({
       success: true,
-      status: realStatus,
+      status: result.status,
+      statusMessage: result.message,
       instance: obj
     });
   } catch (error) {

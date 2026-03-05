@@ -16,6 +16,9 @@ const toObjectId = (v) => {
 // Import conditionnel du service WhatsApp
 let analyzeSpamRisk, validateMessageBeforeSend, sendWhatsAppMessage, getHumanDelayWithVariation, simulateHumanBehavior;
 
+// Import du nouveau service d'intégration WhatsApp SaaS
+let sendWhatsAppMessageV2;
+
 async function loadWhatsAppService() {
   try {
     const whatsappService = await import('../services/whatsappService.js');
@@ -32,6 +35,14 @@ async function loadWhatsAppService() {
     sendWhatsAppMessage = async () => ({ messageId: 'mock-id', logId: 'mock-log-id' });
     getHumanDelayWithVariation = () => 5000;
     simulateHumanBehavior = async () => {};
+  }
+
+  try {
+    const integration = await import('../services/whatsappIntegration.js');
+    sendWhatsAppMessageV2 = integration.sendWhatsAppMessageV2;
+  } catch (error) {
+    console.warn('⚠️ Service WhatsApp Integration non disponible:', error.message);
+    sendWhatsAppMessageV2 = async () => ({ data: { messageId: 'mock-id' } });
   }
 }
 
@@ -911,42 +922,27 @@ router.post('/:id/send', requireEcomAuth, validateEcomAccess('products', 'write'
       console.log(`🔄 Campagne ${campaign.name}: programmation annulée, envoi manuel initié`);
     }
 
-    // Récupérer l'instance WhatsApp depuis la base de données
-    const whatsappInstanceId = req.body.whatsappInstanceId;
+    // ✅ Charger la config WhatsApp depuis le workspace
+    const Workspace = (await import('../models/Workspace.js')).default;
+    const workspace = await Workspace.findById(req.workspaceId).select('whatsapp').lean();
     
-    if (!whatsappInstanceId) {
+    if (!workspace?.whatsapp?.instanceId || !workspace?.whatsapp?.apiKey) {
       return res.status(400).json({ 
         success: false, 
-        message: 'Veuillez sélectionner une instance WhatsApp' 
+        message: 'WhatsApp non configuré. Allez dans Paramètres > WhatsApp pour connecter votre instance.' 
       });
     }
     
-    // Charger l'instance depuis la base de données
-    const WhatsAppInstance = (await import('../models/WhatsAppInstance.js')).default;
-    const whatsappInstance = await WhatsAppInstance.findOne({
-      _id: whatsappInstanceId,
-      workspaceId: req.workspaceId
-    });
-    
-    if (!whatsappInstance) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Instance WhatsApp non trouvée' 
-      });
-    }
-    
-    if (whatsappInstance.status !== 'active') {
+    if (!workspace.whatsapp.connected) {
       return res.status(400).json({ 
         success: false, 
-        message: 'Instance WhatsApp inactive. Veuillez vérifier la configuration.' 
+        message: 'Instance WhatsApp non connectée. Vérifiez la configuration.' 
       });
     }
     
-    const instanceId = whatsappInstance.instanceId;
-    const apiKey = whatsappInstance.apiKey;
-    const apiUrl = whatsappInstance.apiUrl || 'https://api.ecomcookpit.site';
+    const waConfig = workspace.whatsapp;
     
-    console.log(`📱 Utilisation de l'instance WhatsApp: ${whatsappInstance.name} (${instanceId})`);
+    console.log(`📱 WhatsApp config: ${waConfig.instanceName} (${waConfig.instanceId})`);
 
     // 🆕 VALIDATION ANTI-SPAM du message avant envoi massif
     const analysis = analyzeSpamRisk(campaign.messageTemplate);
@@ -1256,51 +1252,9 @@ router.post('/:id/send', requireEcomAuth, validateEcomAccess('products', 'write'
       name: c.firstName + ' ' + c.lastName 
     })));
 
-    // 🆕 HEALTHCHECK Green API avant envoi en masse
-    if (counters.preparedContacts > 0) {
-      console.log('🔍 Healthcheck ZeChat API avant envoi en masse...');
-      try {
-        const fetchModule = await import('node-fetch');
-        const fetch = fetchModule.default;
-        
-        const apiUrl = process.env.WHATSAPP_API_URL || 'https://api.ecomcookpit.site';
-        const instanceId = process.env.WHATSAPP_INSTANCE_ID;
-        const apiKey = process.env.WHATSAPP_API_KEY;
-        
-        const healthUrl = `${apiUrl}/api/status`;
-        
-        console.log('[ZeChat Healthcheck] POST', healthUrl);
-        
-        const healthResponse = await fetch(healthUrl, { 
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({ instanceId })
-        });
-        
-        if (!healthResponse.ok) {
-          throw new Error(`HTTP ${healthResponse.status}`);
-        }
-        
-        const healthData = await healthResponse.json();
-        console.log('✅ ZeChat API Healthcheck OK:', healthData);
-        
-        if (!healthData.success) {
-          throw new Error(`Instance non disponible`);
-        }
-        
-      } catch (healthError) {
-        console.error('❌ ZeChat API Healthcheck FAILED:', healthError.message);
-        return res.status(503).json({ 
-          success: false, 
-          message: 'Service WhatsApp indisponible. Vérifiez la configuration ZeChat API.',
-          error: healthError.message,
-          details: 'Healthcheck a échoué - arrêt de la campagne pour éviter des échecs'
-        });
-      }
-    }
+    // Healthcheck désactivé car l'API n'a pas d'endpoint /api/status
+    // Le statut sera vérifié lors du premier envoi de message
+    console.log('⏭️ Healthcheck désactivé - statut vérifié lors de l\'envoi');
 
     campaign.status = 'sending';
     campaign.stats.targeted = clients.length;
@@ -1385,18 +1339,12 @@ router.post('/:id/send', requireEcomAuth, validateEcomAccess('products', 'write'
           continue;
         }
 
-        // 🆕 Envoi avec système anti-spam + workspaceId pour le log + config WhatsApp
-        const messageData = {
-          to: cleanedPhone,
-          message: message,
-          campaignId: campaign._id,
-          userId: client._id,
-          firstName: client.firstName,
-          workspaceId: req.workspaceId,
-          whatsappConfig: { instanceId, apiKey, apiUrl, phoneNumber }
-        };
-
-        const result = await sendWhatsAppMessage(messageData);
+        // ✅ Envoi via WhatsApp Integration SaaS (workspace.whatsapp)
+        const result = await sendWhatsAppMessageV2(
+          { instanceId: waConfig.instanceId, apiKey: waConfig.apiKey },
+          cleanedPhone,
+          message
+        );
         
         // sendWhatsAppMessage retourne { success: true, ... } en cas de succès
         campaign.results.push({ 
@@ -1405,7 +1353,7 @@ router.post('/:id/send', requireEcomAuth, validateEcomAccess('products', 'write'
           phone: cleanedPhone,
           status: 'sent', 
           sentAt: new Date(),
-          messageId: result.messageId,
+          messageId: result?.data?.messageId || result?.messageId,
           spamRisk: personalizedAnalysis.risk
         });
         sent++;
@@ -1525,6 +1473,31 @@ router.delete('/:id', requireEcomAuth, validateEcomAccess('products', 'write'), 
   } catch (error) {
     console.error('Erreur delete campaign:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// POST /api/ecom/campaigns/cancel-all - Annuler toutes les campagnes en cours
+router.post('/cancel-all', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
+  try {
+    const result = await Campaign.updateMany(
+      { workspaceId: req.workspaceId, status: 'sending' },
+      { $set: { status: 'paused' } }
+    );
+    
+    const count = result.modifiedCount || 0;
+    
+    if (count === 0) {
+      return res.json({ success: true, message: 'Aucune campagne en cours d\'envoi' });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `${count} campagne(s) annulée(s) avec succès`,
+      count 
+    });
+  } catch (error) {
+    console.error('Erreur annulation campagnes:', error);
+    res.status(500).json({ success: false, message: 'Erreur lors de l\'annulation' });
   }
 });
 

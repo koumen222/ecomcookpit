@@ -42,19 +42,19 @@ const campaignSchema = new mongoose.Schema({
   // Filtres pour cibler les clients
   targetFilters: {
     // Filtres client
-    clientStatus: { type: String, default: '' },
-    city: { type: String, default: '' },
-    product: { type: String, default: '' },
-    tag: { type: String, default: '' },
+    clientStatus: { type: mongoose.Schema.Types.Mixed, default: '' },
+    city: { type: mongoose.Schema.Types.Mixed, default: '' },
+    product: { type: mongoose.Schema.Types.Mixed, default: '' },
+    tag: { type: mongoose.Schema.Types.Mixed, default: '' },
     minOrders: { type: Number, default: 0 },
     maxOrders: { type: Number, default: 0 },
     lastContactBefore: { type: Date },
     // Filtres commande
-    orderStatus: { type: String, default: '' },
-    orderCity: { type: String, default: '' },
-    orderAddress: { type: String, default: '' },
-    orderProduct: { type: String, default: '' },
-    orderSourceId: { type: String, default: '' },
+    orderStatus: { type: mongoose.Schema.Types.Mixed, default: '' },
+    orderCity: { type: mongoose.Schema.Types.Mixed, default: '' },
+    orderAddress: { type: mongoose.Schema.Types.Mixed, default: '' },
+    orderProduct: { type: mongoose.Schema.Types.Mixed, default: '' },
+    orderSourceId: { type: mongoose.Schema.Types.Mixed, default: '' },
     orderDateFrom: { type: Date },
     orderDateTo: { type: Date },
     orderMinPrice: { type: Number, default: 0 },

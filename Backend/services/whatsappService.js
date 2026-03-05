@@ -12,10 +12,12 @@ const initWhatsAppService = async () => {
   if (instanceId && apiKey) {
     providerType = 'zechat';
     const apiUrl = process.env.WHATSAPP_API_URL || 'https://api.ecomcookpit.site';
+    const sendEndpoint = process.env.WHATSAPP_SEND_ENDPOINT || '/message/sendText'; // Evolution API endpoint
     whatsappProvider = {
       instanceId: instanceId,
       apiKey: apiKey,
-      apiUrl: apiUrl
+      apiUrl: apiUrl,
+      sendEndpoint: sendEndpoint
     };
     
     console.log('✅ Service WhatsApp ZeChat configuré');
@@ -208,24 +210,27 @@ const performWarmup = async () => {
       const fetchModule = await import('node-fetch');
       const fetch = fetchModule.default;
       const apiUrl = whatsappProvider.apiUrl;
-      const endpoint = `${apiUrl}/api/send`;
+      const endpoint = `${apiUrl}/api/instance/send-message`;
+      
+      const warmupGlobalKey = process.env.EVOLUTION_GLOBAL_API_KEY?.trim();
+      if (!warmupGlobalKey) continue;
 
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${whatsappProvider.apiKey}`
+          'Authorization': `Bearer ${warmupGlobalKey}`
         },
         body: JSON.stringify({
-          instanceId: whatsappProvider.instanceId,
-          phoneNumber: phone,
+          instanceName: whatsappProvider.instanceId,
+          number: phone,
           message: warmupMessage
         })
       });
-
+      
       // ✅ 6️⃣ Sécuriser le JSON.parse
       const responseText = await response.text();
-
+      
       let data;
       try {
         data = responseText ? JSON.parse(responseText) : {};
@@ -233,7 +238,7 @@ const performWarmup = async () => {
         // Erreur silencieuse pour le warm-up
         continue;
       }
-
+      
       // Utiliser les VRAIES réponses de l'API Green API
       if (response.ok && data.idMessage) {
         successCount++;
@@ -311,22 +316,39 @@ const sendWhatsAppMessage = async ({ to, message, campaignId, previewId, userId,
     const fetchModule = await import('node-fetch');
     const fetch = fetchModule.default;
 
-    // Envoi via ZeChat API
+    // Envoi via Evolution API
     const apiUrl = config.apiUrl || 'https://api.ecomcookpit.site';
-    const endpoint = `${apiUrl}/api/send`;
+    const endpoint = `${apiUrl}/api/instance/send-message`;
 
-    // 🆕 Log "1 fois" pour vérifier l'URL appelée
-    console.log('[ZeChat] POST', endpoint);
+    // Log pour vérifier l'URL appelée
+    console.log('[Evolution API] POST', endpoint);
+
+    // Evolution API: Bearer token uniquement
+    const globalKey = process.env.EVOLUTION_GLOBAL_API_KEY?.trim();
+    
+    // 🔍 DEBUG TOKEN
+    console.log('\n====== TOKEN DEBUG ======');
+    console.log('TOKEN LENGTH:', globalKey?.length || 0);
+    console.log('TOKEN START:', globalKey?.slice(0, 8) || 'EMPTY');
+    console.log('TOKEN END:', globalKey?.slice(-4) || 'EMPTY');
+    console.log('🔐 Bearer présent :', globalKey ? '✅' : '❌');
+    console.log('========================\n');
+    
+    if (!globalKey) {
+      throw new Error('EVOLUTION_GLOBAL_API_KEY manquante dans .env');
+    }
+
+    console.log('\ud83d\udd10 Bearer pr\u00e9sent :', globalKey ? '\u2705' : '\u274c');
 
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey}`
+        'Authorization': `Bearer ${globalKey}`
       },
       body: JSON.stringify({
-        instanceId: config.instanceId,
-        phone: cleanedPhone,
+        instanceName: config.instanceId,
+        number: cleanedPhone,
         message: message
       })
     });

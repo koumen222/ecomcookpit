@@ -74,13 +74,6 @@ const CampaignsList = () => {
   const [waConfig, setWaConfig] = useState(null);
   const [showWhatsAppConfig, setShowWhatsAppConfig] = useState(false);
 
-  // États pour sélection service WhatsApp avant envoi
-  const [showServiceSelector, setShowServiceSelector] = useState(false);
-  const [pendingCampaignId, setPendingCampaignId] = useState(null);
-  const [selectedInstanceId, setSelectedInstanceId] = useState('');
-  const [whatsappInstances, setWhatsappInstances] = useState([]);
-  const [loadingInstances, setLoadingInstances] = useState(false);
-
   // 🆕 États pour l'aperçu à une personne
   const [showPreview, setShowPreview] = useState(null);
   const [previewData, setPreviewData] = useState(null);
@@ -111,17 +104,21 @@ const CampaignsList = () => {
 
   useEffect(() => { fetchCampaigns().finally(() => setLoading(false)); }, []);
 
-  // Charger la configuration WhatsApp
+  // Charger le statut WhatsApp depuis le workspace
   const loadWhatsAppConfig = async () => {
     try {
-      const response = await ecomApi.get('/whatsapp-config');
+      const response = await ecomApi.get('/integrations/whatsapp/status');
       if (response.data.success) {
-        setWaConfig(response.data.config);
+        setWaConfig({
+          isConfigured: response.data.connected,
+          connected: response.data.connected,
+          ...response.data.whatsapp
+        });
       } else {
-        setWaConfig({ isConfigured: false, status: 'inactive' });
+        setWaConfig({ isConfigured: false });
       }
     } catch (err) {
-      setWaConfig({ isConfigured: false, status: 'inactive' });
+      setWaConfig({ isConfigured: false });
     }
   };
 
@@ -129,27 +126,11 @@ const CampaignsList = () => {
     loadWhatsAppConfig();
   }, []);
 
-  // Charger les instances WhatsApp sauvegardées
-  const loadWhatsAppInstances = async () => {
-    try {
-      setLoadingInstances(true);
-      const response = await ecomApi.get('/whatsapp-instances');
-      if (response.data.success) {
-        setWhatsappInstances(response.data.instances);
-      }
-    } catch (err) {
-      console.error('Erreur chargement instances WhatsApp:', err);
-    } finally {
-      setLoadingInstances(false);
-    }
-  };
-
   // Gérer la configuration WhatsApp sauvegardée
   const handleWhatsAppConfigSaved = () => {
     setShowWhatsAppConfig(false);
-    loadWhatsAppConfig(); // Recharger la config
-    loadWhatsAppInstances(); // Recharger les instances
-    setSuccess('Instance WhatsApp ajoutée avec succès !');
+    loadWhatsAppConfig();
+    setSuccess('WhatsApp connecté avec succès !');
   };
 
   useEffect(() => { if (success) { const t = setTimeout(() => setSuccess(''), 4000); return () => clearTimeout(t); } }, [success]);
@@ -174,7 +155,6 @@ const CampaignsList = () => {
         
         if (response.data.success) {
           setSuccess(`Message envoyé à ${selectedClient.firstName} ${selectedClient.lastName} !`);
-          // Fermer la modale après envoi réussi
           setShowPreview(null);
           setSelectedClient(null);
         } else {
@@ -186,42 +166,52 @@ const CampaignsList = () => {
         setSending(null); 
       }
     } else {
-      // Charger les instances avant d'afficher le modal
-      loadWhatsAppInstances();
-      // Afficher le modal de sélection de service WhatsApp
-      setPendingCampaignId(id);
-      setShowServiceSelector(true);
+      // ✅ Vérifier que WhatsApp est configuré sur le workspace
+      if (!waConfig?.isConfigured) {
+        setError('WhatsApp non configuré. Connectez votre instance d\'abord.');
+        setShowWhatsAppConfig(true);
+        return;
+      }
+
+      const campaign = campaigns.find(c => c._id === id);
+      const isScheduled = campaign?.status === 'scheduled';
+      
+      const confirmMessage = isScheduled 
+        ? `Envoyer maintenant annulera la programmation. Continuer ?`
+        : 'Envoyer cette campagne à tous les clients ciblés ?';
+        
+      if (!confirm(confirmMessage)) return;
+      
+      setSending(id);
+      
+      try {
+        const res = await ecomApi.post(`/campaigns/${id}/send`, {}, { timeout: 300000 });
+        setSuccess(res.data.message);
+        fetchCampaigns();
+      } catch (err) { 
+        setError(err.response?.data?.message || 'Erreur envoi'); 
+      } finally { 
+        setSending(null); 
+      }
     }
   };
 
-  const handleConfirmSend = async () => {
-    if (!selectedInstanceId) {
-      setError('Veuillez sélectionner une instance WhatsApp');
+  const handleCancelAll = async () => {
+    const sendingCampaigns = campaigns.filter(c => c.status === 'sending');
+    
+    if (sendingCampaigns.length === 0) {
+      setError('Aucune campagne en cours d\'envoi');
       return;
     }
-
-    const campaign = campaigns.find(c => c._id === pendingCampaignId);
-    const isScheduled = campaign?.status === 'scheduled';
     
-    const confirmMessage = isScheduled 
-      ? `Cette campagne est programmée. Envoyer maintenant annulera la programmation et enverra à tous les clients ciblés. Continuer ?`
-      : 'Envoyer cette campagne maintenant ? Les messages WhatsApp seront envoyés à tous les clients ciblés.';
-      
-    if (!confirm(confirmMessage)) return;
-    
-    setSending(pendingCampaignId);
-    setShowServiceSelector(false);
+    if (!confirm(`Annuler ${sendingCampaigns.length} campagne(s) en cours d'envoi ?`)) return;
     
     try {
-      const res = await ecomApi.post(`/campaigns/${pendingCampaignId}/send`, {
-        whatsappInstanceId: selectedInstanceId
-      }, { timeout: 300000 });
-      setSuccess(res.data.message);
-      fetchCampaigns(); // Rafraîchir pour voir le changement de statut
-    } catch (err) { 
-      setError(err.response?.data?.message || 'Erreur envoi'); 
-    } finally { 
-      setSending(null); 
+      const res = await ecomApi.post('/campaigns/cancel-all');
+      setSuccess(res.data.message || `${sendingCampaigns.length} campagne(s) annulée(s)`);
+      fetchCampaigns();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Erreur annulation');
     }
   };
 
@@ -285,6 +275,21 @@ const CampaignsList = () => {
     <div className="p-3 sm:p-4 lg:p-6 max-w-7xl mx-auto">
       {success && <div className="mb-3 p-2.5 bg-green-50 text-green-800 rounded-lg text-sm border border-green-200 flex items-center gap-2"><svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>{success}</div>}
       {error && <div className="mb-3 p-2.5 bg-red-50 text-red-800 rounded-lg text-sm border border-red-200">{error}</div>}
+
+      {/* Bouton Annuler tous les envois */}
+      {campaigns.some(c => c.status === 'sending') && (
+        <div className="mb-4">
+          <button
+            onClick={handleCancelAll}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-medium flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            Annuler tous les envois en cours
+          </button>
+        </div>
+      )}
 
       {/* Bannière Configuration WhatsApp */}
       {waConfig && !waConfig.isConfigured && (
@@ -607,98 +612,6 @@ const CampaignsList = () => {
         </div>
       )}
 
-      {/* Modal Sélection Instance WhatsApp */}
-      {showServiceSelector && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-            <div className="p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Sélectionner une instance WhatsApp</h2>
-              <p className="text-sm text-gray-600 mb-4">
-                Choisissez l'instance WhatsApp à utiliser pour cette campagne
-              </p>
-              
-              <div className="space-y-4">
-                {loadingInstances ? (
-                  <div className="text-center py-4">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
-                    <p className="text-sm text-gray-500 mt-2">Chargement...</p>
-                  </div>
-                ) : whatsappInstances.length === 0 ? (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                    <p className="text-sm text-amber-800">
-                      Aucune instance WhatsApp configurée. Veuillez d'abord ajouter une instance.
-                    </p>
-                    <button
-                      onClick={() => {
-                        setShowServiceSelector(false);
-                        setShowWhatsAppConfig(true);
-                      }}
-                      className="mt-3 w-full px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition text-sm"
-                    >
-                      Ajouter une instance
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Instance WhatsApp
-                      </label>
-                      <select
-                        value={selectedInstanceId}
-                        onChange={(e) => setSelectedInstanceId(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                      >
-                        <option value="">-- Sélectionner une instance --</option>
-                        {whatsappInstances.map((instance) => (
-                          <option key={instance._id} value={instance._id}>
-                            {instance.name} ({instance.instanceId}) - {instance.status === 'active' ? '✓ Active' : '✗ Inactive'}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <p className="text-xs text-blue-700">
-                        💡 Gérez vos instances dans{' '}
-                        <button 
-                          onClick={() => {
-                            setShowServiceSelector(false);
-                            setShowWhatsAppConfig(true);
-                          }}
-                          className="underline font-semibold"
-                        >
-                          la configuration
-                        </button>
-                      </p>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={() => {
-                    setShowServiceSelector(false);
-                    setPendingCampaignId(null);
-                    setSelectedInstanceId('');
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={handleConfirmSend}
-                  disabled={!selectedInstanceId || whatsappInstances.length === 0}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                >
-                  Envoyer la campagne
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Modal Configuration WhatsApp */}
       {showWhatsAppConfig && (

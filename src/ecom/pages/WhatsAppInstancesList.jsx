@@ -15,6 +15,7 @@ const WhatsAppInstancesList = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showApiKey, setShowApiKey] = useState({});
   const [checkingStatus, setCheckingStatus] = useState({});
+  const [statusMessages, setStatusMessages] = useState({});
 
   useEffect(() => {
     loadInstances();
@@ -97,6 +98,10 @@ const WhatsAppInstancesList = () => {
       const data = await response.json();
       if (data.success) {
         setInstances(prev => prev.map(i => i._id === instanceId ? { ...i, status: data.status } : i));
+        if (data.statusMessage) {
+          setStatusMessages(prev => ({ ...prev, [instanceId]: data.statusMessage }));
+          setTimeout(() => setStatusMessages(prev => { const n = { ...prev }; delete n[instanceId]; return n; }), 5000);
+        }
       }
     } catch (err) {
       console.error('Erreur check-status:', err);
@@ -276,6 +281,11 @@ const WhatsAppInstancesList = () => {
                            instance.status === 'inactive' ? 'Inactif' : 'Erreur'}
                         </span>
                       </div>
+                      {statusMessages[instance._id] && (
+                        <p className={`text-xs mt-1 ${instance.status === 'active' ? 'text-green-600' : 'text-orange-600'}`}>
+                          {statusMessages[instance._id]}
+                        </p>
+                      )}
                     </div>
                   </div>
                   

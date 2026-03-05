@@ -90,18 +90,18 @@ const sendWhatsAppMessage = async (chatId, message) => {
     // Nettoyer le numéro pour ZeChat (sans @c.us)
     const cleanPhone = chatId.replace('@c.us', '');
 
-    const endpoint = `${whatsappConfig.apiUrl}/api/send`;
+    const endpoint = `${whatsappConfig.apiUrl}/api/instance/send-message`;
     console.log('🔗 Endpoint:', endpoint);
 
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${whatsappConfig.apiKey}`
+        'Authorization': `Bearer ${process.env.EVOLUTION_GLOBAL_API_KEY?.trim() || ''}`
       },
       body: JSON.stringify({
-        instanceId: whatsappConfig.instanceId,
-        phone: cleanPhone,
+        instanceName: whatsappConfig.instanceId,
+        number: cleanPhone,
         message: message
       })
     });

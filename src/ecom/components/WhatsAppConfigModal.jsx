@@ -10,9 +10,9 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-pro
 
 const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
   const navigate = useNavigate();
-  const [step, setStep] = useState('config'); // 'config' | 'qr' | 'test' | 'success'
+  const [step, setStep] = useState('config'); // 'config' | 'test' | 'success'
   const [config, setConfig] = useState({
-    name: '',
+    instanceName: '',
     instanceId: '',
     apiKey: ''
   });
@@ -20,7 +20,7 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [qrCodeUrl, setQrCodeUrl] = useState('');
+  const [testPhone, setTestPhone] = useState('');
   const [testMessage, setTestMessage] = useState('');
 
   // Charger la configuration existante au montage
@@ -28,27 +28,25 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
     loadCurrentConfig();
   }, []);
 
+  const getHeaders = () => {
+    const token = localStorage.getItem('ecomToken');
+    const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'X-Workspace-Id': workspace?._id || workspace?.id
+    };
+  };
+
   const loadCurrentConfig = async () => {
     try {
-      const token = localStorage.getItem('ecomToken');
-      const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
-      
-      const response = await fetch(`${BACKEND_URL}/api/ecom/whatsapp-config`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Workspace-Id': workspace?._id || workspace?.id
-        }
+      const response = await fetch(`${BACKEND_URL}/api/ecom/integrations/whatsapp/status`, {
+        headers: getHeaders()
       });
       
       const data = await response.json();
-      if (data.success) {
-        setCurrentConfig(data.config);
-        if (data.config.isConfigured) {
-          setConfig(prev => ({
-            ...prev,
-            phoneNumber: data.config.phoneNumber || ''
-          }));
-        }
+      if (data.success && data.connected) {
+        setCurrentConfig(data.whatsapp);
       }
     } catch (err) {
       console.error('Erreur chargement config:', err);
@@ -56,8 +54,8 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
   };
 
   const handleSaveConfig = async () => {
-    if (!config.name || !config.instanceId || !config.apiKey) {
-      setError('Nom, Instance ID et clé API obligatoires');
+    if (!config.instanceId || !config.apiKey) {
+      setError('Instance ID et clé API obligatoires');
       return;
     }
     
@@ -70,82 +68,37 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
       controller.abort();
       setError('Timeout : la requête a pris trop de temps');
       setLoading(false);
-    }, 30000); // 30 secondes
+    }, 30000);
     
     try {
-      const token = localStorage.getItem('ecomToken');
-      const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
-      
-      if (!token) {
-        throw new Error('Token d\'authentification manquant');
-      }
-      
-      if (!workspace?._id && !workspace?.id) {
-        throw new Error('Workspace non configuré');
-      }
-      
-      console.log('Envoi instance WhatsApp:', { name: config.name, instanceId: config.instanceId });
-      
-      const response = await fetch(`${BACKEND_URL}/api/ecom/whatsapp-instances`, {
+      const response = await fetch(`${BACKEND_URL}/api/ecom/integrations/whatsapp/connect`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'X-Workspace-Id': workspace?._id || workspace?.id
-        },
+        headers: getHeaders(),
         body: JSON.stringify(config),
         signal: controller.signal
       });
       
       clearTimeout(timeoutId);
-      console.log('Réponse status:', response.status);
-      console.log('Réponse headers:', Object.fromEntries(response.headers.entries()));
-      
-      let data;
-      const contentType = response.headers.get('content-type');
-      
-      if (contentType && contentType.includes('application/json')) {
-        data = await response.json();
-      } else {
-        const textResponse = await response.text();
-        console.log('Réponse non-JSON:', textResponse);
-        throw new Error(`Réponse inattendue du serveur (${response.status}): ${textResponse.substring(0, 100)}`);
-      }
-      
-      console.log('Réponse data:', data);
+      const data = await response.json();
       
       if (response.ok && data.success) {
-        setSuccess(data.message || 'Instance WhatsApp créée avec succès');
+        setSuccess('WhatsApp connecté avec succès !');
+        setConfig({ instanceName: '', instanceId: '', apiKey: '' });
+        await loadCurrentConfig();
         
-        // Réinitialiser le formulaire
-        setConfig({ name: '', instanceId: '', apiKey: '' });
-        
-        // Fermer le modal et recharger après un court délai
         setTimeout(() => {
-          if (onConfigSaved) {
-            onConfigSaved();
-          }
-          if (onClose) {
-            onClose();
-          }
-        }, 1500);
+          if (onConfigSaved) onConfigSaved();
+          if (onClose) onClose();
+        }, 2000);
       } else {
-        const errorMessage = data.message || `Erreur HTTP ${response.status}`;
-        console.error('Erreur serveur:', errorMessage);
-        setError(errorMessage);
+        setError(data.message || `Erreur HTTP ${response.status}`);
       }
     } catch (err) {
       clearTimeout(timeoutId);
-      console.error('Erreur sauvegarde instance:', err);
-      
       if (err.name === 'AbortError') {
         setError('Requête annulée (timeout)');
-      } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
-        setError('Erreur de connexion réseau. Vérifiez votre connexion internet.');
-      } else if (err.message.includes('Token')) {
-        setError('Problème d\'authentification. Reconnectez-vous.');
-      } else if (err.message.includes('Workspace')) {
-        setError('Workspace non configuré. Contactez le support.');
+      } else if (err.message.includes('Failed to fetch')) {
+        setError('Erreur de connexion réseau.');
       } else {
         setError(err.message || 'Erreur de connexion au serveur');
       }
@@ -155,8 +108,8 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
   };
 
   const handleTestMessage = async () => {
-    if (!testMessage.trim()) {
-      setError('Veuillez saisir un message de test');
+    if (!testPhone.trim() || !testMessage.trim()) {
+      setError('Numéro et message requis');
       return;
     }
     
@@ -164,18 +117,11 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
     setError('');
     
     try {
-      const token = localStorage.getItem('ecomToken');
-      const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
-      
-      const response = await fetch(`${BACKEND_URL}/api/ecom/whatsapp-config/send-message`, {
+      const response = await fetch(`${BACKEND_URL}/api/ecom/integrations/whatsapp/test`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'X-Workspace-Id': workspace?._id || workspace?.id
-        },
+        headers: getHeaders(),
         body: JSON.stringify({
-          phoneNumber: config.phoneNumber,
+          phone: testPhone,
           message: testMessage
         })
       });
@@ -183,46 +129,34 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
       const data = await response.json();
       
       if (data.success) {
-        setSuccess('Message envoyé avec succès !');
+        setSuccess('Message test envoyé avec succès !');
         setStep('success');
-        await loadCurrentConfig();
       } else {
         setError(data.message || 'Erreur lors de l\'envoi');
       }
     } catch (err) {
-      setError('Erreur lors de l\'envoi du message');
+      setError('Erreur lors de l\'envoi du message test');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRunTest = async () => {
-    setLoading(true);
-    setError('');
+  const handleDisconnect = async () => {
+    if (!confirm('Déconnecter WhatsApp de ce workspace ?')) return;
     
+    setLoading(true);
     try {
-      const token = localStorage.getItem('ecomToken');
-      const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
-      
-      const response = await fetch(`${BACKEND_URL}/api/ecom/whatsapp-config/test`, {
+      const response = await fetch(`${BACKEND_URL}/api/ecom/integrations/whatsapp/disconnect`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Workspace-Id': workspace?._id || workspace?.id
-        }
+        headers: getHeaders()
       });
-      
       const data = await response.json();
-      
       if (data.success) {
-        setSuccess('Test réussi ! Votre WhatsApp est bien configuré.');
-        setStep('success');
-        await loadCurrentConfig();
-      } else {
-        setError(data.message || 'Échec du test');
+        setCurrentConfig(null);
+        setSuccess('WhatsApp déconnecté');
       }
     } catch (err) {
-      setError('Erreur lors du test');
+      setError('Erreur déconnexion');
     } finally {
       setLoading(false);
     }
@@ -262,23 +196,17 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
             <div className="space-y-4">
               {/* Statut actuel */}
               {currentConfig && (
-                <div className={`p-3 rounded-lg border ${
-                  currentConfig.isConfigured && currentConfig.status === 'active'
-                    ? 'bg-green-50 border-green-200'
-                    : 'bg-amber-50 border-amber-200'
-                }`}>
-                  <div className="flex items-center gap-2">
-                    {currentConfig.isConfigured && currentConfig.status === 'active' ? (
+                <div className="p-3 rounded-lg border bg-green-50 border-green-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
                       <CheckCircle className="w-3 h-3 text-green-600" />
-                    ) : (
-                      <AlertCircle className="w-3 h-3 text-amber-600" />
-                    )}
-                    <span className="text-xs font-semibold">
-                      {currentConfig.isConfigured && currentConfig.status === 'active'
-                        ? 'ZeChat connecté'
-                        : 'Configuration requise'
-                      }
-                    </span>
+                      <span className="text-xs font-semibold text-green-800">
+                        WhatsApp connecté — {currentConfig.instanceName || currentConfig.instanceId}
+                      </span>
+                    </div>
+                    <button onClick={handleDisconnect} className="text-[10px] text-red-500 hover:text-red-700 underline">
+                      Déconnecter
+                    </button>
                   </div>
                 </div>
               )}
@@ -292,9 +220,9 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
                   </label>
                   <input
                     type="text"
-                    value={config.name}
-                    onChange={(e) => setConfig(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="Mon WhatsApp Business"
+                    value={config.instanceName}
+                    onChange={(e) => setConfig(prev => ({ ...prev, instanceName: e.target.value }))}
+                    placeholder="Support, Marketing, etc."
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-transparent"
                   />
                 </div>
@@ -308,21 +236,22 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
                     type="text"
                     value={config.instanceId}
                     onChange={(e) => setConfig(prev => ({ ...prev, instanceId: e.target.value }))}
-                    placeholder="7103123456"
+                    placeholder="sssss"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-transparent"
                   />
+                  <p className="text-[10px] text-gray-500 mt-1">Visible dans votre dashboard Evolution API</p>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
                     <Key className="w-3 h-3 inline mr-1" />
-                    Clé API
+                    Clé API (Bearer Token)
                   </label>
                   <input
                     type="password"
                     value={config.apiKey}
                     onChange={(e) => setConfig(prev => ({ ...prev, apiKey: e.target.value }))}
-                    placeholder="Votre clé API..."
+                    placeholder="ak_live_xxxxx"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-transparent"
                   />
                 </div>
@@ -331,11 +260,13 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
               {/* Guide compact ZeChat */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <h4 className="text-xs font-bold text-blue-900 mb-2">
-                  📱 Configuration ZeChat
+                  📱 Configuration Evolution API
                 </h4>
                 <div className="text-xs text-blue-700 space-y-1">
-                  <p>1. Compte sur <a href="https://api.ecomcookpit.site/dashboard/instances" target="_blank" rel="noopener noreferrer" className="underline font-semibold">api.ecomcookpit.site</a></p>
-                  <p>2. Instance ID + Clé API → Prêt !</p>
+                  <p>1. Créez un compte sur <a href="https://api.ecomcookpit.site" target="_blank" rel="noopener noreferrer" className="underline font-semibold">api.ecomcookpit.site</a></p>
+                  <p>2. Créez une instance et notez son <strong>nom</strong> (ex: 31370)</p>
+                  <p>3. Copiez votre <strong>clé API</strong> depuis le dashboard</p>
+                  <p>4. Collez les informations ci-dessus → Prêt !</p>
                 </div>
               </div>
 
@@ -353,97 +284,65 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
                 </div>
               )}
 
-              <button
-                onClick={handleSaveConfig}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm"
-              >
-                {loading ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                ) : (
-                  <CheckCircle className="w-3 h-3" />
-                )}
-                Configurer ZeChat
-              </button>
-            </div>
-          )}
-
-          {/* Étape: QR Code */}
-          {step === 'qr' && (
-            <div className="space-y-6 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-green-100 flex items-center justify-center mx-auto">
-                <QrCode className="w-8 h-8 text-green-600" />
-              </div>
-              
-              <div>
-                <h3 className="font-bold text-lg text-gray-900 mb-2">Scannez le QR Code</h3>
-                <p className="text-gray-600 text-sm">
-                  Ouvrez WhatsApp sur votre téléphone et scannez ce QR Code pour connecter votre numéro
-                </p>
-              </div>
-
-              {qrCodeUrl && (
-                <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-6">
-                  <img
-                    src={qrCodeUrl}
-                    alt="QR Code WhatsApp"
-                    className="w-48 h-48 mx-auto border border-gray-200 rounded-lg"
-                    onError={() => setError('QR Code non disponible. Vérifiez votre configuration.')}
-                  />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveConfig}
+                  disabled={loading}
+                  className="flex-1 flex items-center justify-center gap-2 py-2 px-4 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm"
+                >
+                  {loading ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <CheckCircle className="w-3 h-3" />
+                  )}
+                  Connecter WhatsApp
+                </button>
+                {currentConfig && (
                   <button
-                    onClick={() => window.open(qrCodeUrl, '_blank')}
-                    className="mt-4 text-sm text-green-600 hover:text-green-700 flex items-center gap-1 mx-auto"
+                    onClick={() => setStep('test')}
+                    className="px-4 py-2 border border-green-300 text-green-700 font-medium rounded-lg hover:bg-green-50 transition text-sm"
                   >
-                    <ExternalLink className="w-3 h-3" />
-                    Ouvrir dans un nouvel onglet
+                    Tester
                   </button>
-                </div>
-              )}
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setStep('config')}
-                  className="flex-1 py-2.5 px-4 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition"
-                >
-                  Retour
-                </button>
-                <button
-                  onClick={() => setStep('test')}
-                  className="flex-1 py-2.5 px-4 bg-green-600 text-white rounded-xl hover:bg-green-700 transition"
-                >
-                  Continuer
-                </button>
+                )}
               </div>
             </div>
           )}
 
           {/* Étape: Test */}
           {step === 'test' && (
-            <div className="space-y-6">
+            <div className="space-y-4">
               <div className="text-center">
                 <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center mx-auto mb-3">
                   <Send className="w-5 h-5 text-green-600" />
                 </div>
-                <h3 className="font-semibold text-gray-900 mb-1">Test ZeChat</h3>
+                <h3 className="font-semibold text-gray-900 mb-1">Tester la connexion</h3>
                 <p className="text-gray-600 text-xs">
-                  Testez votre configuration
+                  Envoyez un message test pour vérifier que tout fonctionne
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Message de test
-                </label>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Numéro de téléphone</label>
+                <input
+                  type="text"
+                  value={testPhone}
+                  onChange={(e) => setTestPhone(e.target.value)}
+                  placeholder="237675500956"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+                <p className="text-[10px] text-gray-500 mt-1">Format international sans + (ex: 237675500956)</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Message</label>
                 <textarea
                   value={testMessage}
                   onChange={(e) => setTestMessage(e.target.value)}
-                  placeholder="Saisissez votre message de test..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+                  placeholder="Bonjour, ceci est un test !"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-green-500 resize-none"
                   rows={3}
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  Ce message sera envoyé à votre numéro WhatsApp configuré
-                </p>
               </div>
 
               {error && (
@@ -460,53 +359,35 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={handleRunTest}
-                  disabled={loading}
-                  className="flex items-center justify-center gap-2 py-3 px-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                >
-                  {loading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-4 h-4" />
-                  )}
-                  Test auto
-                </button>
-                <button
-                  onClick={handleTestMessage}
-                  disabled={loading || !testMessage.trim()}
-                  className="flex items-center justify-center gap-2 py-3 px-4 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                >
-                  {loading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                  Envoyer test
-                </button>
-              </div>
+              <button
+                onClick={handleTestMessage}
+                disabled={loading || !testPhone.trim() || !testMessage.trim()}
+                className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Envoyer message test
+              </button>
 
               <button
-                onClick={() => setStep('config')}
-                className="w-full py-2.5 px-4 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition"
+                onClick={() => { setStep('config'); setError(''); setSuccess(''); }}
+                className="w-full py-2 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm"
               >
-                Retour à la configuration
+                Retour
               </button>
             </div>
           )}
 
           {/* Étape: Succès */}
           {step === 'success' && (
-            <div className="text-center">
+            <div className="text-center space-y-4">
               <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center mx-auto">
                 <CheckCircle className="w-6 h-6 text-green-600" />
               </div>
               
               <div>
-                <h3 className="font-semibold text-gray-900 mb-1">Instance créée !</h3>
+                <h3 className="font-semibold text-gray-900 mb-1">WhatsApp connecté !</h3>
                 <p className="text-gray-600 text-xs">
-                  Redirection vers vos instances...
+                  Votre instance est prête pour envoyer des campagnes.
                 </p>
               </div>
 
@@ -514,30 +395,22 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
                 <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                   <div className="grid grid-cols-2 gap-4 text-xs">
                     <div>
-                      <span className="block text-green-600 font-semibold">Numéro</span>
-                      <span className="text-green-800">{currentConfig.phoneNumber}</span>
+                      <span className="block text-green-600 font-semibold">Instance</span>
+                      <span className="text-green-800">{currentConfig.instanceName || currentConfig.instanceId}</span>
                     </div>
                     <div>
                       <span className="block text-green-600 font-semibold">Statut</span>
-                      <span className="text-green-800">Actif</span>
-                    </div>
-                    <div>
-                      <span className="block text-green-600 font-semibold">Messages</span>
-                      <span className="text-green-800">{currentConfig.messagesSent}</span>
-                    </div>
-                    <div>
-                      <span className="block text-green-600 font-semibold">Limite/jour</span>
-                      <span className="text-green-800">{currentConfig.dailyLimit}</span>
+                      <span className="text-green-800">Connecté</span>
                     </div>
                   </div>
                 </div>
               )}
 
               <button
-                onClick={() => navigate('/ecom/whatsapp/instances')}
+                onClick={onClose}
                 className="w-full py-2 px-4 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition text-sm"
               >
-                Voir mes instances
+                Fermer
               </button>
             </div>
           )}

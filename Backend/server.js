@@ -251,6 +251,7 @@ const startServer = async () => {
       // ─── WhatsApp Configuration ──────────────────────────────────────
       ['./routes/whatsappConfig.js',          '/api/ecom/whatsapp-config'],
       ['./routes/whatsappInstances.js',       '/api/ecom/whatsapp-instances'],
+      ['./routes/whatsappIntegration.js',     '/api/ecom/integrations/whatsapp'],
       // ─── AI Product Page Generator ───────────────────────────────────
       ['./routes/productPageGenerator.js',    '/api/ai/product-generator'],
       // ─── Diagnostics ──────────────────────────────────────────────────────

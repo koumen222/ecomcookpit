@@ -69,8 +69,8 @@ export const sendMessage = async (phoneNumber, message) => {
     console.log('🔍 Vérification format: ' + (chatId.includes('@c.us') ? '✅' : '❌'));
     console.log('🔍 Longueur numéro: ' + chatId.replace('@c.us', '').length);
 
-    // Construire l'URL de l'API ZeChat
-    const url = `${whatsappConfig.apiUrl}/api/send`;
+    // Construire l'URL de l'API Evolution
+    const url = `${whatsappConfig.apiUrl}/api/instance/send-message`;
     console.log('🔗 URL API:', url);
 
     // Importer fetch
@@ -80,10 +80,10 @@ export const sendMessage = async (phoneNumber, message) => {
     // Nettoyer le numéro pour ZeChat (sans @c.us)
     const cleanPhone = chatId.replace('@c.us', '');
 
-    // Préparer le payload ZeChat
+    // Préparer le payload Evolution API
     const payload = {
-      instanceId: whatsappConfig.instanceId,
-      phone: cleanPhone,
+      instanceName: whatsappConfig.instanceId,
+      number: cleanPhone,
       message: message
     };
     console.log('📦 Payload:', JSON.stringify(payload, null, 2));
@@ -94,7 +94,7 @@ export const sendMessage = async (phoneNumber, message) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${whatsappConfig.apiKey}`
+        'Authorization': `Bearer ${process.env.EVOLUTION_GLOBAL_API_KEY?.trim() || ''}`
       },
       body: JSON.stringify(payload)
     });

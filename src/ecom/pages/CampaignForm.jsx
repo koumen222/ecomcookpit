@@ -555,7 +555,28 @@ const CampaignForm = () => {
 
             {/* Villes — dropdown checkbox */}
             <div className="relative">
-              <label className="block text-[10px] font-medium text-gray-500 mb-1">Villes</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[10px] font-medium text-gray-500">Villes</label>
+                {filterOptions.cities.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allSelected = (formData.targetFilters.orderCity || []).length === filterOptions.cities.length;
+                      setFormData(prev => ({
+                        ...prev,
+                        targetFilters: {
+                          ...prev.targetFilters,
+                          orderCity: allSelected ? [] : [...filterOptions.cities]
+                        }
+                      }));
+                      setTimeout(handlePreview, 200);
+                    }}
+                    className="text-[10px] text-emerald-600 hover:text-emerald-700 font-medium"
+                  >
+                    {(formData.targetFilters.orderCity || []).length === filterOptions.cities.length ? '✓ Tout désélectionner' : 'Tout sélectionner'}
+                  </button>
+                )}
+              </div>
               <div className="border border-gray-300 rounded-lg bg-white overflow-hidden">
                 <div className="max-h-40 overflow-y-auto divide-y divide-gray-100">
                   {filterOptions.cities.length === 0 && (
@@ -583,7 +604,28 @@ const CampaignForm = () => {
 
             {/* Produits — dropdown checkbox */}
             <div className="relative">
-              <label className="block text-[10px] font-medium text-gray-500 mb-1">Produits</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[10px] font-medium text-gray-500">Produits</label>
+                {filterOptions.products.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allSelected = (formData.targetFilters.orderProduct || []).length === filterOptions.products.length;
+                      setFormData(prev => ({
+                        ...prev,
+                        targetFilters: {
+                          ...prev.targetFilters,
+                          orderProduct: allSelected ? [] : [...filterOptions.products]
+                        }
+                      }));
+                      setTimeout(handlePreview, 200);
+                    }}
+                    className="text-[10px] text-violet-600 hover:text-violet-700 font-medium"
+                  >
+                    {(formData.targetFilters.orderProduct || []).length === filterOptions.products.length ? '✓ Tout désélectionner' : 'Tout sélectionner'}
+                  </button>
+                )}
+              </div>
               <div className="border border-gray-300 rounded-lg bg-white overflow-hidden">
                 <div className="max-h-40 overflow-y-auto divide-y divide-gray-100">
                   {filterOptions.products.length === 0 && (
