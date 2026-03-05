@@ -69,11 +69,15 @@ router.get('/:id', requireEcomAuth, validateEcomAccess, async (req, res) => {
  */
 router.post('/', requireEcomAuth, validateEcomAccess, async (req, res) => {
   try {
+    console.log('📱 Création instance WhatsApp - Body:', req.body);
     const workspaceId = req.user.defaultWorkspace;
     const { name, instanceId, apiKey } = req.body;
     
+    console.log('📱 WorkspaceId:', workspaceId);
+    
     // Validation
     if (!name || !instanceId || !apiKey) {
+      console.log('❌ Validation échouée - champs manquants');
       return res.status(400).json({
         success: false,
         message: 'Nom, Instance ID et Clé API requis'
@@ -93,11 +97,14 @@ router.post('/', requireEcomAuth, validateEcomAccess, async (req, res) => {
       });
     }
     
-    // Tester la connexion à l'API
+    // Tester la connexion à l'API (non bloquant, timeout 5s)
     let status = 'active';
     try {
       const fetchModule = await import('node-fetch');
       const fetch = fetchModule.default;
+      
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
       
       const testResponse = await fetch('https://servicewhstapps.pages.dev/api/status', {
         method: 'POST',
@@ -105,14 +112,18 @@ router.post('/', requireEcomAuth, validateEcomAccess, async (req, res) => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`
         },
-        body: JSON.stringify({ instanceId })
+        body: JSON.stringify({ instanceId }),
+        signal: controller.signal
       });
       
+      clearTimeout(timeout);
+      
       if (!testResponse.ok) {
-        status = 'error';
+        status = 'inactive';
       }
     } catch (err) {
-      status = 'error';
+      console.log('Test API WhatsApp échoué (non bloquant):', err.message);
+      status = 'inactive';
     }
     
     // Créer l'instance
@@ -126,6 +137,8 @@ router.post('/', requireEcomAuth, validateEcomAccess, async (req, res) => {
     
     await instance.save();
     
+    console.log('✅ Instance créée avec succès:', instance._id);
+    
     // Retourner sans la clé API
     const instanceResponse = instance.toObject();
     delete instanceResponse.apiKey;
@@ -136,7 +149,7 @@ router.post('/', requireEcomAuth, validateEcomAccess, async (req, res) => {
       instance: instanceResponse
     });
   } catch (error) {
-    console.error('Erreur création instance WhatsApp:', error);
+    console.error('❌ Erreur création instance WhatsApp:', error);
     res.status(500).json({
       success: false,
       message: 'Erreur lors de la création de l\'instance'

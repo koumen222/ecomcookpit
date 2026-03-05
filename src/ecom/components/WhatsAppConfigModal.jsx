@@ -67,6 +67,8 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
       const token = localStorage.getItem('ecomToken');
       const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
       
+      console.log('Envoi instance WhatsApp:', { name: config.name, instanceId: config.instanceId });
+      
       const response = await fetch(`${BACKEND_URL}/api/ecom/whatsapp-instances`, {
         method: 'POST',
         headers: {
@@ -77,7 +79,14 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
         body: JSON.stringify(config)
       });
       
+      console.log('Réponse status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log('Réponse data:', data);
       
       if (data.success) {
         setSuccess(data.message);
@@ -93,6 +102,7 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
         setError(data.message || 'Erreur lors de la sauvegarde');
       }
     } catch (err) {
+      console.error('Erreur sauvegarde instance:', err);
       setError('Erreur de connexion au serveur');
     } finally {
       setLoading(false);
