@@ -260,6 +260,8 @@ async function getGlobalOverview({ workspaceId, date, startDate, endDate }) {
 router.get('/', requireEcomAuth, async (req, res) => {
   try {
     const { productId, date, startDate, endDate, page = 1, limit = 50 } = req.query;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
     const filter = { workspaceId: req.workspaceId };
     
     if (productId) filter.productId = productId;
@@ -280,8 +282,8 @@ router.get('/', requireEcomAuth, async (req, res) => {
       .populate('productId', 'name sellingPrice productCost deliveryCost')
       .populate('reportedBy', 'email')
       .sort({ date: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
+      .limit(limitNum)
+      .skip((pageNum - 1) * limitNum);
 
     const total = await DailyReport.countDocuments(filter);
 
@@ -308,10 +310,10 @@ router.get('/', requireEcomAuth, async (req, res) => {
       data: {
         reports,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page: pageNum,
+          limit: limitNum,
           total,
-          pages: Math.ceil(total / limit)
+          pages: Math.ceil(total / limitNum)
         }
       }
     });
@@ -872,104 +874,173 @@ router.get('/dashboard/stats',
   requireEcomAuth,
   async (req, res) => {
     try {
-      const workspaceId = req.workspaceId;
-      const { period = '30' } = req.query; // jours
+      const workspaceObjectId = new mongoose.Types.ObjectId(req.workspaceId);
+      const periodRaw = parseInt(req.query?.period, 10);
+      const periodDays = Math.min(120, Math.max(1, Number.isFinite(periodRaw) ? periodRaw : 30));
 
       const daysAgo = new Date();
-      daysAgo.setDate(daysAgo.getDate() - parseInt(period));
+      daysAgo.setDate(daysAgo.getDate() - periodDays);
 
       const prevDaysAgo = new Date();
-      prevDaysAgo.setDate(prevDaysAgo.getDate() - parseInt(period) * 2);
+      prevDaysAgo.setDate(prevDaysAgo.getDate() - (periodDays * 2));
 
-      // Commandes de la période actuelle
-      const currentOrders = await Order.find({
-        workspaceId,
-        createdAt: { $gte: daysAgo }
-      }).select('status price quantity clientPhone createdAt').lean();
-
-      // Commandes de la période précédente (pour comparaison)
-      const prevOrders = await Order.find({
-        workspaceId,
-        createdAt: { $gte: prevDaysAgo, $lt: daysAgo }
-      }).select('status price quantity clientPhone').lean();
-
-      // Calculs période actuelle
-      const totalOrders = currentOrders.length;
-      const deliveredOrders = currentOrders.filter(o => o.status === 'delivered');
-      const returnedOrders = currentOrders.filter(o => o.status === 'returned');
-      const confirmedOrders = currentOrders.filter(o => ['confirmed', 'shipped', 'delivered'].includes(o.status));
-
-      const totalRevenue = deliveredOrders.reduce((sum, o) => sum + (o.price || 0) * (o.quantity || 1), 0);
-      const averageOrderValue = deliveredOrders.length > 0 ? totalRevenue / deliveredOrders.length : 0;
-      
-      // Taux de conversion = confirmés / total
-      const conversionRate = totalOrders > 0 ? (confirmedOrders.length / totalOrders) * 100 : 0;
-      
-      // Taux de retours = retournés / livrés
-      const returnRate = deliveredOrders.length > 0 ? (returnedOrders.length / deliveredOrders.length) * 100 : 0;
-
-      // Clients actifs (clients uniques ayant commandé)
-      const uniqueClients = new Set(currentOrders.map(o => o.clientPhone).filter(Boolean));
-      const activeClients = uniqueClients.size;
-
-      // Calculs période précédente
-      const prevTotalOrders = prevOrders.length;
-      const prevDeliveredOrders = prevOrders.filter(o => o.status === 'delivered');
-      const prevReturnedOrders = prevOrders.filter(o => o.status === 'returned');
-      const prevConfirmedOrders = prevOrders.filter(o => ['confirmed', 'shipped', 'delivered'].includes(o.status));
-
-      const prevTotalRevenue = prevDeliveredOrders.reduce((sum, o) => sum + (o.price || 0) * (o.quantity || 1), 0);
-      const prevAverageOrderValue = prevDeliveredOrders.length > 0 ? prevTotalRevenue / prevDeliveredOrders.length : 0;
-      const prevConversionRate = prevTotalOrders > 0 ? (prevConfirmedOrders.length / prevTotalOrders) * 100 : 0;
-      const prevReturnRate = prevDeliveredOrders.length > 0 ? (prevReturnedOrders.length / prevDeliveredOrders.length) * 100 : 0;
-      const prevUniqueClients = new Set(prevOrders.map(o => o.clientPhone).filter(Boolean));
-      const prevActiveClients = prevUniqueClients.size;
-
-      // Calcul des tendances
-      const conversionTrend = conversionRate - prevConversionRate;
-      const avgOrderTrend = prevAverageOrderValue > 0 
-        ? ((averageOrderValue - prevAverageOrderValue) / prevAverageOrderValue) * 100 
-        : 0;
-      const activeClientsTrend = activeClients - prevActiveClients;
-      const returnRateTrend = returnRate - prevReturnRate;
-
-      // Top produits par nombre de ventes livrées
-      const productSales = {};
-      deliveredOrders.forEach(order => {
-        const productName = order.product || 'Inconnu';
-        if (!productSales[productName]) {
-          productSales[productName] = { 
-            name: productName, 
-            sales: 0, 
-            revenue: 0,
-            quantity: 0
-          };
+      const buildSummaryPipeline = (matchStage) => ([
+        { $match: matchStage },
+        {
+          $group: {
+            _id: null,
+            totalOrders: { $sum: 1 },
+            deliveredOrders: { $sum: { $cond: [{ $eq: ['$status', 'delivered'] }, 1, 0] } },
+            returnedOrders: { $sum: { $cond: [{ $eq: ['$status', 'returned'] }, 1, 0] } },
+            confirmedOrders: { $sum: { $cond: [{ $in: ['$status', ['confirmed', 'shipped', 'delivered']] }, 1, 0] } },
+            totalRevenue: {
+              $sum: {
+                $cond: [
+                  { $eq: ['$status', 'delivered'] },
+                  { $multiply: [{ $ifNull: ['$price', 0] }, { $ifNull: ['$quantity', 1] }] },
+                  0
+                ]
+              }
+            },
+            uniqueClientsSet: { $addToSet: '$clientPhone' }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            totalOrders: 1,
+            deliveredOrders: 1,
+            returnedOrders: 1,
+            confirmedOrders: 1,
+            totalRevenue: 1,
+            averageOrderValue: {
+              $cond: [
+                { $eq: ['$deliveredOrders', 0] },
+                0,
+                { $divide: ['$totalRevenue', '$deliveredOrders'] }
+              ]
+            },
+            conversionRate: {
+              $cond: [
+                { $eq: ['$totalOrders', 0] },
+                0,
+                { $multiply: [{ $divide: ['$confirmedOrders', '$totalOrders'] }, 100] }
+              ]
+            },
+            returnRate: {
+              $cond: [
+                { $eq: ['$deliveredOrders', 0] },
+                0,
+                { $multiply: [{ $divide: ['$returnedOrders', '$deliveredOrders'] }, 100] }
+              ]
+            },
+            activeClients: {
+              $size: {
+                $filter: {
+                  input: '$uniqueClientsSet',
+                  as: 'phone',
+                  cond: { $and: [{ $ne: ['$$phone', null] }, { $ne: ['$$phone', ''] }] }
+                }
+              }
+            }
+          }
         }
-        productSales[productName].sales++;
-        productSales[productName].quantity += order.quantity || 1;
-        productSales[productName].revenue += (order.price || 0) * (order.quantity || 1);
-      });
+      ]);
 
-      const topProducts = Object.values(productSales)
-        .sort((a, b) => b.sales - a.sales)
-        .slice(0, 5)
-        .map(p => ({
-          name: p.name,
-          sales: p.sales,
-          quantity: p.quantity,
-          revenue: Math.round(p.revenue)
-        }));
+      const currentMatch = {
+        workspaceId: workspaceObjectId,
+        createdAt: { $gte: daysAgo }
+      };
+
+      const prevMatch = {
+        workspaceId: workspaceObjectId,
+        createdAt: { $gte: prevDaysAgo, $lt: daysAgo }
+      };
+
+      const [currentAgg, prevAgg, topProductsAgg] = await Promise.all([
+        Order.aggregate(buildSummaryPipeline(currentMatch)),
+        Order.aggregate(buildSummaryPipeline(prevMatch)),
+        Order.aggregate([
+          {
+            $match: {
+              ...currentMatch,
+              status: 'delivered'
+            }
+          },
+          {
+            $group: {
+              _id: {
+                $cond: [
+                  { $gt: [{ $strLenCP: { $ifNull: ['$product', ''] } }, 0] },
+                  '$product',
+                  'Inconnu'
+                ]
+              },
+              sales: { $sum: 1 },
+              quantity: { $sum: { $ifNull: ['$quantity', 1] } },
+              revenue: {
+                $sum: {
+                  $multiply: [{ $ifNull: ['$price', 0] }, { $ifNull: ['$quantity', 1] }]
+                }
+              }
+            }
+          },
+          { $sort: { sales: -1 } },
+          { $limit: 5 },
+          {
+            $project: {
+              _id: 0,
+              name: '$_id',
+              sales: 1,
+              quantity: 1,
+              revenue: { $round: ['$revenue', 0] }
+            }
+          }
+        ])
+      ]);
+
+      const current = currentAgg[0] || {
+        totalOrders: 0,
+        deliveredOrders: 0,
+        returnedOrders: 0,
+        confirmedOrders: 0,
+        totalRevenue: 0,
+        averageOrderValue: 0,
+        conversionRate: 0,
+        returnRate: 0,
+        activeClients: 0
+      };
+
+      const prev = prevAgg[0] || {
+        totalOrders: 0,
+        deliveredOrders: 0,
+        returnedOrders: 0,
+        confirmedOrders: 0,
+        totalRevenue: 0,
+        averageOrderValue: 0,
+        conversionRate: 0,
+        returnRate: 0,
+        activeClients: 0
+      };
+
+      const conversionTrend = current.conversionRate - prev.conversionRate;
+      const avgOrderTrend = prev.averageOrderValue > 0
+        ? ((current.averageOrderValue - prev.averageOrderValue) / prev.averageOrderValue) * 100
+        : 0;
+      const activeClientsTrend = current.activeClients - prev.activeClients;
+      const returnRateTrend = current.returnRate - prev.returnRate;
+      const topProducts = topProductsAgg || [];
 
       res.json({
         success: true,
         data: {
-          conversionRate: conversionRate.toFixed(1),
+          conversionRate: Number(current.conversionRate || 0).toFixed(1),
           conversionTrend: conversionTrend.toFixed(1),
-          averageOrderValue: Math.round(averageOrderValue),
+          averageOrderValue: Math.round(current.averageOrderValue || 0),
           avgOrderTrend: avgOrderTrend.toFixed(1),
-          activeClients,
+          activeClients: current.activeClients || 0,
           activeClientsTrend,
-          returnRate: returnRate.toFixed(1),
+          returnRate: Number(current.returnRate || 0).toFixed(1),
           returnRateTrend: returnRateTrend.toFixed(1),
           topProducts
         }

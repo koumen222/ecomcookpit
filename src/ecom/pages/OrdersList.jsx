@@ -149,6 +149,11 @@ const OrdersList = () => {
   const [commissionPeriod, setCommissionPeriod] = useState('month');
   const [loadingCommissions, setLoadingCommissions] = useState(false);
 
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [debouncedCity, setDebouncedCity] = useState('');
+  const [debouncedProduct, setDebouncedProduct] = useState('');
+  const [debouncedTag, setDebouncedTag] = useState('');
+
   // Fonction pour générer les champs à afficher selon les colonnes détectées
   const getDisplayFields = (sourceId) => {
     const config = sourcesConfig[sourceId];
@@ -241,18 +246,18 @@ const OrdersList = () => {
     if (!silent) setRefreshing(true);
 
     const params = {};
-    if (search) params.search = search;
+    if (debouncedSearch) params.search = debouncedSearch;
     if (filterStatus) params.status = filterStatus;
-    if (filterCity) params.city = filterCity;
-    if (filterProduct) params.product = filterProduct;
-    if (filterTag) params.tag = filterTag;
+    if (debouncedCity) params.city = debouncedCity;
+    if (debouncedProduct) params.product = debouncedProduct;
+    if (debouncedTag) params.tag = debouncedTag;
     if (filterStartDate) params.startDate = filterStartDate;
     if (filterEndDate) params.endDate = filterEndDate;
     if (selectedSourceId) params.sourceId = selectedSourceId;
     if (isSuperAdmin && viewAllWorkspaces) params.allWorkspaces = 'true';
 
     // ❌ CACHE DÉSACTIVÉ - Phase 1 : quick endpoint uniquement
-    const hasFilters = search || filterStatus || filterCity || filterProduct || filterTag || filterStartDate || filterEndDate;
+    const hasFilters = debouncedSearch || filterStatus || debouncedCity || debouncedProduct || debouncedTag || filterStartDate || filterEndDate;
     if (!hasFilters && page === 1 && !silent) {
       try {
         const quickParams = {};
@@ -569,7 +574,17 @@ const OrdersList = () => {
 
   useEffect(() => { if (isCloseuse && !loading) fetchCommissions(commissionPeriod); }, [commissionPeriod]);
 
-  useEffect(() => { if (!loading) fetchOrders(false); }, [search, filterStatus, filterCity, filterProduct, filterTag, filterStartDate, filterEndDate, selectedSourceId, page, viewAllWorkspaces, itemsPerPage]);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setDebouncedCity(filterCity.trim());
+      setDebouncedProduct(filterProduct.trim());
+      setDebouncedTag(filterTag.trim());
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search, filterCity, filterProduct, filterTag]);
+
+  useEffect(() => { if (!loading) fetchOrders(false); }, [debouncedSearch, filterStatus, debouncedCity, debouncedProduct, debouncedTag, filterStartDate, filterEndDate, selectedSourceId, page, viewAllWorkspaces, itemsPerPage]);
   useEffect(() => { if (success) { const t = setTimeout(() => setSuccess(''), 10000); return () => clearTimeout(t); } }, [success]);
   useEffect(() => { if (error) { const t = setTimeout(() => setError(''), 5000); return () => clearTimeout(t); } }, [error]);
 

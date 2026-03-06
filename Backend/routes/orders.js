@@ -19,9 +19,22 @@ const syncProgressEmitter = new EventEmitter();
 
 const AUTO_CANCEL_HOURS = 73;
 const AUTO_CANCEL_MS = AUTO_CANCEL_HOURS * 60 * 60 * 1000;
+const AUTO_CANCEL_COOLDOWN_MS = 5 * 60 * 1000;
+const lastAutoCancelRunByWorkspace = new Map();
 
 const autoCancelExpiredPendingOrders = async (workspaceId = null, options = {}) => {
-  const { log = false, trigger = 'auto' } = options;
+  const { log = false, trigger = 'auto', force = false } = options;
+  const workspaceKey = workspaceId ? String(workspaceId) : 'all';
+
+  if (!force) {
+    const lastRunAt = lastAutoCancelRunByWorkspace.get(workspaceKey) || 0;
+    if (Date.now() - lastRunAt < AUTO_CANCEL_COOLDOWN_MS) {
+      return 0;
+    }
+  }
+
+  lastAutoCancelRunByWorkspace.set(workspaceKey, Date.now());
+
   const cutoff = new Date(Date.now() - AUTO_CANCEL_MS);
   const filter = {
     status: 'pending',
@@ -576,6 +589,8 @@ router.get('/my-commissions', requireEcomAuth, async (req, res) => {
 router.get('/', requireEcomAuth, async (req, res) => {
   try {
     const { status, search, startDate, endDate, city, product, tag, sourceId, page = 1, limit = 50, allWorkspaces, period } = req.query;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
     
     // Si super_admin et allWorkspaces=true, ne pas filtrer par workspaceId
     const isSuperAdmin = req.ecomUser.role === 'super_admin';
@@ -728,8 +743,8 @@ router.get('/', requireEcomAuth, async (req, res) => {
     const orders = await Order.find(filter)
       .select('orderId clientName clientPhone city address product quantity price status date createdAt updatedAt notes tags source sheetRowId assignedLivreur rawData')
       .sort({ date: -1, _id: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
+      .limit(limitNum)
+      .skip((pageNum - 1) * limitNum)
       .lean();
 
 
@@ -786,7 +801,7 @@ router.get('/', requireEcomAuth, async (req, res) => {
       data: {
         orders,
         stats,
-        pagination: { page: parseInt(page), limit: parseInt(limit), total, pages: Math.ceil(total / limit) }
+        pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) }
       }
     });
   } catch (error) {
@@ -2770,7 +2785,8 @@ router.post('/cancel-pending-expired', requireEcomAuth, validateEcomAccess('prod
 
     const cancelledCount = await autoCancelExpiredPendingOrders(req.workspaceId, {
       log: true,
-      trigger: 'manual-button'
+      trigger: 'manual-button',
+      force: true
     });
 
     console.info(`✅ [Orders] Manual cancel-pending-expired done (workspace=${req.workspaceId}, cancelled=${cancelledCount})`);
