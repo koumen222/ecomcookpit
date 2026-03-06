@@ -3,10 +3,20 @@ import axios from 'axios';
 const API_BASE = process.env.WHATSAPP_API_URL || 'https://api.ecomcookpit.site';
 
 function resolveInstanceToken(config = {}) {
-  const token = config.instanceToken || config.apiKey;
-  if (!token || typeof token !== 'string' || !token.trim()) {
+  const token =
+    config.instanceToken ||
+    config.apiKey ||
+    process.env.EVOLUTION_GLOBAL_API_KEY ||
+    process.env.WHATSAPP_API_KEY;
+
+  if (!token || typeof token !== 'string') {
     throw new Error('MISSING_CREDENTIALS');
   }
+
+  if (/^Bearer\s+/i.test(token)) {
+    throw new Error('INVALID_TOKEN_FORMAT');
+  }
+
   return token.trim();
 }
 
@@ -36,10 +46,20 @@ function mapExternalError(error) {
 
 async function callExternalApi({ endpoint, payload, instanceToken, method = 'POST' }) {
   try {
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+
+    // 🚫 Service 3: Pas de token nécessaire pour les envois
+    // On garde le token seulement pour les tests de connexion si nécessaire
+    if (instanceToken && instanceToken.trim() && endpoint.includes('connectionState')) {
+      headers['apikey'] = instanceToken;
+    }
+
     const response = await axios({
       method,
       url: `${API_BASE}${endpoint}`,
-      headers: buildAuthHeaders(instanceToken),
+      headers,
       data: payload
     });
 
@@ -113,5 +133,43 @@ export async function sendInstanceMessage(config, number, text) {
     throw new Error('INVALID_REQUEST');
   }
 
-  return executeInstanceAction(config, 'send_message', { number, text });
+  const instanceId = resolveInstanceId(config);
+  const instanceSecret = resolveInstanceToken(config);
+
+  console.log("=== SERVICE 3 - ENVOI MESSAGE ===");
+  console.log("Nom de l'instance:", instanceId);
+  console.log("Numéro de téléphone:", number);
+  console.log("Message:", text);
+  console.log("API URL:", process.env.EVOLUTION_API_URL || process.env.WHATSAPP_API_URL || 'https://api.ecomcookpit.site');
+  console.log("Utilise le secret de l'instance:", instanceSecret ? '***' + instanceSecret.slice(-4) : 'MANQUANT');
+
+  const response = await fetch(
+    `${process.env.EVOLUTION_API_URL || process.env.WHATSAPP_API_URL || 'https://api.ecomcookpit.site'}/message/sendText/${instanceId}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": instanceSecret
+      },
+      body: JSON.stringify({
+        number,
+        text
+      })
+    }
+  );
+
+  if (!response.ok) {
+    console.error("❌ Erreur HTTP:", response.status, response.statusText);
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  console.log("Réponse Evolution API:", JSON.stringify(data, null, 2));
+  console.log("✅ MESSAGE ENVOYÉ AVEC SUCCÈS");
+
+  return {
+    success: true,
+    statusCode: response.status,
+    data: data
+  };
 }

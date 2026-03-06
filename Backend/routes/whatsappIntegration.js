@@ -1,6 +1,7 @@
 import express from 'express';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import Workspace from '../models/Workspace.js';
+import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import { verifyWhatsAppConfig, sendWhatsAppMessageV2 } from '../services/whatsappIntegration.js';
 
 const router = express.Router();
@@ -10,31 +11,47 @@ router.post('/connect', requireEcomAuth, validateEcomAccess('products', 'write')
   console.log("\n========== CONNECT WHATSAPP ==========");
 
   try {
-    const { instanceName, instanceId, apiKey } = req.body;
+    const { instanceName, instanceId, instanceToken, apiKey } = req.body;
+    let token = instanceToken || apiKey;
 
     console.log("Workspace:", req.workspaceId);
     console.log("Instance Name:", instanceName);
     console.log("Instance ID:", instanceId);
 
-    if (!instanceId || !apiKey) {
+    if (!instanceId) {
       return res.status(400).json({
         success: false,
-        error: 'instanceId et apiKey sont requis'
+        error: 'instanceId est requis'
       });
     }
 
-    // ✅ Test réel de connexion
-    await verifyWhatsAppConfig({ instanceId, apiKey });
+    if (!token) {
+      const storedInstance = await WhatsAppInstance.findOne({
+        workspaceId: req.workspaceId,
+        instanceId
+      }).select('apiKey').lean();
 
-    // ✅ Sauvegarde sur le workspace
+      token = storedInstance?.apiKey || '';
+    }
+
+    // 2) Appeler API externe /instance/status (via service)
+    await verifyWhatsAppConfig({ instanceId, apiKey: token });
+
+    // 3) Si OK: enregistrer l'instance
     await Workspace.updateOne(
       { _id: req.workspaceId },
       {
         $set: {
           whatsapp: {
             instanceName: instanceName || instanceId,
+            workspaceId: String(req.workspaceId),
+            externalInstanceId: instanceId,
+            externalToken: token || '',
+            provider: 'evolution_api',
+            status: 'connected',
+            // Legacy compatibility
             instanceId,
-            apiKey,
+            apiKey: token || '',
             connected: true,
             verifiedAt: new Date()
           }
@@ -51,9 +68,10 @@ router.post('/connect', requireEcomAuth, validateEcomAccess('products', 'write')
     console.log("💥 ERROR:", err.message);
 
     let userMessage = 'Erreur de connexion WhatsApp';
-    if (err.message === 'INVALID_TOKEN') userMessage = 'Clé API invalide ou expirée';
+    if (err.message === 'INVALID_TOKEN') userMessage = 'Clé API serveur invalide ou expirée';
+    if (err.message === 'INVALID_TOKEN_FORMAT') userMessage = 'Le token configuré côté serveur est invalide.';
     if (err.message === 'INSTANCE_NOT_FOUND') userMessage = 'Instance non trouvée — vérifiez l\'Instance ID';
-    if (err.message === 'MISSING_CREDENTIALS') userMessage = 'Instance ID et clé API requis';
+    if (err.message === 'MISSING_CREDENTIALS') userMessage = 'Configuration serveur incomplète (clé API manquante).';
 
     res.status(400).json({
       success: false,
@@ -67,8 +85,11 @@ router.post('/connect', requireEcomAuth, validateEcomAccess('products', 'write')
 router.get('/status', requireEcomAuth, async (req, res) => {
   try {
     const workspace = await Workspace.findById(req.workspaceId).select('whatsapp').lean();
+    const wa = workspace?.whatsapp;
+    const resolvedInstanceId = wa?.externalInstanceId || wa?.instanceId;
+    const resolvedConnected = wa?.status === 'connected' || !!wa?.connected;
 
-    if (!workspace || !workspace.whatsapp?.instanceId) {
+    if (!workspace || !resolvedInstanceId) {
       return res.json({
         success: true,
         connected: false,
@@ -78,14 +99,16 @@ router.get('/status', requireEcomAuth, async (req, res) => {
 
     res.json({
       success: true,
-      connected: workspace.whatsapp.connected || false,
+      connected: resolvedConnected,
       whatsapp: {
-        instanceName: workspace.whatsapp.instanceName,
-        instanceId: workspace.whatsapp.instanceId,
-        connected: workspace.whatsapp.connected,
-        verifiedAt: workspace.whatsapp.verifiedAt,
-        // Never expose apiKey to frontend
-        hasApiKey: !!workspace.whatsapp.apiKey
+        instanceName: wa.instanceName,
+        instanceId: resolvedInstanceId,
+        externalInstanceId: wa.externalInstanceId || '',
+        provider: wa.provider || 'evolution_api',
+        status: wa.status || (resolvedConnected ? 'connected' : 'disconnected'),
+        connected: resolvedConnected,
+        verifiedAt: wa.verifiedAt,
+        hasInstanceToken: !!(wa.externalToken || wa.apiKey)
       }
     });
 
@@ -104,6 +127,12 @@ router.post('/disconnect', requireEcomAuth, validateEcomAccess('products', 'writ
         $set: {
           whatsapp: {
             instanceName: '',
+            workspaceId: '',
+            externalInstanceId: '',
+            externalToken: '',
+            provider: 'evolution_api',
+            status: 'disconnected',
+            // Legacy compatibility
             instanceId: '',
             apiKey: '',
             connected: false,
@@ -130,13 +159,25 @@ router.post('/test', requireEcomAuth, validateEcomAccess('products', 'write'), a
     }
 
     const workspace = await Workspace.findById(req.workspaceId).select('whatsapp').lean();
+    const wa = workspace?.whatsapp;
+    const resolvedInstanceId = wa?.externalInstanceId || wa?.instanceId;
+    let resolvedToken = wa?.externalToken || wa?.apiKey;
 
-    if (!workspace?.whatsapp?.instanceId || !workspace?.whatsapp?.apiKey) {
+    if (!resolvedInstanceId) {
       return res.status(400).json({ success: false, message: 'WhatsApp non configuré' });
     }
 
+    if (!resolvedToken) {
+      const storedInstance = await WhatsAppInstance.findOne({
+        workspaceId: req.workspaceId,
+        instanceId: resolvedInstanceId
+      }).select('apiKey').lean();
+
+      resolvedToken = storedInstance?.apiKey || '';
+    }
+
     const result = await sendWhatsAppMessageV2(
-      { instanceId: workspace.whatsapp.instanceId, apiKey: workspace.whatsapp.apiKey },
+      { instanceId: resolvedInstanceId, apiKey: resolvedToken },
       phone,
       message
     );

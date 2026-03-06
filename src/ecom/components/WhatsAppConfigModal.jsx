@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  X, Smartphone, Key, Globe, CheckCircle, AlertCircle, Loader2,
+  X, Smartphone, Globe, CheckCircle, AlertCircle, Loader2,
   MessageCircle, Send, QrCode, RefreshCw, ExternalLink, Copy,
-  Shield, Clock, BarChart3
+  Shield, Clock, BarChart3, Key
 } from 'lucide-react';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
@@ -13,8 +13,7 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
   const [step, setStep] = useState('config'); // 'config' | 'test' | 'success'
   const [config, setConfig] = useState({
     instanceName: '',
-    instanceId: '',
-    instanceToken: ''
+    instanceSecret: ''
   });
   const [currentConfig, setCurrentConfig] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -53,9 +52,9 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
     }
   };
 
-  const handleSaveConfig = async () => {
-    if (!config.instanceId || !config.instanceToken) {
-      setError('Instance ID et token d\'instance obligatoires');
+  const handleRegisterInstance = async () => {
+    if (!config.instanceName || !config.instanceSecret) {
+      setError('Nom d\'instance et secret obligatoires');
       return;
     }
     
@@ -63,54 +62,53 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
     setError('');
     setSuccess('');
     
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-      setError('Timeout : la requête a pris trop de temps');
-      setLoading(false);
-    }, 30000);
-    
     try {
-      const response = await fetch(`${BACKEND_URL}/api/ecom/integrations/whatsapp/connect`, {
+      const response = await fetch(`${BACKEND_URL}/api/ecom/integrations/whatsapp/register-instance`, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({
           instanceName: config.instanceName,
-          instanceId: config.instanceId,
-          // Compat backend actuel
-          apiKey: config.instanceToken,
-          // Nouveau nom explicite côté connecteur
-          instanceToken: config.instanceToken
-        }),
-        signal: controller.signal
+          instanceSecret: config.instanceSecret
+        })
       });
       
-      clearTimeout(timeoutId);
       const data = await response.json();
       
-      if (response.ok && data.success) {
-        setSuccess('WhatsApp connecté avec succès !');
-        setConfig({ instanceName: '', instanceId: '', instanceToken: '' });
-        await loadCurrentConfig();
+      if (data.success) {
+        setSuccess(data.message);
+        setConfig({ instanceName: '', instanceSecret: '' });
         
         setTimeout(() => {
           if (onConfigSaved) onConfigSaved();
           if (onClose) onClose();
         }, 2000);
       } else {
-        setError(data.message || `Erreur HTTP ${response.status}`);
+        setError(data.error || 'Erreur lors de l\'enregistrement');
       }
     } catch (err) {
-      clearTimeout(timeoutId);
-      if (err.name === 'AbortError') {
-        setError('Requête annulée (timeout)');
-      } else if (err.message.includes('Failed to fetch')) {
-        setError('Erreur de connexion réseau.');
-      } else {
-        setError(err.message || 'Erreur de connexion au serveur');
-      }
+      setError('Erreur réseau lors de l\'enregistrement');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveConfig = async () => {
+    // Sauvegarder la configuration dans le workspace (sans secret pour sécurité)
+    try {
+      await fetch(`${BACKEND_URL}/api/ecom/integrations/whatsapp/connect`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          instanceName: config.instanceName,
+          instanceId: config.instanceName, // Pour compatibilité avec le schéma existant
+          apiKey: '' // On ne stocke plus le secret côté frontend
+        })
+      });
+      
+      if (onConfigSaved) onConfigSaved();
+      if (onClose) onClose();
+    } catch (err) {
+      console.error('Erreur sauvegarde config:', err);
     }
   };
 
@@ -120,15 +118,22 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
       return;
     }
     
+    if (!config.instanceName || !config.instanceSecret) {
+      setError('Configuration WhatsApp requise');
+      return;
+    }
+    
     setLoading(true);
     setError('');
     
     try {
-      const response = await fetch(`${BACKEND_URL}/api/ecom/integrations/whatsapp/test`, {
+      const response = await fetch(`${BACKEND_URL}/api/ecom/integrations/whatsapp/send-message`, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({
-          phone: testPhone,
+          instanceName: config.instanceName,
+          instanceSecret: config.instanceSecret,
+          phoneNumber: testPhone,
           message: testMessage
         })
       });
@@ -139,7 +144,7 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
         setSuccess('Message test envoyé avec succès !');
         setStep('success');
       } else {
-        setError(data.message || 'Erreur lors de l\'envoi');
+        setError(data.error || 'Erreur lors de l\'envoi');
       }
     } catch (err) {
       setError('Erreur lors de l\'envoi du message test');
@@ -184,8 +189,8 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
               <MessageCircle className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="font-bold text-gray-900">ZeChat WhatsApp</h2>
-              <p className="text-xs text-gray-500">Configuration rapide</p>
+              <h2 className="font-bold text-gray-900">Connexion d'une instance WhatsApp</h2>
+              <p className="text-xs text-gray-500">Connectez une instance WhatsApp créée sur Evolution API</p>
             </div>
           </div>
           <button
@@ -220,6 +225,12 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
 
               {/* Formulaire de configuration */}
               <div className="space-y-3">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-xs text-blue-800">
+                    Connectez votre instance WhatsApp avec son nom et son Instance ID.
+                  </p>
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
                     <MessageCircle className="w-3 h-3 inline mr-1" />
@@ -229,40 +240,27 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
                     type="text"
                     value={config.instanceName}
                     onChange={(e) => setConfig(prev => ({ ...prev, instanceName: e.target.value }))}
-                    placeholder="Support, Marketing, etc."
+                    placeholder="ALDI, Support, Marketing..."
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-transparent"
                   />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">
-                    <Shield className="w-3 h-3 inline mr-1" />
-                    Instance ID
-                  </label>
-                  <input
-                    type="text"
-                    value={config.instanceId}
-                    onChange={(e) => setConfig(prev => ({ ...prev, instanceId: e.target.value }))}
-                    placeholder="sssss"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-transparent"
-                  />
-                  <p className="text-[10px] text-gray-500 mt-1">Visible dans votre dashboard Evolution API</p>
+                  <p className="text-[10px] text-gray-500 mt-1">Nom de votre instance Evolution API</p>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
                     <Key className="w-3 h-3 inline mr-1" />
-                    Token d'instance
+                    Secret de l'instance
                   </label>
                   <input
                     type="password"
-                    value={config.instanceToken}
-                    onChange={(e) => setConfig(prev => ({ ...prev, instanceToken: e.target.value }))}
-                    placeholder="token brut (sans Bearer)"
+                    value={config.instanceSecret}
+                    onChange={(e) => setConfig(prev => ({ ...prev, instanceSecret: e.target.value }))}
+                    placeholder="Clé API secrète de l'instance"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-transparent"
                   />
-                  <p className="text-[10px] text-gray-500 mt-1">Collez le token tel quel, sans ajouter "Bearer".</p>
+                  <p className="text-[10px] text-gray-500 mt-1">Secret unique de votre instance (non stocké)</p>
                 </div>
+
               </div>
 
               {/* Guide compact ZeChat */}
@@ -272,9 +270,10 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
                 </h4>
                 <div className="text-xs text-blue-700 space-y-1">
                   <p>1. Créez un compte sur <a href="https://api.ecomcookpit.site" target="_blank" rel="noopener noreferrer" className="underline font-semibold">api.ecomcookpit.site</a></p>
-                  <p>2. Créez une instance et notez son <strong>nom</strong> (ex: 31370)</p>
-                  <p>3. Copiez votre <strong>token d'instance</strong> depuis le dashboard</p>
-                  <p>4. Collez les informations ci-dessus → Prêt !</p>
+                  <p>2. Créez une instance</p>
+                  <p>3. Récupérez le <strong>Nom de l'instance</strong></p>
+                  <p>4. Copiez le <strong>Secret de l'instance</strong></p>
+                  <p>5. Enregistrez ici pour l'utiliser dans les campagnes</p>
                 </div>
               </div>
 
@@ -294,7 +293,7 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
 
               <div className="flex gap-2">
                 <button
-                  onClick={handleSaveConfig}
+                  onClick={handleRegisterInstance}
                   disabled={loading}
                   className="flex-1 flex items-center justify-center gap-2 py-2 px-4 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm"
                 >
@@ -303,7 +302,7 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
                   ) : (
                     <CheckCircle className="w-3 h-3" />
                   )}
-                  Connecter WhatsApp
+                  Enregistrer l'instance
                 </button>
                 {currentConfig && (
                   <button

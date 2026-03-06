@@ -252,6 +252,10 @@ const startServer = async () => {
       ['./routes/whatsappConfig.js',          '/api/ecom/whatsapp-config'],
       ['./routes/whatsappInstances.js',       '/api/ecom/whatsapp-instances'],
       ['./routes/whatsappIntegration.js',     '/api/ecom/integrations/whatsapp'],
+      // ─── WhatsApp Service 3 (instanceName + instanceSecret) ───────
+      ['./routes/test-connection.js',         '/api/ecom/integrations/whatsapp'],
+      ['./routes/send-message.js',            '/api/ecom/integrations/whatsapp'],
+      ['./routes/register-instance.js',      '/api/ecom/integrations/whatsapp'],
       // ─── AI Product Page Generator ───────────────────────────────────
       ['./routes/productPageGenerator.js',    '/api/ai/product-generator'],
       // ─── Diagnostics ──────────────────────────────────────────────────────

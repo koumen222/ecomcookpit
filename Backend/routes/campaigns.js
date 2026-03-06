@@ -924,27 +924,65 @@ router.post('/:id/send', requireEcomAuth, validateEcomAccess('products', 'write'
 
     // ✅ Charger la config WhatsApp depuis le workspace
     const Workspace = (await import('../models/Workspace.js')).default;
+    const WhatsAppInstance = (await import('../models/WhatsAppInstance.js')).default;
+    
     const workspace = await Workspace.findById(req.workspaceId).select('whatsapp').lean();
+    const wa = workspace?.whatsapp;
+    const resolvedInstanceId = wa?.externalInstanceId || wa?.instanceId;
+    const resolvedToken = wa?.externalToken || wa?.apiKey;
+    const resolvedConnected = wa?.status === 'connected' || !!wa?.connected;
     
-    if (!workspace?.whatsapp?.instanceId || !workspace?.whatsapp?.apiKey) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'WhatsApp non configuré. Allez dans Paramètres > WhatsApp pour connecter votre instance.' 
+    // 🔄 Priorité: instance WhatsAppInstance > workspace config
+    let instanceToUse = null;
+    
+    if (resolvedInstanceId) {
+      instanceToUse = await WhatsAppInstance.findOne({
+        workspaceId: req.workspaceId,
+        instanceId: resolvedInstanceId,
+        status: 'active'
       });
     }
     
-    if (!workspace.whatsapp.connected) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Instance WhatsApp non connectée. Vérifiez la configuration.' 
+    // Si pas trouvé, chercher une instance active pour ce workspace
+    if (!instanceToUse) {
+      instanceToUse = await WhatsAppInstance.findOne({
+        workspaceId: req.workspaceId,
+        status: 'active'
       });
     }
     
-    const waConfig = workspace.whatsapp;
+    if (instanceToUse) {
+      console.log(`📱 Utilisation instance WhatsAppInstance: ${instanceToUse.name} (${instanceToUse.instanceId})`);
+    } else if (resolvedInstanceId) {
+      console.log(`📱 Utilisation config workspace: ${resolvedInstanceId}`);
+    } else {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'WhatsApp non configuré. Enregistrez une instance WhatsApp dans Paramètres.' 
+      });
+    }
     
-    console.log(`📱 WhatsApp config: ${waConfig.instanceName} (${waConfig.instanceId})`);
+    // 🆕 Service 3: Utiliser l'instanceName + secret exactement comme le code original
+    const finalInstanceId = instanceToUse?.instanceId || resolvedInstanceId;
+    const finalToken = instanceToUse?.apiKey || resolvedToken; // On utilise bien le secret ici
+    console.log('SEND DEBUG campaign:', {
+      id: campaign._id,
+      name: campaign.name,
+      type: campaign.type
+    });
+    console.log(`📱 WhatsApp config: ${instanceToUse?.name || 'workspace'} (${finalInstanceId})`);
+    console.log(`🔑 Token utilisé: ${finalToken ? '***' + finalToken.slice(-4) : 'MANQUANT'}`);
+    console.log(`📊 Instance trouvée:`, instanceToUse ? {
+      name: instanceToUse.name,
+      instanceId: instanceToUse.instanceId,
+      status: instanceToUse.status,
+      hasApiKey: !!instanceToUse.apiKey
+    } : 'NON');
+    console.log(`🌐 API URL: ${process.env.EVOLUTION_API_URL || process.env.WHATSAPP_API_URL || 'https://api.ecomcookpit.site'}`);
+    console.log(`📞 Endpoint complet: ${(process.env.EVOLUTION_API_URL || process.env.WHATSAPP_API_URL || 'https://api.ecomcookpit.site')}/message/sendText/${finalInstanceId}`);
+    console.log(`🚀 Envoi direct Service 3 (sans test préalable)`);
 
-    // 🆕 VALIDATION ANTI-SPAM du message avant envoi massif
+    // VALIDATION ANTI-SPAM du message avant envoi massif
     const analysis = analyzeSpamRisk(campaign.messageTemplate);
     const isValid = validateMessageBeforeSend(campaign.messageTemplate, `campaign-${campaign._id}`);
     
@@ -1339,9 +1377,9 @@ router.post('/:id/send', requireEcomAuth, validateEcomAccess('products', 'write'
           continue;
         }
 
-        // ✅ Envoi via WhatsApp Integration SaaS (workspace.whatsapp)
+        // ✅ Envoi via WhatsApp Integration SaaS (instance ou workspace)
         const result = await sendWhatsAppMessageV2(
-          { instanceId: waConfig.instanceId, apiKey: waConfig.apiKey },
+          { instanceId: finalInstanceId, apiKey: finalToken },
           cleanedPhone,
           message
         );

@@ -6,6 +6,7 @@ import ecomApi from '../services/ecommApi.js';
 // ❌ CACHE DÉSACTIVÉ
 // import { getCache, setCache } from '../utils/cacheUtils.js';
 import WhatsAppConfigModal from '../components/WhatsAppConfigModal.jsx';
+import WhatsAppInstanceSelector from '../components/WhatsAppInstanceSelector.jsx';
 
 const IconFillLoader = ({ backgroundClassName = 'bg-gray-50' }) => {
   const [p, setP] = useState(0);
@@ -74,6 +75,8 @@ const CampaignsList = () => {
   // États config WhatsApp
   const [waConfig, setWaConfig] = useState(null);
   const [showWhatsAppConfig, setShowWhatsAppConfig] = useState(false);
+  const [selectedInstance, setSelectedInstance] = useState(null);
+  const [showInstanceSelector, setShowInstanceSelector] = useState(false);
 
   // 🆕 États pour l'aperçu à une personne
   const [showPreview, setShowPreview] = useState(null);
@@ -117,6 +120,12 @@ const CampaignsList = () => {
     loadWhatsAppConfig();
   }, []);
 
+  // Gérer la sélection d'instance WhatsApp
+  const handleInstanceSelected = (instance) => {
+    setSelectedInstance(instance);
+    setSuccess(`Instance ${instance.name} sélectionnée`);
+  };
+
   // Gérer la configuration WhatsApp sauvegardée
   const handleWhatsAppConfigSaved = () => {
     setShowWhatsAppConfig(false);
@@ -149,18 +158,24 @@ const CampaignsList = () => {
           setShowPreview(null);
           setSelectedClient(null);
         } else {
-          setError(response.data.message);
+          setError(response.data.message || 'Erreur lors de l\'envoi');
         }
-      } catch (err) { 
-        setError(err.response?.data?.message || 'Erreur envoi'); 
-      } finally { 
+      } catch (err) {
+        setError('Erreur lors de l\'envoi du message');
+      } finally {
         setSending(null); 
       }
     } else {
-      // ✅ Vérifier que WhatsApp est configuré sur le workspace
-      if (!waConfig?.isConfigured) {
-        setError('WhatsApp non configuré. Connectez votre instance d\'abord.');
-        setShowWhatsAppConfig(true);
+      // 🔄 Vérifier si une instance est sélectionnée, sinon afficher le sélecteur
+      if (!selectedInstance) {
+        // Afficher le sélecteur d'instance au lieu de l'erreur
+        setShowInstanceSelector(true);
+        setError('Veuillez sélectionner une instance WhatsApp');
+        // Scroll vers le sélecteur
+        const selectorElement = document.querySelector('[data-instance-selector]');
+        if (selectorElement) {
+          selectorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
         return;
       }
 
@@ -282,8 +297,16 @@ const CampaignsList = () => {
         </div>
       )}
 
-      {/* Bannière Configuration WhatsApp */}
-      {waConfig && !waConfig.isConfigured && (
+      {/* Sélecteur d'instance WhatsApp (toujours visible) */}
+      <div className="mb-6">
+        <WhatsAppInstanceSelector 
+          onInstanceSelected={handleInstanceSelected}
+          selectedInstanceId={selectedInstance?._id}
+        />
+      </div>
+
+      {/* Bannière Configuration WhatsApp (fallback si aucune instance) */}
+      {waConfig && !waConfig.isConfigured && !selectedInstance && (
         <div className="mb-6 bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 rounded-2xl shadow-xl p-6 text-white relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
           <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-12 -mb-12"></div>
