@@ -14,7 +14,7 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
   const [config, setConfig] = useState({
     instanceName: '',
     instanceId: '',
-    apiKey: ''
+    instanceToken: ''
   });
   const [currentConfig, setCurrentConfig] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -54,8 +54,8 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
   };
 
   const handleSaveConfig = async () => {
-    if (!config.instanceId || !config.apiKey) {
-      setError('Instance ID et clé API obligatoires');
+    if (!config.instanceId || !config.instanceToken) {
+      setError('Instance ID et token d\'instance obligatoires');
       return;
     }
     
@@ -74,7 +74,14 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
       const response = await fetch(`${BACKEND_URL}/api/ecom/integrations/whatsapp/connect`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(config),
+        body: JSON.stringify({
+          instanceName: config.instanceName,
+          instanceId: config.instanceId,
+          // Compat backend actuel
+          apiKey: config.instanceToken,
+          // Nouveau nom explicite côté connecteur
+          instanceToken: config.instanceToken
+        }),
         signal: controller.signal
       });
       
@@ -83,7 +90,7 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
       
       if (response.ok && data.success) {
         setSuccess('WhatsApp connecté avec succès !');
-        setConfig({ instanceName: '', instanceId: '', apiKey: '' });
+        setConfig({ instanceName: '', instanceId: '', instanceToken: '' });
         await loadCurrentConfig();
         
         setTimeout(() => {
@@ -245,15 +252,16 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">
                     <Key className="w-3 h-3 inline mr-1" />
-                    Clé API (Bearer Token)
+                    Token d'instance
                   </label>
                   <input
                     type="password"
-                    value={config.apiKey}
-                    onChange={(e) => setConfig(prev => ({ ...prev, apiKey: e.target.value }))}
-                    placeholder="ak_live_xxxxx"
+                    value={config.instanceToken}
+                    onChange={(e) => setConfig(prev => ({ ...prev, instanceToken: e.target.value }))}
+                    placeholder="token brut (sans Bearer)"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-transparent"
                   />
+                  <p className="text-[10px] text-gray-500 mt-1">Collez le token tel quel, sans ajouter "Bearer".</p>
                 </div>
               </div>
 
@@ -265,7 +273,7 @@ const WhatsAppConfigModal = ({ onClose, onConfigSaved }) => {
                 <div className="text-xs text-blue-700 space-y-1">
                   <p>1. Créez un compte sur <a href="https://api.ecomcookpit.site" target="_blank" rel="noopener noreferrer" className="underline font-semibold">api.ecomcookpit.site</a></p>
                   <p>2. Créez une instance et notez son <strong>nom</strong> (ex: 31370)</p>
-                  <p>3. Copiez votre <strong>clé API</strong> depuis le dashboard</p>
+                  <p>3. Copiez votre <strong>token d'instance</strong> depuis le dashboard</p>
                   <p>4. Collez les informations ci-dessus → Prêt !</p>
                 </div>
               </div>
