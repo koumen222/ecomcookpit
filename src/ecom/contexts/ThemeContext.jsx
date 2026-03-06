@@ -182,17 +182,6 @@ export function ThemeProvider({ children, subdomain = null }) {
     }),
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin w-8 h-8 border-2 border-gray-300 border-t-[#0F6B4F] rounded-full mx-auto mb-4"></div>
-          <p className="text-sm text-gray-500">Chargement du thème...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <ThemeContext.Provider value={contextValue}>
       {children}

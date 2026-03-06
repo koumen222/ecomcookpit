@@ -16,6 +16,7 @@ const router = express.Router();
 
 // Créer un EventEmitter global pour la progression
 const syncProgressEmitter = new EventEmitter();
+const activeSyncControllers = new Map();
 
 const AUTO_CANCEL_HOURS = 73;
 const AUTO_CANCEL_MS = AUTO_CANCEL_HOURS * 60 * 60 * 1000;
@@ -1068,6 +1069,24 @@ function parseFlexDate(dateVal) {
   return new Date();
 }
 
+function cleanPhoneFromSheet(val) {
+  if (!val) return '';
+  let phone = String(val).trim();
+  if (!phone || phone === 'null' || phone === 'undefined') return '';
+
+  phone = phone.replace(/^'+/, '');
+  phone = phone.replace(/^(tel:|phone:|whatsapp:|wa:)/i, '');
+  phone = phone.replace(/[\u200B-\u200D\uFEFF]/g, '');
+
+  const candidates = phone.match(/\+?\d[\d\s().-]{5,}\d/g) || [];
+  if (candidates.length > 0) {
+    phone = candidates.sort((a, b) => b.length - a.length)[0];
+  }
+
+  phone = phone.replace(/\D/g, '');
+  return phone || '';
+}
+
 // Helper: notifier les livreurs des nouvelles commandes
 async function notifyLivreursOfNewOrder(order, workspaceId) {
   try {
@@ -1284,9 +1303,12 @@ async function sendOrderToCustomNumber(order, workspaceId) {
 router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write'), async (req, res) => {
   const startTime = Date.now();
   const syncId = `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  let syncKey = null;
+  let syncController = null;
+  const isSyncAborted = () => Boolean(syncController?.signal?.aborted || req.signal?.aborted);
   
   // Vérifier si la requête a été annulée
-  if (req.signal?.aborted) {
+  if (isSyncAborted()) {
     console.log(`🚫 [${syncId}] Sync annulée avant le début`);
     return res.status(499).json({ success: false, message: 'Synchronisation annulée' });
   }
@@ -1307,7 +1329,7 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
       const { sourceId } = req.body;
       
       // Vérifier si annulé pendant le traitement
-      if (req.signal?.aborted) {
+      if (isSyncAborted()) {
         console.log(`� [${syncId}] Sync annulée pendant le traitement`);
         return res.status(499).json({ success: false, message: 'Synchronisation annulée' });
       }
@@ -1320,6 +1342,16 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
           message: 'sourceId est requis et doit être une chaîne de caractères valide' 
         });
       }
+
+      syncKey = `${req.workspaceId}_${sourceId}`;
+      const previousSyncController = activeSyncControllers.get(syncKey);
+      if (previousSyncController) {
+        console.log(`🔄 [${syncId}] Sync en cours détectée pour ${sourceId}, arrêt et redémarrage...`);
+        previousSyncController.abort();
+      }
+
+      syncController = new AbortController();
+      activeSyncControllers.set(syncKey, syncController);
     
     console.log(`🔄 [${syncId}] POST /sync-sheets - Workspace:`, req.workspaceId);
     console.log(`🔄 [${syncId}] SourceId validé:`, sourceId);
@@ -1353,14 +1385,14 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
         'syncLocks.key': lockKey 
       });
       
-      if (existingLock && existingLock.syncLocks?.[0]?.expiresAt > new Date()) {
-        const lockAge = Math.floor((Date.now() - existingLock.syncLocks[0].createdAt) / 1000);
-        console.log(`⏸️ [${syncId}] Sync déjà en cours (lock existant depuis ${lockAge}s)`);
-        return res.status(429).json({ 
-          success: false, 
-          message: 'Synchronisation déjà en cours pour cette source. Veuillez patienter.',
-          retryAfter: Math.ceil((existingLock.syncLocks[0].expiresAt - Date.now()) / 1000)
-        });
+      const activeLock = existingLock?.syncLocks?.find(lock => lock.key === lockKey && lock.expiresAt > new Date());
+      if (activeLock) {
+        const lockAge = Math.floor((Date.now() - activeLock.createdAt) / 1000);
+        console.log(`🔓 [${syncId}] Lock actif détecté (${lockAge}s), nettoyage pour redémarrage...`);
+        await WorkspaceSettings.updateOne(
+          { workspaceId: req.workspaceId },
+          { $pull: { syncLocks: { key: lockKey } } }
+        );
       }
     } catch (lockError) {
       // Si le champ syncLocks n'existe pas encore, on continue
@@ -1421,12 +1453,8 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
       // Vérifier si un lock actif existe déjà
       const existingActiveLock = settings.syncLocks.find(lock => lock.key === lockKey);
       if (existingActiveLock) {
-        console.log(`⏸️ [${syncId}] Lock déjà actif, annulation`);
-        return res.status(429).json({
-          success: false,
-          message: 'Synchronisation déjà en cours pour cette source.',
-          retryAfter: Math.ceil((existingActiveLock.expiresAt - Date.now()) / 1000)
-        });
+        console.log(`🔓 [${syncId}] Lock déjà actif en mémoire, suppression pour redémarrage...`);
+        settings.syncLocks = settings.syncLocks.filter(lock => lock.key !== lockKey);
       }
       
       // Ajouter le nouveau lock
@@ -1518,7 +1546,7 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
         console.log(`🌐 [${syncId}] Appel API Google Sheets...`);
         
         // Vérifier si annulé avant l'appel API
-        if (req.signal?.aborted) {
+        if (isSyncAborted()) {
           console.log(`🚫 [${syncId}] Sync annulée avant appel API Google Sheets`);
           return res.status(499).json({ success: false, message: 'Synchronisation annulée' });
         }
@@ -1681,6 +1709,10 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
           });
 
           for (let i = dataStartIndex; i < table.rows.length; i++) {
+            if (isSyncAborted()) {
+              throw new Error('SYNC_RESTARTED');
+            }
+
             const row = table.rows[i];
             if (!row.c || row.c.every(cell => !cell || !cell.v)) continue;
 
@@ -1780,7 +1812,7 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
               orderId,
               date: getDateVal('date'),
               clientName: getVal('clientName'),
-              clientPhone: getVal('clientPhone'),
+              clientPhone: cleanPhoneFromSheet(getVal('clientPhone')),
               city: rawCity || rawAddress,
               address: rawAddress,
               product: getVal('product'),
@@ -1819,7 +1851,7 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
             console.log(`💾 [${syncId}] Bulk write de ${bulkOps.length} opérations...`);
             
             // Vérifier si annulé avant le bulk write
-            if (req.signal?.aborted) {
+            if (isSyncAborted()) {
               console.log(`🚫 [${syncId}] Sync annulée avant bulk write`);
               return res.status(499).json({ success: false, message: 'Synchronisation annulée' });
             }
@@ -1909,7 +1941,7 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
 
       } catch (err) {
         console.error(`❌ [${syncId}] Erreur sync source ${sourceToSync.name}:`, err);
-        syncError = err.message;
+        syncError = err.message === 'SYNC_RESTARTED' ? 'SYNC_RESTARTED' : err.message;
       }
     }
 
@@ -1943,6 +1975,15 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
     const duration = Math.floor((Date.now() - startTime) / 1000);
     
     if (syncError) {
+      if (syncError === 'SYNC_RESTARTED') {
+        return res.status(409).json({
+          success: false,
+          message: 'Synchronisation redémarrée par une nouvelle demande.',
+          duration,
+          sourceId
+        });
+      }
+
       console.log(`❌ [${syncId}] Sync échouée après ${duration}s:`, syncError);
       return res.status(500).json({ 
         success: false, 
@@ -2034,6 +2075,13 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
       success: false, 
       message: 'Erreur critique lors de la synchronisation: ' + error.message 
     });
+  } finally {
+    if (syncKey && syncController) {
+      const activeController = activeSyncControllers.get(syncKey);
+      if (activeController === syncController) {
+        activeSyncControllers.delete(syncKey);
+      }
+    }
   }
 });
 

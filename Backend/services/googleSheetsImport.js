@@ -293,6 +293,16 @@ function cleanPhone(val) {
   
   // Remove common prefixes
   phone = phone.replace(/^(tel:|phone:|whatsapp:|wa:)/i, '');
+
+  // Remove hidden/invisible characters sometimes copied from Sheets/WhatsApp
+  phone = phone.replace(/[\u200B-\u200D\uFEFF]/g, '');
+
+  // Prefer extracting a phone-like chunk when text is mixed with letters
+  // Examples: "Client: +237 6 99 88 77 66" or "tel 699-88-77-66"
+  const candidates = phone.match(/\+?\d[\d\s().-]{5,}\d/g) || [];
+  if (candidates.length > 0) {
+    phone = candidates.sort((a, b) => b.length - a.length)[0];
+  }
   
   // Keep digits only → WhatsApp-ready format (no +, no spaces, no dashes)
   phone = phone.replace(/\D/g, '');
