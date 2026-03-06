@@ -4,7 +4,12 @@
 // Auth: Bearer <instance apiKey>
 // =====================================================
 
+import axios from 'axios';
+
 const API_BASE = 'https://api.ecomcookpit.site';
+
+
+
 
 /**
  * Verify a WhatsApp instance connection
@@ -16,6 +21,24 @@ export async function verifyWhatsAppConfig({ instanceId, apiKey }) {
   console.log("🔎 Instance ID:", instanceId);
   console.log("🔑 API Key present:", apiKey ? "YES" : "NO");
 
+  // ===== DEBUG API KEY =====
+  console.log("========== API KEY DEBUG ==========");
+  
+  if (!apiKey) {
+    console.log("❌ apiKey is NULL or UNDEFINED");
+  } else {
+    console.log("✅ apiKey exists");
+    console.log("Length:", apiKey.length);
+    console.log("Type:", typeof apiKey);
+    console.log("Starts with:", apiKey.substring(0, 12));
+    console.log("Ends with:", apiKey.substring(apiKey.length - 6));
+    console.log("Has spaces:", apiKey.includes(" "));
+    console.log("Raw value:", apiKey); // ⚠️ DEV ONLY
+  }
+  
+  console.log("Authorization Header:", `Bearer ${apiKey}`);
+  console.log("===================================");
+
   if (!instanceId || !apiKey) {
     console.log("❌ Missing credentials");
     throw new Error("MISSING_CREDENTIALS");
@@ -25,43 +48,37 @@ export async function verifyWhatsAppConfig({ instanceId, apiKey }) {
 
   console.log("🌍 Calling:", url);
 
-  const fetchModule = await import('node-fetch');
-  const fetch = fetchModule.default;
+  try {
+    const response = await axios({
+      method: "POST",
+      url,
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      data: { instanceId }
+    });
 
-  // ✅ Use EVOLUTION_GLOBAL_API_KEY for authentication
-  const globalKey = process.env.EVOLUTION_GLOBAL_API_KEY?.trim();
-  if (!globalKey) {
-    console.log("❌ EVOLUTION_GLOBAL_API_KEY missing in .env");
-    throw new Error("MISSING_GLOBAL_API_KEY");
-  }
+    console.log("Sent headers:", response.config.headers);
+    console.log("📡 Status:", response.status);
+    console.log("✅ Instance verified");
+    console.log("========================================================\n");
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${globalKey}`
-    },
-    body: JSON.stringify({ instanceId })
-  });
+    return response.data;
+  } catch (err) {
+    const status = err?.response?.status;
+    const raw = err?.response?.data;
 
-  const raw = await res.text();
-
-  console.log("📡 Status:", res.status);
-  console.log("📡 Raw response:", raw);
-
-  if (!res.ok) {
+    console.log("Sent headers:", err?.config?.headers);
+    console.log("📡 Status:", status);
+    console.log("📡 Raw response:", typeof raw === 'string' ? raw : JSON.stringify(raw));
     console.log("❌ Verification failed");
-    if (res.status === 401) throw new Error("INVALID_TOKEN");
-    if (res.status === 404) throw new Error("INSTANCE_NOT_FOUND");
+
+    if (status === 401) throw new Error("INVALID_TOKEN");
+    if (status === 404) throw new Error("INSTANCE_NOT_FOUND");
     throw new Error("INSTANCE_VERIFICATION_FAILED");
   }
 
-  const data = JSON.parse(raw);
-
-  console.log("✅ Instance verified");
-  console.log("========================================================\n");
-
-  return data;
 }
 
 /**
@@ -124,7 +141,7 @@ export async function sendWhatsAppMessageV2({ instanceId, apiKey }, number, text
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${globalKey}`
+      "x-api-key": globalKey
     },
     body: JSON.stringify(payload)
   });

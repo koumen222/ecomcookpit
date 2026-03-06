@@ -2,7 +2,6 @@
 import { Link } from 'react-router-dom';
 import ecomApi from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
-import { getCache, setCache } from '../utils/cacheUtils.js';
 
 const PerfSkeleton = () => (
   <div className="p-4 sm:p-6">
@@ -83,13 +82,9 @@ const TeamPerformance = () => {
   }, [period]);
 
   const fetchPerformance = async () => {
-    const key = `team:${period}`;
-    const cached = getCache(key);
-    if (cached) { setData(cached); setLoading(false); return; }
     setLoading(true); setError('');
     try {
       const res = await ecomApi.get(`/users/team/performance?period=${period}`);
-      setCache(key, res.data.data);
       setData(res.data.data);
     } catch (err) {
       setError(getContextualError(err, 'load_stats'));

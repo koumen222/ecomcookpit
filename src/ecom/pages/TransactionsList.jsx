@@ -6,7 +6,8 @@ import ecomApi from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
-import { getCache, setCache, invalidatePrefix } from '../utils/cacheUtils.js';
+// ❌ CACHE DÉSACTIVÉ
+// import { getCache, setCache, invalidatePrefix } from '../utils/cacheUtils.js';
 
 const TransactionSkeleton = () => (
   <div className="space-y-3 py-2">
@@ -217,17 +218,7 @@ const TransactionsList = () => {
 
   const loadTab = useCallback(async () => {
     const { startDate, endDate } = getPeriodDates(period, customDates);
-    const cacheKey = `tx:${tab}:${period}:${startDate}:${endDate}:${filters.type}:${filters.category}:${budgetMonth}`;
-    const cached = getCache(cacheKey);
-    if (cached) {
-      if (tab === 'overview') { setSummary(cached.summary); setBudgets(cached.budgets); setBudgetSummary(cached.budgetSummary); setForecast(cached.forecast); }
-      else if (tab === 'transactions') { setTransactions(cached.transactions); setSummary(cached.summary); }
-      else if (tab === 'budgets') { setBudgets(cached.budgets); setBudgetSummary(cached.budgetSummary); setProducts(cached.products); }
-      else if (tab === 'analyse') { setAccountingSummary(cached.accountingSummary); }
-      else if (tab === 'previsions') { setForecast(cached.forecast); }
-      setLoading(false); setError('');
-      return;
-    }
+    // ❌ CACHE DÉSACTIVÉ - Toujours charger depuis l'API
     setLoading(true); setError('');
     try {
       if (tab === 'overview') {
@@ -237,7 +228,7 @@ const TransactionsList = () => {
           ecomApi.get('/transactions/forecast').catch(()=>({data:{data:{}}}))
         ]);
         const d = { summary: sumRes.data?.data||{}, budgets: budRes.data?.data?.budgets||[], budgetSummary: budRes.data?.data?.summary||{}, forecast: fcRes.data?.data||{} };
-        setCache(cacheKey, d);
+        // ❌ CACHE DÉSACTIVÉ
         setSummary(d.summary); setBudgets(d.budgets); setBudgetSummary(d.budgetSummary); setForecast(d.forecast);
       } else if (tab === 'transactions') {
         const params = { startDate, endDate };
@@ -248,7 +239,7 @@ const TransactionsList = () => {
           ecomApi.get('/transactions/summary', { params:{ startDate, endDate } })
         ]);
         const d = { transactions: txRes.data?.data?.transactions||[], summary: sumRes.data?.data||{} };
-        setCache(cacheKey, d);
+        // ❌ CACHE DÉSACTIVÉ
         setTransactions(d.transactions); setSummary(d.summary);
       } else if (tab === 'budgets') {
         const [res, prodRes] = await Promise.all([
@@ -259,17 +250,17 @@ const TransactionsList = () => {
           : Array.isArray(prodRes.data?.data?.products) ? prodRes.data.data.products
           : Array.isArray(prodRes.data?.products) ? prodRes.data.products : [];
         const d = { budgets: res.data?.data?.budgets||[], budgetSummary: res.data?.data?.summary||{}, products: prodList };
-        setCache(cacheKey, d);
+        // ❌ CACHE DÉSACTIVÉ
         setBudgets(d.budgets); setBudgetSummary(d.budgetSummary); setProducts(d.products);
       } else if (tab === 'analyse') {
         const res = await ecomApi.get('/transactions/accounting-summary', { params:{ startDate, endDate } });
         const d = { accountingSummary: res.data?.data||{} };
-        setCache(cacheKey, d);
+        // ❌ CACHE DÉSACTIVÉ
         setAccountingSummary(d.accountingSummary);
       } else if (tab === 'previsions') {
         const res = await ecomApi.get('/transactions/forecast');
         const d = { forecast: res.data?.data||{} };
-        setCache(cacheKey, d);
+        // ❌ CACHE DÉSACTIVÉ
         setForecast(d.forecast);
       }
     } catch (err) { setError(getContextualError(err, 'load_transactions')); }
@@ -280,7 +271,7 @@ const TransactionsList = () => {
 
   const handleDelete = async (id) => {
     if (!window.confirm('Supprimer cette transaction ?')) return;
-    try { await ecomApi.delete(`/transactions/${id}`); invalidatePrefix('tx:'); loadTab(); } catch (err) { setError(getContextualError(err, 'delete_transaction')); }
+    try { await ecomApi.delete(`/transactions/${id}`); loadTab(); } catch (err) { setError(getContextualError(err, 'delete_transaction')); }
   };
   const handleBudgetSubmit = async (e) => {
     e.preventDefault();
@@ -303,8 +294,6 @@ const TransactionsList = () => {
       if (editingBudget) await ecomApi.put(`/transactions/budgets/${editingBudget._id}`, payload);
       else await ecomApi.post('/transactions/budgets', payload);
       
-      invalidatePrefix('tx:'); // Invalider le cache
-      
       setShowBudgetForm(false); setEditingBudget(null);
       setBudgetForm({ name:'', category:'publicite', amount:'', productId:'', month:'' }); loadTab();
     } catch (err) { 
@@ -318,7 +307,6 @@ const TransactionsList = () => {
       console.log('🗑️ Tentative de suppression du budget:', id);
       const response = await ecomApi.delete(`/transactions/budgets/${id}`);
       console.log('✅ Budget supprimé avec succès:', response);
-      invalidatePrefix('tx:'); // Invalider le cache
       loadTab(); // Recharger la liste des budgets
     } catch (err) {
       console.error('❌ Erreur suppression budget:', err);

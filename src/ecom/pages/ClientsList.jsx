@@ -2,7 +2,8 @@
 import { Link } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
-import { getCache, setCache } from '../utils/cacheUtils.js';
+// ❌ CACHE DÉSACTIVÉ
+// import { getCache, setCache } from '../utils/cacheUtils.js';
 
 const IconFillLoader = ({ backgroundClassName = 'bg-gray-50' }) => {
   const [p, setP] = useState(0);
@@ -89,16 +90,7 @@ const ClientsList = () => {
 
   const fetchClients = async (useCache = true) => {
     try {
-      // Charger depuis le cache si disponible
-      if (useCache && !search && !filterStatus && !filterSource && !filterCity && !filterProduct && !filterTag) {
-        const cached = getCache('clients_list');
-        if (cached) {
-          setClients(cached.clients);
-          setStats(cached.stats);
-          setLoading(false);
-          return;
-        }
-      }
+      // ❌ CACHE DÉSACTIVÉ - Toujours charger depuis l'API
 
       const params = {};
       if (search) params.search = search;
@@ -111,10 +103,7 @@ const ClientsList = () => {
       setClients(res.data.data.clients);
       setStats(res.data.data.stats);
       
-      // Sauvegarder dans le cache seulement si pas de filtres
-      if (!search && !filterStatus && !filterSource && !filterCity && !filterProduct && !filterTag) {
-        setCache('clients_list', { clients: res.data.data.clients, stats: res.data.data.stats });
-      }
+      // ❌ CACHE DÉSACTIVÉ
     } catch { setError('Erreur chargement clients'); }
   };
 

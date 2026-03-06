@@ -1,6 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
 import ecomApi from '../services/ecommApi.js';
-import { getCache, setCache } from '../utils/cacheUtils.js';
 
 const IconFillLoader = ({ backgroundClassName = 'bg-gray-50' }) => {
   const [p, setP] = useState(0);
@@ -72,19 +71,6 @@ const AssignmentsManager = () => {
   const loadData = async (useCache = true) => {
     try {
       setLoading(true);
-      
-      // Charger depuis le cache si disponible
-      if (useCache) {
-        const cached = getCache('assignments_manager');
-        if (cached) {
-          setSources(cached.sources);
-          setCloseuses(cached.closeuses);
-          setProducts(cached.products);
-          setAssignments(cached.assignments);
-          setLoading(false);
-          return;
-        }
-      }
 
       const [sourcesRes, closeusesRes, productsRes, assignmentsRes] = await Promise.all([
         ecomApi.get('/assignments/sources'),
@@ -114,9 +100,6 @@ const AssignmentsManager = () => {
       setCloseuses(closeuses);
       setProducts(products);
       setAssignments(assignments);
-      
-      // Sauvegarder dans le cache
-      setCache('assignments_manager', { sources, closeuses, products, assignments });
       
       // Check Google Sheets sources and load their data
       await loadGoogleSheetsInfo(sources);

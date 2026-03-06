@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { getCache, setCache, removeCache } from '../utils/cacheUtils.js';
 
 /**
  * Hook de fetch avec cache mémoire.
@@ -10,10 +9,9 @@ import { getCache, setCache, removeCache } from '../utils/cacheUtils.js';
  * - `skip` : ne pas fetcher si true (ex: dépendances manquantes)
  */
 const useCachedFetch = (cacheKey, fetchFn, { initialData = null, skip = false, deps = [] } = {}) => {
-  const cached = cacheKey ? getCache(cacheKey) : null;
-
-  const [data, setData] = useState(cached ?? initialData);
-  const [loading, setLoading] = useState(!cached);
+  // ❌ CACHE DÉSACTIVÉ - Ne lit plus le cache
+  const [data, setData] = useState(initialData);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const mountedRef = useRef(true);
 
@@ -26,19 +24,11 @@ const useCachedFetch = (cacheKey, fetchFn, { initialData = null, skip = false, d
     if (skip) return;
 
     const run = async () => {
-      const fresh = cacheKey ? getCache(cacheKey) : null;
-      if (fresh !== null) {
-        if (mountedRef.current) {
-          setData(fresh);
-          setLoading(false);
-        }
-        return;
-      }
-
+      // ❌ CACHE DÉSACTIVÉ - Toujours fetch direct
       if (mountedRef.current) setLoading(true);
       try {
         const result = await fetchFn();
-        if (cacheKey) setCache(cacheKey, result);
+        // ❌ CACHE DÉSACTIVÉ - Ne stocke plus en cache
         if (mountedRef.current) {
           setData(result);
           setError(null);
@@ -55,13 +45,11 @@ const useCachedFetch = (cacheKey, fetchFn, { initialData = null, skip = false, d
   }, [cacheKey, skip, ...deps]);
 
   const refresh = async () => {
-    if (cacheKey) {
-      removeCache(cacheKey);
-    }
+    // ❌ CACHE DÉSACTIVÉ - Plus de suppression de cache
     setLoading(true);
     try {
       const result = await fetchFn();
-      if (cacheKey) setCache(cacheKey, result);
+      // ❌ CACHE DÉSACTIVÉ - Ne stocke plus en cache
       if (mountedRef.current) {
         setData(result);
         setError(null);

@@ -4,7 +4,6 @@ import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
-import { getCache, setCache } from '../utils/cacheUtils.js';
 
 import { 
   ArrowLeft, TrendingUp, Package, Users, MapPin, DollarSign, 
@@ -107,11 +106,7 @@ const StatsPage = () => {
         params.startDate = d.toISOString().split('T')[0];
       }
 
-      const cacheKey = `stats:${dateRange}:${startDate}:${endDate}`;
-      const cached = getCache(cacheKey);
-      if (cached) { setStats(cached); setLoading(false); return; }
       const res = await ecomApi.get('/orders/stats/detailed', { params });
-      setCache(cacheKey, res.data.data);
       setStats(res.data.data);
     } catch (err) {
       setError(getContextualError(err, 'load_stats'));

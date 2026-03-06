@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi, { authApi } from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
-import { getCache, setCache } from '../utils/cacheUtils.js';
 
 const UserSkeleton = () => (
   <div className="space-y-3 py-4">
@@ -125,12 +124,6 @@ const UserManagement = () => {
 
   // Data loaders
   const loadUsers = useCallback(async () => {
-    const key = `users:${filterRole}`;
-    const cached = getCache(key);
-    if (cached) {
-      setUsers(cached.users); setStats(cached.stats);
-      setLoadingUsers(false); return;
-    }
     try {
       setLoadingUsers(true);
       const params = {};
@@ -138,7 +131,6 @@ const UserManagement = () => {
       const res = await ecomApi.get('/users', { params });
       const users = res.data?.data?.users || [];
       const stats = res.data?.data?.stats || {};
-      setCache(key, { users, stats });
       setUsers(users); setStats(stats);
     } catch (err) {
       setError(getContextualError(err, 'load_users'));
@@ -148,17 +140,11 @@ const UserManagement = () => {
   }, [filterRole]);
 
   const loadInvites = useCallback(async () => {
-    const cached = getCache('invites');
-    if (cached) {
-      setInvites(cached.invites); setInviteStats(cached.stats);
-      setLoadingInvites(false); return;
-    }
     try {
       setLoadingInvites(true);
       const res = await ecomApi.get('/users/invites/list');
       const invites = res.data?.data?.invites || [];
       const stats = res.data?.data?.stats || {};
-      setCache('invites', { invites, stats });
       setInvites(invites); setInviteStats(stats);
     } catch (err) {
       setError(getContextualError(err, 'load_users'));

@@ -394,6 +394,18 @@ const StoreApp = () => {
 const EcomApp = () => {
   const { subdomain, isStoreDomain } = useSubdomain();
 
+  useEffect(() => {
+    try {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith('ecom_cache_')) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch {
+      // no-op
+    }
+  }, []);
+
   // Subdomain detected → render public store app (no auth, no dashboard)
   if (isStoreDomain) {
     return <StoreApp />;

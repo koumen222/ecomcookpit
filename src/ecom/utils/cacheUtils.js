@@ -11,12 +11,8 @@ const CACHE_PREFIX = 'ecom_cache_';
  * @param {any} data - Données à mettre en cache
  */
 export const setCache = (key, data) => {
-  try {
-    const cacheKey = `${CACHE_PREFIX}${key}`;
-    localStorage.setItem(cacheKey, JSON.stringify(data));
-  } catch (error) {
-    console.error('Erreur lors de la sauvegarde du cache:', error);
-  }
+  // ❌ CACHE DÉSACTIVÉ - Ne stocke plus rien
+  return;
 };
 
 /**
@@ -25,17 +21,8 @@ export const setCache = (key, data) => {
  * @returns {any|null} - Données du cache ou null si non trouvé
  */
 export const getCache = (key) => {
-  try {
-    const cacheKey = `${CACHE_PREFIX}${key}`;
-    const cached = localStorage.getItem(cacheKey);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-    return null;
-  } catch (error) {
-    console.error('Erreur lors de la récupération du cache:', error);
-    return null;
-  }
+  // ❌ CACHE DÉSACTIVÉ - Retourne toujours null
+  return null;
 };
 
 /**
@@ -43,12 +30,8 @@ export const getCache = (key) => {
  * @param {string} key - Clé du cache
  */
 export const removeCache = (key) => {
-  try {
-    const cacheKey = `${CACHE_PREFIX}${key}`;
-    localStorage.removeItem(cacheKey);
-  } catch (error) {
-    console.error('Erreur lors de la suppression du cache:', error);
-  }
+  // ❌ CACHE DÉSACTIVÉ - Ne fait rien
+  return;
 };
 
 /**
@@ -56,33 +39,16 @@ export const removeCache = (key) => {
  * @param {string} prefix - Préfixe des clés à supprimer
  */
 export const invalidatePrefix = (prefix) => {
-  try {
-    const fullPrefix = `${CACHE_PREFIX}${prefix}`;
-    const keys = Object.keys(localStorage);
-    keys.forEach(key => {
-      if (key.startsWith(fullPrefix)) {
-        localStorage.removeItem(key);
-      }
-    });
-  } catch (error) {
-    console.error('Erreur lors de l\'invalidation du cache:', error);
-  }
+  // ❌ CACHE DÉSACTIVÉ - Ne fait rien
+  return;
 };
 
 /**
  * Vider tout le cache
  */
 export const clearAllCache = () => {
-  try {
-    const keys = Object.keys(localStorage);
-    keys.forEach(key => {
-      if (key.startsWith(CACHE_PREFIX)) {
-        localStorage.removeItem(key);
-      }
-    });
-  } catch (error) {
-    console.error('Erreur lors du vidage du cache:', error);
-  }
+  // ❌ CACHE DÉSACTIVÉ - Ne fait rien
+  return;
 };
 
 /**
@@ -98,21 +64,10 @@ export const useCachedData = (key, fetchFn) => {
 
   const loadData = async (useCache = true) => {
     try {
-      // Essayer de charger depuis le cache d'abord
-      if (useCache) {
-        const cached = getCache(key);
-        if (cached) {
-          setData(cached);
-          setLoading(false);
-          return;
-        }
-      }
-
-      // Si pas de cache, charger depuis l'API
+      // ❌ CACHE DÉSACTIVÉ - Toujours charger depuis l'API
       setLoading(true);
       const result = await fetchFn();
       setData(result);
-      setCache(key, result);
       setError(null);
     } catch (err) {
       setError(err);

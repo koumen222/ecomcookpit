@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
-import { getCache, setCache } from '../utils/cacheUtils.js';
 
 const SupplierSkeleton = () => (
   <div className="min-h-screen bg-gray-50 p-4">
@@ -35,14 +34,11 @@ const SuppliersList = () => {
   }, []);
 
   const loadOrders = async () => {
-    const cached = getCache('suppliers');
-    if (cached) { setOrders(cached); setLoading(false); return; }
     try {
       setLoading(true);
       const response = await ecomApi.get('/stock/orders');
       const ordersData = response.data?.data?.orders || response.data?.data || [];
       const list = Array.isArray(ordersData) ? ordersData : [];
-      setCache('suppliers', list);
       setOrders(list);
     } catch (err) {
       setError(getContextualError(err, 'load_orders'));

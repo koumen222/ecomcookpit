@@ -140,7 +140,6 @@ const ProductsList = () => {
   const updateSellingPrice = async (productId, newPrice) => {
     try {
       await ecomApi.patch(`/products/${productId}`, { sellingPrice: newPrice });
-      invalidatePrefix('products:');
       loadProducts();
     } catch (error) {
       setError(getContextualError(error, 'save_product'));
@@ -151,7 +150,6 @@ const ProductsList = () => {
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce produit ?')) return;
     try {
       await ecomApi.delete(`/products/${productId}`);
-      invalidatePrefix('products:');
       loadProducts();
     } catch (error) {
       setError(getContextualError(error, 'delete_product'));

@@ -1,7 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react';
 import ecomApi from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
-import { getCache, setCache } from '../utils/cacheUtils.js';
+// ❌ CACHE DÉSACTIVÉ
+// import { getCache, setCache } from '../utils/cacheUtils.js';
 
 const IconFillLoader = ({ backgroundClassName = 'bg-gray-50' }) => {
   const [p, setP] = useState(0);
@@ -75,16 +76,7 @@ const StockManagement = () => {
   const loadAll = async (useCache = true) => {
     setLoading(true);
     try {
-      // Charger depuis le cache si disponible
-      if (useCache) {
-        const cached = getCache('stock_management');
-        if (cached) {
-          setEntries(cached.entries);
-          setProducts(cached.products);
-          setLoading(false);
-          return;
-        }
-      }
+      // ❌ CACHE DÉSACTIVÉ - Toujours charger depuis l'API
 
       const [entriesRes, productsRes] = await Promise.all([
         ecomApi.get('/stock-locations'),
@@ -96,8 +88,7 @@ const StockManagement = () => {
       setEntries(entries);
       setProducts(products);
       
-      // Sauvegarder dans le cache
-      setCache('stock_management', { entries, products });
+      // ❌ CACHE DÉSACTIVÉ
     } catch (err) {
       setError(getContextualError(err, 'load_stats'));
     } finally {

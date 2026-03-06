@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
-import { getCache, setCache } from '../utils/cacheUtils.js';
+// ❌ CACHE DÉSACTIVÉ
+// import { getCache, setCache } from '../utils/cacheUtils.js';
 import WhatsAppConfigModal from '../components/WhatsAppConfigModal.jsx';
 
 const IconFillLoader = ({ backgroundClassName = 'bg-gray-50' }) => {
@@ -82,23 +83,13 @@ const CampaignsList = () => {
 
   const fetchCampaigns = async (useCache = true) => {
     try {
-      // Charger depuis le cache si disponible
-      if (useCache) {
-        const cached = getCache('campaigns_list');
-        if (cached) {
-          setCampaigns(cached.campaigns);
-          setStats(cached.stats);
-          setLoading(false);
-          return;
-        }
-      }
+      // ❌ CACHE DÉSACTIVÉ - Toujours charger depuis l'API
 
       const res = await ecomApi.get('/campaigns');
       setCampaigns(res.data.data.campaigns);
       setStats(res.data.data.stats);
       
-      // Sauvegarder dans le cache
-      setCache('campaigns_list', { campaigns: res.data.data.campaigns, stats: res.data.data.stats });
+      // ❌ CACHE DÉSACTIVÉ
     } catch { setError('Erreur chargement campagnes'); }
   };
 

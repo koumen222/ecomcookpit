@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
-import { getCache, setCache } from '../utils/cacheUtils.js';
 
 import {
   ArrowLeft, TrendingUp, Package, DollarSign, Truck,
@@ -88,11 +87,7 @@ const StatsRapports = () => {
         params.startDate = d.toISOString().split('T')[0];
       }
 
-      const cacheKey = `rapports:${dateRange}:${startDate}:${endDate}`;
-      const cached = getCache(cacheKey);
-      if (cached) { setProducts(cached); setLoading(false); return; }
       const res = await ecomApi.get('/reports/stats/products-ranking', { params });
-      setCache(cacheKey, res.data.data || []);
       setProducts(res.data.data || []);
     } catch (err) {
       setError(getContextualError(err, 'load_stats'));

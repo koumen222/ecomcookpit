@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
-import { getCache, setCache } from '../utils/cacheUtils.js';
 
 const ChartContent = React.memo(({ data, selectedMetric, fmt }) => {
   if (!data || data.length === 0) {
@@ -364,19 +363,6 @@ const AdminDashboard = () => {
       setIsRefreshing(true);
     }
 
-    const cacheKey = `dashboard:admin:${timeRange}:${customStartDate}:${customEndDate}`;
-    const cached = getCache(cacheKey);
-
-    // Si cache dispo → affichage instantané, puis revalidation silencieuse
-    if (cached) {
-      setStats(cached.stats);
-      setDashboardStats(cached.dashboardStats);
-      setLoadingKpi(false);
-      setLoadingSecondary(false);
-      setIsRefreshing(true);
-      setLoadingProgress(100);
-    }
-
     let daysCount;
     let isCustomRange = timeRange === 'custom' && customStartDate && customEndDate;
     
@@ -506,20 +492,6 @@ const AdminDashboard = () => {
         return newStats;
       });
 
-      setCache(cacheKey, {
-        stats: {
-          products: topProducts,
-          stockAlerts,
-          financialStats: stats.financialStats,
-          prevFinancialStats: stats.prevFinancialStats,
-          dailyFinancial: stats.dailyFinancial,
-          decisions: decisionsRes.data?.data || {},
-          orders: [],
-          recentActivity: [],
-          goals: goalsData
-        },
-        dashboardStats: newDashStats
-      });
     } catch (error) {
       console.error('Erreur chargement secondaire:', error);
     } finally {

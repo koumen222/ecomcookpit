@@ -7,29 +7,21 @@ const cache = new Map();
 const TTL = 2 * 60 * 1000; // 2 minutes par défaut
 
 export function getCached(key) {
-  const entry = cache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.ts > TTL) {
-    cache.delete(key);
-    return null;
-  }
-  return entry.data;
+  // ❌ CACHE DÉSACTIVÉ - Retourne toujours null
+  return null;
 }
 
 export function setCached(key, data) {
-  cache.set(key, { data, ts: Date.now() });
+  // ❌ CACHE DÉSACTIVÉ - Ne stocke rien
+  return;
 }
 
 export function invalidateCache(key) {
-  if (key) {
-    cache.delete(key);
-  } else {
-    cache.clear();
-  }
+  // ❌ CACHE DÉSACTIVÉ - Ne fait rien
+  return;
 }
 
 export function invalidatePrefix(prefix) {
-  for (const key of cache.keys()) {
-    if (key.startsWith(prefix)) cache.delete(key);
-  }
+  // ❌ CACHE DÉSACTIVÉ - Ne fait rien
+  return;
 }

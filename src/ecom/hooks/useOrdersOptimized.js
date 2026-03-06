@@ -12,47 +12,11 @@ export const useOrdersOptimized = (initialParams = {}) => {
   
   // Refs pour l'optimisation
   const fetchAbortControllerRef = useRef(null);
-  const cacheRef = useRef(new Map());
-  const prefetchTimeoutRef = useRef(null);
+  // ❌ CACHE DÉSACTIVÉ - Plus de cache local
+  // const cacheRef = useRef(new Map());
+  // const prefetchTimeoutRef = useRef(null);
   
-  // Cache local pour éviter les requêtes répétées
-  const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
-  const PREFETCH_DELAY = 500; // 500ms avant prefetch
-  
-  const generateCacheKey = (params) => {
-    return JSON.stringify(params);
-  };
-  
-  const getFromCache = (params) => {
-    const key = generateCacheKey(params);
-    const cached = cacheRef.current.get(key);
-    
-    if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
-      console.log('📦 Cache local HIT:', key);
-      return cached.data;
-    }
-    
-    // Nettoyer le cache expiré
-    if (cached) {
-      cacheRef.current.delete(key);
-    }
-    
-    return null;
-  };
-  
-  const setCache = (params, data) => {
-    const key = generateCacheKey(params);
-    cacheRef.current.set(key, {
-      data,
-      timestamp: Date.now()
-    });
-    
-    // Limiter la taille du cache
-    if (cacheRef.current.size > 50) {
-      const oldestKey = cacheRef.current.keys().next().value;
-      cacheRef.current.delete(oldestKey);
-    }
-  };
+  // ❌ CACHE DÉSACTIVÉ - Fonctions de cache supprimées
 
   const fetchOrders = useCallback(async (options = {}) => {
     // Annuler la requête précédente
@@ -69,17 +33,7 @@ export const useOrdersOptimized = (initialParams = {}) => {
       
       const params = { ...initialParams, ...options };
       
-      // Vérifier le cache local
-      const cached = getFromCache(params);
-      if (cached && !options.noCache) {
-        setOrders(cached.orders);
-        setStats(cached.stats);
-        setPagination(cached.pagination);
-        setLastFetchTime(cached.timestamp);
-        setLoading(false);
-        return cached;
-      }
-      
+      // ❌ CACHE DÉSACTIVÉ - Toujours requête API directe
       // Requête API avec timeout optimisé
       const res = await ecomApi.get('/orders', { 
         params,
@@ -95,17 +49,9 @@ export const useOrdersOptimized = (initialParams = {}) => {
         setPagination(data.pagination || {});
         setLastFetchTime(Date.now());
         
-        // Mettre en cache localement
-        if (!options.noCache) {
-          setCache(params, data);
-        }
+        // ❌ CACHE DÉSACTIVÉ - Plus de mise en cache ni de prefetch
         
-        // Précharger les pages adjacentes
-        if (!options.noPrefetch && data.pagination?.page) {
-          schedulePrefetch(params, data.pagination);
-        }
-        
-        console.log(`⚡ Orders fetch: ${data.orders?.length || 0} commandes en ${Date.now() - performance.now()}ms`);
+        console.log(`⚡ Orders fetch: ${data.orders?.length || 0} commandes`);
         
         return data;
       }
@@ -122,36 +68,7 @@ export const useOrdersOptimized = (initialParams = {}) => {
     }
   }, [initialParams]);
 
-  // Préchargement intelligent des pages adjacentes
-  const schedulePrefetch = (currentParams, currentPagination) => {
-    if (prefetchTimeoutRef.current) {
-      clearTimeout(prefetchTimeoutRef.current);
-    }
-    
-    prefetchTimeoutRef.current = setTimeout(() => {
-      const { page, pages } = currentPagination;
-      
-      // Précharger la page suivante
-      if (page < pages) {
-        fetchOrders({
-          ...currentParams,
-          page: page + 1,
-          noPrefetch: true,
-          noCache: false
-        }).catch(() => {}); // Ignorer les erreurs de prefetch
-      }
-      
-      // Précharger la page précédente
-      if (page > 1) {
-        fetchOrders({
-          ...currentParams,
-          page: page - 1,
-          noPrefetch: true,
-          noCache: false
-        }).catch(() => {}); // Ignorer les erreurs de prefetch
-      }
-    }, PREFETCH_DELAY);
-  };
+  // ❌ CACHE DÉSACTIVÉ - Prefetch supprimé
 
   // Refresher optimisé
   const refresh = useCallback(async (options = {}) => {
@@ -167,25 +84,19 @@ export const useOrdersOptimized = (initialParams = {}) => {
     setOrders(prev => prev.map(order => 
       order._id === orderId ? { ...order, ...updates } : order
     ));
-    
-    // Invalider le cache local pour cette requête
-    cacheRef.current.clear();
+    // ❌ CACHE DÉSACTIVÉ - Plus d'invalidation de cache
   }, []);
 
   // Supprimer localement une commande
   const removeLocalOrder = useCallback((orderId) => {
     setOrders(prev => prev.filter(order => order._id !== orderId));
-    
-    // Invalider le cache local
-    cacheRef.current.clear();
+    // ❌ CACHE DÉSACTIVÉ - Plus d'invalidation de cache
   }, []);
 
   // Ajouter localement une commande
   const addLocalOrder = useCallback((newOrder) => {
     setOrders(prev => [newOrder, ...prev]);
-    
-    // Invalider le cache local
-    cacheRef.current.clear();
+    // ❌ CACHE DÉSACTIVÉ - Plus d'invalidation de cache
   }, []);
 
   // Nettoyer les timeouts
@@ -194,32 +105,15 @@ export const useOrdersOptimized = (initialParams = {}) => {
       if (fetchAbortControllerRef.current) {
         fetchAbortControllerRef.current.abort();
       }
-      if (prefetchTimeoutRef.current) {
-        clearTimeout(prefetchTimeoutRef.current);
-      }
+      // ❌ CACHE DÉSACTIVÉ - Plus de prefetch timeout
     };
   }, []);
 
-  // Cache warming pour les requêtes courantes
+  // ❌ CACHE DÉSACTIVÉ - Cache warming supprimé
   const warmupCache = useCallback(async () => {
-    const commonQueries = [
-      { page: 1, limit: 50 },
-      { page: 1, limit: 50, status: 'pending' },
-      { page: 1, limit: 50, status: 'confirmed' },
-      { page: 1, limit: 50, status: 'delivered' }
-    ];
-
-    console.log('🔥 Début cache warming...');
-    
-    // Exécuter en parallèle avec faible priorité
-    Promise.allSettled(
-      commonQueries.map(params => 
-        fetchOrders({ ...params, noPrefetch: true, noCache: false }).catch(() => {})
-      )
-    ).then(() => {
-      console.log('✅ Cache warming terminé');
-    });
-  }, [fetchOrders]);
+    // Ne fait plus rien
+    return;
+  }, []);
 
   return {
     // État
@@ -238,11 +132,9 @@ export const useOrdersOptimized = (initialParams = {}) => {
     addLocalOrder,
     warmupCache,
     
-    // Utilitaires
-    clearCache: () => {
-      cacheRef.current.clear();
-    },
-    getCacheSize: () => cacheRef.current.size,
+    // Utilitaires (désactivés)
+    clearCache: () => { /* ❌ CACHE DÉSACTIVÉ */ },
+    getCacheSize: () => 0,
     
     // États dérivés
     hasOrders: orders.length > 0,

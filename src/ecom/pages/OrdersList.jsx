@@ -5,7 +5,8 @@ import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
 import { playCashRegisterSound, playConfirmSound } from '../services/soundService.js';
 import { getContextualError } from '../utils/errorMessages';
-import { getCache, setCache, invalidatePrefix } from '../utils/cacheUtils.js';
+// ❌ CACHE DÉSACTIVÉ
+// import { getCache, setCache, invalidatePrefix } from '../utils/cacheUtils.js';
 
 const SL = { pending: 'En attente', confirmed: 'Confirmé', shipped: 'Expédié', delivered: 'Livré', returned: 'Retour', cancelled: 'Annulé', unreachable: 'Injoignable', called: 'Appelé', postponed: 'Reporté' };
 const SC = {
@@ -250,17 +251,8 @@ const OrdersList = () => {
     if (selectedSourceId) params.sourceId = selectedSourceId;
     if (isSuperAdmin && viewAllWorkspaces) params.allWorkspaces = 'true';
 
-    // •• Phase 1 : cache mémoire ou quick endpoint ••
+    // ❌ CACHE DÉSACTIVÉ - Phase 1 : quick endpoint uniquement
     const hasFilters = search || filterStatus || filterCity || filterProduct || filterTag || filterStartDate || filterEndDate;
-    const cacheKey = `orders:${JSON.stringify(params)}:${page}:${itemsPerPage}`;
-    if (!silent) {
-      const cached = getCache(cacheKey);
-      if (cached) {
-        setOrders(cached.orders); setStats(cached.stats); setPagination(cached.pagination);
-        setLoading(false); setRefreshing(false);
-        return;
-      }
-    }
     if (!hasFilters && page === 1 && !silent) {
       try {
         const quickParams = {};
@@ -278,7 +270,7 @@ const OrdersList = () => {
       const fullParams = { ...params, page, limit: itemsPerPage };
       const res = await ecomApi.get('/orders', { params: fullParams });
       const d = { orders: res.data.data.orders, stats: res.data.data.stats, pagination: res.data.data.pagination || {} };
-      setCache(cacheKey, d);
+      // ❌ CACHE DÉSACTIVÉ
       setOrders(d.orders); setStats(d.stats); setPagination(d.pagination);
     } catch (err) {
       setError(getContextualError(err, 'load_orders'));
@@ -762,7 +754,6 @@ const OrdersList = () => {
       const res = await ecomApi.post('/orders/cancel-pending-expired');
       console.info('✅ [OrdersList] Manual cancel-pending-expired success', res.data?.data || {});
       setSuccess(res.data?.message || 'Annulation automatique terminée');
-      invalidatePrefix('orders:');
       await fetchOrders();
     } catch (err) {
       console.error('❌ [OrdersList] Manual cancel-pending-expired failed:', err);
@@ -954,7 +945,6 @@ const OrdersList = () => {
         setSuccess('Commande créée');
       }
       setShowOrderModal(false);
-      invalidatePrefix('orders:');
       fetchOrders();
     } catch (err) {
       setError(getContextualError(err, 'save_order'));
@@ -969,7 +959,6 @@ const OrdersList = () => {
     try {
       await ecomApi.delete(`/orders/${orderId}`);
       setSuccess('Commande supprimée');
-      invalidatePrefix('orders:');
       fetchOrders();
     } catch (err) {
       setError(getContextualError(err, 'delete_order'));
