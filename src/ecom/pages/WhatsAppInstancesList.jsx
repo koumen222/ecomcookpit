@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { Button } from '../components/ui/button';
 import { Smartphone, Plus, Settings, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import WhatsAppInstanceSelector from '../components/WhatsAppInstanceSelector.jsx';
@@ -68,38 +66,36 @@ const WhatsAppInstancesList = () => {
     <div className="container mx-auto p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition"
           >
             <ArrowLeft className="h-4 w-4" />
             Retour
-          </Button>
+          </button>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Smartphone className="h-6 w-6" />
             Instances WhatsApp
           </h1>
         </div>
-        <Button
+        <button
           onClick={handleConfigureNew}
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition text-sm font-medium"
         >
           <Plus className="h-4 w-4" />
           Nouvelle instance
-        </Button>
+        </button>
       </div>
 
       <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+        <div className="bg-white rounded-lg border shadow-sm">
+          <div className="p-6 border-b">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
               <Settings className="h-5 w-5" />
               Gestion des instances WhatsApp
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </h3>
+          </div>
+          <div className="p-6">
             <div className="space-y-4">
               <WhatsAppInstanceSelector
                 onInstanceSelected={handleInstanceSelected}
@@ -115,15 +111,14 @@ const WhatsAppInstancesList = () => {
                   </div>
                   
                   <div className="flex gap-2">
-                    <Button
+                    <button
                       onClick={testConnection}
                       disabled={loading}
-                      className="flex items-center gap-2"
-                      variant="default"
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition text-sm font-medium"
                     >
                       {loading ? 'Test...' : 'Tester la connexion'}
                       <CheckCircle className="h-4 w-4" />
-                    </Button>
+                    </button>
                   </div>
                   
                   {testResult && (
@@ -151,34 +146,32 @@ const WhatsAppInstancesList = () => {
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Actions rapides</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <div className="bg-white rounded-lg border shadow-sm">
+          <div className="p-6 border-b">
+            <h3 className="text-lg font-semibold">Actions rapides</h3>
+          </div>
+          <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Button
-                variant="outline"
+              <button
                 onClick={() => navigate('/ecom/whatsapp/connexion')}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition text-sm font-medium"
               >
                 <Settings className="h-4 w-4" />
                 Configurer une nouvelle instance
-              </Button>
-              <Button
-                variant="outline"
+              </button>
+              <button
                 onClick={() => navigate('/ecom/whatsapp-postulation')}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition text-sm font-medium"
               >
                 <Smartphone className="h-4 w-4" />
                 Postuler pour WhatsApp Business
-              </Button>
+              </button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );
