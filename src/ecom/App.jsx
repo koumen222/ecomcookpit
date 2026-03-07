@@ -86,7 +86,9 @@ const Tarifs = lazy(() => import('./pages/Tarifs.jsx'));
 const SourcingList = lazy(() => import('./pages/SourcingList.jsx'));
 const SupplierDetail = lazy(() => import('./pages/SupplierDetail.jsx'));
 const SourcingStats = lazy(() => import('./pages/SourcingStats.jsx'));
+const WhatsAppConnexion = lazy(() => import('./pages/WhatsAppConnexion.jsx'));
 const WhatsAppInstancesList = lazy(() => import('./pages/WhatsAppInstancesList.jsx'));
+const TestBackend = lazy(() => import('./components/TestBackend.jsx'));
 
 // ─── Store / Storefront pages ─────────────────────────────────────────────
 const StoreSetup = lazy(() => import('./pages/StoreSetup.jsx'));
@@ -522,6 +524,10 @@ const EcomApp = () => {
 
               {/* Route instances WhatsApp */}
               <Route path="/ecom/whatsapp/instances" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppInstancesList /></LayoutRoute>} />
+              <Route path="/ecom/whatsapp/connexion" element={<LayoutRoute requiredRole="ecom_admin"><WhatsAppConnexion /></LayoutRoute>} />
+
+              {/* Route test backend */}
+              <Route path="/ecom/test-backend" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><TestBackend /></LayoutRoute>} />
 
               {/* Routes gestion utilisateurs (admin) */}
               <Route path="/ecom/users" element={<LayoutRoute requiredRole="ecom_admin"><UserManagement /></LayoutRoute>} />

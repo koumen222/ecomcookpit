@@ -77,20 +77,6 @@ const workspaceSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     default: {}
   },
-  // WhatsApp SaaS integration (Evolution API)
-  whatsapp: {
-    instanceName: { type: String, default: '' },
-    externalInstanceId: { type: String, default: '' },
-    externalToken: { type: String, default: '' },
-    provider: { type: String, default: 'evolution_api' },
-    status: { type: String, default: 'disconnected' },
-    workspaceId: { type: String, default: '' },
-    // Legacy fields kept for compatibility with existing flows
-    instanceId: { type: String, default: '' },
-    apiKey: { type: String, default: '' },
-    connected: { type: Boolean, default: false },
-    verifiedAt: { type: Date }
-  },
   isActive: {
     type: Boolean,
     default: true

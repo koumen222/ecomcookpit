@@ -5,7 +5,7 @@ import {
   TrendingUp, HelpCircle, Package, ArrowRight, Send, Settings
 } from 'lucide-react';
 import WhatsAppSendModal from './WhatsAppSendModal.jsx';
-import WhatsAppConfigModal from './WhatsAppConfigModal.jsx';
+// WhatsAppConfigModal supprimé
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
 
@@ -82,7 +82,7 @@ const AlibabaImportModal = ({ onClose, onApply }) => {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('content');
   const [showWhatsAppSend, setShowWhatsAppSend] = useState(false);
-  const [showWhatsAppConfig, setShowWhatsAppConfig] = useState(false);
+  // showWhatsAppConfig supprimé
   const abortRef = useRef(null);
 
   const isValidUrl = url.trim().length > 10 && (url.includes('alibaba.com') || url.includes('aliexpress.com'));

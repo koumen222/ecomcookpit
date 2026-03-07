@@ -54,6 +54,9 @@ export default function Marketing() {
   const [resData, setResData] = useState(null);
   const [delId, setDelId] = useState(null);
   const [sendConf, setSendConf] = useState(null);
+  const [waInstances, setWaInstances] = useState([]);
+  const [loadingInstances, setLoadingInstances] = useState(false);
+  const [selectedInstanceId, setSelectedInstanceId] = useState(null);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
 
@@ -81,11 +84,75 @@ export default function Marketing() {
     if (tab === 'stats') { loadC(1); loadStats(); }
   }, [tab, fStatus]);
 
-  const send = async (id) => {
-    setSendId(id); setSendConf(null);
-    try { const r = await marketingApi.sendCampaign(id); flash(`✅ ${r.data.message}`); loadC(pg.page); loadStats(); }
-    catch (e) { flash(e.response?.data?.message || "Erreur d'envoi", 'err'); }
-    finally { setSendId(null); }
+  const waStatusLabel = (status) => {
+    if (status === 'connected') return { label: 'Connecté', cls: 'bg-green-100 text-green-700' };
+    if (status === 'active') return { label: 'Actif', cls: 'bg-green-100 text-green-700' };
+    if (status === 'configured') return { label: 'Configuré', cls: 'bg-blue-100 text-blue-700' };
+    if (status === 'disconnected') return { label: 'Déconnecté', cls: 'bg-red-100 text-red-600' };
+    return { label: 'Non vérifié', cls: 'bg-gray-100 text-gray-500' };
+  };
+
+  const loadWaInstances = async () => {
+    setLoadingInstances(true);
+    setWaInstances([]);
+    try {
+      const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
+      const uId = user._id || user.id;
+      if (!uId) throw new Error("Utilisateur non identifié");
+      
+      const res = await marketingApi.getWhatsAppInstances(uId);
+      setWaInstances(res.data.instances || []);
+    } catch (e) {
+      console.error('Erreur chargement instances WA:', e);
+      flash("Impossible de charger les instances WhatsApp", "err");
+    } finally {
+      setLoadingInstances(false);
+    }
+  };
+
+  const refreshWaStatus = async () => {
+    setLoadingInstances(true);
+    try {
+      const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
+      const uId = user._id || user.id;
+      const { default: ecomApi } = await import('../services/ecommApi.js');
+      const res = await ecomApi.post('/v1/external/whatsapp/refresh-status', { userId: uId });
+      setWaInstances(res.data?.instances || []);
+    } catch {
+      flash("Impossible d'actualiser les statuts", "err");
+    } finally {
+      setLoadingInstances(false);
+    }
+  };
+
+  const send = (id) => {
+    setSendConf(id);
+    loadWaInstances();
+  };
+
+  const sendWithInstance = async (instanceId) => {
+    const campaignId = sendConf;
+    const inst = waInstances.find(i => i._id === instanceId);
+
+    if (inst && inst.status !== 'connected' && inst.status !== 'active') {
+      flash(`L'instance "${inst.customName || inst.instanceName}" n'est pas connectée. Actualisez son statut.`, 'err');
+      return;
+    }
+
+    setSelectedInstanceId(instanceId);
+    setSendConf(null);
+    setSendId(campaignId);
+    try {
+      const r = await marketingApi.sendCampaign(campaignId, { whatsappInstanceId: instanceId });
+      flash(`✅ ${r.data.message}`);
+      loadC(pg.page);
+      loadStats();
+    } catch (e) {
+      flash(e.response?.data?.message || "Erreur d'envoi", 'err');
+    } finally {
+      setSendId(null);
+      setSelectedInstanceId(null);
+    }
   };
 
   const del = async (id) => {
@@ -154,7 +221,7 @@ export default function Marketing() {
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{c.sentAt ? fmtDate(c.sentAt) : c.scheduledAt ? `📅 ${fmtDate(c.scheduledAt)}` : fmtDate(c.createdAt)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        {['draft', 'scheduled'].includes(c.status) && <button onClick={() => setSendConf(c._id)} disabled={sendId === c._id} className="px-2.5 py-1 text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">{sendId === c._id ? '...' : '▶ Envoyer'}</button>}
+                        {['draft', 'scheduled'].includes(c.status) && <button onClick={() => send(c._id)} disabled={sendId === c._id} className="px-2.5 py-1 text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50">{sendId === c._id ? '...' : '▶ Envoyer'}</button>}
                         {c.status === 'sent' && <button onClick={() => openRes(c._id)} className="px-2.5 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">📊</button>}
                         {['draft', 'scheduled'].includes(c.status) && <button onClick={() => goCompose(c._id)} className="px-2.5 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">✏️</button>}
                         <button onClick={() => dup(c._id)} className="px-2.5 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">⧉</button>
@@ -256,11 +323,70 @@ export default function Marketing() {
         {tab === 'stats' && tabStats()}
 
         {/* Send confirmation modal */}
-        <Dlg open={!!sendConf} onClose={() => setSendConf(null)} title="Confirmer l'envoi">
-          <p className="text-sm text-gray-600 mb-4">Êtes-vous sûr de vouloir envoyer cette campagne maintenant ?</p>
-          <div className="flex gap-3">
-            <button onClick={() => setSendConf(null)} className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Annuler</button>
-            <button onClick={() => send(sendConf)} className="flex-1 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700">▶ Envoyer</button>
+        <Dlg open={!!sendConf} onClose={() => { setSendConf(null); setSelectedInstanceId(null); }} title="Envoyer via WhatsApp">
+          <p className="text-sm text-gray-600 mb-4">Cliquez sur une instance connectée pour lancer l'envoi.</p>
+          
+          {/* Sélection des instances WhatsApp */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                📱 Choisir l'instance
+              </h4>
+              <button
+                onClick={refreshWaStatus}
+                disabled={loadingInstances}
+                className="text-[10px] text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1 disabled:opacity-40"
+              >
+                <svg className={`w-3 h-3 ${loadingInstances ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                Actualiser
+              </button>
+            </div>
+            {loadingInstances ? (
+              <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
+                <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                Chargement des instances...
+              </div>
+            ) : waInstances.length === 0 ? (
+              <p className="text-xs text-gray-400 italic py-2">Aucune instance WhatsApp active trouvée.</p>
+            ) : (
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                {waInstances.map(inst => {
+                  const isReady = inst.status === 'connected' || inst.status === 'active';
+                  return (
+                    <button
+                      key={inst._id}
+                      type="button"
+                      onClick={() => sendWithInstance(inst._id)}
+                      disabled={!isReady}
+                      className={`w-full flex items-center p-3 rounded-lg border text-left transition-all ${
+                        isReady
+                          ? 'border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50 cursor-pointer'
+                          : 'border-gray-100 opacity-60 cursor-not-allowed'
+                      }`}
+                      title={isReady ? `Envoyer via ${inst.customName || inst.instanceName}` : 'Instance non connectée'}
+                    >
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-700">{inst.customName || inst.instanceName}</p>
+                        <p className="text-[10px] text-gray-400 font-mono uppercase">{inst.instanceName}</p>
+                      </div>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${waStatusLabel(inst.status).cls}`}>
+                        {waStatusLabel(inst.status).label}
+                      </span>
+                      {!isReady && <span className="ml-2 text-[10px] text-amber-500">⚠</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="pt-2 border-t border-gray-50">
+            <button 
+              onClick={() => { setSendConf(null); setSelectedInstanceId(null); }} 
+              className="w-full py-2.5 text-sm font-medium text-gray-600 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+            >
+              Annuler
+            </button>
           </div>
         </Dlg>
 

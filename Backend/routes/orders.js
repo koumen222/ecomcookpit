@@ -7,7 +7,6 @@ import WorkspaceSettings from '../models/WorkspaceSettings.js';
 import EcomUser from '../models/EcomUser.js';
 import CloseuseAssignment from '../models/CloseuseAssignment.js';
 import Notification from '../models/Notification.js';
-import { sendWhatsAppMessage } from '../services/whatsappService.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { notifyNewOrder, notifyOrderStatus, notifyTeamOrderCreated, notifyTeamOrderStatusChanged } from '../services/notificationHelper.js';
 import { EventEmitter } from 'events';
@@ -151,61 +150,8 @@ const detectCountry = (phone, city) => {
   return { code: 'CM', name: 'Cameroun' };
 };
 
-// Fonction pour envoyer automatiquement les détails d'une nouvelle commande via WhatsApp
-const sendOrderNotification = async (order, workspaceId) => {
-  try {
-    // Récupérer les paramètres du workspace
-    const settings = await WorkspaceSettings.findOne({ workspaceId });
-    if (!settings) return;
-    
-    // Détecter le pays de la commande
-    const country = detectCountry(order.clientPhone, order.city);
-    
-    // Trouver le numéro WhatsApp configuré pour ce pays
-    const whatsappConfig = settings.whatsappNumbers?.find(w => 
-      w.country === country.code && w.isActive && w.autoNotifyOrders
-    );
-    
-    // Si pas de configuration spécifique, utiliser le numéro par défaut
-    const targetNumber = whatsappConfig?.phoneNumber || settings.customWhatsAppNumber;
-    if (!targetNumber) return;
-    
-    // Créer le message de notification
-    const message = `🔔 *NOUVELLE COMMANDE* 🔔
-
-📋 *Détails de la commande:*
-🔹 *ID:* ${order.orderId}
-👤 *Client:* ${order.clientName || 'Non spécifié'}
-📱 *Téléphone:* ${order.clientPhone || 'Non spécifié'}
-🏙️ *Ville:* ${order.city || 'Non spécifié'}
-📍 *Adresse:* ${order.address || 'Non spécifié'}
-📦 *Produit:* ${order.product || 'Non spécifié'}
-🔢 *Quantité:* ${order.quantity || 1}
-💰 *Prix:* ${order.price || 0} FCFA
-📊 *Statut:* ${order.status || 'pending'}
-📝 *Notes:* ${order.notes || 'Aucune'}
-
-🌍 *Pays détecté:* ${country.name}
-⏰ *Date:* ${new Date(order.date).toLocaleString('fr-FR')}
-
-🚀 *Prenez cette commande rapidement!*`;
-
-    // Envoyer le message WhatsApp
-    await sendWhatsAppMessage({
-      to: targetNumber,
-      message: message,
-      userId: 'system',
-      firstName: 'Système'
-    });
-    
-    console.log(`✅ Notification WhatsApp envoyée pour la commande ${order.orderId} vers ${country.name}`);
-  } catch (error) {
-    console.error('Erreur envoi notification WhatsApp:', error);
-  }
-};
-
-// POST /api/ecom/orders - Créer une commande manuellement
-router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
+// ─── Route: Créer une commande (POST /) ───────────────────────────────────────
+router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), async (req, res) => {
   try {
     const { clientName, clientPhone, city, address, product, quantity, price, status, notes, tags } = req.body;
     if (!clientName && !clientPhone) {

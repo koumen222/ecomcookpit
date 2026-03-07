@@ -3,7 +3,10 @@ import mongoose from 'mongoose';
 import Campaign from '../models/Campaign.js';
 import Client from '../models/Client.js';
 import Order from '../models/Order.js';
+import WhatsappInstance from '../models/WhatsappInstance.js';
+import evolutionApiService from '../services/evolutionApiService.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
+import { normalizeCity, deduplicateCities } from '../utils/cityNormalizer.js';
 
 // Helper pour convertir en ObjectId
 const toObjectId = (v) => {
@@ -14,81 +17,17 @@ const toObjectId = (v) => {
 };
 
 // Import conditionnel du service WhatsApp
-let analyzeSpamRisk, validateMessageBeforeSend, sendWhatsAppMessage, getHumanDelayWithVariation, simulateHumanBehavior;
+let analyzeSpamRisk = () => ({ risk: 'LOW', score: 0, warnings: [], recommendations: [] });
+let validateMessageBeforeSend = () => true;
+let sendWhatsAppMessage = async () => ({ messageId: 'mock-id', logId: 'mock-log-id' });
+let getHumanDelayWithVariation = () => 5000;
+let simulateHumanBehavior = async () => {};
+let sanitizePhoneNumber = (phone) => phone?.replace(/\D/g, '') || null;
 
 // Import du nouveau service d'intégration WhatsApp SaaS
-let sendWhatsAppMessageV2;
-
-async function loadWhatsAppService() {
-  try {
-    const whatsappService = await import('../services/whatsappService.js');
-    analyzeSpamRisk = whatsappService.analyzeSpamRisk;
-    validateMessageBeforeSend = whatsappService.validateMessageBeforeSend;
-    sendWhatsAppMessage = whatsappService.sendWhatsAppMessage;
-    getHumanDelayWithVariation = whatsappService.getHumanDelayWithVariation;
-    simulateHumanBehavior = whatsappService.simulateHumanBehavior;
-  } catch (error) {
-    console.warn('⚠️ Service WhatsApp non disponible:', error.message);
-    // Fonctions fallback
-    analyzeSpamRisk = () => ({ risk: 'LOW', score: 0, warnings: [], recommendations: [] });
-    validateMessageBeforeSend = () => true;
-    sendWhatsAppMessage = async () => ({ messageId: 'mock-id', logId: 'mock-log-id' });
-    getHumanDelayWithVariation = () => 5000;
-    simulateHumanBehavior = async () => {};
-  }
-
-  try {
-    const integration = await import('../services/whatsappIntegration.js');
-    sendWhatsAppMessageV2 = integration.sendWhatsAppMessageV2;
-  } catch (error) {
-    console.warn('⚠️ Service WhatsApp Integration non disponible:', error.message);
-    sendWhatsAppMessageV2 = async () => ({ data: { messageId: 'mock-id' } });
-  }
-}
-
-// Load the service immediately
-loadWhatsAppService();
+let sendWhatsAppMessageV2 = async () => ({ data: { messageId: 'mock-id' } });
 
 const router = express.Router();
-
-// Helper: normaliser les noms de villes pour regrouper les variantes
-function normalizeCityName(city) {
-  if (!city || typeof city !== 'string') return null;
-  
-  // Nettoyer et normaliser
-  let normalized = city.trim()
-    .toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Enlever accents
-    .replace(/[^a-z0-9\s-]/g, '') // Garder seulement lettres, chiffres, espaces, tirets
-    .replace(/\s+/g, ' '); // Normaliser espaces multiples
-  
-  // Extraire la ville principale (avant le tiret ou la virgule)
-  const mainCity = normalized.split(/[-,]/)[0].trim();
-  
-  // Capitaliser première lettre
-  return mainCity.charAt(0).toUpperCase() + mainCity.slice(1);
-}
-
-// Helper: grouper les villes similaires
-function groupCities(cityList) {
-  const cityMap = new Map(); // normalized -> original
-  const cityCount = new Map(); // normalized -> count
-  
-  cityList.forEach(city => {
-    const normalized = normalizeCityName(city);
-    if (!normalized) return;
-    
-    if (!cityMap.has(normalized)) {
-      cityMap.set(normalized, city);
-      cityCount.set(normalized, 1);
-    } else {
-      cityCount.set(normalized, cityCount.get(normalized) + 1);
-    }
-  });
-  
-  // Retourner les villes normalisées triées
-  return Array.from(cityMap.keys()).sort();
-}
 
 // Helper: remplacer les variables dans le template (priorité aux données de commande)
 function renderMessage(template, client, orderData = null) {
@@ -124,6 +63,27 @@ function toMongoIn(v) {
   return arr.length === 1 ? arr[0] : { $in: arr };
 }
 
+// Mapping groupe → regex (correspondance flexible sur statuts Google Sheet)
+const STATUS_REGEX_MAP = {
+  pending:     /en.?attente|pending|attente/i,
+  confirmed:   /confirm/i,
+  shipped:     /expédi|expedi|ship|exped|en.cours.de.livr/i,
+  delivered:   /livr[ée]|deliver/i,
+  returned:    /retour|return|renvoy/i,
+  cancelled:   /annul|cancel/i,
+  unreachable: /injoignable|unreachable|non.joignable/i,
+  called:      /appel[ée]|call/i,
+  postponed:   /report[ée]|renvoy[ée]|postpone/i,
+};
+
+// Convertit un tableau de groupes status → conditions MongoDB $or regex
+function buildStatusConditions(statusGroups) {
+  return statusGroups.map(s => {
+    const pattern = STATUS_REGEX_MAP[s];
+    return { status: { $regex: pattern ? pattern.source : `^${s}$`, $options: 'i' } };
+  });
+}
+
 // Helper: construire le filtre MongoDB depuis les targetFilters
 function buildClientFilter(workspaceId, targetFilters) {
   const filter = { workspaceId };
@@ -151,8 +111,12 @@ function buildClientFilter(workspaceId, targetFilters) {
 // Helper: ciblage basé sur les commandes — retourne les phones des clients correspondants
 async function getClientsFromOrderFilters(workspaceId, targetFilters) {
   const orderFilter = { workspaceId };
-  const statusVal = toMongoIn(targetFilters.orderStatus);
-  if (statusVal) orderFilter.status = statusVal;
+  const statusArr = toArray(targetFilters.orderStatus);
+  if (statusArr.length > 0) {
+    const conds = buildStatusConditions(statusArr);
+    if (conds.length === 1) orderFilter.status = conds[0].status;
+    else orderFilter.$or = [...(orderFilter.$or || []), ...conds];
+  }
   if (targetFilters.orderCity) {
     const cities = toArray(targetFilters.orderCity);
     if (cities.length === 1) {
@@ -208,22 +172,28 @@ router.get('/', requireEcomAuth, async (req, res) => {
     if (type) filter.type = type;
 
     const campaigns = await Campaign.find(filter)
-      .populate('createdBy', 'email')
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit)
-      .select('-results');
+      .select('name type status createdAt scheduledAt sentAt targetFilters messageTemplate sendProgress')
+      .lean();
 
-    const total = await Campaign.countDocuments(filter);
+    const total = campaigns.length;
 
-    const allCampaigns = await Campaign.find({ workspaceId: req.workspaceId }).select('status');
     const stats = {
-      total: allCampaigns.length,
-      draft: allCampaigns.filter(c => c.status === 'draft').length,
-      scheduled: allCampaigns.filter(c => c.status === 'scheduled').length,
-      sent: allCampaigns.filter(c => c.status === 'sent').length,
-      sending: allCampaigns.filter(c => c.status === 'sending').length
+      total,
+      draft: 0,
+      scheduled: 0,
+      sent: 0,
+      sending: 0,
+      paused: 0,
+      failed: 0,
+      interrupted: 0
     };
+
+    campaigns.forEach(c => {
+      if (stats[c.status] !== undefined) stats[c.status]++;
+    });
 
     res.json({
       success: true,
@@ -260,7 +230,7 @@ router.get('/filter-options', requireEcomAuth, async (req, res) => {
     
     // Fusionner et normaliser les villes intelligemment
     const allCities = [...orderCities, ...clientCities].filter(Boolean);
-    const cities = groupCities(allCities);
+    const cities = deduplicateCities(allCities);
     
     // Produits et adresses : simple dédupliquer
     const products = [...new Set([...orderProducts, ...clientProducts])].filter(Boolean).sort();
@@ -388,12 +358,15 @@ router.get('/templates', requireEcomAuth, async (req, res) => {
 
 // POST /api/ecom/campaigns/preview - Prévisualiser les clients ciblés
 router.post('/preview', requireEcomAuth, async (req, res) => {
+  console.log(`🔍 [PREVIEW] Requête reçue pour le workspace ${req.workspaceId}`);
   try {
     const { targetFilters } = req.body;
     const tf = targetFilters || {};
+    console.log(`🔍 [PREVIEW] Filtres reçus:`, JSON.stringify(tf));
 
     // Guard: workspaceId requis
     if (!req.workspaceId) {
+      console.warn(`⚠️ [PREVIEW] WorkspaceId manquant dans la requête`);
       return res.json({ success: true, data: { count: 0, clients: [] } });
     }
 
@@ -405,20 +378,28 @@ router.post('/preview', requireEcomAuth, async (req, res) => {
     const hasOrderPrice = (tf.orderMinPrice > 0) || (tf.orderMaxPrice > 0);
     const hasAnyOrderFilter = hasOrderStatus || hasOrderCity || hasOrderProduct || hasOrderDate || hasOrderPrice;
 
+    console.log(`📊 [PREVIEW] Type de recherche: ${hasAnyOrderFilter ? 'COMMANDES' : 'CLIENTS DIRECTS'}`);
+
     // Si aucun filtre actif, retourner vide (évite de charger tous les clients)
-    if (!hasAnyOrderFilter) {
+    if (!hasAnyOrderFilter && Object.keys(tf).length === 0) {
+      console.log(`ℹ️ [PREVIEW] Aucun filtre actif, retour d'une liste vide`);
       return res.json({ success: true, data: { count: 0, clients: [], hint: 'Sélectionnez au moins un filtre pour prévisualiser' } });
     }
 
-    if (hasOrderStatus) {
+    if (hasAnyOrderFilter) {
+      console.log(`� [PREVIEW] Recherche via filtres de commande...`);
       const statusArr = toArray(tf.orderStatus);
-      console.log(`📊 Filtre par statut(s) de commande: ${statusArr.join(', ')}`);
       
       const orderFilter = { 
         workspaceId: req.workspaceId, 
-        status: statusArr.length === 1 ? statusArr[0] : { $in: statusArr },
         clientPhone: { $exists: true, $ne: '' }
       };
+      
+      if (statusArr.length > 0) {
+        const statusConds = buildStatusConditions(statusArr);
+        if (statusConds.length === 1) orderFilter.status = statusConds[0].status;
+        else orderFilter.$or = [...(orderFilter.$or || []), ...statusConds];
+      }
       
       if (tf.orderCity) {
         const cities = toArray(tf.orderCity);
@@ -438,22 +419,15 @@ router.post('/preview', requireEcomAuth, async (req, res) => {
         end.setHours(23, 59, 59, 999);
         orderFilter.date = { ...orderFilter.date, $lte: end };
       }
-      if (tf.orderSourceId) {
-        if (tf.orderSourceId === 'legacy') {
-          orderFilter.sheetRowId = { $not: /^source_/ };
-        } else {
-          orderFilter.sheetRowId = { $regex: `^source_${tf.orderSourceId}_` };
-        }
-      }
-      if (tf.orderMinPrice > 0) orderFilter.price = { ...orderFilter.price, $gte: tf.orderMinPrice };
-      if (tf.orderMaxPrice > 0) orderFilter.price = { ...orderFilter.price, $lte: tf.orderMaxPrice };
+      
+      console.log(`🔍 [PREVIEW] Filtre MongoDB Commandes:`, JSON.stringify(orderFilter));
 
       const orders = await Order.find(orderFilter)
         .select('clientName clientPhone city address product price date status quantity')
         .limit(500)
         .lean();
 
-      console.log(`📦 Commandes trouvées pour le statut ${tf.orderStatus}: ${orders.length}`);
+      console.log(`✅ [PREVIEW] ${orders.length} commandes trouvées`);
 
       // Convertir les commandes en structure pour le marketing
       const clients = orders.map(order => ({
@@ -468,7 +442,7 @@ router.post('/preview', requireEcomAuth, async (req, res) => {
         status: order.status || '',
         tags: [],
         lastContactAt: order.date || new Date(),
-        _id: order._id,
+        _id: order._id, // ⚠️ C'est un Order ID, résolu lors de la création de campagne
         _orderStatus: order.status || '',
         _orderPrice: order.price || 0,
         _orderDate: order.date || null,
@@ -476,32 +450,37 @@ router.post('/preview', requireEcomAuth, async (req, res) => {
         _orderQuantity: order.quantity || 1
       }));
 
-      console.log(`✅ Preview: ${clients.length} personnes avec le statut ${tf.orderStatus}`);
       return res.json({ success: true, data: { count: clients.length, clients } });
     }
 
     // Si aucun statut de commande, utiliser les filtres clients (ancienne méthode)
+    console.log(`👥 [PREVIEW] Recherche via filtres clients directs...`);
     const filter = buildClientFilter(req.workspaceId, tf);
     filter.phone = { $exists: true, $ne: '' };
+    
+    console.log(`🔍 [PREVIEW] Filtre MongoDB Clients:`, JSON.stringify(filter));
+
     const clients = await Client.find(filter)
       .select('firstName lastName phone city products totalOrders totalSpent status tags address lastContactAt')
       .limit(500)
       .lean();
 
-    console.log(`✅ Preview: ${clients.length} clients (filtres clients)`);
+    console.log(`✅ [PREVIEW] ${clients.length} clients trouvés via filtres directs`);
     res.json({ success: true, data: { count: clients.length, clients } });
   } catch (error) {
-    console.error('Erreur preview campaign:', error);
+    console.error('❌ [PREVIEW] Erreur critique:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 
 // POST /api/ecom/campaigns/:id/preview - Prévisualiser les clients ciblés pour une campagne spécifique
 router.post('/:id/preview', requireEcomAuth, async (req, res) => {
+  console.log(`🔍 [PREVIEW-ID] Requête pour la campagne ${req.params.id}`);
   try {
     // Récupérer la campagne
     const campaign = await Campaign.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
     if (!campaign) {
+      console.warn(`⚠️ [PREVIEW-ID] Campagne non trouvée: ${req.params.id}`);
       return res.status(404).json({ success: false, message: 'Campagne non trouvée' });
     }
 
@@ -510,8 +489,12 @@ router.post('/:id/preview', requireEcomAuth, async (req, res) => {
     // Seulement les clients avec un téléphone
     filter.phone = { $exists: true, $ne: '' };
 
+    console.log(`🔍 [PREVIEW-ID] Filtre MongoDB:`, JSON.stringify(filter));
+
     const clients = await Client.find(filter).select('firstName lastName phone city products totalOrders totalSpent status tags').limit(500);
     
+    console.log(`✅ [PREVIEW-ID] ${clients.length} clients trouvés pour "${campaign.name}"`);
+
     res.json({ 
       success: true, 
       data: { 
@@ -522,18 +505,20 @@ router.post('/:id/preview', requireEcomAuth, async (req, res) => {
       } 
     });
   } catch (error) {
-    console.error('Erreur preview campaign spécifique:', error);
+    console.error('❌ [PREVIEW-ID] Erreur critique:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 
 // GET /api/ecom/campaigns/stats - Statistiques globales des campagnes
 router.get('/stats', requireEcomAuth, async (req, res) => {
+  console.log(`📊 [STATS] Récupération des statistiques pour le workspace ${req.workspaceId}`);
   try {
     const workspaceId = req.workspaceId;
     
     // Récupérer toutes les campagnes du workspace
     const campaigns = await Campaign.find({ workspaceId }).lean();
+    console.log(`📊 [STATS] ${campaigns.length} campagnes trouvées au total`);
     
     // Statistiques globales
     const totalCampaigns = campaigns.length;
@@ -547,6 +532,8 @@ router.get('/stats', requireEcomAuth, async (req, res) => {
     const totalTargeted = campaigns.reduce((sum, c) => sum + (c.stats?.targeted || 0), 0);
     const totalSent = campaigns.reduce((sum, c) => sum + (c.stats?.sent || 0), 0);
     const totalFailed = campaigns.reduce((sum, c) => sum + (c.stats?.failed || 0), 0);
+    
+    console.log(`📊 [STATS] Synthèse: Sent=${sentCampaigns}, Targeted=${totalTargeted}, Delivered=${totalSent}`);
     
     // Taux de succès global
     const successRate = totalSent + totalFailed > 0 
@@ -662,7 +649,7 @@ router.get('/stats', requireEcomAuth, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Erreur récupération stats campagnes:', error);
+    console.error('❌ [STATS] Erreur récupération statistiques:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
@@ -688,97 +675,75 @@ router.post('/', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Nom et message requis' });
     }
 
-    // ✅ Validation des recipients pour les campagnes WhatsApp
-    if (type === 'whatsapp' && recipients) {
-      if (!recipients.type) {
-        return res.status(400).json({ success: false, message: 'Type de destinataires requis (all, segment, list)' });
-      }
-      
-      if (recipients.type === 'list') {
-        if (!recipients.customPhones || !Array.isArray(recipients.customPhones)) {
-          return res.status(400).json({ success: false, message: 'customPhones doit être un tableau pour le type "list"' });
-        }
-        
-        if (recipients.customPhones.length === 0) {
-          return res.status(400).json({ success: false, message: 'customPhones ne peut pas être vide pour le type "list"' });
-        }
-        
-        // Fonction de normalisation pour validation
-        const normalizePhone = (phone) => {
-          if (!phone) return '';
-          let cleaned = phone.toString().replace(/\D/g, '').trim();
-          
-          // ✅ Corriger le cas 00237699887766
-          if (cleaned.startsWith('00')) {
-            cleaned = cleaned.substring(2);
-          }
-          
-          // Gérer le préfixe pays (Cameroun 237)
-          if (cleaned.length === 9 && cleaned.startsWith('6')) {
-            return '237' + cleaned;
-          }
-          
-          return cleaned;
-        };
-        
-        // Valider et normaliser les numéros
-        const validPhones = recipients.customPhones
-          .map(phone => normalizePhone(phone))
-          .filter(phone => phone.length >= 8); // Minimum 8 digits
-        
-        if (validPhones.length === 0) {
-          return res.status(400).json({ 
-            success: false, 
-            message: 'Aucun numéro valide trouvé dans customPhones',
-            details: 'Les numéros doivent contenir au moins 8 chiffres'
-          });
-        }
-        
-        // Mettre à jour recipients.count
-        recipients.count = validPhones.length;
-        console.log(`✅ Validation LIST: ${validPhones.length} numéros valides sur ${recipients.customPhones.length}`);
-      }
-    }
+    // ✅ Validation des recipients - supprimée car liée à WhatsApp
 
-    // 🆕 VALIDATION ANTI-SPAM du message template
-    const analysis = analyzeSpamRisk(messageTemplate);
-    const isValid = validateMessageBeforeSend(messageTemplate, 'campaign-creation');
-    
-    if (!isValid) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Message rejeté pour risque de spam élevé',
-        spamAnalysis: {
-          risk: analysis.risk,
-          score: analysis.score,
-          warnings: analysis.warnings,
-          recommendations: analysis.recommendations
-        }
-      });
-    }
-    
-    // Avertir si risque moyen
-    if (analysis.risk === 'MEDIUM') {
-      console.warn('⚠️ Campagne marketing à risque moyen:', analysis.warnings);
-    }
+    // 🆕 VALIDATION ANTI-SPAM supprimée
+    const analysis = { risk: 'LOW', score: 0, warnings: [] };
 
     // Compter les clients ciblés - utiliser selectedClientIds si présent
     let targetedCount;
     let recipientSnapshotIds = [];
     
     if (selectedClientIds && selectedClientIds.length > 0) {
-      targetedCount = selectedClientIds.length;
-      recipientSnapshotIds = selectedClientIds.map(id => toObjectId(id)).filter(Boolean); // 🆕 Conversion et filtre
-      console.log(`📋 Campagne avec ${targetedCount} clients sélectionnés manuellement`);
+      console.log(`🔍 [CREATE] Traitement de ${selectedClientIds.length} IDs sélectionnés`);
+      // 🔧 FIX: Les selectedClientIds provenant du preview commandes sont des Order IDs, pas des Client IDs
+      // On vérifie si les IDs correspondent à des commandes plutôt qu'à des clients
+      const hasOrderFilters = targetFilters && (targetFilters.orderStatus || targetFilters.orderCity || 
+                             targetFilters.orderProduct || targetFilters.orderDateFrom);
+      
+      if (hasOrderFilters) {
+        console.log(`🔍 [CREATE] Filtres de commande détectés, résolution des IDs d'origine`);
+        // Les IDs sont probablement des Order IDs — résoudre les vrais Client IDs
+        const candidateIds = selectedClientIds.map(id => toObjectId(id)).filter(Boolean);
+        console.log(`🔍 [CREATE] ${candidateIds.length} IDs valides convertis en ObjectId`);
+        
+        // Chercher les commandes correspondantes pour obtenir les téléphones
+        const orders = await Order.find({ 
+          _id: { $in: candidateIds }, 
+          workspaceId: req.workspaceId 
+        }).select('clientPhone').lean();
+        
+        console.log(`🔍 [CREATE] ${orders.length} commandes trouvées en base pour ces IDs`);
+
+        if (orders.length > 0) {
+          // Ce sont bien des Order IDs — résoudre vers les Client IDs
+          const phones = [...new Set(orders.map(o => o.clientPhone).filter(Boolean))];
+          console.log(`🔍 [CREATE] ${phones.length} numéros de téléphone uniques extraits des commandes`);
+
+          const clients = await Client.find({
+            phone: { $in: phones },
+            workspaceId: req.workspaceId
+          }).select('_id phone').limit(1000);
+          
+          recipientSnapshotIds = clients.map(c => c._id);
+          targetedCount = recipientSnapshotIds.length;
+          console.log(`✅ [CREATE] Résolution réussie: ${selectedClientIds.length} commandes → ${targetedCount} clients identifiés pour le snapshot`);
+          if (targetedCount < phones.length) {
+            console.warn(`⚠️ [CREATE] Attention: ${phones.length - targetedCount} numéros n'ont pas de fiche client correspondante`);
+          }
+        } else {
+          // Pas des Order IDs, traiter comme des Client IDs normaux
+          console.log(`🔍 [CREATE] Aucun document trouvé dans Order, traitement comme Client IDs`);
+          recipientSnapshotIds = candidateIds;
+          targetedCount = recipientSnapshotIds.length;
+        }
+      } else {
+        console.log(`� [CREATE] Pas de filtres commande, utilisation directe des IDs fournis`);
+        targetedCount = selectedClientIds.length;
+        recipientSnapshotIds = selectedClientIds.map(id => toObjectId(id)).filter(Boolean);
+      }
     } else if (targetFilters && Object.keys(targetFilters).length > 0) {
+      console.log(`🔍 [CREATE] Calcul de la cible via filtres:`, JSON.stringify(targetFilters));
       // 🆕 Récupérer les vrais IDs des clients (pas les IDs de commande)
       const hasOrderFilters = targetFilters.orderStatus || targetFilters.orderCity || 
                              targetFilters.orderProduct || targetFilters.orderDateFrom;
       
       if (hasOrderFilters) {
+        console.log(`🔍 [CREATE] Utilisation des filtres de commande pour le snapshot`);
         // Utiliser les commandes pour trouver les clients puis récupérer leurs IDs
         const orderMap = await getClientsFromOrderFilters(req.workspaceId, targetFilters);
         const phones = Array.from(orderMap.keys());
+        console.log(`🔍 [CREATE] ${phones.length} téléphones trouvés via filtres de commande`);
         
         // Trouver les clients correspondants par téléphone
         const clients = await Client.find({
@@ -789,9 +754,10 @@ router.post('/', requireEcomAuth, async (req, res) => {
         recipientSnapshotIds = clients.map(c => c._id);
         targetedCount = recipientSnapshotIds.length;
         
-        console.log(`🎯 Campagne avec ${targetedCount} clients calculés depuis filtres commande (snapshot client IDs)`);
+        console.log(`✅ [CREATE] ${targetedCount} clients identifiés via filtres commande pour le snapshot`);
       } else {
         // Filtres clients directs
+        console.log(`🔍 [CREATE] Utilisation des filtres clients directs pour le snapshot`);
         const filter = buildClientFilter(req.workspaceId, targetFilters || {});
         filter.phone = { $exists: true, $ne: '' };
         
@@ -799,11 +765,11 @@ router.post('/', requireEcomAuth, async (req, res) => {
         recipientSnapshotIds = clients.map(c => c._id);
         targetedCount = recipientSnapshotIds.length;
         
-        console.log(`👥 Campagne avec ${targetedCount} clients calculés depuis filtres clients (snapshot client IDs)`);
+        console.log(`✅ [CREATE] ${targetedCount} clients identifiés via filtres directs pour le snapshot`);
       }
     } else {
       targetedCount = 0;
-      console.log(`⚠️ Campagne sans cible définie`);
+      console.log(`⚠️ [CREATE] Campagne sans cible définie`);
     }
 
     const campaign = new Campaign({
@@ -905,834 +871,240 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
   }
 });
 
-// POST /api/ecom/campaigns/:id/send - Envoyer la campagne maintenant
-router.post('/:id/send', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
-  try {
-    const campaign = await Campaign.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
-    if (!campaign) return res.status(404).json({ success: false, message: 'Campagne non trouvée' });
-    if (campaign.status === 'sending' || campaign.status === 'sent') {
-      return res.status(400).json({ success: false, message: 'Campagne déjà envoyée ou en cours' });
-    }
-
-    // 🆕 Pour les campagnes programmées, annuler la programmation et envoyer maintenant
-    if (campaign.status === 'scheduled') {
-      campaign.status = 'draft';
-      campaign.scheduledAt = null;
-      await campaign.save();
-      console.log(`🔄 Campagne ${campaign.name}: programmation annulée, envoi manuel initié`);
-    }
-
-    // ✅ Charger la config WhatsApp depuis le workspace
-    const Workspace = (await import('../models/Workspace.js')).default;
-    const WhatsAppInstance = (await import('../models/WhatsAppInstance.js')).default;
-    
-    const workspace = await Workspace.findById(req.workspaceId).select('whatsapp').lean();
-    const wa = workspace?.whatsapp;
-    const resolvedInstanceId = wa?.externalInstanceId || wa?.instanceId;
-    const resolvedToken = wa?.externalToken || wa?.apiKey;
-    const resolvedConnected = wa?.status === 'connected' || !!wa?.connected;
-    
-    // 🔄 Priorité: instance WhatsAppInstance > workspace config
-    let instanceToUse = null;
-    
-    if (resolvedInstanceId) {
-      instanceToUse = await WhatsAppInstance.findOne({
-        workspaceId: req.workspaceId,
-        instanceId: resolvedInstanceId,
-        status: 'active'
-      });
-    }
-    
-    // Si pas trouvé, chercher une instance active pour ce workspace
-    if (!instanceToUse) {
-      instanceToUse = await WhatsAppInstance.findOne({
-        workspaceId: req.workspaceId,
-        status: 'active'
-      });
-    }
-    
-    if (instanceToUse) {
-      console.log(`📱 Utilisation instance WhatsAppInstance: ${instanceToUse.name} (${instanceToUse.instanceId})`);
-    } else if (resolvedInstanceId) {
-      console.log(`📱 Utilisation config workspace: ${resolvedInstanceId}`);
-    } else {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'WhatsApp non configuré. Enregistrez une instance WhatsApp dans Paramètres.' 
-      });
-    }
-    
-    // 🆕 Service 3: Utiliser l'instanceName + secret exactement comme le code original
-    const finalInstanceId = instanceToUse?.instanceId || resolvedInstanceId;
-    const finalToken = instanceToUse?.apiKey || resolvedToken; // On utilise bien le secret ici
-    console.log('SEND DEBUG campaign:', {
-      id: campaign._id,
-      name: campaign.name,
-      type: campaign.type
-    });
-    console.log(`📱 WhatsApp config: ${instanceToUse?.name || 'workspace'} (${finalInstanceId})`);
-    console.log(`🔑 Token utilisé: ${finalToken ? '***' + finalToken.slice(-4) : 'MANQUANT'}`);
-    console.log(`📊 Instance trouvée:`, instanceToUse ? {
-      name: instanceToUse.name,
-      instanceId: instanceToUse.instanceId,
-      status: instanceToUse.status,
-      hasApiKey: !!instanceToUse.apiKey
-    } : 'NON');
-    console.log(`🌐 API URL: ${process.env.EVOLUTION_API_URL || process.env.WHATSAPP_API_URL || 'https://api.ecomcookpit.site'}`);
-    console.log(`📞 Endpoint complet: ${(process.env.EVOLUTION_API_URL || process.env.WHATSAPP_API_URL || 'https://api.ecomcookpit.site')}/message/sendText/${finalInstanceId}`);
-    console.log(`🚀 Envoi direct Service 3 (sans test préalable)`);
-
-    // VALIDATION ANTI-SPAM du message avant envoi massif
-    const analysis = analyzeSpamRisk(campaign.messageTemplate);
-    const isValid = validateMessageBeforeSend(campaign.messageTemplate, `campaign-${campaign._id}`);
-    
-    if (!isValid) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Envoi bloqué - message à risque de spam élevé',
-        spamAnalysis: {
-          risk: analysis.risk,
-          score: analysis.score,
-          warnings: analysis.warnings,
-          recommendations: analysis.recommendations
-        }
-      });
-    }
-
-    // 🆕 LOGS DE VÉRIFICATION - DIAGNOSTIC
-    console.log('SEND DEBUG campaign:', {
-      id: campaign._id,
-      name: campaign.name,
-      type: campaign.type,
-      targetFilters: campaign.targetFilters,
-      snapshotCount: campaign.recipientSnapshotIds?.length,
-      selectedClientIdsCount: campaign.selectedClientIds?.length,
-      recipientsCount: campaign.recipients?.count,
-      statsTargeted: campaign.stats?.targeted
-    });
-
-    // Récupérer les clients ciblés
-    let clients = [];
-
-    // 🆕 UTILISER LE SNAPSHOT SI DISPONIBLE (priorité absolue)
-    if (campaign.recipientSnapshotIds && campaign.recipientSnapshotIds.length > 0) {
-      console.log(`📸 Utilisation du snapshot de ${campaign.recipientSnapshotIds.length} destinataires`);
-      
-      // 🆕 Conversion sécurisée des IDs
-      const snapshotIdsRaw = campaign.recipientSnapshotIds;
-      const snapshotIds = snapshotIdsRaw.map(toObjectId).filter(Boolean);
-      
-      console.log("SNAPSHOT DEBUG first3:", snapshotIdsRaw.slice(0,3), "casted:", snapshotIds.slice(0,3));
-      
-      // Chercher sans filtre workspaceId (les IDs sont déjà scopés au workspace lors de la création)
-      clients = await Client.find({ 
-        _id: { $in: snapshotIds },
-        phone: { $exists: true, $ne: '' }
-      }).select('firstName lastName phone city products totalOrders totalSpent status tags address lastContactAt').lean();
-      
-      console.log("Snapshot loaded:", clients.length, "expected:", snapshotIds.length);
-      
-      if (clients.length !== snapshotIds.length) {
-        console.warn(`⚠️ Attention: ${snapshotIds.length - clients.length} clients du snapshot non trouvés`);
-      }
-      
-      // Fallback si snapshot vide: recalculer depuis les filtres
-      if (clients.length === 0) {
-        console.warn('⚠️ Snapshot vide, fallback sur les filtres de la campagne...');
-        const hasOrderFilters = campaign.targetFilters && (
-          campaign.targetFilters.orderStatus || campaign.targetFilters.orderCity ||
-          campaign.targetFilters.orderAddress || campaign.targetFilters.orderProduct ||
-          campaign.targetFilters.orderDateFrom || campaign.targetFilters.orderDateTo ||
-          campaign.targetFilters.orderSourceId || campaign.targetFilters.orderMinPrice ||
-          campaign.targetFilters.orderMaxPrice
-        );
-        if (hasOrderFilters) {
-          const orderMap = await getClientsFromOrderFilters(req.workspaceId, campaign.targetFilters);
-          clients = Array.from(orderMap.entries()).map(([phone, orderData]) => ({
-            firstName: orderData.clientName?.split(' ')[0] || '',
-            lastName: orderData.clientName?.split(' ').slice(1).join(' ') || '',
-            phone, city: orderData.city || '', address: orderData.address || '',
-            products: orderData.product ? [orderData.product] : [],
-            totalOrders: 1, totalSpent: (orderData.price || 0) * (orderData.quantity || 1),
-            status: orderData.status || '', tags: [], lastContactAt: orderData.date || new Date(),
-            _id: orderData._id, _orderStatus: orderData.status || '',
-            _orderPrice: orderData.price || 0, _orderDate: orderData.date || null,
-            _orderProduct: orderData.product || '', _orderQuantity: orderData.quantity || 1
-          }));
-          console.log(`📦 Fallback: ${clients.length} clients depuis filtres commandes`);
-        } else {
-          const filter = buildClientFilter(req.workspaceId, campaign.targetFilters || {});
-          filter.phone = { $exists: true, $ne: '' };
-          clients = await Client.find(filter).lean();
-          console.log(`👥 Fallback: ${clients.length} clients depuis filtres clients`);
-        }
-      }
-      
-    // ✅ Gestion des campagnes WhatsApp
-    } else if (campaign.type === 'whatsapp' && campaign.recipients) {
-      console.log('🔍 DIAGNOSTIC ENVOI CAMPAGNE WHATSAPP:');
-      console.log('   Type de recipients:', campaign.recipients?.type);
-      console.log('   Segment:', campaign.recipients?.segment);
-      console.log('   Longueur customPhones:', campaign.recipients?.customPhones?.length || 0);
-      if (campaign.recipients?.customPhones?.length > 0) {
-        console.log('   3-5 numéros exemples:', campaign.recipients.customPhones.slice(0, 5));
-      }
-      console.log('   Count:', campaign.recipients?.count);
-      
-      if (campaign.recipients.type === 'list' && campaign.recipients.customPhones?.length) {
-        // ✅ Logique "list" améliorée - ne pas dépendre de la DB Users
-        console.log('📋 Traitement campagne WhatsApp type LIST');
-        
-        // ✅ Fonction de normalisation uniforme
-        const normalizePhone = (phone) => {
-          if (!phone) return '';
-          let cleaned = phone.toString().replace(/\D/g, '').trim();
-          
-          // ✅ Corriger le cas 00237699887766
-          if (cleaned.startsWith('00')) {
-            cleaned = cleaned.substring(2);
-          }
-          
-          // Gérer le préfixe pays (Cameroun 237)
-          if (cleaned.length === 9 && cleaned.startsWith('6')) {
-            return '237' + cleaned;
-          }
-          
-          return cleaned;
-        };
-        
-        // Normaliser et filtrer les numéros valides
-        const validPhones = campaign.recipients.customPhones
-          .map(phone => normalizePhone(phone))
-          .filter(phone => phone.length >= 8); // Minimum 8 digits
-        
-        console.log(`   ${validPhones.length} numéros valides sur ${campaign.recipients.customPhones.length}`);
-        
-        // ✅ Construire les destinataires directement depuis customPhones
-        clients = validPhones.map(phone => ({
-          phone: phone,
-          phoneNumber: phone,
-          name: null,
-          firstName: null,
-          lastName: null,
-          _id: null
-        }));
-        
-        console.log(`   ✅ Créé ${clients.length} destinataires depuis customPhones`);
-      } else {
-        // Pour les autres types (all, segment), utiliser les filtres commandes/clients
-        const hasOrderFilters = campaign.targetFilters && (
-          campaign.targetFilters.orderStatus ||
-          campaign.targetFilters.orderCity ||
-          campaign.targetFilters.orderAddress ||
-          campaign.targetFilters.orderProduct ||
-          campaign.targetFilters.orderDateFrom ||
-          campaign.targetFilters.orderDateTo ||
-          campaign.targetFilters.orderSourceId ||
-          campaign.targetFilters.orderMinPrice ||
-          campaign.targetFilters.orderMaxPrice
-        );
-
-        if (campaign.recipientSnapshotIds && campaign.recipientSnapshotIds.length > 0) {
-          const snapshotIdsRaw = campaign.recipientSnapshotIds;
-          const snapshotIds = snapshotIdsRaw.map(toObjectId).filter(Boolean);
-          
-          // Chercher sans filtre workspaceId (IDs déjà scopés au workspace)
-          clients = await Client.find({
-            _id: { $in: snapshotIds },
-            phone: { $exists: true, $ne: '' }
-          }).lean();
-          
-          console.log("Snapshot whatsapp loaded:", clients.length, "expected:", snapshotIds.length);
-        } else if (hasOrderFilters) {
-          const orderMap = await getClientsFromOrderFilters(req.workspaceId, campaign.targetFilters);
-          clients = Array.from(orderMap.entries()).map(([phone, orderData]) => ({
-            firstName: orderData.clientName?.split(' ')[0] || '',
-            lastName: orderData.clientName?.split(' ').slice(1).join(' ') || '',
-            phone: phone,
-            city: orderData.city || '',
-            address: orderData.address || '',
-            products: orderData.product ? [orderData.product] : [],
-            totalOrders: 1,
-            totalSpent: (orderData.price || 0) * (orderData.quantity || 1),
-            status: orderData.status || '',
-            tags: [],
-            lastContactAt: orderData.date || new Date(),
-            _id: orderData._id,
-            _orderStatus: orderData.status || '',
-            _orderPrice: orderData.price || 0,
-            _orderDate: orderData.date || null,
-            _orderProduct: orderData.product || '',
-            _orderQuantity: orderData.quantity || 1
-          }));
-        } else {
-          const filter = buildClientFilter(req.workspaceId, campaign.targetFilters || {});
-          filter.phone = { $exists: true, $ne: '' };
-          clients = await Client.find(filter);
-        }
-      }
-    } else {
-      // 🆕 LOGIQUE FALLBACK - RECALCULER DEPUIS LES FILTRES
-      console.log('🔄 Aucun snapshot trouvé, recalculer depuis les filtres...');
-      
-      // Logique existante pour les campagnes non-WhatsApp
-      const hasOrderFilters = campaign.targetFilters && (
-        campaign.targetFilters.orderStatus ||
-        campaign.targetFilters.orderCity ||
-        campaign.targetFilters.orderAddress ||
-        campaign.targetFilters.orderProduct ||
-        campaign.targetFilters.orderDateFrom ||
-        campaign.targetFilters.orderDateTo ||
-        campaign.targetFilters.orderSourceId ||
-        campaign.targetFilters.orderMinPrice ||
-        campaign.targetFilters.orderMaxPrice
-      );
-
-      if (campaign.recipientSnapshotIds && campaign.recipientSnapshotIds.length > 0) {
-        // 🆕 Utiliser le snapshot des IDs de clients
-        const snapshotIdsRaw = campaign.recipientSnapshotIds;
-        const snapshotIds = snapshotIdsRaw.map(toObjectId).filter(Boolean);
-        const workspaceObjectId = toObjectId(req.workspaceId) || toObjectId(campaign.workspaceId);
-        
-        clients = await Client.find({
-          _id: { $in: snapshotIds },
-          workspaceId: workspaceObjectId,
-          phone: { $exists: true, $ne: '' }
-        }).lean();
-        console.log(`📋 Fallback: ${clients.length} clients depuis snapshot`);
-      } else if (hasOrderFilters) {
-        // Utiliser directement les commandes
-        const orderMap = await getClientsFromOrderFilters(req.workspaceId, campaign.targetFilters);
-        console.log(`📦 Campagne basée sur ${orderMap.size} commandes`);
-
-        // Convertir les commandes en structure compatible
-        clients = Array.from(orderMap.entries()).map(([phone, orderData]) => ({
-          firstName: orderData.clientName?.split(' ')[0] || '',
-          lastName: orderData.clientName?.split(' ').slice(1).join(' ') || '',
-          phone: phone,
-          city: orderData.city || '',
-          address: orderData.address || '',
-          products: orderData.product ? [orderData.product] : [],
-          totalOrders: 1,
-          totalSpent: (orderData.price || 0) * (orderData.quantity || 1),
-          status: orderData.status || '',
-          tags: [],
-          lastContactAt: orderData.date || new Date(),
-          _id: orderData._id,
-          _orderStatus: orderData.status || '',
-          _orderPrice: orderData.price || 0,
-          _orderDate: orderData.date || null,
-          _orderProduct: orderData.product || '',
-          _orderQuantity: orderData.quantity || 1
-        }));
-      } else {
-        // Utiliser les filtres clients (ancienne méthode)
-        const filter = buildClientFilter(req.workspaceId, campaign.targetFilters || {});
-        filter.phone = { $exists: true, $ne: '' };
-        clients = await Client.find(filter);
-      }
-    }
-
-    // 🆕 LOG FINAL DE VÉRIFICATION
-    console.log(`🎯 RÉCAPITULATIF ENVOI - Clients récupérés: ${clients.length} | Attendus: ${campaign.stats?.targeted || 'N/A'}`);
-    
-    if (clients.length === 0) {
-      console.error('❌ ERREUR: Aucun client récupéré pour l\'envoi !');
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Aucun destinataire trouvé pour cette campagne. Vérifiez les filtres ou la sélection.',
-        debug: {
-          snapshotCount: campaign.recipientSnapshotIds?.length,
-          selectedCount: campaign.selectedClientIds?.length,
-          targetFilters: campaign.targetFilters,
-          statsTargeted: campaign.stats?.targeted
-        }
-      });
-    }
-
-    // 🆕 LOGS SKIPPED/FAILED REasons - Analyse des destinataires
-    const counters = {
-      totalTargets: clients.length,
-      missingPhone: 0,
-      invalidPhone: 0,
-      preparedContacts: 0
-    };
-
-    const normalize = (p) => (p ? p.toString().replace(/\D/g, '') : '');
-
-    const contacts = clients
-      .map(c => {
-        const phoneRaw = c.phoneNumber || c.phone || c.whatsapp || '';
-        if (!phoneRaw) { 
-          counters.missingPhone++; 
-          return null; 
-        }
-        const phone = normalize(phoneRaw);
-        if (phone.length < 8) { 
-          counters.invalidPhone++; 
-          return null; 
-        }
-        counters.preparedContacts++;
-        return { 
-          to: phone, 
-          clientId: c._id, 
-          firstName: c.firstName || '',
-          lastName: c.lastName || '',
-          phoneRaw: phoneRaw
-        };
-      })
-      .filter(Boolean);
-
-    console.log('📊 SEND COUNTERS:', counters);
-    console.log('📞 Sample phones (first 5):', contacts.slice(0,5).map(c => ({ 
-      phoneRaw: c.phoneRaw, 
-      normalized: c.to, 
-      name: c.firstName + ' ' + c.lastName 
-    })));
-
-    // Healthcheck désactivé car l'API n'a pas d'endpoint /api/status
-    // Le statut sera vérifié lors du premier envoi de message
-    console.log('⏭️ Healthcheck désactivé - statut vérifié lors de l\'envoi');
-
-    campaign.status = 'sending';
-    campaign.stats.targeted = clients.length;
-    campaign.results = [];
-    await campaign.save();
-
-    console.log(`🚀 Envoi campagne marketing "${campaign.name}" avec système anti-spam`);
-    console.log(`   Clients ciblés: ${clients.length}`);
-    console.log(`   Contacts préparés: ${counters.preparedContacts}`);
-    console.log(`   Téléphones manquants: ${counters.missingPhone}`);
-    console.log(`   Téléphones invalides: ${counters.invalidPhone}`);
-    console.log(`   Risque spam: ${analysis.risk} (score: ${analysis.score})`);
-
-    let sent = 0;
-    let failed = 0;
-    let messageCount = 0;
-    
-    // Configuration timing envoi WhatsApp
-    const BATCH_SIZE = 5;            // Pause toutes les 5 messages envoyés avec succès
-    const BATCH_PAUSE_MS = 5 * 60 * 1000; // 5 minutes entre chaque batch de 5
-    const MSG_PAUSE_MS = 30000;      // 30 secondes entre chaque message
-
-    const hasOrderFilters = campaign.targetFilters && (
-      campaign.targetFilters.orderStatus ||
-      campaign.targetFilters.orderCity ||
-      campaign.targetFilters.orderAddress ||
-      campaign.targetFilters.orderProduct ||
-      campaign.targetFilters.orderDateFrom ||
-      campaign.targetFilters.orderDateTo ||
-      campaign.targetFilters.orderSourceId ||
-      campaign.targetFilters.orderMinPrice ||
-      campaign.targetFilters.orderMaxPrice
-    );
-
-    // 🆕 BOUCLE D'ENVOI DIRECTE SUR LES CLIENTS
-    for (let ci = 0; ci < clients.length; ci++) {
-      const client = clients[ci];
-      // Utiliser les données de commande si disponibles
-      const orderData = hasOrderFilters ? {
-        clientName: `${client.firstName} ${client.lastName}`.trim(),
-        clientPhone: client.phone,
-        city: client.city,
-        address: client.address,
-        product: client._orderProduct,
-        price: client._orderPrice,
-        quantity: client._orderQuantity,
-        date: client._orderDate,
-        status: client._orderStatus
-      } : null;
-      
-      const message = renderMessage(campaign.messageTemplate, client, orderData);
-      const cleanedPhone = (client.phone || client.phoneNumber || '').replace(/\D/g, '');
-      
-      if (!cleanedPhone || cleanedPhone.length < 8) {
-        campaign.results.push({ 
-          clientId: client._id, 
-          clientName: `${client.firstName || ''} ${client.lastName || ''}`.trim() || 'Inconnu', 
-          phone: client.phone || client.phoneNumber, 
-          status: 'failed', 
-          error: 'Numéro invalide' 
-        });
-        failed++;
-        continue;
-      }
-
-      try {
-        // 🆕 Validation anti-spam pour chaque message personnalisé
-        const personalizedAnalysis = analyzeSpamRisk(message);
-        const isPersonalizedValid = validateMessageBeforeSend(message, `client-${client._id || 'unknown'}`);
-        
-        if (!isPersonalizedValid) {
-          campaign.results.push({ 
-            clientId: client._id, 
-            clientName: `${client.firstName || ''} ${client.lastName || ''}`.trim() || 'Inconnu', 
-            phone: cleanedPhone, 
-            status: 'failed', 
-            error: 'Message personnalisé rejeté (spam)',
-            spamRisk: personalizedAnalysis.risk,
-            spamScore: personalizedAnalysis.score
-          });
-          failed++;
-          continue;
-        }
-
-        // ✅ Envoi via WhatsApp Integration SaaS (instance ou workspace)
-        const result = await sendWhatsAppMessageV2(
-          { instanceId: finalInstanceId, apiKey: finalToken },
-          cleanedPhone,
-          message
-        );
-        
-        // sendWhatsAppMessage retourne { success: true, ... } en cas de succès
-        campaign.results.push({ 
-          clientId: client._id, 
-          clientName: `${client.firstName || ''} ${client.lastName || ''}`.trim() || 'Inconnu', 
-          phone: cleanedPhone,
-          status: 'sent', 
-          sentAt: new Date(),
-          messageId: result?.data?.messageId || result?.messageId,
-          spamRisk: personalizedAnalysis.risk
-        });
-        sent++;
-        messageCount++;
-        
-        // Mettre à jour le dernier contact si c'est un vrai client avec _id
-        if (!hasOrderFilters && client._id) {
-          try {
-            const realClient = await Client.findById(client._id);
-            if (realClient) {
-              realClient.lastContactAt = new Date();
-              if (!realClient.tags.includes('Relancé')) realClient.tags.push('Relancé');
-              await realClient.save();
-            }
-          } catch (tagErr) {
-            console.warn(`⚠️ Erreur mise à jour tag client ${client._id}:`, tagErr.message);
-          }
-        }
-        
-        console.log(`✅ [${messageCount}/${clients.length}] Message envoyé à ${client.firstName || 'Inconnu'} ${client.lastName || ''} (${cleanedPhone})`);
-        
-      } catch (err) {
-        const clientName = `${client.firstName || ''} ${client.lastName || ''}`.trim() || 'Inconnu';
-        console.error(`❌ Échec envoi à ${clientName} (${cleanedPhone}): ${err.message}`);
-        campaign.results.push({ 
-          clientId: client._id, 
-          clientName: clientName, 
-          phone: cleanedPhone,
-          status: 'failed', 
-          error: err.message 
-        });
-        failed++;
-      }
-
-      // Timing: 30s entre chaque message, pause 5min après chaque batch de 5 envois réussis
-      // Ne pas attendre après le dernier message
-      if (ci < clients.length - 1) {
-        if (messageCount > 0 && messageCount % BATCH_SIZE === 0) {
-          console.log(`⏸️ Pause 5 minutes après ${messageCount} messages envoyés avec succès (batch de ${BATCH_SIZE})...`);
-          await new Promise(resolve => setTimeout(resolve, BATCH_PAUSE_MS));
-        } else {
-          console.log(`⏳ Attente 30s avant prochain message...`);
-          await new Promise(resolve => setTimeout(resolve, MSG_PAUSE_MS));
-        }
-      }
-    }
-
-    // 🆕 LOGS RÉSULTATS DÉTAILLÉS
-    const results = campaign.results || [];
-    const sentResults = results.filter(r => r.status === 'sent');
-    const failedResults = results.filter(r => r.status === 'failed');
-    const pendingResults = results.filter(r => r.status === 'pending');
-
-    console.log('📈 RESULTS SUMMARY:', {
-      total: results.length,
-      sent: sentResults.length,
-      failed: failedResults.length,
-      pending: pendingResults.length,
-      successRate: Math.round((sentResults.length / results.length) * 100) || 0
-    });
-
-    if (failedResults.length > 0) {
-      console.log('❌ SAMPLE FAILED (first 5):', failedResults.slice(0,5).map(x => ({ 
-        phone: x.phone, 
-        error: x.error,
-        clientName: x.clientName
-      })));
-    }
-
-    if (pendingResults.length > 0) {
-      console.log('⏸️ SAMPLE PENDING (first 5):', pendingResults.slice(0,5).map(x => ({ 
-        phone: x.phone, 
-        clientName: x.clientName
-      })));
-    }
-
-    campaign.status = failed === clients.length ? 'failed' : 'sent';
-    campaign.sentAt = new Date();
-    campaign.stats.sent = sent;
-    campaign.stats.failed = failed;
-    campaign.spamValidation = {
-      validated: true,
-      riskLevel: analysis.risk,
-      score: analysis.score,
-      sentAt: new Date()
-    };
-    await campaign.save();
-
-    const successRate = Math.round((sent / clients.length) * 100);
-    console.log(`✅ Campagne marketing terminée: ${sent}/${clients.length} envoyés (${successRate}% succès)`);
-
-    res.json({
-      success: true,
-      message: `Campagne envoyée avec protection anti-spam: ${sent} envoyés, ${failed} échoués sur ${clients.length} ciblés`,
-      data: campaign,
-      stats: {
-        total: clients.length,
-        sent,
-        failed,
-        successRate,
-        spamRisk: analysis.risk,
-        spamScore: analysis.score
-      }
-    });
-  } catch (error) {
-    console.error('Erreur send campaign:', error);
-    res.status(500).json({ success: false, message: 'Erreur serveur' });
-  }
-});
-
-// DELETE /api/ecom/campaigns/:id - Supprimer une campagne
-router.delete('/:id', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
-  try {
-    const campaign = await Campaign.findOneAndDelete({ _id: req.params.id, workspaceId: req.workspaceId });
-    if (!campaign) return res.status(404).json({ success: false, message: 'Campagne non trouvée' });
-    res.json({ success: true, message: 'Campagne supprimée' });
-  } catch (error) {
-    console.error('Erreur delete campaign:', error);
-    res.status(500).json({ success: false, message: 'Erreur serveur' });
-  }
-});
-
-// POST /api/ecom/campaigns/cancel-all - Annuler toutes les campagnes en cours
-router.post('/cancel-all', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
+// POST /api/ecom/campaigns/cancel-all - Annuler toutes les campagnes en cours d'envoi
+router.post('/cancel-all', requireEcomAuth, async (req, res) => {
   try {
     const result = await Campaign.updateMany(
       { workspaceId: req.workspaceId, status: 'sending' },
-      { $set: { status: 'paused' } }
+      { $set: { status: 'draft' } }
     );
-    
-    const count = result.modifiedCount || 0;
-    
-    if (count === 0) {
-      return res.json({ success: true, message: 'Aucune campagne en cours d\'envoi' });
-    }
-    
-    res.json({ 
-      success: true, 
-      message: `${count} campagne(s) annulée(s) avec succès`,
-      count 
-    });
-  } catch (error) {
-    console.error('Erreur annulation campagnes:', error);
-    res.status(500).json({ success: false, message: 'Erreur lors de l\'annulation' });
+    res.json({ success: true, message: `${result.modifiedCount} campagne(s) annulée(s)` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// 🆕 POST /api/ecom/campaigns/preview-send - Envoyer un aperçu à une seule personne
-router.post('/preview-send', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
+// POST /api/ecom/campaigns/:id/send - Envoyer une campagne via WhatsApp
+router.post('/:id/send', requireEcomAuth, async (req, res) => {
   try {
-    const { 
-      messageTemplate, 
-      clientId, 
-      clientData,
-      phoneNumber,
-      firstName
-    } = req.body;
-    
-    // ✅ Générer previewId unique
-    const previewId = 'preview-' + Date.now();
-    
-    // Validation des champs requis
-    if (!messageTemplate || !messageTemplate.trim()) {
-      return res.status(400).json({ success: false, message: 'Le message template est requis' });
-    }
-    
-    let client = null;
-    
-    // Si phoneNumber fourni (preview WhatsApp), créer un client minimal
-    if (phoneNumber) {
-      client = {
-        phone: phoneNumber,
-        phoneNumber: phoneNumber,
-        firstName: firstName || null,
-        lastName: null,
-        name: firstName || null,
-        _id: null
-      };
-    }
-    // Si clientId fourni, récupérer le client depuis la base
-    else if (clientId) {
-      client = await Client.findOne({ _id: clientId, workspaceId: req.workspaceId });
-      if (!client) {
-        return res.status(404).json({ success: false, message: 'Client non trouvé' });
-      }
-    } 
-    // Sinon, utiliser les données fournies
-    else if (clientData) {
-      client = clientData;
-    } else {
-      return res.status(400).json({ success: false, message: 'clientId, clientData ou phoneNumber requis' });
-    }
-    
-    // Personnaliser le message
-    const personalizedMessage = renderMessage(messageTemplate, client);
-    
-    // 🆕 VALIDATION ANTI-SPAM du message personnalisé
-    const analysis = analyzeSpamRisk(personalizedMessage);
-    const isValid = validateMessageBeforeSend(personalizedMessage, `preview-${client._id || 'manual'}`);
-    
-    if (!isValid) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Message rejeté pour risque de spam élevé',
-        analysis: {
-          risk: analysis.risk,
-          score: analysis.score,
-          warnings: analysis.warnings,
-          recommendations: analysis.recommendations
-        }
-      });
-    }
-    
-    // Nettoyer et valider le numéro
-    const cleanedPhone = (client.phone || '').replace(/\D/g, '').trim();
-    if (!cleanedPhone || cleanedPhone.length < 8) {
-      return res.status(400).json({ success: false, message: 'Numéro de téléphone invalide' });
-    }
-    
-    console.log(`📱 Envoi d\'aperçu marketing à ${client.firstName} ${client.lastName || ''} (${cleanedPhone})`);
-    console.log(`   Message: "${personalizedMessage.substring(0, 50)}..."`);
-    console.log(`   Risque spam: ${analysis.risk} (score: ${analysis.score})`);
-    
-    // Préparer les données pour l'envoi
-    const messageData = {
-      to: cleanedPhone,
-      message: personalizedMessage,
-      campaignId: null,
-      previewId,
-      userId: req.ecomUser._id || null,
-      firstName: client.firstName || null,
-      workspaceId: req.workspaceId
-    };
-    
-    // Envoyer le message en utilisant le système anti-spam
-    try {
-      const result = await sendWhatsAppMessage(messageData);
-      
-      console.log(`✅ Message d\'aperçu marketing envoyé avec succès`);
-      console.log(`   ID du message: ${result.messageId}`);
-      console.log(`   ID du log: ${result.logId}`);
-      
-      res.json({
-        success: true,
-        message: 'Message d\'aperçu marketing envoyé avec succès',
-        result: {
-          messageId: result.messageId,
-          logId: result.logId,
-          phone: cleanedPhone,
-          clientName: `${client.firstName || ''} ${client.lastName || ''}`.trim(),
-          sentAt: new Date(),
-          personalizedMessage: personalizedMessage,
-          spamAnalysis: {
-            risk: analysis.risk,
-            score: analysis.score,
-            validated: true
-          }
-        }
-      });
-      
-    } catch (error) {
-      console.error(`❌ Erreur envoi aperçu marketing: ${error.message}`);
-      
-      // Gérer les erreurs spécifiques
-      if (error.message.includes('HTTP_466')) {
-        return res.status(429).json({ 
-          success: false,
-          message: 'Limite de débit atteinte - veuillez réessayer dans quelques minutes',
-          type: 'rate_limit',
-          retryAfter: 60
-        });
-      }
-      
-      if (error.message.includes('numéro invalide')) {
-        return res.status(400).json({ 
-          success: false,
-          message: 'Numéro de téléphone invalide ou non enregistré sur WhatsApp',
-          type: 'invalid_phone'
-        });
-      }
-      
-      res.status(500).json({ 
+    const { whatsappInstanceId, whatsappInstances } = req.body;
+    const instanceId = whatsappInstanceId || (whatsappInstances && whatsappInstances[0]);
+
+    if (!instanceId) {
+      return res.status(400).json({
         success: false,
-        message: 'Erreur lors de l\'envoi du message d\'aperçu',
-        details: error.message
+        message: 'Sélectionnez une instance WhatsApp avant d\'envoyer la campagne.'
       });
     }
-    
-  } catch (error) {
-    console.error('Erreur générale aperçu marketing:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Erreur serveur lors de l\'envoi d\'aperçu',
-      details: error.message
-    });
-  }
-});
 
-// 🆕 POST /api/ecom/campaigns/test-message - Tester un message sans l'envoyer
-router.post('/test-message', requireEcomAuth, async (req, res) => {
-  try {
-    const { messageTemplate, clientData } = req.body;
-    
-    if (!messageTemplate || !messageTemplate.trim()) {
-      return res.status(400).json({ success: false, message: 'Le message template est requis' });
+    // Récupérer et valider l'instance
+    const instance = await WhatsappInstance.findOne({ _id: instanceId, isActive: true });
+    if (!instance) {
+      return res.status(404).json({
+        success: false,
+        message: 'Instance WhatsApp introuvable. Vérifiez la configuration dans "Connexion WhatsApp".'
+      });
     }
-    
-    // Si clientData fourni, personnaliser le message pour le test
-    let testMessage = messageTemplate;
-    if (clientData) {
-      testMessage = renderMessage(messageTemplate, clientData);
+
+    if (instance.status !== 'connected' && instance.status !== 'active') {
+      return res.status(400).json({
+        success: false,
+        message: `L'instance "${instance.customName || instance.instanceName}" n'est pas connectée à WhatsApp. Allez dans "Connexion WhatsApp" pour la connecter, puis actualisez son statut.`,
+        instanceStatus: instance.status
+      });
     }
-    
-    // Analyse anti-spam complète
-    const analysis = analyzeSpamRisk(testMessage);
-    const isValid = validateMessageBeforeSend(testMessage, 'test-user');
-    
+
+    // Récupérer la campagne
+    const campaign = await Campaign.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
+    if (!campaign) {
+      return res.status(404).json({ success: false, message: 'Campagne non trouvée' });
+    }
+    if (campaign.status === 'sending') {
+      return res.status(400).json({ success: false, message: 'Cette campagne est déjà en cours d\'envoi' });
+    }
+    if (campaign.status === 'sent') {
+      return res.status(400).json({ success: false, message: 'Cette campagne a déjà été envoyée' });
+    }
+
+    // Déterminer les destinataires
+    let recipients = []; // [{ phone, client, orderData }]
+    const hasOrderFilters = campaign.targetFilters && (
+      campaign.targetFilters.orderStatus || campaign.targetFilters.orderCity ||
+      campaign.targetFilters.orderProduct || campaign.targetFilters.orderDateFrom
+    );
+
+    if (campaign.recipientSnapshotIds && campaign.recipientSnapshotIds.length > 0) {
+      const clients = await Client.find({ _id: { $in: campaign.recipientSnapshotIds } })
+        .select('firstName lastName phone city products totalOrders totalSpent lastContactAt')
+        .lean();
+      recipients = clients.filter(c => c.phone).map(c => ({ phone: c.phone, client: c, orderData: null }));
+    } else if (campaign.selectedClientIds && campaign.selectedClientIds.length > 0) {
+      const clients = await Client.find({ _id: { $in: campaign.selectedClientIds } })
+        .select('firstName lastName phone city products totalOrders totalSpent lastContactAt')
+        .lean();
+      recipients = clients.filter(c => c.phone).map(c => ({ phone: c.phone, client: c, orderData: null }));
+    } else if (hasOrderFilters) {
+      const orderMap = await getClientsFromOrderFilters(req.workspaceId, campaign.targetFilters);
+      for (const [phone, orderData] of orderMap) {
+        recipients.push({
+          phone,
+          client: { firstName: orderData.clientName?.split(' ')[0] || '', lastName: orderData.clientName?.split(' ').slice(1).join(' ') || '', phone },
+          orderData
+        });
+      }
+    } else if (campaign.targetFilters && Object.keys(campaign.targetFilters).some(k => campaign.targetFilters[k])) {
+      const filter = buildClientFilter(req.workspaceId, campaign.targetFilters);
+      filter.phone = { $exists: true, $ne: '' };
+      const clients = await Client.find(filter).select('firstName lastName phone city products totalOrders totalSpent lastContactAt').limit(1000).lean();
+      recipients = clients.map(c => ({ phone: c.phone, client: c, orderData: null }));
+    }
+
+    if (recipients.length === 0) {
+      return res.status(400).json({ success: false, message: 'Aucun destinataire trouvé pour cette campagne' });
+    }
+
+    // Passer la campagne en statut "sending"
+    campaign.status = 'sending';
+    await campaign.save();
+
+    console.log(`📤 Envoi campagne "${campaign.name}" à ${recipients.length} destinataires via ${instance.instanceName}`);
+
+    let sent = 0;
+    let failed = 0;
+
+    for (const { phone, client, orderData } of recipients) {
+      const cleanPhone = sanitizePhoneNumber(phone);
+      if (!cleanPhone) { failed++; continue; }
+
+      const message = renderMessage(campaign.messageTemplate, client, orderData);
+
+      const result = await evolutionApiService.sendMessage(
+        instance.instanceName,
+        instance.instanceToken,
+        cleanPhone,
+        message
+      );
+
+      if (result.success) {
+        sent++;
+      } else {
+        failed++;
+        console.warn(`⚠️ Échec envoi à ${cleanPhone}:`, result.error);
+      }
+
+      // Délai humain entre les messages (1.5s)
+      await new Promise(r => setTimeout(r, 1500));
+    }
+
+    // Mettre à jour la campagne
+    campaign.status = failed === recipients.length ? 'failed' : 'sent';
+    campaign.sentAt = new Date();
+    campaign.stats = { ...campaign.stats.toObject?.() || campaign.stats, sent, failed, targeted: recipients.length };
+    await campaign.save();
+
+    // Mettre à jour le lastSeen de l'instance
+    await WhatsappInstance.findByIdAndUpdate(instanceId, { lastSeen: new Date(), status: 'connected' });
+
+    console.log(`✅ Campagne envoyée : ${sent} réussis, ${failed} échoués`);
+
     res.json({
       success: true,
-      message: 'Message testé avec succès',
-      analysis: {
-        risk: analysis.risk,
-        score: analysis.score,
-        warnings: analysis.warnings,
-        recommendations: analysis.recommendations,
-        validated: isValid,
-        length: testMessage.length,
-        wordCount: testMessage.split(/\s+/).length
-      },
-      personalizedMessage: clientData ? testMessage : null,
-      verdict: isValid ? '✅ Message safe pour envoi' : '❌ Message à risque - modifications recommandées'
+      message: `${sent} message(s) envoyé(s) via "${instance.customName || instance.instanceName}"${failed > 0 ? `, ${failed} échec(s)` : ''}`,
+      data: { sent, failed, total: recipients.length }
     });
-    
   } catch (error) {
-    console.error('Erreur test message marketing:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Erreur lors du test du message',
-      details: error.message
-    });
+    console.error('❌ Erreur envoi campagne:', error);
+    res.status(500).json({ success: false, message: 'Erreur lors de l\'envoi de la campagne' });
   }
+});
+
+router.post('/preview-send', requireEcomAuth, async (req, res) => {
+  try {
+    const { messageTemplate, clientId, media } = req.body;
+    
+    if (!messageTemplate || !clientId) {
+      return res.status(400).json({ success: false, message: 'Message et client requis' });
+    }
+
+    // Récupérer le client
+    const client = await Client.findOne({ _id: clientId, workspaceId: req.workspaceId });
+    if (!client) {
+      return res.status(404).json({ success: false, message: 'Client introuvable' });
+    }
+
+    // Récupérer une instance WhatsApp active
+    const instances = await WhatsappInstance.find({ 
+      workspaceId: req.workspaceId, 
+      status: 'connected' 
+    }).sort({ lastSeen: -1 });
+
+    if (instances.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Aucune instance WhatsApp connectée. Configurez une instance dans les paramètres.' 
+      });
+    }
+
+    const instance = instances[0];
+    const instanceStatus = await evolutionApiService.getInstanceStatus(instance.instanceName, instance.instanceToken);
+    if (!instanceStatus || !instanceStatus.instance || instanceStatus.instance.state !== 'open') {
+      return res.status(400).json({ 
+        success: false, 
+        message: `L'instance WhatsApp n'est pas connectée. Scannez le QR code.` 
+      });
+    }
+
+    // Nettoyer le numéro
+    const cleanNumber = sanitizePhoneNumber(client.phone);
+    if (!cleanNumber) {
+      return res.status(400).json({ success: false, message: 'Numéro de téléphone invalide' });
+    }
+
+    // Rendre le message avec les variables
+    const message = renderMessage(messageTemplate, client, null);
+
+    // Envoyer avec média si présent
+    let result;
+    if (media?.type === 'image' && media?.url) {
+      result = await evolutionApiService.sendMedia(
+        instance.instanceName,
+        instance.instanceToken,
+        cleanNumber,
+        media.url,
+        message,
+        media.fileName || 'image.jpg'
+      );
+    } else if (media?.type === 'audio' && media?.url) {
+      const audioResult = await evolutionApiService.sendAudio(
+        instance.instanceName,
+        instance.instanceToken,
+        cleanNumber,
+        media.url
+      );
+      
+      if (audioResult.success && message.trim()) {
+        await new Promise(r => setTimeout(r, 2000));
+        result = await evolutionApiService.sendMessage(instance.instanceName, instance.instanceToken, cleanNumber, message);
+      } else {
+        result = audioResult;
+      }
+    } else {
+      result = await evolutionApiService.sendMessage(instance.instanceName, instance.instanceToken, cleanNumber, message);
+    }
+
+    if (result.success) {
+      res.json({ success: true, message: 'Message de test envoyé avec succès' });
+    } else {
+      res.status(500).json({ success: false, message: result.error || 'Erreur lors de l\'envoi' });
+    }
+  } catch (error) {
+    console.error('Erreur preview-send:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+router.post('/test-message', requireEcomAuth, (req, res) => {
+  res.status(400).json({ success: false, message: 'Fonctionnalité d\'envoi désactivée' });
 });
 
 export default router;

@@ -52,7 +52,7 @@ console.log('🔧 [API] ECOM_API_BASE_URL =', ECOM_API_BASE_URL, '| VITE_API_URL
 
 const ecomApi = axios.create({
   baseURL: ECOM_API_BASE_URL,
-  timeout: 30000,
+  timeout: 60000,
   withCredentials: false,
   headers: {
     'Content-Type': 'application/json'

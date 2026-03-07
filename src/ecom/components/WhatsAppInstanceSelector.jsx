@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Smartphone, Check, Plus, RefreshCw, AlertCircle } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
-import WhatsAppConfigModal from './WhatsAppConfigModal.jsx';
+// WhatsAppConfigModal supprimé
 
 const WhatsAppInstanceSelector = ({ onInstanceSelected, selectedInstanceId }) => {
   const [instances, setInstances] = useState([]);
@@ -16,7 +16,10 @@ const WhatsAppInstanceSelector = ({ onInstanceSelected, selectedInstanceId }) =>
   const loadInstances = async () => {
     try {
       setLoading(true);
-      const response = await ecomApi.get('/whatsapp-instances');
+      const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
+      const userId = user._id || user.id;
+      
+      const response = await ecomApi.get(`/v1/external/whatsapp/instances?userId=${userId}`);
       if (response.data.success) {
         setInstances(response.data.instances);
       }
@@ -122,18 +125,18 @@ const WhatsAppInstanceSelector = ({ onInstanceSelected, selectedInstanceId }) =>
         </div>
       )}
 
-      {/* Modal d'enregistrement (réutilise WhatsAppConfigModal) */}
+      {/* Modal d'enregistrement supprimé - rediriger vers la page de connexion */}
       {showRegisterModal && (
-        <WhatsAppConfigModal
-          onClose={() => {
-            setShowRegisterModal(false);
-            loadInstances(); // Recharger après enregistrement
-          }}
-          onConfigSaved={() => {
-            setShowRegisterModal(false);
-            loadInstances();
-          }}
-        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full">
+            <h2 className="text-lg font-bold mb-4">Configuration requise</h2>
+            <p className="text-gray-600 mb-6 text-sm">Veuillez configurer vos instances dans la page "Connexion WhatsApp" de la barre latérale.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowRegisterModal(false)} className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg">Fermer</button>
+              <a href="/ecom/whatsapp/connexion" className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-center">Y aller</a>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

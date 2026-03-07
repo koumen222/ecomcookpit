@@ -36,8 +36,18 @@ const campaignSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['draft', 'scheduled', 'sending', 'sent', 'paused', 'failed'],
+    enum: ['draft', 'scheduled', 'sending', 'sent', 'paused', 'failed', 'interrupted'],
     default: 'draft'
+  },
+  pauseRequested: {
+    type: Boolean,
+    default: false
+  },
+  sendProgress: {
+    sent: { type: Number, default: 0 },
+    failed: { type: Number, default: 0 },
+    skipped: { type: Number, default: 0 },
+    targeted: { type: Number, default: 0 }
   },
   // Filtres pour cibler les clients
   targetFilters: {
@@ -129,6 +139,17 @@ const campaignSchema = new mongoose.Schema({
     trim: true
   },
   // Variables disponibles: {firstName}, {lastName}, {phone}, {city}, {product}, {totalOrders}, {totalSpent}
+  // Médias attachés (images et vocaux)
+  media: {
+    type: {
+      type: String,
+      enum: ['none', 'image', 'audio'],
+      default: 'none'
+    },
+    url: String,
+    fileName: String,
+    caption: String // Pour les images
+  },
   // Programmation
   scheduledAt: {
     type: Date

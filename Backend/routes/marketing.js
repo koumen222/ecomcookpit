@@ -1,8 +1,53 @@
 import express from 'express';
 import { Resend } from 'resend';
 import EmailCampaign from '../models/EmailCampaign.js';
+import Campaign from '../models/Campaign.js';
+import Client from '../models/Client.js';
+import WhatsappInstance from '../models/WhatsappInstance.js';
+import evolutionApiService from '../services/evolutionApiService.js';
 import EcomUser from '../models/EcomUser.js';
 import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
+
+// ─── WhatsApp helpers (shared with campaigns.js) ─────────────────────────────
+const sanitizePhoneNumber = (phone) => phone?.replace(/\D/g, '') || null;
+
+function renderMessage(template, client, orderData = null) {
+  const orderInfo = orderData || client;
+  return template
+    .replace(/\{firstName\}/g, client.firstName || orderInfo.clientName?.split(' ')[0] || '')
+    .replace(/\{lastName\}/g, client.lastName || orderInfo.clientName?.split(' ').slice(1).join(' ') || '')
+    .replace(/\{fullName\}/g, client.firstName && client.lastName ? [client.firstName, client.lastName].join(' ') : (orderInfo.clientName || ''))
+    .replace(/\{phone\}/g, client.phone || orderInfo.clientPhone || '')
+    .replace(/\{city\}/g, client.city || orderInfo.city || '')
+    .replace(/\{product\}/g, (client.products || []).join(', ') || orderInfo.product || '')
+    .replace(/\{totalOrders\}/g, String(client.totalOrders || 1))
+    .replace(/\{totalSpent\}/g, String(client.totalSpent || 0))
+    .replace(/\{status\}/g, client._orderStatus || orderInfo.status || '')
+    .replace(/\{price\}/g, String(orderInfo.price || 0))
+    .replace(/\{quantity\}/g, String(orderInfo.quantity || 1));
+}
+
+function toMongoIn(v) {
+  const arr = Array.isArray(v) ? v.filter(Boolean) : (v ? [v] : []);
+  if (!arr.length) return null;
+  return arr.length === 1 ? arr[0] : { $in: arr };
+}
+
+function buildClientFilter(workspaceId, targetFilters) {
+  const filter = { workspaceId };
+  const clientStatus = toMongoIn(targetFilters.clientStatus);
+  if (clientStatus) filter.status = clientStatus;
+  if (targetFilters.city) {
+    const cities = Array.isArray(targetFilters.city) ? targetFilters.city : [targetFilters.city];
+    filter.$or = cities.map(c => ({ city: { $regex: `^${c}`, $options: 'i' } }));
+  }
+  if (targetFilters.product) {
+    const prods = Array.isArray(targetFilters.product) ? targetFilters.product : [targetFilters.product];
+    filter.products = prods.length > 1 ? { $in: prods } : prods[0];
+  }
+  if (targetFilters.minOrders > 0) filter.totalOrders = { $gte: targetFilters.minOrders };
+  return filter;
+}
 
 const router = express.Router();
 
@@ -248,7 +293,178 @@ router.delete('/campaigns/:id', requireMarketingAccess, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
   try {
-    const campaign = await EmailCampaign.findById(req.params.id);
+    console.log(`🔍 [marketing] Request body:`, JSON.stringify(req.body, null, 2));
+    
+    // ── Tentative 1 : campagne email ──────────────────────────────────────────
+    const emailCampaign = await EmailCampaign.findById(req.params.id);
+
+    // ── Tentative 2 : campagne WhatsApp avec SSE streaming ─────────────────────
+    if (!emailCampaign) {
+      const campaign = await Campaign.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
+      if (!campaign) return res.status(404).json({ success: false, message: 'Campagne introuvable' });
+
+      let instances = await WhatsappInstance.find({ workspaceId: req.workspaceId, isActive: true, status: { $in: ['connected', 'active'] } }).sort({ defaultPart: -1 });
+      if (instances.length === 0) {
+        instances = await WhatsappInstance.find({ workspaceId: { $exists: false }, userId: req.ecomUser._id, isActive: true, status: { $in: ['connected', 'active'] } }).sort({ defaultPart: -1 });
+      }
+      if (instances.length === 0) return res.status(400).json({ success: false, message: 'Aucune instance WhatsApp connectée. Configurez une instance dans "Connexion WhatsApp".' });
+
+      const instance = instances[0];
+      console.log(`🎯 Instance sélectionnée: "${instance.customName || instance.instanceName}" (defaultPart: ${instance.defaultPart || 50}%)`);
+
+      const instanceStatus = await evolutionApiService.getInstanceStatus(instance.instanceName, instance.instanceToken);
+      if (!instanceStatus || !instanceStatus.instance || instanceStatus.instance.state !== 'open') {
+        return res.status(400).json({ success: false, message: `L'instance "${instance.customName || instance.instanceName}" n'est pas connectée à WhatsApp. Scannez le QR code pour vous connecter.` });
+      }
+
+      if (campaign.status === 'sending') return res.status(400).json({ success: false, message: 'Envoi déjà en cours' });
+
+      // Résoudre les destinataires
+      let recipients = [];
+      if (campaign.recipientSnapshotIds?.length > 0) {
+        const clients = await Client.find({ _id: { $in: campaign.recipientSnapshotIds } }).select('firstName lastName phone city products totalOrders totalSpent lastContactAt').lean();
+        recipients = clients.filter(c => c.phone).map(c => ({ phone: c.phone, client: c }));
+      } else if (campaign.selectedClientIds?.length > 0) {
+        const clients = await Client.find({ _id: { $in: campaign.selectedClientIds } }).select('firstName lastName phone city products totalOrders totalSpent lastContactAt').lean();
+        recipients = clients.filter(c => c.phone).map(c => ({ phone: c.phone, client: c }));
+      } else if (campaign.targetFilters && Object.keys(campaign.targetFilters).some(k => campaign.targetFilters[k])) {
+        const filter = buildClientFilter(req.workspaceId, campaign.targetFilters);
+        filter.phone = { $exists: true, $ne: '' };
+        const clients = await Client.find(filter).select('firstName lastName phone city products totalOrders totalSpent lastContactAt').limit(1000).lean();
+        recipients = clients.map(c => ({ phone: c.phone, client: c }));
+      }
+
+      if (recipients.length === 0) return res.status(400).json({ success: false, message: 'Aucun destinataire trouvé pour cette campagne' });
+
+      // Debug: vérifier les médias de la campagne
+      console.log('📸 [Campaign Media Debug]:', {
+        hasMedia: !!campaign.media,
+        mediaType: campaign.media?.type,
+        mediaUrl: campaign.media?.url,
+        mediaFileName: campaign.media?.fileName
+      });
+
+      // ══ SSE : diffusion temps réel ════════════════════════════════════════════
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.setHeader('Connection', 'keep-alive');
+      res.flushHeaders();
+
+      const emit = (event, data) => {
+        try {
+          res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+          if (res.flush) res.flush();
+        } catch (_) {}
+      };
+
+      let interrupted = false;
+      req.on('close', () => { interrupted = true; });
+
+      campaign.status = 'sending';
+      campaign.pauseRequested = false;
+      await campaign.save();
+
+      emit('start', { total: recipients.length, campaignName: campaign.name, instance: instance.customName || instance.instanceName });
+      console.log(`📤 Envoi SSE "${campaign.name}" → ${recipients.length} destinataires via ${instance.instanceName}`);
+
+      let sent = 0, failed = 0, skipped = 0;
+
+      for (const { phone, client } of recipients) {
+        // Vérifier interruption client
+        if (interrupted) {
+          campaign.status = 'interrupted';
+          campaign.sendProgress = { sent, failed, skipped, targeted: recipients.length };
+          await campaign.save();
+          return;
+        }
+
+        // Vérifier demande de pause
+        const fresh = await Campaign.findById(campaign._id).select('pauseRequested').lean();
+        if (fresh?.pauseRequested) {
+          campaign.status = 'paused';
+          campaign.pauseRequested = false;
+          campaign.sendProgress = { sent, failed, skipped, targeted: recipients.length };
+          await campaign.save();
+          emit('paused', { sent, failed, skipped, total: recipients.length });
+          res.end();
+          return;
+        }
+
+        const cleanNumber = sanitizePhoneNumber(phone);
+        const clientName = [client.firstName, client.lastName].filter(Boolean).join(' ') || phone;
+
+        if (!cleanNumber) {
+          skipped++;
+          emit('progress', { sent, failed, skipped, total: recipients.length, current: { name: clientName, phone, status: 'skipped', reason: 'Numéro invalide' } });
+          continue;
+        }
+
+        const message = renderMessage(campaign.messageTemplate, client, null);
+        
+        // Envoyer le média si présent (image ou vocal)
+        let result;
+        if (campaign.media?.type === 'image' && campaign.media?.url) {
+          // Envoyer l'image avec le message en caption
+          result = await evolutionApiService.sendMedia(
+            instance.instanceName, 
+            instance.instanceToken, 
+            cleanNumber, 
+            campaign.media.url,
+            message, // Le message devient la légende de l'image
+            campaign.media.fileName || 'image.jpg'
+          );
+        } else if (campaign.media?.type === 'audio' && campaign.media?.url) {
+          // Envoyer le vocal d'abord, puis le message texte
+          const audioResult = await evolutionApiService.sendAudio(
+            instance.instanceName, 
+            instance.instanceToken, 
+            cleanNumber, 
+            campaign.media.url
+          );
+          
+          // Si le vocal est envoyé avec succès et qu'il y a un message texte, l'envoyer aussi
+          if (audioResult.success && message.trim()) {
+            await new Promise(r => setTimeout(r, 2000)); // Petit délai entre vocal et texte
+            result = await evolutionApiService.sendMessage(instance.instanceName, instance.instanceToken, cleanNumber, message);
+          } else {
+            result = audioResult;
+          }
+        } else {
+          // Message texte simple
+          result = await evolutionApiService.sendMessage(instance.instanceName, instance.instanceToken, cleanNumber, message);
+        }
+
+        const index = sent + failed + skipped + 1;
+        if (result.success) {
+          sent++;
+          emit('progress', { sent, failed, skipped, total: recipients.length, index, current: { name: clientName, phone: cleanNumber, status: 'sent', reason: 'Envoyé' } });
+        } else if (result.noWhatsApp) {
+          skipped++;
+          emit('progress', { sent, failed, skipped, total: recipients.length, index, current: { name: clientName, phone: cleanNumber, status: 'skipped', reason: 'Pas sur WhatsApp' } });
+        } else {
+          failed++;
+          emit('progress', { sent, failed, skipped, total: recipients.length, index, current: { name: clientName, phone: cleanNumber, status: 'failed', reason: String(result.error || 'Erreur inconnue') } });
+        }
+
+        await new Promise(r => setTimeout(r, 10000));
+      }
+
+      campaign.status = (sent === 0 && failed > 0) ? 'failed' : 'sent';
+      campaign.sentAt = new Date();
+      campaign.sendProgress = { sent, failed, skipped, targeted: recipients.length };
+      campaign.stats = { ...(campaign.stats?.toObject?.() || campaign.stats || {}), sent, failed, targeted: recipients.length };
+      await campaign.save();
+      await WhatsappInstance.findByIdAndUpdate(instance._id, { lastSeen: new Date(), status: 'connected' });
+
+      emit('done', { sent, failed, skipped, total: recipients.length, campaignName: campaign.name });
+      console.log(`✅ Campagne SSE terminée : ${sent} envoyés, ${failed} échecs, ${skipped} ignorés`);
+      res.end();
+      return;
+    }
+
+    // ── Suite du traitement email normal ──────────────────────────────────────
+    const campaign = emailCampaign;
     if (!campaign) return res.status(404).json({ success: false, message: 'Campagne introuvable' });
     if (campaign.status === 'sending') {
       return res.status(400).json({ success: false, message: 'Envoi déjà en cours' });
@@ -484,6 +700,57 @@ router.post('/audience-preview', requireMarketingAccess, async (req, res) => {
     }
 
     res.json({ success: true, data: { count } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/ecom/marketing/campaigns/:id/pause
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/campaigns/:id/pause', requireMarketingAccess, async (req, res) => {
+  try {
+    const campaign = await Campaign.findOneAndUpdate(
+      { _id: req.params.id, workspaceId: req.workspaceId, status: 'sending' },
+      { pauseRequested: true },
+      { new: true }
+    );
+    if (!campaign) return res.status(404).json({ success: false, message: 'Campagne non trouvée ou pas en cours d\'envoi' });
+    res.json({ success: true, message: 'Pause demandée, arrêt après le message en cours...' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/ecom/marketing/campaigns/:id/resume  (remet en draft pour relancer)
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/campaigns/:id/resume', requireMarketingAccess, async (req, res) => {
+  try {
+    const campaign = await Campaign.findOneAndUpdate(
+      { _id: req.params.id, workspaceId: req.workspaceId, status: { $in: ['paused', 'interrupted', 'failed'] } },
+      { status: 'draft', pauseRequested: false },
+      { new: true }
+    );
+    if (!campaign) return res.status(404).json({ success: false, message: 'Campagne non trouvée ou ne peut pas être reprise' });
+    res.json({ success: true, message: 'Campagne prête. Cliquez sur Envoyer pour relancer.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/ecom/marketing/campaigns/:id/restart  (relancer depuis le début)
+// ─────────────────────────────────────────────────────────────────────────────
+router.post('/campaigns/:id/restart', requireMarketingAccess, async (req, res) => {
+  try {
+    const campaign = await Campaign.findOneAndUpdate(
+      { _id: req.params.id, workspaceId: req.workspaceId },
+      { status: 'draft', pauseRequested: false, sendProgress: { sent: 0, failed: 0, skipped: 0, targeted: 0 }, sentAt: null },
+      { new: true }
+    );
+    if (!campaign) return res.status(404).json({ success: false, message: 'Campagne introuvable' });
+    res.json({ success: true, message: 'Campagne réinitialisée. Prête à être relancée.' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }

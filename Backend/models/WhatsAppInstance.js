@@ -1,62 +1,60 @@
 import mongoose from 'mongoose';
 
-const whatsAppInstanceSchema = new mongoose.Schema({
-  workspaceId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Workspace',
+const whatsappInstanceSchema = new mongoose.Schema({
+  userId: {
+    type: String,
     required: true,
     index: true
   },
-  name: {
+  workspaceId: {
+    type: mongoose.Schema.Types.ObjectId,
+    index: true
+  },
+  instanceName: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true
+  },
+  instanceToken: {
     type: String,
     required: true,
     trim: true
   },
-  instanceId: {
+  customName: {
     type: String,
-    required: true,
     trim: true
-  },
-  apiKey: {
-    type: String,
-    required: true
   },
   apiUrl: {
     type: String,
-    default: 'https://api.ecomcookpit.site'
+    default: 'https://api.evolution-api.com'
   },
   status: {
     type: String,
-    enum: ['active', 'inactive', 'error'],
-    default: 'active'
+    enum: ['connected', 'disconnected', 'unknown', 'configured', 'active', 'deleted'],
+    default: 'unknown'
   },
-  lastUsed: {
+  lastSeen: {
     type: Date,
-    default: null
+    default: Date.now
   },
-  messagesSent: {
+  isActive: {
+    type: Boolean,
+    default: true
+  },
+  defaultPart: {
     type: Number,
-    default: 0
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
+    default: 50,
+    min: 0,
+    max: 100
   }
+}, {
+  collection: 'whatsapp_instances',
+  timestamps: true
 });
 
-// Index pour recherche rapide par workspace
-whatsAppInstanceSchema.index({ workspaceId: 1, status: 1 });
+// Index pour recherche rapide par utilisateur et workspace
+whatsappInstanceSchema.index({ userId: 1 });
+whatsappInstanceSchema.index({ workspaceId: 1 });
 
-// Middleware pour mettre à jour updatedAt
-whatsAppInstanceSchema.pre('save', function(next) {
-  this.updatedAt = Date.now();
-  next();
-});
-
-const WhatsAppInstance = mongoose.model('WhatsAppInstance', whatsAppInstanceSchema);
-
-export default WhatsAppInstance;
+export default mongoose.model('WhatsappInstance', whatsappInstanceSchema);

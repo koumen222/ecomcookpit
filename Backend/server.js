@@ -226,6 +226,7 @@ const startServer = async () => {
       ['./routes/clients.js',                 '/api/ecom/clients'],
       ['./routes/orders.js',                  '/api/ecom/orders'],
       ['./routes/campaigns.js',               '/api/ecom/campaigns'],
+      ['./routes/mediaUpload.js',             '/api/ecom/media-upload'],
       ['./routes/ecore.js',                   '/api/ecom/ecore'],
       ['./routes/push.js',                    '/api/ecom/push'],
       ['./routes/notifications.js',           '/api/ecom/notifications'],
@@ -248,14 +249,6 @@ const startServer = async () => {
       ['./routes/storeApi.js',                '/api/store'],
       // ─── Alibaba AI Import ────────────────────────────────────────────────
       ['./routes/alibabaImport.js',           '/api/ecom/alibaba-import'],
-      // ─── WhatsApp Configuration ──────────────────────────────────────
-      ['./routes/whatsappConfig.js',          '/api/ecom/whatsapp-config'],
-      ['./routes/whatsappInstances.js',       '/api/ecom/whatsapp-instances'],
-      ['./routes/whatsappIntegration.js',     '/api/ecom/integrations/whatsapp'],
-      // ─── WhatsApp Service 3 (instanceName + instanceSecret) ───────
-      ['./routes/test-connection.js',         '/api/ecom/integrations/whatsapp'],
-      ['./routes/send-message.js',            '/api/ecom/integrations/whatsapp'],
-      ['./routes/register-instance.js',      '/api/ecom/integrations/whatsapp'],
       // ─── AI Product Page Generator ───────────────────────────────────
       ['./routes/productPageGenerator.js',    '/api/ai/product-generator'],
       // ─── Diagnostics ──────────────────────────────────────────────────────
@@ -263,6 +256,12 @@ const startServer = async () => {
       // ─── Sourcing ────────────────────────────────────────────────────────
       ['./routes/sourcing.js',                '/api/ecom/sourcing'],
       ['./routes/sourcingStats.js',           '/api/ecom/sourcing/stats'],
+      // ─── WhatsApp External Integration (NAND/NK) ───────────────────────────
+      ['./routes/externalWhatsapp.js',        '/api/ecom/v1/external/whatsapp'],
+      // ─── WhatsApp Configuration ────────────────────────────────────────
+      ['./routes/whatsappConfig.js',           '/api/ecom/integrations/whatsapp'],
+      // ─── Test Routes ───────────────────────────────────────────────────
+      ['./routes/test.js',                      '/api/ecom/test'],
     ];
 
     for (const [file, mountPath] of routes) {

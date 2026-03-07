@@ -95,6 +95,72 @@ export async function deleteImage(storageKey) {
 }
 
 /**
+ * Upload media file (image or audio) to R2 for campaigns
+ * 
+ * @param {Buffer} fileBuffer - File buffer
+ * @param {string} fileName - File name with extension
+ * @param {string} mimeType - MIME type (e.g., 'image/jpeg', 'audio/mp3')
+ * @returns {Promise<{ success: boolean, url?: string, error?: string }>}
+ */
+export async function uploadToR2(fileBuffer, fileName, mimeType) {
+  if (!isConfigured()) {
+    return { success: false, error: 'R2 not configured. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME' };
+  }
+
+  try {
+    const storageKey = `ecom/campaigns/media/${fileName}`;
+
+    const uploader = new Upload({
+      client: s3Client,
+      params: {
+        Bucket: R2_CONFIG.bucket,
+        Key: storageKey,
+        Body: fileBuffer,
+        ContentType: mimeType,
+        Metadata: {
+          uploadedAt: new Date().toISOString(),
+          originalName: fileName
+        }
+      }
+    });
+
+    await uploader.done();
+    const publicUrl = getR2PublicUrl(storageKey);
+
+    return { success: true, url: publicUrl };
+  } catch (error) {
+    console.error('❌ R2 upload error:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Delete media file from R2
+ * 
+ * @param {string} fileName - File name to delete
+ * @returns {Promise<{ success: boolean, error?: string }>}
+ */
+export async function deleteFromR2(fileName) {
+  if (!isConfigured()) {
+    return { success: false, error: 'R2 not configured' };
+  }
+
+  try {
+    const storageKey = `ecom/campaigns/media/${fileName}`;
+    
+    await s3Client.send(new DeleteObjectCommand({
+      Bucket: R2_CONFIG.bucket,
+      Key: storageKey
+    }));
+    
+    return { success: true };
+  } catch (error) {
+    console.error('❌ R2 delete error:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Check if R2 is configured
  */
 export function isConfigured() {
@@ -105,5 +171,7 @@ export default {
   uploadImage,
   getImageUrl,
   deleteImage,
+  uploadToR2,
+  deleteFromR2,
   isConfigured
 };

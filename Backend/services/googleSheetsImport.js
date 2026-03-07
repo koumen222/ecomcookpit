@@ -4,6 +4,8 @@
  * Clean ESM module with no side effects.
  */
 
+import { normalizeCity } from '../utils/cityNormalizer.js';
+
 const GOOGLE_VIZ_BASE = 'https://docs.google.com/spreadsheets/d';
 const FETCH_TIMEOUT = 45000;
 const MAX_ROWS = 10000;
@@ -402,7 +404,7 @@ export function parseOrderRow(row, rowIndex, columnMap, headers, sourceName) {
       date: getDateVal('date'),
       clientName: resolvedName,
       clientPhone: resolvedPhone,
-      city: getVal('city'),
+      city: normalizeCity(getVal('city')),
       product: getVal('product'),
       quantity: Math.max(1, parseInt(getNumVal('quantity')) || 1),
       price: Math.max(0, getNumVal('price')),
