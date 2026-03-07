@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import Campaign from '../models/Campaign.js';
 import Client from '../models/Client.js';
 import Order from '../models/Order.js';
-import WhatsappInstance from '../models/WhatsappInstance.js';
+import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { normalizeCity, deduplicateCities } from '../utils/cityNormalizer.js';
@@ -898,7 +898,7 @@ router.post('/:id/send', requireEcomAuth, async (req, res) => {
     }
 
     // Récupérer et valider l'instance
-    const instance = await WhatsappInstance.findOne({ _id: instanceId, isActive: true });
+    const instance = await WhatsAppInstance.findOne({ _id: instanceId, isActive: true });
     if (!instance) {
       return res.status(404).json({
         success: false,
@@ -1003,7 +1003,7 @@ router.post('/:id/send', requireEcomAuth, async (req, res) => {
     await campaign.save();
 
     // Mettre à jour le lastSeen de l'instance
-    await WhatsappInstance.findByIdAndUpdate(instanceId, { lastSeen: new Date(), status: 'connected' });
+    await WhatsAppInstance.findByIdAndUpdate(instanceId, { lastSeen: new Date(), status: 'connected' });
 
     console.log(`✅ Campagne envoyée : ${sent} réussis, ${failed} échoués`);
 
@@ -1033,7 +1033,7 @@ router.post('/preview-send', requireEcomAuth, async (req, res) => {
     }
 
     // Récupérer une instance WhatsApp active
-    const instances = await WhatsappInstance.find({ 
+    const instances = await WhatsAppInstance.find({ 
       workspaceId: req.workspaceId, 
       status: 'connected' 
     }).sort({ lastSeen: -1 });

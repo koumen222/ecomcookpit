@@ -1,5 +1,5 @@
 import express from 'express';
-import WhatsappInstance from '../models/WhatsappInstance.js';
+import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 
 const router = express.Router();

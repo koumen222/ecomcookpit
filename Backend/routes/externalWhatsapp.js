@@ -1,5 +1,5 @@
 import express from 'express';
-import WhatsappInstance from '../models/WhatsappInstance.js';
+import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import EcomUser from '../models/EcomUser.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 
@@ -89,7 +89,7 @@ router.post('/link', async (req, res) => {
     const user = await EcomUser.findById(userId);
     const workspaceId = user?.workspaceId || req.body.workspaceId;
 
-    const instance = await WhatsappInstance.findOneAndUpdate(
+    const instance = await WhatsAppInstance.findOneAndUpdate(
       { instanceName },
       { 
         userId, 
@@ -151,7 +151,7 @@ router.post('/verify-instance', async (req, res) => {
       return res.status(400).json({ success: false, error: "instanceId est requis" });
     }
 
-    const instance = await WhatsappInstance.findById(instanceId);
+    const instance = await WhatsAppInstance.findById(instanceId);
     if (!instance) {
       return res.status(404).json({ success: false, error: "Instance introuvable en base de données" });
     }
@@ -164,7 +164,7 @@ router.post('/verify-instance', async (req, res) => {
     console.log(`🔍 [VERIFY] Réponse :`, JSON.stringify(apiStatus));
 
     if (!apiStatus || !apiStatus.instance) {
-      await WhatsappInstance.findByIdAndUpdate(instanceId, { status: 'disconnected', lastSeen: new Date() });
+      await WhatsAppInstance.findByIdAndUpdate(instanceId, { status: 'disconnected', lastSeen: new Date() });
       return res.status(200).json({
         success: false,
         error: `Impossible de joindre l'instance "${instance.instanceName}" sur Evolution API. Elle n'existe peut-être plus.`,
@@ -189,7 +189,7 @@ router.post('/verify-instance', async (req, res) => {
       message = `État inconnu : "${state}"`;
     }
 
-    await WhatsappInstance.findByIdAndUpdate(instanceId, { status: newStatus, lastSeen: new Date() });
+    await WhatsAppInstance.findByIdAndUpdate(instanceId, { status: newStatus, lastSeen: new Date() });
 
     res.status(200).json({
       success: newStatus === 'connected',
@@ -217,12 +217,12 @@ router.delete('/instances/:id', async (req, res) => {
       return res.status(400).json({ success: false, error: "userId est requis" });
     }
 
-    const instance = await WhatsappInstance.findOne({ _id: id, userId });
+    const instance = await WhatsAppInstance.findOne({ _id: id, userId });
     if (!instance) {
       return res.status(404).json({ success: false, error: "Instance introuvable ou non autorisée" });
     }
 
-    await WhatsappInstance.findByIdAndDelete(id);
+    await WhatsAppInstance.findByIdAndDelete(id);
 
     console.log(`🗑️ Instance WhatsApp supprimée : ${instance.instanceName} (user: ${userId})`);
 
@@ -264,7 +264,7 @@ router.post('/send', async (req, res) => {
 
     if (result.success) {
       // Optionnel : mettre à jour le statut dans la DB si on a l'instance
-      await WhatsappInstance.findOneAndUpdate(
+      await WhatsAppInstance.findOneAndUpdate(
         { instanceName, instanceToken },
         { lastSeen: new Date(), status: 'connected' }
       );
@@ -306,7 +306,7 @@ router.get('/instances', async (req, res) => {
       });
     }
 
-    const instances = await WhatsappInstance.find({ userId, isActive: true });
+    const instances = await WhatsAppInstance.find({ userId, isActive: true });
     
     console.log(`📋 [INSTANCES] Trouvé ${instances.length} instance(s) pour userId: ${userId}`);
     instances.forEach(inst => {
@@ -333,7 +333,7 @@ router.get('/instances', async (req, res) => {
  */
 router.get('/instances/all', async (req, res) => {
   try {
-    const allInstances = await WhatsappInstance.find({});
+    const allInstances = await WhatsAppInstance.find({});
     
     console.log(`🔍 [DIAGNOSTIC] Total instances dans DB: ${allInstances.length}`);
     allInstances.forEach(inst => {
@@ -370,7 +370,7 @@ router.post('/refresh-status', async (req, res) => {
       });
     }
 
-    const instances = await WhatsappInstance.find({ userId, isActive: true });
+    const instances = await WhatsAppInstance.find({ userId, isActive: true });
 
     const updated = await Promise.all(instances.map(async (inst) => {
       try {
@@ -387,7 +387,7 @@ router.post('/refresh-status', async (req, res) => {
         }
 
         if (newStatus !== inst.status) {
-          await WhatsappInstance.findByIdAndUpdate(inst._id, { status: newStatus, lastSeen: new Date() });
+          await WhatsAppInstance.findByIdAndUpdate(inst._id, { status: newStatus, lastSeen: new Date() });
         }
 
         return { ...inst.toObject(), status: newStatus };
