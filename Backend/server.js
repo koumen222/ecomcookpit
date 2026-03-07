@@ -270,7 +270,9 @@ const startServer = async () => {
         app.use(mountPath, mod.default);
         console.log(`✅ ${mountPath}`);
       } catch (err) {
-        console.error(`⚠️ ${file}: ${err.message}`);
+        console.error(`❌ FAILED TO LOAD ${file}:`);
+        console.error(`   Error: ${err.message}`);
+        console.error(`   Stack: ${err.stack}`);
       }
     }
 
