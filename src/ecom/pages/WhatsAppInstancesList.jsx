@@ -3,6 +3,11 @@ import { Smartphone, Plus, Settings, ArrowLeft, CheckCircle, AlertCircle } from 
 import { useNavigate } from 'react-router-dom';
 import WhatsAppInstanceSelector from '../components/WhatsAppInstanceSelector.jsx';
 
+const API_BASE = (() => {
+  const url = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080';
+  return url.replace(/\/+$/, '');
+})();
+
 const WhatsAppInstancesList = () => {
   const navigate = useNavigate();
   const [showInstanceSelector, setShowInstanceSelector] = useState(false);
@@ -30,7 +35,7 @@ const WhatsAppInstancesList = () => {
 
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:8080/api/ecom/test/message', {
+      const response = await fetch(`${API_BASE}/api/ecom/test/message`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -44,7 +49,7 @@ const WhatsAppInstancesList = () => {
       setTestResult(data);
       
       // Also test WhatsApp specific status
-      const whatsappResponse = await fetch('http://localhost:8080/api/ecom/test/whatsapp-status');
+      const whatsappResponse = await fetch(`${API_BASE}/api/ecom/test/whatsapp-status`);
       const whatsappData = await whatsappResponse.json();
       
       console.log('✅ Test WhatsApp réussi:', data);

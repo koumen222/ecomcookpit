@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { CheckCircle, AlertCircle, MessageSquare, Smartphone } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 
+const API_BASE = (() => {
+  const url = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080';
+  return url.replace(/\/+$/, '');
+})();
+
 const TestBackend = () => {
   const [status, setStatus] = useState(null);
   const [whatsappStatus, setWhatsappStatus] = useState(null);
@@ -17,7 +22,7 @@ const TestBackend = () => {
   const testBackendStatus = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:8080/api/ecom/test/status');
+      const response = await fetch(`${API_BASE}/api/ecom/test/status`);
       const data = await response.json();
       setStatus(data);
       console.log('✅ Backend status:', data);
@@ -35,7 +40,7 @@ const TestBackend = () => {
 
   const testWhatsappStatus = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/ecom/test/whatsapp-status');
+      const response = await fetch(`${API_BASE}/api/ecom/test/whatsapp-status`);
       const data = await response.json();
       setWhatsappStatus(data);
       console.log('✅ WhatsApp status:', data);
@@ -53,7 +58,7 @@ const TestBackend = () => {
     if (!message.trim()) return;
     
     try {
-      const response = await fetch('http://localhost:8080/api/ecom/test/message', {
+      const response = await fetch(`${API_BASE}/api/ecom/test/message`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
