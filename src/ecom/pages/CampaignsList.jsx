@@ -111,12 +111,6 @@ const CampaignsList = () => {
   const [previewData, setPreviewData] = useState(null);
   const [selectedClient, setSelectedClient] = useState(null);
   const [previewSending, setPreviewSending] = useState(false);
-  
-  // États pour la sélection d'instance
-  const [showInstanceSelector, setShowInstanceSelector] = useState(false);
-  const [pendingCampaignId, setPendingCampaignId] = useState(null);
-  const [instances, setInstances] = useState([]);
-  const [loadingInstances, setLoadingInstances] = useState(false);
 
   const fetchCampaigns = async (useCache = true) => {
     try {
@@ -140,7 +134,7 @@ const CampaignsList = () => {
   }
 
 
-  const handleSend = async (id, instanceId = null) => {
+  const handleSend = async (id) => {
     if (selectedClient && showPreview === id) {
       if (!confirm(`Envoyer le message uniquement à ${selectedClient.firstName} ${selectedClient.lastName} ?`)) return;
       setSending(id);
@@ -152,27 +146,6 @@ const CampaignsList = () => {
         } else { setError(response.data.message || 'Erreur lors de l\'envoi'); }
       } catch (err) { setError('Erreur lors de l\'envoi du message'); }
       finally { setSending(null); }
-      return;
-    }
-
-    // Si aucune instance n'est sélectionnée, afficher le sélecteur
-    if (!instanceId) {
-      setPendingCampaignId(id);
-      setLoadingInstances(true);
-      try {
-        const res = await ecomApi.get('/integrations/whatsapp');
-        const activeInstances = (res.data.data || []).filter(i => i.status === 'connected' || i.isActive);
-        if (activeInstances.length === 0) {
-          setError('Aucune instance WhatsApp connectée. Configurez une instance dans les paramètres.');
-          return;
-        }
-        setInstances(activeInstances);
-        setShowInstanceSelector(true);
-      } catch (err) {
-        setError('Erreur lors du chargement des instances WhatsApp');
-      } finally {
-        setLoadingInstances(false);
-      }
       return;
     }
 
@@ -190,7 +163,7 @@ const CampaignsList = () => {
       const response = await fetch(`${baseUrl}/marketing/campaigns/${id}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ workspaceId: wsId, instanceId })
+        body: JSON.stringify({ workspaceId: wsId })
       });
 
       if (!response.ok) {
@@ -752,62 +725,6 @@ const CampaignsList = () => {
           </div>
         </div>
       )}
-
-      {/* Modal de sélection d'instance WhatsApp */}
-      <Dlg open={showInstanceSelector} onClose={() => { setShowInstanceSelector(false); setPendingCampaignId(null); }} title="Sélectionner une instance WhatsApp" w="max-w-md">
-        <div className="space-y-3">
-          <p className="text-sm text-gray-600">Choisissez l'instance WhatsApp à utiliser pour envoyer cette campagne :</p>
-          
-          {loadingInstances ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-          ) : instances.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-sm text-gray-500">Aucune instance WhatsApp connectée</p>
-              <Link to="/ecom/settings/whatsapp" className="text-sm text-emerald-600 hover:text-emerald-700 mt-2 inline-block">
-                Configurer une instance →
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {instances.map(instance => (
-                <button
-                  key={instance._id}
-                  onClick={() => {
-                    setShowInstanceSelector(false);
-                    handleSend(pendingCampaignId, instance._id);
-                    setPendingCampaignId(null);
-                  }}
-                  className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-emerald-500 hover:bg-emerald-50 transition text-left group"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                        <p className="font-semibold text-gray-900 truncate">
-                          {instance.customName || instance.instanceName}
-                        </p>
-                      </div>
-                      <p className="text-xs text-gray-500 truncate">
-                        Instance: {instance.instanceName}
-                      </p>
-                      {instance.defaultPart && (
-                        <p className="text-xs text-emerald-600 mt-1">
-                          Part par défaut: {instance.defaultPart}%
-                        </p>
-                      )}
-                    </div>
-                    <svg className="w-5 h-5 text-gray-400 group-hover:text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </Dlg>
     </div>
   );
 };

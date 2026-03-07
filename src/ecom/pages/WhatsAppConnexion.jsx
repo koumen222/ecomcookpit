@@ -4,7 +4,8 @@ import {
   CheckCircle, AlertCircle, Loader2, ExternalLink,
   Shield, Copy, Check
 } from 'lucide-react';
-import ecomApi from '../services/ecommApi.js';
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://api.ecomcookpit.site';
 
 const WhatsAppConnexion = () => {
   const [instances, setInstances] = useState([]);
@@ -41,11 +42,14 @@ const WhatsAppConnexion = () => {
       // Pour l'instant on va simuler ou utiliser un endpoint existant s'il y en a un
       // Si l'endpoint de liste n'existe pas encore au niveau v1/external, on devra l'ajouter au backend.
       
-      const response = await ecomApi.get('v1/external/whatsapp/instances', {
-        params: { userId }
+      const token = localStorage.getItem('ecomToken');
+      const response = await fetch(`${BACKEND_URL}/api/ecom/v1/external/whatsapp/instances?userId=${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
       
-      const data = response.data;
+      const data = await response.json();
       
       if (data.success) {
         setInstances(data.instances || []);
@@ -165,10 +169,11 @@ const WhatsAppConnexion = () => {
     if (!confirm(`Supprimer l'instance "${instance.customName || instance.instanceName}" ? Cette action est irréversible.`)) return;
 
     try {
-      const response = await ecomApi.delete(`v1/external/whatsapp/instances/${instance._id}`, {
-        params: { userId }
-      });
-      const data = response.data;
+      const response = await fetch(
+        `${BACKEND_URL}/api/ecom/v1/external/whatsapp/instances/${instance._id}?userId=${userId}`,
+        { method: 'DELETE' }
+      );
+      const data = await response.json();
 
       if (data.success) {
         setInstances(prev => prev.filter(i => i._id !== instance._id));

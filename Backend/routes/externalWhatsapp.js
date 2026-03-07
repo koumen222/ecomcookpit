@@ -1,7 +1,7 @@
 import express from 'express';
+import WhatsappInstance from '../models/WhatsappInstance.js';
 import EcomUser from '../models/EcomUser.js';
 import evolutionApiService from '../services/evolutionApiService.js';
-import externalWhatsappApi from '../services/externalWhatsappApiService.js';
 
 const router = express.Router();
 
@@ -64,43 +64,51 @@ router.post('/link', async (req, res) => {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // ÉTAPE 2 : Instance confirmée par Evolution → l'enregistrer via API externe
+    // ÉTAPE 2 : Instance confirmée par Evolution → l'enregistrer en DB
     // ═══════════════════════════════════════════════════════════════
     // Extraire workspaceId du token si disponible
     const user = await EcomUser.findById(userId);
     const workspaceId = user?.workspaceId || req.body.workspaceId;
 
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    const linkResult = await externalWhatsappApi.linkInstance({
-      userId,
-      workspaceId,
-      instanceName,
-      instanceToken,
-      customName: customName || instanceName,
-      defaultPart
-    }, token, workspaceId);
-
-    if (!linkResult.success) {
-      return res.status(400).json(linkResult);
-    }
-
-    const instance = linkResult.data;
+    const instance = await WhatsappInstance.findOneAndUpdate(
+      { instanceName },
+      { 
+        userId, 
+        workspaceId,
+        instanceToken, 
+        customName: customName || instanceName,
+        lastSeen: new Date(),
+        isActive: true,
+        status,
+        ...(defaultPart !== undefined && { defaultPart })
+      },
+      { new: true, upsert: true }
+    );
 
     const verificationMessage = status === 'connected'
       ? 'Instance vérifiée et connectée à WhatsApp ✅'
       : 'Instance trouvée sur Evolution API mais non connectée à WhatsApp. Scannez le QR code dans Evolution.';
 
-    console.log(`✅ [LINK] Instance enregistrée via API externe:`);
-    console.log(`   - ID: ${instance.id}`);
+    console.log(`✅ [LINK] Instance SAUVEGARDÉE dans MongoDB:`);
+    console.log(`   - ID: ${instance._id}`);
     console.log(`   - Nom: ${instance.instanceName}`);
+    console.log(`   - userId: ${instance.userId}`);
+    console.log(`   - workspaceId: ${instance.workspaceId || 'N/A'}`);
     console.log(`   - Status: ${instance.status}`);
+    console.log(`   - isActive: ${instance.isActive}`);
+    console.log(`   - defaultPart: ${instance.defaultPart}%`);
 
     res.status(200).json({
       success: true,
       message: "Instance WhatsApp enregistrée",
       verified: true,
       verificationMessage,
-      data: instance
+      data: {
+        id: instance._id,
+        instanceName: instance.instanceName,
+        customName: instance.customName,
+        status
+      }
     });
   } catch (error) {
     console.error('❌ [LINK] Erreur lors du link WhatsApp:', error.message);
@@ -124,15 +132,52 @@ router.post('/verify-instance', async (req, res) => {
       return res.status(400).json({ success: false, error: "instanceId est requis" });
     }
 
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    const workspaceId = req.headers['x-workspace-id'];
-    const verifyResult = await externalWhatsappApi.verifyInstance(instanceId, token, workspaceId);
-    if (!verifyResult) {
-      return res.status(404).json({ success: false, error: "Instance introuvable" });
+    const instance = await WhatsappInstance.findById(instanceId);
+    if (!instance) {
+      return res.status(404).json({ success: false, error: "Instance introuvable en base de données" });
     }
-    
-    return res.status(200).json(verifyResult);
 
+    console.log(`🔍 [VERIFY] Test Evolution API pour : ${instance.instanceName}`);
+    console.log(`🔍 [VERIFY] URL : ${evolutionApiService.baseUrl}/instance/connectionState/${instance.instanceName}`);
+
+    const apiStatus = await evolutionApiService.getInstanceStatus(instance.instanceName, instance.instanceToken);
+
+    console.log(`🔍 [VERIFY] Réponse :`, JSON.stringify(apiStatus));
+
+    if (!apiStatus || !apiStatus.instance) {
+      await WhatsappInstance.findByIdAndUpdate(instanceId, { status: 'disconnected', lastSeen: new Date() });
+      return res.status(200).json({
+        success: false,
+        error: `Impossible de joindre l'instance "${instance.instanceName}" sur Evolution API. Elle n'existe peut-être plus.`,
+        status: 'disconnected'
+      });
+    }
+
+    const state = apiStatus.instance.state;
+    let newStatus = 'disconnected';
+    let message = '';
+
+    if (state === 'open') {
+      newStatus = 'connected';
+      message = `Instance "${instance.customName || instance.instanceName}" connectée à WhatsApp ✅`;
+    } else if (state === 'close') {
+      newStatus = 'disconnected';
+      message = `Instance trouvée mais déconnectée de WhatsApp. Scannez le QR code dans Evolution.`;
+    } else if (state === 'connecting') {
+      newStatus = 'disconnected';
+      message = `Instance en cours de connexion à WhatsApp. Patientez ou scannez le QR code.`;
+    } else {
+      message = `État inconnu : "${state}"`;
+    }
+
+    await WhatsappInstance.findByIdAndUpdate(instanceId, { status: newStatus, lastSeen: new Date() });
+
+    res.status(200).json({
+      success: newStatus === 'connected',
+      message,
+      status: newStatus,
+      evolutionState: state
+    });
   } catch (error) {
     console.error('❌ [VERIFY] Erreur:', error.message);
     res.status(500).json({ success: false, error: "Erreur lors de la vérification Evolution API" });
@@ -153,17 +198,19 @@ router.delete('/instances/:id', async (req, res) => {
       return res.status(400).json({ success: false, error: "userId est requis" });
     }
 
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    const workspaceId = req.headers['x-workspace-id'];
-    const deleteResult = await externalWhatsappApi.deleteInstance(id, userId, token, workspaceId);
-    
-    if (!deleteResult || !deleteResult.success) {
+    const instance = await WhatsappInstance.findOne({ _id: id, userId });
+    if (!instance) {
       return res.status(404).json({ success: false, error: "Instance introuvable ou non autorisée" });
     }
 
-    console.log(`🗑️ Instance WhatsApp supprimée via API externe (user: ${userId})`);
+    await WhatsappInstance.findByIdAndDelete(id);
 
-    res.status(200).json(deleteResult);
+    console.log(`🗑️ Instance WhatsApp supprimée : ${instance.instanceName} (user: ${userId})`);
+
+    res.status(200).json({
+      success: true,
+      message: `Instance "${instance.customName || instance.instanceName}" supprimée avec succès`
+    });
   } catch (error) {
     console.error('❌ Erreur suppression instance:', error.message);
     res.status(500).json({ success: false, error: "Erreur lors de la suppression" });
@@ -197,6 +244,12 @@ router.post('/send', async (req, res) => {
     );
 
     if (result.success) {
+      // Optionnel : mettre à jour le statut dans la DB si on a l'instance
+      await WhatsappInstance.findOneAndUpdate(
+        { instanceName, instanceToken },
+        { lastSeen: new Date(), status: 'connected' }
+      );
+
       return res.status(200).json({
         success: true,
         message: "Message envoyé avec succès",
@@ -234,18 +287,17 @@ router.get('/instances', async (req, res) => {
       });
     }
 
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    const workspaceId = req.headers['x-workspace-id'];
-    const result = await externalWhatsappApi.getInstances(userId, token, workspaceId);
+    const instances = await WhatsappInstance.find({ userId, isActive: true });
     
-    if (result.success && result.instances) {
-      console.log(`📋 [INSTANCES] Trouvé ${result.instances.length} instance(s) pour userId: ${userId}`);
-      result.instances.forEach(inst => {
-        console.log(`   - ${inst.instanceName} | status: ${inst.status} | workspaceId: ${inst.workspaceId || 'N/A'}`);
-      });
-    }
+    console.log(`📋 [INSTANCES] Trouvé ${instances.length} instance(s) pour userId: ${userId}`);
+    instances.forEach(inst => {
+      console.log(`   - ${inst.instanceName} | status: ${inst.status} | workspaceId: ${inst.workspaceId || 'N/A'}`);
+    });
 
-    res.status(200).json(result);
+    res.status(200).json({
+      success: true,
+      instances
+    });
   } catch (error) {
     console.error('❌ Erreur lors du listage WhatsApp:', error.message);
     res.status(500).json({
@@ -262,14 +314,7 @@ router.get('/instances', async (req, res) => {
  */
 router.get('/instances/all', async (req, res) => {
   try {
-    // Note: Cette route diagnostic nécessiterait un endpoint spécifique sur l'API externe
-    // Pour l'instant, on retourne une erreur indiquant que cette fonctionnalité n'est pas disponible
-    return res.status(501).json({
-      success: false,
-      error: "Cette route de diagnostic n'est pas disponible via l'API externe"
-    });
-    
-    // const allInstances = [];
+    const allInstances = await WhatsappInstance.find({});
     
     console.log(`🔍 [DIAGNOSTIC] Total instances dans DB: ${allInstances.length}`);
     allInstances.forEach(inst => {
