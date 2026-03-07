@@ -3,10 +3,10 @@ import mongoose from 'mongoose';
 import Campaign from '../models/Campaign.js';
 import Client from '../models/Client.js';
 import Order from '../models/Order.js';
-import WhatsappInstance from '../models/WhatsappInstance.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { normalizeCity, deduplicateCities } from '../utils/cityNormalizer.js';
+import externalWhatsappApi from '../services/externalWhatsappApiService.js';
 
 // Helper pour convertir en ObjectId
 const toObjectId = (v) => {
@@ -897,9 +897,9 @@ router.post('/:id/send', requireEcomAuth, async (req, res) => {
       });
     }
 
-    // Récupérer et valider l'instance
-    const instance = await WhatsappInstance.findOne({ _id: instanceId, isActive: true });
-    if (!instance) {
+    // Récupérer et valider l'instance via API externe
+    const instance = await externalWhatsappApi.getInstance(instanceId, req.ecomUser._id);
+    if (!instance || !instance.isActive) {
       return res.status(404).json({
         success: false,
         message: 'Instance WhatsApp introuvable. Vérifiez la configuration dans "Connexion WhatsApp".'
@@ -1002,9 +1002,6 @@ router.post('/:id/send', requireEcomAuth, async (req, res) => {
     campaign.stats = { ...campaign.stats.toObject?.() || campaign.stats, sent, failed, targeted: recipients.length };
     await campaign.save();
 
-    // Mettre à jour le lastSeen de l'instance
-    await WhatsappInstance.findByIdAndUpdate(instanceId, { lastSeen: new Date(), status: 'connected' });
-
     console.log(`✅ Campagne envoyée : ${sent} réussis, ${failed} échoués`);
 
     res.json({
@@ -1032,11 +1029,12 @@ router.post('/preview-send', requireEcomAuth, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Client introuvable' });
     }
 
-    // Récupérer une instance WhatsApp active
-    const instances = await WhatsappInstance.find({ 
+    // Récupérer une instance WhatsApp active via API externe
+    const instances = await externalWhatsappApi.findInstances({ 
       workspaceId: req.workspaceId, 
-      status: 'connected' 
-    }).sort({ lastSeen: -1 });
+      status: 'connected',
+      isActive: true
+    });
 
     if (instances.length === 0) {
       return res.status(400).json({ 

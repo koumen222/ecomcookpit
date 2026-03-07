@@ -1,6 +1,6 @@
 import express from 'express';
-import WhatsappInstance from '../models/WhatsappInstance.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
+import externalWhatsappApi from '../services/externalWhatsappApiService.js';
 
 const router = express.Router();
 
@@ -15,7 +15,7 @@ router.get('/status', requireEcomAuth, async (req, res) => {
     const workspaceId = req.workspaceId;
 
     // Vérifier si l'utilisateur a des instances WhatsApp configurées
-    const instances = await WhatsappInstance.find({ 
+    const instances = await externalWhatsappApi.findInstances({ 
       userId, 
       isActive: true 
     });
@@ -66,20 +66,21 @@ router.post('/config', requireEcomAuth, async (req, res) => {
       });
     }
 
-    // Créer ou mettre à jour l'instance
-    const instance = await WhatsappInstance.findOneAndUpdate(
-      { instanceName, userId },
-      { 
-        instanceToken,
-        customName: customName || instanceName,
-        apiUrl: apiUrl || 'https://api.evolution-api.com',
-        workspaceId: req.workspaceId,
-        lastSeen: new Date(),
-        isActive: true,
-        status: 'configured'
-      },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
-    );
+    // Créer ou mettre à jour l'instance via API externe
+    const linkResult = await externalWhatsappApi.linkInstance({
+      userId,
+      workspaceId: req.workspaceId,
+      instanceName,
+      instanceToken,
+      customName: customName || instanceName,
+      apiUrl: apiUrl || 'https://api.evolution-api.com'
+    });
+
+    if (!linkResult.success) {
+      return res.status(400).json(linkResult);
+    }
+
+    const instance = linkResult.data;
 
     res.status(200).json({
       success: true,
@@ -110,13 +111,9 @@ router.delete('/config/:instanceId', requireEcomAuth, async (req, res) => {
     const userId = req.ecomUser?._id?.toString() || req.user?.id || req.user?._id;
     const { instanceId } = req.params;
 
-    const instance = await WhatsappInstance.findOneAndUpdate(
-      { _id: instanceId, userId },
-      { isActive: false, status: 'deleted' },
-      { new: true }
-    );
+    const deleteResult = await externalWhatsappApi.deleteInstance(instanceId, userId);
 
-    if (!instance) {
+    if (!deleteResult || !deleteResult.success) {
       return res.status(404).json({
         success: false,
         error: "Instance WhatsApp non trouvée"
@@ -153,9 +150,9 @@ router.post('/test', requireEcomAuth, async (req, res) => {
       });
     }
 
-    // Ici on pourrait faire un test réel via l'API Evolution
-    // Pour l'instant, on simule un test basique
-    const instance = await WhatsappInstance.findOne({ instanceName, userId });
+    // Récupérer l'instance via API externe
+    const instances = await externalWhatsappApi.findInstances({ userId });
+    const instance = instances.find(inst => inst.instanceName === instanceName);
     
     if (!instance) {
       return res.status(404).json({
@@ -163,15 +160,6 @@ router.post('/test', requireEcomAuth, async (req, res) => {
         error: "Instance WhatsApp non trouvée"
       });
     }
-
-    // Mettre à jour le statut de l'instance
-    await WhatsappInstance.findOneAndUpdate(
-      { instanceName, userId },
-      { 
-        lastSeen: new Date(),
-        status: 'connected'
-      }
-    );
 
     res.status(200).json({
       success: true,

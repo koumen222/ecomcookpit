@@ -3,10 +3,10 @@ import { Resend } from 'resend';
 import EmailCampaign from '../models/EmailCampaign.js';
 import Campaign from '../models/Campaign.js';
 import Client from '../models/Client.js';
-import WhatsappInstance from '../models/WhatsappInstance.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 import EcomUser from '../models/EcomUser.js';
 import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
+import externalWhatsappApi from '../services/externalWhatsappApiService.js';
 
 // ─── WhatsApp helpers (shared with campaigns.js) ─────────────────────────────
 const sanitizePhoneNumber = (phone) => phone?.replace(/\D/g, '') || null;
@@ -306,25 +306,26 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
       // Utiliser l'instance sélectionnée par l'utilisateur ou la première par défaut
       let instance;
       if (req.body.instanceId) {
-        instance = await WhatsappInstance.findOne({ 
-          _id: req.body.instanceId, 
-          $or: [
-            { workspaceId: req.workspaceId },
-            { userId: req.ecomUser._id }
-          ],
-          isActive: true 
-        });
-        if (!instance) {
+        instance = await externalWhatsappApi.getInstance(req.body.instanceId, req.ecomUser._id);
+        if (!instance || !instance.isActive) {
           return res.status(400).json({ success: false, message: 'Instance WhatsApp sélectionnée introuvable ou inactive.' });
         }
         console.log(`🎯 Instance sélectionnée par l'utilisateur: "${instance.customName || instance.instanceName}"`);
       } else {
-        let instances = await WhatsappInstance.find({ workspaceId: req.workspaceId, isActive: true, status: { $in: ['connected', 'active'] } }).sort({ defaultPart: -1 });
+        let instances = await externalWhatsappApi.findInstances({ 
+          workspaceId: req.workspaceId, 
+          isActive: true, 
+          status: ['connected', 'active'] 
+        });
         if (instances.length === 0) {
-          instances = await WhatsappInstance.find({ workspaceId: { $exists: false }, userId: req.ecomUser._id, isActive: true, status: { $in: ['connected', 'active'] } }).sort({ defaultPart: -1 });
+          instances = await externalWhatsappApi.findInstances({ 
+            userId: req.ecomUser._id, 
+            isActive: true, 
+            status: ['connected', 'active'] 
+          });
         }
         if (instances.length === 0) return res.status(400).json({ success: false, message: 'Aucune instance WhatsApp connectée. Configurez une instance dans "Connexion WhatsApp".' });
-        instance = instances[0];
+        instance = instances.sort((a, b) => (b.defaultPart || 50) - (a.defaultPart || 50))[0];
         console.log(`🎯 Instance par défaut: "${instance.customName || instance.instanceName}" (defaultPart: ${instance.defaultPart || 50}%)`);
       }
 
@@ -471,7 +472,6 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
       campaign.sendProgress = { sent, failed, skipped, targeted: recipients.length };
       campaign.stats = { ...(campaign.stats?.toObject?.() || campaign.stats || {}), sent, failed, targeted: recipients.length };
       await campaign.save();
-      await WhatsappInstance.findByIdAndUpdate(instance._id, { lastSeen: new Date(), status: 'connected' });
 
       emit('done', { sent, failed, skipped, total: recipients.length, campaignName: campaign.name });
       console.log(`✅ Campagne SSE terminée : ${sent} envoyés, ${failed} échecs, ${skipped} ignorés`);
