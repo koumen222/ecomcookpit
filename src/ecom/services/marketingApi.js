@@ -19,5 +19,5 @@ export const marketingApi = {
   previewAudience: (data) => ecomApi.post('marketing/audience-preview', data),
 
   // WhatsApp Instances (Proxy through external if needed, or direct)
-  getWhatsAppInstances: (userId) => ecomApi.get('v1/external/whatsapp/instances', { params: { userId } }),
+  getWhatsAppInstances: (userId) => ecomApi.get('/v1/external/whatsapp/instances', { params: { userId } }),
 };
