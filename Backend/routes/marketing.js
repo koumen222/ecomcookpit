@@ -304,9 +304,10 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
       if (!campaign) return res.status(404).json({ success: false, message: 'Campagne introuvable' });
 
       // Utiliser l'instance sélectionnée par l'utilisateur ou la première par défaut
+      const token = req.headers.authorization?.replace('Bearer ', '');
       let instance;
       if (req.body.instanceId) {
-        instance = await externalWhatsappApi.getInstance(req.body.instanceId, req.ecomUser._id);
+        instance = await externalWhatsappApi.getInstance(req.body.instanceId, req.ecomUser._id, token, req.workspaceId);
         if (!instance || !instance.isActive) {
           return res.status(400).json({ success: false, message: 'Instance WhatsApp sélectionnée introuvable ou inactive.' });
         }
@@ -316,13 +317,13 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
           workspaceId: req.workspaceId, 
           isActive: true, 
           status: ['connected', 'active'] 
-        });
+        }, token);
         if (instances.length === 0) {
           instances = await externalWhatsappApi.findInstances({ 
             userId: req.ecomUser._id, 
             isActive: true, 
             status: ['connected', 'active'] 
-          });
+          }, token);
         }
         if (instances.length === 0) return res.status(400).json({ success: false, message: 'Aucune instance WhatsApp connectée. Configurez une instance dans "Connexion WhatsApp".' });
         instance = instances.sort((a, b) => (b.defaultPart || 50) - (a.defaultPart || 50))[0];

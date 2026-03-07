@@ -70,6 +70,7 @@ router.post('/link', async (req, res) => {
     const user = await EcomUser.findById(userId);
     const workspaceId = user?.workspaceId || req.body.workspaceId;
 
+    const token = req.headers.authorization?.replace('Bearer ', '');
     const linkResult = await externalWhatsappApi.linkInstance({
       userId,
       workspaceId,
@@ -77,7 +78,7 @@ router.post('/link', async (req, res) => {
       instanceToken,
       customName: customName || instanceName,
       defaultPart
-    });
+    }, token, workspaceId);
 
     if (!linkResult.success) {
       return res.status(400).json(linkResult);
@@ -123,7 +124,9 @@ router.post('/verify-instance', async (req, res) => {
       return res.status(400).json({ success: false, error: "instanceId est requis" });
     }
 
-    const verifyResult = await externalWhatsappApi.verifyInstance(instanceId);
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const workspaceId = req.headers['x-workspace-id'];
+    const verifyResult = await externalWhatsappApi.verifyInstance(instanceId, token, workspaceId);
     if (!verifyResult) {
       return res.status(404).json({ success: false, error: "Instance introuvable" });
     }
@@ -150,7 +153,9 @@ router.delete('/instances/:id', async (req, res) => {
       return res.status(400).json({ success: false, error: "userId est requis" });
     }
 
-    const deleteResult = await externalWhatsappApi.deleteInstance(id, userId);
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const workspaceId = req.headers['x-workspace-id'];
+    const deleteResult = await externalWhatsappApi.deleteInstance(id, userId, token, workspaceId);
     
     if (!deleteResult || !deleteResult.success) {
       return res.status(404).json({ success: false, error: "Instance introuvable ou non autorisée" });
@@ -229,7 +234,9 @@ router.get('/instances', async (req, res) => {
       });
     }
 
-    const result = await externalWhatsappApi.getInstances(userId);
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const workspaceId = req.headers['x-workspace-id'];
+    const result = await externalWhatsappApi.getInstances(userId, token, workspaceId);
     
     if (result.success && result.instances) {
       console.log(`📋 [INSTANCES] Trouvé ${result.instances.length} instance(s) pour userId: ${userId}`);

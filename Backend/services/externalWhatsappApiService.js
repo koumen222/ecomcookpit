@@ -10,12 +10,32 @@ class ExternalWhatsappApiService {
   }
 
   /**
+   * Créer les headers d'authentification pour l'API externe
+   */
+  getAuthHeaders(token, workspaceId) {
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    if (workspaceId) {
+      headers['X-Workspace-Id'] = workspaceId;
+    }
+    
+    return headers;
+  }
+
+  /**
    * Lister les instances WhatsApp d'un utilisateur
    */
-  async getInstances(userId) {
+  async getInstances(userId, token = null, workspaceId = null) {
     try {
       const response = await axios.get(`${this.baseUrl}/api/v1/external/whatsapp/instances`, {
         params: { userId },
+        headers: this.getAuthHeaders(token, workspaceId),
         timeout: 10000
       });
       return response.data;
@@ -28,10 +48,11 @@ class ExternalWhatsappApiService {
   /**
    * Récupérer une instance par ID
    */
-  async getInstance(instanceId, userId) {
+  async getInstance(instanceId, userId, token = null, workspaceId = null) {
     try {
       const response = await axios.get(`${this.baseUrl}/api/v1/external/whatsapp/instances`, {
         params: { userId },
+        headers: this.getAuthHeaders(token, workspaceId),
         timeout: 10000
       });
       
@@ -49,9 +70,10 @@ class ExternalWhatsappApiService {
   /**
    * Lier/créer une instance WhatsApp
    */
-  async linkInstance(data) {
+  async linkInstance(data, token = null, workspaceId = null) {
     try {
       const response = await axios.post(`${this.baseUrl}/api/v1/external/whatsapp/link`, data, {
+        headers: this.getAuthHeaders(token, workspaceId),
         timeout: 15000
       });
       return response.data;
@@ -64,11 +86,12 @@ class ExternalWhatsappApiService {
   /**
    * Vérifier le statut d'une instance
    */
-  async verifyInstance(instanceId) {
+  async verifyInstance(instanceId, token = null, workspaceId = null) {
     try {
       const response = await axios.post(`${this.baseUrl}/api/ecom/v1/external/whatsapp/verify-instance`, {
         instanceId
       }, {
+        headers: this.getAuthHeaders(token, workspaceId),
         timeout: 15000
       });
       return response.data;
@@ -81,10 +104,11 @@ class ExternalWhatsappApiService {
   /**
    * Supprimer une instance
    */
-  async deleteInstance(instanceId, userId) {
+  async deleteInstance(instanceId, userId, token = null, workspaceId = null) {
     try {
       const response = await axios.delete(`${this.baseUrl}/api/ecom/v1/external/whatsapp/instances/${instanceId}`, {
         params: { userId },
+        headers: this.getAuthHeaders(token, workspaceId),
         timeout: 10000
       });
       return response.data;
@@ -97,13 +121,14 @@ class ExternalWhatsappApiService {
   /**
    * Mettre à jour une instance (fallback si l'API externe le supporte)
    */
-  async updateInstance(instanceId, userId, updates) {
+  async updateInstance(instanceId, userId, updates, token = null, workspaceId = null) {
     try {
       // Si l'API externe n'a pas de PUT, on peut faire un re-link
       const response = await axios.put(`${this.baseUrl}/api/ecom/v1/external/whatsapp/instances/${instanceId}`, {
         userId,
         ...updates
       }, {
+        headers: this.getAuthHeaders(token, workspaceId),
         timeout: 10000
       });
       return response.data;
@@ -117,7 +142,7 @@ class ExternalWhatsappApiService {
   /**
    * Rechercher des instances par critères
    */
-  async findInstances(filter) {
+  async findInstances(filter, token = null) {
     try {
       const { userId, workspaceId, isActive, status } = filter;
       
@@ -127,6 +152,7 @@ class ExternalWhatsappApiService {
 
       const response = await axios.get(`${this.baseUrl}/api/v1/external/whatsapp/instances`, {
         params: { userId },
+        headers: this.getAuthHeaders(token, workspaceId),
         timeout: 10000
       });
 
@@ -161,8 +187,8 @@ class ExternalWhatsappApiService {
   /**
    * Compter les instances
    */
-  async countInstances(filter) {
-    const instances = await this.findInstances(filter);
+  async countInstances(filter, token = null) {
+    const instances = await this.findInstances(filter, token);
     return instances.length;
   }
 }

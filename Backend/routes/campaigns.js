@@ -898,7 +898,8 @@ router.post('/:id/send', requireEcomAuth, async (req, res) => {
     }
 
     // Récupérer et valider l'instance via API externe
-    const instance = await externalWhatsappApi.getInstance(instanceId, req.ecomUser._id);
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const instance = await externalWhatsappApi.getInstance(instanceId, req.ecomUser._id, token, req.workspaceId);
     if (!instance || !instance.isActive) {
       return res.status(404).json({
         success: false,
@@ -1030,11 +1031,12 @@ router.post('/preview-send', requireEcomAuth, async (req, res) => {
     }
 
     // Récupérer une instance WhatsApp active via API externe
+    const token = req.headers.authorization?.replace('Bearer ', '');
     const instances = await externalWhatsappApi.findInstances({ 
       workspaceId: req.workspaceId, 
       status: 'connected',
       isActive: true
-    });
+    }, token);
 
     if (instances.length === 0) {
       return res.status(400).json({ 
