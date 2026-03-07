@@ -4,8 +4,7 @@ import {
   CheckCircle, AlertCircle, Loader2, ExternalLink,
   Shield, Copy, Check
 } from 'lucide-react';
-
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://api.ecomcookpit.site';
+import ecomApi from '../services/ecommApi.js';
 
 const WhatsAppConnexion = () => {
   const [instances, setInstances] = useState([]);
@@ -42,14 +41,8 @@ const WhatsAppConnexion = () => {
       // Pour l'instant on va simuler ou utiliser un endpoint existant s'il y en a un
       // Si l'endpoint de liste n'existe pas encore au niveau v1/external, on devra l'ajouter au backend.
       
-      const token = localStorage.getItem('ecomToken');
-      const response = await fetch(`${BACKEND_URL}/api/ecom/v1/external/whatsapp/instances?userId=${userId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      const data = await response.json();
+      const response = await ecomApi.get(`/v1/external/whatsapp/instances?userId=${userId}`);
+      const data = response.data;
       
       if (data.success) {
         setInstances(data.instances || []);
@@ -86,13 +79,8 @@ const WhatsAppConnexion = () => {
     setLinkResult(null);
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/ecom/v1/external/whatsapp/link`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, ...formData })
-      });
-
-      const data = await response.json();
+      const response = await ecomApi.post('/v1/external/whatsapp/link', { userId, ...formData });
+      const data = response.data;
 
       if (data.success) {
         setFormData({ instanceName: '', instanceToken: '', customName: '', defaultPart: 50 });
@@ -127,13 +115,8 @@ const WhatsAppConnexion = () => {
 
     try {
       // Appel réel à Evolution API via le backend
-      const response = await fetch(`${BACKEND_URL}/api/ecom/v1/external/whatsapp/verify-instance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instanceId: instance._id })
-      });
-
-      const data = await response.json();
+      const response = await ecomApi.post('/v1/external/whatsapp/verify-instance', { instanceId: instance._id });
+      const data = response.data;
 
       setTestResults(prev => ({
         ...prev,
@@ -169,11 +152,8 @@ const WhatsAppConnexion = () => {
     if (!confirm(`Supprimer l'instance "${instance.customName || instance.instanceName}" ? Cette action est irréversible.`)) return;
 
     try {
-      const response = await fetch(
-        `${BACKEND_URL}/api/ecom/v1/external/whatsapp/instances/${instance._id}?userId=${userId}`,
-        { method: 'DELETE' }
-      );
-      const data = await response.json();
+      const response = await ecomApi.delete(`/v1/external/whatsapp/instances/${instance._id}?userId=${userId}`);
+      const data = response.data;
 
       if (data.success) {
         setInstances(prev => prev.filter(i => i._id !== instance._id));
