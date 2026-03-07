@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from './ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { CheckCircle, AlertCircle, MessageSquare, Smartphone } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 
@@ -85,21 +83,21 @@ const TestBackend = () => {
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Status Backend */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+        <div className="bg-white rounded-lg border shadow-sm">
+          <div className="p-4 border-b">
+            <h3 className="font-semibold flex items-center gap-2">
               {status?.success ? (
                 <CheckCircle className="h-5 w-5 text-green-500" />
               ) : (
                 <AlertCircle className="h-5 w-5 text-red-500" />
               )}
               Status Backend
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </h3>
+          </div>
+          <div className="p-4">
             {status ? (
               <div className="space-y-2">
-                <p className={status.success ? "text-green-600" : "text-red-600"}>
+                <p className={status.success ? 'text-green-600' : 'text-red-600'}>
                   {status.message}
                 </p>
                 {status.data && (
@@ -112,30 +110,28 @@ const TestBackend = () => {
             ) : (
               <p className="text-gray-500">Chargement...</p>
             )}
-            <Button 
-              onClick={testBackendStatus} 
-              variant="outline" 
-              size="sm" 
-              className="mt-3"
+            <button
+              onClick={testBackendStatus}
               disabled={loading}
+              className="mt-3 px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 transition"
             >
               {loading ? 'Test...' : 'Retester'}
-            </Button>
-          </CardContent>
-        </Card>
+            </button>
+          </div>
+        </div>
 
         {/* Status WhatsApp */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+        <div className="bg-white rounded-lg border shadow-sm">
+          <div className="p-4 border-b">
+            <h3 className="font-semibold flex items-center gap-2">
               <Smartphone className="h-5 w-5" />
               Status WhatsApp
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </h3>
+          </div>
+          <div className="p-4">
             {whatsappStatus ? (
               <div className="space-y-2">
-                <p className={whatsappStatus.success ? "text-green-600" : "text-red-600"}>
+                <p className={whatsappStatus.success ? 'text-green-600' : 'text-red-600'}>
                   {whatsappStatus.message}
                 </p>
                 {whatsappStatus.data && (
@@ -155,26 +151,24 @@ const TestBackend = () => {
             ) : (
               <p className="text-gray-500">Chargement...</p>
             )}
-            <Button 
-              onClick={testWhatsappStatus} 
-              variant="outline" 
-              size="sm" 
-              className="mt-3"
+            <button
+              onClick={testWhatsappStatus}
+              className="mt-3 px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition"
             >
               Retester
-            </Button>
-          </CardContent>
-        </Card>
+            </button>
+          </div>
+        </div>
 
         {/* Test Message */}
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+        <div className="bg-white rounded-lg border shadow-sm md:col-span-2">
+          <div className="p-4 border-b">
+            <h3 className="font-semibold flex items-center gap-2">
               <MessageSquare className="h-5 w-5" />
               Test Communication
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </h3>
+          </div>
+          <div className="p-4">
             <div className="space-y-4">
               <div className="flex gap-2">
                 <input
@@ -185,9 +179,13 @@ const TestBackend = () => {
                   className="flex-1 px-3 py-2 border rounded-md"
                   onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                 />
-                <Button onClick={sendMessage} disabled={!message.trim()}>
+                <button
+                  onClick={sendMessage}
+                  disabled={!message.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 transition text-sm font-medium"
+                >
                   Envoyer
-                </Button>
+                </button>
               </div>
               
               {testResult && (
@@ -198,8 +196,8 @@ const TestBackend = () => {
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );
