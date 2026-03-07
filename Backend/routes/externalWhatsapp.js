@@ -6,6 +6,25 @@ import evolutionApiService from '../services/evolutionApiService.js';
 const router = express.Router();
 
 /**
+ * @route   GET /api/ecom/v1/external/whatsapp/
+ * @desc    Test route to verify router is loaded
+ * @access  Public
+ */
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'WhatsApp External Router is loaded',
+    availableRoutes: [
+      'GET /instances?userId=xxx',
+      'POST /link',
+      'POST /verify-instance',
+      'POST /send',
+      'DELETE /instances/:id?userId=xxx'
+    ]
+  });
+});
+
+/**
  * @route   POST /api/v1/external/whatsapp/link
  * @desc    Enregistrer une instance WhatsApp pour un utilisateur
  * @access  Public (Public selon spécification, sécurisé par userId/instanceToken)
