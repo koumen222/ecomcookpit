@@ -7,6 +7,7 @@ import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 import EcomUser from '../models/EcomUser.js';
 import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
+import { checkMessageLimit, incrementMessageCount } from '../services/messageLimitService.js';
 
 // ─── WhatsApp helpers (shared with campaigns.js) ─────────────────────────────
 const sanitizePhoneNumber = (phone) => phone?.replace(/\D/g, '') || null;
@@ -451,9 +452,19 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
           result = await evolutionApiService.sendMessage(instance.instanceName, instance.instanceToken, cleanNumber, message);
         }
 
+        // Vérifier les limites avant chaque message
+        const msgLimitCheck = await checkMessageLimit(instance);
+        if (!msgLimitCheck.allowed) {
+          console.warn(`⚠️ Limite atteinte après ${sent} messages: ${msgLimitCheck.reason}`);
+          emit('limitReached', { sent, failed, skipped, total: recipients.length, reason: msgLimitCheck.reason, usage: msgLimitCheck.usage });
+          break;
+        }
+
         const index = sent + failed + skipped + 1;
         if (result.success) {
           sent++;
+          // Incrémenter le compteur après chaque envoi réussi
+          await incrementMessageCount(instance._id, 1);
           emit('progress', { sent, failed, skipped, total: recipients.length, index, current: { name: clientName, phone: cleanNumber, status: 'sent', reason: 'Envoyé' } });
         } else if (result.noWhatsApp) {
           skipped++;

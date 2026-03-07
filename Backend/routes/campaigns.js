@@ -7,6 +7,7 @@ import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { normalizeCity, deduplicateCities } from '../utils/cityNormalizer.js';
+import { checkMessageLimit, incrementMessageCount } from '../services/messageLimitService.js';
 
 // Helper pour convertir en ObjectId
 const toObjectId = (v) => {
@@ -967,7 +968,19 @@ router.post('/:id/send', requireEcomAuth, async (req, res) => {
     campaign.status = 'sending';
     await campaign.save();
 
+    // Vérifier les limites avant d'envoyer la campagne
+    const limitCheck = await checkMessageLimit(instance);
+    if (!limitCheck.allowed) {
+      return res.status(429).json({
+        success: false,
+        message: limitCheck.reason,
+        usage: limitCheck.usage,
+        upgradeUrl: 'https://zenchat.app/pricing'
+      });
+    }
+
     console.log(`📤 Envoi campagne "${campaign.name}" à ${recipients.length} destinataires via ${instance.instanceName}`);
+    console.log(`📊 Limites: ${limitCheck.usage.dailyUsed}/${limitCheck.usage.dailyLimit} aujourd'hui, ${limitCheck.usage.monthlyUsed}/${limitCheck.usage.monthlyLimit} ce mois`);
 
     let sent = 0;
     let failed = 0;
@@ -975,6 +988,13 @@ router.post('/:id/send', requireEcomAuth, async (req, res) => {
     for (const { phone, client, orderData } of recipients) {
       const cleanPhone = sanitizePhoneNumber(phone);
       if (!cleanPhone) { failed++; continue; }
+
+      // Vérifier les limites avant chaque message
+      const msgLimitCheck = await checkMessageLimit(instance);
+      if (!msgLimitCheck.allowed) {
+        console.warn(`⚠️ Limite atteinte après ${sent} messages: ${msgLimitCheck.reason}`);
+        break;
+      }
 
       const message = renderMessage(campaign.messageTemplate, client, orderData);
 
@@ -987,6 +1007,8 @@ router.post('/:id/send', requireEcomAuth, async (req, res) => {
 
       if (result.success) {
         sent++;
+        // Incrémenter le compteur après chaque envoi réussi
+        await incrementMessageCount(instanceId, 1);
       } else {
         failed++;
         console.warn(`⚠️ Échec envoi à ${cleanPhone}:`, result.error);

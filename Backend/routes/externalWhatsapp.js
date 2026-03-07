@@ -2,6 +2,7 @@ import express from 'express';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import EcomUser from '../models/EcomUser.js';
 import evolutionApiService from '../services/evolutionApiService.js';
+import { checkMessageLimit, incrementMessageCount, getInstanceUsage } from '../services/messageLimitService.js';
 
 const router = express.Router();
 
@@ -238,7 +239,7 @@ router.delete('/instances/:id', async (req, res) => {
 
 /**
  * @route   POST /api/v1/external/whatsapp/send
- * @desc    Envoyer un message WhatsApp via Evolution API
+ * @desc    Envoyer un message WhatsApp via ZenChat API
  * @access  Public (Sécurisé par le instanceToken passé dans le body)
  */
 router.post('/send', async (req, res) => {
@@ -252,9 +253,27 @@ router.post('/send', async (req, res) => {
       });
     }
 
-    // On pourrait vérifier si l'instance existe en base, mais la spécification dit :
-    // "Sécurisé par le instanceToken passé dans le corps"
-    // On appelle directement le service Evolution API
+    // Récupérer l'instance pour vérifier les limites
+    const instance = await WhatsAppInstance.findOne({ instanceName, instanceToken });
+    if (!instance) {
+      return res.status(404).json({
+        success: false,
+        error: "Instance introuvable. Vérifiez le nom et le token."
+      });
+    }
+
+    // Vérifier les limites de messages
+    const limitCheck = await checkMessageLimit(instance);
+    if (!limitCheck.allowed) {
+      return res.status(429).json({
+        success: false,
+        error: limitCheck.reason,
+        usage: limitCheck.usage,
+        upgradeUrl: 'https://zenchat.app/pricing'
+      });
+    }
+
+    // Envoyer le message via ZenChat API
     const result = await evolutionApiService.sendMessage(
       instanceName,
       instanceToken,
@@ -263,16 +282,20 @@ router.post('/send', async (req, res) => {
     );
 
     if (result.success) {
-      // Optionnel : mettre à jour le statut dans la DB si on a l'instance
-      await WhatsAppInstance.findOneAndUpdate(
-        { instanceName, instanceToken },
+      // Incrémenter les compteurs de messages
+      await incrementMessageCount(instance._id, 1);
+
+      // Mettre à jour le statut de l'instance
+      await WhatsAppInstance.findByIdAndUpdate(
+        instance._id,
         { lastSeen: new Date(), status: 'connected' }
       );
 
       return res.status(200).json({
         success: true,
         message: "Message envoyé avec succès",
-        data: result.data
+        data: result.data,
+        usage: limitCheck.usage
       });
     } else {
       return res.status(500).json({
@@ -406,6 +429,38 @@ router.post('/refresh-status', async (req, res) => {
       success: false,
       error: "Erreur lors de la mise à jour des statuts"
     });
+  }
+});
+
+/**
+ * @route   GET /api/ecom/v1/external/whatsapp/instances/:id/usage
+ * @desc    Consulter la consommation de messages d'une instance
+ * @access  Public (Sécurisé par userId)
+ */
+router.get('/instances/:id/usage', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ success: false, error: "userId est requis" });
+    }
+
+    const instance = await WhatsAppInstance.findOne({ _id: id, userId });
+    if (!instance) {
+      return res.status(404).json({ success: false, error: "Instance introuvable ou non autorisée" });
+    }
+
+    const usage = await getInstanceUsage(id);
+
+    res.status(200).json({
+      success: true,
+      instanceName: instance.customName || instance.instanceName,
+      usage
+    });
+  } catch (error) {
+    console.error('❌ Erreur récupération usage:', error.message);
+    res.status(500).json({ success: false, error: "Erreur lors de la récupération des statistiques" });
   }
 });
 

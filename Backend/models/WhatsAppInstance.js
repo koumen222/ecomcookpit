@@ -47,6 +47,44 @@ const whatsappInstanceSchema = new mongoose.Schema({
     default: 50,
     min: 0,
     max: 100
+  },
+  // Plan et limites de messages
+  plan: {
+    type: String,
+    enum: ['free', 'premium', 'unlimited'],
+    default: 'free'
+  },
+  dailyLimit: {
+    type: Number,
+    default: 50  // Plan gratuit: 50 messages/jour
+  },
+  monthlyLimit: {
+    type: Number,
+    default: 100  // Plan gratuit: 100 messages/mois
+  },
+  messagesSentToday: {
+    type: Number,
+    default: 0
+  },
+  messagesSentThisMonth: {
+    type: Number,
+    default: 0
+  },
+  lastDailyReset: {
+    type: Date,
+    default: Date.now
+  },
+  lastMonthlyReset: {
+    type: Date,
+    default: Date.now
+  },
+  // Désactivation automatique si limites dépassées
+  limitExceeded: {
+    type: Boolean,
+    default: false
+  },
+  limitExceededAt: {
+    type: Date
   }
 }, {
   collection: 'whatsapp_instances',

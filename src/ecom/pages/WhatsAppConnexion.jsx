@@ -13,6 +13,7 @@ const WhatsAppConnexion = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
   const [testResults, setTestResults] = useState({}); // Store test results per instance
+  const [usageStats, setUsageStats] = useState({}); // Store usage stats per instance
 
   // Form state
   const [formData, setFormData] = useState({
@@ -30,6 +31,13 @@ const WhatsAppConnexion = () => {
   useEffect(() => {
     loadInstances();
   }, []);
+
+  useEffect(() => {
+    // Charger les stats d'utilisation pour toutes les instances
+    instances.forEach(instance => {
+      fetchUsageStats(instance._id);
+    });
+  }, [instances.length]);
 
   const loadInstances = async () => {
     try {
@@ -107,6 +115,22 @@ const WhatsAppConnexion = () => {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const fetchUsageStats = async (instanceId) => {
+    try {
+      const response = await ecomApi.get(`/v1/external/whatsapp/instances/${instanceId}/usage?userId=${userId}`);
+      const data = response.data;
+      
+      if (data.success) {
+        setUsageStats(prev => ({
+          ...prev,
+          [instanceId]: data.usage
+        }));
+      }
+    } catch (error) {
+      console.error('Erreur récupération usage:', error);
+    }
+  };
+
   const testConnection = async (instance) => {
     setTestResults(prev => ({
       ...prev,
@@ -114,7 +138,7 @@ const WhatsAppConnexion = () => {
     }));
 
     try {
-      // Appel réel à Evolution API via le backend
+      // Appel réel à ZenChat API via le backend
       const response = await ecomApi.post('/v1/external/whatsapp/verify-instance', { instanceId: instance._id });
       const data = response.data;
 
@@ -123,8 +147,8 @@ const WhatsAppConnexion = () => {
         [instance._id]: {
           loading: false,
           success: data.success,
-          message: data.success ? '✅ Connectée à WhatsApp via Evolution API' : '❌ ' + (data.error || data.message),
-          details: data.evolutionState ? `État Evolution : ${data.evolutionState}` : null
+          message: data.success ? '✅ Connectée à WhatsApp via ZenChat API' : '❌ ' + (data.error || data.message),
+          details: data.evolutionState ? `État ZenChat : ${data.evolutionState}` : null
         }
       }));
 
@@ -134,8 +158,11 @@ const WhatsAppConnexion = () => {
           inst._id === instance._id ? { ...inst, status: data.status } : inst
         ));
       }
+      
+      // Récupérer les stats d'utilisation après le test
+      await fetchUsageStats(instance._id);
     } catch (error) {
-      console.error('❌ Erreur test Evolution API:', error);
+      console.error('❌ Erreur test ZenChat API:', error);
       setTestResults(prev => ({
         ...prev,
         [instance._id]: {
@@ -177,7 +204,7 @@ const WhatsAppConnexion = () => {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Connexion WhatsApp</h1>
-              <p className="text-gray-500 text-sm">Gérez vos instances Evolution API</p>
+              <p className="text-gray-500 text-sm">Gérez vos instances ZenChat API</p>
             </div>
           </div>
           
@@ -197,7 +224,21 @@ const WhatsAppConnexion = () => {
         {/* Add Form */}
         {showAddForm && (
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-8 animate-in fade-in slide-in-from-top-4 duration-300">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Nouvelle Instance Evolution API</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-4">Nouvelle Instance ZenChat API</h2>
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                Vous n'avez pas encore de compte ZenChat ? {' '}
+                <a 
+                  href="https://zenchat.app/signup" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="font-semibold underline hover:text-blue-900 inline-flex items-center gap-1"
+                >
+                  Inscrivez-vous gratuitement
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </p>
+            </div>
             <form onSubmit={handleLinkInstance} className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-sm font-semibold text-gray-700">Nom de l'instance</label>
@@ -212,7 +253,7 @@ const WhatsAppConnexion = () => {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-gray-700">Token Evolution</label>
+                <label className="text-sm font-semibold text-gray-700">Token ZenChat</label>
                 <input
                   type="password"
                   name="instanceToken"
@@ -310,7 +351,7 @@ const WhatsAppConnexion = () => {
             </div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">Aucune instance connectée</h3>
             <p className="text-gray-500 max-w-sm mx-auto mb-8">
-              Connectez votre compte WhatsApp via Evolution API pour commencer à envoyer des messages automatisés.
+              Connectez votre compte WhatsApp via ZenChat API pour commencer à envoyer des messages automatisés.
             </p>
             <button
               onClick={() => setShowAddForm(true)}
@@ -377,6 +418,70 @@ const WhatsAppConnexion = () => {
                     </div>
                     <p className="text-sm font-mono text-gray-700 truncate">••••••••••••••••</p>
                   </div>
+
+                  {/* Usage Statistics */}
+                  {usageStats[instance._id] && (
+                    <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl space-y-3 border border-blue-100">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-blue-900 uppercase tracking-widest">Consommation</span>
+                        <span className="text-xs px-2 py-0.5 bg-blue-200 text-blue-800 rounded-full font-bold">
+                          {usageStats[instance._id].plan === 'free' ? 'Gratuit' : usageStats[instance._id].plan === 'premium' ? 'Premium' : 'Illimité'}
+                        </span>
+                      </div>
+                      
+                      {/* Daily Usage */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-600 font-medium">Aujourd'hui</span>
+                          <span className="font-bold text-gray-900">
+                            {usageStats[instance._id].dailyUsed} / {usageStats[instance._id].dailyLimit}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all ${
+                              usageStats[instance._id].dailyUsed >= usageStats[instance._id].dailyLimit 
+                                ? 'bg-red-500' 
+                                : usageStats[instance._id].dailyUsed / usageStats[instance._id].dailyLimit > 0.8 
+                                  ? 'bg-orange-500' 
+                                  : 'bg-green-500'
+                            }`}
+                            style={{ width: `${Math.min(100, (usageStats[instance._id].dailyUsed / usageStats[instance._id].dailyLimit) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Monthly Usage */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-600 font-medium">Ce mois</span>
+                          <span className="font-bold text-gray-900">
+                            {usageStats[instance._id].monthlyUsed} / {usageStats[instance._id].monthlyLimit}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all ${
+                              usageStats[instance._id].monthlyUsed >= usageStats[instance._id].monthlyLimit 
+                                ? 'bg-red-500' 
+                                : usageStats[instance._id].monthlyUsed / usageStats[instance._id].monthlyLimit > 0.8 
+                                  ? 'bg-orange-500' 
+                                  : 'bg-green-500'
+                            }`}
+                            style={{ width: `${Math.min(100, (usageStats[instance._id].monthlyUsed / usageStats[instance._id].monthlyLimit) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {usageStats[instance._id].limitExceeded && (
+                        <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                          <p className="text-xs text-red-800 font-medium">
+                            ⚠️ Limite atteinte. <a href="https://zenchat.app/pricing" target="_blank" rel="noopener noreferrer" className="underline font-bold">Passer au Premium</a>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-6 pt-6 border-t border-gray-50 flex items-center justify-between">
