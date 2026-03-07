@@ -303,14 +303,30 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
       const campaign = await Campaign.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
       if (!campaign) return res.status(404).json({ success: false, message: 'Campagne introuvable' });
 
-      let instances = await WhatsappInstance.find({ workspaceId: req.workspaceId, isActive: true, status: { $in: ['connected', 'active'] } }).sort({ defaultPart: -1 });
-      if (instances.length === 0) {
-        instances = await WhatsappInstance.find({ workspaceId: { $exists: false }, userId: req.ecomUser._id, isActive: true, status: { $in: ['connected', 'active'] } }).sort({ defaultPart: -1 });
+      // Utiliser l'instance sélectionnée par l'utilisateur ou la première par défaut
+      let instance;
+      if (req.body.instanceId) {
+        instance = await WhatsappInstance.findOne({ 
+          _id: req.body.instanceId, 
+          $or: [
+            { workspaceId: req.workspaceId },
+            { userId: req.ecomUser._id }
+          ],
+          isActive: true 
+        });
+        if (!instance) {
+          return res.status(400).json({ success: false, message: 'Instance WhatsApp sélectionnée introuvable ou inactive.' });
+        }
+        console.log(`🎯 Instance sélectionnée par l'utilisateur: "${instance.customName || instance.instanceName}"`);
+      } else {
+        let instances = await WhatsappInstance.find({ workspaceId: req.workspaceId, isActive: true, status: { $in: ['connected', 'active'] } }).sort({ defaultPart: -1 });
+        if (instances.length === 0) {
+          instances = await WhatsappInstance.find({ workspaceId: { $exists: false }, userId: req.ecomUser._id, isActive: true, status: { $in: ['connected', 'active'] } }).sort({ defaultPart: -1 });
+        }
+        if (instances.length === 0) return res.status(400).json({ success: false, message: 'Aucune instance WhatsApp connectée. Configurez une instance dans "Connexion WhatsApp".' });
+        instance = instances[0];
+        console.log(`🎯 Instance par défaut: "${instance.customName || instance.instanceName}" (defaultPart: ${instance.defaultPart || 50}%)`);
       }
-      if (instances.length === 0) return res.status(400).json({ success: false, message: 'Aucune instance WhatsApp connectée. Configurez une instance dans "Connexion WhatsApp".' });
-
-      const instance = instances[0];
-      console.log(`🎯 Instance sélectionnée: "${instance.customName || instance.instanceName}" (defaultPart: ${instance.defaultPart || 50}%)`);
 
       const instanceStatus = await evolutionApiService.getInstanceStatus(instance.instanceName, instance.instanceToken);
       if (!instanceStatus || !instanceStatus.instance || instanceStatus.instance.state !== 'open') {

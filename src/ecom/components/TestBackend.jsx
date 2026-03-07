@@ -1,7 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from './ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { CheckCircle, AlertCircle, MessageSquare, Smartphone } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 
 const TestBackend = () => {
@@ -79,24 +76,30 @@ const TestBackend = () => {
   return (
     <div className="container mx-auto p-6">
       <h1 className="text-2xl font-bold mb-6 flex items-center gap-2">
-        <CheckCircle className="h-6 w-6" />
+        <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
         Test Backend - WhatsApp
       </h1>
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Status Backend */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+        <div className="bg-white rounded-lg shadow border border-gray-200">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
               {status?.success ? (
-                <CheckCircle className="h-5 w-5 text-green-500" />
+                <svg className="h-5 w-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
               ) : (
-                <AlertCircle className="h-5 w-5 text-red-500" />
+                <svg className="h-5 w-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
               )}
               Status Backend
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </h3>
+          </div>
+          <div className="px-6 py-4">
             {status ? (
               <div className="space-y-2">
                 <p className={status.success ? "text-green-600" : "text-red-600"}>
@@ -112,27 +115,27 @@ const TestBackend = () => {
             ) : (
               <p className="text-gray-500">Chargement...</p>
             )}
-            <Button 
+            <button 
               onClick={testBackendStatus} 
-              variant="outline" 
-              size="sm" 
-              className="mt-3"
+              className="mt-3 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
               disabled={loading}
             >
               {loading ? 'Test...' : 'Retester'}
-            </Button>
-          </CardContent>
-        </Card>
+            </button>
+          </div>
+        </div>
 
         {/* Status WhatsApp */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Smartphone className="h-5 w-5" />
+        <div className="bg-white rounded-lg shadow border border-gray-200">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
               Status WhatsApp
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </h3>
+          </div>
+          <div className="px-6 py-4">
             {whatsappStatus ? (
               <div className="space-y-2">
                 <p className={whatsappStatus.success ? "text-green-600" : "text-red-600"}>
@@ -155,26 +158,26 @@ const TestBackend = () => {
             ) : (
               <p className="text-gray-500">Chargement...</p>
             )}
-            <Button 
+            <button 
               onClick={testWhatsappStatus} 
-              variant="outline" 
-              size="sm" 
-              className="mt-3"
+              className="mt-3 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-50"
             >
               Retester
-            </Button>
-          </CardContent>
-        </Card>
+            </button>
+          </div>
+        </div>
 
         {/* Test Message */}
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5" />
+        <div className="bg-white rounded-lg shadow border border-gray-200 md:col-span-2">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
               Test Communication
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </h3>
+          </div>
+          <div className="px-6 py-4">
             <div className="space-y-4">
               <div className="flex gap-2">
                 <input
@@ -182,12 +185,16 @@ const TestBackend = () => {
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Entrez un message de test..."
-                  className="flex-1 px-3 py-2 border rounded-md"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                 />
-                <Button onClick={sendMessage} disabled={!message.trim()}>
+                <button 
+                  onClick={sendMessage} 
+                  disabled={!message.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   Envoyer
-                </Button>
+                </button>
               </div>
               
               {testResult && (
@@ -198,8 +205,8 @@ const TestBackend = () => {
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );
