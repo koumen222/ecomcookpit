@@ -1,84 +1,34 @@
 import axios from 'axios';
 
 /**
- * Service pour appeler l'API externe WhatsApp (backend séparé: api.ecomcookpit.site)
+ * Service pour appeler l'Evolution API directement
  * 
  * Architecture:
- *   Ce backend (scalor) → API externe WhatsApp → Evolution API
+ *   Ce backend (scalor) → Evolution API
  * 
- * Auth: L'API externe a son propre JWT. On utilise un compte de service configuré en .env
- * Endpoints: /api/auth/login, /api/instance/*, /api/message/*
+ * Auth: Utilise EVOLUTION_ADMIN_TOKEN (apikey globale)
+ * Endpoints: /instance/*, /message/*
  */
 class ExternalWhatsappApiService {
   constructor() {
-    this.baseUrl = process.env.EXTERNAL_WHATSAPP_API_URL || 'https://api.ecomcookpit.site';
-    this._serviceToken = null;
-    this._tokenExpiresAt = null;
+    this.baseUrl = process.env.EVOLUTION_API_URL || 'https://evolution-api-production-77b9.up.railway.app';
+    this.adminToken = process.env.EVOLUTION_ADMIN_TOKEN;
   }
 
-  // ─── Authentification service ───────────────────────────────────────────────
+  // ─── Authentification ───────────────────────────────────────────────────────
 
   /**
-   * Obtenir un token de service valide (auto-login + cache)
+   * Headers pour les appels à Evolution API
    */
-  async getServiceToken() {
-    const now = Date.now();
-
-    // Token encore valide (avec 1 min de marge)
-    if (this._serviceToken && this._tokenExpiresAt && now < this._tokenExpiresAt - 60000) {
-      return this._serviceToken;
+  buildHeaders(workspaceId = null) {
+    if (!this.adminToken) {
+      console.error('❌ [ExtWhatsappAPI] EVOLUTION_ADMIN_TOKEN manquant dans .env');
+      throw new Error('EVOLUTION_ADMIN_TOKEN non configuré');
     }
 
-    const email = process.env.EXTERNAL_WHATSAPP_SERVICE_EMAIL;
-    const password = process.env.EXTERNAL_WHATSAPP_SERVICE_PASSWORD;
-
-    if (!email || !password) {
-      console.error('❌ [ExtWhatsappAPI] Variables EXTERNAL_WHATSAPP_SERVICE_EMAIL et EXTERNAL_WHATSAPP_SERVICE_PASSWORD manquantes dans .env');
-      throw new Error('Credentials service WhatsApp externe non configurés (EXTERNAL_WHATSAPP_SERVICE_EMAIL / EXTERNAL_WHATSAPP_SERVICE_PASSWORD)');
-    }
-
-    console.log(`🔐 [ExtWhatsappAPI] Login service account: ${email} → ${this.baseUrl}/api/auth/login`);
-
-    try {
-      const response = await axios.post(`${this.baseUrl}/api/auth/login`, {
-        email,
-        password
-      }, {
-        timeout: 10000,
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      const data = response.data;
-      console.log(`✅ [ExtWhatsappAPI] Login réussi, token obtenu`);
-
-      // Extraire le token selon le format de la réponse
-      const token = data.token || data.accessToken || data.access_token || data.data?.token;
-      if (!token) {
-        console.error('❌ [ExtWhatsappAPI] Réponse login sans token:', JSON.stringify(data));
-        throw new Error('Token absent dans la réponse login de l\'API externe');
-      }
-
-      this._serviceToken = token;
-      // Par défaut 23h, ou utiliser l'expiry si fourni
-      this._tokenExpiresAt = now + (data.expiresIn ? data.expiresIn * 1000 : 23 * 60 * 60 * 1000);
-
-      return this._serviceToken;
-    } catch (error) {
-      const status = error.response?.status;
-      const body = JSON.stringify(error.response?.data || {});
-      console.error(`❌ [ExtWhatsappAPI] Échec login (HTTP ${status}): ${error.message} | Body: ${body}`);
-      throw new Error(`Impossible de s'authentifier auprès de l'API WhatsApp externe: ${error.message}`);
-    }
-  }
-
-  /**
-   * Headers pour les appels authentifiés
-   */
-  async buildHeaders(workspaceId = null) {
-    const token = await this.getServiceToken();
     const headers = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
+      'apikey': this.adminToken
     };
     
     if (workspaceId) {
@@ -90,18 +40,15 @@ class ExternalWhatsappApiService {
   }
 
   /**
-   * Wrapper avec retry si 401 (token expiré)
+   * Wrapper pour les appels HTTP
    */
-  async callWithAuth(fn, workspaceId = null) {
+  async callApi(fn, workspaceId = null) {
     try {
-      return await fn(await this.buildHeaders(workspaceId));
+      return await fn(this.buildHeaders(workspaceId));
     } catch (error) {
-      if (error.response?.status === 401) {
-        console.warn('⚠️ [ExtWhatsappAPI] 401 reçu, invalidation du token et retry...');
-        this._serviceToken = null;
-        this._tokenExpiresAt = null;
-        return await fn(await this.buildHeaders(workspaceId));
-      }
+      const status = error.response?.status;
+      const body = JSON.stringify(error.response?.data || {});
+      console.error(`❌ [ExtWhatsappAPI] Erreur HTTP ${status}: ${error.message} | Body: ${body}`);
       throw error;
     }
   }
@@ -115,8 +62,8 @@ class ExternalWhatsappApiService {
   async getInstances(userId, _tokenIgnored = null, workspaceId = null) {
     console.log(`📡 [ExtWhatsappAPI] getInstances pour userId=${userId}, workspaceId=${workspaceId}`);
     try {
-      const result = await this.callWithAuth(async (headers) => {
-        const url = `${this.baseUrl}/api/instance/fetchInstances`;
+      const result = await this.callApi(async (headers) => {
+        const url = `${this.baseUrl}/instance/fetchInstances`;
         console.log(`   → GET ${url}`);
         const response = await axios.get(url, { headers, timeout: 10000 });
         return response.data;
@@ -169,8 +116,8 @@ class ExternalWhatsappApiService {
   async linkInstance(data, _tokenIgnored = null, workspaceId = null) {
     console.log(`📡 [ExtWhatsappAPI] linkInstance instanceName=${data.instanceName}`);
     try {
-      const result = await this.callWithAuth(async (headers) => {
-        const url = `${this.baseUrl}/api/instance/create`;
+      const result = await this.callApi(async (headers) => {
+        const url = `${this.baseUrl}/instance/create`;
         console.log(`   → POST ${url}`);
         const response = await axios.post(url, {
           instanceName: data.instanceName,
@@ -197,8 +144,8 @@ class ExternalWhatsappApiService {
   async verifyInstance(instanceId, _tokenIgnored = null, workspaceId = null) {
     console.log(`📡 [ExtWhatsappAPI] verifyInstance instanceId=${instanceId}`);
     try {
-      const result = await this.callWithAuth(async (headers) => {
-        const url = `${this.baseUrl}/api/instance/connectionState/${instanceId}`;
+      const result = await this.callApi(async (headers) => {
+        const url = `${this.baseUrl}/instance/connectionState/${instanceId}`;
         console.log(`   → GET ${url}`);
         const response = await axios.get(url, { headers, timeout: 10000 });
         return response.data;
@@ -233,8 +180,8 @@ class ExternalWhatsappApiService {
       const instance = await this.getInstance(instanceId, userId, null, workspaceId);
       const instanceName = instance?.instanceName || instanceId;
 
-      const result = await this.callWithAuth(async (headers) => {
-        const url = `${this.baseUrl}/api/instance/delete/${instanceName}`;
+      const result = await this.callApi(async (headers) => {
+        const url = `${this.baseUrl}/instance/delete/${instanceName}`;
         console.log(`   → DELETE ${url}`);
         const response = await axios.delete(url, { headers, timeout: 10000 });
         return response.data;
