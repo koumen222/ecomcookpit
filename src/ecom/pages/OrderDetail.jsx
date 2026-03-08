@@ -491,11 +491,53 @@ const OrderDetail = () => {
                   <div className="w-9 h-9 bg-green-50 rounded-lg flex items-center justify-center flex-shrink-0">
                     <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <p className="text-[9px] text-gray-400 uppercase font-medium">Téléphone</p>
-                    <p className="text-sm font-semibold text-gray-900">{cleanPhone(order.clientPhone) || '—'}</p>
+                    {order.clientPhone ? (
+                      <div className="flex items-center gap-2">
+                        <a 
+                          href={`tel:${cleanPhone(order.clientPhone)}`}
+                          className="text-sm font-semibold text-gray-900 hover:text-green-600 transition-colors underline decoration-dotted decoration-green-300 hover:decoration-solid"
+                          title="Appeler ce numéro"
+                        >
+                          {cleanPhone(order.clientPhone)}
+                        </a>
+                        <a 
+                          href={`https://wa.me/${cleanPhone(order.clientPhone).replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-green-600 hover:text-green-700 transition-colors"
+                          title="Envoyer un message WhatsApp"
+                        >
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.149-.67.149-.197.149-.384.867-.5 1.123-.116.255-.232.29-.429.149-.197-.1-.847-.382-1.614-.956-.767-.574-1.607-1.286-1.864-1.483-.257-.197-.257-.29-.257-.487 0-.197.197-.384.297-.574.099-.19.149-.384.099-.58 0-.197-.099-.866-.297-1.613-.199-.747-.297-1.123-.297-1.123s-.297-.747-.99-.297c-.693 0-1.23.099-1.23.099s-.693.099-1.23.99c-.537.891-1.23 2.582-1.23 4.078 0 1.496.537 2.876 1.23 3.904.693 1.028 1.516 1.921 2.439 2.582.923.66 1.846 1.23 2.582 1.483.747.297 1.23.099 1.516.099.297 0 .693-.099.99-.297.297-.197.537-.487.537-.67 0-.197-.099-.384-.297-.574z"/>
+                          </svg>
+                        </a>
+                      </div>
+                    ) : (
+                      <p className="text-sm font-semibold text-gray-400">Non renseigné</p>
+                    )}
                   </div>
                 </div>
+                {order.clientEmail && (
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 bg-purple-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[9px] text-gray-400 uppercase font-medium">Email</p>
+                      <div className="flex items-center gap-2">
+                        <a 
+                          href={`mailto:${order.clientEmail}`}
+                          className="text-sm font-semibold text-gray-900 hover:text-purple-600 transition-colors underline decoration-dotted decoration-purple-300 hover:decoration-solid"
+                          title="Envoyer un email"
+                        >
+                          {order.clientEmail}
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 bg-emerald-50 rounded-lg flex items-center justify-center flex-shrink-0">
                     <svg className="w-4 h-4 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -505,13 +547,36 @@ const OrderDetail = () => {
                     <p className="text-sm font-semibold text-gray-900">{order.city || '—'}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
                     <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <p className="text-[9px] text-gray-400 uppercase font-medium">Adresse</p>
-                    <p className="text-sm font-semibold text-gray-900">{order.address || '—'}</p>
+                    {order.address ? (
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-gray-900 leading-tight">{order.address}</p>
+                        {order.city && (
+                          <div className="flex items-center gap-2">
+                            <a 
+                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${order.address}, ${order.city}`)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1"
+                              title="Voir sur Google Maps"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                              </svg>
+                              Google Maps
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm font-semibold text-gray-400">Non renseignée</p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2.5">

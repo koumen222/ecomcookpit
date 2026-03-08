@@ -415,19 +415,17 @@ const EcomApp = () => {
   }
 
   // Root domain → render full SaaS application
-  // CRITICAL: Wrap in useMemo to prevent EcomAuthProvider from remounting
-  return React.useMemo(() => (
-    <EcomAuthProvider>
-      <CurrencyProvider>
-        <ThemeProvider>
-          <div className="min-h-screen bg-gray-50">
-            <ErrorBoundary>
-              <PageViewTracker />
-              <PrefetchOnIdle />
-            <Routes>
-              {/* Route racine - redirection auto selon session */}
-              <Route path="/" element={<RootRedirect />} />
-              <Route path="/ecom" element={<RootRedirect />} />
+  return (
+    <CurrencyProvider>
+      <ThemeProvider>
+        <div className="min-h-screen bg-gray-50">
+          <ErrorBoundary>
+            <PageViewTracker />
+            <PrefetchOnIdle />
+          <Routes>
+            {/* Route racine - redirection auto selon session */}
+            <Route path="/" element={<RootRedirect />} />
+            <Route path="/ecom" element={<RootRedirect />} />
 
               {/* Routes publiques (sans layout) — wrapped in leur propre Suspense */}
               <Route path="/ecom/landing" element={<Suspense fallback={<SpinnerLoader />}><EcomLandingPage /></Suspense>} />
@@ -635,10 +633,16 @@ const EcomApp = () => {
           </ErrorBoundary>
           <PrivacyBanner />
         </div>
-        </ThemeProvider>
-      </CurrencyProvider>
-    </EcomAuthProvider>
-  ), []); // ✅ Pas de dépendances - le provider ne se remonte jamais
+      </ThemeProvider>
+    </CurrencyProvider>
+  );
 };
 
-export default EcomApp;
+// Wrapper avec EcomAuthProvider pour toute l'application
+const EcomAppWithAuth = () => (
+  <EcomAuthProvider>
+    <EcomApp />
+  </EcomAuthProvider>
+);
+
+export default EcomAppWithAuth;
