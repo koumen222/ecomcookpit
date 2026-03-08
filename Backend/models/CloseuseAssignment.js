@@ -79,6 +79,17 @@ const assignmentSchema = new mongoose.Schema({
     type: String,
     trim: true,
     default: ''
+  },
+  // 🆕 Commission de la closeuse (en % ou montant fixe)
+  commission: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  commissionType: {
+    type: String,
+    enum: ['percentage', 'fixed'],
+    default: 'percentage'
   }
 }, {
   collection: 'closeuse_assignments',

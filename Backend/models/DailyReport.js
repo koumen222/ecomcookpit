@@ -38,6 +38,12 @@ const dailyReportSchema = new mongoose.Schema({
     type: String,
     maxlength: 1000
   },
+  // 🆕 Numéro WhatsApp de la closeuse
+  whatsappNumber: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   reportedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'EcomUser',

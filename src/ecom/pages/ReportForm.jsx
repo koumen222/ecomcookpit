@@ -21,6 +21,7 @@ const ReportForm = () => {
     ordersDelivered: '',
     adSpend: '0',
     notes: '',
+    whatsappNumber: '',
     deliveries: [],
     priceExceptions: []
   });
@@ -50,6 +51,7 @@ const ReportForm = () => {
         ordersDelivered: report.ordersDelivered?.toString() || '',
         adSpend: report.adSpend?.toString() || '0',
         notes: report.notes || '',
+        whatsappNumber: report.whatsappNumber || '',
         deliveries: report.deliveries || [],
         priceExceptions: report.priceExceptions || []
       });
@@ -174,6 +176,7 @@ const ReportForm = () => {
         ordersDelivered: parseInt(formData.ordersDelivered),
         adSpend: parseFloat(formData.adSpend) || 0,
         notes: formData.notes,
+        whatsappNumber: formData.whatsappNumber,
         deliveries: formData.deliveries.map(d => ({
           agencyName: d.agencyName,
           ordersDelivered: parseInt(d.ordersDelivered) || 0,
@@ -483,6 +486,24 @@ const ReportForm = () => {
             placeholder="Informations supplémentaires sur la journée..."
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
           />
+        </div>
+
+        {/* 🆕 WhatsApp Number */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Numéro WhatsApp
+          </label>
+          <input
+            type="tel"
+            name="whatsappNumber"
+            value={formData.whatsappNumber}
+            onChange={handleChange}
+            placeholder="Ex: 237699887766"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Votre numéro WhatsApp pour recevoir les notifications
+          </p>
         </div>
 
         {/* Calcul du taux de livraison */}

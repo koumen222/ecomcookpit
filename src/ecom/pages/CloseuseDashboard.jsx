@@ -87,8 +87,9 @@ const CloseuseDashboard=()=>{
   const[recentOrders,setRecentOrders]=useState([]);
   const[allOrders,setAllOrders]=useState([]);
   const[weekOrders,setWeekOrders]=useState([]);
-  const[commissions,setCommissions]=useState(null);
-  const[stats,setStats]=useState({
+  const [commissions,setCommissions]=useState(null);
+  const [assignment, setAssignment] = useState(null); // Commission assignment
+  const [stats,setStats]=useState({
     total:0,delivered:0,confirmed:0,pending:0,cancelled:0,returned:0,
     unreachable:0,called:0,postponed:0,shipped:0,deliveryRate:0,
     todayDelivered:0,todayTotal:0,prevWeekDelivered:0,prevWeekTotal:0,
@@ -104,17 +105,19 @@ const CloseuseDashboard=()=>{
       const today=new Date().toISOString().split('T')[0];
       const weekAgo=new Date(Date.now()-7*86400000).toISOString().split('T')[0];
       const twoWeeks=new Date(Date.now()-14*86400000).toISOString().split('T')[0];
-      const[r1,r2,r3,r4]=await Promise.all([
+      const[r1,r2,r3,r4,r5]=await Promise.all([
         ecomApi.get('/orders?limit=200'),
         ecomApi.get(`/orders?limit=500&startDate=${weekAgo}&endDate=${today}`),
         ecomApi.get(`/orders?limit=500&startDate=${twoWeeks}&endDate=${weekAgo}`),
         ecomApi.get('/orders/my-commissions?period=month').catch(()=>null),
+        ecomApi.get('/assignments/my').catch(()=>null), // 🆕 Fetch assignment with commission
       ]);
       const orders=r1.data.data.orders||[];
       const week=r2.data.data.orders||[];
       const prev=r3.data.data.orders||[];
       setAllOrders(orders);setWeekOrders(week);setRecentOrders(orders.slice(0,8));
       if(r4?.data?.success) setCommissions(r4.data.data);
+      if(r5?.data?.success) setAssignment(r5.data.data); // 🆕 Set assignment
       const cb=(arr,k)=>arr.filter(o=>o.status===k).length;
       const total=orders.length,delivered=cb(orders,'delivered');
       const todayArr=orders.filter(o=>new Date(o.date).toISOString().split('T')[0]===today);
@@ -171,7 +174,7 @@ const CloseuseDashboard=()=>{
       icon:<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>},
     {label:'Livrées',value:periodStats.delivered,sub:`Taux ${periodStats.total>0?Math.round((periodStats.delivered/periodStats.total)*100):0}%`,iconBg:'#ecfdf5',iconColor:'#10B981',
       icon:<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>},
-    {label:'Commissions',value:commissions?fmt(commissions.totalCommission||0):'—',sub:commissions?`${commissions.deliveredCount||0} livrées`:'Ce mois',iconBg:'#fffbeb',iconColor:'#F59E0B',
+    {label:'Commissions',value:commissions?fmt(commissions.totalCommission||0):'—',sub:assignment?.commission ? `${assignment.commission}${assignment.commissionType==='percentage'?'%':' FCFA'} par livrée`:'Ce mois',iconBg:'#fffbeb',iconColor:'#F59E0B',
       icon:<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>},
     {label:"Aujourd'hui",value:stats.todayDelivered,sub:`/ ${stats.todayTotal} reçues`,iconBg:'#faf5ff',iconColor:'#0F6B4F',
       icon:<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>},

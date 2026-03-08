@@ -554,7 +554,7 @@ router.get('/closeuse/:closeuseId', requireEcomAuth, async (req, res) => {
 // Créer ou mettre à jour une affectation
 router.post('/', requireEcomAuth, async (req, res) => {
   try {
-    const { closeuseId, orderSources, productAssignments, cityAssignments, notes } = req.body;
+    const { closeuseId, orderSources, productAssignments, cityAssignments, notes, commission, commissionType } = req.body;
 
     if (!closeuseId) {
       return res.status(400).json({ success: false, message: 'ID closeuse requis' });
@@ -620,6 +620,8 @@ router.post('/', requireEcomAuth, async (req, res) => {
       assignment.productAssignments = validProductAssignments;
       assignment.cityAssignments = validCityAssignments;
       if (notes !== undefined) assignment.notes = notes.trim();
+      if (commission !== undefined) assignment.commission = Number(commission) || 0;
+      if (commissionType !== undefined) assignment.commissionType = commissionType;
       assignment.isActive = true;
     } else {
       // Créer une nouvelle affectation
@@ -630,6 +632,8 @@ router.post('/', requireEcomAuth, async (req, res) => {
         productAssignments: validProductAssignments,
         cityAssignments: validCityAssignments,
         notes: notes?.trim() || '',
+        commission: Number(commission) || 0,
+        commissionType: commissionType || 'percentage',
         isActive: true
       });
     }
@@ -658,7 +662,7 @@ router.post('/', requireEcomAuth, async (req, res) => {
 router.put('/:id', requireEcomAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { closeuseId, orderSources, productAssignments, notes } = req.body;
+    const { closeuseId, orderSources, productAssignments, notes, commission, commissionType } = req.body;
 
     const assignment = await CloseuseAssignment.findOne({
       _id: id,
@@ -701,6 +705,14 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
 
     if (notes !== undefined) {
       assignment.notes = typeof notes === 'string' ? notes.trim() : '';
+    }
+
+    if (commission !== undefined) {
+      assignment.commission = Number(commission) || 0;
+    }
+
+    if (commissionType !== undefined) {
+      assignment.commissionType = commissionType;
     }
 
     await assignment.save();

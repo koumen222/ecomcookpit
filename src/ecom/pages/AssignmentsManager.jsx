@@ -60,7 +60,9 @@ const AssignmentsManager = () => {
     closeuseId: '',
     orderSources: [],
     productAssignments: [],
-    notes: ''
+    notes: '',
+    commission: 0,
+    commissionType: 'percentage'
   });
   const [message, setMessage] = useState('');
 
@@ -160,7 +162,9 @@ const AssignmentsManager = () => {
         closeuseId: '',
         orderSources: [],
         productAssignments: [],
-        notes: ''
+        notes: '',
+        commission: 0,
+        commissionType: 'percentage'
       });
       
       await loadData();
@@ -193,7 +197,9 @@ const AssignmentsManager = () => {
         ? assignment.orderSources.map(os => ({ sourceId: os.sourceId?._id?.toString() || os.sourceId }))
         : [],
       productAssignments,
-      notes: assignment.notes || ''
+      notes: assignment.notes || '',
+      commission: assignment.commission || 0,
+      commissionType: assignment.commissionType || 'percentage'
     });
 
     // Charger les produits sheets pour chaque source
@@ -647,6 +653,15 @@ const AssignmentsManager = () => {
                   </button>
                 </div>
               </div>
+              {/* Commission */}
+              {assignment.commission > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-gray-400">Commission:</span>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                    {assignment.commission}{assignment.commissionType === 'percentage' ? '%' : ' FCFA'}
+                  </span>
+                </div>
+              )}
               {/* Sources */}
               {Array.isArray(assignment.orderSources) && assignment.orderSources.length > 0 && (
                 <div>
@@ -702,6 +717,7 @@ const AssignmentsManager = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Closeuse</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commission</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sources</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Produits</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
@@ -714,6 +730,15 @@ const AssignmentsManager = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{assignment.closeuseId?.name}</div>
                     <div className="text-sm text-gray-500">{assignment.closeuseId?.email}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {assignment.commission ? (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                        {assignment.commission}{assignment.commissionType === 'percentage' ? '%' : ' FCFA'}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">-</span>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-wrap gap-1">
@@ -777,7 +802,7 @@ const AssignmentsManager = () => {
               </div>
               <button
                 type="button"
-                onClick={() => { setShowForm(false); setEditingAssignment(null); setFormData({ closeuseId: '', orderSources: [], productAssignments: [], notes: '' }); }}
+                onClick={() => { setShowForm(false); setEditingAssignment(null); setFormData({ closeuseId: '', orderSources: [], productAssignments: [], notes: '', commission: 0, commissionType: 'percentage' }); }}
                 className="p-2 rounded-full bg-gray-100 text-gray-500 active:bg-gray-200"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -975,6 +1000,41 @@ const AssignmentsManager = () => {
                     placeholder="Notes optionnelles..."
                   />
                 </div>
+
+                {/* 🆕 Commission */}
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold">3</span>
+                    <h3 className="text-sm font-semibold text-gray-800">Commission de la closeuse</h3>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Montant</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={formData.commission}
+                        onChange={(e) => setFormData(prev => ({ ...prev, commission: parseFloat(e.target.value) || 0 }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-transparent"
+                        placeholder="Ex: 10"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
+                      <select
+                        value={formData.commissionType}
+                        onChange={(e) => setFormData(prev => ({ ...prev, commissionType: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-transparent bg-white"
+                      >
+                        <option value="percentage">% (pourcentage)</option>
+                        <option value="fixed">FCFA (montant fixe)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <p className="text-xs text-emerald-700 mt-2">
+                    La closeuse verra sa commission sur chaque commande traitée.
+                  </p>
+                </div>
               </div>
 
               {/* Footer */}
@@ -987,7 +1047,7 @@ const AssignmentsManager = () => {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => { setShowForm(false); setEditingAssignment(null); setFormData({ closeuseId: '', orderSources: [], productAssignments: [], notes: '' }); }}
+                    onClick={() => { setShowForm(false); setEditingAssignment(null); setFormData({ closeuseId: '', orderSources: [], productAssignments: [], notes: '', commission: 0, commissionType: 'percentage' }); }}
                     className="flex-1 sm:flex-none px-4 py-2.5 text-sm border border-gray-300 text-gray-700 rounded-lg active:bg-gray-100 font-medium"
                   >
                     Annuler

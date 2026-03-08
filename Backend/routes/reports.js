@@ -1096,7 +1096,7 @@ router.post('/',
       console.log('👤 Utilisateur:', req.ecomUser?.email);
       console.log('📋 Corps de la requête:', req.body);
       
-      const { date, productId, ordersReceived, ordersDelivered, adSpend, notes, deliveries, priceExceptions } = req.body;
+      const { date, productId, ordersReceived, ordersDelivered, adSpend, notes, deliveries, priceExceptions, whatsappNumber } = req.body;
 
       // Vérifier que le produit existe dans le même workspace
       const product = await Product.findOne({ _id: productId, workspaceId: req.workspaceId });
@@ -1170,6 +1170,7 @@ router.post('/',
         quantity: ordersDelivered,
         adSpend,
         notes,
+        whatsappNumber: whatsappNumber?.trim() || '',
         reportedBy: req.ecomUser._id,
         deliveries: (deliveries || []).filter(d => 
           d.agencyName && d.agencyName.trim() !== '' && d.ordersDelivered > 0

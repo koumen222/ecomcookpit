@@ -146,6 +146,10 @@ const ReportDetail = () => {
                 <p className="text-lg text-gray-900">{report.reportedBy?.email || 'N/A'}</p>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-500">WhatsApp</label>
+                <p className="text-lg text-gray-900">{report.whatsappNumber || 'Non renseigné'}</p>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-500">Date de création</label>
                 <p className="text-lg text-gray-900">{formatDate(report.createdAt)}</p>
               </div>
