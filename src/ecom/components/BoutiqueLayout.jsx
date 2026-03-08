@@ -83,8 +83,11 @@ const BoutiqueLayout = () => {
   const [moreOpen, setMoreOpen] = useState(false);
   const [entering, setEntering] = useState(true);
 
-  // Build store-relative paths (subdomain: /product/x, root: /store/sub/product/x)
-  const storePath = (path) => isStoreDomain ? path : (subdomain ? `/store/${subdomain}${path}` : path);
+  // Build store URLs (always use full subdomain URLs)
+  const storeUrl = (path = '/') => {
+    if (!subdomain) return '#';
+    return `https://${subdomain}.scalor.net${path}`;
+  };
 
   // Entry animation
   useEffect(() => {
@@ -161,7 +164,7 @@ const BoutiqueLayout = () => {
           {/* Bottom: Preview store link */}
           <div className="border-t border-gray-100 p-3">
             <a
-              href={subdomain ? storePath('/') : '#'}
+              href={storeUrl()}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 transition group"
@@ -197,7 +200,7 @@ const BoutiqueLayout = () => {
               </div>
             </div>
             <a
-              href={subdomain ? storePath('/') : '#'}
+              href={storeUrl()}
               target="_blank"
               rel="noopener noreferrer"
               className="p-2 rounded-lg hover:bg-gray-100 transition"
@@ -216,7 +219,7 @@ const BoutiqueLayout = () => {
           </h1>
           <div className="flex-1" />
           <a
-            href={subdomain ? storePath('/') : '#'}
+            href={storeUrl()}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-100 transition"

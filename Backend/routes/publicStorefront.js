@@ -77,13 +77,26 @@ router.use((req, res, next) => {
   next();
 });
 
-// ─── 2. Root domain → redirect to Cloudflare Pages ───────────────────────────
+// ─── 2. Redirect /store/{subdomain}/* to {subdomain}.scalor.net ───────────────────
 router.use((req, res, next) => {
+  // Check if this is a /store/{subdomain}/* path on root domain
+  if (req.isRootDomain && req.path.startsWith('/store/')) {
+    const parts = req.path.split('/');
+    if (parts.length >= 3) {
+      const subdomain = parts[2]; // Extract subdomain from /store/{subdomain}
+      const remainingPath = parts.slice(3).join('/'); // Get remaining path
+      const targetUrl = `https://${subdomain}.scalor.net${remainingPath ? '/' + remainingPath : ''}`;
+      console.log(`🔄 [storefront] Redirecting ${req.path} to ${targetUrl}`);
+      return res.redirect(301, targetUrl);
+    }
+  }
+  
+  // Root domain (scalor.net) should be handled by Cloudflare Pages.
+  // If a request somehow reaches Railway on the root domain, redirect.
   if (req.isRootDomain) {
-    // Root domain (scalor.net) should be handled by Cloudflare Pages.
-    // If a request somehow reaches Railway on the root domain, redirect.
     return res.redirect(301, 'https://scalor.net');
   }
+  
   next();
 });
 

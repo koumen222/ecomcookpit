@@ -20,8 +20,11 @@ const StoreFront = () => {
   const subdomain = hostSubdomain || paramSubdomain;
   const navigate = useNavigate();
 
-  // Build store-relative paths (subdomain: /product/x, root: /store/sub/product/x)
-  const storePath = (path) => isStoreDomain ? path : `/store/${subdomain}${path}`;
+  // Build store URLs (always use full subdomain URLs)
+  const storeUrl = (path = '/') => {
+    if (!subdomain) return '#';
+    return `https://${subdomain}.scalor.net${path}`;
+  };
 
   const [store, setStore] = useState(null);
   const [products, setProducts] = useState([]);
@@ -326,9 +329,9 @@ const StoreFront = () => {
             {/* Responsive grid: 2 cols mobile, 3 tablet, 4 desktop */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
               {products.map((product) => (
-                <Link
+                <a
                   key={product._id}
-                  to={storePath(`/product/${product.slug}`)}
+                  href={storeUrl(`/product/${product.slug}`)}
                   className="bg-white rounded-xl border border-gray-100 overflow-hidden text-left hover:shadow-md transition-all duration-200 group cursor-pointer"
                   title={`Voir les détails de ${product.name}`}
                 >
@@ -381,7 +384,7 @@ const StoreFront = () => {
                       </span>
                     )}
                   </div>
-                </Link>
+                </a>
               ))}
             </div>
 
