@@ -2,15 +2,23 @@ import { useCurrency } from '../contexts/CurrencyContext.jsx';
 
 // Hook simple pour formater les montants dans la devise de l'utilisateur
 export const useMoney = () => {
+  // Helper to clean amount value
+  const cleanAmount = (amount) => {
+    if (amount === null || amount === undefined) return 0;
+    // Remove Google Sheets apostrophe prefix and any non-numeric chars except . and ,
+    const cleaned = String(amount).replace(/^'+/, '').replace(/[^0-9.,]/g, '');
+    return Number(cleaned) || 0;
+  };
+
   try {
     const context = useCurrency();
     return {
       // Formater un montant (conversion automatique depuis XAF par défaut)
-      fmt: (amount, fromCurrency = 'XAF') => context.format(amount, fromCurrency),
+      fmt: (amount, fromCurrency = 'XAF') => context.format(cleanAmount(amount), fromCurrency),
       
       // Formater en compact (K, M) pour mobile
       fmtCompact: (amount, fromCurrency = 'XAF') => {
-        const converted = context.convert(amount, fromCurrency);
+        const converted = context.convert(cleanAmount(amount), fromCurrency);
         const num = Number(converted);
         if (isNaN(num)) return `0 ${context.symbol}`;
         const abs = Math.abs(num);
@@ -20,10 +28,10 @@ export const useMoney = () => {
       },
       
       // Formater sans conversion (déjà dans la devise cible)
-      fmtRaw: (amount) => context.formatRaw(amount),
+      fmtRaw: (amount) => context.formatRaw(cleanAmount(amount)),
       
       // Convertir un montant
-      convert: (amount, fromCurrency = 'XAF') => context.convert(amount, fromCurrency),
+      convert: (amount, fromCurrency = 'XAF') => context.convert(cleanAmount(amount), fromCurrency),
       
       // Infos de la devise
       currency: context.code,
@@ -35,16 +43,13 @@ export const useMoney = () => {
     // Fallback robuste si le contexte n'est pas disponible
     return {
       fmt: (amount, fromCurrency = 'XAF') => {
-        if (amount === null || amount === undefined) return '0 FCFA';
-        const num = Number(amount);
-        if (isNaN(num)) return '0 FCFA';
+        const num = cleanAmount(amount);
         return `${num.toLocaleString('fr-FR')} FCFA`;
       },
       
       // Formater en compact (K, M) pour mobile
       fmtCompact: (amount) => {
-        const num = Number(amount);
-        if (isNaN(num)) return '0 FCFA';
+        const num = cleanAmount(amount);
         const abs = Math.abs(num);
         if (abs >= 1_000_000) return (num / 1_000_000).toFixed(1).replace('.0', '') + 'M FCFA';
         if (abs >= 1_000) return (num / 1_000).toFixed(1).replace('.0', '') + 'K FCFA';
@@ -52,16 +57,11 @@ export const useMoney = () => {
       },
       
       fmtRaw: (amount) => {
-        if (amount === null || amount === undefined) return '0 FCFA';
-        const num = Number(amount);
-        if (isNaN(num)) return '0 FCFA';
+        const num = cleanAmount(amount);
         return `${num.toLocaleString('fr-FR')} FCFA`;
       },
       
-      convert: (amount) => {
-        if (amount === null || amount === undefined) return 0;
-        return Number(amount);
-      },
+      convert: (amount) => cleanAmount(amount),
       
       currency: 'XAF',
       symbol: 'FCFA'

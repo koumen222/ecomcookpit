@@ -305,6 +305,17 @@ const startServer = async () => {
       console.warn('⚠️ Auto-sync non démarré:', err.message);
     }
 
+    // ─── Google Sheets Polling for new orders ────────────────────────────
+    try {
+      const pollingMod = await import('./services/googleSheetsPolling.js');
+      if (pollingMod.startPollingService) {
+        pollingMod.startPollingService();
+        console.log('✅ Google Sheets polling service démarré');
+      }
+    } catch (err) {
+      console.warn('⚠️ Google Sheets polling non démarré:', err.message);
+    }
+
     // ─── Push scheduled notifications + automations ──────────────────────
     try {
       const { startPushSchedulerJobs } = await import('./services/pushSchedulerService.js');

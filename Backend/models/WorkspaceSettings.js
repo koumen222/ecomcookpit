@@ -33,6 +33,7 @@ const workspaceSettingsSchema = new mongoose.Schema({
     sheetName: { type: String, default: 'Sheet1' },
     isActive: { type: Boolean, default: true },
     lastSyncAt: { type: Date },
+    lastRowCount: { type: Number, default: 0 },
     detectedHeaders: [String],
     detectedColumns: mongoose.Schema.Types.Mixed
   }],

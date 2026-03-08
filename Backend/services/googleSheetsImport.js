@@ -152,6 +152,8 @@ export async function fetchSheetData(spreadsheetIdOrUrl, sheetName) {
 function extractHeaders(table) {
   let headers = table.cols.map(col => col.label || '');
   const hasLabels = headers.some(h => h && h.trim());
+  
+  console.log('🔍 [IMPORT] Column labels from API:', headers);
 
   if (!hasLabels && table.rows.length > 0) {
     const firstRow = table.rows[0];
@@ -164,6 +166,7 @@ function extractHeaders(table) {
         return '';
       });
     }
+    console.log('🔍 [IMPORT] Headers from first row:', headers);
   }
   return headers;
 }
@@ -174,7 +177,12 @@ function detectDataStartIndex(table, headers) {
 }
 
 const normalize = (s) =>
-  s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  s.toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, '')  // Remove special chars except spaces
+    .replace(/\s+/g, ' ')          // Collapse multiple spaces
+    .trim();
 
 const COLUMN_PATTERNS = [
   { field: 'orderId', compound: ['order id', 'order number', 'numero commande', 'n° commande', 'n commande', 'id commande', 'numero de commande', 'numero', 'n° cmd'], simple: ['ref', 'reference', 'order', 'commande', 'id', 'cmd'] },
@@ -183,7 +191,7 @@ const COLUMN_PATTERNS = [
   { field: 'clientName', compound: ['first name', 'last name', 'full name', 'nom complet', 'nom client', 'customer name', 'nom et prenom', 'nom prenom', 'nom du client'], simple: ['nom', 'name', 'client', 'prenom', 'firstname', 'lastname', 'customer', 'destinataire', 'beneficiaire', 'acheteur'] },
   { field: 'city', compound: ['ville de livraison', 'ville livraison', 'delivery city'], simple: ['ville', 'city', 'commune', 'localite', 'zone', 'region', 'wilaya', 'gouvernorat'] },
   { field: 'product', compound: ['product name', 'nom produit', 'nom article', 'nom du produit', 'libelle produit', 'product title'], simple: ['produit', 'product', 'article', 'item', 'designation', 'libelle', 'offre', 'offer', 'pack'] },
-  { field: 'price', compound: ['product price', 'prix produit', 'prix unitaire', 'unit price', 'selling price', 'prix de vente', 'prix total', 'total price', 'prix ttc', 'prix ht'], simple: ['prix', 'price', 'montant', 'amount', 'total', 'cout', 'cost', 'tarif', 'valeur', 'revenue', 'ca'] },
+  { field: 'price', compound: ['product price', 'prix produit', 'prix unitaire', 'unit price', 'selling price', 'prix de vente', 'total price', 'prix total', 'prix ttc', 'prix ht', 'amount', 'montant', 'productprice', 'product&price'], simple: ['prix', 'price', 'tarif', 'valeur'] },
   { field: 'quantity', compound: [], simple: ['quantite', 'quantity', 'qte', 'qty', 'nb', 'nombre', 'pieces', 'unites'] },
   { field: 'status', compound: ['order status', 'statut commande', 'statut de livraison', 'delivery status', 'etat commande'], simple: ['statut', 'status', 'etat', 'state', 'livraison', 'delivery', 'situation'] },
   { field: 'notes', compound: [], simple: ['notes', 'note', 'commentaire', 'comment', 'remarque', 'observation', 'description', 'details', 'info'] },
@@ -197,12 +205,15 @@ const COLUMN_PATTERNS = [
 export function autoDetectColumns(headers) {
   const mapping = {};
 
+  console.log('🔍 [IMPORT] Headers detected:', headers);
+
   // Pass 1: compound (more specific) matches
   headers.forEach((header, index) => {
     const h = normalize(header);
     for (const p of COLUMN_PATTERNS) {
       if (!mapping[p.field] && p.compound.some(c => h.includes(c))) {
         mapping[p.field] = index;
+        console.log(`✅ [IMPORT] Mapped ${p.field} -> column ${index} (${header})`);
       }
     }
   });
@@ -216,11 +227,13 @@ export function autoDetectColumns(headers) {
       if (!mapping[p.field] && p.simple.some(k => h.includes(k))) {
         mapping[p.field] = index;
         usedIndices.add(index);
+        console.log(`✅ [IMPORT] Mapped ${p.field} -> column ${index} (${header}) [simple]`);
         break;
       }
     }
   });
 
+  console.log('🔍 [IMPORT] Final mapping:', mapping);
   return mapping;
 }
 
@@ -263,7 +276,9 @@ const STATUS_MAP = {
 
 function cleanNumericString(val) {
   if (!val) return '0';
-  const s = String(val).trim();
+  let s = String(val).trim();
+  // Remove Google Sheets apostrophe prefix first
+  s = s.replace(/^'+/, '');
   let cleaned = s.replace(/[^0-9,\.\-]/g, '').trim();
   if (!cleaned) return '0';
   const lastComma = cleaned.lastIndexOf(',');
@@ -317,7 +332,9 @@ function cleanPhone(val) {
 
 function parseFlexDate(dateVal) {
   if (!dateVal) return new Date();
-  const strVal = String(dateVal).trim();
+  let strVal = String(dateVal).trim();
+  // Remove Google Sheets apostrophe prefix (used to force text format)
+  strVal = strVal.replace(/^'+/, '');
   if (!strVal) return new Date();
   const d = new Date(strVal);
   if (!isNaN(d.getTime()) && d.getFullYear() > 1970) return d;
@@ -344,23 +361,48 @@ export function parseOrderRow(row, rowIndex, columnMap, headers, sourceName) {
       return { success: false, error: 'Ligne vide', row: rowIndex };
     }
 
+    // Debug: log mapping for first row only
+    if (rowIndex === 0 || rowIndex === 1) {
+      console.log('🔍 [IMPORT] Column mapping:', columnMap);
+      console.log('🔍 [IMPORT] Headers:', headers);
+      console.log('🔍 [IMPORT] Row cells count:', row.c.length);
+    }
+
     const getVal = (field) => {
       const idx = columnMap[field];
       if (idx === undefined || !row.c[idx]) return '';
       const cell = row.c[idx];
       // For phone numbers, Google Sheets may interpret +237... as a formula
       // Try: formatted value (f), then value (v), then raw value if available
-      if (cell.f) return String(cell.f);
-      if (cell.v != null) return String(cell.v);
-      return '';
+      let val = '';
+      if (cell.f) val = String(cell.f);
+      else if (cell.v != null) val = String(cell.v);
+      // Remove Google Sheets apostrophe prefix (used to force text format)
+      return val.replace(/^'+/, '');
     };
 
     const getNumVal = (field) => {
       const idx = columnMap[field];
       if (idx === undefined || !row.c[idx]) return 0;
       const cell = row.c[idx];
-      const raw = cell.f || (cell.v != null ? String(cell.v) : '0');
-      return parseFloat(cleanNumericString(raw)) || 0;
+      // Handle both formatted (f) and raw (v) values
+      let raw;
+      if (cell.f !== undefined && cell.f !== null) {
+        raw = String(cell.f);
+      } else if (cell.v !== undefined && cell.v !== null) {
+        // If value is a number, use it directly
+        if (typeof cell.v === 'number') {
+          return cell.v;
+        }
+        raw = String(cell.v);
+      } else {
+        return 0;
+      }
+      // Remove Google Sheets apostrophe prefix (used to force text format)
+      raw = raw.replace(/^'+/, '');
+      const result = parseFloat(cleanNumericString(raw)) || 0;
+      console.log(`💰 [IMPORT] ${field} = ${result} (raw: ${raw})`);
+      return result;
     };
 
     const getDateVal = (field) => {
@@ -379,7 +421,10 @@ export function parseOrderRow(row, rowIndex, columnMap, headers, sourceName) {
     headers.forEach((header, idx) => {
       if (header && row.c[idx]) {
         const cell = row.c[idx];
-        rawData[header] = cell.f || (cell.v != null ? String(cell.v) : '');
+        let val = cell.f || (cell.v != null ? String(cell.v) : '');
+        // Remove Google Sheets apostrophe prefix (used to force text format)
+        val = val.replace(/^'+/, '');
+        rawData[header] = val;
       }
     });
 
@@ -451,6 +496,8 @@ export function generatePreview(sheetData, maxRows = 5) {
         } else if (cell.v !== undefined && cell.v !== null) {
           value = String(cell.v);
         }
+        // Remove Google Sheets apostrophe prefix (used to force text format)
+        value = value.replace(/^'+/, '');
         rowData[header] = value;
       } else {
         rowData[header] = '';

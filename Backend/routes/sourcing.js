@@ -295,19 +295,25 @@ router.put('/orders/:id', requireEcomAuth, validateEcomAccess('products', 'write
       expectedArrival, supplierName, trackingNumber, notes
     } = req.body;
 
-    let finalTransportCost = parseFloat(transportCost) || 0;
-    if (sourcing === 'chine' && !transportCost && weightKg && pricePerKg) {
+    let finalTransportCost;
+    if (transportCost !== undefined) {
+      finalTransportCost = parseFloat(transportCost) || 0;
+    } else {
+      finalTransportCost = order.transportCost || 0;
+    }
+    
+    if (sourcing === 'chine' && transportCost === undefined && weightKg !== undefined && pricePerKg !== undefined) {
       finalTransportCost = parseFloat(weightKg) * parseFloat(pricePerKg);
     }
 
     Object.assign(order, {
-      productName,
-      sourcing,
-      quantity: parseInt(quantity),
-      weightKg: parseFloat(weightKg),
-      pricePerKg: parseFloat(pricePerKg),
-      purchasePrice: parseFloat(purchasePrice),
-      sellingPrice: parseFloat(sellingPrice),
+      ...(productName !== undefined && { productName }),
+      ...(sourcing !== undefined && { sourcing }),
+      ...(quantity !== undefined && { quantity: parseInt(quantity) || order.quantity }),
+      ...(weightKg !== undefined && { weightKg: parseFloat(weightKg) || order.weightKg }),
+      ...(pricePerKg !== undefined && { pricePerKg: parseFloat(pricePerKg) || order.pricePerKg }),
+      ...(purchasePrice !== undefined && { purchasePrice: parseFloat(purchasePrice) || order.purchasePrice }),
+      ...(sellingPrice !== undefined && { sellingPrice: parseFloat(sellingPrice) || order.sellingPrice }),
       transportCost: finalTransportCost,
       expectedArrival: expectedArrival ? new Date(expectedArrival) : order.expectedArrival,
       supplierName,
@@ -347,7 +353,9 @@ router.put('/orders/:id/receive', requireEcomAuth, validateEcomAccess('products'
 
     if (order.markAsReceived) {
       await order.markAsReceived(actualArrival ? new Date(actualArrival) : new Date());
-    } else {
+    }
+    // Fallback: ensure status is updated even if method doesn't work properly
+    if (order.status !== 'received') {
       order.status = 'received';
       order.actualArrival = actualArrival ? new Date(actualArrival) : new Date();
       // Mettre automatiquement tous les paiements à payé quand on reçoit le produit

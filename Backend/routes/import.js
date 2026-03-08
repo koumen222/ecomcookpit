@@ -529,4 +529,74 @@ router.get('/history/:id', requireEcomAuth, async (req, res) => {
   }
 });
 
+// ─── POST /cleanup-apostrophes - Clean up existing orders with apostrophes ───
+
+router.post('/cleanup-apostrophes', requireEcomAuth, async (req, res) => {
+  try {
+    console.log(`🧹 [CLEANUP] Starting apostrophe cleanup for workspace ${req.workspaceId}`);
+    
+    // Find all orders with apostrophes in phone or price fields
+    const orders = await Order.find({
+      workspaceId: req.workspaceId,
+      $or: [
+        { clientPhone: /^'/ },
+        { clientPhone: /^\+'/ },
+        { price: /^'/ },
+        { 'rawData.Phone': /^'/ },
+        { 'rawData.Phone': /^\+'/ },
+        { 'rawData.Product Price': /^'/ }
+      ]
+    });
+
+    console.log(`🧹 [CLEANUP] Found ${orders.length} orders with apostrophes`);
+    
+    let cleaned = 0;
+    for (const order of orders) {
+      let needsUpdate = false;
+      
+      // Clean phone
+      if (order.clientPhone && order.clientPhone.startsWith("'")) {
+        order.clientPhone = order.clientPhone.replace(/^'+/, '').replace(/\D/g, '');
+        needsUpdate = true;
+      }
+      if (order.clientPhone && order.clientPhone.startsWith("+'")) {
+        order.clientPhone = order.clientPhone.replace(/^\+'/, '+').replace(/\D/g, '');
+        needsUpdate = true;
+      }
+      
+      // Clean price
+      if (order.price && typeof order.price === 'string' && order.price.startsWith("'")) {
+        order.price = parseFloat(order.price.replace(/^'+/, '').replace(/[^0-9.,]/g, '')) || 0;
+        needsUpdate = true;
+      }
+      
+      // Clean rawData
+      if (order.rawData) {
+        for (const key of Object.keys(order.rawData)) {
+          if (typeof order.rawData[key] === 'string' && order.rawData[key].startsWith("'")) {
+            order.rawData[key] = order.rawData[key].replace(/^'+/, '');
+            needsUpdate = true;
+          }
+        }
+      }
+      
+      if (needsUpdate) {
+        await order.save();
+        cleaned++;
+      }
+    }
+    
+    console.log(`✅ [CLEANUP] Cleaned ${cleaned} orders`);
+    res.json({ 
+      success: true, 
+      message: `${cleaned} commandes nettoyées`, 
+      cleaned,
+      total: orders.length 
+    });
+  } catch (error) {
+    console.error('❌ [CLEANUP] Error:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 export default router;

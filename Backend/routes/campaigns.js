@@ -177,7 +177,7 @@ router.get('/', requireEcomAuth, async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit)
-      .select('name type status createdAt scheduledAt sentAt targetFilters messageTemplate sendProgress')
+      .select('name type status createdAt scheduledAt sentAt targetFilters messageTemplate sendProgress stats recipientSnapshotIds selectedClientIds')
       .lean();
 
     const total = campaigns.length;
