@@ -301,6 +301,7 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
 
       const doc = parsed.data;
       const sheetRowId = `source_${sourceToSync._id}_row_${i + 1}`;
+      const sheetRowIndex = i + 1; // Original row number from Google Sheet
 
       // Duplicate detection based on phone within same import
       const phoneKey = doc.clientPhone ? doc.clientPhone.replace(/\s/g, '') : '';
@@ -309,7 +310,7 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
       }
       if (phoneKey) seenPhones.add(phoneKey + '_' + doc.product);
 
-      parsedRows.push({ doc, sheetRowId });
+      parsedRows.push({ doc, sheetRowId, sheetRowIndex });
     }
 
     // Batch lookup: find all orders that were manually modified (single query instead of N queries)
@@ -327,7 +328,7 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
     }
 
     // Build bulk operations
-    const bulkOps = parsedRows.map(({ doc, sheetRowId }) => {
+    const bulkOps = parsedRows.map(({ doc, sheetRowId, sheetRowIndex }) => {
       const updateDoc = { ...doc };
       if (manuallyModifiedOrders.has(sheetRowId)) {
         delete updateDoc.status;
@@ -340,6 +341,7 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
               ...updateDoc,
               workspaceId: req.workspaceId,
               sheetRowId,
+              sheetRowIndex,
               source: 'google_sheets'
             }
           },

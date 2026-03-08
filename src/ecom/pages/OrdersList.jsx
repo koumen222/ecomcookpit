@@ -625,7 +625,7 @@ const OrdersList = () => {
             console.log(`📈 [Frontend Poll] ${newCount} nouvelles, ${updatedCount} mises à jour`);
           }
           if (!changed) return prev;
-          return Array.from(map.values()).sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+          return Array.from(map.values()).sort((a, b) => (a.sheetRowIndex || 0) - (b.sheetRowIndex || 0));
         });
       }
     } catch (err) { 
@@ -832,7 +832,7 @@ const OrdersList = () => {
           console.log(`📈 [Frontend Poll] ${newCount} nouvelles, ${updatedCount} mises à jour`);
         }
         if (!changed) return prev;
-        return Array.from(map.values()).sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+        return Array.from(map.values()).sort((a, b) => (a.sheetRowIndex || 0) - (b.sheetRowIndex || 0));
       });
       
       // 2. Update stats INSTANTLY

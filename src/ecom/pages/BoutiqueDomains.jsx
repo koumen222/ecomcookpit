@@ -97,7 +97,7 @@ const BoutiqueDomains = () => {
             type="text"
             value={subdomain}
             onChange={(e) => { setSubdomain(e.target.value.replace(/[^a-z0-9-]/gi, '').toLowerCase()); setSaved(false); }}
-            placeholder="ma-boutique"
+            placeholder="boutique"
             className="flex-1 px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent transition bg-gray-50 focus:bg-white font-mono"
           />
           <span className="text-sm font-semibold text-gray-500 whitespace-nowrap">.scalor.net</span>

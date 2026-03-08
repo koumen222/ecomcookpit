@@ -506,18 +506,18 @@ const StoreProductPage = () => {
                 {/* CTA Buttons */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
                   <button
-                    onClick={handleAddToCart}
+                    onClick={() => setShowOrderModal(true)}
                     disabled={!inStock}
                     style={{
                       width: '100%', padding: '15px 24px', borderRadius: 40, border: 'none',
-                      backgroundColor: addedToCart ? '#10B981' : inStock ? 'var(--s-primary)' : '#d1d5db',
+                      backgroundColor: inStock ? 'var(--s-primary)' : '#d1d5db',
                       color: '#fff', fontWeight: 700, fontSize: 16, cursor: inStock ? 'pointer' : 'not-allowed',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
                       transition: 'all 0.2s', fontFamily: 'var(--s-font)',
                       boxShadow: inStock ? '0 4px 16px rgba(0,0,0,0.12)' : 'none',
                     }}
                   >
-                    {addedToCart ? (<><Check size={18} /> Ajouté au panier</>) : (<><ShoppingCart size={18} /> Ajouter au panier</>)}
+                    <ShoppingCart size={18} /> Commander maintenant
                   </button>
 
                   {store?.whatsapp && (

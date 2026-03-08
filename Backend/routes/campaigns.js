@@ -25,10 +25,6 @@ let validateMessageBeforeSend = () => true;
 let getHumanDelayWithVariation = () => 5000;
 let simulateHumanBehavior = async () => {};
 let sanitizePhoneNumber = (phone) => {
-  // Essayer d'abord formatInternationalPhone, sinon fallback sur normalizePhone
-  const result = formatInternationalPhone(phone);
-  if (result.success) return result.formatted;
-  // Fallback: normalizePhone ajoute l'indicatif par défaut si absent
   return normalizePhone(phone);
 };
 
@@ -173,27 +169,27 @@ async function getClientsFromOrderFilters(workspaceId, targetFilters) {
   const orders = await Order.find(orderFilter).select('clientName clientPhone city address product price date status quantity').lean();
   console.log(`✅ [getClientsFromOrderFilters] ${orders.length} commandes trouvées en base`);
 
-  // Group by phone, keep most recent order data
+  // Group by NORMALIZED phone, keep most recent order data
   const clientMap = new Map();
   let phonesWithoutNumber = 0;
   for (const o of orders) {
-    const phone = (o.clientPhone || '').trim();
-    if (!phone) {
+    const normalized = normalizePhone(o.clientPhone);
+    if (!normalized) {
       phonesWithoutNumber++;
       continue;
     }
-    const existing = clientMap.get(phone);
+    const existing = clientMap.get(normalized);
     if (!existing || new Date(o.date) > new Date(existing.date)) {
-      clientMap.set(phone, o);
+      clientMap.set(normalized, o);
     }
   }
   
-  console.log(`📞 [getClientsFromOrderFilters] ${clientMap.size} numéros uniques extraits`);
+  console.log(`📞 [getClientsFromOrderFilters] ${clientMap.size} numéros normalisés uniques extraits`);
   if (phonesWithoutNumber > 0) {
     console.log(`⚠️ [getClientsFromOrderFilters] ${phonesWithoutNumber} commandes sans numéro de téléphone ignorées`);
   }
   
-  return clientMap; // Map<phone, orderData>
+  return clientMap; // Map<normalizedPhone, orderData>
 }
 
 // GET /api/ecom/campaigns - Liste des campagnes
@@ -742,19 +738,35 @@ router.post('/', requireEcomAuth, async (req, res) => {
 
         if (orders.length > 0) {
           // Ce sont bien des Order IDs — résoudre vers les Client IDs
-          const phones = [...new Set(orders.map(o => o.clientPhone).filter(Boolean))];
-          console.log(`🔍 [CREATE] ${phones.length} numéros de téléphone uniques extraits des commandes`);
+          const phonesNormalized = [
+            ...new Set(
+              orders
+                .map(o => normalizePhone(o.clientPhone))
+                .filter(Boolean)
+            )
+          ];
+          console.log(`🔍 [CREATE] ${phonesNormalized.length} numéros normalisés uniques extraits des commandes`);
 
           const clients = await Client.find({
-            phone: { $in: phones },
+            phoneNormalized: { $in: phonesNormalized },
             workspaceId: req.workspaceId
-          }).select('_id phone');
+          }).select('_id phone phoneNormalized');
           
           recipientSnapshotIds = clients.map(c => c._id);
           targetedCount = recipientSnapshotIds.length;
           console.log(`✅ [CREATE] Résolution réussie: ${selectedClientIds.length} commandes → ${targetedCount} clients identifiés pour le snapshot`);
-          if (targetedCount < phones.length) {
-            console.warn(`⚠️ [CREATE] Attention: ${phones.length - targetedCount} numéros n'ont pas de fiche client correspondante`);
+          
+          // 🔧 FIX: Si aucun client trouvé, créer des "pseudo-clients" à partir des commandes
+          if (targetedCount === 0 && phonesNormalized.length > 0) {
+            console.log(`⚠️ [CREATE] Aucun client trouvé en base → utilisation des données commande pour le snapshot`);
+            // Stocker les infos de la commande directement dans selectedClientIds 
+            // et ne pas essayer de les matcher avec Client
+            targetedCount = phonesNormalized.length;
+            // On garde les Order IDs dans selectedClientIds pour l'envoi
+          }
+          
+          if (targetedCount < phonesNormalized.length) {
+            console.warn(`⚠️ [CREATE] Attention: ${phonesNormalized.length - targetedCount} numéros n'ont pas de fiche client correspondante`);
           }
         } else {
           // Pas des Order IDs, traiter comme des Client IDs normaux
@@ -777,30 +789,36 @@ router.post('/', requireEcomAuth, async (req, res) => {
         console.log(`🔍 [CREATE] Utilisation des filtres de commande pour le snapshot`);
         // Utiliser les commandes pour trouver les clients puis récupérer leurs IDs
         const orderMap = await getClientsFromOrderFilters(req.workspaceId, targetFilters);
-        const phones = Array.from(orderMap.keys());
-        console.log(`🔍 [CREATE] ${phones.length} téléphones trouvés via filtres de commande`);
+        const phonesNormalized = Array.from(orderMap.keys());
+        console.log(`🔍 [CREATE] ${phonesNormalized.length} téléphones normalisés trouvés via filtres de commande`);
         
-        // Trouver les clients correspondants par téléphone
-        console.log(`🔍 [CREATE] Recherche de clients pour ${phones.length} numéros de téléphone...`);
-        if (phones.length > 0 && phones.length <= 5) {
-          console.log(`📞 [CREATE] Exemples de numéros:`, phones);
+        // Trouver les clients correspondants par téléphone NORMALISÉ
+        console.log(`🔍 [CREATE] Recherche de clients pour ${phonesNormalized.length} numéros normalisés...`);
+        if (phonesNormalized.length > 0 && phonesNormalized.length <= 5) {
+          console.log(`📞 [CREATE] Exemples de numéros normalisés:`, phonesNormalized);
         }
         
         const clients = await Client.find({
-          phone: { $in: phones },
+          phoneNormalized: { $in: phonesNormalized },
           workspaceId: req.workspaceId
-        }).select('_id phone');
+        }).select('_id phone phoneNormalized');
         
         console.log(`✅ [CREATE] ${clients.length} clients trouvés en base Client pour ces numéros`);
         
         recipientSnapshotIds = clients.map(c => c._id);
         targetedCount = recipientSnapshotIds.length;
         
-        console.log(`✅ [CREATE] ${targetedCount} clients identifiés via filtres commande pour le snapshot`);
+        // 🔧 FIX: Si aucun client trouvé mais des commandes existent
+        if (targetedCount === 0 && phonesNormalized.length > 0) {
+          console.log(`⚠️ [CREATE] Pas de clients en base mais ${phonesNormalized.length} commandes trouvées → utilisation des données commande`);
+          // On garde les données des commandes pour l'envoi
+          targetedCount = phonesNormalized.length;
+        }
         
-        if (targetedCount === 0 && phones.length > 0) {
-          console.error(`❌ [CREATE] PROBLÈME: ${phones.length} numéros extraits des commandes mais AUCUN client trouvé en base Client!`);
-          console.error(`❌ [CREATE] Les numéros des commandes ne correspondent à aucune fiche client`);
+        console.log(`✅ [CREATE] ${targetedCount} destinataires identifiés via filtres commande pour le snapshot`);
+        
+        if (targetedCount === 0 && phonesNormalized.length > 0) {
+          console.error(`❌ [CREATE] PROBLÈME: ${phonesNormalized.length} numéros extraits des commandes mais aucun destinataire final!`);
         }
       } else {
         // Filtres clients directs
@@ -991,81 +1009,80 @@ router.post('/:id/send', requireEcomAuth, async (req, res) => {
       campaign.targetFilters.orderProduct || campaign.targetFilters.orderDateFrom
     );
 
-    // ========== Méthode 1: recipientSnapshotIds (Client IDs sauvegardés) ==========
-    if (campaign.recipientSnapshotIds && campaign.recipientSnapshotIds.length > 0) {
-      console.log(`🔍 [SEND] Méthode 1: recipientSnapshotIds (${campaign.recipientSnapshotIds.length} IDs)`);
-      const clients = await Client.find({ _id: { $in: campaign.recipientSnapshotIds } })
-        .select('firstName lastName phone city products totalOrders totalSpent lastContactAt')
-        .lean();
-      console.log(`✅ [SEND] M1: ${clients.length} clients trouvés en base`);
-      const clientsWithPhone = clients.filter(c => c.phone && c.phone.trim());
-      recipients = clientsWithPhone.map(c => ({ phone: c.phone, client: c, orderData: null }));
-    }
+    // ========== Méthode 1: recipientSnapshotIds - DÉSACTIVÉE (utiliser directement les commandes) ==========
+    // On ne cherche plus dans Client, on utilise directement les données des commandes
 
-    // ========== Méthode 2: selectedClientIds (peuvent être des Order IDs) ==========
+    // ========== Méthode 2: selectedClientIds (TOUJOURS des Order IDs depuis Google Sheets) ==========
     if (recipients.length === 0 && campaign.selectedClientIds && campaign.selectedClientIds.length > 0) {
       console.log(`🔍 [SEND] Méthode 2: selectedClientIds (${campaign.selectedClientIds.length} IDs)`);
       const candidateIds = campaign.selectedClientIds.map(id => toObjectId(id)).filter(Boolean);
       
-      // D'abord essayer comme Client IDs
-      const clients = await Client.find({ _id: { $in: candidateIds } })
-        .select('firstName lastName phone city products totalOrders totalSpent lastContactAt')
+      // ✅ UTILISER DIRECTEMENT LES COMMANDES (Google Sheets) - Ne pas chercher dans Client
+      console.log(`📋 [SEND] M2: Récupération directe depuis les commandes (Google Sheets)...`);
+      const orders = await Order.find({ _id: { $in: candidateIds }, workspaceId: req.workspaceId })
+        .select('clientName clientPhone city address product price date status quantity')
         .lean();
-      console.log(`✅ [SEND] M2a: ${clients.length} clients trouvés en base Client`);
+      console.log(`✅ [SEND] M2: ${orders.length} commandes trouvées dans Google Sheets`);
       
-      if (clients.length > 0) {
-        const clientsWithPhone = clients.filter(c => c.phone && c.phone.trim());
-        recipients = clientsWithPhone.map(c => ({ phone: c.phone, client: c, orderData: null }));
-      } else {
-        // 🔧 FALLBACK: Ce sont probablement des Order IDs — résoudre via les commandes
-        console.log(`⚠️ [SEND] M2b: Aucun client trouvé → tentative de résolution comme Order IDs...`);
-        const orders = await Order.find({ _id: { $in: candidateIds }, workspaceId: req.workspaceId })
-          .select('clientName clientPhone city address product price date status quantity')
-          .lean();
-        console.log(`✅ [SEND] M2b: ${orders.length} commandes trouvées`);
-        
-        if (orders.length > 0) {
-          // Dédoublonner par numéro normalisé
-          const seenPhones = new Set();
-          for (const order of orders) {
-            const phone = (order.clientPhone || '').trim();
-            if (!phone) continue;
-            const normalized = normalizePhone(phone);
-            if (!normalized || seenPhones.has(normalized)) continue;
-            seenPhones.add(normalized);
-            recipients.push({
-              phone,
-              client: {
-                firstName: order.clientName?.split(' ')[0] || '',
-                lastName: order.clientName?.split(' ').slice(1).join(' ') || '',
-                phone
-              },
-              orderData: order
-            });
+      if (orders.length > 0) {
+        // Collecter tous les phones normalisés et utiliser DIRECTEMENT les données des commandes
+        const phoneMap = new Map();
+        for (const order of orders) {
+          const phone = (order.clientPhone || '').trim();
+          if (!phone) continue;
+          const normalized = normalizePhone(phone);
+          if (!normalized) continue;
+          // Garder la commande la plus récente par numéro
+          if (!phoneMap.has(normalized) || new Date(order.date) > new Date(phoneMap.get(normalized).date)) {
+            phoneMap.set(normalized, order);
           }
-          console.log(`📞 [SEND] M2b: ${recipients.length} destinataires uniques extraits des commandes`);
         }
+        
+        console.log(`📞 [SEND] M2: ${phoneMap.size} numéros uniques extraits des commandes`);
+        
+        // ✅ UTILISER DIRECTEMENT LES DONNÉES DES COMMANDES - Pas de recherche dans Client
+        for (const [normalized, order] of phoneMap) {
+          recipients.push({
+            phone: normalized,
+            client: {
+              firstName: order.clientName?.split(' ')[0] || '',
+              lastName: order.clientName?.split(' ').slice(1).join(' ') || '',
+              phone: normalized,
+              city: order.city || '',
+              address: order.address || ''
+            },
+            orderData: order
+          });
+        }
+        
+        console.log(`✅ [SEND] M2: ${recipients.length} destinataires créés directement depuis Google Sheets`);
       }
     }
 
-    // ========== Méthode 3: filtres de commandes (recalcul dynamique) ==========
+    // ========== Méthode 3: filtres de commandes (UTILISER DIRECTEMENT Google Sheets) ==========
     if (recipients.length === 0 && hasOrderFilters) {
-      console.log(`🔍 [SEND] Méthode 3: recalcul via filtres de commandes`);
+      console.log(`🔍 [SEND] Méthode 3: recalcul via filtres de commandes (Google Sheets)`);
+      console.log(`🔍 [SEND] M3: Filtres utilisés:`, JSON.stringify(campaign.targetFilters));
       const orderMap = await getClientsFromOrderFilters(req.workspaceId, campaign.targetFilters);
-      console.log(`✅ [SEND] M3: ${orderMap.size} commandes avec numéros uniques`);
-      const seenPhones = new Set();
-      for (const [phone, orderData] of orderMap) {
-        if (!phone || !phone.trim()) continue;
-        const normalized = normalizePhone(phone);
-        if (!normalized || seenPhones.has(normalized)) continue;
-        seenPhones.add(normalized);
+      console.log(`✅ [SEND] M3: ${orderMap.size} commandes avec numéros uniques depuis Google Sheets`);
+      
+      // ✅ UTILISER DIRECTEMENT LES DONNÉES DES COMMANDES - Pas de recherche dans Client
+      for (const [normalized, orderData] of orderMap) {
+        if (!normalized || !normalized.trim()) continue;
+        
         recipients.push({
-          phone,
-          client: { firstName: orderData.clientName?.split(' ')[0] || '', lastName: orderData.clientName?.split(' ').slice(1).join(' ') || '', phone },
+          phone: normalized,
+          client: {
+            firstName: orderData.clientName?.split(' ')[0] || '',
+            lastName: orderData.clientName?.split(' ').slice(1).join(' ') || '',
+            phone: normalized,
+            city: orderData.city || '',
+            address: orderData.address || ''
+          },
           orderData
         });
       }
-      console.log(`📞 [SEND] M3: ${recipients.length} destinataires uniques`);
+      console.log(`✅ [SEND] M3: ${recipients.length} destinataires créés directement depuis Google Sheets`);
     }
 
     // ========== Méthode 4: filtres clients directs ==========

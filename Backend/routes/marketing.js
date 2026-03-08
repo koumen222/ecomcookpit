@@ -3,12 +3,13 @@ import { Resend } from 'resend';
 import EmailCampaign from '../models/EmailCampaign.js';
 import Campaign from '../models/Campaign.js';
 import Client from '../models/Client.js';
+import Order from '../models/Order.js';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 import EcomUser from '../models/EcomUser.js';
 import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
 import { checkMessageLimit, incrementMessageCount } from '../services/messageLimitService.js';
-import { formatInternationalPhone } from '../utils/phoneUtils.js';
+import { formatInternationalPhone, normalizePhone } from '../utils/phoneUtils.js';
 
 // ─── WhatsApp helpers (shared with campaigns.js) ─────────────────────────────
 const sanitizePhoneNumber = (phone) => {
@@ -340,22 +341,60 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
 
       if (campaign.status === 'sending') return res.status(400).json({ success: false, message: 'Envoi déjà en cours' });
 
-      // Résoudre les destinataires
+      // ✅ Résoudre les destinataires DIRECTEMENT depuis Google Sheets (Order)
       let recipients = [];
-      if (campaign.recipientSnapshotIds?.length > 0) {
-        const clients = await Client.find({ _id: { $in: campaign.recipientSnapshotIds } }).select('firstName lastName phone city products totalOrders totalSpent lastContactAt').lean();
-        recipients = clients.filter(c => c.phone).map(c => ({ phone: c.phone, client: c }));
-      } else if (campaign.selectedClientIds?.length > 0) {
-        const clients = await Client.find({ _id: { $in: campaign.selectedClientIds } }).select('firstName lastName phone city products totalOrders totalSpent lastContactAt').lean();
-        recipients = clients.filter(c => c.phone).map(c => ({ phone: c.phone, client: c }));
-      } else if (campaign.targetFilters && Object.keys(campaign.targetFilters).some(k => campaign.targetFilters[k])) {
+      
+      // Méthode 1: selectedClientIds (ce sont des Order IDs depuis Google Sheets)
+      if (campaign.selectedClientIds?.length > 0) {
+        console.log(`📋 [marketing] Récupération depuis selectedClientIds (${campaign.selectedClientIds.length} Order IDs)`);
+        const orders = await Order.find({ _id: { $in: campaign.selectedClientIds }, workspaceId: req.workspaceId })
+          .select('clientName clientPhone city address product price date status quantity')
+          .lean();
+        console.log(`✅ [marketing] ${orders.length} commandes trouvées depuis Google Sheets`);
+        
+        // Utiliser DIRECTEMENT les données des commandes
+        const phoneMap = new Map();
+        for (const order of orders) {
+          const phone = (order.clientPhone || '').trim();
+          if (!phone) continue;
+          const normalized = normalizePhone(phone);
+          if (!normalized) continue;
+          // Garder la commande la plus récente par numéro
+          if (!phoneMap.has(normalized) || new Date(order.date) > new Date(phoneMap.get(normalized).date)) {
+            phoneMap.set(normalized, order);
+          }
+        }
+        
+        console.log(`📞 [marketing] ${phoneMap.size} numéros uniques extraits`);
+        
+        for (const [normalized, order] of phoneMap) {
+          recipients.push({
+            phone: normalized,
+            client: {
+              firstName: order.clientName?.split(' ')[0] || '',
+              lastName: order.clientName?.split(' ').slice(1).join(' ') || '',
+              phone: normalized,
+              city: order.city || '',
+              address: order.address || ''
+            },
+            orderData: order
+          });
+        }
+        console.log(`✅ [marketing] ${recipients.length} destinataires créés depuis Google Sheets`);
+      }
+      // Méthode 2: recipientSnapshotIds - DÉSACTIVÉE (on utilise selectedClientIds à la place)
+      // Méthode 3: targetFilters - utiliser filtres clients directs uniquement si pas de selectedClientIds
+      else if (campaign.targetFilters && Object.keys(campaign.targetFilters).some(k => campaign.targetFilters[k])) {
         const filter = buildClientFilter(req.workspaceId, campaign.targetFilters);
         filter.phone = { $exists: true, $ne: '' };
         const clients = await Client.find(filter).select('firstName lastName phone city products totalOrders totalSpent lastContactAt').limit(1000).lean();
-        recipients = clients.map(c => ({ phone: c.phone, client: c }));
+        recipients = clients.map(c => ({ phone: c.phone, client: c, orderData: null }));
       }
 
-      if (recipients.length === 0) return res.status(400).json({ success: false, message: 'Aucun destinataire trouvé pour cette campagne' });
+      if (recipients.length === 0) {
+        console.error(`❌ [marketing] Aucun destinataire trouvé - selectedClientIds: ${campaign.selectedClientIds?.length || 0}`);
+        return res.status(400).json({ success: false, message: 'Aucun destinataire trouvé pour cette campagne' });
+      }
 
       // Debug: vérifier les médias de la campagne
       console.log('📸 [Campaign Media Debug]:', {
@@ -391,7 +430,7 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
 
       let sent = 0, failed = 0, skipped = 0;
 
-      for (const { phone, client } of recipients) {
+      for (const { phone, client, orderData } of recipients) {
         // Vérifier interruption client
         if (interrupted) {
           campaign.status = 'interrupted';
@@ -421,7 +460,7 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
           continue;
         }
 
-        const message = renderMessage(campaign.messageTemplate, client, null);
+        const message = renderMessage(campaign.messageTemplate, client, orderData);
         
         // Envoyer le média si présent (image ou vocal)
         let result;

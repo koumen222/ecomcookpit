@@ -11,6 +11,10 @@ const orderSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  sheetRowIndex: {
+    type: Number,
+    index: true
+  },
   orderId: {
     type: String,
     default: ''
@@ -27,6 +31,10 @@ const orderSchema = new mongoose.Schema({
     type: String,
     trim: true,
     default: ''
+  },
+  clientPhoneNormalized: {
+    type: String,
+    index: true
   },
   city: {
     type: String,
@@ -222,9 +230,11 @@ orderSchema.statics.getStatsOptimized = function(workspaceId, dateFilter = {}) {
 
 orderSchema.index({ workspaceId: 1, orderId: 1 });
 orderSchema.index({ workspaceId: 1, sheetRowId: 1 }, { unique: true, sparse: true });
+orderSchema.index({ workspaceId: 1, sheetRowIndex: 1 });
 orderSchema.index({ workspaceId: 1, status: 1 });
 orderSchema.index({ workspaceId: 1, date: -1 });
 orderSchema.index({ workspaceId: 1, updatedAt: -1 });
+orderSchema.index({ workspaceId: 1, clientPhoneNormalized: 1 });
 
 const Order = mongoose.model('Order', orderSchema);
 export default Order;

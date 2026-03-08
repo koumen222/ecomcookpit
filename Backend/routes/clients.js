@@ -1,6 +1,7 @@
 import express from 'express';
 import Client from '../models/Client.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
+import { normalizePhone } from '../utils/phoneUtils.js';
 
 const router = express.Router();
 
@@ -109,11 +110,13 @@ router.post('/', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Le prénom est requis' });
     }
 
+    const phoneValue = phone?.trim() || '';
     const client = new Client({
       workspaceId: req.workspaceId,
       firstName: firstName.trim(),
       lastName: lastName?.trim() || '',
-      phone: phone?.trim() || '',
+      phone: phoneValue,
+      phoneNormalized: normalizePhone(phoneValue),
       email: email?.trim() || '',
       city: city?.trim() || '',
       address: address?.trim() || '',
@@ -154,6 +157,10 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
     allowedFields.forEach(field => {
       if (req.body[field] !== undefined) {
         client[field] = req.body[field];
+        // Normaliser le téléphone si modifié
+        if (field === 'phone') {
+          client.phoneNormalized = normalizePhone(req.body[field]);
+        }
       }
     });
 

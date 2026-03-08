@@ -22,6 +22,10 @@ const clientSchema = new mongoose.Schema({
     trim: true,
     default: ''
   },
+  phoneNormalized: {
+    type: String,
+    index: true
+  },
   email: {
     type: String,
     trim: true,
@@ -86,6 +90,7 @@ const clientSchema = new mongoose.Schema({
 });
 
 clientSchema.index({ workspaceId: 1, phone: 1 });
+clientSchema.index({ workspaceId: 1, phoneNormalized: 1 });
 clientSchema.index({ workspaceId: 1, status: 1 });
 clientSchema.index({ workspaceId: 1, createdAt: -1 });
 

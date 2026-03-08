@@ -10,7 +10,7 @@ import Notification from '../models/Notification.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { notifyNewOrder, notifyOrderStatus, notifyTeamOrderCreated, notifyTeamOrderStatusChanged } from '../services/notificationHelper.js';
 import { sendWhatsAppMessage, sendOrderNotification } from '../services/whatsappService.js';
-import { formatInternationalPhone, isValidWhatsAppNumber } from '../utils/phoneUtils.js';
+import { formatInternationalPhone, isValidWhatsAppNumber, normalizePhone } from '../utils/phoneUtils.js';
 import { EventEmitter } from 'events';
 
 const router = express.Router();
@@ -159,12 +159,14 @@ router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), async (
     if (!clientName && !clientPhone) {
       return res.status(400).json({ success: false, message: 'Nom client ou téléphone requis' });
     }
+    const phoneValue = clientPhone || '';
     const order = new Order({
       workspaceId: req.workspaceId,
       orderId: `#MAN_${Date.now().toString(36)}`,
       date: new Date(),
       clientName: clientName || '',
-      clientPhone: clientPhone || '',
+      clientPhone: phoneValue,
+      clientPhoneNormalized: normalizePhone(phoneValue),
       city: city || '',
       address: address || '',
       product: product || '',
@@ -174,7 +176,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), async (
       notes: notes || '',
       tags: tags || [],
       source: 'manual',
-      sheetRowId: `manual_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`
+      sheetRowId: `manual_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      sheetRowIndex: 999999 // Manual orders appear at the end
     });
     await order.save();
     memCache.delByPrefix(`stats:${req.workspaceId}`);
@@ -271,7 +274,7 @@ router.get('/quick', requireEcomAuth, async (req, res) => {
 
     const orders = await Order.find(filter)
       .select('orderId clientName clientPhone city address product quantity price status date createdAt notes tags source sheetRowId rawData')
-      .sort({ date: -1, _id: -1 })
+      .sort({ sheetRowIndex: 1, _id: 1 })
       .limit(20)
       .lean();
 
@@ -365,7 +368,7 @@ router.get('/new-since', requireEcomAuth, async (req, res) => {
 
     const orders = await Order.find(filter)
       .select('orderId clientName clientPhone city address product quantity price status date createdAt updatedAt notes tags source sheetRowId rawData')
-      .sort({ updatedAt: -1 })
+      .sort({ sheetRowIndex: 1, _id: 1 })
       .limit(100)
       .lean();
 
@@ -691,7 +694,7 @@ router.get('/', requireEcomAuth, async (req, res) => {
 
     const orders = await Order.find(filter)
       .select('orderId clientName clientPhone city address product quantity price status date createdAt updatedAt notes tags source sheetRowId assignedLivreur rawData')
-      .sort({ date: -1, _id: -1 })
+      .sort({ sheetRowIndex: 1, _id: 1 })
       .limit(limitNum)
       .skip((pageNum - 1) * limitNum)
       .lean();

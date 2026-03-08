@@ -5,6 +5,7 @@
  */
 
 import { normalizeCity } from '../utils/cityNormalizer.js';
+import { normalizePhone } from '../utils/phoneUtils.js';
 
 const GOOGLE_VIZ_BASE = 'https://docs.google.com/spreadsheets/d';
 const FETCH_TIMEOUT = 45000;
@@ -582,6 +583,7 @@ export function parseOrderRow(row, rowIndex, columnMap, headers, sourceName) {
       date: getDateVal('date'),
       clientName: resolvedName,
       clientPhone: resolvedPhone,
+      clientPhoneNormalized: normalizePhone(resolvedPhone),
       city: normalizeCity(getVal('city')),
       product: getVal('product'),
       quantity: Math.max(1, parseInt(getNumVal('quantity')) || 1),
