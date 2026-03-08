@@ -99,6 +99,7 @@ const StoreOrdersDashboard = lazy(() => import('./pages/StoreOrdersDashboard.jsx
 const PublicStorefront = lazy(() => import('./pages/PublicStorefront.jsx'));
 const StoreProductPage = lazy(() => import('./pages/StoreProductPage.jsx'));
 const StoreCheckout = lazy(() => import('./pages/StoreCheckout.jsx'));
+const StoreFront = lazy(() => import('./pages/StoreFront.jsx'));
 
 // ─── Boutique Module (sub-app) ───────────────────────────────────────────
 const BoutiqueLayout = lazy(() => import('./components/BoutiqueLayout.jsx'));
@@ -381,7 +382,7 @@ const StoreApp = () => {
       <div className="min-h-screen">
         <ErrorBoundary>
           <Routes>
-            <Route path="/" element={<Suspense fallback={<SpinnerLoader />}><PublicStorefront /></Suspense>} />
+            <Route path="/" element={<Suspense fallback={<SpinnerLoader />}><StoreFront /></Suspense>} />
             <Route path="/product/:slug" element={<Suspense fallback={<SpinnerLoader />}><StoreProductPage /></Suspense>} />
             <Route path="/checkout" element={<Suspense fallback={<SpinnerLoader />}><StoreCheckout /></Suspense>} />
             {/* Fallback: redirect unknown paths to store home */}
@@ -584,6 +585,11 @@ const EcomApp = () => {
               <Route path="/ecom/store/products/new" element={<LayoutRoute requiredRole="ecom_admin"><StoreProductForm /></LayoutRoute>} />
               <Route path="/ecom/store/products/:id/edit" element={<LayoutRoute requiredRole="ecom_admin"><StoreProductForm /></LayoutRoute>} />
               <Route path="/ecom/store/orders" element={<LayoutRoute requiredRole="ecom_admin"><StoreOrdersDashboard /></LayoutRoute>} />
+
+              {/* ─── Public Store Routes (no auth) ─────────────────────────────── */}
+              <Route path="/store/:subdomain" element={<Suspense fallback={<SpinnerLoader />}><StoreFront /></Suspense>} />
+              <Route path="/store/:subdomain/product/:slug" element={<Suspense fallback={<SpinnerLoader />}><StoreProductPage /></Suspense>} />
+              <Route path="/store/:subdomain/checkout" element={<Suspense fallback={<SpinnerLoader />}><StoreCheckout /></Suspense>} />
 
               {/* ─── Boutique Module (sub-app with dedicated layout) ─────── */}
               <Route path="/ecom/boutique" element={

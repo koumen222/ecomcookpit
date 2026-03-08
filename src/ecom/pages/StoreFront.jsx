@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Search, ShoppingBag, ChevronLeft, ChevronRight, Loader2, Phone, MessageCircle, Filter } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
@@ -326,13 +326,14 @@ const StoreFront = () => {
             {/* Responsive grid: 2 cols mobile, 3 tablet, 4 desktop */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
               {products.map((product) => (
-                <button
+                <Link
                   key={product._id}
-                  onClick={() => navigate(storePath(`/product/${product.slug}`))}
-                  className="bg-white rounded-xl border border-gray-100 overflow-hidden text-left hover:shadow-md transition group"
+                  to={storePath(`/product/${product.slug}`)}
+                  className="bg-white rounded-xl border border-gray-100 overflow-hidden text-left hover:shadow-md transition-all duration-200 group cursor-pointer"
+                  title={`Voir les détails de ${product.name}`}
                 >
                   {/* Product image */}
-                  <div className="aspect-square bg-gray-100 overflow-hidden">
+                  <div className="aspect-square bg-gray-100 overflow-hidden relative">
                     {product.image ? (
                       <img
                         src={product.image}
@@ -345,11 +346,17 @@ const StoreFront = () => {
                         <ShoppingBag className="w-8 h-8 text-gray-300" />
                       </div>
                     )}
+                    {/* Hover overlay */}
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                      <div className="bg-white text-gray-900 px-3 py-1.5 rounded-full text-xs font-medium">
+                        Voir détails
+                      </div>
+                    </div>
                   </div>
 
                   {/* Product info */}
                   <div className="p-2.5 sm:p-3">
-                    <h3 className="text-sm font-medium text-gray-900 line-clamp-2 leading-tight">
+                    <h3 className="text-sm font-medium text-gray-900 line-clamp-2 leading-tight group-hover:text-emerald-700 transition-colors">
                       {product.name}
                     </h3>
                     <div className="mt-1.5 flex items-baseline gap-1.5">
@@ -367,8 +374,14 @@ const StoreFront = () => {
                         Rupture
                       </span>
                     )}
+                    {/* Category tag */}
+                    {product.category && (
+                      <span className="inline-block mt-1 px-1.5 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-medium rounded">
+                        {product.category}
+                      </span>
+                    )}
                   </div>
-                </button>
+                </Link>
               ))}
             </div>
 
