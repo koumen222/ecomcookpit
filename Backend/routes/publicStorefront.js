@@ -77,36 +77,18 @@ router.use((req, res, next) => {
   next();
 });
 
-// ─── 2. Redirect /store/{subdomain}/* to {subdomain}.scalor.net ───────────────────
+// ─── 2. Root domain handling ───────────────────────────────────────────────────
+// Root domain (scalor.net) requests should be handled by the SPA
+// The frontend will handle /store/:subdomain routes via React Router
 router.use((req, res, next) => {
-  // Check if this is a /store/{subdomain}/* path on root domain
-  if (req.isRootDomain && req.path.startsWith('/store/')) {
-    const parts = req.path.split('/');
-    if (parts.length >= 3) {
-      const subdomain = parts[2]; // Extract subdomain from /store/{subdomain}
-      const remainingPath = parts.slice(3).join('/'); // Get remaining path
-      const targetUrl = `https://${subdomain}.scalor.net${remainingPath ? '/' + remainingPath : ''}`;
-      console.log(`🔄 [storefront] Redirecting ${req.path} to ${targetUrl}`);
-      return res.redirect(301, targetUrl);
-    }
-  }
-  
-  // Root domain (scalor.net) should be handled by Cloudflare Pages.
-  // If a request somehow reaches Railway on the root domain, redirect.
-  if (req.isRootDomain) {
-    return res.redirect(301, 'https://scalor.net');
-  }
-  
+  // If on root domain and NOT a /store/* path, let it pass through
+  // The SPA will handle routing
   next();
 });
 
-// ─── 3. Store subdomain: serve React build static files ───────────────────────
-// Only activate if we have a valid build directory and this is a store subdomain
+// ─── 3. Serve React build static files ───────────────────────────────────────
+// Serve for both store subdomains AND root domain (for /store/:subdomain routes)
 router.use((req, res, next) => {
-  if (!req.isStoreDomain) {
-    return next('router');
-  }
-  
   if (!BUILD_DIR) {
     return res.status(503).json({
       success: false,
