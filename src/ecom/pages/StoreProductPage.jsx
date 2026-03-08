@@ -6,7 +6,7 @@ import {
   ChevronDown, ChevronUp, ArrowLeft, Star,
 } from 'lucide-react';
 import { useSubdomain } from '../hooks/useSubdomain';
-import { useStoreProduct } from '../hooks/useStoreData';
+import { useStoreProduct, injectStoreCssVars } from '../hooks/useStoreData';
 import { useStoreCart } from '../hooks/useStoreCart';
 import QuickOrderModal from '../components/QuickOrderModal';
 
@@ -223,8 +223,6 @@ const ProductReviews = ({ rating = 4.5, reviewCount = 128 }) => {
 
 // ── Description (handles both HTML and markdown) ─────────────────────────────
 const ProductDescription = ({ content }) => {
-  const [expanded, setExpanded] = useState(false);
-  
   // Nettoyer le contenu : enlever les espaces et balises vides
   const cleanContent = content?.toString().trim() || '';
   const hasContent = cleanContent.length > 0 && !/^\s*<[^>]*>\s*<\/[^>]*>\s*$/.test(cleanContent);
@@ -232,14 +230,10 @@ const ProductDescription = ({ content }) => {
   if (!hasContent) return null;
   
   const isHTML = /<[^>]+>/.test(cleanContent);
-  const isLong = cleanContent.length > 400 || (isHTML && cleanContent.replace(/<[^>]*>/g, '').length > 300);
 
   const bodyStyle = {
     fontSize: 15, lineHeight: 1.75, color: 'var(--s-text2)',
     fontFamily: 'var(--s-font)',
-    overflow: 'hidden',
-    maxHeight: !expanded && isLong ? 120 : 'none',
-    position: 'relative',
   };
 
   return (
@@ -248,16 +242,6 @@ const ProductDescription = ({ content }) => {
         <div style={bodyStyle} dangerouslySetInnerHTML={{ __html: cleanContent }} />
       ) : (
         <p style={{ ...bodyStyle, whiteSpace: 'pre-wrap', margin: 0 }}>{cleanContent}</p>
-      )}
-      {isLong && (
-        <button onClick={() => setExpanded(e => !e)} style={{
-          display: 'flex', alignItems: 'center', gap: 4,
-          color: 'var(--s-primary)', fontWeight: 600, fontSize: 14,
-          background: 'none', border: 'none', cursor: 'pointer',
-          padding: '8px 0', fontFamily: 'var(--s-font)',
-        }}>
-          {expanded ? (<><ChevronUp size={15} /> Voir moins</>) : (<><ChevronDown size={15} /> Voir plus</>)}
-        </button>
       )}
     </div>
   );
@@ -577,12 +561,9 @@ const StoreProductPage = () => {
                   )}
                 </div>
 
-                {/* Description */}
+                {/* Description - affichage direct sans titre */}
                 {product.description?.toString().trim() && (
-                  <div style={{ marginBottom: 16, paddingTop: 20, borderTop: '1px solid var(--s-border)' }}>
-                    <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--s-text)', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                      Description
-                    </h3>
+                  <div style={{ marginBottom: 16, paddingTop: 16, borderTop: '1px solid var(--s-border)' }}>
                     <ProductDescription content={product.description} />
                   </div>
                 )}

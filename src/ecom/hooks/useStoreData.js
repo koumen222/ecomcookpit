@@ -125,7 +125,8 @@ export function useStoreProduct(subdomain, slug) {
 
         if (cancelled) return;
 
-        const storeData = storeRes.data?.data || {};
+        const responseData = storeRes.data?.data || {};
+        const storeData = responseData.store || responseData; // Gérer les deux structures API
         const productData = productRes.data?.data || null;
 
         injectStoreCssVars(storeData);
