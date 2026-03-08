@@ -129,6 +129,14 @@ export function useStoreProduct(subdomain, slug) {
         const storeData = responseData.store || responseData; // Gérer les deux structures API
         const productData = productRes.data?.data || null;
 
+        console.log('[StoreProduct] Store data reçu:', storeData);
+        console.log('[StoreProduct] Couleurs:', {
+          primaryColor: storeData.primaryColor,
+          accentColor: storeData.accentColor,
+          backgroundColor: storeData.backgroundColor,
+          textColor: storeData.textColor
+        });
+
         injectStoreCssVars(storeData);
         setStore(storeData);
         setProduct(productData);

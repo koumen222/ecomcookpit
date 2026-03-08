@@ -33,7 +33,7 @@ const storeProductSchema = new mongoose.Schema({
     type: String,
     trim: true,
     default: '',
-    maxlength: 5000
+    maxlength: 50000
   },
   price: {
     type: Number,
@@ -95,6 +95,14 @@ const storeProductSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'EcomUser',
     required: true
+  },
+  // Features/badges displayed under product title (scrollable list)
+  features: {
+    type: [{
+      icon: { type: String, default: '' }, // Lucide icon name
+      text: { type: String, required: true, maxlength: 50 }
+    }],
+    default: []
   }
 }, {
   collection: 'store_products',

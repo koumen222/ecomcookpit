@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import api from '../../lib/api';
-import { ExternalLink, Check, Upload, Palette, Type, Store } from 'lucide-react';
+import { ExternalLink, Check, Upload, Palette, Type, Store, Megaphone } from 'lucide-react';
 
 const FONTS = [
   { id: 'inter',      name: 'Inter',      sample: 'Modern & Clean' },
@@ -153,6 +153,8 @@ const BoutiqueSettings = () => {
     backgroundColor: '#FFFFFF',
     textColor: '#111827',
     font: 'inter',
+    announcement: '',
+    announcementEnabled: false,
   });
 
   const [saving, setSaving] = useState(false);
@@ -182,6 +184,8 @@ const BoutiqueSettings = () => {
           backgroundColor: s.backgroundColor  || '#FFFFFF',
           textColor:       s.textColor        || '#111827',
           font:            s.font             || 'inter',
+          announcement:    s.announcement     || '',
+          announcementEnabled: s.announcementEnabled ?? false,
         }));
         setSubdomain(domainsRes.data?.data?.subdomain || '');
       } catch (err) {
@@ -320,7 +324,39 @@ const BoutiqueSettings = () => {
         </div>
       </Section>
 
-      {/* ── 2. Logo ─────────────────────────────────────────────────────── */}
+      {/* ── 2. Annonce ────────────────────────────────────────────────── */}
+      <Section
+        icon={<Megaphone size={18} />}
+        title="Barre d'annonce"
+        desc="Message promotionnel affiché en haut de toutes les pages"
+      >
+        <div className="space-y-4">
+          <Field label="Message d'annonce" hint="Ex: 🎉 Livraison gratuite dès 50 000 XAF !">
+            <input
+              type="text"
+              value={form.announcement}
+              onChange={(e) => set('announcement', e.target.value)}
+              placeholder="Votre message promotionnel..."
+              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none transition"
+            />
+          </Field>
+
+          <Field label="Activer l'annonce">
+            <div className="flex items-center gap-3 mt-1">
+              <button
+                type="button"
+                onClick={() => set('announcementEnabled', !form.announcementEnabled)}
+                className={`relative w-11 h-6 rounded-full transition-colors ${form.announcementEnabled ? 'bg-[#0F6B4F]' : 'bg-gray-300'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.announcementEnabled ? 'translate-x-5' : ''}`} />
+              </button>
+              <span className="text-sm text-gray-600">{form.announcementEnabled ? 'Active' : 'Inactive'}</span>
+            </div>
+          </Field>
+        </div>
+      </Section>
+
+      {/* ── 3. Logo ─────────────────────────────────────────────────────── */}
       <Section
         icon={<Upload size={18} />}
         title="Logo"

@@ -57,7 +57,7 @@ RÈGLES CRITIQUES :
 ANALYSE DU PRODUIT :
 - Identifie les bénéfices principaux du produit
 - Détermine les problèmes qu'il résout
-- Trouve 3 angles marketing complètement différents
+- Trouve 4 angles marketing complètement différents
 - Crée des raisons d'acheter spécifiques et convaincantes
 - Génère une FAQ adaptée au produit
 
@@ -65,16 +65,19 @@ STRUCTURE DES ANGLES (DOIVENT ÊTRE DIFFÉRENTS) :
 Angle 1 : Focus sur le bénéfice PRINCIPAL
 Angle 2 : Focus sur un bénéfice SECONDAIRE ou CAS D'USAGE
 Angle 3 : Focus sur l'ÉMOTION ou le MODE DE VIE
+Angle 4 : Focus sur la PREUVE SOCIALE ou la CONFIANCE (avis, garantie, certification)
 
 CONTEXTES D'AFFICHES DIFFÉRENTS :
 - Affiche 1 : Contexte intérieur moderne (cuisine, salon, bureau)
 - Affiche 2 : Contexte extérieur ou sportif (jardin, parc, activité)
 - Affiche 3 : Contexte social ou familial (en groupe, avec amis/famille)
+- Affiche 4 : Contexte avant/après ou transformation (résultat visible, comparaison)
 
 EXEMPLE POUR UN PRODUIT DE SANTÉ :
-Angle 1: "✨ Énergie naturelle quotidienne" (bénéfice principal)
-Angle 2: "🏃‍♂️ Performance sportive boostée" (cas d'usage)
-Angle 3: "👨‍👩‍👧‍👦 Bien-être familial partagé" (mode de vie)
+Angle 1: " Énergie naturelle quotidienne" (bénéfice principal)
+Angle 2: " Performance sportive boostée" (cas d'usage)
+Angle 3: " Bien-être familial partagé" (mode de vie)
+Angle 4: " Des milliers de clients satisfaits" (preuve sociale)
 
 IMPORTANT POUR LES PROMPTS D'AFFICHE :
 
@@ -90,10 +93,7 @@ Chaque prompt_affiche doit décrire une AFFICHE PUBLICITAIRE COMPLÈTE incluant 
 - Le produit bien visible et identique à la photo de référence
 
 Le prompt doit être EN ANGLAIS et DOIT commencer par :
-"Create a complete advertising poster for this product with FRENCH text overlay:"
-
-EXEMPLE :
-"Create a complete advertising poster for this product with FRENCH text overlay: Beautiful African woman smiling, holding [product], modern home background. Bold French headline at top: 'Votre Solution Parfaite'. French CTA button: 'Commandez Maintenant'. Professional photography, vibrant colors."
+"Create a complete advertising poster for this product with FRENCH text overlay:
 
 RÈGLES ANTI-HALLUCINATION :
 - Nettoie les informations marketing exagérées du fournisseur
@@ -111,7 +111,7 @@ Format de réponse STRICT JSON :
   "prompt_affiche_hero": "Create a HERO advertising poster for this product with FRENCH text overlay: Beautiful smiling African woman holding the product prominently, natural outdoor background with greenery. LARGE BOLD FRENCH HEADLINE at top: '[hero_headline]'. Stylized golden brush stroke with text: '[hero_slogan]'. Product bottle clearly visible in hand, centered. Bottom section with icons and benefits text in French. Baseline text at bottom: '[hero_baseline]'. Professional commercial photography, vibrant natural colors, warm lighting, premium e-commerce feel, high resolution.",
   "angles": [
     {
-      "titre_angle": "✨ Titre avec émoji (5-8 mots max)",
+      "titre_angle": " Titre avec émoji (5-8 mots max)",
       "explication": "Explication détaillée du bénéfice en 2-3 phrases complètes. Explique comment le produit résout un problème spécifique ou apporte une transformation. Sois persuasif et concret.",
       "message_principal": "Message marketing court et mémorable (1 phrase d'accroche percutante)",
       "promesse": "La promesse de transformation en français",
@@ -121,7 +121,8 @@ Format de réponse STRICT JSON :
   "raisons_acheter": [
     "Raison 1 claire et persuasive",
     "Raison 2 claire et persuasive",
-    "Raison 3 claire et persuasive"
+    "Raison 3 claire et persuasive",
+    "Raison 4 claire et persuasive"
   ],
   "faq": [
     {
@@ -129,13 +130,24 @@ Format de réponse STRICT JSON :
       "reponse": "Réponse rassurante et précise en français"
     }
   ],
+  "testimonials": [
+    {
+      "name": "Prénom N.",
+      "location": "Ville, Pays",
+      "rating": 5,
+      "text": "Témoignage authentique et convaincant en français (2-3 phrases). Décrire une expérience positive spécifique avec le produit, les bénéfices ressentis, et la satisfaction. Ton naturel et crédible.",
+      "verified": true,
+      "date": "Il y a X jours/semaines"
+    }
+  ],
   "description_optimisee": "Description e-commerce complète en français (4-5 paragraphes). Structure : problème → solution → bénéfices → confiance → CTA. Utilise **gras** pour les points clés. Intègre les placeholders {{IMAGE_1}}, {{IMAGE_2}}, {{IMAGE_3}} entre les paragraphes."
 }
 
-⚠️ EXACTEMENT 3 angles, 3 raisons, 5 questions FAQ.
-⚠️ Chaque angle DOIT avoir une explication détaillée (2-3 phrases).
-⚠️ JSON uniquement. Pas d'explication. Pas de texte avant/après.
-⚠️ Tout en FRANÇAIS sauf les prompt_affiche qui sont en ANGLAIS.`;
+ EXACTEMENT 4 angles, 4 raisons, 5 questions FAQ.
+ EXACTEMENT 4 TÉMOIGNAGES dans "testimonials" (noms africains authentiques).
+ Chaque angle DOIT avoir une explication détaillée (2-3 phrases).
+ JSON uniquement. Pas d'explication. Pas de texte avant/après.
+ Tout en FRANÇAIS sauf les prompt_affiche qui sont en ANGLAIS.`;
 
   const messages = [
     {
@@ -184,8 +196,8 @@ Format de réponse STRICT JSON :
   }
 
   // Validation de la structure - Fallbacks SPÉCIFIQUES au produit
-  if (!result.angles || !Array.isArray(result.angles) || result.angles.length < 3) {
-    console.warn('⚠️ Moins de 3 angles générés, padding avec angles spécifiques...');
+  if (!result.angles || !Array.isArray(result.angles) || result.angles.length < 4) {
+    console.warn('⚠️ Moins de 4 angles générés, padding avec angles spécifiques...');
     result.angles = result.angles || [];
     const fallbackAngles = [
       {
@@ -208,23 +220,31 @@ Format de réponse STRICT JSON :
         message_principal: "L'élégance rencontre la fonctionnalité",
         promesse: "Un design qui embellit votre quotidien",
         prompt_affiche: `Create a complete advertising poster for this product with FRENCH text overlay: Lifestyle setting, stylish African model with ${title || 'product'}, modern home or office. Bold French headline: 'Design Élégant'. CTA: 'Adoptez le Style'. Lifestyle fashion photography.`
+      },
+      {
+        titre_angle: "🏆 Des milliers de clients satisfaits",
+        explication: `La confiance de milliers de clients africains prouve que ce ${title || 'produit'} tient ses promesses. Avec une satisfaction garantie et des avis positifs, ce choix est approuvé par votre communauté.`,
+        message_principal: "La qualité approuvée par des milliers",
+        promesse: "Rejoignez des milliers de clients satisfaits",
+        prompt_affiche: `Create a complete advertising poster for this product with FRENCH text overlay: Smiling group of diverse African customers, before/after transformation visual with ${title || 'product'}, testimonial-style scene. Bold French headline: 'Des Milliers Satisfaits'. Stars rating visual. CTA: 'Rejoignez-les Maintenant'. Warm, trustworthy photography.`
       }
     ];
-    while (result.angles.length < 3) {
+    while (result.angles.length < 4) {
       result.angles.push(fallbackAngles[result.angles.length]);
     }
   }
 
-  if (!result.raisons_acheter || result.raisons_acheter.length < 3) {
+  if (!result.raisons_acheter || result.raisons_acheter.length < 4) {
     result.raisons_acheter = result.raisons_acheter || [];
     const productName = title || 'produit';
     const fallbackRaisons = [
       `Matériaux premium et fabrication durable pour ce ${productName}`,
       `Performance exceptionnelle adaptée à vos besoins spécifiques`,
-      `Design moderne qui s'intègre parfaitement à votre quotidien`
+      `Design moderne qui s'intègre parfaitement à votre quotidien`,
+      `Satisfaction garantie avec service client réactif et livraison rapide`
     ];
-    while (result.raisons_acheter.length < 3) {
-      result.raisons_acheter.push(fallbackRaisons[result.raisons_acheter.length]);
+    while (result.raisons_acheter.length < 4) {
+      result.raisons_acheter.push(fallbackRaisons[result.raisons_acheter.length % fallbackRaisons.length]);
     }
   }
 
@@ -239,7 +259,50 @@ Format de réponse STRICT JSON :
       { question: `Comment entretenir ce ${productName} ?`, reponse: `Un simple entretien régulier suffit. Utilisez les produits recommandés pour préserver la performance et l'apparence.` }
     ];
     while (result.faq.length < 5) {
-      result.faq.push(defaultFaq[result.faq.length]);
+      result.faq.push(defaultFaq[result.faq.length % defaultFaq.length]);
+    }
+  }
+
+  // Fallback testimonials if not generated or less than 4
+  if (!result.testimonials || result.testimonials.length < 4) {
+    const productName = title || 'produit';
+    const defaultTestimonials = [
+      {
+        name: "Marie K.",
+        location: "Douala, Cameroun",
+        rating: 5,
+        text: `J'adore ce ${productName} ! La qualité est excellente et il correspond parfaitement à mes attentes. Livraison rapide et service client au top. Je recommande vivement !`,
+        verified: true,
+        date: "Il y a 3 jours"
+      },
+      {
+        name: "Jean-Pierre M.",
+        location: "Abidjan, Côte d'Ivoire",
+        rating: 5,
+        text: `Produit arrivé en parfait état. Je l'utilise depuis une semaine et les résultats sont déjà visibles. Très satisfait de mon achat, rapport qualité-prix imbattable.`,
+        verified: true,
+        date: "Il y a 1 semaine"
+      },
+      {
+        name: "Aminata D.",
+        location: "Dakar, Sénégal",
+        rating: 4,
+        text: `Bonne surprise ! Ce ${productName} est exactement comme décrit. Fonctionne parfaitement et fait vraiment ce qu'il promet. Je vais en commander un second pour ma sœur.`,
+        verified: true,
+        date: "Il y a 5 jours"
+      },
+      {
+        name: "Kofi A.",
+        location: "Accra, Ghana",
+        rating: 5,
+        text: `Excellent produit ! J'en avais entendu parler par un ami et je ne suis pas déçu. Ce ${productName} a dépassé toutes mes attentes. Commande simple, livraison rapide. 5 étoiles méritées !`,
+        verified: true,
+        date: "Il y a 2 semaines"
+      }
+    ];
+    result.testimonials = result.testimonials || [];
+    while (result.testimonials.length < 4) {
+      result.testimonials.push(defaultTestimonials[result.testimonials.length % defaultTestimonials.length]);
     }
   }
 

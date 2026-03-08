@@ -223,48 +223,89 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const handleApply = () => {
     if (!product) return;
     
-    // Build rich HTML description with angles, images, raisons, FAQ
+    // Build rich HTML description: 4 angles (H3 + desc + image) → testimonials → FAQ
     let descHtml = '';
-    
-    // Description optimisée avec images (déjà traitée par le backend)
+
+    // ── Intro description (courte, sans images markdown) ─────────────────────
     if (product.description) {
       let desc = product.description
+        .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '') // Remove markdown images (handled per angle)
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\n\n/g, '</p><br/><p>')
-        .replace(/\n/g, '<br/>');
-      
-      // Convert markdown images to HTML img tags
-      desc = desc.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;height:auto;display:block;margin:10px 0;border-radius:8px;"/>');
-      
-      descHtml += `<p>${desc}</p>`;
+        .replace(/###\s*(.+)/g, '') // Remove markdown H3 headers (we'll use our own)
+        .replace(/\n\n+/g, '</p><p>')
+        .replace(/\n/g, ' ')
+        .trim();
+      if (desc && desc !== '<p></p>') {
+        descHtml += `<div style="margin-bottom:24px;line-height:1.7;color:#444;font-size:15px;"><p>${desc}</p></div>`;
+      }
     }
-    
-    // 3 Angles marketing avec affiches
+
+    // ── 4 Arguments marketing : H3 gras + description 3-4 lignes + image ─────
     if (product.angles?.length) {
-      descHtml += '<br/><p><strong>🎯 Nos promesses</strong></p>';
-      product.angles.forEach(angle => {
-        descHtml += `<p><strong>${angle.titre_angle}</strong><br/>${angle.message_principal}</p>`;
-        if (angle.poster_url) {
-          descHtml += `<img src="${angle.poster_url}" alt="${angle.titre_angle}" style="max-width:100%;height:auto;display:block;margin:10px 0;border-radius:8px;"/>`;
+      descHtml += `<div style="margin:32px 0;">`;
+      product.angles.slice(0, 4).forEach((angle, idx) => {
+        descHtml += `<div style="margin-bottom:40px;padding-bottom:40px;${idx < product.angles.length - 1 ? 'border-bottom:1px solid #f0f0f0;' : ''}">`;
+        // H3 bold title
+        descHtml += `<h3 style="font-size:20px;font-weight:800;color:#111;margin:0 0 12px;line-height:1.3;"><strong>${angle.titre_angle}</strong></h3>`;
+        // 3-4 line description
+        const explication = angle.explication || angle.message_principal || '';
+        if (explication) {
+          descHtml += `<p style="font-size:15px;line-height:1.75;color:#555;margin:0 0 16px;">${explication}</p>`;
         }
+        // Image
+        if (angle.poster_url) {
+          descHtml += `<img src="${angle.poster_url}" alt="${angle.titre_angle}" style="width:100%;max-width:680px;height:auto;display:block;border-radius:14px;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,0.10);"/>`;
+        }
+        descHtml += `</div>`;
       });
+      descHtml += `</div>`;
     }
-    
-    // Raisons d'acheter
+
+    // ── Témoignages clients avec étoiles ──────────────────────────────────────
+    if (product.testimonials?.length) {
+      const stars = (n) => '★'.repeat(Math.min(5, Math.max(0, n))) + '☆'.repeat(5 - Math.min(5, Math.max(0, n)));
+      descHtml += `<div style="margin:48px 0;padding:32px;background:#fafafa;border-radius:20px;border:1px solid #f0f0f0;">`;
+      descHtml += `<h3 style="font-size:22px;font-weight:800;color:#111;margin:0 0 8px;text-align:center;"><strong>⭐ Ce que disent nos clients</strong></h3>`;
+      descHtml += `<p style="text-align:center;color:#888;font-size:13px;margin:0 0 28px;">Avis vérifiés de clients satisfaits</p>`;
+      descHtml += `<div class="ai-desc-testimonials" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;">`;
+      product.testimonials.forEach(t => {
+        descHtml += `<div style="background:#fff;border-radius:14px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,0.06);border:1px solid #f0f0f0;">`;
+        descHtml += `<div style="color:#FFB800;font-size:18px;letter-spacing:2px;margin-bottom:10px;">${stars(t.rating || 5)}</div>`;
+        descHtml += `<p style="font-style:italic;color:#333;font-size:14px;line-height:1.65;margin:0 0 14px;">"${t.text}"</p>`;
+        descHtml += `<div style="display:flex;align-items:center;gap:8px;">`;
+        descHtml += `<div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;flex-shrink:0;">${(t.name || 'A')[0]}</div>`;
+        descHtml += `<div><p style="margin:0;font-weight:700;font-size:13px;color:#111;">${t.name}</p>`;
+        descHtml += `<p style="margin:0;font-size:11px;color:#888;">${t.location} ${t.verified ? '· ✅ Achat vérifié' : ''} · ${t.date || ''}</p></div>`;
+        descHtml += `</div></div>`;
+      });
+      descHtml += `</div></div>`;
+    }
+
+    // ── Raisons d'acheter ──────────────────────────────────────────────────────
     if (product.raisons_acheter?.length) {
-      descHtml += '<br/><p><strong>✅ Pourquoi acheter ce produit ?</strong></p><ul>';
+      descHtml += `<div style="margin:32px 0;padding:24px;background:#f0fdf4;border-radius:16px;border:1px solid #bbf7d0;">`;
+      descHtml += `<h3 style="font-size:18px;font-weight:800;color:#166534;margin:0 0 16px;"><strong>✅ Pourquoi choisir ce produit ?</strong></h3>`;
+      descHtml += `<ul style="margin:0;padding:0;list-style:none;">`;
       product.raisons_acheter.forEach(r => {
-        descHtml += `<li>${r}</li>`;
+        descHtml += `<li style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;font-size:14px;color:#166534;"><span style="margin-top:2px;flex-shrink:0;">✓</span><span>${r}</span></li>`;
       });
-      descHtml += '</ul>';
+      descHtml += `</ul></div>`;
     }
-    
-    // FAQ
+
+    // ── FAQ détaillée ──────────────────────────────────────────────────────────
     if (product.faq?.length) {
-      descHtml += '<br/><p><strong>❓ Questions fréquentes</strong></p>';
-      product.faq.forEach(f => {
-        descHtml += `<p><strong>${f.question}</strong><br/>${f.reponse}</p>`;
+      descHtml += `<div style="margin:48px 0;">`;
+      descHtml += `<h3 style="font-size:22px;font-weight:800;color:#111;margin:0 0 24px;"><strong>❓ Questions fréquentes</strong></h3>`;
+      product.faq.forEach((f, idx) => {
+        descHtml += `<div style="margin-bottom:16px;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;">`;
+        descHtml += `<div style="padding:16px 20px;background:#f9fafb;">`;
+        descHtml += `<p style="margin:0;font-size:15px;font-weight:700;color:#111;">${f.question}</p>`;
+        descHtml += `</div>`;
+        descHtml += `<div style="padding:16px 20px;background:#fff;">`;
+        descHtml += `<p style="margin:0;font-size:14px;line-height:1.7;color:#444;">${f.reponse}</p>`;
+        descHtml += `</div></div>`;
       });
+      descHtml += `</div>`;
     }
     
     // Collect all images
@@ -470,7 +511,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                 <div className="grid grid-cols-2 gap-2 text-xs text-gray-700">
                   {[
                     ['🎯', 'Titre percutant en français'],
-                    ['🎨', '3 angles marketing + 3 affiches IA'],
+                    ['🎨', '4 arguments marketing + 4 affiches IA'],
                     ['✅', '3 raisons d\'acheter persuasives'],
                     ['❓', 'FAQ professionnelle (5 questions)'],
                     ['�', 'Description e-commerce optimisée'],
@@ -535,7 +576,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                 {[
                   { id: 'page', label: 'Page', icon: Package },
                   { id: 'affiches', label: 'Affiches', icon: Image },
-                  { id: 'faq', label: 'FAQ', icon: Star },
+                  { id: 'faq', label: 'FAQ + Avis', icon: Star },
                   { id: 'images', label: 'Photos', icon: Image }
                 ].map(({ id, label, icon: Icon }) => (
                   <button
@@ -596,7 +637,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
 
                   {/* 3 Angles marketing */}
                   <div>
-                    <p className="text-xs font-bold text-violet-700 uppercase tracking-wide mb-3">🎯 3 ANGLES MARKETING</p>
+                    <p className="text-xs font-bold text-violet-700 uppercase tracking-wide mb-3">🎯 4 ARGUMENTS MARKETING</p>
                     {(product.angles || []).map((angle, i) => (
                       <div key={i} className="mb-3 border border-gray-100 rounded-xl overflow-hidden">
                         {angle.poster_url && (
@@ -636,7 +677,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               {/* Tab: Affiches publicitaires */}
               {activeTab === 'affiches' && (
                 <div className="space-y-4">
-                  <p className="text-xs text-gray-500 font-medium">3 affiches publicitaires générées par IA</p>
+                  <p className="text-xs text-gray-500 font-medium">4 affiches publicitaires professionnelles générées par IA</p>
                   {(product.angles || []).map((angle, i) => (
                     <div key={i} className="border border-gray-100 rounded-xl overflow-hidden">
                       {angle.poster_url ? (
@@ -661,9 +702,30 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                 </div>
               )}
 
-              {/* Tab: FAQ */}
+              {/* Tab: FAQ + Avis */}
               {activeTab === 'faq' && (
                 <div className="space-y-4">
+                  {/* Témoignages */}
+                  {product.testimonials?.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-amber-600 uppercase tracking-wide mb-3">⭐ {product.testimonials.length} TÉMOIGNAGES CLIENTS</p>
+                      <div className="space-y-2">
+                        {product.testimonials.map((t, i) => (
+                          <div key={i} className="border border-amber-100 rounded-xl p-3 bg-amber-50">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-amber-400 text-sm">{'★'.repeat(t.rating || 5)}</span>
+                              <span className="text-xs font-bold text-gray-700">{t.name}</span>
+                              <span className="text-xs text-gray-400">{t.location}</span>
+                              {t.verified && <span className="text-xs text-emerald-600">✅</span>}
+                            </div>
+                            <p className="text-sm text-gray-600 italic">&ldquo;{t.text}&rdquo;</p>
+                            <p className="text-xs text-gray-400 mt-1">{t.date}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* FAQ */}
                   <div>
                     <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">❓ FAQ — 5 QUESTIONS</p>
@@ -685,7 +747,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                   {/* Raisons d'acheter */}
                   {product.raisons_acheter?.length > 0 && (
                     <div>
-                      <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide mb-3">✅ 3 RAISONS D'ACHETER</p>
+                      <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide mb-3">✅ {product.raisons_acheter.length} RAISONS D'ACHETER</p>
                       {product.raisons_acheter.map((r, i) => (
                         <div key={i} className="flex items-start gap-2 p-3 mb-2 bg-emerald-50 rounded-lg border border-emerald-100">
                           <span className="text-emerald-500 font-bold">{i + 1}.</span>

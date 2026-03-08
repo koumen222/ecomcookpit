@@ -178,11 +178,11 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // ÉTAPE 4b : Générer 3 AFFICHES PUBLICITAIRES avec NanoBanana
+    // ÉTAPE 4b : Générer 4 AFFICHES PUBLICITAIRES avec NanoBanana
     // ══════════════════════════════════════════════════════════════════════════
-    console.log('🎨 Étape 4b: Génération de 3 affiches publicitaires...');
+    console.log('🎨 Étape 4b: Génération de 4 affiches publicitaires...');
     
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       const angle = gptResult.angles[i];
       if (!angle || !angle.prompt_affiche) {
         console.warn(`⚠️ Angle ${i + 1} manquant ou sans prompt, skip`);
@@ -195,7 +195,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       }
 
       try {
-        console.log(`🎨 Affiche ${i + 1}/3: "${angle.titre_angle}"`);
+        console.log(`🎨 Affiche ${i + 1}/4: "${angle.titre_angle}"`);        
         
         // Use original image for image-to-image (first image as reference)
         const baseImageBuffer = imageFiles[i]?.buffer || imageFiles[0]?.buffer || null;
@@ -241,7 +241,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       }
     }
 
-    console.log('✅ Affiches générées:', posterImages.filter(p => p.poster_url).length, '/ 3');
+    console.log('✅ Affiches générées:', posterImages.filter(p => p.poster_url).length, '/ 4');
 
     // ══════════════════════════════════════════════════════════════════════════
     // ÉTAPE 5 : Assembler la description avec les images
@@ -256,13 +256,16 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     }
     
     // Replace {{IMAGE_X}} with actual poster URLs
-    posterImages.forEach((poster) => {
-      if (poster.poster_url && poster.index) {
-        const placeholder = `{{IMAGE_${poster.index}}}`;
+    for (let i = 1; i <= 4; i++) {
+      const poster = posterImages[i - 1];
+      const placeholder = `{{IMAGE_${i}}}`;
+      if (poster?.poster_url) {
         const imgTag = `![${poster.titre_angle || 'Affiche'}](${poster.poster_url})`;
         description = description.replace(placeholder, imgTag);
+      } else {
+        description = description.replace(placeholder, '');
       }
-    });
+    }
 
     // ══════════════════════════════════════════════════════════════════════════
     // ÉTAPE 6 : Assemblage final du produit
@@ -278,6 +281,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       angles: posterImages,
       raisons_acheter: gptResult.raisons_acheter || [],
       faq: gptResult.faq || [],
+      testimonials: gptResult.testimonials || [],
       description: description,
       realPhotos,
       allImages: [

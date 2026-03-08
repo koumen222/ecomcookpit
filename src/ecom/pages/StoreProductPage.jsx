@@ -222,6 +222,118 @@ const ProductReviews = ({ rating = 4.5, reviewCount = 128 }) => {
   );
 };
 
+// ── Scrolling Features Component ─────────────────────────────────────────────
+const ProductFeatures = ({ features }) => {
+  if (!features || features.length === 0) return null;
+  
+  const scrollRef = useRef(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+  
+  const checkScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 0);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 5);
+  };
+  
+  const scroll = (direction) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: direction === 'left' ? -200 : 200, behavior: 'smooth' });
+  };
+  
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    checkScroll();
+    el.addEventListener('scroll', checkScroll);
+    return () => el.removeEventListener('scroll', checkScroll);
+  }, []);
+  
+  const iconMap = {
+    shield: Shield,
+    truck: Truck,
+    rotate: RotateCcw,
+    check: Check,
+    star: Star,
+    zap: (props) => (
+      <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+      </svg>
+    ),
+  };
+  
+  return (
+    <div style={{ position: 'relative', marginBottom: 16 }}>
+      {/* Left arrow */}
+      {canScrollLeft && (
+        <button 
+          onClick={() => scroll('left')}
+          style={{
+            position: 'absolute', left: -10, top: '50%', transform: 'translateY(-50%)',
+            zIndex: 10, width: 28, height: 28, borderRadius: '50%', 
+            backgroundColor: 'var(--s-bg)', border: '1px solid var(--s-border)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          }}
+        >
+          <ChevronLeft size={16} color="var(--s-text)" />
+        </button>
+      )}
+      
+      {/* Scrollable container */}
+      <div 
+        ref={scrollRef}
+        style={{
+          display: 'flex', gap: 10, overflowX: 'auto', scrollbarWidth: 'none',
+          msOverflowStyle: 'none', padding: '4px 0',
+        }}
+      >
+        {features.map((feature, idx) => {
+          const IconComponent = iconMap[feature.icon] || Check;
+          return (
+            <div 
+              key={idx}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 14px', borderRadius: 20,
+                backgroundColor: 'var(--s-primary)',
+                color: '#fff', fontSize: 12, fontWeight: 600,
+                fontFamily: 'var(--s-font)', whiteSpace: 'nowrap',
+                flexShrink: 0,
+              }}
+            >
+              <IconComponent size={14} />
+              <span>{feature.text}</span>
+            </div>
+          );
+        })}
+      </div>
+      
+      <style>{`
+        div::-webkit-scrollbar { display: none; }
+      `}</style>
+      
+      {/* Right arrow */}
+      {canScrollRight && (
+        <button 
+          onClick={() => scroll('right')}
+          style={{
+            position: 'absolute', right: -10, top: '50%', transform: 'translateY(-50%)',
+            zIndex: 10, width: 28, height: 28, borderRadius: '50%', 
+            backgroundColor: 'var(--s-bg)', border: '1px solid var(--s-border)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          }}
+        >
+          <ChevronRight size={16} color="var(--s-text)" />
+        </button>
+      )}
+    </div>
+  );
+};
+
 // ── Description (handles both HTML and markdown) ─────────────────────────────
 const ProductDescription = ({ content }) => {
   // Nettoyer le contenu : enlever les espaces et balises vides
@@ -240,7 +352,7 @@ const ProductDescription = ({ content }) => {
   return (
     <div>
       {isHTML ? (
-        <div style={bodyStyle} dangerouslySetInnerHTML={{ __html: cleanContent }} />
+        <div className="ai-desc" style={bodyStyle} dangerouslySetInnerHTML={{ __html: cleanContent }} />
       ) : (
         <p style={{ ...bodyStyle, whiteSpace: 'pre-wrap', margin: 0 }}>{cleanContent}</p>
       )}
@@ -422,7 +534,30 @@ const StoreProductPage = () => {
         @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
         *{box-sizing:border-box} body{margin:0;padding:0}
         @media(max-width:768px){ .product-grid{ grid-template-columns: 1fr !important; } }
+        .ai-desc h3 { font-size:20px; font-weight:800; color:var(--s-text); margin:0 0 12px; line-height:1.3; }
+        .ai-desc h3 strong { font-weight:800; }
+        .ai-desc p { font-size:15px; line-height:1.75; color:var(--s-text2); margin:0 0 14px; }
+        .ai-desc img { width:100%; max-width:680px; height:auto; display:block; border-radius:14px; margin:0 auto 16px; box-shadow:0 4px 20px rgba(0,0,0,0.10); }
+        .ai-desc ul { margin:0; padding:0; list-style:none; }
+        .ai-desc ul li { display:flex; align-items:flex-start; gap:10px; margin-bottom:10px; font-size:14px; }
+        .ai-desc-testimonials { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; }
+        @media(max-width:640px){ .ai-desc-testimonials { grid-template-columns:1fr; } }
       `}</style>
+
+      {/* Barre d'annonce */}
+      {store?.announcementEnabled && store?.announcement && (
+        <div style={{
+          backgroundColor: 'var(--s-primary)',
+          color: '#fff',
+          padding: '10px 16px',
+          textAlign: 'center',
+          fontSize: 13,
+          fontWeight: 500,
+          fontFamily: 'var(--s-font)',
+        }}>
+          {store.announcement}
+        </div>
+      )}
 
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
 
@@ -500,6 +635,9 @@ const StoreProductPage = () => {
                 }}>
                   {product.name}
                 </h1>
+
+                {/* Features/Badges - scrolling list */}
+                <ProductFeatures features={product.features} />
 
                 {/* Reviews */}
                 <ProductReviews rating={product.rating || 4.5} reviewCount={product.reviewCount || 0} />

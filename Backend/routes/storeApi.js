@@ -156,13 +156,13 @@ router.get('/:subdomain', async (req, res) => {
           themeColor: settings.themeColor || settings.storeThemeColor || '#0F6B4F',
           currency: settings.currency || settings.storeCurrency || 'XAF',
           subdomain: workspace.subdomain,
-          // Theme config
+          // Theme config - PRIORITÉ AUX SETTINGS (configurés dans /boutique/settings)
           template: theme.template || 'classic',
-          primaryColor: theme.primaryColor || settings.primaryColor || settings.storeThemeColor || '#0F6B4F',
-          accentColor: theme.accentColor || theme.ctaColor || settings.accentColor || settings.ctaColor || '#059669',
-          backgroundColor: theme.backgroundColor || settings.backgroundColor || '#FFFFFF',
-          textColor: theme.textColor || settings.textColor || '#111827',
-          font: theme.font || settings.font || 'inter',
+          primaryColor: settings.primaryColor || settings.storeThemeColor || theme.primaryColor || '#0F6B4F',
+          accentColor: settings.accentColor || settings.ctaColor || theme.accentColor || theme.ctaColor || '#059669',
+          backgroundColor: settings.backgroundColor || theme.backgroundColor || '#FFFFFF',
+          textColor: settings.textColor || theme.textColor || '#111827',
+          font: settings.font || theme.font || 'inter',
           borderRadius: theme.borderRadius || 'lg',
           sectionToggles: theme.sections || {},
           // Settings extras
