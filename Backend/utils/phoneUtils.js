@@ -327,11 +327,72 @@ export function getSupportedCountries() {
   })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/**
+ * Normalise un numéro de téléphone vers le format international.
+ * Supporte tous les formats : espaces, tirets, parenthèses, 00, +, sans indicatif.
+ * Par défaut ajoute +237 (Cameroun) si aucun indicatif détecté.
+ * @param {string} phone - Numéro brut
+ * @param {string} defaultPrefix - Indicatif par défaut (ex: '237')
+ * @returns {string|null} Numéro nettoyé au format international (ex: '237612345678') ou null si invalide
+ */
+export function normalizePhone(phone, defaultPrefix = '237') {
+  if (!phone) return null;
+
+  let cleaned = String(phone).trim();
+  
+  // Supprimer tout sauf chiffres et +
+  cleaned = cleaned.replace(/[^0-9+]/g, '');
+  
+  // Supprimer le + initial
+  if (cleaned.startsWith('+')) {
+    cleaned = cleaned.substring(1);
+  }
+  
+  // Supprimer le préfixe 00
+  if (cleaned.startsWith('00')) {
+    cleaned = cleaned.substring(2);
+  }
+  
+  // Ne garder que les chiffres
+  cleaned = cleaned.replace(/\D/g, '');
+  
+  if (!cleaned || cleaned.length < 5) return null;
+  
+  // Vérifier si un indicatif pays est déjà présent
+  let hasCountryCode = false;
+  for (let len = 4; len >= 1; len--) {
+    const prefix = cleaned.substring(0, len);
+    if (COUNTRY_PHONE_PATTERNS[prefix]) {
+      const info = COUNTRY_PHONE_PATTERNS[prefix];
+      const nationalPart = cleaned.substring(len);
+      if (nationalPart.length >= info.minLength && nationalPart.length <= info.maxLength) {
+        hasCountryCode = true;
+        break;
+      }
+    }
+  }
+  
+  if (!hasCountryCode) {
+    // Enlever le 0 initial (format local)
+    if (cleaned.startsWith('0')) {
+      cleaned = cleaned.substring(1);
+    }
+    // Ajouter l'indicatif par défaut
+    cleaned = defaultPrefix + cleaned;
+  }
+  
+  // Validation finale : minimum 10 chiffres (indicatif + numéro)
+  if (cleaned.length < 10) return null;
+  
+  return cleaned;
+}
+
 export default {
   formatInternationalPhone,
   isValidWhatsAppNumber,
   cleanPhoneForWhatsApp,
   detectCountryFromPhone,
   getSupportedCountries,
+  normalizePhone,
   COUNTRY_PHONE_PATTERNS
 };
