@@ -9,6 +9,7 @@ import { useSubdomain } from '../hooks/useSubdomain';
 import { useStoreProduct, injectStoreCssVars } from '../hooks/useStoreData';
 import { useStoreCart } from '../hooks/useStoreCart';
 import QuickOrderModal from '../components/QuickOrderModal';
+import { io } from 'socket.io-client';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
 
@@ -359,6 +360,37 @@ const StoreProductPage = () => {
   useEffect(() => {
     if (product?.name) document.title = `${product.name} — ${store?.name || ''}`;
   }, [product?.name, store?.name]);
+
+  // Écouter les changements de couleurs en temps réel via Socket.io
+  useEffect(() => {
+    if (!subdomain) return;
+    
+    const socketUrl = import.meta.env.VITE_BACKEND_URL || 'https://api.scalor.net';
+    const socket = io(`${socketUrl}/store-live`, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+    });
+    
+    socket.on('connect', () => {
+      console.log('[Store] Socket connecté, joining:', subdomain);
+      socket.emit('store:join', { subdomain });
+    });
+    
+    socket.on('theme:update', (themeData) => {
+      console.log('[Store] Theme update reçu:', themeData);
+      if (themeData) {
+        injectStoreCssVars(themeData);
+      }
+    });
+    
+    socket.on('connect_error', (err) => {
+      console.log('[Store] Socket error:', err.message);
+    });
+    
+    return () => {
+      socket.disconnect();
+    };
+  }, [subdomain]);
 
   const handleAddToCart = () => {
     if (!product) return;
