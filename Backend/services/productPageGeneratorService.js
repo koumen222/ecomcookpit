@@ -96,23 +96,41 @@ ${approachGuide}
 
 ⚠️ IMPORTANT : Suis STRICTEMENT cette structure pour les 4 angles. Chaque angle doit correspondre à l'étape de l'approche marketing sélectionnée.
 
-═══ RÈGLES POUR LES IMAGES (CRITIQUES) ═══
-Chaque prompt_image doit décrire une PHOTO DE STYLE DE VIE qui :
-✅ Montre le PRODUIT EN COURS D'UTILISATION dans une scène réaliste
-✅ Illustre le BÉNÉFICE VISIBLE de l'angle correspondant
-✅ Inclut des MODÈLES AFRICAINS authentiques utilisant le produit naturellement
-✅ Fond contextuel africain moderne (maison, bureau, extérieur, etc.)
-✅ Lumière chaude, naturelle, photo commerciale professionnelle
-❌ PAS de texte publicitaire sur l'image
-❌ PAS de call-to-action visible
-❌ PAS de banderoles, badges prix ou mentions promotionnelles
-❌ PAS de montage graphique — photo réaliste uniquement
+═══ IMAGES SECONDAIRES — MISE EN SITUATION RÉELLE (CRITIQUES) ═══
+Les 4 images doivent illustrer la VRAIE SITUATION du problème et les bénéfices, selon l'angle marketing choisi.
 
-Contextes variés pour les 4 images :
-- Image 1 : Utilisation quotidienne à domicile (cuisine, salon, chambre)
-- Image 2 : Résultat visible ou moment après utilisation
-- Image 3 : Contexte social (famille, ami(e)s, extérieur)
-- Image 4 : Gros plan détail produit OU packaging professionnel
+🎯 OBJECTIF : Montrer la situation réelle du client, le problème traité, et le résultat visible
+
+✅ CE QU'ON DOIT MONTRER :
+- La situation réelle du client (contexte de vie authentique)
+- Le problème que le produit traite (visible et crédible)
+- Le résultat ou l'amélioration visible (transformation réaliste)
+- Des scènes naturelles et crédibles (pas de mise en scène fake)
+
+❌ CE QU'ON NE DOIT PAS MONTRER :
+- Personnes tenant le produit en main (pose influenceur)
+- Modèles présentant le produit à la caméra
+- Mise en scène publicitaire artificielle
+- Poses non naturelles ou forcées
+
+🎨 EXEMPLES SELON LE TYPE DE PRODUIT :
+- **Produit anti-acné** → Peau avec boutons visibles → Amélioration visible de la peau
+- **Produit minceur** → Silhouette avant → Silhouette après (réaliste, pas exagéré)
+- **Produit cheveux** → Cheveux abîmés/secs → Cheveux plus soignés/brillants
+- **Produit énergie** → Personne fatiguée au travail → Personne active et concentrée
+- **Aspirateur** → Sol avec poussière/débris → Sol propre et brillant
+- **Fer à lisser** → Cheveux frisés → Cheveux lisses et soignés
+
+🎨 STYLE VISUEL :
+✅ Réaliste et crédible
+✅ Moderne e-commerce
+✅ Lumière naturelle
+✅ Scènes authentiques de vie quotidienne
+❌ Pas d'effets exagérés
+❌ Pas de texte sur l'image
+❌ Pas de montage graphique artificiel
+
+Les images doivent DÉPENDRE de l'angle marketing et montrer le bénéfice SPÉCIFIQUE de cet angle.
 
 ═══ VISUEL HÉRO — 1ÈRE IMAGE GALERIE (TRÈS IMPORTANT) ═══
 ⚠️ RÈGLE ABSOLUE : L'image DOIT utiliser le produit RÉEL fourni par l'utilisateur, JAMAIS un produit généré ou modifié.
@@ -177,7 +195,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
       "explication": "3-4 phrases concrètes et persuasives. Décris comment ce bénéfice spécifique se manifeste dans la vie réelle. Reste crédible et factuel, sans exagération.",
       "message_principal": "1 phrase d'accroche mémorable spécifique à ce bénéfice",
       "promesse": "La transformation concrète que l'utilisateur va vivre",
-      "prompt_affiche": "Lifestyle product photo: [décrire en anglais la scène: African model naturally using the product, specific context matching this benefit, warm natural lighting, realistic modern setting, product clearly visible, genuine expression, no text overlay, no CTA, no promotional banners, professional e-commerce photography]"
+      "prompt_affiche": "Real situation photo: [décrire en anglais la SITUATION RÉELLE et le BÉNÉFICE VISIBLE selon l'angle: For skincare → show skin condition improvement (before/after aspect), For energy → show person in real work/life context showing vitality, For cleaning → show clean vs dirty comparison, For hair → show hair transformation. NO people holding products, NO influencer poses, NO fake advertising scenes. Show authentic real-life situations, natural lighting, credible and realistic, no text overlay, professional e-commerce photography]"
     }
   ],
   "raisons_acheter": [
@@ -225,7 +243,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   const messages = [
     {
       role: "system",
-      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit optimisée pour la conversion. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS (sauf prompts images en anglais). 3) ZÉRO généricité — tout doit être spécifique à CE produit. 4) ZÉRO exagération — bénéfices réels et crédibles. 5) CRITIQUE : prompt_affiche_hero = AFFICHE PUBLICITAIRE COMPLÈTE avec modèle africain + produit + texte marketing en français intégré + éventuellement avant/après en cercles. 6) CRITIQUE : prompt_avant_apres = transformation RÉELLE split-screen (avant problème | après résultat) avec personnes africaines. 7) Ces deux prompts doivent être ENTIÈREMENT RÉÉCRITS pour CE produit — JAMAIS copier les exemples. 8) Génère UNIQUEMENT du JSON valide."
+      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit optimisée pour la conversion. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS (sauf prompts images en anglais). 3) ZÉRO généricité — tout doit être spécifique à CE produit. 4) ZÉRO exagération — bénéfices réels et crédibles. 5) CRITIQUE : prompt_affiche_hero = AFFICHE E-COMMERCE avec le PRODUIT RÉEL fourni (JAMAIS générer un nouveau produit) + éléments de conversion (étoiles, prix, badge, titre). 6) CRITIQUE : prompt_avant_apres = transformation RÉELLE split-screen (avant problème | après résultat) avec personnes africaines. 7) CRITIQUE : prompts angles = SITUATIONS RÉELLES montrant le problème et le bénéfice (PAS de personnes tenant le produit, PAS de poses influenceur). 8) Ces prompts doivent être ENTIÈREMENT RÉÉCRITS pour CE produit — JAMAIS copier les exemples. 9) Génère UNIQUEMENT du JSON valide."
     },
     {
       role: "user",
