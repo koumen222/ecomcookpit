@@ -96,19 +96,21 @@ const campaignSchema = new mongoose.Schema({
           if (this.recipients?.type === 'list') {
             if (!v || v.length === 0) return false;
             
-            // Fonction de normalisation pour validation
+            // Fonction de normalisation pour validation (international)
             const normalizePhone = (phone) => {
               if (!phone) return '';
               let cleaned = phone.toString().replace(/\D/g, '').trim();
               
-              // ✅ Corriger le cas 00237699887766
+              // Corriger le cas 00 préfixe international
               if (cleaned.startsWith('00')) {
                 cleaned = cleaned.substring(2);
               }
               
-              // Gérer le préfixe pays (Cameroun 237)
-              if (cleaned.length === 9 && cleaned.startsWith('6')) {
-                return '237' + cleaned;
+              // Si le numéro n'a pas d'indicatif (moins de 10 chiffres) et commence par 6, 7, 8, ou 9
+              // On considère que c'est un numéro local sans indicatif - invalide pour WhatsApp international
+              if (cleaned.length < 10) {
+                // Numéro trop court pour avoir un indicatif pays valide
+                return '';
               }
               
               return cleaned;

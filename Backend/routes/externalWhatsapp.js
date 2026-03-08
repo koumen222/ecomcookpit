@@ -132,9 +132,26 @@ router.post('/link', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ [LINK] Erreur lors du link WhatsApp:', error.message);
+    
+    // Messages d'erreur clairs selon le type d'erreur
+    let errorMessage = "Erreur lors de la liaison de l'instance";
+    
+    if (error.message?.includes('ECONNREFUSED') || error.message?.includes('ENOTFOUND')) {
+      errorMessage = "Impossible de contacter le serveur Evolution API. Vérifiez votre connexion internet.";
+    } else if (error.message?.includes('timeout') || error.message?.includes('ETIMEDOUT')) {
+      errorMessage = "Le serveur Evolution API ne répond pas (timeout). Réessayez dans quelques instants.";
+    } else if (error.response?.status === 401 || error.response?.status === 403) {
+      errorMessage = "Token d'accès invalide ou expiré. Vérifiez votre token ZenChat.";
+    } else if (error.response?.status === 404) {
+      errorMessage = "Instance non trouvée sur Evolution API. Vérifiez le nom de l'instance.";
+    } else if (error.message?.includes('instance') && error.message?.includes('not found')) {
+      errorMessage = "Instance non disponible. Cette instance n'existe pas sur Evolution API.";
+    }
+    
     res.status(500).json({
       success: false,
-      error: "Erreur lors de la vérification avec Evolution API. Vérifiez que le serveur Evolution est accessible."
+      error: errorMessage,
+      details: error.message
     });
   }
 });
@@ -200,7 +217,21 @@ router.post('/verify-instance', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ [VERIFY] Erreur:', error.message);
-    res.status(500).json({ success: false, error: "Erreur lors de la vérification Evolution API" });
+    
+    // Messages d'erreur clairs
+    let errorMessage = "Erreur lors de la vérification";
+    
+    if (error.message?.includes('ECONNREFUSED') || error.message?.includes('ENOTFOUND')) {
+      errorMessage = "Serveur Evolution API injoignable. Vérifiez votre connexion.";
+    } else if (error.message?.includes('timeout')) {
+      errorMessage = "Timeout - Le serveur met trop de temps à répondre.";
+    } else if (error.message?.includes('token') || error.message?.includes('auth')) {
+      errorMessage = "Token d'accès erroné. Vérifiez votre configuration.";
+    } else if (error.message?.includes('instance')) {
+      errorMessage = "Instance non disponible actuellement.";
+    }
+    
+    res.status(500).json({ success: false, error: errorMessage, details: error.message });
   }
 });
 
@@ -233,7 +264,15 @@ router.delete('/instances/:id', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Erreur suppression instance:', error.message);
-    res.status(500).json({ success: false, error: "Erreur lors de la suppression" });
+    
+    let errorMessage = "Erreur lors de la suppression";
+    if (error.message?.includes('CastError') || error.message?.includes('ObjectId')) {
+      errorMessage = "ID d'instance invalide.";
+    } else if (error.message?.includes('not found')) {
+      errorMessage = "Instance introuvable. Elle a peut-être déjà été supprimée.";
+    }
+    
+    res.status(500).json({ success: false, error: errorMessage, details: error.message });
   }
 });
 
@@ -306,9 +345,24 @@ router.post('/send', async (req, res) => {
     }
   } catch (error) {
     console.error('❌ Erreur lors de l\'envoi WhatsApp:', error.message);
+    
+    // Messages d'erreur clairs
+    let errorMessage = "Erreur lors de l'envoi du message";
+    
+    if (error.message?.includes('token') || error.message?.includes('auth') || error.message?.includes('401')) {
+      errorMessage = "Token d'accès erroné ou expiré. Vérifiez votre token.";
+    } else if (error.message?.includes('instance') || error.message?.includes('404')) {
+      errorMessage = "Instance non disponible. Vérifiez que l'instance existe et est connectée.";
+    } else if (error.message?.includes('number') || error.message?.includes('phone')) {
+      errorMessage = "Numéro de téléphone invalide. Vérifiez le format.";
+    } else if (error.message?.includes('ECONNREFUSED')) {
+      errorMessage = "Serveur WhatsApp injoignable. Vérifiez votre connexion.";
+    }
+    
     res.status(500).json({
       success: false,
-      error: "Erreur interne lors de l'envoi du message"
+      error: errorMessage,
+      details: error.message
     });
   }
 });
@@ -342,9 +396,16 @@ router.get('/instances', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Erreur lors du listage WhatsApp:', error.message);
+    
+    let errorMessage = "Erreur lors de la récupération des instances";
+    if (error.message?.includes('Mongo') || error.message?.includes('connection')) {
+      errorMessage = "Erreur de base de données. Réessayez dans quelques instants.";
+    }
+    
     res.status(500).json({
       success: false,
-      error: "Erreur lors de la récupération des instances"
+      error: errorMessage,
+      details: error.message
     });
   }
 });

@@ -156,6 +156,20 @@ const CampaignForm = () => {
     finally { setPreviewLoading(false); }
   };
 
+  // 🆕 Calcul automatique de l'audience quand les filtres changent
+  useEffect(() => {
+    if (!hasAnyFilter()) {
+      setPreview({ count: 0, clients: [], empty: true });
+      return;
+    }
+    
+    const timer = setTimeout(() => {
+      handlePreview();
+    }, 500); // Debounce de 500ms
+    
+    return () => clearTimeout(timer);
+  }, [formData.targetFilters]);
+
   const applyTemplate = (tpl) => {
     setSelectedTemplate(tpl.id);
     setFormData(prev => ({

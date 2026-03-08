@@ -103,7 +103,9 @@ const WhatsAppConnexion = () => {
         setError(data.error || "Erreur lors de la liaison de l'instance");
       }
     } catch (err) {
-      setError("Erreur de connexion au serveur");
+      // Afficher les messages d'erreur clairs du backend
+      const errorMessage = err.response?.data?.error || err.message || "Erreur de connexion au serveur";
+      setError(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -188,7 +190,9 @@ const WhatsAppConnexion = () => {
         setError(data.error || 'Erreur lors de la suppression');
       }
     } catch (err) {
-      setError('Erreur de connexion au serveur');
+      // Afficher les messages d'erreur clairs du backend
+      const errorMessage = err.response?.data?.error || err.message || "Erreur de connexion au serveur";
+      setError(errorMessage);
     }
   };
 
@@ -419,8 +423,8 @@ const WhatsAppConnexion = () => {
                     <p className="text-sm font-mono text-gray-700 truncate">••••••••••••••••</p>
                   </div>
 
-                  {/* Usage Statistics */}
-                  {usageStats[instance._id] && (
+                  {/* Usage Statistics - HIDDEN */}
+                  {false && usageStats[instance._id] && (
                     <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl space-y-3 border border-blue-100">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-blue-900 uppercase tracking-widest">Consommation</span>

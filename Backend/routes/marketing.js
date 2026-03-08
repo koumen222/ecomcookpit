@@ -8,9 +8,13 @@ import evolutionApiService from '../services/evolutionApiService.js';
 import EcomUser from '../models/EcomUser.js';
 import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
 import { checkMessageLimit, incrementMessageCount } from '../services/messageLimitService.js';
+import { formatInternationalPhone } from '../utils/phoneUtils.js';
 
 // ─── WhatsApp helpers (shared with campaigns.js) ─────────────────────────────
-const sanitizePhoneNumber = (phone) => phone?.replace(/\D/g, '') || null;
+const sanitizePhoneNumber = (phone) => {
+  const result = formatInternationalPhone(phone);
+  return result.success ? result.formatted : null;
+};
 
 function renderMessage(template, client, orderData = null) {
   const orderInfo = orderData || client;

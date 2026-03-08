@@ -2,8 +2,11 @@ import express from 'express';
 import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
 import PushScheduledNotification from '../models/PushScheduledNotification.js';
 import PushAutomation from '../models/PushAutomation.js';
+import PushTemplate from '../models/PushTemplate.js';
 import Subscription from '../models/Subscription.js';
+import EcomUser from '../models/EcomUser.js';
 import { sendToScope, ensureDefaultAutomations, scheduleAutomations } from '../services/pushSchedulerService.js';
+import { sendPushNotification } from '../services/pushService.js';
 
 const router = express.Router();
 
@@ -225,5 +228,538 @@ router.put('/automations/:id', requireEcomAuth, requireSuperAdmin, async (req, r
     res.status(500).json({ success: false, message: e?.message || 'Erreur serveur' });
   }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEMPLATES DE PUSH
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/ecom/super-admin/push/templates
+ * Liste tous les templates de push
+ */
+router.get('/templates', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { scope, category, isActive = true } = req.query;
+    const filter = {};
+
+    if (scope) filter.scope = scope;
+    if (category) filter.category = category;
+    if (isActive !== undefined) filter.isActive = isActive === 'true';
+
+    const templates = await PushTemplate.find(filter)
+      .sort({ usageCount: -1, createdAt: -1 })
+      .populate('createdBy', 'email name')
+      .lean();
+
+    // Organiser par catégorie
+    const byCategory = {};
+    templates.forEach(t => {
+      if (!byCategory[t.category]) byCategory[t.category] = [];
+      byCategory[t.category].push(t);
+    });
+
+    res.json({
+      success: true,
+      data: {
+        templates,
+        byCategory,
+        total: templates.length
+      }
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e?.message || 'Erreur serveur' });
+  }
+});
+
+/**
+ * POST /api/ecom/super-admin/push/templates
+ * Créer un nouveau template de push
+ */
+router.post('/templates', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const {
+      name,
+      description,
+      scope = 'global',
+      workspaceId,
+      title,
+      body,
+      url,
+      icon,
+      badge,
+      tag,
+      actions,
+      data,
+      options,
+      category = 'general'
+    } = req.body;
+
+    if (!name || !title || !body) {
+      return res.status(400).json({
+        success: false,
+        message: 'name, title et body sont requis'
+      });
+    }
+
+    const template = await PushTemplate.create({
+      name,
+      description,
+      scope,
+      workspaceId: scope === 'workspace' ? workspaceId : null,
+      title,
+      body,
+      url,
+      icon,
+      badge,
+      tag,
+      actions,
+      data,
+      options,
+      category,
+      createdBy: req.ecomUser._id
+    });
+
+    res.json({
+      success: true,
+      data: { template },
+      message: 'Template créé avec succès'
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e?.message || 'Erreur serveur' });
+  }
+});
+
+/**
+ * PUT /api/ecom/super-admin/push/templates/:id
+ * Mettre à jour un template
+ */
+router.put('/templates/:id', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    // Empêcher la modification du créateur
+    delete updates.createdBy;
+
+    const template = await PushTemplate.findByIdAndUpdate(
+      id,
+      { $set: updates },
+      { new: true, runValidators: true }
+    );
+
+    if (!template) {
+      return res.status(404).json({
+        success: false,
+        message: 'Template non trouvé'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: { template },
+      message: 'Template mis à jour'
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e?.message || 'Erreur serveur' });
+  }
+});
+
+/**
+ * DELETE /api/ecom/super-admin/push/templates/:id
+ * Supprimer un template
+ */
+router.delete('/templates/:id', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const template = await PushTemplate.findByIdAndDelete(id);
+
+    if (!template) {
+      return res.status(404).json({
+        success: false,
+        message: 'Template non trouvé'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Template supprimé'
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e?.message || 'Erreur serveur' });
+  }
+});
+
+/**
+ * POST /api/ecom/super-admin/push/templates/:id/use
+ * Utiliser un template pour envoyer immédiatement
+ */
+router.post('/templates/:id/use', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { scope, workspaceId, personalization = {} } = req.body;
+
+    const template = await PushTemplate.findById(id);
+    if (!template) {
+      return res.status(404).json({
+        success: false,
+        message: 'Template non trouvé'
+      });
+    }
+
+    // Personnalisation des variables dans le titre et body
+    let title = template.title;
+    let body = template.body;
+
+    Object.keys(personalization).forEach(key => {
+      const regex = new RegExp(`{{${key}}}`, 'g');
+      title = title.replace(regex, personalization[key]);
+      body = body.replace(regex, personalization[key]);
+    });
+
+    const payload = {
+      title,
+      body,
+      icon: template.icon || '/icons/icon-192x192.png',
+      badge: template.badge || '/icons/icon-72x72.png',
+      tag: template.tag || 'template',
+      url: template.url || '',
+      actions: template.actions || [],
+      data: {
+        ...template.data,
+        type: 'template_push',
+        templateId: template._id.toString(),
+        url: template.url || ''
+      },
+      requireInteraction: template.options?.requireInteraction || false,
+      silent: template.options?.silent || false
+    };
+
+    const result = await sendToScope({ scope, workspaceId, payload });
+
+    // Incrémenter le compteur d'utilisation
+    await PushTemplate.updateOne(
+      { _id: template._id },
+      { $inc: { usageCount: 1 } }
+    );
+
+    res.json({
+      success: true,
+      data: result,
+      message: `Push envoyé avec le template "${template.name}"`
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e?.message || 'Erreur serveur' });
+  }
+});
+
+/**
+ * POST /api/ecom/super-admin/push/templates/:id/schedule
+ * Utiliser un template pour planifier un envoi
+ */
+router.post('/templates/:id/schedule', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { scope, workspaceId, sendAt, personalization = {} } = req.body;
+
+    const template = await PushTemplate.findById(id);
+    if (!template) {
+      return res.status(404).json({
+        success: false,
+        message: 'Template non trouvé'
+      });
+    }
+
+    if (!sendAt) {
+      return res.status(400).json({
+        success: false,
+        message: 'sendAt (date d\'envoi) est requis'
+      });
+    }
+
+    const sendAtDate = new Date(sendAt);
+    if (Number.isNaN(sendAtDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'sendAt invalide'
+      });
+    }
+
+    // Personnalisation des variables
+    let title = template.title;
+    let body = template.body;
+
+    Object.keys(personalization).forEach(key => {
+      const regex = new RegExp(`{{${key}}}`, 'g');
+      title = title.replace(regex, personalization[key]);
+      body = body.replace(regex, personalization[key]);
+    });
+
+    const scheduled = await PushScheduledNotification.create({
+      scope,
+      workspaceId: scope === 'workspace' ? workspaceId : null,
+      title,
+      body,
+      url: template.url || '',
+      tag: template.tag || 'template-scheduled',
+      icon: template.icon || '/icons/icon-192x192.png',
+      badge: template.badge || '/icons/icon-72x72.png',
+      sendAt: sendAtDate,
+      status: 'scheduled',
+      createdBy: req.ecomUser._id,
+      // Stocker les infos du template pour référence
+      templateId: template._id,
+      templateName: template.name
+    });
+
+    res.json({
+      success: true,
+      data: { scheduled },
+      message: `Push planifié avec le template "${template.name}" pour ${sendAtDate.toLocaleString()}`
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e?.message || 'Erreur serveur' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENVOI PERSONNALISÉ DIRECT
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/ecom/super-admin/push/send-advanced
+ * Envoi personnalisé avancé avec toutes les options
+ */
+router.post('/send-advanced', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const {
+      scope,
+      workspaceId,
+      title,
+      body,
+      url,
+      icon,
+      badge,
+      tag,
+      actions,
+      data,
+      requireInteraction,
+      silent,
+      renotify,
+      targetUsers // Array de userIds pour envoi ciblé
+    } = req.body;
+
+    if (!scope || !['global', 'workspace', 'users'].includes(scope)) {
+      return res.status(400).json({
+        success: false,
+        message: 'scope invalide (global, workspace, users)'
+      });
+    }
+
+    if (scope === 'workspace' && !workspaceId) {
+      return res.status(400).json({
+        success: false,
+        message: 'workspaceId requis pour scope=workspace'
+      });
+    }
+
+    if (scope === 'users' && (!targetUsers || !Array.isArray(targetUsers))) {
+      return res.status(400).json({
+        success: false,
+        message: 'targetUsers (array) requis pour scope=users'
+      });
+    }
+
+    if (!title || !body) {
+      return res.status(400).json({
+        success: false,
+        message: 'title et body sont requis'
+      });
+    }
+
+    const payload = {
+      title,
+      body,
+      icon: icon || '/icons/icon-192x192.png',
+      badge: badge || '/icons/icon-72x72.png',
+      tag: tag || 'custom-push',
+      data: {
+        ...data,
+        url: url || '',
+        type: 'advanced_push'
+      },
+      actions: actions || [],
+      requireInteraction: requireInteraction || false,
+      silent: silent || false,
+      renotify: renotify || false
+    };
+
+    let result;
+
+    if (scope === 'users') {
+      // Envoi ciblé à des utilisateurs spécifiques
+      const results = [];
+      for (const userId of targetUsers) {
+        const userResult = await sendPushNotificationToUser(userId, payload);
+        results.push({ userId, ...userResult });
+      }
+
+      const successful = results.filter(r => r.success).length;
+      result = {
+        success: successful > 0,
+        total: targetUsers.length,
+        successful,
+        failed: targetUsers.length - successful,
+        details: results
+      };
+    } else {
+      // Envoi global ou par workspace
+      result = await sendToScope({ scope, workspaceId, payload });
+    }
+
+    res.json({
+      success: true,
+      data: result,
+      message: `Push personnalisé envoyé: ${result.successful || 0} succès, ${result.failed || 0} échecs`
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e?.message || 'Erreur serveur' });
+  }
+});
+
+/**
+ * POST /api/ecom/super-admin/push/preview
+ * Prévisualiser un push avant envoi
+ */
+router.post('/preview', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const {
+      title,
+      body,
+      icon,
+      badge,
+      actions,
+      templateId
+    } = req.body;
+
+    let preview = {
+      title: title || 'Titre de la notification',
+      body: body || 'Contenu de la notification',
+      icon: icon || '/icons/icon-192x192.png',
+      badge: badge || '/icons/icon-72x72.png',
+      actions: actions || []
+    };
+
+    // Si un templateId est fourni, fusionner avec le template
+    if (templateId) {
+      const template = await PushTemplate.findById(templateId);
+      if (template) {
+        preview = {
+          ...preview,
+          title: title || template.title,
+          body: body || template.body,
+          icon: icon || template.icon,
+          badge: badge || template.badge,
+          actions: actions || template.actions
+        };
+      }
+    }
+
+    res.json({
+      success: true,
+      data: { preview }
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e?.message || 'Erreur serveur' });
+  }
+});
+
+/**
+ * GET /api/ecom/super-admin/push/subscriptions
+ * Liste des subscriptions pour debug/statistiques
+ */
+router.get('/subscriptions', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { workspaceId, userId, limit = 50 } = req.query;
+    const filter = {};
+
+    if (workspaceId) filter.workspaceId = workspaceId;
+    if (userId) filter.userId = userId;
+
+    const subscriptions = await Subscription.find(filter)
+      .limit(Math.min(parseInt(limit) || 50, 200))
+      .populate('workspaceId', 'name slug')
+      .populate('userId', 'email name')
+      .lean();
+
+    // Stats globales
+    const stats = await Subscription.aggregate([
+      {
+        $group: {
+          _id: '$workspaceId',
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { count: -1 } }
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        subscriptions,
+        stats,
+        total: subscriptions.length
+      }
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e?.message || 'Erreur serveur' });
+  }
+});
+
+// Fonction helper pour envoyer à un utilisateur spécifique
+async function sendPushNotificationToUser(userId, payload) {
+  try {
+    const subscriptions = await Subscription.find({ userId }).maxTimeMS(5000).catch(() => []);
+
+    if (subscriptions.length === 0) {
+      return { success: false, error: 'Aucun abonnement trouvé' };
+    }
+
+    const webpush = (await import('web-push')).default;
+
+    const results = await Promise.allSettled(
+      subscriptions.map(async (subscription) => {
+        try {
+          await webpush.sendNotification(
+            {
+              endpoint: subscription.endpoint,
+              keys: {
+                p256dh: subscription.keys.p256dh,
+                auth: subscription.keys.auth
+              }
+            },
+            JSON.stringify(payload),
+            { TTL: 86400, urgency: 'normal', topic: payload.tag }
+          );
+          return { success: true, subscriptionId: subscription._id };
+        } catch (error) {
+          if (error.statusCode === 410) {
+            await Subscription.findByIdAndDelete(subscription._id);
+          }
+          return { success: false, error: error.message, subscriptionId: subscription._id };
+        }
+      })
+    );
+
+    const successful = results.filter(r => r.value?.success).length;
+    return {
+      success: successful > 0,
+      total: subscriptions.length,
+      successful,
+      failed: subscriptions.length - successful
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
 
 export default router;

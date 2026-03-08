@@ -9,6 +9,8 @@ import CloseuseAssignment from '../models/CloseuseAssignment.js';
 import Notification from '../models/Notification.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { notifyNewOrder, notifyOrderStatus, notifyTeamOrderCreated, notifyTeamOrderStatusChanged } from '../services/notificationHelper.js';
+import { sendWhatsAppMessage, sendOrderNotification } from '../services/whatsappService.js';
+import { formatInternationalPhone, isValidWhatsAppNumber } from '../utils/phoneUtils.js';
 import { EventEmitter } from 'events';
 
 const router = express.Router();
@@ -1087,6 +1089,7 @@ async function notifyLivreursOfNewOrder(order, workspaceId) {
           await sendWhatsAppMessage({ 
             to: livreur.phone, 
             message: whatsappMessage,
+            workspaceId: workspaceId,
             userId: livreur._id,
             firstName: livreur.name 
           });
@@ -1155,6 +1158,7 @@ async function notifyOrderTaken(order, workspaceId, takenByLivreurId) {
           await sendWhatsAppMessage({ 
             to: livreur.phone, 
             message: whatsappMessage,
+            workspaceId,
             userId: livreur._id,
             firstName: livreur.name 
           });
@@ -1215,6 +1219,7 @@ async function sendOrderToCustomNumber(order, workspaceId) {
       await sendWhatsAppMessage({ 
         to: customWhatsAppNumber, 
         message: whatsappMessage,
+        workspaceId,
         userId: 'system',
         firstName: 'System'
       });
@@ -2928,8 +2933,9 @@ router.post('/:id/send-whatsapp', requireEcomAuth, validateEcomAccess('products'
       await sendWhatsAppMessage({ 
         to: phoneNumber, 
         message: whatsappMessage,
-        userId: req.user._id,
-        firstName: req.user.name 
+        workspaceId: req.workspaceId,
+        userId: req.ecomUser._id,
+        firstName: req.ecomUser.name 
       });
       
       console.log(`✅ WhatsApp envoyé à ${phoneNumber} pour la commande #${order.orderId}`);
@@ -2962,10 +2968,18 @@ router.post('/config/whatsapp', requireEcomAuth, validateEcomAccess('products', 
   try {
     const { customWhatsAppNumber } = req.body;
     
-    // Validation du format du numéro
-    if (customWhatsAppNumber && !/^237\d{8,}$/.test(customWhatsAppNumber)) {
-      return res.status(400).json({ success: false, message: 'Format invalide. Le numéro doit commencer par 237 suivi d\'au moins 8 chiffres' });
+    // Validation du format international (tous pays)
+    if (customWhatsAppNumber) {
+      const phoneCheck = formatInternationalPhone(customWhatsAppNumber);
+      if (!phoneCheck.success) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `Format de numéro invalide: ${phoneCheck.error}. Exemples: 237699887766, 33612345678, 18005551234` 
+        });
+      }
     }
+    
+    const cleanNumber = customWhatsAppNumber ? formatInternationalPhone(customWhatsAppNumber).formatted : '';
     
     const settings = await WorkspaceSettings.findOneAndUpdate(
       { workspaceId: req.workspaceId },
@@ -3151,8 +3165,9 @@ router.post('/test-whatsapp', requireEcomAuth, validateEcomAccess('products', 'w
     await sendWhatsAppMessage({
       to: targetNumber,
       message: testMessage,
-      userId: req.user._id,
-      firstName: req.user.name || 'Admin'
+      workspaceId: req.workspaceId,
+      userId: req.ecomUser._id,
+      firstName: req.ecomUser.name || 'Admin'
     });
     
     res.json({ success: true, message: 'Message de test envoyé avec succès' });

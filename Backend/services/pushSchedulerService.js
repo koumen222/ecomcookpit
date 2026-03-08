@@ -55,10 +55,14 @@ const processScheduled = async () => {
         badge: updated.badge,
         tag: updated.tag,
         data: {
+          ...updated.data,
           url: updated.url || '',
           type: 'super_admin_scheduled',
           scheduledId: updated._id.toString()
-        }
+        },
+        actions: updated.actions || [],
+        requireInteraction: updated.requireInteraction || false,
+        silent: updated.silent || false
       };
 
       const result = await sendToScope({

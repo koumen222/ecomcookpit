@@ -8,6 +8,8 @@ import evolutionApiService from '../services/evolutionApiService.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { normalizeCity, deduplicateCities } from '../utils/cityNormalizer.js';
 import { checkMessageLimit, incrementMessageCount } from '../services/messageLimitService.js';
+import { sendWhatsAppMessage } from '../services/whatsappService.js';
+import { formatInternationalPhone } from '../utils/phoneUtils.js';
 
 // Helper pour convertir en ObjectId
 const toObjectId = (v) => {
@@ -17,16 +19,15 @@ const toObjectId = (v) => {
   return null;
 };
 
-// Import conditionnel du service WhatsApp
+// Helper functions
 let analyzeSpamRisk = () => ({ risk: 'LOW', score: 0, warnings: [], recommendations: [] });
 let validateMessageBeforeSend = () => true;
-let sendWhatsAppMessage = async () => ({ messageId: 'mock-id', logId: 'mock-log-id' });
 let getHumanDelayWithVariation = () => 5000;
 let simulateHumanBehavior = async () => {};
-let sanitizePhoneNumber = (phone) => phone?.replace(/\D/g, '') || null;
-
-// Import du nouveau service d'intégration WhatsApp SaaS
-let sendWhatsAppMessageV2 = async () => ({ data: { messageId: 'mock-id' } });
+let sanitizePhoneNumber = (phone) => {
+  const result = formatInternationalPhone(phone);
+  return result.success ? result.formatted : null;
+};
 
 const router = express.Router();
 

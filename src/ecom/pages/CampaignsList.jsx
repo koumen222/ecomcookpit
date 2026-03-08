@@ -168,7 +168,8 @@ const CampaignsList = () => {
 
       if (!response.ok) {
         const err = await response.json();
-        setError(err.message || 'Erreur envoi');
+        const errorMsg = err.message || err.error || 'Erreur envoi';
+        setError(errorMsg);
         setSending(null); setShowProgress(null); setSendProgress(null);
         return;
       }
@@ -374,7 +375,7 @@ const CampaignsList = () => {
                   <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400">
                     <span className="flex items-center gap-1">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                      {c.stats?.targeted || 0} ciblés
+                      {(c.stats?.targeted || c.recipientSnapshotIds?.length || c.selectedClientIds?.length || 0)} ciblés
                     </span>
                     {c.stats?.sent > 0 && (
                       <span className="text-green-600 font-medium">{c.stats.sent} envoyés</span>

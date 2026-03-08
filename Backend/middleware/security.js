@@ -88,7 +88,8 @@ const auditLogSchema = new mongoose.Schema({
     'EXPORT_DATA', 'SYNC_DATA',
     'VIEW_SENSITIVE_DATA', 'DECRYPT_DATA',
     'SETTINGS_CHANGE', 'SECURITY_EVENT',
-    'DELETE_ALL_USER_DATA'
+    'DELETE_ALL_USER_DATA',
+    'WHATSAPP_POSTULATION_UPDATE'
   ]},
   
   // Détails

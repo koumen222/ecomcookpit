@@ -64,6 +64,36 @@ const pushScheduledNotificationSchema = new mongoose.Schema({
     ref: 'EcomUser',
     required: true,
     index: true
+  },
+  // Template utilisé (optionnel)
+  templateId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'PushTemplate',
+    default: null
+  },
+  templateName: {
+    type: String,
+    default: ''
+  },
+  // Actions sur la notification
+  actions: [{
+    action: { type: String },
+    title: { type: String },
+    icon: { type: String }
+  }],
+  // Données additionnelles
+  data: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  // Options avancées
+  requireInteraction: {
+    type: Boolean,
+    default: false
+  },
+  silent: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true,
