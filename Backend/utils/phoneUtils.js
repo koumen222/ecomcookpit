@@ -211,16 +211,56 @@ export function formatInternationalPhone(phone) {
     }
   }
 
-  // Si pas de pays trouvé, essayer de détecter par la longueur
+  // Si pas de pays trouvé, essayer de détecter automatiquement basé sur des patterns communs
   if (!countryInfo) {
-    // Numéro sans indicatif détecté - on peut essayer d'ajouter un indicatif par défaut
-    // Mais pour l'instant on retourne une erreur
-    return {
-      success: false,
-      error: 'Indicatif pays non reconnu. Assurez-vous d\'inclure l\'indicatif (ex: 237, 33, 1)',
-      formatted: digits,
-      possibleCountries: []
-    };
+    const possibleCountries = [];
+    
+    // Essayer de détecter le pays basé sur le premier chiffre et la longueur
+    // Cameroun: 6XXXXXXXX (9 chiffres)
+    if (digits.startsWith('6') && digits.length === 9) {
+      possibleCountries.push({ prefix: '237', info: COUNTRY_PHONE_PATTERNS['237'] });
+    }
+    // France: commence par 0 ou 6/7 et fait 9-10 chiffres
+    if ((digits.startsWith('0') || digits.startsWith('6') || digits.startsWith('7')) && (digits.length === 9 || digits.length === 10)) {
+      possibleCountries.push({ prefix: '33', info: COUNTRY_PHONE_PATTERNS['33'] });
+    }
+    // Côte d'Ivoire: commence par 0 et fait 10 chiffres
+    if (digits.startsWith('0') && digits.length === 10) {
+      possibleCountries.push({ prefix: '225', info: COUNTRY_PHONE_PATTERNS['225'] });
+    }
+    // Sénégal: commence par 7 et fait 9 chiffres
+    if (digits.startsWith('7') && digits.length === 9) {
+      possibleCountries.push({ prefix: '221', info: COUNTRY_PHONE_PATTERNS['221'] });
+    }
+    // USA/Canada: 10 chiffres
+    if (digits.length === 10) {
+      possibleCountries.push({ prefix: '1', info: COUNTRY_PHONE_PATTERNS['1'] });
+    }
+    
+    // Si un seul pays possible, l'utiliser
+    if (possibleCountries.length === 1) {
+      const country = possibleCountries[0];
+      // Enlever le 0 initial si présent (format local)
+      const localNumber = digits.startsWith('0') ? digits.substring(1) : digits;
+      digits = country.prefix + localNumber;
+      countryInfo = country.info;
+      matchedPrefix = country.prefix;
+    } else if (possibleCountries.length > 1) {
+      // Plusieurs pays possibles - utiliser le premier (priorité Cameroun)
+      const country = possibleCountries.find(c => c.prefix === '237') || possibleCountries[0];
+      const localNumber = digits.startsWith('0') ? digits.substring(1) : digits;
+      digits = country.prefix + localNumber;
+      countryInfo = country.info;
+      matchedPrefix = country.prefix;
+    } else {
+      // Aucun pays détecté
+      return {
+        success: false,
+        error: 'Indicatif pays non reconnu. Assurez-vous d\'inclure l\'indicatif (ex: +237, +33, +1)',
+        formatted: digits,
+        possibleCountries: []
+      };
+    }
   }
 
   // Calculer la longueur sans l'indicatif

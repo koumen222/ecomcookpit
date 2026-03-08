@@ -308,7 +308,7 @@ router.post('/send', async (req, res) => {
         success: false,
         error: limitCheck.reason,
         usage: limitCheck.usage,
-        upgradeUrl: 'https://zenchat.app/pricing'
+        upgradeUrl: 'https://zechat.site/pricing'
       });
     }
 

@@ -233,7 +233,7 @@ const WhatsAppConnexion = () => {
               <p className="text-sm text-blue-800">
                 Vous n'avez pas encore de compte ZenChat ? {' '}
                 <a 
-                  href="https://zenchat.app/signup" 
+                  href="https://zechat.site/signup" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="font-semibold underline hover:text-blue-900 inline-flex items-center gap-1"

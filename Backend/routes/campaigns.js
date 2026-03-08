@@ -439,7 +439,6 @@ router.post('/preview', requireEcomAuth, async (req, res) => {
 
       const orders = await Order.find(orderFilter)
         .select('clientName clientPhone city address product price date status quantity')
-        .limit(500)
         .lean();
 
       console.log(`✅ [PREVIEW] ${orders.length} commandes trouvées`);
@@ -477,7 +476,6 @@ router.post('/preview', requireEcomAuth, async (req, res) => {
 
     const clients = await Client.find(filter)
       .select('firstName lastName phone city products totalOrders totalSpent status tags address lastContactAt')
-      .limit(500)
       .lean();
 
     console.log(`✅ [PREVIEW] ${clients.length} clients trouvés via filtres directs`);
@@ -506,7 +504,7 @@ router.post('/:id/preview', requireEcomAuth, async (req, res) => {
 
     console.log(`🔍 [PREVIEW-ID] Filtre MongoDB:`, JSON.stringify(filter));
 
-    const clients = await Client.find(filter).select('firstName lastName phone city products totalOrders totalSpent status tags').limit(500);
+    const clients = await Client.find(filter).select('firstName lastName phone city products totalOrders totalSpent status tags').lean();
     
     console.log(`✅ [PREVIEW-ID] ${clients.length} clients trouvés pour "${campaign.name}"`);
 
@@ -728,7 +726,7 @@ router.post('/', requireEcomAuth, async (req, res) => {
           const clients = await Client.find({
             phone: { $in: phones },
             workspaceId: req.workspaceId
-          }).select('_id phone').limit(1000);
+          }).select('_id phone');
           
           recipientSnapshotIds = clients.map(c => c._id);
           targetedCount = recipientSnapshotIds.length;
@@ -764,7 +762,7 @@ router.post('/', requireEcomAuth, async (req, res) => {
         const clients = await Client.find({
           phone: { $in: phones },
           workspaceId: req.workspaceId
-        }).select('_id').limit(1000);
+        }).select('_id');
         
         recipientSnapshotIds = clients.map(c => c._id);
         targetedCount = recipientSnapshotIds.length;
@@ -776,7 +774,7 @@ router.post('/', requireEcomAuth, async (req, res) => {
         const filter = buildClientFilter(req.workspaceId, targetFilters || {});
         filter.phone = { $exists: true, $ne: '' };
         
-        const clients = await Client.find(filter).select('_id').limit(1000);
+        const clients = await Client.find(filter).select('_id');
         recipientSnapshotIds = clients.map(c => c._id);
         targetedCount = recipientSnapshotIds.length;
         
@@ -858,7 +856,7 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
         const filter = buildClientFilter(req.workspaceId, req.body.targetFilters || {});
         filter.phone = { $exists: true, $ne: '' };
         
-        const clients = await Client.find(filter).select('_id').limit(1000);
+        const clients = await Client.find(filter).select('_id');
         recipientSnapshotIds = clients.map(c => c._id);
         
         console.log(`🎯 Modification: ${recipientSnapshotIds.length} clients calculés depuis nouveaux filtres`);
@@ -942,6 +940,11 @@ router.post('/:id/send', requireEcomAuth, async (req, res) => {
     }
 
     // Déterminer les destinataires
+    console.log(`📋 [SEND] Récupération des destinataires pour campagne "${campaign.name}"`);
+    console.log(`📋 [SEND] recipientSnapshotIds: ${campaign.recipientSnapshotIds?.length || 0}`);
+    console.log(`📋 [SEND] selectedClientIds: ${campaign.selectedClientIds?.length || 0}`);
+    console.log(`📋 [SEND] targetFilters:`, JSON.stringify(campaign.targetFilters));
+
     let recipients = []; // [{ phone, client, orderData }]
     const hasOrderFilters = campaign.targetFilters && (
       campaign.targetFilters.orderStatus || campaign.targetFilters.orderCity ||
@@ -949,32 +952,53 @@ router.post('/:id/send', requireEcomAuth, async (req, res) => {
     );
 
     if (campaign.recipientSnapshotIds && campaign.recipientSnapshotIds.length > 0) {
+      console.log(`🔍 [SEND] Méthode 1: Utilisation de recipientSnapshotIds (${campaign.recipientSnapshotIds.length} IDs)`);
       const clients = await Client.find({ _id: { $in: campaign.recipientSnapshotIds } })
         .select('firstName lastName phone city products totalOrders totalSpent lastContactAt')
         .lean();
-      recipients = clients.filter(c => c.phone).map(c => ({ phone: c.phone, client: c, orderData: null }));
+      console.log(`✅ [SEND] ${clients.length} clients trouvés en base`);
+      const clientsWithPhone = clients.filter(c => c.phone && c.phone.trim());
+      console.log(`📞 [SEND] ${clientsWithPhone.length} clients avec numéro de téléphone`);
+      recipients = clientsWithPhone.map(c => ({ phone: c.phone, client: c, orderData: null }));
     } else if (campaign.selectedClientIds && campaign.selectedClientIds.length > 0) {
+      console.log(`🔍 [SEND] Méthode 2: Utilisation de selectedClientIds (${campaign.selectedClientIds.length} IDs)`);
       const clients = await Client.find({ _id: { $in: campaign.selectedClientIds } })
         .select('firstName lastName phone city products totalOrders totalSpent lastContactAt')
         .lean();
-      recipients = clients.filter(c => c.phone).map(c => ({ phone: c.phone, client: c, orderData: null }));
+      console.log(`✅ [SEND] ${clients.length} clients trouvés en base`);
+      const clientsWithPhone = clients.filter(c => c.phone && c.phone.trim());
+      console.log(`📞 [SEND] ${clientsWithPhone.length} clients avec numéro de téléphone`);
+      recipients = clientsWithPhone.map(c => ({ phone: c.phone, client: c, orderData: null }));
     } else if (hasOrderFilters) {
+      console.log(`🔍 [SEND] Méthode 3: Utilisation de filtres de commandes`);
       const orderMap = await getClientsFromOrderFilters(req.workspaceId, campaign.targetFilters);
+      console.log(`✅ [SEND] ${orderMap.size} commandes trouvées avec numéros uniques`);
       for (const [phone, orderData] of orderMap) {
-        recipients.push({
-          phone,
-          client: { firstName: orderData.clientName?.split(' ')[0] || '', lastName: orderData.clientName?.split(' ').slice(1).join(' ') || '', phone },
-          orderData
-        });
+        if (phone && phone.trim()) {
+          recipients.push({
+            phone,
+            client: { firstName: orderData.clientName?.split(' ')[0] || '', lastName: orderData.clientName?.split(' ').slice(1).join(' ') || '', phone },
+            orderData
+          });
+        }
       }
+      console.log(`📞 [SEND] ${recipients.length} destinataires extraits des commandes`);
     } else if (campaign.targetFilters && Object.keys(campaign.targetFilters).some(k => campaign.targetFilters[k])) {
+      console.log(`🔍 [SEND] Méthode 4: Utilisation de filtres clients directs`);
       const filter = buildClientFilter(req.workspaceId, campaign.targetFilters);
       filter.phone = { $exists: true, $ne: '' };
-      const clients = await Client.find(filter).select('firstName lastName phone city products totalOrders totalSpent lastContactAt').limit(1000).lean();
+      console.log(`🔍 [SEND] Filtre MongoDB:`, JSON.stringify(filter));
+      const clients = await Client.find(filter).select('firstName lastName phone city products totalOrders totalSpent lastContactAt').lean();
+      console.log(`✅ [SEND] ${clients.length} clients trouvés`);
       recipients = clients.map(c => ({ phone: c.phone, client: c, orderData: null }));
+    } else {
+      console.log(`⚠️ [SEND] Aucune méthode de ciblage détectée`);
     }
 
+    console.log(`📊 [SEND] Total destinataires bruts: ${recipients.length}`);
+
     if (recipients.length === 0) {
+      console.error(`❌ [SEND] Aucun destinataire trouvé pour cette campagne`);
       return res.status(400).json({ success: false, message: 'Aucun destinataire trouvé pour cette campagne' });
     }
 
@@ -989,18 +1013,46 @@ router.post('/:id/send', requireEcomAuth, async (req, res) => {
         success: false,
         message: limitCheck.reason,
         usage: limitCheck.usage,
-        upgradeUrl: 'https://zenchat.app/pricing'
+        upgradeUrl: 'https://zechat.site/pricing'
       });
     }
 
-    console.log(`📤 Envoi campagne "${campaign.name}" à ${recipients.length} destinataires via ${instance.instanceName}`);
+    // Nettoyer et formater les numéros de téléphone
+    console.log(`🧹 [SEND] Nettoyage et formatage des ${recipients.length} numéros de téléphone...`);
+    const validRecipients = [];
+    const invalidNumbers = [];
+
+    for (const recipient of recipients) {
+      const cleanPhone = sanitizePhoneNumber(recipient.phone);
+      if (cleanPhone) {
+        validRecipients.push({ ...recipient, cleanPhone });
+      } else {
+        invalidNumbers.push(recipient.phone);
+      }
+    }
+
+    console.log(`✅ [SEND] ${validRecipients.length} numéros valides après formatage`);
+    console.log(`❌ [SEND] ${invalidNumbers.length} numéros invalides rejetés`);
+    if (invalidNumbers.length > 0 && invalidNumbers.length <= 10) {
+      console.log(`🚫 [SEND] Numéros invalides:`, invalidNumbers);
+    }
+
+    if (validRecipients.length === 0) {
+      console.error(`❌ [SEND] Aucun numéro valide après formatage`);
+      return res.status(400).json({ 
+        success: false, 
+        message: `Aucun numéro valide après formatage. ${invalidNumbers.length} numéros rejetés.`,
+        details: { totalRecipients: recipients.length, validNumbers: 0, invalidNumbers: invalidNumbers.length }
+      });
+    }
+
+    console.log(`📤 Envoi campagne "${campaign.name}" à ${validRecipients.length} destinataires via ${instance.instanceName}`);
     console.log(`📊 Limites: ${limitCheck.usage.dailyUsed}/${limitCheck.usage.dailyLimit} aujourd'hui, ${limitCheck.usage.monthlyUsed}/${limitCheck.usage.monthlyLimit} ce mois`);
 
     let sent = 0;
     let failed = 0;
 
-    for (const { phone, client, orderData } of recipients) {
-      const cleanPhone = sanitizePhoneNumber(phone);
+    for (const { phone, client, orderData, cleanPhone } of validRecipients) {
       if (!cleanPhone) { failed++; continue; }
 
       // Vérifier les limites avant chaque message
@@ -1033,9 +1085,9 @@ router.post('/:id/send', requireEcomAuth, async (req, res) => {
     }
 
     // Mettre à jour la campagne
-    campaign.status = failed === recipients.length ? 'failed' : 'sent';
+    campaign.status = failed === validRecipients.length ? 'failed' : 'sent';
     campaign.sentAt = new Date();
-    campaign.stats = { ...campaign.stats.toObject?.() || campaign.stats, sent, failed, targeted: recipients.length };
+    campaign.stats = { ...campaign.stats.toObject?.() || campaign.stats, sent, failed, targeted: validRecipients.length };
     await campaign.save();
 
     // Mettre à jour le lastSeen de l'instance
