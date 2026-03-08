@@ -159,7 +159,7 @@ router.get('/:subdomain', async (req, res) => {
           // Theme config
           template: theme.template || 'classic',
           primaryColor: theme.primaryColor || '#0F6B4F',
-          ctaColor: theme.ctaColor || settings.ctaColor || '#0F6B4F',
+          accentColor: theme.accentColor || theme.ctaColor || settings.accentColor || settings.ctaColor || '#059669',
           backgroundColor: theme.backgroundColor || '#FFFFFF',
           textColor: theme.textColor || '#111827',
           font: theme.font || settings.font || 'inter',

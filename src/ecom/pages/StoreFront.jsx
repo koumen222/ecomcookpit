@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Search, ShoppingBag, ChevronLeft, ChevronRight, Loader2, Phone, MessageCircle, Filter } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
+import { injectStoreCssVars } from '../hooks/useStoreData.js';
 
 /**
  * StoreFront — Public-facing product grid page.
@@ -50,10 +51,17 @@ const StoreFront = () => {
       try {
         const res = await publicStoreApi.getStore(subdomain);
         const data = res.data?.data;
-        setStore(data?.store);
+        const storeData = data?.store;
+        setStore(storeData);
         setProducts(data?.products || []);
         setPagination(data?.pagination || { page: 1, limit: 20, total: 0, pages: 0 });
         setCategories(data?.categories || []);
+        
+        // Injecter les couleurs et le thème du store
+        if (storeData) {
+          injectStoreCssVars(storeData);
+        }
+        
         clearTimeout(timeoutId);
       } catch (err) {
         clearTimeout(timeoutId);

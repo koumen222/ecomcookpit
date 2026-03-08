@@ -365,6 +365,18 @@ router.put('/settings', requireEcomAuth, requireWorkspace, async (req, res) => {
       { new: true }
     );
     
+    // Diffuser les changements de couleurs en temps réel
+    if (result?.subdomain) {
+      const colorUpdate = {
+        primaryColor: req.body.primaryColor,
+        accentColor: req.body.accentColor,
+        backgroundColor: req.body.backgroundColor,
+        textColor: req.body.textColor,
+        font: req.body.font,
+      };
+      emitThemeUpdate(result.subdomain, colorUpdate);
+    }
+    
     if (!result) {
       console.warn(`${DEBUG_TAG} PUT workspace not found`, {
         workspaceId: req.workspaceId,

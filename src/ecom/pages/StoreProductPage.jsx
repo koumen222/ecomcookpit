@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, ShoppingCart, MessageCircle,
   ShoppingBag, Shield, RotateCcw, Truck, Check, Minus, Plus,
-  ChevronDown, ChevronUp, ArrowLeft,
+  ChevronDown, ChevronUp, ArrowLeft, Star,
 } from 'lucide-react';
 import { useSubdomain } from '../hooks/useSubdomain';
 import { useStoreProduct } from '../hooks/useStoreData';
@@ -191,12 +191,48 @@ const ImageGallery = ({ images = [] }) => {
   );
 };
 
+// ── Product Reviews (Stars) ─────────────────────────────────────────────────
+const ProductReviews = ({ rating = 4.5, reviewCount = 128 }) => {
+  const fullStars = Math.floor(rating);
+  const hasHalfStar = rating % 1 >= 0.5;
+  
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        {[...Array(5)].map((_, i) => (
+          <Star
+            key={i}
+            size={16}
+            fill={i < fullStars ? '#F59E0B' : (i === fullStars && hasHalfStar ? 'url(#halfStar)' : 'transparent')}
+            color={i < fullStars || (i === fullStars && hasHalfStar) ? '#F59E0B' : '#D1D5DB'}
+            style={{
+              clipPath: i === fullStars && hasHalfStar ? 'inset(0 50% 0 0)' : undefined,
+            }}
+          />
+        ))}
+      </div>
+      <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--s-text)' }}>
+        {rating.toFixed(1)}
+      </span>
+      <span style={{ fontSize: 13, color: 'var(--s-text2)' }}>
+        ({reviewCount} avis)
+      </span>
+    </div>
+  );
+};
+
 // ── Description (handles both HTML and markdown) ─────────────────────────────
 const ProductDescription = ({ content }) => {
   const [expanded, setExpanded] = useState(false);
-  if (!content) return null;
-  const isHTML = /<[^>]+>/.test(content);
-  const isLong = content.length > 400;
+  
+  // Nettoyer le contenu : enlever les espaces et balises vides
+  const cleanContent = content?.toString().trim() || '';
+  const hasContent = cleanContent.length > 0 && !/^\s*<[^>]*>\s*<\/[^>]*>\s*$/.test(cleanContent);
+  
+  if (!hasContent) return null;
+  
+  const isHTML = /<[^>]+>/.test(cleanContent);
+  const isLong = cleanContent.length > 400 || (isHTML && cleanContent.replace(/<[^>]*>/g, '').length > 300);
 
   const bodyStyle = {
     fontSize: 15, lineHeight: 1.75, color: 'var(--s-text2)',
@@ -209,9 +245,9 @@ const ProductDescription = ({ content }) => {
   return (
     <div>
       {isHTML ? (
-        <div style={bodyStyle} dangerouslySetInnerHTML={{ __html: content }} />
+        <div style={bodyStyle} dangerouslySetInnerHTML={{ __html: cleanContent }} />
       ) : (
-        <p style={{ ...bodyStyle, whiteSpace: 'pre-wrap', margin: 0 }}>{content}</p>
+        <p style={{ ...bodyStyle, whiteSpace: 'pre-wrap', margin: 0 }}>{cleanContent}</p>
       )}
       {isLong && (
         <button onClick={() => setExpanded(e => !e)} style={{
@@ -443,11 +479,14 @@ const StoreProductPage = () => {
                 {/* Name */}
                 <h1 style={{
                   fontSize: 'clamp(22px, 3.5vw, 32px)', fontWeight: 800,
-                  color: 'var(--s-text)', margin: '8px 0 16px',
+                  color: 'var(--s-text)', margin: '8px 0 8px',
                   lineHeight: 1.15, letterSpacing: '-0.02em', fontFamily: 'var(--s-font)',
                 }}>
                   {product.name}
                 </h1>
+
+                {/* Reviews */}
+                <ProductReviews rating={product.rating || 4.5} reviewCount={product.reviewCount || 0} />
 
                 {/* Price */}
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
@@ -539,7 +578,7 @@ const StoreProductPage = () => {
                 </div>
 
                 {/* Description */}
-                {product.description && (
+                {product.description?.toString().trim() && (
                   <div style={{ marginBottom: 16, paddingTop: 20, borderTop: '1px solid var(--s-border)' }}>
                     <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--s-text)', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                       Description
