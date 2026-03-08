@@ -82,6 +82,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const [url, setUrl] = useState('');
   const [description, setDescription] = useState('');
   const [photos, setPhotos] = useState([]);
+  const [marketingApproach, setMarketingApproach] = useState('AIDA'); // AIDA, PAS, BAB, FAB
   const [currentStep, setCurrentStep] = useState(0);
   const [stepLabel, setStepLabel] = useState('');
   const [product, setProduct] = useState(null);
@@ -139,6 +140,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     }
     
     formData.append('withImages', 'true');
+    formData.append('marketingApproach', marketingApproach);
     photos.forEach(f => formData.append('images', f));
     
     const controller = new AbortController();
@@ -292,6 +294,38 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       descHtml += `</ul></div>`;
     }
 
+    // ── Guide d'utilisation (si applicable) ───────────────────────────────────
+    if (product.guide_utilisation?.applicable !== false && product.guide_utilisation?.etapes?.length) {
+      const g = product.guide_utilisation;
+      descHtml += `<div style="margin:40px 0;padding:28px;background:linear-gradient(135deg,#eff6ff,#e0f2fe);border-radius:20px;border:1px solid #bae6fd;">`;
+      descHtml += `<h3 style="font-size:20px;font-weight:800;color:#0369a1;margin:0 0 20px;"><strong>📋 ${g.titre || 'Comment utiliser ce produit'}</strong></h3>`;
+      descHtml += `<div style="display:flex;flex-direction:column;gap:14px;">`;
+      g.etapes.forEach((e) => {
+        descHtml += `<div style="display:flex;align-items:flex-start;gap:14px;">`;
+        descHtml += `<div style="min-width:32px;height:32px;border-radius:50%;background:#0369a1;color:#fff;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${e.numero}</div>`;
+        descHtml += `<div><p style="margin:0 0 4px;font-weight:700;font-size:15px;color:#0c4a6e;">${e.action}</p>`;
+        if (e.detail) descHtml += `<p style="margin:0;font-size:13px;color:#0369a1;line-height:1.5;">${e.detail}</p>`;
+        descHtml += `</div></div>`;
+      });
+      descHtml += `</div></div>`;
+    }
+
+    // ── Garantie / Réassurance ─────────────────────────────────────────────────
+    if (product.reassurance?.titre) {
+      const r = product.reassurance;
+      descHtml += `<div style="margin:40px 0;padding:28px;background:linear-gradient(135deg,#fefce8,#fef9c3);border-radius:20px;border:1px solid #fde68a;">`;
+      descHtml += `<h3 style="font-size:20px;font-weight:800;color:#92400e;margin:0 0 12px;"><strong>🛡️ ${r.titre}</strong></h3>`;
+      if (r.texte) descHtml += `<p style="font-size:15px;color:#78350f;line-height:1.7;margin:0 0 16px;">${r.texte}</p>`;
+      if (r.points?.length) {
+        descHtml += `<ul style="margin:0;padding:0;list-style:none;">`;
+        r.points.forEach(p => {
+          descHtml += `<li style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;font-size:14px;color:#78350f;font-weight:600;"><span style="flex-shrink:0;">✅</span><span>${p}</span></li>`;
+        });
+        descHtml += `</ul>`;
+      }
+      descHtml += `</div>`;
+    }
+
     // ── FAQ détaillée ──────────────────────────────────────────────────────────
     if (product.faq?.length) {
       descHtml += `<div style="margin:48px 0;">`;
@@ -313,6 +347,10 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     
     if (product.heroImage) {
       allImages.push({ url: product.heroImage, alt: product.title || 'Produit', order: 0 });
+    }
+
+    if (product.beforeAfterImage) {
+      allImages.push({ url: product.beforeAfterImage, alt: 'Avant / Après', order: 1, type: 'before-after' });
     }
     
     if (product.realPhotos?.length) {
@@ -505,6 +543,44 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                 )}
               </div>
 
+              {/* Marketing Approach Selection */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  🎯 Approche marketing
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { value: 'AIDA', label: 'AIDA', desc: 'Attention → Intérêt → Désir → Action' },
+                    { value: 'PAS', label: 'PAS', desc: 'Problème → Agitation → Solution' },
+                    { value: 'BAB', label: 'BAB', desc: 'Avant → Après → Pont' },
+                    { value: 'FAB', label: 'FAB', desc: 'Caractéristiques → Avantages → Bénéfices' }
+                  ].map(approach => (
+                    <button
+                      key={approach.value}
+                      type="button"
+                      onClick={() => setMarketingApproach(approach.value)}
+                      className={`p-3 rounded-xl border-2 text-left transition ${
+                        marketingApproach === approach.value
+                          ? 'border-violet-500 bg-violet-50'
+                          : 'border-gray-200 hover:border-violet-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`text-sm font-bold ${
+                          marketingApproach === approach.value ? 'text-violet-700' : 'text-gray-900'
+                        }`}>
+                          {approach.label}
+                        </span>
+                        {marketingApproach === approach.value && (
+                          <CheckCircle className="w-4 h-4 text-violet-600" />
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 leading-tight">{approach.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* What gets generated */}
               <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl p-4 border border-violet-100">
                 <p className="text-xs font-bold text-violet-700 mb-3 uppercase tracking-wide">CE QUI SERA GÉNÉRÉ</p>
@@ -514,7 +590,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     ['🎨', '4 arguments marketing + 4 affiches IA'],
                     ['✅', '3 raisons d\'acheter persuasives'],
                     ['❓', 'FAQ professionnelle (5 questions)'],
-                    ['�', 'Description e-commerce optimisée'],
+                    ['📝', 'Description e-commerce optimisée'],
                     ['🖼️', 'Affiches publicitaires complètes']
                   ].map(([icon, label]) => (
                     <div key={label} className="flex items-center gap-1.5">
@@ -765,6 +841,26 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               {/* Tab: Photos */}
               {activeTab === 'images' && (
                 <div className="space-y-4">
+                  {/* Visuels IA galerie principale */}
+                  {(product.heroImage || product.beforeAfterImage) && (
+                    <div>
+                      <p className="text-xs font-bold text-violet-600 uppercase tracking-wide mb-2">🖼️ VISUELS GALERIE PRINCIPALE</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {product.heroImage && (
+                          <div>
+                            <ImagePreview src={product.heroImage} label="Hero — Showcase produit" className="aspect-square" />
+                            <p className="text-xs text-center text-gray-400 mt-1">1ère image galerie</p>
+                          </div>
+                        )}
+                        {product.beforeAfterImage && (
+                          <div>
+                            <ImagePreview src={product.beforeAfterImage} label="Avant / Après" className="aspect-square" />
+                            <p className="text-xs text-center text-gray-400 mt-1">2ème image galerie</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   {/* Photos réelles */}
                   <div>
                     <p className="text-xs text-gray-500 font-medium mb-2">{(product.realPhotos || []).length} photos réelles uploadées</p>

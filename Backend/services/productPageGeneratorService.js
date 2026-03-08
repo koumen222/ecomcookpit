@@ -34,125 +34,198 @@ function cleanScrapedText(text) {
 
 // ─── Étape 2 : Groq → JSON structuré ultra fiable ──────────────────
 
-export async function analyzeWithVision(scrapedData, imageBuffers = []) {
+export async function analyzeWithVision(scrapedData, imageBuffers = [], marketingApproach = 'AIDA') {
   const groq = getGroq();
   if (!groq) throw new Error('Clé Groq API non configurée.');
 
   const title = cleanScrapedText(scrapedData.title || '');
   const description = cleanScrapedText(scrapedData.description || scrapedData.rawText || '');
 
-  const userPrompt = `Tu es expert e-commerce et copywriting SPÉCIALISTE du marché africain.
+  // Marketing approach definitions
+  const approachGuides = {
+    AIDA: `APPROCHE AIDA (Attention → Intérêt → Désir → Action) :
+- Angle 1 : ATTENTION — Accroche forte qui capte l'attention (problème urgent ou bénéfice spectaculaire)
+- Angle 2 : INTÉRÊT — Éveiller la curiosité avec des détails fascinants ou des preuves
+- Angle 3 : DÉSIR — Créer l'envie avec la transformation émotionnelle ou le résultat idéal
+- Angle 4 : ACTION — Lever les objections et pousser à l'achat (garantie, urgence, facilité)`,
+
+    PAS: `APPROCHE PAS (Problème → Agitation → Solution) :
+- Angle 1 : PROBLÈME — Identifier clairement le problème principal que vit la cible
+- Angle 2 : AGITATION — Amplifier la douleur, montrer les conséquences de ne rien faire
+- Angle 3 : SOLUTION — Présenter le produit comme LA solution évidente et efficace
+- Angle 4 : PREUVE — Rassurer avec des éléments concrets (qualité, garantie, résultats)`,
+
+    BAB: `APPROCHE BAB (Before → After → Bridge) :
+- Angle 1 : BEFORE — Décrire la situation actuelle frustrante (vie sans le produit)
+- Angle 2 : AFTER — Peindre la vie idéale après avoir utilisé le produit
+- Angle 3 : BRIDGE — Expliquer comment le produit fait le pont entre avant et après
+- Angle 4 : CONFIANCE — Renforcer la crédibilité et éliminer les doutes`,
+
+    FAB: `APPROCHE FAB (Features → Advantages → Benefits) :
+- Angle 1 : FEATURE principale — Caractéristique technique ou composition unique du produit
+- Angle 2 : ADVANTAGE — Avantage pratique direct de cette caractéristique
+- Angle 3 : BENEFIT émotionnel — Bénéfice ressenti dans la vie quotidienne
+- Angle 4 : DIFFÉRENCIATION — Ce qui rend ce produit supérieur aux alternatives`
+  };
+
+  const approachGuide = approachGuides[marketingApproach] || approachGuides.AIDA;
+
+  const userPrompt = `Tu es expert e-commerce et copywriting SPÉCIALISTE du marché africain. Tu dois générer une page produit professionnelle, persuasive et optimisée pour la conversion.
 
 PRODUIT À ANALYSER :
 TITRE : ${title || 'Non disponible'}
 DESCRIPTION : ${description || 'Non disponible'}
 
-RÈGLES CRITIQUES :
-1. 🇫🇷 **100% FRANÇAIS** - AUCUN mot en anglais dans les titres, angles, raisons, FAQ
-2. 🎯 **ANGLES DIFFÉRENTS** - Chaque angle doit aborder un bénéfice UNIQUE et SPÉCIFIQUE au produit
-3. 💡 **RAISONS PERSONNALISÉES** - Basées sur les caractéristiques réelles du produit
-4. ❓ **FAQ SPÉCIFIQUE** - Questions pertinentes pour CE produit exact
-5. 🖼️ **CONTEXTES DIFFÉRENTS** - Chaque affiche dans un contexte unique (maison, bureau, extérieur, sport, etc.)
+═══ ÉTAPE 1 : ANALYSE INTELLIGENTE DU PRODUIT ═══
+Avant de générer quoi que ce soit, réponds mentalement à ces questions :
+- À quoi sert réellement ce produit ?
+- Quel problème principal résout-il ?
+- Qui est la cible idéale (homme, femme, âge, contexte) ?
+- Pourquoi quelqu'un l'achèterait aujourd'hui ?
+- Quelles sont les objections possibles ?
+Utilise ces réponses pour personnaliser TOUT le contenu.
 
-ANALYSE DU PRODUIT :
-- Identifie les bénéfices principaux du produit
-- Détermine les problèmes qu'il résout
-- Trouve 4 angles marketing complètement différents
-- Crée des raisons d'acheter spécifiques et convaincantes
-- Génère une FAQ adaptée au produit
+═══ RÈGLES FONDAMENTALES ═══
+1. 🇫🇷 100% FRANÇAIS dans tout le contenu (sauf prompt_image qui est en anglais)
+2. 🚫 PAS de promesses irréalistes — seulement des bénéfices concrets et crédibles
+3. 🚫 PAS de généricité — chaque mot doit être spécifique à CE produit
+4. ✅ Angles basés sur la FONCTION RÉELLE du produit, les résultats réels, l'expérience utilisateur
+5. ✅ FAQ basée sur les vraies questions que se pose l'acheteur
 
-STRUCTURE DES ANGLES (DOIVENT ÊTRE DIFFÉRENTS) :
-Angle 1 : Focus sur le bénéfice PRINCIPAL
-Angle 2 : Focus sur un bénéfice SECONDAIRE ou CAS D'USAGE
-Angle 3 : Focus sur l'ÉMOTION ou le MODE DE VIE
-Angle 4 : Focus sur la PREUVE SOCIALE ou la CONFIANCE (avis, garantie, certification)
+${approachGuide}
 
-CONTEXTES D'AFFICHES DIFFÉRENTS :
-- Affiche 1 : Contexte intérieur moderne (cuisine, salon, bureau)
-- Affiche 2 : Contexte extérieur ou sportif (jardin, parc, activité)
-- Affiche 3 : Contexte social ou familial (en groupe, avec amis/famille)
-- Affiche 4 : Contexte avant/après ou transformation (résultat visible, comparaison)
+⚠️ IMPORTANT : Suis STRICTEMENT cette structure pour les 4 angles. Chaque angle doit correspondre à l'étape de l'approche marketing sélectionnée.
 
-EXEMPLE POUR UN PRODUIT DE SANTÉ :
-Angle 1: " Énergie naturelle quotidienne" (bénéfice principal)
-Angle 2: " Performance sportive boostée" (cas d'usage)
-Angle 3: " Bien-être familial partagé" (mode de vie)
-Angle 4: " Des milliers de clients satisfaits" (preuve sociale)
+═══ RÈGLES POUR LES IMAGES (CRITIQUES) ═══
+Chaque prompt_image doit décrire une PHOTO DE STYLE DE VIE qui :
+✅ Montre le PRODUIT EN COURS D'UTILISATION dans une scène réaliste
+✅ Illustre le BÉNÉFICE VISIBLE de l'angle correspondant
+✅ Inclut des MODÈLES AFRICAINS authentiques utilisant le produit naturellement
+✅ Fond contextuel africain moderne (maison, bureau, extérieur, etc.)
+✅ Lumière chaude, naturelle, photo commerciale professionnelle
+❌ PAS de texte publicitaire sur l'image
+❌ PAS de call-to-action visible
+❌ PAS de banderoles, badges prix ou mentions promotionnelles
+❌ PAS de montage graphique — photo réaliste uniquement
 
-IMPORTANT POUR LES PROMPTS D'AFFICHE :
+Contextes variés pour les 4 images :
+- Image 1 : Utilisation quotidienne à domicile (cuisine, salon, chambre)
+- Image 2 : Résultat visible ou moment après utilisation
+- Image 3 : Contexte social (famille, ami(e)s, extérieur)
+- Image 4 : Gros plan détail produit OU packaging professionnel
 
-Chaque prompt_affiche doit décrire une AFFICHE PUBLICITAIRE COMPLÈTE incluant :
-- **MODÈLES AFRICAINS** visibles (hommes/femmes selon le produit)
-- **TEXTE EN FRANÇAIS** bien visible sur l'affiche (titre marketing + slogan)
-- **CALL-TO-ACTION EN FRANÇAIS** (ex: "Commandez Maintenant", "Offre Limitée")
-- Mise en scène réaliste du produit en situation d'utilisation
-- Style visuel précis (moderne, premium, minimaliste, etc.)
-- Couleurs dominantes cohérentes
-- Ambiance émotionnelle (confiance, énergie, luxe, etc.)
-- Fond lifestyle contextuel africain (maison moderne, bureau, ville, etc.)
-- Le produit bien visible et identique à la photo de référence
+═══ VISUEL HÉRO — 1ÈRE IMAGE GALERIE (TRÈS IMPORTANT) ═══
+⚠️ RÈGLE ABSOLUE : L'image DOIT utiliser le produit RÉEL fourni par l'utilisateur, JAMAIS un produit généré ou modifié.
 
-Le prompt doit être EN ANGLAIS et DOIT commencer par :
-"Create a complete advertising poster for this product with FRENCH text overlay:
+Le champ "prompt_affiche_hero" doit décrire une AFFICHE E-COMMERCE CARRÉE (1:1) construite autour du PRODUIT RÉEL :
 
-RÈGLES ANTI-HALLUCINATION :
-- Nettoie les informations marketing exagérées du fournisseur
-- Ne garde que les bénéfices réalistes
-- Ne fabrique pas de caractéristiques techniques non présentes
-- Si une information est absente, ne l'invente pas
-- Tout le contenu textuel en FRANÇAIS
+🖼️ IMAGE DU PRODUIT (OBLIGATOIRE) :
+✅ Utilise l'image réelle du produit fournie (claire, propre, mise en valeur)
+❌ N'invente JAMAIS un nouveau produit
+❌ Ne modifie PAS l'emballage
+❌ Ne crée PAS de mockup différent
+✅ Le produit EXACT fourni doit être visible et reconnaissable
 
-Format de réponse STRICT JSON :
+🎨 COMPOSITION VISUELLE :
+✅ CENTRE/GAUCHE : Produit réel bien visible et mis en avant
+✅ DROITE (optionnel) : Modèle africain(e) naturel(le) si pertinent pour le produit
+   - Expression douce, regard caméra
+   - Pose naturelle adaptée au produit
+   - Lumière douce, rendu naturel
+
+🧴 ÉLÉMENTS DE CONVERSION (OBLIGATOIRES) :
+✅ ⭐ Étoiles d'avis clients (4.5-5 étoiles)
+✅ 💰 Prix barré + nouveau prix en orange (gros et visible)
+✅ 🏷️ Badge promo / best-seller en haut
+✅ Titre fort et visible (bénéfice principal, 2-3 lignes max)
+
+🎨 STYLE :
+- Format carré (1:1)
+- Fond clair minimaliste (blanc ou gris très clair)
+- Design e-commerce moderne et crédible
+- Pas d'effets flashy
+- Pas de long texte
+- Pas d'encombrement visuel
+
+EXEMPLE CONCRET (crème anti-cicatrices) :
+"Square 1:1 e-commerce product poster using the REAL product image provided. Center-left: The actual product (tube + box) clearly visible, clean placement, soft shadow. Right side (optional): Natural African woman with gentle expression, soft lighting. Top: Orange badge 'BEST-SELLER SOIN PEAU'. Title: 'Atténuez cicatrices et marques d'acné' (bold, visible). Star rating: ⭐⭐⭐⭐⭐ 4.8/5. Prices: crossed-out '19 000 FCFA', large orange '15 000 FCFA'. Clean white background. Modern e-commerce style, French text, credible design. CRITICAL: Use the exact real product image, never generate a new product."
+
+═══ VISUEL AVANT/APRÈS — 2ÈME IMAGE GALERIE (TRÈS IMPORTANT) ═══
+Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE produit :
+✅ Split-screen : côté gauche = AVANT (le problème concret que CE produit résout)
+✅ Côté droit = APRÈS (le résultat réel et crédible après utilisation)
+✅ Personnes africaines authentiques, transformation réaliste (pas exagérée)
+❌ Aucun texte, aucune flèche, aucun label sur l'image
+→ Exemples selon le produit :
+  • Crème visage → AVANT: peau terne/teint inégal | APRÈS: peau lumineuse/unifiée
+  • Aspirateur → AVANT: sol avec poussière/débris | APRÈS: sol propre et brillant
+  • Complément énergie → AVANT: personne fatiguée au bureau | APRÈS: même personne active/concentrée
+  • Fer à lisser → AVANT: cheveux frisés/indomptés | APRÈS: cheveux lisses et brillants
+  • Casque → AVANT: personne stressée dans environnement bruyant | APRÈS: personne sereine avec casque
+
+═══ FORMAT JSON STRICT ═══
 {
-  "title": "Titre produit court et percutant en français",
-  "hero_headline": "TITRE PRINCIPAL EN MAJUSCULES (3-5 mots max, ex: BOOSTEZ VOTRE BIEN-ÊTRE)",
-  "hero_slogan": "Slogan accrocheur en français (ex: Bouclier Antioxydant Naturel)",
-  "hero_baseline": "Baseline courte (ex: Un soutien naturel du quotidien)",
-  "prompt_affiche_hero": "Create a HERO advertising poster for this product with FRENCH text overlay: Beautiful smiling African woman holding the product prominently, natural outdoor background with greenery. LARGE BOLD FRENCH HEADLINE at top: '[hero_headline]'. Stylized golden brush stroke with text: '[hero_slogan]'. Product bottle clearly visible in hand, centered. Bottom section with icons and benefits text in French. Baseline text at bottom: '[hero_baseline]'. Professional commercial photography, vibrant natural colors, warm lighting, premium e-commerce feel, high resolution.",
+  "title": "Titre produit professionnel (8-15 mots) basé sur la promesse principale + bénéfice clé",
+  "hero_headline": "PROMESSE PRINCIPALE EN MAJUSCULES (4-6 mots)",
+  "hero_slogan": "Sous-titre accrocheur orienté bénéfice spécifique au produit",
+  "hero_baseline": "Phrase de réassurance courte spécifique au produit",
+  "prompt_affiche_hero": "[GÉNÈRE ICI un prompt en anglais ADAPTÉ À CE PRODUIT suivant cette structure: Square 1:1 e-commerce product poster. Right side (60%): Close-up portrait of natural African [woman/man], beautiful skin [+ détail problème visible si pertinent], gentle expression, looking at camera, [pose naturelle adaptée]. Left side (40%): Premium product display - [description packaging], clean placement, soft shadow. Light clean background. Minimal text: small badge top 'BEST-SELLER [CATÉGORIE]', short title '[BÉNÉFICE]', prices '[PRIX BARRÉ] [PRIX PROMO]' (orange), small 'Acheter' button. Premium style, clean design, French text, no flashy effects.]",
+  "prompt_avant_apres": "[GÉNÈRE ICI un prompt en anglais spécifique à CE produit: décris le problème exact à gauche et le résultat exact à droite, avec des personnes africaines. La transformation doit être liée directement à la fonction de CE produit.]",
   "angles": [
     {
-      "titre_angle": " Titre avec émoji (5-8 mots max)",
-      "explication": "Explication détaillée du bénéfice en 2-3 phrases complètes. Explique comment le produit résout un problème spécifique ou apporte une transformation. Sois persuasif et concret.",
-      "message_principal": "Message marketing court et mémorable (1 phrase d'accroche percutante)",
-      "promesse": "La promesse de transformation en français",
-      "prompt_affiche": "Create a complete advertising poster for this product with FRENCH text overlay: [prompt détaillé en anglais avec modèles africains, texte français visible, CTA, mise en scène, style, couleurs, ambiance]"
+      "titre_angle": "Émoji + Titre bénéfice réel (5-9 mots)",
+      "explication": "3-4 phrases concrètes et persuasives. Décris comment ce bénéfice spécifique se manifeste dans la vie réelle. Reste crédible et factuel, sans exagération.",
+      "message_principal": "1 phrase d'accroche mémorable spécifique à ce bénéfice",
+      "promesse": "La transformation concrète que l'utilisateur va vivre",
+      "prompt_affiche": "Lifestyle product photo: [décrire en anglais la scène: African model naturally using the product, specific context matching this benefit, warm natural lighting, realistic modern setting, product clearly visible, genuine expression, no text overlay, no CTA, no promotional banners, professional e-commerce photography]"
     }
   ],
   "raisons_acheter": [
-    "Raison 1 claire et persuasive",
-    "Raison 2 claire et persuasive",
-    "Raison 3 claire et persuasive",
-    "Raison 4 claire et persuasive"
+    "Fait concret sur la qualité ou composition",
+    "Bénéfice pratique mesurable",
+    "Avantage différenciant vs alternatives",
+    "Garantie ou élément de sécurité"
   ],
+  "reassurance": {
+    "titre": "Notre Garantie Qualité (adapter au produit)",
+    "texte": "2-3 phrases rassurantes sur la qualité, sécurité ou garantie spécifique au produit.",
+    "points": ["Point rassurant 1", "Point rassurant 2", "Point rassurant 3"]
+  },
+  "guide_utilisation": {
+    "applicable": true,
+    "titre": "Comment utiliser ce produit",
+    "etapes": [
+      {"numero": 1, "action": "Étape courte", "detail": "Détail pratique"}
+    ]
+  },
   "faq": [
     {
-      "question": "Question fréquente en français",
-      "reponse": "Réponse rassurante et précise en français"
+      "question": "Vraie question d'un acheteur potentiel",
+      "reponse": "Réponse franche, précise et rassurante"
     }
   ],
   "testimonials": [
     {
       "name": "Prénom N.",
-      "location": "Ville, Pays",
+      "location": "Ville, Pays africain",
       "rating": 5,
-      "text": "Témoignage authentique et convaincant en français (2-3 phrases). Décrire une expérience positive spécifique avec le produit, les bénéfices ressentis, et la satisfaction. Ton naturel et crédible.",
+      "text": "Témoignage réaliste et spécifique (2-3 phrases). Bénéfice concret ressenti. Ton naturel.",
       "verified": true,
       "date": "Il y a X jours/semaines"
     }
   ],
-  "description_optimisee": "Description e-commerce complète en français (4-5 paragraphes). Structure : problème → solution → bénéfices → confiance → CTA. Utilise **gras** pour les points clés. Intègre les placeholders {{IMAGE_1}}, {{IMAGE_2}}, {{IMAGE_3}} entre les paragraphes."
+  "description_optimisee": "Introduction (2-3 paragraphes). Commence par le problème, puis la solution, puis les bénéfices. Utilise **gras** pour les points clés."
 }
 
- EXACTEMENT 4 angles, 4 raisons, 5 questions FAQ.
- EXACTEMENT 4 TÉMOIGNAGES dans "testimonials" (noms africains authentiques).
- Chaque angle DOIT avoir une explication détaillée (2-3 phrases).
- JSON uniquement. Pas d'explication. Pas de texte avant/après.
- Tout en FRANÇAIS sauf les prompt_affiche qui sont en ANGLAIS.`;
+⚠️ EXACTEMENT 4 angles, 4 raisons, 5 questions FAQ, 4 témoignages.
+⚠️ guide_utilisation.applicable = false si le produit n'a pas besoin d'explication.
+⚠️ Adapte prompt_avant_apres au PROBLÈME RÉEL que résout CE produit spécifique.
+⚠️ JSON uniquement. Pas d'explication. Pas de texte avant/après.`;
 
   const messages = [
     {
       role: "system",
-      content: "Tu es un expert e-commerce et copywriting SPÉCIALISTE du marché africain. RÈGLES STRICTES : 1) 100% FRANÇAIS dans tout le contenu sauf prompts d'affiche. 2) Jamais de contenu générique comme 'Découvrez ce produit exceptionnel' ou 'Qualité premium garantie'. 3) Chaque angle doit être UNIQUE et SPÉCIFIQUE au produit analysé. 4) Les raisons d'acheter doivent être basées sur les caractéristiques réelles du produit. 5) La FAQ doit contenir des questions pertinentes pour CE produit exact. 6) Génère UNIQUEMENT du JSON valide, pas d'explications. Sois créatif et spécifique !"
+      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit optimisée pour la conversion. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS (sauf prompts images en anglais). 3) ZÉRO généricité — tout doit être spécifique à CE produit. 4) ZÉRO exagération — bénéfices réels et crédibles. 5) CRITIQUE : prompt_affiche_hero = AFFICHE PUBLICITAIRE COMPLÈTE avec modèle africain + produit + texte marketing en français intégré + éventuellement avant/après en cercles. 6) CRITIQUE : prompt_avant_apres = transformation RÉELLE split-screen (avant problème | après résultat) avec personnes africaines. 7) Ces deux prompts doivent être ENTIÈREMENT RÉÉCRITS pour CE produit — JAMAIS copier les exemples. 8) Génère UNIQUEMENT du JSON valide."
     },
     {
       role: "user",
@@ -205,28 +278,28 @@ Format de réponse STRICT JSON :
         explication: `Ce ${title || 'produit'} est fabriqué avec des matériaux premium pour garantir durabilité et performance. Une qualité professionnelle adaptée à un usage quotidien intensif.`,
         message_principal: "Investissez dans la qualité qui dure",
         promesse: "Un produit fiable pour vos besoins quotidiens",
-        prompt_affiche: `Create a complete advertising poster for this product with FRENCH text overlay: Professional setting, African model confidently using ${title || 'product'}, clean background. Bold French headline: 'Qualité Supérieure'. CTA: 'Commandez Maintenant'. Premium commercial photography.`
+        prompt_affiche: `Lifestyle product photo: Confident African professional holding or using the ${title || 'product'} in a clean, modern home setting. Warm natural light from window. Product clearly visible. Genuine satisfied expression. No text overlay, no banners. Professional e-commerce photography.`
       },
       {
-        titre_angle: "🚀 Performance optimisée",
-        explication: `Conçu pour offrir des résultats exceptionnels, ce ${title || 'produit'} combine technologie avancée et simplicité d'utilisation pour une expérience utilisateur sans compromis.`,
-        message_principal: "Des résultats qui dépassent vos attentes",
-        promesse: "Maximisez votre efficacité au quotidien",
-        prompt_affiche: `Create a complete advertising poster for this product with FRENCH text overlay: Dynamic action shot, African athlete or professional using ${title || 'product'}, outdoor setting. Bold French headline: 'Performance Maximale'. CTA: 'Découvrez Maintenant'. Action photography style.`
+        titre_angle: "🚀 Résultats visibles rapidement",
+        explication: `Conçu pour offrir des résultats concrets, ce ${title || 'produit'} s'intègre facilement dans votre routine quotidienne pour un impact mesurable dès les premières utilisations.`,
+        message_principal: "Des résultats réels dès la première utilisation",
+        promesse: "Une efficacité prouvée dans votre quotidien",
+        prompt_affiche: `Lifestyle product photo: African woman or man actively using the ${title || 'product'} outdoors or in a bright modern space. Dynamic, natural pose showing the product in action. Warm golden light, authentic lifestyle scene. No text overlay, no CTA, no banners. High quality e-commerce photography.`
       },
       {
-        titre_angle: "💎 Design élégant et pratique",
-        explication: `Alliant esthétique moderne et fonctionnalité intuitive, ce ${title || 'produit'} s'intègre parfaitement dans votre vie quotidienne avec style et efficacité.`,
-        message_principal: "L'élégance rencontre la fonctionnalité",
-        promesse: "Un design qui embellit votre quotidien",
-        prompt_affiche: `Create a complete advertising poster for this product with FRENCH text overlay: Lifestyle setting, stylish African model with ${title || 'product'}, modern home or office. Bold French headline: 'Design Élégant'. CTA: 'Adoptez le Style'. Lifestyle fashion photography.`
+        titre_angle: "💎 Confort et facilité au quotidien",
+        explication: `Alliant ergonomie et design intuitif, ce ${title || 'produit'} s'intègre naturellement dans votre style de vie. Simple à utiliser, il devient vite indispensable.`,
+        message_principal: "La simplicité qui change tout",
+        promesse: "Un quotidien plus confortable et agréable",
+        prompt_affiche: `Lifestyle product photo: Stylish African family or individual relaxing at home with the ${title || 'product'} naturally integrated in the scene. Warm, cozy atmosphere. Modern African interior. Product visible and in use. No text, no promotional elements. Professional lifestyle photography.`
       },
       {
-        titre_angle: "🏆 Des milliers de clients satisfaits",
-        explication: `La confiance de milliers de clients africains prouve que ce ${title || 'produit'} tient ses promesses. Avec une satisfaction garantie et des avis positifs, ce choix est approuvé par votre communauté.`,
-        message_principal: "La qualité approuvée par des milliers",
-        promesse: "Rejoignez des milliers de clients satisfaits",
-        prompt_affiche: `Create a complete advertising poster for this product with FRENCH text overlay: Smiling group of diverse African customers, before/after transformation visual with ${title || 'product'}, testimonial-style scene. Bold French headline: 'Des Milliers Satisfaits'. Stars rating visual. CTA: 'Rejoignez-les Maintenant'. Warm, trustworthy photography.`
+        titre_angle: "🛡️ Fiabilité et confiance assurées",
+        explication: `Ce ${title || 'produit'} est conçu pour durer et répondre aux standards de qualité les plus exigeants. Sa solidité et sa fiabilité en font un investissement judicieux sur le long terme.`,
+        message_principal: "Un produit de confiance pour les années à venir",
+        promesse: "La tranquillité d'esprit avec chaque utilisation",
+        prompt_affiche: `Lifestyle product photo: Close-up detail shot of the ${title || 'product'} showing quality craftsmanship and materials. Clean, minimal background. Natural studio lighting highlighting texture and finish. No text overlay, no promotional elements. Premium product photography.`
       }
     ];
     while (result.angles.length < 4) {
@@ -315,22 +388,20 @@ export async function generatePosterImage(promptAffiche, originalImageBuffer = n
   try {
     console.log('🎨 Generating POSTER with NanoBanana...');
 
-    // Enrichir le prompt pour forcer une affiche complète avec texte français et modèles africains
+    // Enrichir le prompt avec les règles de photo lifestyle professionnelle
     const posterPrompt = `${promptAffiche}
 
-CRITICAL REQUIREMENTS FOR THIS ADVERTISING POSTER:
-- This must be a COMPLETE ADVERTISING POSTER with TEXT OVERLAY, not just a product photo
-- AFRICAN MODELS must be visible and prominent (men/women as appropriate)
-- FRENCH TEXT must be clearly visible on the poster (headline + slogan)
-- FRENCH CALL-TO-ACTION must be visible (button or text like "Commandez Maintenant", "Offre Limitée")
-- Product must be prominently visible and identical to reference image
-- Professional lifestyle background setting (modern African home, office, or urban setting)
-- Modern e-commerce advertising style
-- High resolution, commercial quality
-- Vibrant, cohesive color scheme
-- Emotional atmosphere that drives purchase intent
-- Ultra realistic photography, no CGI, no illustration, no cartoon
-- Text must be bold, readable, and professionally integrated into the design`;
+CRITICAL REQUIREMENTS FOR THIS LIFESTYLE PRODUCT PHOTO:
+- AFRICAN MODELS must be visible, authentic, naturally using or holding the product
+- NO text overlay on the image
+- NO call-to-action, NO banners, NO price badges, NO promotional elements
+- Product must be clearly visible and identifiable
+- Realistic lifestyle setting: modern African home, office, outdoor, or social context
+- Warm, natural lighting — professional e-commerce photography style
+- Genuine, natural expressions (not overly posed)
+- High resolution, clean composition
+- Ultra realistic photography — no CGI, no illustration, no cartoon
+- The scene should feel authentic and aspirational`;
 
     let result;
 

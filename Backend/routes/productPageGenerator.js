@@ -54,8 +54,9 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   lock.userId = userId;
   lock.startedAt = Date.now();
 
-  const { url, description: userDescription, skipScraping } = req.body || {};
+  const { url, description: userDescription, skipScraping, marketingApproach } = req.body || {};
   const imageFiles = req.files || [];
+  const approach = marketingApproach || 'AIDA'; // Default to AIDA if not specified
 
   // ── Validation selon le mode ──────────────────────────────────────────────
   const isDescriptionMode = skipScraping === 'true' || skipScraping === true;
@@ -114,7 +115,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     
     const imageBuffers = (imageFiles || []).map(f => f.buffer);
     
-    gptResult = await analyzeWithVision(scraped, imageBuffers);
+    gptResult = await analyzeWithVision(scraped, imageBuffers, approach);
     
     console.log('✅ GPT OK:', {
       title: gptResult.title?.slice(0, 40),
@@ -178,9 +179,40 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // ÉTAPE 4b : Générer 4 AFFICHES PUBLICITAIRES avec NanoBanana
+    // ÉTAPE 4b : Générer l'image AVANT/APRÈS
     // ══════════════════════════════════════════════════════════════════════════
-    console.log('🎨 Étape 4b: Génération de 4 affiches publicitaires...');
+    console.log('🔄 Étape 4b: Génération de l\'image avant/après...');
+    let beforeAfterImageUrl = null;
+
+    if (gptResult.prompt_avant_apres) {
+      try {
+        const beforeAfterDataUrl = await generatePosterImage(gptResult.prompt_avant_apres, null);
+        if (beforeAfterDataUrl) {
+          let imageBuffer;
+          if (beforeAfterDataUrl.startsWith('data:')) {
+            imageBuffer = Buffer.from(beforeAfterDataUrl.split(',')[1], 'base64');
+          } else {
+            const axios = (await import('axios')).default;
+            const resp = await axios.get(beforeAfterDataUrl, { responseType: 'arraybuffer', timeout: 15000 });
+            imageBuffer = Buffer.from(resp.data);
+          }
+          const uploaded = await uploadImage(
+            imageBuffer,
+            `before-after-${Date.now()}.png`,
+            { workspaceId: req.workspaceId, uploadedBy: userId, mimeType: 'image/png' }
+          );
+          beforeAfterImageUrl = uploaded?.url || null;
+          console.log('✅ Image avant/après générée et uploadée');
+        }
+      } catch (baErr) {
+        console.warn('⚠️ Image avant/après échouée:', baErr.message);
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ÉTAPE 4c : Générer 4 AFFICHES PUBLICITAIRES avec NanoBanana
+    // ══════════════════════════════════════════════════════════════════════════
+    console.log('🎨 Étape 4c: Génération de 4 affiches publicitaires...');
     
     for (let i = 0; i < 4; i++) {
       const angle = gptResult.angles[i];
@@ -278,14 +310,18 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       hero_slogan: gptResult.hero_slogan || null,
       hero_baseline: gptResult.hero_baseline || null,
       heroImage: heroImageUrl || realPhotos[0] || null,
+      beforeAfterImage: beforeAfterImageUrl || null,
       angles: posterImages,
       raisons_acheter: gptResult.raisons_acheter || [],
       faq: gptResult.faq || [],
       testimonials: gptResult.testimonials || [],
+      reassurance: gptResult.reassurance || null,
+      guide_utilisation: gptResult.guide_utilisation || null,
       description: description,
       realPhotos,
       allImages: [
         ...(heroImageUrl ? [heroImageUrl] : []),
+        ...(beforeAfterImageUrl ? [beforeAfterImageUrl] : []),
         ...realPhotos,
         ...posterImages.map(p => p.poster_url).filter(Boolean)
       ],
