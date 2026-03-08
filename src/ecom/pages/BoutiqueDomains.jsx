@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import api from '../../lib/api';
 
@@ -11,6 +11,8 @@ const BoutiqueDomains = () => {
   const [saved, setSaved] = useState(false);
   const [checking, setChecking] = useState(false);
   const [dnsOk, setDnsOk] = useState(null);
+  const [generating, setGenerating] = useState(false);
+  const subdomainGeneratedRef = useRef(false);
 
   useEffect(() => {
     const load = async () => {
@@ -26,11 +28,66 @@ const BoutiqueDomains = () => {
     load();
   }, []);
 
+  // Auto-generate subdomain when store name is available and no subdomain exists
   useEffect(() => {
-    if (!subdomain && workspace?.storeSettings?.subdomain) {
-      setSubdomain(workspace.storeSettings.subdomain);
+    const autoGenerateSubdomain = async () => {
+      // Only generate if: no subdomain loaded, workspace loaded, has store name, not already tried
+      if (subdomain || !workspace || subdomainGeneratedRef.current) return;
+      
+      const storeName = workspace?.storeSettings?.storeName || workspace?.name;
+      if (!storeName || storeName.trim().length < 3) return;
+      
+      // Try to auto-generate
+      try {
+        subdomainGeneratedRef.current = true;
+        const res = await api.post('/store-manage/generate-subdomain', { 
+          storeName: storeName.trim() 
+        });
+        
+        if (res.data?.success) {
+          setSubdomain(res.data.data.subdomain);
+        }
+      } catch {
+        // Silently fail - user can still click the button
+      }
+    };
+    
+    autoGenerateSubdomain();
+  }, [workspace, subdomain]);
+
+  const generateSubdomainFromStoreName = async () => {
+    const storeName = workspace?.storeSettings?.storeName || workspace?.name;
+    
+    if (!storeName || storeName.trim().length === 0) {
+      alert('Veuillez d\'abord configurer le nom de votre boutique');
+      return;
     }
-  }, [workspace]);
+
+    setGenerating(true);
+    try {
+      const res = await api.post('/store-manage/generate-subdomain', { 
+        storeName: storeName.trim() 
+      });
+      
+      if (res.data?.success) {
+        setSubdomain(res.data.data.subdomain);
+        setSaved(false);
+        
+        // Show success feedback
+        const domain = res.data.data.fullDomain;
+        const message = `✅ Domaine généré: ${domain}\n\nCe domaine est disponible et prêt à être utilisé.`;
+        
+        if (confirm(message + '\n\nVoulez-vous l\'utiliser maintenant?')) {
+          // Auto-save if user confirms
+          handleSave();
+        }
+      }
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Erreur lors de la génération du domaine');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -92,18 +149,51 @@ const BoutiqueDomains = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={subdomain}
-            onChange={(e) => { setSubdomain(e.target.value.replace(/[^a-z0-9-]/gi, '').toLowerCase()); setSaved(false); }}
-            placeholder="boutique"
-            className="flex-1 px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent transition bg-gray-50 focus:bg-white font-mono"
-          />
-          <span className="text-sm font-semibold text-gray-500 whitespace-nowrap">.scalor.net</span>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={subdomain}
+              onChange={(e) => { setSubdomain(e.target.value.replace(/[^a-z0-9-]/gi, '').toLowerCase()); setSaved(false); }}
+              placeholder="boutique"
+              className="flex-1 px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent transition bg-gray-50 focus:bg-white font-mono"
+            />
+            <span className="text-sm font-semibold text-gray-500 whitespace-nowrap">.scalor.net</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={generateSubdomainFromStoreName}
+              disabled={generating}
+              className="flex-1 px-4 py-2 text-xs font-bold text-[#0A5740] bg-[#E6F2ED] rounded-xl hover:bg-[#C0DDD2] transition disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {generating ? (
+                <>
+                  <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                  </svg>
+                  Génération...
+                </>
+              ) : (
+                <>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  Générer depuis le nom
+                </>
+              )}
+            </button>
+          </div>
+
+          {workspace?.storeSettings?.storeName && (
+            <div className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+              Basé sur: <span className="font-medium text-gray-700">"{workspace.storeSettings.storeName}"</span>
+            </div>
+          )}
         </div>
 
-        {subdomainUrl && (
+        {subdomainUrl ? (
           <div className="mt-3 flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5">
             <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -111,6 +201,15 @@ const BoutiqueDomains = () => {
             <a href={`https://${subdomainUrl}`} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-green-700 hover:underline">
               https://{subdomainUrl}
             </a>
+          </div>
+        ) : (
+          <div className="mt-3 flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5">
+            <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="text-sm text-gray-500">
+              Votre boutique sera accessible sur : <span className="font-mono text-gray-700">{subdomain || 'votre-boutique'}.scalor.net</span>
+            </span>
           </div>
         )}
       </div>

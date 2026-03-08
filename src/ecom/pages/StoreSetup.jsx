@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Store, Globe, Palette, Phone, Save, CheckCircle, AlertCircle, ExternalLink, Loader2 } from 'lucide-react';
+import { Store, Globe, Palette, Phone, Save, CheckCircle, AlertCircle, ExternalLink, Loader2, Zap } from 'lucide-react';
 import { storeManageApi } from '../services/storeApi.js';
+import api from '../../lib/api';
 
 /**
  * StoreSetup — Dashboard page for creating/configuring the public store.
@@ -33,6 +34,7 @@ const StoreSetup = () => {
   const [subdomainAvailable, setSubdomainAvailable] = useState(null);
   const [checkingSubdomain, setCheckingSubdomain] = useState(false);
   const [existingSubdomain, setExistingSubdomain] = useState(null);
+  const [generatingSubdomain, setGeneratingSubdomain] = useState(false);
 
   // Load current config
   useEffect(() => {
@@ -90,6 +92,34 @@ const StoreSetup = () => {
     setConfig(prev => ({ ...prev, [field]: value }));
     setError('');
     setSuccess('');
+  };
+
+  const generateSubdomainFromStoreName = async () => {
+    const storeName = config.storeName;
+    
+    if (!storeName || storeName.trim().length === 0) {
+      setError('Veuillez d\'abord entrer le nom de votre boutique');
+      return;
+    }
+
+    setGeneratingSubdomain(true);
+    setError('');
+    try {
+      const res = await api.post('/store-manage/generate-subdomain', { 
+        storeName: storeName.trim() 
+      });
+      
+      if (res.data?.success) {
+        const generatedSubdomain = res.data.data.subdomain;
+        setSubdomainInput(generatedSubdomain);
+        setSubdomainAvailable(true);
+        setSuccess(`✅ Domaine généré: ${res.data.data.fullDomain}`);
+      }
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Erreur lors de la génération du domaine');
+    } finally {
+      setGeneratingSubdomain(false);
+    }
   };
 
   const handleSaveConfig = async () => {
@@ -208,25 +238,44 @@ const StoreSetup = () => {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Sous-domaine</label>
-          <div className="flex items-center gap-0">
-            <input
-              type="text"
-              value={subdomainInput}
-              onChange={(e) => {
-                const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
-                setSubdomainInput(val);
-              }}
-              placeholder="ma-boutique"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-l-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-              maxLength={30}
-            />
-            <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg text-sm text-gray-500">
-              .scalor.net
-            </span>
+          <div className="space-y-2">
+            <div className="flex items-center gap-0">
+              <input
+                type="text"
+                value={subdomainInput}
+                onChange={(e) => {
+                  const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+                  setSubdomainInput(val);
+                }}
+                placeholder="ma-boutique"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-l-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                maxLength={30}
+              />
+              <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg text-sm text-gray-500">
+                .scalor.net
+              </span>
+            </div>
+
+            <button
+              onClick={generateSubdomainFromStoreName}
+              disabled={generatingSubdomain || !config.storeName?.trim()}
+              className="w-full px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-sm font-medium hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+            >
+              {generatingSubdomain ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Génération en cours...
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4" />
+                  Générer depuis le nom de la boutique
+                </>
+              )}
+            </button>
           </div>
 
-          {/* Availability indicator */}
-          <div className="mt-1.5 h-5">
+          <div className="mt-2 flex items-center gap-2">
             {checkingSubdomain && (
               <span className="text-xs text-gray-400">Vérification...</span>
             )}

@@ -29,6 +29,7 @@ const StoreFront = () => {
   const [loading, setLoading] = useState(true);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [error, setError] = useState('');
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 });
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -38,6 +39,11 @@ const StoreFront = () => {
   // This reduces 3 HTTP requests to 1 — critical for African market latency
   useEffect(() => {
     (async () => {
+      // Set timeout for slow loading
+      const timeoutId = setTimeout(() => {
+        setLoadingTimeout(true);
+      }, 8000); // 8 seconds
+
       try {
         const res = await publicStoreApi.getStore(subdomain);
         const data = res.data?.data;
@@ -45,10 +51,14 @@ const StoreFront = () => {
         setProducts(data?.products || []);
         setPagination(data?.pagination || { page: 1, limit: 20, total: 0, pages: 0 });
         setCategories(data?.categories || []);
-      } catch {
+        clearTimeout(timeoutId);
+      } catch (err) {
+        clearTimeout(timeoutId);
+        console.error('Store loading error:', err);
         setError('Boutique introuvable');
       } finally {
         setLoading(false);
+        setLoadingTimeout(false);
       }
     })();
   }, [subdomain]);
@@ -90,8 +100,68 @@ const StoreFront = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: themeColor }} />
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4">
+        {/* Logo/Icon animation */}
+        <div className="relative mb-8">
+          <div className="w-16 h-16 rounded-full border-4 border-gray-100"></div>
+          <div 
+            className="absolute top-0 left-0 w-16 h-16 rounded-full border-4 border-t-transparent animate-spin"
+            style={{ borderColor: `${themeColor} transparent transparent transparent` }}
+          ></div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <ShoppingBag className="w-6 h-6 text-gray-400" />
+          </div>
+        </div>
+        
+        {/* Loading text */}
+        <div className="text-center space-y-2">
+          <h2 className="text-lg font-semibold text-gray-900">
+            {loadingTimeout ? 'Prend plus de temps que prévu...' : 'Chargement de la boutique'}
+          </h2>
+          <p className="text-sm text-gray-500">
+            {loadingTimeout 
+              ? 'Veuillez patienter, cela peut prendre quelques secondes...' 
+              : 'Préparation de votre expérience d\'achat...'
+            }
+          </p>
+        </div>
+        
+        {/* Animated dots */}
+        <div className="flex gap-1 mt-4">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="w-2 h-2 rounded-full animate-pulse"
+              style={{
+                backgroundColor: themeColor,
+                animationDelay: `${i * 0.2}s`,
+                animationDuration: loadingTimeout ? '1.5s' : '1s'
+              }}
+            ></div>
+          ))}
+        </div>
+        
+        {/* Subtle progress bar */}
+        <div className="w-64 h-1 bg-gray-100 rounded-full overflow-hidden mt-6">
+          <div 
+            className="h-full rounded-full animate-pulse"
+            style={{ 
+              backgroundColor: themeColor,
+              width: loadingTimeout ? '80%' : '60%',
+              animation: `shimmer ${loadingTimeout ? '3s' : '2s'} infinite`
+            }}
+          ></div>
+        </div>
+        
+        {/* Retry button after timeout */}
+        {loadingTimeout && (
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-6 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            Réessayer
+          </button>
+        )}
       </div>
     );
   }
@@ -110,6 +180,17 @@ const StoreFront = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Add custom styles for shimmer animation */}
+      <style jsx>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(200%); }
+        }
+        .shimmer {
+          animation: shimmer 2s infinite;
+        }
+      `}</style>
+      
       {/* Store Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
         {/* Banner */}
@@ -205,8 +286,31 @@ const StoreFront = () => {
       {/* Product Grid */}
       <div className="max-w-6xl mx-auto px-4 pb-8">
         {loadingProducts ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="w-6 h-6 animate-spin" style={{ color: themeColor }} />
+          <div className="space-y-4">
+            {/* Loading skeleton cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                  {/* Image skeleton */}
+                  <div className="aspect-square bg-gray-100 shimmer">
+                    <div className="w-full h-full bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse"></div>
+                  </div>
+                  {/* Content skeleton */}
+                  <div className="p-2.5 sm:p-3 space-y-2">
+                    <div className="h-4 bg-gray-100 rounded animate-pulse"></div>
+                    <div className="h-3 bg-gray-100 rounded w-3/4 animate-pulse"></div>
+                    <div className="h-5 bg-gray-100 rounded w-1/2 animate-pulse"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Loading text */}
+            <div className="text-center py-4">
+              <div className="flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" style={{ color: themeColor }} />
+                <span className="text-sm text-gray-500">Chargement des produits...</span>
+              </div>
+            </div>
           </div>
         ) : products.length === 0 ? (
           <div className="text-center py-16">

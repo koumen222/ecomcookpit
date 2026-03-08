@@ -175,6 +175,98 @@ router.put('/subdomain', requireEcomAuth, requireWorkspace, requireStoreOwner, a
 });
 
 /**
+ * Generate subdomain from store name
+ * Converts store name to URL-friendly subdomain format
+ */
+function generateSubdomainFromStoreName(storeName) {
+  if (!storeName) return '';
+  
+  return storeName
+    .toLowerCase()
+    .normalize('NFD')                    // Remove accents
+    .replace(/[\u0300-\u036f]/g, '')     // Remove diacritics
+    .replace(/[^a-z0-9\s]/g, '')         // Keep only letters, numbers, spaces
+    .replace(/\s+/g, '-')                 // Replace spaces with hyphens
+    .replace(/-+/g, '-')                  // Replace multiple hyphens with single
+    .replace(/^-|-$/g, '')                // Remove leading/trailing hyphens
+    .substring(0, 30);                    // Limit to 30 chars
+}
+
+/**
+ * POST /store-manage/generate-subdomain
+ * Generate subdomain from store name and check availability
+ */
+router.post('/generate-subdomain', requireEcomAuth, requireWorkspace, async (req, res) => {
+  try {
+    const { storeName } = req.body;
+    
+    if (!storeName || storeName.trim().length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Nom de boutique requis' 
+      });
+    }
+
+    let subdomain = generateSubdomainFromStoreName(storeName);
+    
+    if (subdomain.length < 3) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Le nom de boutique est trop court pour générer un sous-domaine' 
+      });
+    }
+
+    if (RESERVED_SUBDOMAINS.includes(subdomain)) {
+      // Add number suffix if reserved
+      let suffix = 1;
+      let originalSubdomain = subdomain;
+      do {
+        subdomain = `${originalSubdomain}-${suffix}`.substring(0, 30);
+        suffix++;
+      } while (RESERVED_SUBDOMAINS.includes(subdomain) && suffix < 100);
+    }
+
+    // Check availability and add number suffix if taken
+    let finalSubdomain = subdomain;
+    let suffix = 1;
+    let isAvailable = false;
+    
+    while (!isAvailable && suffix <= 99) {
+      const existing = await EcomWorkspace.findOne({
+        subdomain: finalSubdomain,
+        _id: { $ne: req.workspaceId }
+      }).select('_id').lean();
+      
+      if (!existing) {
+        isAvailable = true;
+      } else {
+        finalSubdomain = `${subdomain}-${suffix}`.substring(0, 30);
+        suffix++;
+      }
+    }
+
+    if (!isAvailable) {
+      return res.status(409).json({ 
+        success: false, 
+        message: 'Impossible de générer un sous-domaine disponible' 
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        subdomain: finalSubdomain,
+        fullDomain: `${finalSubdomain}.scalor.net`,
+        storeUrl: `https://${finalSubdomain}.scalor.net`
+      }
+    });
+  } catch (error) {
+    console.error('Erreur POST /store-manage/generate-subdomain:', error.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+/**
  * GET /store-manage/subdomain/check/:subdomain
  * Check if a subdomain is available.
  */
