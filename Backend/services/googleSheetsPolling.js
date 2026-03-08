@@ -50,7 +50,7 @@ async function pollWorkspace(workspaceId) {
           
           // Parse only new rows
           const newRows = sheetData.rows.slice(sheetData.dataStartIndex + lastRowCount);
-          const columnMap = source.detectedColumns || autoDetectColumns(sheetData.headers);
+          const columnMap = source.detectedColumns || autoDetectColumns(sheetData.headers, sheetData.rows);
           
           for (let i = 0; i < newRows.length; i++) {
             const rowIndex = lastRowCount + i;

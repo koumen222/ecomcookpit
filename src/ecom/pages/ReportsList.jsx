@@ -325,7 +325,7 @@ const ReportsList = () => {
 
       {/* Dashboard KPIs - masqué pour la closeuse */}
       {user?.role !== 'ecom_closeuse' && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 mb-4 sm:mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 sm:gap-4 mb-4 sm:mb-6">
           <div className="bg-white rounded-lg shadow p-3 sm:p-4">
             <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase">Chiffre d'affaires</p>
             <p className="text-base sm:text-xl font-bold text-emerald-600 mt-1">{fmt(totalRevenue)}</p>
@@ -335,6 +335,10 @@ const ReportsList = () => {
             <p className={`text-xl font-bold mt-1 ${(totalProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               {fmt(totalProfit)}
             </p>
+          </div>
+          <div className="bg-white rounded-lg shadow p-3 sm:p-4">
+            <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase">Frais livraison</p>
+            <p className="text-base sm:text-xl font-bold text-yellow-600 mt-1">{fmt(totalDeliveryCost)}</p>
           </div>
           <div className="bg-white rounded-lg shadow p-3 sm:p-4">
             <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase">Dépenses pub</p>

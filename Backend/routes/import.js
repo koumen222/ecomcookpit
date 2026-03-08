@@ -258,8 +258,8 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
 
     emitProgress(req.workspaceId, sourceId, { percentage: 20, status: `${totalDataRows} lignes détectées, analyse des colonnes...`, current: 0, total: totalDataRows });
 
-    // Column detection
-    const columnMap = autoDetectColumns(headers);
+    // Column detection - pass rows for content-based detection
+    const columnMap = autoDetectColumns(headers, rows);
     const colValidation = validateColumnMapping(columnMap);
     importRecord.detectedHeaders = headers.filter(h => h);
     importRecord.columnMapping = columnMap;

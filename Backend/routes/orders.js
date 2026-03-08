@@ -948,13 +948,12 @@ function extractSpreadsheetId(input) {
   return match ? match[1] : null;
 }
 
-// Helper: auto-détecter les colonnes depuis les headers
-function autoDetectColumns(headers) {
+// Helper: auto-détecter les colonnes depuis les headers et contenu
+function autoDetectColumns(headers, rows = []) {
   const mapping = {};
   const normalize = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
   // Patterns ordonnés par priorité (les plus spécifiques d'abord)
-  // Chaque pattern a des termes composés (prioritaires) et des termes simples
   const patterns = [
     { field: 'orderId', compound: ['order id', 'order number', 'numero commande', 'n° commande'], simple: ['order id', 'ref', 'reference'] },
     { field: 'date', compound: ['date & time', 'date time', 'date commande'], simple: ['date', 'jour', 'day', 'created'] },
@@ -992,6 +991,34 @@ function autoDetectColumns(headers) {
       }
     }
   });
+
+  // Pass 3: content-based detection for missing fields (price, phone, etc.)
+  if (rows.length > 0 && mapping.price === undefined) {
+    // Analyze first few rows to detect price column by content
+    const sampleSize = Math.min(5, rows.length);
+    for (let colIdx = 0; colIdx < headers.length; colIdx++) {
+      if (usedIndices.has(colIdx)) continue;
+      
+      let priceScore = 0;
+      for (let i = 0; i < sampleSize; i++) {
+        const row = rows[i];
+        if (!row.c || !row.c[colIdx]) continue;
+        const val = String(row.c[colIdx].v || '').trim().replace(/^'+/, '');
+        
+        // Check for price pattern: numbers between 500-10000000
+        const numVal = parseFloat(val.replace(/\s/g, '').replace(',', '.'));
+        if (!isNaN(numVal) && numVal >= 500 && numVal <= 10000000) {
+          priceScore++;
+        }
+      }
+      
+      if (priceScore >= 2) {
+        mapping.price = colIdx;
+        console.log(`✅ [SYNC] Price column detected by content at index ${colIdx}`);
+        break;
+      }
+    }
+  }
 
   console.log('📊 Column mapping result:', mapping, 'Headers:', headers);
   return mapping;
@@ -1536,7 +1563,7 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
           }
 
           console.log(`📊 [${syncId}] Headers détectés (${headers.length}):`, headers);
-          const columnMap = autoDetectColumns(headers);
+          const columnMap = autoDetectColumns(headers, table.rows);
           
           // Fallback: if status column not detected, scan headers manually
           if (columnMap.status === undefined) {

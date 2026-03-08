@@ -93,10 +93,14 @@ function buildClientFilter(workspaceId, targetFilters) {
   if (clientStatus) filter.status = clientStatus;
   if (targetFilters.city) {
     const cities = toArray(targetFilters.city);
+    // FIX: Exclure les entrées sans ville (null, undefined, vide)
     if (cities.length === 1) {
-      filter.city = { $regex: `^${cities[0]}`, $options: 'i' };
+      filter.city = { $regex: `^${cities[0]}`, $options: 'i', $exists: true, $ne: '' };
     } else if (cities.length > 1) {
-      filter.$or = cities.map(c => ({ city: { $regex: `^${c}`, $options: 'i' } }));
+      filter.$and = [
+        { city: { $exists: true, $ne: '' } },
+        { $or: cities.map(c => ({ city: { $regex: `^${c}`, $options: 'i' } })) }
+      ];
     }
   }
   if (targetFilters.product) {
@@ -121,12 +125,17 @@ async function getClientsFromOrderFilters(workspaceId, targetFilters) {
   }
   if (targetFilters.orderCity) {
     const cities = toArray(targetFilters.orderCity);
+    // FIX: Exclure les entrées sans ville (null, undefined, vide)
+    orderFilter.city = { $exists: true, $ne: '' };
     if (cities.length === 1) {
       // Recherche flexible : "Douala" trouve "douala", "Douala-Akwa", etc.
-      orderFilter.city = { $regex: `^${cities[0]}`, $options: 'i' };
+      orderFilter.city = { $regex: `^${cities[0]}`, $options: 'i', $exists: true, $ne: '' };
     } else if (cities.length > 1) {
-      // Plusieurs villes : $or avec regex pour chacune
-      orderFilter.$or = cities.map(c => ({ city: { $regex: `^${c}`, $options: 'i' } }));
+      // Plusieurs villes : $or avec regex pour chacune + exclure les vides
+      orderFilter.$and = [
+        { city: { $exists: true, $ne: '' } },
+        { $or: cities.map(c => ({ city: { $regex: `^${c}`, $options: 'i' } })) }
+      ];
     }
   }
   if (targetFilters.orderAddress) orderFilter.address = { $regex: targetFilters.orderAddress, $options: 'i' };
@@ -405,10 +414,14 @@ router.post('/preview', requireEcomAuth, async (req, res) => {
       
       if (tf.orderCity) {
         const cities = toArray(tf.orderCity);
+        // FIX: Exclure les entrées sans ville (null, undefined, vide)
         if (cities.length === 1) {
-          orderFilter.city = { $regex: `^${cities[0]}`, $options: 'i' };
+          orderFilter.city = { $regex: `^${cities[0]}`, $options: 'i', $exists: true, $ne: '' };
         } else if (cities.length > 1) {
-          orderFilter.$or = cities.map(c => ({ city: { $regex: `^${c}`, $options: 'i' } }));
+          orderFilter.$and = [
+            { city: { $exists: true, $ne: '' } },
+            { $or: cities.map(c => ({ city: { $regex: `^${c}`, $options: 'i' } })) }
+          ];
         }
       }
       if (tf.orderProduct) {

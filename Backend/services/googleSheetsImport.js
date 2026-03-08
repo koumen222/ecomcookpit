@@ -191,7 +191,7 @@ const COLUMN_PATTERNS = [
   { field: 'clientName', compound: ['first name', 'last name', 'full name', 'nom complet', 'nom client', 'customer name', 'nom et prenom', 'nom prenom', 'nom du client'], simple: ['nom', 'name', 'client', 'prenom', 'firstname', 'lastname', 'customer', 'destinataire', 'beneficiaire', 'acheteur'] },
   { field: 'city', compound: ['ville de livraison', 'ville livraison', 'delivery city'], simple: ['ville', 'city', 'commune', 'localite', 'zone', 'region', 'wilaya', 'gouvernorat'] },
   { field: 'product', compound: ['product name', 'nom produit', 'nom article', 'nom du produit', 'libelle produit', 'product title'], simple: ['produit', 'product', 'article', 'item', 'designation', 'libelle', 'offre', 'offer', 'pack'] },
-  { field: 'price', compound: ['product price', 'prix produit', 'prix unitaire', 'unit price', 'selling price', 'prix de vente', 'total price', 'prix total', 'prix ttc', 'prix ht', 'amount', 'montant', 'productprice', 'product&price'], simple: ['prix', 'price', 'tarif', 'valeur'] },
+  { field: 'price', compound: ['product price', 'Product Price', 'prix produit', 'prix unitaire', 'unit price', 'selling price', 'prix de vente', 'total price', 'prix total', 'prix ttc', 'prix ht', 'amount', 'montant', 'productprice', 'product&price'], simple: ['prix', 'price', 'tarif', 'valeur'] },
   { field: 'quantity', compound: [], simple: ['quantite', 'quantity', 'qte', 'qty', 'nb', 'nombre', 'pieces', 'unites'] },
   { field: 'status', compound: ['order status', 'statut commande', 'statut de livraison', 'delivery status', 'etat commande'], simple: ['statut', 'status', 'etat', 'state', 'livraison', 'delivery', 'situation'] },
   { field: 'notes', compound: [], simple: ['notes', 'note', 'commentaire', 'comment', 'remarque', 'observation', 'description', 'details', 'info'] },
@@ -199,26 +199,137 @@ const COLUMN_PATTERNS = [
 ];
 
 /**
- * Auto-detects column mapping from headers.
+ * Detects column types by analyzing content of first few rows.
+ * Returns { field: columnIndex } mapping based on content patterns.
+ */
+function detectColumnsByContent(rows, headers) {
+  const mapping = {};
+  if (!rows || rows.length === 0) return mapping;
+
+  const sampleSize = Math.min(5, rows.length);
+  const columnScores = {}; // { colIndex: { field: score } }
+
+  // Initialize scores for each column
+  headers.forEach((_, idx) => {
+    columnScores[idx] = {
+      price: 0,
+      quantity: 0,
+      clientPhone: 0,
+      orderId: 0,
+      date: 0,
+      city: 0,
+      clientName: 0
+    };
+  });
+
+  // Analyze first few rows
+  for (let i = 0; i < sampleSize; i++) {
+    const row = rows[i];
+    if (!row.c) continue;
+
+    row.c.forEach((cell, idx) => {
+      if (!cell || cell.v == null) return;
+      let val = String(cell.v).trim();
+      if (!val || val === 'null' || val === 'undefined') return;
+
+      // Remove apostrophe for analysis
+      val = val.replace(/^'+/, '');
+
+      // Check for phone numbers (starts with + or has 9+ digits)
+      const digitsOnly = val.replace(/\D/g, '');
+      if (val.startsWith('+') && digitsOnly.length >= 9) {
+        columnScores[idx].clientPhone += 2;
+      } else if (digitsOnly.length >= 9 && digitsOnly.length <= 15 && /^[\d\s\-\+\.\(\)]*$/.test(val)) {
+        columnScores[idx].clientPhone += 1;
+      }
+
+      // Check for prices (numbers between 500-10000000 with comma or space)
+      const numVal = parseFloat(cleanNumericString(val));
+      if (!isNaN(numVal) && numVal >= 500 && numVal <= 10000000) {
+        // If it has comma or space, likely a price
+        if (val.includes(',') || val.includes(' ') || val.includes('.')) {
+          columnScores[idx].price += 2;
+        } else if (numVal > 1000) {
+          columnScores[idx].price += 1;
+        }
+      }
+
+      // Check for quantities (small integers 1-100)
+      const intVal = parseInt(val);
+      if (!isNaN(intVal) && intVal >= 1 && intVal <= 100 && !val.includes(',') && !val.includes('.')) {
+        columnScores[idx].quantity += 1;
+      }
+
+      // Check for order IDs (numbers 1000-99999 or # prefix)
+      if (/^#?\d{3,6}$/.test(val.replace(/\s/g, ''))) {
+        columnScores[idx].orderId += 1;
+      }
+
+      // Check for dates (contains / or - or . with numbers)
+      if (/\d+[\/\-\.]\d+/.test(val) || /\d{4}-\d{2}-\d{2}/.test(val)) {
+        columnScores[idx].date += 1;
+      }
+
+      // Check for cities (short text, no digits, common city names)
+      if (val.length > 2 && val.length < 30 && !/\d/.test(val)) {
+        const commonCities = ['douala', 'yaounde', 'yaoundé', 'bafoussam', 'bamenda', 'bertoua', 'ngaoundere', 'maroua', 'garoua', 'limbe', 'kumba', 'buea', 'bafia', 'mbalmayo', 'ebolowa', 'bafia'];
+        if (commonCities.some(c => val.toLowerCase().includes(c))) {
+          columnScores[idx].city += 2;
+        } else if (/^[a-zA-Z\s\-éèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ]+$/.test(val)) {
+          columnScores[idx].city += 0.5;
+        }
+      }
+
+      // Check for names (two words, no digits)
+      if (/^[a-zA-Z\s\-éèêëàâäôöûüçÉÈÊËÀÂÄÔÖÛÜÇ']+$/i.test(val) && val.includes(' ') && val.length > 5 && val.length < 50) {
+        columnScores[idx].clientName += 1;
+      }
+    });
+  }
+
+  // Assign fields based on highest scores
+  const usedFields = new Set();
+  const usedIndices = new Set();
+
+  // Sort by score and assign
+  Object.entries(columnScores).forEach(([idx, scores]) => {
+    const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+    const [bestField, bestScore] = sorted[0];
+
+    if (bestScore >= 2 && !usedFields.has(bestField) && !usedIndices.has(idx)) {
+      mapping[bestField] = parseInt(idx);
+      usedFields.add(bestField);
+      usedIndices.add(idx);
+    }
+  });
+
+  console.log('🔍 [IMPORT] Content-based detection:', mapping);
+  console.log('🔍 [IMPORT] Column scores:', columnScores);
+
+  return mapping;
+}
+
+/**
+ * Auto-detects column mapping from headers AND content.
  * Returns { field: columnIndex } mapping.
  */
-export function autoDetectColumns(headers) {
+export function autoDetectColumns(headers, rows = []) {
   const mapping = {};
 
   console.log('🔍 [IMPORT] Headers detected:', headers);
 
-  // Pass 1: compound (more specific) matches
+  // Pass 1: compound (more specific) matches from headers
   headers.forEach((header, index) => {
     const h = normalize(header);
     for (const p of COLUMN_PATTERNS) {
       if (!mapping[p.field] && p.compound.some(c => h.includes(c))) {
         mapping[p.field] = index;
-        console.log(`✅ [IMPORT] Mapped ${p.field} -> column ${index} (${header})`);
+        console.log(`✅ [IMPORT] Mapped ${p.field} -> column ${index} (${header}) [compound]`);
       }
     }
   });
 
-  // Pass 2: simple matches (only if field not already mapped AND index not already used)
+  // Pass 2: simple matches from headers (only if field not already mapped)
   const usedIndices = new Set(Object.values(mapping));
   headers.forEach((header, index) => {
     if (usedIndices.has(index)) return;
@@ -232,6 +343,17 @@ export function autoDetectColumns(headers) {
       }
     }
   });
+
+  // Pass 3: content-based detection for missing fields
+  if (rows.length > 0) {
+    const contentMapping = detectColumnsByContent(rows, headers);
+    Object.entries(contentMapping).forEach(([field, idx]) => {
+      if (!mapping[field]) {
+        mapping[field] = idx;
+        console.log(`✅ [IMPORT] Mapped ${field} -> column ${idx} (content-based)`);
+      }
+    });
+  }
 
   console.log('🔍 [IMPORT] Final mapping:', mapping);
   return mapping;
@@ -279,15 +401,26 @@ function cleanNumericString(val) {
   let s = String(val).trim();
   // Remove Google Sheets apostrophe prefix first
   s = s.replace(/^'+/, '');
+  
+  // Handle French format: "12 000,00" or "12 000"
+  // Remove spaces used as thousands separators
+  s = s.replace(/\s/g, '');
+  
+  // Now clean remaining non-numeric chars except , and .
   let cleaned = s.replace(/[^0-9,\.\-]/g, '').trim();
   if (!cleaned) return '0';
+  
   const lastComma = cleaned.lastIndexOf(',');
   const lastDot = cleaned.lastIndexOf('.');
+  
+  // French format: comma is decimal separator
   if (lastComma > lastDot) {
     cleaned = cleaned.replace(/\./g, '').replace(',', '.');
   } else if (lastDot > lastComma && lastComma !== -1) {
+    // Mixed format - remove commas
     cleaned = cleaned.replace(/,/g, '');
   } else if (lastComma !== -1 && lastDot === -1) {
+    // Only comma - check if it's decimal or thousands
     const afterComma = cleaned.split(',')[1];
     if (afterComma && afterComma.length <= 2) {
       cleaned = cleaned.replace(',', '.');
@@ -475,7 +608,8 @@ export function parseOrderRow(row, rowIndex, columnMap, headers, sourceName) {
  */
 export function generatePreview(sheetData, maxRows = 5) {
   const { headers, rows, cols, dataStartIndex } = sheetData;
-  const columnMapping = autoDetectColumns(headers);
+  // Pass rows for content-based column detection
+  const columnMapping = autoDetectColumns(headers, rows);
   const validation = validateColumnMapping(columnMapping);
 
   const previewRows = [];
