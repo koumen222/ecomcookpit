@@ -19,7 +19,8 @@ const QuickOrderModal = ({ isOpen, onClose, product, quantity, subdomain, store 
   const [success, setSuccess] = useState(false);
   const [orderResult, setOrderResult] = useState(null);
 
-  const themeColor = store?.storeSettings?.themeColor || store?.themeColor || '#0F6B4F';
+  // Utiliser la couleur primaire du store (celle configurée dans les paramètres)
+  const themeColor = getComputedStyle(document.documentElement).getPropertyValue('--s-primary').trim() || store?.primaryColor || '#0066CC';
   const currency = product?.currency || store?.storeSettings?.storeCurrency || 'XAF';
 
   const handleChange = (field, value) => {

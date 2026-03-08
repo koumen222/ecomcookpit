@@ -250,6 +250,11 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     
     let description = gptResult.description_optimisee || '';
     
+    // Ajouter un titre h3 avant la description
+    if (description) {
+      description = `### Description du produit\n\n${description}`;
+    }
+    
     // Replace {{IMAGE_X}} with actual poster URLs
     posterImages.forEach((poster) => {
       if (poster.poster_url && poster.index) {

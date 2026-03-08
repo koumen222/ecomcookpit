@@ -158,10 +158,10 @@ router.get('/:subdomain', async (req, res) => {
           subdomain: workspace.subdomain,
           // Theme config
           template: theme.template || 'classic',
-          primaryColor: theme.primaryColor || '#0F6B4F',
+          primaryColor: theme.primaryColor || settings.primaryColor || settings.storeThemeColor || '#0F6B4F',
           accentColor: theme.accentColor || theme.ctaColor || settings.accentColor || settings.ctaColor || '#059669',
-          backgroundColor: theme.backgroundColor || '#FFFFFF',
-          textColor: theme.textColor || '#111827',
+          backgroundColor: theme.backgroundColor || settings.backgroundColor || '#FFFFFF',
+          textColor: theme.textColor || settings.textColor || '#111827',
           font: theme.font || settings.font || 'inter',
           borderRadius: theme.borderRadius || 'lg',
           sectionToggles: theme.sections || {},
