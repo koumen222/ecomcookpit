@@ -275,9 +275,6 @@ export class MinimalErrorBoundary extends React.Component {
   }
 }
 
-// React import pour le ErrorBoundary
-import React from 'react';
-
 export default {
   InvisibleSuspense,
   PageTransition,

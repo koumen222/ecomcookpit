@@ -10,8 +10,8 @@
 
 import React, { Suspense, lazy, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { ThemeProvider } from '../contexts/ThemeContext.jsx';
-import { useSubdomain } from '../hooks/useSubdomain.js';
+import { ThemeProvider } from './contexts/ThemeContext.jsx';
+import { useSubdomain } from './hooks/useSubdomain.js';
 
 // Composants d'optimisation
 import { 
@@ -19,13 +19,13 @@ import {
   getCachedStore, 
   setCachedStore,
   StorePrefetchLink 
-} from '../components/StorePrefetch.jsx';
-import { InvisibleSuspense, PageTransition } from '../components/LoadingOptimizations.jsx';
+} from './components/StorePrefetch.jsx';
+import { InvisibleSuspense, PageTransition } from './components/LoadingOptimizations.jsx';
 
 // Lazy loading des pages store
-const StoreFront = lazy(() => import('../pages/StoreFrontOptimized.jsx'));
-const StoreProductPage = lazy(() => import('../pages/StoreProductPageOptimized.jsx'));
-const StoreCheckout = lazy(() => import('../pages/StoreCheckout.jsx'));
+const StoreFront = lazy(() => import('./pages/StoreFrontOptimized.jsx'));
+const StoreProductPage = lazy(() => import('./pages/StoreProductPageOptimized.jsx'));
+const StoreCheckout = lazy(() => import('./pages/StoreCheckout.jsx'));
 
 // Fallback invisible
 const InvisibleFallback = () => (
@@ -141,8 +141,8 @@ function StoreAppOptimized() {
 }
 
 // Ajouter la méthode preload aux composants lazy
-StoreFront.preload = () => import('../pages/StoreFrontOptimized.jsx');
-StoreProductPage.preload = () => import('../pages/StoreProductPageOptimized.jsx');
-StoreCheckout.preload = () => import('../pages/StoreCheckout.jsx');
+StoreFront.preload = () => import('./pages/StoreFrontOptimized.jsx');
+StoreProductPage.preload = () => import('./pages/StoreProductPageOptimized.jsx');
+StoreCheckout.preload = () => import('./pages/StoreCheckout.jsx');
 
 export default StoreAppOptimized;
