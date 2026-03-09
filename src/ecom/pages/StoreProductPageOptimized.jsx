@@ -326,8 +326,8 @@ const StoreProductPageOptimized = () => {
 
     try {
       const [productRes, storeRes] = await Promise.all([
-        fetch(`/api/store/${subdomain}/product/${slug}`),
-        fetch(`/api/store/${subdomain}`)
+        fetch(`/public/store/${subdomain}/products/${slug}`),
+        fetch(`/public/store/${subdomain}`)
       ]);
 
       if (productRes.ok) {
@@ -358,7 +358,7 @@ const StoreProductPageOptimized = () => {
     if (!subdomain || !slug) return;
     
     try {
-      const res = await fetch(`/api/store/${subdomain}/product/${slug}`);
+      const res = await fetch(`/public/store/${subdomain}/products/${slug}`);
       if (res.ok) {
         const data = await res.json();
         const prod = data.data?.product || data.data;

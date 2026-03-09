@@ -74,7 +74,7 @@ const API_BASE = import.meta.env.VITE_STORE_API_URL
   || 'https://ecomcookpit-production-7a08.up.railway.app';
 
 const publicApi = axios.create({
-  baseURL: `${API_BASE}/api/store`,
+  baseURL: `${API_BASE}/public/store`,
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' }
 });
