@@ -326,8 +326,8 @@ const StoreProductPageOptimized = () => {
 
     try {
       const [productRes, storeRes] = await Promise.all([
-        fetch(`/public/store/${subdomain}/products/${slug}`),
-        fetch(`/public/store/${subdomain}`)
+        fetch(`/api/public/store/${subdomain}/products/${slug}`),
+        fetch(`/api/public/store/${subdomain}`)
       ]);
 
       if (productRes.ok) {
@@ -358,7 +358,7 @@ const StoreProductPageOptimized = () => {
     if (!subdomain || !slug) return;
     
     try {
-      const res = await fetch(`/public/store/${subdomain}/products/${slug}`);
+      const res = await fetch(`/api/public/store/${subdomain}/products/${slug}`);
       if (res.ok) {
         const data = await res.json();
         const prod = data.data?.product || data.data;
@@ -379,7 +379,7 @@ const StoreProductPageOptimized = () => {
       name: product.name,
       price: product.price,
       quantity: quantity,
-      image: product.image || product.images?.[0],
+      image: product.image?.url || product.image || product.images?.[0]?.url || product.images?.[0],
       currency: product.currency || 'XAF'
     });
 
@@ -457,7 +457,11 @@ const StoreProductPageOptimized = () => {
     );
   }
 
-  const images = displayProduct.images || [displayProduct.image].filter(Boolean);
+  const images = (displayProduct.images?.map(img => img.url || img) || [displayProduct.image?.url || displayProduct.image]).filter(Boolean);
+  
+  console.log('[StoreProductPage] Product:', displayProduct);
+  console.log('[StoreProductPage] Images extracted:', images);
+  console.log('[StoreProductPage] Store:', store);
 
   return (
     <div style={{ 
@@ -564,13 +568,13 @@ const StoreProductPageOptimized = () => {
               disabled={isAdded}
               style={{
                 width: '100%', padding: '16px 24px', borderRadius: 12,
-                border: 'none',
-                backgroundColor: isAdded ? '#22c55e' : 'var(--s-primary, #10b981)',
+                border: '2px solid #000', // Bordure visible pour debug
+                backgroundColor: isAdded ? '#22c55e' : (store?.primaryColor || '#10b981'), // Fallback explicite
                 color: '#fff', fontSize: 16, fontWeight: 600,
                 cursor: isAdded ? 'default' : 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
                 transition: 'all 0.2s',
-                transform: isAdded ? 'scale(1)' : 'scale(1)',
+                minHeight: 56, // Hauteur explicite
               }}
             >
               <ShoppingCart size={20} />
@@ -582,11 +586,13 @@ const StoreProductPageOptimized = () => {
               onClick={handleShare}
               style={{
                 width: '100%', padding: '14px 24px', borderRadius: 12,
-                border: '1px solid var(--s-border, #e5e7eb)',
-                backgroundColor: 'transparent',
-                color: 'var(--s-text, #1f2937)', fontSize: 15, fontWeight: 500,
+                border: '2px solid #666', // Bordure visible pour debug
+                backgroundColor: '#f3f4f6', // Fond visible
+                color: '#000', // Couleur texte explicite
+                fontSize: 15, fontWeight: 500,
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
                 marginTop: 12,
+                minHeight: 48,
               }}
             >
               <Share2 size={18} />

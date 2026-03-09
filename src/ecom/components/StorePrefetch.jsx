@@ -185,7 +185,7 @@ export const OptimizedStoreImage = forwardRef(({
   priority = false,
   ...props
 }, ref) => {
-  const [isLoaded, setIsLoaded] = React.useState(false);
+  const [isLoaded, setIsLoaded] = React.useState(true);
   const imgRef = React.useRef(null);
 
   React.useEffect(() => {
@@ -195,7 +195,7 @@ export const OptimizedStoreImage = forwardRef(({
   }, []);
 
   // Conversion WebP si possible
-  const webpSrc = src?.replace(/\.(jpg|jpeg|png)$/i, '.webp');
+  const webpSrc = typeof src === 'string' ? src.replace(/\.(jpg|jpeg|png)$/i, '.webp') : null;
 
   return (
     <picture
@@ -203,8 +203,10 @@ export const OptimizedStoreImage = forwardRef(({
       className={className}
       style={{
         display: 'block',
-        opacity: isLoaded ? 1 : 0,
+        opacity: isLoaded ? 1 : 1, // Forcer opacity à 1 pour debug
         transition: 'opacity 0.2s ease-out',
+        backgroundColor: '#e5e7eb', // Fond gris visible pour debug
+        minHeight: 100, // Hauteur min pour debug
         ...style,
       }}
     >
@@ -213,17 +215,19 @@ export const OptimizedStoreImage = forwardRef(({
       )}
       <img
         ref={imgRef}
-        src={src}
+        src={typeof src === 'string' ? src : ''}
         alt={alt}
         loading={priority ? 'eager' : 'lazy'}
         decoding={priority ? 'sync' : 'async'}
         onLoad={() => setIsLoaded(true)}
+        onError={() => setIsLoaded(true)}
         {...props}
         style={{
           display: 'block',
           width: '100%',
           height: '100%',
           objectFit: 'cover',
+          border: '2px solid red', // Bordure rouge pour debug
           ...props.style,
         }}
       />
