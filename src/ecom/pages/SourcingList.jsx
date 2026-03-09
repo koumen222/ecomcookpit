@@ -434,7 +434,7 @@ export default function SourcingList() {
                             <div className="text-sm font-bold text-gray-900">{order.quantity || 0}</div>
                             {order.weightKg > 0 && <div className="text-xs text-gray-500">{order.weightKg} kg</div>}
                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap hidden md:table-cell text-sm text-gray-900">{formatMoney(order.purchasePrice)}</td>
+                          <td className="px-4 py-4 whitespace-nowrap hidden md:table-cell text-sm text-gray-900">{formatMoney((order.purchasePrice || 0) * (order.quantity || 0))}</td>
                           <td className="px-4 py-4 whitespace-nowrap hidden lg:table-cell text-sm text-gray-900">{formatMoney(order.transportCost)}</td>
                           <td className="px-4 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{formatMoney(totalCost)}</td>
                           <td className="px-4 py-4 whitespace-nowrap">

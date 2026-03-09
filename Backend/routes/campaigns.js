@@ -10,6 +10,13 @@ import { normalizeCity, deduplicateCities } from '../utils/cityNormalizer.js';
 import { checkMessageLimit, incrementMessageCount } from '../services/messageLimitService.js';
 import { sendWhatsAppMessage } from '../services/whatsappService.js';
 import { formatInternationalPhone, normalizePhone } from '../utils/phoneUtils.js';
+import { 
+  groupRecipientsByCountry, 
+  filterRecipientsByCountry, 
+  excludeRecipientsByCountry,
+  generateCountryReport,
+  parseCountryFilters
+} from '../utils/campaignCountryUtils.js';
 
 // Helper pour convertir en ObjectId
 const toObjectId = (v) => {
@@ -952,6 +959,391 @@ router.post('/cancel-all', requireEcomAuth, async (req, res) => {
     res.json({ success: true, message: `${result.modifiedCount} campagne(s) annulée(s)` });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/ecom/campaigns/:id/analyze-countries - Analyser les destinataires par pays
+router.post('/:id/analyze-countries', requireEcomAuth, async (req, res) => {
+  try {
+    const { includeCountries, excludeCountries } = req.body;
+    
+    // Récupérer la campagne
+    const campaign = await Campaign.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
+    if (!campaign) {
+      return res.status(404).json({ success: false, message: 'Campagne non trouvée' });
+    }
+
+    // Récupérer les destinataires (même logique que la route d'envoi)
+    let recipients = [];
+    const hasOrderFilters = campaign.targetFilters && (
+      campaign.targetFilters.orderStatus || campaign.targetFilters.orderCity ||
+      campaign.targetFilters.orderProduct || campaign.targetFilters.orderDateFrom
+    );
+
+    // Utiliser la même logique que la route d'envoi pour récupérer les destinataires
+    if (campaign.selectedClientIds && campaign.selectedClientIds.length > 0) {
+      const candidateIds = campaign.selectedClientIds.map(id => toObjectId(id)).filter(Boolean);
+      const orders = await Order.find({ _id: { $in: candidateIds }, workspaceId: req.workspaceId })
+        .select('clientName clientPhone city address product price date status quantity')
+        .lean();
+      
+      const phoneMap = new Map();
+      for (const order of orders) {
+        const phone = (order.clientPhone || '').trim();
+        if (!phone) continue;
+        const normalized = normalizePhone(phone);
+        if (!normalized) continue;
+        if (!phoneMap.has(normalized) || new Date(order.date) > new Date(phoneMap.get(normalized).date)) {
+          phoneMap.set(normalized, order);
+        }
+      }
+      
+      for (const [normalized, order] of phoneMap) {
+        recipients.push({
+          phone: normalized,
+          client: {
+            firstName: order.clientName?.split(' ')[0] || '',
+            lastName: order.clientName?.split(' ').slice(1).join(' ') || '',
+            phone: normalized,
+            city: order.city || '',
+            address: order.address || ''
+          },
+          orderData: order
+        });
+      }
+    } else if (hasOrderFilters) {
+      const orderMap = await getClientsFromOrderFilters(req.workspaceId, campaign.targetFilters);
+      for (const [normalized, orderData] of orderMap) {
+        if (!normalized || !normalized.trim()) continue;
+        
+        recipients.push({
+          phone: normalized,
+          client: {
+            firstName: orderData.clientName?.split(' ')[0] || '',
+            lastName: orderData.clientName?.split(' ').slice(1).join(' ') || '',
+            phone: normalized,
+            city: orderData.city || '',
+            address: orderData.address || ''
+          },
+          orderData
+        });
+      }
+    } else if (campaign.targetFilters && Object.keys(campaign.targetFilters).some(k => campaign.targetFilters[k])) {
+      const filter = buildClientFilter(req.workspaceId, campaign.targetFilters);
+      filter.phone = { $exists: true, $ne: '' };
+      const clients = await Client.find(filter).select('firstName lastName phone city products totalOrders totalSpent lastContactAt').lean();
+      recipients = clients.map(c => ({ phone: c.phone, client: c, orderData: null }));
+    }
+
+    if (recipients.length === 0) {
+      return res.json({ 
+        success: true, 
+        data: { 
+          summary: { totalRecipients: 0, validRecipients: 0, invalidCount: 0, countryCount: 0 },
+          countries: {},
+          invalidPhones: [],
+          recommendations: ['Aucun destinataire trouvé pour cette campagne']
+        } 
+      });
+    }
+
+    // Analyser par pays
+    const countryAnalysis = groupRecipientsByCountry(recipients);
+    
+    // Appliquer les filtres pays si spécifiés
+    let filteredRecipients = recipients;
+    if (includeCountries && includeCountries.length > 0) {
+      const includeCodes = parseCountryFilters(includeCountries);
+      filteredRecipients = filterRecipientsByCountry(recipients, includeCodes);
+    }
+    if (excludeCountries && excludeCountries.length > 0) {
+      const excludeCodes = parseCountryFilters(excludeCountries);
+      filteredRecipients = excludeRecipientsByCountry(filteredRecipients, excludeCodes);
+    }
+
+    // Générer le rapport
+    const report = generateCountryReport(countryAnalysis);
+    
+    // Ajouter les informations sur les filtres appliqués
+    if (includeCountries || excludeCountries) {
+      const filteredAnalysis = groupRecipientsByCountry(filteredRecipients);
+      report.filteredSummary = filteredAnalysis.summary;
+      report.filteredCountries = filteredAnalysis.countries;
+    }
+
+    console.log(`📊 [ANALYZE-COUNTRIES] ${recipients.length} destinataires analysés pour ${Object.keys(countryAnalysis.countries).length} pays`);
+
+    res.json({ 
+      success: true, 
+      data: report,
+      originalRecipients: recipients.length,
+      filteredRecipients: filteredRecipients.length
+    });
+
+  } catch (error) {
+    console.error('❌ [ANALYZE-COUNTRIES] Erreur:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// POST /api/ecom/campaigns/:id/send-by-country - Envoyer la campagne par pays
+router.post('/:id/send-by-country', requireEcomAuth, async (req, res) => {
+  try {
+    const { 
+      whatsappInstanceId, 
+      includeCountries, 
+      excludeCountries,
+      sendStrategy, // 'all' | 'priority' | 'sequential'
+      priorityCountries, // Ordre prioritaire des pays
+      delayBetweenCountries // Délai entre les pays (en secondes)
+    } = req.body;
+
+    const instanceId = whatsappInstanceId;
+    if (!instanceId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Sélectionnez une instance WhatsApp avant d\'envoyer la campagne.'
+      });
+    }
+
+    // Récupérer et valider l'instance
+    const instance = await WhatsAppInstance.findOne({ _id: instanceId, isActive: true });
+    if (!instance) {
+      return res.status(404).json({
+        success: false,
+        message: 'Instance WhatsApp introuvable.'
+      });
+    }
+
+    if (instance.status !== 'connected' && instance.status !== 'active') {
+      return res.status(400).json({
+        success: false,
+        message: `L'instance n'est pas connectée à WhatsApp.`
+      });
+    }
+
+    // Récupérer la campagne
+    const campaign = await Campaign.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
+    if (!campaign) {
+      return res.status(404).json({ success: false, message: 'Campagne non trouvée' });
+    }
+    if (campaign.status === 'sending' || campaign.status === 'sent') {
+      return res.status(400).json({ success: false, message: 'Campagne déjà en cours ou envoyée' });
+    }
+
+    // Récupérer les destinataires (même logique que précédemment)
+    let recipients = [];
+    const hasOrderFilters = campaign.targetFilters && (
+      campaign.targetFilters.orderStatus || campaign.targetFilters.orderCity ||
+      campaign.targetFilters.orderProduct || campaign.targetFilters.orderDateFrom
+    );
+
+    // [Code pour récupérer les destinataires - identique à la route d'envoi]
+    if (campaign.selectedClientIds && campaign.selectedClientIds.length > 0) {
+      const candidateIds = campaign.selectedClientIds.map(id => toObjectId(id)).filter(Boolean);
+      const orders = await Order.find({ _id: { $in: candidateIds }, workspaceId: req.workspaceId })
+        .select('clientName clientPhone city address product price date status quantity')
+        .lean();
+      
+      const phoneMap = new Map();
+      for (const order of orders) {
+        const phone = (order.clientPhone || '').trim();
+        if (!phone) continue;
+        const normalized = normalizePhone(phone);
+        if (!normalized) continue;
+        if (!phoneMap.has(normalized) || new Date(order.date) > new Date(phoneMap.get(normalized).date)) {
+          phoneMap.set(normalized, order);
+        }
+      }
+      
+      for (const [normalized, order] of phoneMap) {
+        recipients.push({
+          phone: normalized,
+          client: {
+            firstName: order.clientName?.split(' ')[0] || '',
+            lastName: order.clientName?.split(' ').slice(1).join(' ') || '',
+            phone: normalized,
+            city: order.city || '',
+            address: order.address || ''
+          },
+          orderData: order
+        });
+      }
+    } else if (hasOrderFilters) {
+      const orderMap = await getClientsFromOrderFilters(req.workspaceId, campaign.targetFilters);
+      for (const [normalized, orderData] of orderMap) {
+        if (!normalized || !normalized.trim()) continue;
+        
+        recipients.push({
+          phone: normalized,
+          client: {
+            firstName: orderData.clientName?.split(' ')[0] || '',
+            lastName: orderData.clientName?.split(' ').slice(1).join(' ') || '',
+            phone: normalized,
+            city: orderData.city || '',
+            address: orderData.address || ''
+          },
+          orderData
+        });
+      }
+    } else if (campaign.targetFilters && Object.keys(campaign.targetFilters).some(k => campaign.targetFilters[k])) {
+      const filter = buildClientFilter(req.workspaceId, campaign.targetFilters);
+      filter.phone = { $exists: true, $ne: '' };
+      const clients = await Client.find(filter).select('firstName lastName phone city products totalOrders totalSpent lastContactAt').lean();
+      recipients = clients.map(c => ({ phone: c.phone, client: c, orderData: null }));
+    }
+
+    if (recipients.length === 0) {
+      return res.status(400).json({ success: false, message: 'Aucun destinataire trouvé' });
+    }
+
+    // Grouper par pays
+    const countryGroups = groupRecipientsByCountry(recipients);
+    console.log(`📊 [SEND-BY-COUNTRY] ${recipients.length} destinataires groupés en ${Object.keys(countryGroups.countries).length} pays`);
+
+    // Appliquer les filtres pays
+    let targetCountries = countryGroups.countries;
+    if (includeCountries && includeCountries.length > 0) {
+      const includeCodes = parseCountryFilters(includeCountries);
+      const tempGroups = {};
+      for (const [code, group] of Object.entries(countryGroups.countries)) {
+        if (includeCodes.includes(code)) {
+          tempGroups[code] = group;
+        }
+      }
+      targetCountries = tempGroups;
+    }
+    if (excludeCountries && excludeCountries.length > 0) {
+      const excludeCodes = parseCountryFilters(excludeCountries);
+      const tempGroups = {};
+      for (const [code, group] of Object.entries(targetCountries)) {
+        if (!excludeCodes.includes(code)) {
+          tempGroups[code] = group;
+        }
+      }
+      targetCountries = tempGroups;
+    }
+
+    // Déterminer l'ordre d'envoi
+    let countryOrder = Object.keys(targetCountries);
+    if (sendStrategy === 'priority' && priorityCountries && priorityCountries.length > 0) {
+      const priorityCodes = parseCountryFilters(priorityCountries);
+      countryOrder = [
+        ...priorityCodes.filter(code => targetCountries[code]),
+        ...countryOrder.filter(code => !priorityCodes.includes(code))
+      ];
+    } else if (sendStrategy === 'sequential') {
+      // Garder l'ordre par nombre décroissant
+      countryOrder = Object.entries(targetCountries)
+        .sort(([,a], [,b]) => b.recipients.length - a.recipients.length)
+        .map(([code]) => code);
+    }
+
+    // Vérifier les limites
+    const limitCheck = await checkMessageLimit(instance);
+    if (!limitCheck.allowed) {
+      return res.status(429).json({
+        success: false,
+        message: limitCheck.reason,
+        usage: limitCheck.usage
+      });
+    }
+
+    // Mettre la campagne en statut "sending"
+    campaign.status = 'sending';
+    await campaign.save();
+
+    // Envoyer par pays avec délais
+    let totalSent = 0;
+    let totalFailed = 0;
+    const countryResults = [];
+
+    for (let i = 0; i < countryOrder.length; i++) {
+      const countryCode = countryOrder[i];
+      const countryGroup = targetCountries[countryCode];
+      
+      console.log(`🌍 [SEND-BY-COUNTRY] Envoi vers ${countryGroup.countryName} (${countryGroup.recipients.length} contacts)`);
+
+      let countrySent = 0;
+      let countryFailed = 0;
+
+      for (const recipient of countryGroup.recipients) {
+        // Vérifier les limites avant chaque message
+        const msgLimitCheck = await checkMessageLimit(instance);
+        if (!msgLimitCheck.allowed) {
+          console.warn(`⚠️ Limite atteinte: ${msgLimitCheck.reason}`);
+          break;
+        }
+
+        const message = renderMessage(campaign.messageTemplate, recipient.client, recipient.orderData);
+
+        const result = await evolutionApiService.sendMessage(
+          instance.instanceName,
+          instance.instanceToken,
+          recipient.cleanPhone,
+          message
+        );
+
+        if (result.success) {
+          countrySent++;
+          totalSent++;
+          await incrementMessageCount(instanceId, 1);
+        } else {
+          countryFailed++;
+          totalFailed++;
+          console.warn(`⚠️ Échec envoi à ${recipient.cleanPhone}:`, result.error);
+        }
+
+        // Délai entre messages (1.5s)
+        await new Promise(r => setTimeout(r, 1500));
+      }
+
+      countryResults.push({
+        countryCode,
+        countryName: countryGroup.countryName,
+        sent: countrySent,
+        failed: countryFailed,
+        total: countryGroup.recipients.length
+      });
+
+      // Délai entre pays (sauf pour le dernier)
+      if (i < countryOrder.length - 1 && delayBetweenCountries > 0) {
+        console.log(`⏱️ [SEND-BY-COUNTRY] Pause de ${delayBetweenCountries}s avant le pays suivant...`);
+        await new Promise(r => setTimeout(r, delayBetweenCountries * 1000));
+      }
+    }
+
+    // Mettre à jour la campagne
+    campaign.status = totalFailed === totalSent + totalFailed ? 'failed' : 'sent';
+    campaign.sentAt = new Date();
+    campaign.stats = { 
+      ...campaign.stats.toObject?.() || campaign.stats, 
+      sent: totalSent, 
+      failed: totalFailed, 
+      targeted: recipients.length 
+    };
+    await campaign.save();
+
+    // Mettre à jour l'instance
+    await WhatsAppInstance.findByIdAndUpdate(instanceId, { lastSeen: new Date(), status: 'connected' });
+
+    console.log(`✅ Campagne envoyée par pays : ${totalSent} réussis, ${totalFailed} échoués`);
+
+    res.json({
+      success: true,
+      message: `Campagne envoyée avec succès par pays`,
+      data: {
+        totalSent,
+        totalFailed,
+        total: recipients.length,
+        countryResults,
+        countryCount: countryOrder.length
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [SEND-BY-COUNTRY] Erreur:', error);
+    res.status(500).json({ success: false, message: 'Erreur lors de l\'envoi de la campagne' });
   }
 });
 

@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import ecomApi from '../services/ecommApi.js';
+import CampaignCountryModal from '../components/CampaignCountryModal.jsx';
 
 const CampaignDetail = () => {
   const { id } = useParams();
@@ -10,6 +11,7 @@ const CampaignDetail = () => {
   const [error, setError] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showCountryModal, setShowCountryModal] = useState(false);
 
   useEffect(() => {
     fetchCampaign();
@@ -132,15 +134,28 @@ const CampaignDetail = () => {
             )}
           </div>
         </div>
-        <Link 
-          to={`/ecom/campaigns/${campaign._id}/edit`}
-          className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm font-medium flex items-center gap-1.5"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-          </svg>
-          Modifier
-        </Link>
+        <div className="flex items-center gap-2">
+          {campaign.status === 'draft' && (
+            <button
+              onClick={() => setShowCountryModal(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium flex items-center gap-1.5"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/>
+              </svg>
+              Envoyer par pays
+            </button>
+          )}
+          <Link 
+            to={`/ecom/campaigns/${campaign._id}/edit`}
+            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-sm font-medium flex items-center gap-1.5"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+            Modifier
+          </Link>
+        </div>
       </div>
 
       {/* Statistiques */}
@@ -301,6 +316,17 @@ const CampaignDetail = () => {
           </div>
         )}
       </div>
+
+      {/* Modal d'envoi par pays */}
+      <CampaignCountryModal
+        campaign={campaign}
+        isOpen={showCountryModal}
+        onClose={() => setShowCountryModal(false)}
+        onSend={(result) => {
+          // Rafraîchir les données après envoi
+          fetchCampaign();
+        }}
+      />
     </div>
   );
 };

@@ -1,5 +1,6 @@
 import Notification from '../models/Notification.js';
 import { getIO } from './socketService.js';
+import { sendPushNotification } from './pushService.js';
 
 /**
  * Create a notification for a workspace (broadcast) or specific user
@@ -51,7 +52,8 @@ export const createNotification = async ({ workspaceId, userId = null, type, tit
  * Notify all workspace members about a new order
  */
 export const notifyNewOrder = async (workspaceId, order) => {
-  return createNotification({
+  // Créer la notification interne
+  const notification = await createNotification({
     workspaceId,
     type: 'order_new',
     title: 'Nouvelle commande',
@@ -60,6 +62,41 @@ export const notifyNewOrder = async (workspaceId, order) => {
     link: `/ecom/orders/${order._id}`,
     metadata: { orderId: order._id }
   });
+
+  // Envoyer la notification push
+  try {
+    await sendPushNotification(
+      workspaceId,
+      {
+        title: '🛒 Nouvelle commande !',
+        body: `${order.clientName || 'Client'} — ${order.product || 'Produit'} (${order.quantity || 1}x)`,
+        icon: '/icons/order-new.png',
+        tag: `order-new-${order._id}`,
+        data: {
+          type: 'order_new',
+          orderId: order._id,
+          url: `/ecom/orders/${order._id}`
+        },
+        requireInteraction: true,
+        actions: [
+          {
+            action: 'view',
+            title: 'Voir la commande'
+          },
+          {
+            action: 'dismiss',
+            title: 'Ignorer'
+          }
+        ]
+      },
+      'push_new_orders'
+    );
+    console.log(`📱 Push notification envoyée pour nouvelle commande: ${order._id}`);
+  } catch (pushError) {
+    console.warn('⚠️ Erreur envoi notification push nouvelle commande:', pushError.message);
+  }
+
+  return notification;
 };
 
 /**
@@ -82,7 +119,8 @@ export const notifyOrderStatus = async (workspaceId, order, newStatus) => {
     returned: 'order_returned'
   };
 
-  return createNotification({
+  // Créer la notification interne
+  const notification = await createNotification({
     workspaceId,
     type: typeMap[newStatus] || 'order_status',
     title: `Commande ${statusLabels[newStatus] || newStatus}`,
@@ -91,6 +129,32 @@ export const notifyOrderStatus = async (workspaceId, order, newStatus) => {
     link: `/ecom/orders/${order._id}`,
     metadata: { orderId: order._id, status: newStatus }
   });
+
+  // Envoyer la notification push
+  try {
+    await sendPushNotification(
+      workspaceId,
+      {
+        title: `📦 Commande ${statusLabels[newStatus] || newStatus}`,
+        body: `${order.clientName || 'Client'} — ${order.product || 'Produit'}`,
+        icon: `/icons/order-${newStatus}.png`,
+        tag: `order-status-${order._id}-${newStatus}`,
+        data: {
+          type: 'order_status',
+          orderId: order._id,
+          status: newStatus,
+          url: `/ecom/orders/${order._id}`
+        },
+        requireInteraction: ['cancelled', 'returned'].includes(newStatus)
+      },
+      'push_status_changes'
+    );
+    console.log(`📱 Push notification envoyée pour statut commande: ${order._id} -> ${newStatus}`);
+  } catch (pushError) {
+    console.warn('⚠️ Erreur envoi notification push statut commande:', pushError.message);
+  }
+
+  return notification;
 };
 
 /**
