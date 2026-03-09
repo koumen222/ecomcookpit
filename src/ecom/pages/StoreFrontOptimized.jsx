@@ -180,33 +180,44 @@ const StoreFrontOptimized = () => {
   }, [subdomain]);
 
   const loadData = async (showLoadingState = true) => {
-    if (!subdomain) return;
+    if (!subdomain) {
+      console.log('[StoreFront] No subdomain provided');
+      return;
+    }
     
     if (showLoadingState) setIsLoading(true);
     setError('');
 
     try {
+      console.log('[StoreFront] Loading store for subdomain:', subdomain);
       const res = await publicStoreApi.getStore(subdomain);
-      const data = res.data?.data;
+      console.log('[StoreFront] API response:', res);
       
-      if (data) {
-        setStore(data.store);
-        setProducts(data.products || []);
-        setCategories(data.categories || []);
-        setPagination(data.pagination || { page: 1, limit: 20, total: 0, pages: 0 });
+      // Handle both response formats: res.data.data or res.data
+      const responseData = res.data?.data || res.data;
+      console.log('[StoreFront] Extracted data:', responseData);
+      
+      if (responseData) {
+        setStore(responseData.store);
+        setProducts(responseData.products || []);
+        setCategories(responseData.categories || []);
+        setPagination(responseData.pagination || { page: 1, limit: 20, total: 0, pages: 0 });
         
         // Mettre en cache
-        setCachedStore(subdomain, data);
+        setCachedStore(subdomain, responseData);
         
         // Injecter le thème
-        if (data.store) {
-          injectStoreCssVars(data.store);
+        if (responseData.store) {
+          injectStoreCssVars(responseData.store);
         }
+      } else {
+        console.error('[StoreFront] No data in response');
+        setError('Aucune donnée reçue de l\'API');
       }
     } catch (err) {
-      console.error('Store loading error:', err);
+      console.error('[StoreFront] Store loading error:', err);
       if (showLoadingState) {
-        setError('Boutique introuvable');
+        setError('Boutique introuvable: ' + (err.message || 'Erreur inconnue'));
       }
     } finally {
       if (showLoadingState) {
@@ -283,10 +294,41 @@ const StoreFrontOptimized = () => {
     );
   }
 
-  // Afficher immédiatement si données en cache, même pendant le chargement
-  const displayStore = store;
-  const displayProducts = products;
+  // Si pas de données après chargement, afficher message
+  if (!displayStore && !isLoading) {
+    return (
+      <div style={{ 
+        minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 20, fontFamily: 'system-ui'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <h1 style={{ fontSize: 20, fontWeight: 600, color: '#6b7280' }}>
+            {subdomain ? 'Boutique non trouvée' : 'Sous-domaine manquant'}
+          </h1>
+          <p style={{ marginTop: 8, color: '#9ca3af' }}>
+            {subdomain ? `Aucune donnée pour "${subdomain}"` : 'Veuillez spécifier un sous-domaine'}
+          </p>
+          <button 
+            onClick={() => loadData()}
+            style={{
+              marginTop: 16,
+              padding: '10px 20px',
+              borderRadius: 8,
+              border: 'none',
+              backgroundColor: 'var(--s-primary, #10b981)',
+              color: '#fff',
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            Réessayer
+          </button>
+        </div>
+      </div>
+    );
+  }
 
+  // Afficher immédiatement si données en cache, même pendant le chargement
   if (!displayStore && isLoading) {
     // Écran de démarrage minimaliste (transparent)
     return (

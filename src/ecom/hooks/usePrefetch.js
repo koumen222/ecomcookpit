@@ -159,6 +159,9 @@ export function useLinkPrefetching() {
 
   useEffect(() => {
     const handleMouseEnter = (e) => {
+      // Vérifier que target est un élément DOM avec closest
+      if (!e.target || typeof e.target.closest !== 'function') return;
+      
       const link = e.target.closest('a[href^="/ecom/"]');
       if (!link) return;
       
@@ -170,6 +173,9 @@ export function useLinkPrefetching() {
     };
 
     const handleTouchStart = (e) => {
+      // Vérifier que target est un élément DOM avec closest
+      if (!e.target || typeof e.target.closest !== 'function') return;
+      
       const link = e.target.closest('a[href^="/ecom/"]');
       if (!link) return;
       

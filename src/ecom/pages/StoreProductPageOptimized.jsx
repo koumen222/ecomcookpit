@@ -22,6 +22,8 @@ import {
   useStoreCache,
   getCachedProduct,
   setCachedProduct,
+  getCachedStore,
+  setCachedStore,
   OptimizedStoreImage 
 } from '../components/StorePrefetch.jsx';
 

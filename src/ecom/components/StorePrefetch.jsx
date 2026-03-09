@@ -1,5 +1,6 @@
 import React, { forwardRef, useCallback } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { publicStoreApi } from '../services/storeApi.js';
 
 /**
  * Cache de produits pour le store
@@ -243,10 +244,10 @@ export function useStorePrefetch(subdomain) {
     if (productCache.has(cacheKey)) return;
 
     try {
-      const res = await fetch(`/api/store/${subdomain}/product/${slug}`);
-      if (res.ok) {
-        const data = await res.json();
-        productCache.set(cacheKey, { data, timestamp: Date.now() });
+      const res = await publicStoreApi.getProduct(subdomain, slug);
+      if (res.data) {
+        const productData = res.data?.data || res.data;
+        productCache.set(cacheKey, { data: productData, timestamp: Date.now() });
         console.log(`⚡ Prefetched product: ${slug}`);
       }
     } catch (err) {
@@ -259,10 +260,10 @@ export function useStorePrefetch(subdomain) {
     if (storeCache.has(subdomain)) return;
 
     try {
-      const res = await fetch(`/api/store/${subdomain}`);
-      if (res.ok) {
-        const data = await res.json();
-        storeCache.set(subdomain, { data, timestamp: Date.now() });
+      const res = await publicStoreApi.getStore(subdomain);
+      if (res.data) {
+        const storeData = res.data?.data || res.data;
+        storeCache.set(subdomain, { data: storeData, timestamp: Date.now() });
         console.log(`⚡ Prefetched store: ${subdomain}`);
       }
     } catch (err) {
@@ -308,11 +309,11 @@ export function useStoreCache(subdomain, slug = null) {
     
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/store/${subdomain}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCachedStore(subdomain, data);
-        setStore(data);
+      const res = await publicStoreApi.getStore(subdomain);
+      if (res.data) {
+        const storeData = res.data?.data || res.data;
+        setCachedStore(subdomain, storeData);
+        setStore(storeData);
       }
     } catch (err) {
       console.error('Failed to refresh store:', err);
