@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Minus, DollarSign, Truck } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 
 /**
@@ -7,12 +7,13 @@ import { publicStoreApi } from '../services/storeApi.js';
  * S'ouvre directement depuis la page produit
  * Collecte: nom, téléphone, ville, lieu de livraison
  */
-const QuickOrderModal = ({ isOpen, onClose, product, quantity, subdomain, store }) => {
+const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store }) => {
   const [form, setForm] = useState({
     customerName: '',
     phone: '',
     city: '',
-    address: ''
+    address: '',
+    quantity: 1
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -29,7 +30,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, quantity, subdomain, store 
   };
 
   const formatPrice = (price) => new Intl.NumberFormat('fr-FR').format(price);
-  const total = product?.price * quantity || 0;
+  const total = product?.price * form.quantity || 0;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -155,7 +156,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, quantity, subdomain, store 
             )}
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-gray-900 truncate">{product?.name}</p>
-              <p className="text-xs text-gray-500">Quantité: {quantity}</p>
+              <p className="text-xs text-gray-500">Quantité: {form.quantity}</p>
             </div>
             <span className="text-base font-bold" style={{ color: themeColor }}>
               {formatPrice(total)} {currency}
@@ -171,63 +172,114 @@ const QuickOrderModal = ({ isOpen, onClose, product, quantity, subdomain, store 
             </div>
           )}
 
+          {/* Mentions promotionnelles */}
+          <div className="flex flex-col gap-2 text-sm text-gray-600 mb-4">
+            <p className="flex items-center gap-2 font-semibold text-green-600">
+              <ShoppingCart className="w-4 h-4" /> 
+              Commandez aujourd'hui
+            </p>
+            <p className="flex items-center gap-2 font-semibold text-blue-600">
+              <Truck className="w-4 h-4" /> 
+              Profitez de la livraison gratuite
+            </p>
+          </div>
+
           <div>
             <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1.5">
-              <User className="w-4 h-4" /> Nom complet *
+              <ShoppingCart className="w-4 h-4" /> Quantité *
             </label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleChange('quantity', Math.max(1, form.quantity - 1))}
+                className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition"
+                style={{ borderColor: themeColor }}
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+              <input
+                type="number"
+                min="1"
+                max={product?.stock || 99}
+                value={form.quantity}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value) || 1;
+                  handleChange('quantity', Math.max(1, Math.min(val, product?.stock || 99)));
+                }}
+                className="w-20 text-center border border-gray-300 rounded-lg py-2 text-sm font-medium"
+                style={{ borderColor: themeColor }}
+              />
+              <button
+                type="button"
+                onClick={() => handleChange('quantity', Math.min(product?.stock || 99, form.quantity + 1))}
+                className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition"
+                style={{ borderColor: themeColor }}
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+            {product?.stock && form.quantity > product?.stock && (
+              <p className="text-xs text-amber-600 mt-1">Stock disponible: {product?.stock}</p>
+            )}
+          </div>
+
+          <div className="relative">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <User className="w-4 h-4" />
+            </div>
             <input
               type="text"
               value={form.customerName}
               onChange={(e) => handleChange('customerName', e.target.value)}
-              placeholder="Votre nom complet"
+              placeholder="Nom complet *"
               required
               className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-              style={{ '--tw-ring-color': themeColor }}
+              style={{ '--tw-ring-color': themeColor, paddingLeft: '42px' }}
             />
           </div>
 
-          <div>
-            <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1.5">
-              <Phone className="w-4 h-4" /> Numéro de téléphone *
-            </label>
+          <div className="relative">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <Phone className="w-4 h-4" />
+            </div>
             <input
               type="tel"
               value={form.phone}
               onChange={(e) => handleChange('phone', e.target.value)}
-              placeholder="+237 6XX XXX XXX"
+              placeholder="Numéro de téléphone *"
               required
               className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-              style={{ '--tw-ring-color': themeColor }}
+              style={{ '--tw-ring-color': themeColor, paddingLeft: '42px' }}
             />
           </div>
 
-          <div>
-            <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1.5">
-              <MapPin className="w-4 h-4" /> Ville *
-            </label>
+          <div className="relative">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <MapPin className="w-4 h-4" />
+            </div>
             <input
               type="text"
               value={form.city}
               onChange={(e) => handleChange('city', e.target.value)}
-              placeholder="Ex: Douala, Yaoundé..."
+              placeholder="Ville *"
               required
               className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-              style={{ '--tw-ring-color': themeColor }}
+              style={{ '--tw-ring-color': themeColor, paddingLeft: '42px' }}
             />
           </div>
 
-          <div>
-            <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1.5">
-              <MapPin className="w-4 h-4" /> Lieu de livraison *
-            </label>
+          <div className="relative">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <MapPin className="w-4 h-4" />
+            </div>
             <input
               type="text"
               value={form.address}
               onChange={(e) => handleChange('address', e.target.value)}
-              placeholder="Quartier, rue, repère précis..."
+              placeholder="Lieu de livraison *"
               required
               className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-              style={{ '--tw-ring-color': themeColor }}
+              style={{ '--tw-ring-color': themeColor, paddingLeft: '42px' }}
             />
           </div>
 

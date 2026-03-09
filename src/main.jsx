@@ -16,8 +16,17 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
 // Defer analytics to idle time — never blocks first paint
 const _initAnalytics = () => import('./ecom/services/posthog.js').then(m => m.initAnalytics());
+
+// Initialize performance monitoring
+const _initPerformanceMonitoring = () => import('./ecom/services/PerformanceMonitor.js').then(m => {
+  const monitor = new m.default();
+  monitor.init();
+});
+
 if ('requestIdleCallback' in window) {
   requestIdleCallback(_initAnalytics, { timeout: 3000 });
+  requestIdleCallback(_initPerformanceMonitoring, { timeout: 2000 });
 } else {
   setTimeout(_initAnalytics, 1500);
+  setTimeout(_initPerformanceMonitoring, 1000);
 }

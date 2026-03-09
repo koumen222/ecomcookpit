@@ -23,9 +23,9 @@ const FONT_FAMILIES = {
   satoshi:    '"Satoshi", Inter, system-ui, sans-serif',
 };
 
-const CURRENCIES = ['XAF', 'XOF', 'USD', 'EUR', 'GHS', 'NGN', 'MAD'];
+const CURRENCIES = ['FCFA', 'MST', 'USD', 'EUR', 'GHS', 'NGN', 'MAD'];
 
-const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
+const fmt = (n, cur = 'FCFA') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
 
 // ── Section wrapper ──────────────────────────────────────────────────────────
 const Section = ({ icon, title, desc, children }) => (
@@ -146,7 +146,7 @@ const BoutiqueSettings = () => {
     storeLogo: '',
     storePhone: '',
     storeWhatsApp: '',
-    storeCurrency: 'XAF',
+    storeCurrency: 'FCFA',
     isStoreEnabled: true,
     primaryColor: '#0F6B4F',
     accentColor: '#059669',
@@ -177,7 +177,7 @@ const BoutiqueSettings = () => {
           storeLogo:       s.storeLogo        || '',
           storePhone:      s.storePhone       || '',
           storeWhatsApp:   s.storeWhatsApp    || '',
-          storeCurrency:   s.storeCurrency    || 'XAF',
+          storeCurrency:   s.storeCurrency    || 'FCFA',
           isStoreEnabled:  s.isStoreEnabled   ?? true,
           primaryColor:    s.primaryColor     || s.storeThemeColor || '#0F6B4F',
           accentColor:     s.accentColor      || '#059669',

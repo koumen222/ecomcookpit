@@ -207,14 +207,33 @@ const StoreFront = () => {
         {/* Banner */}
         {store.banner && (
           <div className="h-32 sm:h-44 overflow-hidden">
-            <img src={store.banner} alt={store.name} className="w-full h-full object-cover" loading="lazy" />
+            <img 
+              src={store.banner} 
+              alt={store.name} 
+              className="w-full h-full object-cover" 
+              loading="eager"
+              width="1200"
+              height="352"
+              style={{
+                contentVisibility: 'auto',
+                containIntrinsicSize: '1200px 352px'
+              }}
+            />
+            <link rel="preload" as="image" href={store.banner} />
           </div>
         )}
 
         <div className="max-w-6xl mx-auto px-4 py-3">
           <div className="flex items-center gap-3">
             {store.logo && (
-              <img src={store.logo} alt={store.name} className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm" />
+              <img 
+                src={store.logo} 
+                alt={store.name} 
+                className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm" 
+                width="40"
+                height="40"
+                loading="eager"
+              />
             )}
             <div className="flex-1 min-w-0">
               <h1 className="text-lg font-bold text-gray-900 truncate">{store.name}</h1>
@@ -340,7 +359,7 @@ const StoreFront = () => {
                 <a
                   key={product._id}
                   href={storeUrl(`/product/${product.slug}`)}
-                  className="bg-white rounded-xl border border-gray-100 overflow-hidden text-left hover:shadow-md transition-all duration-200 group cursor-pointer"
+                  className="bg-white rounded-xl border border-gray-100 overflow-hidden text-left hover:shadow-md transition-shadow duration-200 group cursor-pointer"
                   title={`Voir les détails de ${product.name}`}
                 >
                   {/* Product image */}
@@ -349,8 +368,15 @@ const StoreFront = () => {
                       <img
                         src={product.image}
                         alt={product.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                         loading="lazy"
+                        width="300"
+                        height="300"
+                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                        style={{
+                          contentVisibility: 'auto',
+                          containIntrinsicSize: '300px 300px'
+                        }}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
@@ -358,7 +384,7 @@ const StoreFront = () => {
                       </div>
                     )}
                     {/* Hover overlay */}
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-opacity duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
                       <div className="bg-white text-gray-900 px-3 py-1.5 rounded-full text-xs font-medium">
                         Voir détails
                       </div>
@@ -367,7 +393,7 @@ const StoreFront = () => {
 
                   {/* Product info */}
                   <div className="p-2.5 sm:p-3">
-                    <h3 className="text-sm font-medium text-gray-900 line-clamp-2 leading-tight group-hover:text-emerald-700 transition-colors">
+                    <h3 className="text-lg font-semibold text-gray-900 line-clamp-2 leading-tight group-hover:text-emerald-700 transition-colors">
                       {product.name}
                     </h3>
                     <div className="mt-1.5 flex items-baseline gap-1.5">

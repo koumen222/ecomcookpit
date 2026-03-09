@@ -59,6 +59,8 @@ export default defineConfig({
     cssMinify: 'esbuild',
     reportCompressedSize: false,
     modulePreload: { polyfill: false },
+    // Aggressive optimization for mobile
+    assetsInlineLimit: 4096, // Inline small assets
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -74,6 +76,10 @@ export default defineConfig({
           if (id.includes('xlsx') || id.includes('papaparse')) return 'excel';
           // Analytics — deferred, non-critical
           if (id.includes('posthog')) return 'analytics';
+          // Date handling — moment is heavy, use smaller alternatives
+          if (id.includes('moment')) return 'date-libs';
+          // Utility libraries
+          if (id.includes('lodash') || id.includes('underscore')) return 'utils';
         },
         // Optimize chunk naming
         chunkFileNames: (chunkInfo) => {
@@ -96,6 +102,12 @@ export default defineConfig({
         // Optimize imports
         globals: {
           __DEV__: JSON.stringify(process.env.NODE_ENV !== 'production')
+        },
+        // Tree shaking optimization
+        treeshake: {
+          moduleSideEffects: false,
+          propertyReadSideEffects: false,
+          unknownGlobalSideEffects: false
         }
       },
       // External dependencies (don't bundle)

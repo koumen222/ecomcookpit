@@ -342,34 +342,42 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       descHtml += `</div>`;
     }
     
-    // Collect all images
+    // Collect all images - CORRECTED: Include ALL generated images in gallery
     const allImages = [];
     
+    // 1. Hero image - always first if available
     if (product.heroImage) {
-      allImages.push({ url: product.heroImage, alt: product.title || 'Produit', order: 0 });
+      allImages.push({ url: product.heroImage, alt: product.title || 'Image Hero principale', order: 0 });
     }
 
+    // 2. Before/After image - second if available  
     if (product.beforeAfterImage) {
-      allImages.push({ url: product.beforeAfterImage, alt: 'Avant / Après', order: 1, type: 'before-after' });
+      allImages.push({ url: product.beforeAfterImage, alt: 'Avant / Après - Résultats visibles', order: 1, type: 'before-after' });
     }
     
+    // 3. Real photos uploaded by user
     if (product.realPhotos?.length) {
-      product.realPhotos.forEach((imgUrl) => {
+      product.realPhotos.forEach((imgUrl, i) => {
         if (imgUrl && !allImages.find(img => img.url === imgUrl)) {
-          allImages.push({ url: imgUrl, alt: product.title || 'Produit', order: allImages.length });
+          allImages.push({ 
+            url: imgUrl, 
+            alt: product.title || `Photo réelle ${i + 1}`, 
+            order: allImages.length,
+            type: 'real-photo'
+          });
         }
       });
     }
     
-    // Poster images from angles
+    // 4. IMPORTANT: All 4 marketing posters from angles - THESE ARE THE MISSING IMAGES
     if (product.angles?.length) {
       product.angles.forEach((angle, i) => {
         if (angle.poster_url && !allImages.find(img => img.url === angle.poster_url)) {
           allImages.push({ 
             url: angle.poster_url, 
-            alt: angle.titre_angle || `Affiche ${i + 1}`, 
+            alt: angle.titre_angle || `Affiche marketing ${i + 1}`, 
             order: allImages.length,
-            type: 'poster'
+            type: 'marketing-poster'
           });
         }
       });

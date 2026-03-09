@@ -465,7 +465,6 @@ const StoreProductPage = () => {
   const { store, product, related, loading, error } = useStoreProduct(subdomain, slug);
   const { cartCount, addToCart } = useStoreCart(subdomain);
 
-  const [qty, setQty] = useState(1);
   const [addedToCart, setAddedToCart] = useState(false);
   const [showOrderModal, setShowOrderModal] = useState(false);
 
@@ -506,7 +505,7 @@ const StoreProductPage = () => {
 
   const handleAddToCart = () => {
     if (!product) return;
-    addToCart({ ...product, image: product.images?.[0]?.url || '' }, qty);
+    addToCart({ ...product, image: product.images?.[0]?.url || '' }, 1);
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 2400);
   };
@@ -676,41 +675,52 @@ const StoreProductPage = () => {
                   )}
                 </div>
 
-                {/* Quantity selector */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--s-text2)' }}>Quantité</span>
-                  <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid var(--s-border)', borderRadius: 40, overflow: 'hidden' }}>
-                    <button onClick={() => setQty(q => Math.max(1, q - 1))} style={{
-                      width: 38, height: 38, border: 'none', backgroundColor: 'transparent',
-                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <Minus size={14} />
-                    </button>
-                    <span style={{ minWidth: 32, textAlign: 'center', fontWeight: 700, fontSize: 15 }}>{qty}</span>
-                    <button onClick={() => setQty(q => q + 1)} style={{
-                      width: 38, height: 38, border: 'none', backgroundColor: 'transparent',
-                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <Plus size={14} />
-                    </button>
-                  </div>
-                </div>
-
                 {/* CTA Buttons */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
                   <button
-                    onClick={() => setShowOrderModal(true)}
+                    onClick={inStock ? () => setShowOrderModal(true) : undefined}
                     disabled={!inStock}
+                    onMouseEnter={(e) => {
+                      if (inStock) {
+                        e.target.style.transform = 'scale(1.05)';
+                        e.target.style.boxShadow = '0 8px 24px rgba(0,0,0,0.2)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (inStock) {
+                        e.target.style.transform = 'scale(1)';
+                        e.target.style.boxShadow = '0 4px 16px rgba(0,0,0,0.12)';
+                      }
+                    }}
                     style={{
                       width: '100%', padding: '15px 24px', borderRadius: 40, border: 'none',
                       backgroundColor: inStock ? 'var(--s-primary)' : '#d1d5db',
                       color: '#fff', fontWeight: 700, fontSize: 16, cursor: inStock ? 'pointer' : 'not-allowed',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
-                      transition: 'all 0.2s', fontFamily: 'var(--s-font)',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', fontFamily: 'var(--s-font)',
                       boxShadow: inStock ? '0 4px 16px rgba(0,0,0,0.12)' : 'none',
+                      animation: inStock ? 'glow 2s ease-in-out infinite' : 'none',
+                      transform: inStock ? 'scale(1)' : 'scale(0.98)',
+                      position: 'relative',
+                      overflow: 'hidden'
                     }}
                   >
-                    <ShoppingCart size={18} /> Commander maintenant
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                      <ShoppingCart size={18} /> Commander maintenant
+                    </div>
+                    <span style={{ 
+                      fontSize: '12px', 
+                      opacity: 0.9, 
+                      fontWeight: 500, 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 4,
+                      animation: 'pulse 2s ease-in-out infinite'
+                    }}>
+                      <Truck size={10} style={{ 
+                        animation: 'bounce 1s ease-in-out infinite'
+                      }} /> Paiement à la livraison
+                    </span>
                   </button>
 
                   {store?.whatsapp && (
@@ -729,6 +739,103 @@ const StoreProductPage = () => {
                       <MessageCircle size={17} /> Commander via WhatsApp
                     </button>
                   )}
+                </div>
+
+                {/* Messages de confiance */}
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'center', 
+                  gap: '24px', 
+                  marginTop: '24px',
+                  marginBottom: '16px',
+                  flexWrap: 'wrap'
+                }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    gap: '8px',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--s-primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white'
+                    }}>
+                      <Truck size={20} />
+                    </div>
+                    <span style={{ 
+                      fontSize: '12px', 
+                      fontWeight: 600, 
+                      color: 'var(--s-text)',
+                      fontFamily: 'var(--s-font)'
+                    }}>
+                      Livraison rapide
+                    </span>
+                  </div>
+                  
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    gap: '8px',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--s-primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white'
+                    }}>
+                      <Shield size={20} />
+                    </div>
+                    <span style={{ 
+                      fontSize: '12px', 
+                      fontWeight: 600, 
+                      color: 'var(--s-text)',
+                      fontFamily: 'var(--s-font)'
+                    }}>
+                      Paiement sécurisé
+                    </span>
+                  </div>
+                  
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    gap: '8px',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--s-primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white'
+                    }}>
+                      <RotateCcw size={20} />
+                    </div>
+                    <span style={{ 
+                      fontSize: '12px', 
+                      fontWeight: 600, 
+                      color: 'var(--s-text)',
+                      fontFamily: 'var(--s-font)'
+                    }}>
+                      Retours acceptés
+                    </span>
+                  </div>
                 </div>
 
                 {/* Description - affichage direct sans titre */}
@@ -767,7 +874,6 @@ const StoreProductPage = () => {
         <QuickOrderModal
           isOpen={showOrderModal}
           product={product}
-          quantity={qty}
           store={store}
           subdomain={subdomain}
           onClose={() => setShowOrderModal(false)}

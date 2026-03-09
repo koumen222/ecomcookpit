@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import cloudflareImagesService from '../services/cloudflareImagesService.js';
+import imageOptimizer from '../services/imageOptimizer.js';
 
 const router = express.Router();
 
@@ -44,10 +45,35 @@ router.post('/upload', requireEcomAuth, upload.single('file'), async (req, res) 
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 8);
     const ext = originalname.split('.').pop();
-    const fileName = `campaign-${mediaType}-${timestamp}-${randomStr}.${ext}`;
+    const fileName = `campaign-${mediaType}-${timestamp}-${randomStr}.webp`; // Always use WebP
+
+    let optimizedBuffer = buffer;
+    let originalSize = buffer.length;
+
+    // Optimize images before upload
+    if (mediaType === 'image') {
+      try {
+        // Determine optimization strategy based on context
+        const isProductImage = req.body.context === 'product';
+        const isBannerImage = req.body.context === 'banner';
+        
+        if (isProductImage) {
+          optimizedBuffer = await imageOptimizer.optimizeProductImage(buffer);
+        } else if (isBannerImage) {
+          optimizedBuffer = await imageOptimizer.optimizeBannerImage(buffer);
+        } else {
+          optimizedBuffer = await imageOptimizer.optimizeImage(buffer);
+        }
+        
+        console.log(`🖼️  Image optimized: ${(originalSize / 1024 / 1024).toFixed(2)}MB → ${(optimizedBuffer.length / 1024 / 1024).toFixed(2)}MB (${((1 - optimizedBuffer.length / originalSize) * 100).toFixed(1)}% reduction)`);
+      } catch (error) {
+        console.warn('⚠️  Image optimization failed, uploading original:', error.message);
+        // Continue with original buffer if optimization fails
+      }
+    }
 
     // Upload vers Cloudflare R2
-    const uploadResult = await cloudflareImagesService.uploadToR2(buffer, fileName, mimetype);
+    const uploadResult = await cloudflareImagesService.uploadToR2(optimizedBuffer, fileName, 'image/webp');
 
     if (!uploadResult.success) {
       return res.status(500).json({ 
@@ -62,7 +88,10 @@ router.post('/upload', requireEcomAuth, upload.single('file'), async (req, res) 
         url: uploadResult.url,
         fileName: fileName,
         type: mediaType,
-        size: buffer.length,
+        size: optimizedBuffer.length,
+        originalSize: originalSize,
+        compressionRatio: originalSize !== optimizedBuffer.length ? ((1 - optimizedBuffer.length / originalSize) * 100).toFixed(1) : 0,
+        format: mediaType === 'image' ? 'webp' : ext,
         originalName: originalname
       }
     });

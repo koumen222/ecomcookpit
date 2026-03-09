@@ -121,6 +121,24 @@ app.use(
   })
 );
 
+// ─── Cache Headers for Performance ─────────────────────────────────────────────
+app.use((req, res, next) => {
+  // Cache static assets (images, CSS, JS) for 1 year
+  if (req.url.match(/\.(jpg|jpeg|png|gif|webp|svg|css|js|woff|woff2)$/)) {
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('Expires', new Date(Date.now() + 31536000000).toUTCString());
+  }
+  // Cache API responses for 5 minutes (except for real-time data)
+  else if (req.url.startsWith('/api/') && !req.url.includes('/alibaba-import') && !req.url.includes('/product-generator')) {
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=600');
+  }
+  // Cache HTML pages for 1 hour
+  else if (req.url.match(/\.(html)$/)) {
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+  }
+  next();
+});
+
 // ─── Body parsers ────────────────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));

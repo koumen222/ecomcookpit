@@ -96,6 +96,63 @@ ${approachGuide}
 
 ⚠️ IMPORTANT : Suis STRICTEMENT cette structure pour les 4 angles. Chaque angle doit correspondre à l'étape de l'approche marketing sélectionnée.
 
+═══ 12 ANGLES MARKETING PUISSANTS (UNIVERSELS) ═══
+🎯 Un angle marketing = La façon stratégique de présenter le produit + La raison principale qui pousse à acheter
+Ce n'est PAS la description technique. C'est le MESSAGE qui touche le client.
+
+Choisis 4 angles parmi ces 12 selon le produit :
+
+1️⃣ **Problème → Solution** : Montre la douleur puis la solution (ex: "Marre des boutons qui reviennent ?")
+2️⃣ **Résultat Rapide** : Les gens veulent vite des résultats (ex: "Résultats visibles dès les premières applications")
+3️⃣ **Transformation** : Avant/Après mental ou visuel (ex: "Passez d'une peau marquée à un teint uniforme")
+4️⃣ **Confiance en Soi** : Très fort en beauté (ex: "Sentez-vous mieux dans votre peau")
+5️⃣ **Simplicité** : Les gens détestent les routines compliquées (ex: "Simple à utiliser au quotidien")
+6️⃣ **Naturel/Bio** : Très vendeur en Afrique (ex: "Formule à base d'ingrédients naturels")
+7️⃣ **Sécurité/Douceur** : Rassure les clients prudents (ex: "Convient aux peaux sensibles")
+8️⃣ **Économie** : Très fort pour e-commerce Afrique (ex: "Moins cher que les soins en institut")
+9️⃣ **Exclusivité** : Donne une valeur premium (ex: "Best-seller recommandé")
+🔟 **Confort** : Pour produits corps/santé (ex: "Sensation agréable sur la peau")
+1️⃣1️⃣ **Gain de Temps** : Les gens veulent aller vite (ex: "Routine rapide en 2 minutes")
+1️⃣2️⃣ **Preuve Sociale** : Les gens suivent les autres (ex: "Déjà adopté par des milliers d'utilisateurs")
+
+🧠 COMMENT CHOISIR LES 4 ANGLES ?
+Pose-toi 3 questions :
+1. Quel problème principal ça résout ?
+2. Quel bénéfice est le plus visible ?
+3. Qu'est-ce qui rassure le client ?
+
+═══ TITRES DES ANGLES MARKETING — PHRASES COMPLÈTES ═══
+✍️ RÈGLES ABSOLUES pour les titres des 4 angles :
+
+✅ CE QU'IL FAUT FAIRE :
+- De vraies phrases complètes (10-15 mots minimum)
+- Naturelles et professionnelles
+- Orientées bénéfice client
+- Crédibles et réalistes
+- Expliquent concrètement ce que fait le produit
+
+❌ INTERDICTIONS :
+- PAS de titres courts (2-4 mots)
+- PAS de slogans raccourcis
+- PAS de mots isolés
+- PAS de formulations vagues
+
+✅ EXEMPLES DE BONS TITRES :
+✔ Ce produit aide à réduire visiblement les imperfections et améliore l'apparence
+✔ Cette solution contribue à raffermir la zone ciblée avec une utilisation régulière
+✔ Ce produit est conçu pour offrir un confort optimal aux zones sensibles
+✔ Cette formule légère s'intègre facilement à votre routine quotidienne
+✔ Ce produit permet d'obtenir un résultat plus éclatant sans traitement agressif
+
+❌ MAUVAIS EXEMPLES (INTERDITS) :
+✖ Minceur rapide (trop court)
+✖ Résultats visibles (trop vague)
+✖ Naturel & efficace (slogan vide)
+✖ Confort absolu (pas informatif)
+✖ Peau parfaite (promesse irréaliste)
+
+🎯 Chaque titre doit expliquer CONCRÈTEMENT ce que le produit fait pour le client.
+
 ═══ IMAGES SECONDAIRES — MISE EN SITUATION RÉELLE (CRITIQUES) ═══
 Les 4 images doivent illustrer la VRAIE SITUATION du problème et les bénéfices, selon l'angle marketing choisi.
 
@@ -113,14 +170,6 @@ Les 4 images doivent illustrer la VRAIE SITUATION du problème et les bénéfice
 - Mise en scène publicitaire artificielle
 - Poses non naturelles ou forcées
 
-🎨 EXEMPLES SELON LE TYPE DE PRODUIT :
-- **Produit anti-acné** → Peau avec boutons visibles → Amélioration visible de la peau
-- **Produit minceur** → Silhouette avant → Silhouette après (réaliste, pas exagéré)
-- **Produit cheveux** → Cheveux abîmés/secs → Cheveux plus soignés/brillants
-- **Produit énergie** → Personne fatiguée au travail → Personne active et concentrée
-- **Aspirateur** → Sol avec poussière/débris → Sol propre et brillant
-- **Fer à lisser** → Cheveux frisés → Cheveux lisses et soignés
-
 🎨 STYLE VISUEL :
 ✅ Réaliste et crédible
 ✅ Moderne e-commerce
@@ -130,56 +179,46 @@ Les 4 images doivent illustrer la VRAIE SITUATION du problème et les bénéfice
 ❌ Pas de texte sur l'image
 ❌ Pas de montage graphique artificiel
 
-Les images doivent DÉPENDRE de l'angle marketing et montrer le bénéfice SPÉCIFIQUE de cet angle.
+Les images doivent DÉPENDRE de l'angle marketing choisi et montrer le bénéfice SPÉCIFIQUE de cet angle.
 
-═══ VISUEL HÉRO — 1ÈRE IMAGE GALERIE (TRÈS IMPORTANT) ═══
-⚠️ RÈGLE ABSOLUE : L'image DOIT utiliser le produit RÉEL fourni par l'utilisateur, JAMAIS un produit généré ou modifié.
+═══ VISUEL HÉRO — 1ÈRE IMAGE SEULE IMAGE MARKETING ═══
+⚠️ RÈGLE ABSOLUE : Seul le HERO est un visuel designé marketing. Les autres images doivent être simples et explicatives.
 
-Le champ "prompt_affiche_hero" doit décrire une AFFICHE E-COMMERCE CARRÉE (1:1) construite autour du PRODUIT RÉEL :
+Le HERO doit contenir :
+✅ L'image réelle du produit (EXACT produit fourni, jamais recréé)
+✅ Un titre fort et visible (bénéfice principal)
+✅ Éléments de crédibilité : ⭐ étoiles avis, 🏷️ badge promo/best-seller
+✅ Design propre, professionnel, moderne e-commerce
+✅ Format carré 1:1, fond clair minimaliste
+✅ Texte descriptif court (1-2 phrases sur les bénéfices)
 
-🖼️ IMAGE DU PRODUIT (OBLIGATOIRE) :
-✅ Utilise l'image réelle du produit fournie (claire, propre, mise en valeur)
-❌ N'invente JAMAIS un nouveau produit
-❌ Ne modifie PAS l'emballage
-❌ Ne crée PAS de mockup différent
-✅ Le produit EXACT fourni doit être visible et reconnaissable
+❌ PAS de prix (ni barré, ni promo)
+❌ PAS d'effets flashy, PAS d'encombrement visuel
 
-🎨 COMPOSITION VISUELLE :
-✅ CENTRE/GAUCHE : Produit réel bien visible et mis en avant
-✅ DROITE (optionnel) : Modèle africain(e) naturel(le) si pertinent pour le produit
-   - Expression douce, regard caméra
-   - Pose naturelle adaptée au produit
-   - Lumière douce, rendu naturel
+🎯 ADAPTE AU PRODUIT RÉEL :
+- Le modèle et la scène doivent correspondre au type de produit (ex: cheveux, yeux, énergie, nettoyage, etc.)
+- PAS de référence systématique à la peau
+- Basé sur la fonction réelle du produit
 
-🧴 ÉLÉMENTS DE CONVERSION (OBLIGATOIRES) :
-✅ ⭐ Étoiles d'avis clients (4.5-5 étoiles)
-✅ 💰 Prix barré + nouveau prix en orange (gros et visible)
-✅ 🏷️ Badge promo / best-seller en haut
-✅ Titre fort et visible (bénéfice principal, 2-3 lignes max)
+═══ VISUEL AVANT/APRÈS — 2ÈME IMAGE SEULE AUTRE IMAGE ═══
+⚠️ SEULEMENT 2 VISUELS AU TOTAL : Hero + Avant/Après
 
-🎨 STYLE :
-- Format carré (1:1)
-- Fond clair minimaliste (blanc ou gris très clair)
-- Design e-commerce moderne et crédible
-- Pas d'effets flashy
-- Pas de long texte
-- Pas d'encombrement visuel
-
-EXEMPLE CONCRET (crème anti-cicatrices) :
-"Square 1:1 e-commerce product poster using the REAL product image provided. Center-left: The actual product (tube + box) clearly visible, clean placement, soft shadow. Right side (optional): Natural African woman with gentle expression, soft lighting. Top: Orange badge 'BEST-SELLER SOIN PEAU'. Title: 'Atténuez cicatrices et marques d'acné' (bold, visible). Star rating: ⭐⭐⭐⭐⭐ 4.8/5. Prices: crossed-out '19 000 FCFA', large orange '15 000 FCFA'. Clean white background. Modern e-commerce style, French text, credible design. CRITICAL: Use the exact real product image, never generate a new product."
-
-═══ VISUEL AVANT/APRÈS — 2ÈME IMAGE GALERIE (TRÈS IMPORTANT) ═══
 Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE produit :
 ✅ Split-screen : côté gauche = AVANT (le problème concret que CE produit résout)
 ✅ Côté droit = APRÈS (le résultat réel et crédible après utilisation)
 ✅ Personnes africaines authentiques, transformation réaliste (pas exagérée)
 ❌ Aucun texte, aucune flèche, aucun label sur l'image
-→ Exemples selon le produit :
-  • Crème visage → AVANT: peau terne/teint inégal | APRÈS: peau lumineuse/unifiée
-  • Aspirateur → AVANT: sol avec poussière/débris | APRÈS: sol propre et brillant
-  • Complément énergie → AVANT: personne fatiguée au bureau | APRÈS: même personne active/concentrée
-  • Fer à lisser → AVANT: cheveux frisés/indomptés | APRÈS: cheveux lisses et brillants
-  • Casque → AVANT: personne stressée dans environnement bruyant | APRÈS: personne sereine avec casque
+
+🎯 ADAPTE AU PRODUIT RÉEL :
+- Pour produit cheveux → cheveux abîmés → cheveux sains
+- Pour produit yeux → yeux fatigués → yeux éclatants
+- Pour produit énergie → personne fatiguée → personne énergique
+- Pour produit nettoyage → surface sale → surface propre
+- Pour produit minceur → silhouette avant → silhouette après
+
+❌ PAS d'autres visuels marketing
+❌ PAS de visuels pour les angles marketing
+❌ SEULEMENT Hero + Avant/Après
 
 ═══ FORMAT JSON STRICT ═══
 {
@@ -187,15 +226,15 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   "hero_headline": "PROMESSE PRINCIPALE EN MAJUSCULES (4-6 mots)",
   "hero_slogan": "Sous-titre accrocheur orienté bénéfice spécifique au produit",
   "hero_baseline": "Phrase de réassurance courte spécifique au produit",
-  "prompt_affiche_hero": "[GÉNÈRE ICI un prompt en anglais ADAPTÉ À CE PRODUIT suivant cette structure: Square 1:1 e-commerce product poster. Right side (60%): Close-up portrait of natural African [woman/man], beautiful skin [+ détail problème visible si pertinent], gentle expression, looking at camera, [pose naturelle adaptée]. Left side (40%): Premium product display - [description packaging], clean placement, soft shadow. Light clean background. Minimal text: small badge top 'BEST-SELLER [CATÉGORIE]', short title '[BÉNÉFICE]', prices '[PRIX BARRÉ] [PRIX PROMO]' (orange), small 'Acheter' button. Premium style, clean design, French text, no flashy effects.]",
+  "prompt_affiche_hero": "[GÉNÈRE ICI un prompt en anglais ADAPTÉ À CE PRODUIT suivant cette structure: Square 1:1 e-commerce product poster. Right side (60%): Close-up portrait of natural African [woman/man], [relevant feature based on product function], gentle expression, looking at camera, [pose naturelle adaptée]. Left side (40%): Premium product display - [description packaging], clean placement, soft shadow. Light clean background. Minimal text: small badge top 'BEST-SELLER [CATÉGORIE]', short title '[BÉNÉFICE]'. NO prices, NO price information. Premium style, clean design, French text, no flashy effects.]",
   "prompt_avant_apres": "[GÉNÈRE ICI un prompt en anglais spécifique à CE produit: décris le problème exact à gauche et le résultat exact à droite, avec des personnes africaines. La transformation doit être liée directement à la fonction de CE produit.]",
   "angles": [
     {
-      "titre_angle": "Émoji + Titre bénéfice réel (5-9 mots)",
+      "titre_angle": "Phrase complète de 10-15 mots expliquant concrètement le bénéfice (PAS de titre court, PAS de slogan de 2-3 mots)",
       "explication": "3-4 phrases concrètes et persuasives. Décris comment ce bénéfice spécifique se manifeste dans la vie réelle. Reste crédible et factuel, sans exagération.",
       "message_principal": "1 phrase d'accroche mémorable spécifique à ce bénéfice",
       "promesse": "La transformation concrète que l'utilisateur va vivre",
-      "prompt_affiche": "Real situation photo: [décrire en anglais la SITUATION RÉELLE et le BÉNÉFICE VISIBLE selon l'angle: For skincare → show skin condition improvement (before/after aspect), For energy → show person in real work/life context showing vitality, For cleaning → show clean vs dirty comparison, For hair → show hair transformation. NO people holding products, NO influencer poses, NO fake advertising scenes. Show authentic real-life situations, natural lighting, credible and realistic, no text overlay, professional e-commerce photography]"
+      "prompt_affiche": "Simple explanatory photo: [décrire en anglais la SITUATION RÉELLE montrant le bénéfice de cet angle. PAS de design publicitaire, PAS de boutons, PAS de CTA, PAS de texte overlay. Photo naturelle, réaliste, qui explique visuellement le bénéfice sans mise en scène marketing. Contexte de vie authentique, lumière naturelle, professionnel mais simple.]"
     }
   ],
   "raisons_acheter": [
@@ -406,20 +445,31 @@ export async function generatePosterImage(promptAffiche, originalImageBuffer = n
   try {
     console.log('🎨 Generating POSTER with NanoBanana...');
 
-    // Enrichir le prompt avec les règles de photo lifestyle professionnelle
+    // Enrichir le prompt avec les règles ABSOLUES pour l'image hero
     const posterPrompt = `${promptAffiche}
 
-CRITICAL REQUIREMENTS FOR THIS LIFESTYLE PRODUCT PHOTO:
-- AFRICAN MODELS must be visible, authentic, naturally using or holding the product
-- NO text overlay on the image
-- NO call-to-action, NO banners, NO price badges, NO promotional elements
-- Product must be clearly visible and identifiable
-- Realistic lifestyle setting: modern African home, office, outdoor, or social context
-- Warm, natural lighting — professional e-commerce photography style
-- Genuine, natural expressions (not overly posed)
-- High resolution, clean composition
-- Ultra realistic photography — no CGI, no illustration, no cartoon
-- The scene should feel authentic and aspirational`;
+⚠️ RÈGLE ABSOLUE — PRODUIT RÉEL UNIQUEMENT:
+- USE THE EXACT REAL PRODUCT IMAGE PROVIDED — NEVER generate a new product
+- DO NOT recreate the product, DO NOT modify packaging, DO NOT create different mockup
+- The EXACT product provided must be clearly visible and recognizable
+- Focus on compositing the real product with marketing elements, NOT generating a new product
+
+CRITICAL REQUIREMENTS FOR E-COMMERCE HERO IMAGE:
+- Square format 1:1, clean white or light gray background
+- Real product image (tube, box, packaging) clearly visible on left/center
+- Optional: Natural African model on right side if relevant (gentle expression, soft lighting)
+- MUST include conversion elements with text:
+  * Star rating (⭐⭐⭐⭐⭐ 4.5-5/5) visible
+  * Badge at top (e.g., "BEST-SELLER SOIN PEAU")
+  * Bold title showing main benefit (2-3 lines max, in French)
+  * Small "Acheter" button
+- NO pricing information, NO prices, NO price comparisons
+- Add descriptive text on image: short phrases (1-2 sentences) highlighting key benefits
+- Professional e-commerce style, modern, credible, premium quality
+- NO flashy effects, NO clutter, clean and elegant design
+- Text must be readable and well-integrated graphically
+
+CRITICAL: The product shown MUST be the exact real product provided, not a generated/recreated version.`;
 
     let result;
 
