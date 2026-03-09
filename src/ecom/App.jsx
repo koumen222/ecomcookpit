@@ -136,11 +136,6 @@ const StoreProductPage = createLazyPage(() => import('./pages/StoreProductPage.j
 const StoreCheckout = createLazyPage(() => import('./pages/StoreCheckout.jsx'));
 const StoreFront = createLazyPage(() => import('./pages/StoreFront.jsx'));
 
-// Store Optimized pages
-const StoreFrontOptimized = createLazyPage(() => import('./pages/StoreFrontOptimized.jsx'));
-const StoreProductPageOptimized = createLazyPage(() => import('./pages/StoreProductPageOptimized.jsx'));
-const StoreCheckoutOptimized = createLazyPage(() => import('./pages/StoreCheckout.jsx'));
-
 // Boutique Module
 const BoutiqueLayout = createLazyPage(() => import('./components/BoutiqueLayout.jsx'));
 const BoutiqueDashboard = createLazyPage(() => import('./pages/BoutiqueDashboard.jsx'));
@@ -449,27 +444,10 @@ const EcomApp = () => {
                     <Route path="/ecom/super-admin/users" element={<LayoutRoute requiredRole="super_admin"><SuperAdminUsers /></LayoutRoute>} />
 
                     {/* Routes boutique */}
-                    <Route
-                      path="/ecom/boutique"
-                      element={<LayoutRoute requiredRole="ecom_admin"><BoutiqueLayout /></LayoutRoute>}
-                    >
-                      <Route index element={<BoutiqueDashboard />} />
-                      <Route path="products" element={<StoreProductsList />} />
-                      <Route path="products/new" element={<StoreProductForm />} />
-                      <Route path="products/:id/edit" element={<StoreProductForm />} />
-                      <Route path="orders" element={<StoreOrdersDashboard />} />
-                      <Route path="theme" element={<Navigate to="/ecom/boutique/settings" replace />} />
-                      <Route path="pages" element={<Navigate to="/ecom/boutique/settings" replace />} />
-                      <Route path="pixel" element={<BoutiquePixel />} />
-                      <Route path="payments" element={<BoutiquePayments />} />
-                      <Route path="domains" element={<BoutiqueDomains />} />
-                      <Route path="settings" element={<BoutiqueSettings />} />
-                    </Route>
+                    <Route path="/ecom/boutique/*" element={<LayoutRoute requiredRole="ecom_admin"><BoutiqueLayout /></LayoutRoute>} />
 
-                    {/* Store public - Routes imbriquées */}
-                    <Route path="/store/:subdomain" element={<InvisibleSuspense><StoreFrontOptimized /></InvisibleSuspense>} />
-                    <Route path="/store/:subdomain/product/:slug" element={<InvisibleSuspense><StoreProductPageOptimized /></InvisibleSuspense>} />
-                    <Route path="/store/:subdomain/checkout" element={<InvisibleSuspense><StoreCheckoutOptimized /></InvisibleSuspense>} />
+                    {/* Store public */}
+                    <Route path="/store/:subdomain" element={<InvisibleSuspense><PublicStorefront /></InvisibleSuspense>} />
 
                     {/* Catch-all */}
                     <Route path="*" element={<Navigate to="/ecom/login" replace />} />

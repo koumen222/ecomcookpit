@@ -42,7 +42,7 @@ export const useStorefront = (subdomain) => {
         // Appel à l'API publique
         const apiUrl = resolvePublicStoreApiBase();
         console.log('[useStorefront] API base resolved:', apiUrl, '| subdomain:', subdomain);
-        const res = await axios.get(`${apiUrl}/api/public/store/${subdomain}`);
+        const res = await axios.get(`${apiUrl}/api/store/${subdomain}`);
 
         if (res.data?.success) {
           const d = res.data.data;
