@@ -205,9 +205,18 @@ const CampaignForm = () => {
         media: formData.media.type !== 'none' ? formData.media : { type: 'none', url: '', fileName: '', caption: '' }
       };
       console.log('💾 Saving campaign with media:', payload.media);
-      if (isEdit) { await ecomApi.put(`/campaigns/${id}`, payload); } else { await ecomApi.post("/campaigns", payload); }
-      navigate("/ecom/campaigns");
-    } catch (err) { setError(err.response?.data?.message || "Erreur enregistrement"); }
+      const response = isEdit 
+        ? await ecomApi.put(`/campaigns/${id}`, payload)
+        : await ecomApi.post("/campaigns", payload);
+      
+      console.log('✅ Campaign saved:', response.data);
+      
+      // Force navigation with state to trigger list refresh
+      navigate("/ecom/campaigns", { replace: true, state: { refresh: true } });
+    } catch (err) { 
+      console.error('❌ Campaign save error:', err);
+      setError(err.response?.data?.message || "Erreur enregistrement"); 
+    }
     finally { setLoading(false); }
   };
 

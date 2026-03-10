@@ -49,8 +49,8 @@ const workspaceSettingsSchema = new mongoose.Schema({
     enabled: { type: Boolean, default: true },
     interval: { 
       type: String, 
-      enum: ['1min', '5min', '15min', '30min', '1hour'], 
-      default: '5min' 
+      enum: ['30sec', '1min', '2min', '5min', '15min', '30min', '1hour'], 
+      default: '2min' // Plus rapide par défaut pour détecter rapidement les nouvelles commandes
     },
     lastRunAt: { type: Date },
     updatedAt: { type: Date, default: Date.now },

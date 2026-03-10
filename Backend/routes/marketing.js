@@ -357,6 +357,7 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
         for (const order of orders) {
           const phone = (order.clientPhone || '').trim();
           if (!phone) continue;
+          // Auto-détection du code pays (pas de préfixe forcé)
           const normalized = normalizePhone(phone);
           if (!normalized) continue;
           // Garder la commande la plus récente par numéro

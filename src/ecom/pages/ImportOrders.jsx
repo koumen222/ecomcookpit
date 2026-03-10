@@ -46,6 +46,7 @@ const ImportOrders = () => {
   // Step 2
   const [previewing, setPreviewing] = useState(false);
   const [previewData, setPreviewData] = useState(null);
+  const [sheetOrder, setSheetOrder] = useState('newest_first'); // 'newest_first' | 'oldest_first'
 
   // Step 3
   const [importing, setImporting] = useState(false);
@@ -138,9 +139,9 @@ const ImportOrders = () => {
     try {
       let payload;
       if (useManualInput) {
-        payload = { spreadsheetId: manualSheetId.trim(), sheetName: manualSheetName || 'Sheet1' };
+        payload = { spreadsheetId: manualSheetId.trim(), sheetName: manualSheetName || 'Sheet1', sheetOrder };
       } else {
-        payload = { sourceId: selectedSourceId };
+        payload = { sourceId: selectedSourceId, sheetOrder };
       }
       const res = await importApi.preview(payload);
       setPreviewData(res.data.data);
@@ -197,7 +198,7 @@ const ImportOrders = () => {
 
     // Run import
     try {
-      const payload = { sourceId: resolvedSourceId };
+      const payload = { sourceId: resolvedSourceId, sheetOrder };
       if (useManualInput) {
         payload.spreadsheetId = manualSheetId.trim();
         payload.sheetName = manualSheetName || 'Sheet1';
@@ -522,6 +523,17 @@ const ImportOrders = () => {
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-medium text-gray-700">Aperçu des données ({previewData.totalRows} lignes)</h3>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">Ordre:</span>
+                      <select 
+                        value={sheetOrder} 
+                        onChange={(e) => { setSheetOrder(e.target.value); handlePreview(); }}
+                        className="text-xs border border-gray-300 rounded-lg px-2 py-1 focus:ring-2 focus:ring-emerald-600"
+                      >
+                        <option value="newest_first">Plus récentes d'abord (haut)</option>
+                        <option value="oldest_first">Plus anciennes d'abord (bas)</option>
+                      </select>
+                    </div>
                   </div>
                   <div className="border border-gray-200 rounded-xl overflow-hidden">
                     <div className="overflow-x-auto">

@@ -330,12 +330,13 @@ export function getSupportedCountries() {
 /**
  * Normalise un numéro de téléphone vers le format international ULTRA ROBUSTE.
  * Gère tous les formats sales : espaces, tirets, parenthèses, apostrophes invisibles, 00, +, sans indicatif.
- * Par défaut ajoute +237 (Cameroun) si aucun indicatif détecté.
+ * Détecte automatiquement le code pays. Si defaultPrefix est fourni et qu'aucun code pays n'est détecté,
+ * l'ajoute comme fallback. Sinon retourne null pour les numéros ambigus.
  * @param {string} phone - Numéro brut (peut être sale depuis Google Sheets)
- * @param {string} defaultPrefix - Indicatif par défaut (ex: '237')
+ * @param {string} defaultPrefix - Indicatif par défaut (ex: '237') - optionnel
  * @returns {string|null} Numéro nettoyé au format international (ex: '237612345678') ou null si invalide
  */
-export function normalizePhone(phone, defaultPrefix = '237') {
+export function normalizePhone(phone, defaultPrefix = null) {
   if (!phone) return null;
 
   let cleaned = String(phone).trim();
@@ -364,14 +365,14 @@ export function normalizePhone(phone, defaultPrefix = '237') {
   
   if (!cleaned || cleaned.length < 5) return null;
   
-  // Vérifier si un indicatif pays est déjà présent
+  // Vérification souple : chercher un préfixe pays connu au début du numéro
+  // On accepte la partie nationale entre 6 et 12 chiffres (souple pour les données imprécises)
   let hasCountryCode = false;
   for (let len = 4; len >= 1; len--) {
     const prefix = cleaned.substring(0, len);
     if (COUNTRY_PHONE_PATTERNS[prefix]) {
-      const info = COUNTRY_PHONE_PATTERNS[prefix];
       const nationalPart = cleaned.substring(len);
-      if (nationalPart.length >= info.minLength && nationalPart.length <= info.maxLength) {
+      if (nationalPart.length >= 6 && nationalPart.length <= 12) {
         hasCountryCode = true;
         break;
       }
@@ -379,23 +380,26 @@ export function normalizePhone(phone, defaultPrefix = '237') {
   }
   
   if (!hasCountryCode) {
-    // Corriger indicatif Cameroun
-    if (cleaned.startsWith('237')) {
-      // Déjà bon
-    } else if (cleaned.startsWith('0')) {
-      // Format local avec 0 initial
-      cleaned = defaultPrefix + cleaned.substring(1);
-    } else if (cleaned.length === 9) {
-      // 9 chiffres sans indicatif (Cameroun)
-      cleaned = defaultPrefix + cleaned;
+    // Tentative de détection automatique via formatInternationalPhone
+    const autoResult = formatInternationalPhone(cleaned);
+    if (autoResult.success) {
+      cleaned = autoResult.formatted;
+      hasCountryCode = true;
+    } else if (defaultPrefix) {
+      // Fallback sur le préfixe par défaut si fourni
+      if (cleaned.startsWith('0')) {
+        cleaned = defaultPrefix + cleaned.substring(1);
+      } else {
+        cleaned = defaultPrefix + cleaned;
+      }
     } else {
-      // Ajouter l'indicatif par défaut
-      cleaned = defaultPrefix + cleaned;
+      // Aucun code pays détecté et pas de fallback → invalide
+      return null;
     }
   }
   
-  // Validation longueur finale : minimum 12 chiffres, maximum 15
-  if (cleaned.length < 12 || cleaned.length > 15) return null;
+  // Validation longueur finale : minimum 10 chiffres, maximum 15
+  if (cleaned.length < 10 || cleaned.length > 15) return null;
   
   return cleaned;
 }

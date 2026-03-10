@@ -44,24 +44,36 @@ const WhatsAppConnexion = () => {
       setLoading(true);
       setError('');
       
-      // Note: On utilise l'endpoint v1 external pour lister si possible, 
-      // sinon on filtre par userId si on ajoute un endpoint de liste
-      // Pour l'instant on va simuler ou utiliser un endpoint existant s'il y en a un
-      // Si l'endpoint de liste n'existe pas encore au niveau v1/external, on devra l'ajouter au backend.
-      
       const response = await ecomApi.get(`/v1/external/whatsapp/instances?userId=${userId}`);
       const data = response.data;
       
       if (data.success) {
         setInstances(data.instances || []);
       } else {
-        // Si l'endpoint n'existe pas encore, on initialise à vide sans erreur bloquante
         setInstances([]);
       }
     } catch (err) {
       console.error('Erreur chargement instances:', err);
-      // Ne pas bloquer l'UI si l'API de liste n'est pas encore prête
       setInstances([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshAllStatuses = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      const response = await ecomApi.post('/v1/external/whatsapp/refresh-status', { userId });
+      const data = response.data;
+      
+      if (data.success) {
+        setInstances(data.instances || []);
+      }
+    } catch (err) {
+      console.error('Erreur refresh statuts:', err);
+      setError('Erreur lors de la mise à jour des statuts');
     } finally {
       setLoading(false);
     }
@@ -222,6 +234,15 @@ const WhatsAppConnexion = () => {
                 Lier une instance
               </>
             )}
+          </button>
+          
+          <button
+            onClick={refreshAllStatuses}
+            disabled={loading}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-all disabled:opacity-50"
+          >
+            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? 'Sync...' : 'Rafraîchir'}
           </button>
         </div>
 

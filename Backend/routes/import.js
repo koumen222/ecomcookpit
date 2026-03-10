@@ -8,8 +8,9 @@ import { EventEmitter } from 'events';
 import Order from '../models/Order.js';
 import ImportHistory from '../models/ImportHistory.js';
 import WorkspaceSettings from '../models/WorkspaceSettings.js';
+import { memCache } from '../services/memoryCache.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
-import { notifyImportCompleted } from '../services/notificationHelper.js';
+import { notifyImportCompleted, notifyNewOrder } from '../services/notificationHelper.js';
 import {
   validateSpreadsheet,
   fetchSheetData,
@@ -111,7 +112,7 @@ router.post('/validate', requireEcomAuth, validateEcomAccess('products', 'write'
 
 router.post('/preview', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
   try {
-    const { spreadsheetId, sheetName, sourceId } = req.body;
+    const { spreadsheetId, sheetName, sourceId, sheetOrder } = req.body;
 
     let resolvedSpreadsheetId = spreadsheetId;
     let resolvedSheetName = sheetName;
@@ -137,7 +138,7 @@ router.post('/preview', requireEcomAuth, validateEcomAccess('products', 'write')
     }
 
     const sheetData = await fetchSheetData(resolvedSpreadsheetId, resolvedSheetName);
-    const preview = generatePreview(sheetData, 5);
+    const preview = generatePreview(sheetData, 5, sheetOrder);
 
     res.json({ success: true, data: preview });
   } catch (error) {
@@ -150,7 +151,7 @@ router.post('/preview', requireEcomAuth, validateEcomAccess('products', 'write')
 
 router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
   const startTime = Date.now();
-  const { sourceId, spreadsheetId: manualSpreadsheetId, sheetName: manualSheetName, sourceName: requestedSourceName } = req.body;
+  const { sourceId, spreadsheetId: manualSpreadsheetId, sheetName: manualSheetName, sourceName: requestedSourceName, sheetOrder } = req.body;
 
   if (!sourceId || typeof sourceId !== 'string') {
     return res.status(400).json({ success: false, message: 'sourceId requis' });
@@ -208,6 +209,7 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
         });
         ws.markModified('sources');
         await ws.save();
+        memCache.delByPrefix(`settings:${req.workspaceId}`);
         sourceToSync = ws.sources[ws.sources.length - 1];
       }
     } else if (sourceId === 'legacy') {
@@ -267,15 +269,30 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
 
     emitProgress(req.workspaceId, sourceId, { percentage: 30, status: 'Traitement des commandes...', current: 0, total: totalDataRows });
 
-    // Parse all rows
+    // Parse all rows - respecter l'ordre choisi
     const parsedRows = [];
     const errors = [];
     let duplicateCount = 0;
     let skippedCount = 0;
     const seenPhones = new Set();
 
-    for (let i = dataStartIndex; i < rows.length; i++) {
-      const rowIdx = i - dataStartIndex;
+    // Déterminer l'ordre de parcours des lignes
+    const rowIndices = [];
+    if (sheetOrder === 'oldest_first') {
+      // Plus anciennes d'abord = partir du bas du sheet
+      for (let i = rows.length - 1; i >= dataStartIndex; i--) {
+        rowIndices.push(i);
+      }
+    } else {
+      // Plus récentes d'abord (par défaut) = partir du haut
+      for (let i = dataStartIndex; i < rows.length; i++) {
+        rowIndices.push(i);
+      }
+    }
+
+    for (let idx = 0; idx < rowIndices.length; idx++) {
+      const i = rowIndices[idx];
+      const rowIdx = idx; // Position dans l'ordre de traitement
 
       // Progress every 5%
       if (rowIdx % Math.max(1, Math.ceil(totalDataRows / 20)) === 0) {
@@ -353,6 +370,7 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
     // Bulk write
     let successCount = 0;
     let updatedCount = 0;
+    const newOrderIds = [];
 
     if (bulkOps.length > 0) {
       emitProgress(req.workspaceId, sourceId, { percentage: 75, status: 'Sauvegarde en base de données...', current: totalDataRows, total: totalDataRows });
@@ -364,6 +382,11 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
         const result = await Order.bulkWrite(batch);
         successCount += result.upsertedCount || 0;
         updatedCount += result.modifiedCount || 0;
+        
+        // Collecter les IDs des nouvelles commandes créées
+        if (result.upsertedIds) {
+          Object.values(result.upsertedIds).forEach(id => newOrderIds.push(id));
+        }
       }
 
       emitProgress(req.workspaceId, sourceId, { percentage: 88, status: 'Mise à jour des métadonnées...', current: totalDataRows, total: totalDataRows });
@@ -384,13 +407,34 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
           latestSettings.markModified('sources');
         }
         await latestSettings.save();
+        memCache.delByPrefix(`settings:${req.workspaceId}`);
       }
     }
 
-    // Notifications for new orders
-    if (successCount > 0) {
+    // Notifications pour chaque nouvelle commande
+    if (newOrderIds.length > 0) {
       emitProgress(req.workspaceId, sourceId, { percentage: 92, status: 'Envoi des notifications...', current: totalDataRows, total: totalDataRows });
 
+      try {
+        // Récupérer les nouvelles commandes pour envoyer les notifications
+        const newOrders = await Order.find({ _id: { $in: newOrderIds } })
+          .select('clientName product quantity price city status')
+          .limit(50) // Limiter à 50 notifications max pour éviter le spam
+          .lean();
+        
+        console.log(`📱 Envoi de ${newOrders.length} notifications pour nouvelles commandes`);
+        
+        // Envoyer une notification pour chaque nouvelle commande (en parallèle)
+        await Promise.allSettled(
+          newOrders.map(order => notifyNewOrder(req.workspaceId, order))
+        );
+        
+        console.log(`✅ ${newOrders.length} notifications envoyées`);
+      } catch (notifErr) {
+        console.error('Notification error (non-blocking):', notifErr.message);
+      }
+      
+      // Notification globale d'import terminé
       try {
         const { sendPushNotification } = await import('../services/pushService.js');
         await sendPushNotification(req.workspaceId, {

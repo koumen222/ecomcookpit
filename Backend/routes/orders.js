@@ -19,58 +19,6 @@ const router = express.Router();
 const syncProgressEmitter = new EventEmitter();
 const activeSyncControllers = new Map();
 
-const AUTO_CANCEL_HOURS = 73;
-const AUTO_CANCEL_MS = AUTO_CANCEL_HOURS * 60 * 60 * 1000;
-const AUTO_CANCEL_COOLDOWN_MS = 5 * 60 * 1000;
-const lastAutoCancelRunByWorkspace = new Map();
-
-const autoCancelExpiredPendingOrders = async (workspaceId = null, options = {}) => {
-  const { log = false, trigger = 'auto', force = false } = options;
-  const workspaceKey = workspaceId ? String(workspaceId) : 'all';
-
-  if (!force) {
-    const lastRunAt = lastAutoCancelRunByWorkspace.get(workspaceKey) || 0;
-    if (Date.now() - lastRunAt < AUTO_CANCEL_COOLDOWN_MS) {
-      return 0;
-    }
-  }
-
-  lastAutoCancelRunByWorkspace.set(workspaceKey, Date.now());
-
-  const cutoff = new Date(Date.now() - AUTO_CANCEL_MS);
-  const filter = {
-    status: 'pending',
-    createdAt: { $lte: cutoff }
-  };
-
-  if (workspaceId) {
-    filter.workspaceId = workspaceId;
-  }
-
-  const result = await Order.updateMany(filter, {
-    $set: {
-      status: 'cancelled',
-      updatedAt: new Date()
-    }
-  });
-
-  if (result.modifiedCount > 0) {
-    if (workspaceId) {
-      memCache.delByPrefix(`stats:${workspaceId}`);
-    } else {
-      memCache.delByPrefix('stats:');
-    }
-  }
-
-  if (log) {
-    console.info(
-      `🧹 [Orders] cancel-pending-expired (${trigger}) workspace=${workspaceId || 'all'} cutoff=${cutoff.toISOString()} matched=${result.matchedCount || 0} modified=${result.modifiedCount || 0}`
-    );
-  }
-
-  return result.modifiedCount || 0;
-};
-
 // Fonction pour détecter le pays depuis le numéro de téléphone ou la ville
 const detectCountry = (phone, city) => {
   // Détection par indicatif téléphonique
@@ -166,7 +114,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), async (
       date: new Date(),
       clientName: clientName || '',
       clientPhone: phoneValue,
-      clientPhoneNormalized: normalizePhone(phoneValue),
+      clientPhoneNormalized: normalizePhone(phoneValue, '237'),
       city: city || '',
       address: address || '',
       product: product || '',
@@ -240,11 +188,12 @@ router.delete('/bulk', requireEcomAuth, validateEcomAccess('products', 'write'),
 // GET /api/ecom/orders/quick - Phase 1: 20 premières commandes sans stats (affichage immédiat)
 router.get('/quick', requireEcomAuth, async (req, res) => {
   try {
-    await autoCancelExpiredPendingOrders(req.workspaceId);
-
-    const { sourceId } = req.query;
+    const { sourceId, sortOrder } = req.query;
     const filter = { workspaceId: req.workspaceId };
     if (sourceId) filter.sheetRowId = { $regex: `^source_${sourceId}_` };
+
+    // Déterminer l'ordre de tri
+    const sortDirection = sortOrder === 'oldest_first' ? -1 : 1;
 
     // Filtre closeuse
     if (req.ecomUser.role === 'ecom_closeuse') {
@@ -274,7 +223,7 @@ router.get('/quick', requireEcomAuth, async (req, res) => {
 
     const orders = await Order.find(filter)
       .select('orderId clientName clientPhone city address product quantity price status date createdAt notes tags source sheetRowId rawData')
-      .sort({ sheetRowIndex: 1, _id: 1 })
+      .sort({ sheetRowIndex: sortDirection, _id: sortDirection })
       .limit(20)
       .lean();
 
@@ -289,8 +238,6 @@ router.get('/quick', requireEcomAuth, async (req, res) => {
 // Returns only orders created/updated after a given timestamp (lightweight)
 router.get('/new-since', requireEcomAuth, async (req, res) => {
   try {
-    await autoCancelExpiredPendingOrders(req.workspaceId);
-
     const { since, sourceId } = req.query;
     if (!since) {
       return res.json({ success: true, data: { orders: [], count: 0, serverTime: new Date().toISOString() } });
@@ -540,16 +487,17 @@ router.get('/my-commissions', requireEcomAuth, async (req, res) => {
 // GET /api/ecom/orders - Liste des commandes
 router.get('/', requireEcomAuth, async (req, res) => {
   try {
-    const { status, search, startDate, endDate, city, product, tag, sourceId, page = 1, limit = 50, allWorkspaces, period } = req.query;
+    const { status, search, startDate, endDate, city, product, tag, sourceId, page = 1, limit = 50, allWorkspaces, period, sortOrder } = req.query;
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
+    
+    // Déterminer l'ordre de tri
+    const sortDirection = sortOrder === 'oldest_first' ? -1 : 1; // -1 = décroissant (anciennes d'abord), 1 = croissant (récentes d'abord)
     
     // Si super_admin et allWorkspaces=true, ne pas filtrer par workspaceId
     const isSuperAdmin = req.ecomUser.role === 'super_admin';
     const viewAllWorkspaces = isSuperAdmin && allWorkspaces === 'true';
 
-    await autoCancelExpiredPendingOrders(viewAllWorkspaces ? null : req.workspaceId);
-    
     const filter = viewAllWorkspaces ? {} : { workspaceId: req.workspaceId };
 
     // Gestion des filtres de période prédéfinis
@@ -694,7 +642,7 @@ router.get('/', requireEcomAuth, async (req, res) => {
 
     const orders = await Order.find(filter)
       .select('orderId clientName clientPhone city address product quantity price status date createdAt updatedAt notes tags source sheetRowId assignedLivreur rawData')
-      .sort({ sheetRowIndex: 1, _id: 1 })
+      .sort({ sheetRowIndex: sortDirection, _id: sortDirection })
       .limit(limitNum)
       .skip((pageNum - 1) * limitNum)
       .lean();

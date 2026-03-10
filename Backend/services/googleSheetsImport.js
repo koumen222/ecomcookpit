@@ -583,7 +583,7 @@ export function parseOrderRow(row, rowIndex, columnMap, headers, sourceName) {
       date: getDateVal('date'),
       clientName: resolvedName,
       clientPhone: resolvedPhone,
-      clientPhoneNormalized: normalizePhone(resolvedPhone),
+      clientPhoneNormalized: normalizePhone(resolvedPhone, '237'),
       city: normalizeCity(getVal('city')),
       product: getVal('product'),
       quantity: Math.max(1, parseInt(getNumVal('quantity')) || 1),
@@ -607,39 +607,82 @@ export function parseOrderRow(row, rowIndex, columnMap, headers, sourceName) {
 
 /**
  * Generates a preview of the first N rows from fetched sheet data.
+ * @param {Object} sheetData - Données du sheet
+ * @param {number} maxRows - Nombre maximum de lignes à prévisualiser
+ * @param {string} sheetOrder - Ordre d'affichage: 'newest_first' (haut) ou 'oldest_first' (bas)
  */
-export function generatePreview(sheetData, maxRows = 5) {
+export function generatePreview(sheetData, maxRows = 5, sheetOrder = 'newest_first') {
   const { headers, rows, cols, dataStartIndex } = sheetData;
   // Pass rows for content-based column detection
   const columnMapping = autoDetectColumns(headers, rows);
   const validation = validateColumnMapping(columnMapping);
 
   const previewRows = [];
-  const limit = Math.min(maxRows, rows.length - dataStartIndex);
+  const totalDataRows = rows.length - dataStartIndex;
+  const limit = Math.min(maxRows, totalDataRows);
 
-  for (let i = dataStartIndex; i < dataStartIndex + limit; i++) {
-    const row = rows[i];
-    if (!row?.c) continue;
-    const rowData = {};
-    headers.forEach((header, idx) => {
-      if (header && row.c[idx]) {
-        const cell = row.c[idx];
-        // Google Sheets API can return values in different formats
-        // Try formatted value (f) first, then raw value (v)
-        let value = '';
-        if (cell.f !== undefined && cell.f !== null) {
-          value = String(cell.f);
-        } else if (cell.v !== undefined && cell.v !== null) {
-          value = String(cell.v);
+  // Déterminer les indices de début et fin selon l'ordre
+  let startIdx, endIdx, step;
+  if (sheetOrder === 'oldest_first') {
+    // Plus anciennes d'abord = partir du bas du sheet
+    startIdx = rows.length - 1;
+    endIdx = dataStartIndex - 1;
+    step = -1;
+  } else {
+    // Plus récentes d'abord (par défaut) = partir du haut
+    startIdx = dataStartIndex;
+    endIdx = dataStartIndex + limit;
+    step = 1;
+  }
+
+  // Collecter les lignes selon l'ordre choisi
+  let collected = 0;
+  if (sheetOrder === 'oldest_first') {
+    for (let i = startIdx; i > endIdx && collected < limit; i--) {
+      const row = rows[i];
+      if (!row?.c) continue;
+      const rowData = {};
+      headers.forEach((header, idx) => {
+        if (header && row.c[idx]) {
+          const cell = row.c[idx];
+          let value = '';
+          if (cell.f !== undefined && cell.f !== null) {
+            value = String(cell.f);
+          } else if (cell.v !== undefined && cell.v !== null) {
+            value = String(cell.v);
+          }
+          value = value.replace(/^'+/, '');
+          rowData[header] = value;
+        } else {
+          rowData[header] = '';
         }
-        // Remove Google Sheets apostrophe prefix (used to force text format)
-        value = value.replace(/^'+/, '');
-        rowData[header] = value;
-      } else {
-        rowData[header] = '';
-      }
-    });
-    previewRows.push(rowData);
+      });
+      previewRows.push(rowData);
+      collected++;
+    }
+  } else {
+    // newest_first - comportement par défaut
+    for (let i = startIdx; i < endIdx && i < rows.length; i++) {
+      const row = rows[i];
+      if (!row?.c) continue;
+      const rowData = {};
+      headers.forEach((header, idx) => {
+        if (header && row.c[idx]) {
+          const cell = row.c[idx];
+          let value = '';
+          if (cell.f !== undefined && cell.f !== null) {
+            value = String(cell.f);
+          } else if (cell.v !== undefined && cell.v !== null) {
+            value = String(cell.v);
+          }
+          value = value.replace(/^'+/, '');
+          rowData[header] = value;
+        } else {
+          rowData[header] = '';
+        }
+      });
+      previewRows.push(rowData);
+    }
   }
 
   return {
@@ -647,7 +690,8 @@ export function generatePreview(sheetData, maxRows = 5) {
     columnMapping,
     validation,
     preview: previewRows,
-    totalRows: rows.length - dataStartIndex,
-    dataStartIndex
+    totalRows: totalDataRows,
+    dataStartIndex,
+    sheetOrder
   };
 }

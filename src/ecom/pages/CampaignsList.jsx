@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
@@ -94,6 +94,7 @@ const Dlg = ({ open, onClose, title, children, w = 'max-w-xl' }) => {
 const CampaignsList = () => {
   const { user } = useEcomAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { fmt } = useMoney(); // 🆕 Hook pour formater les montants
   const isAdmin = user?.role === 'ecom_admin';
   const [campaigns, setCampaigns] = useState([]);
@@ -124,6 +125,16 @@ const CampaignsList = () => {
   };
 
   useEffect(() => { fetchCampaigns().finally(() => setLoading(false)); }, []);
+  
+  // Force refresh when coming from campaign creation
+  useEffect(() => {
+    if (location.state?.refresh) {
+      console.log('🔄 Refreshing campaigns list after creation');
+      fetchCampaigns();
+      // Clear the state to avoid re-fetching on every render
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   
   useEffect(() => { if (success) { const t = setTimeout(() => setSuccess(''), 4000); return () => clearTimeout(t); } }, [success]);

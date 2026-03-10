@@ -91,7 +91,6 @@ const OrdersList = () => {
   const [syncClients, setSyncClients] = useState(false);
   const [syncProgress, setSyncProgress] = useState(null);
   const [syncDisabled, setSyncDisabled] = useState(false);
-  const [cancellingExpiredPending, setCancellingExpiredPending] = useState(false);
   const [syncController, setSyncController] = useState(null);
   const [backfilling, setBackfilling] = useState(false);
   const [showSyncClientsModal, setShowSyncClientsModal] = useState(false);
@@ -117,6 +116,7 @@ const OrdersList = () => {
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({});
   const [itemsPerPage, setItemsPerPage] = useState(100);
+  const [sortOrder, setSortOrder] = useState('newest_first'); // 'newest_first' | 'oldest_first'
   const [viewMode, setViewMode] = useState('table');
   const [showSourceSelector, setShowSourceSelector] = useState(true);
   const [showWhatsAppConfig, setShowWhatsAppConfig] = useState(false);
@@ -214,16 +214,6 @@ const OrdersList = () => {
     return fields.sort((a, b) => a.priority - b.priority);
   };
 
-  const AUTO_CANCEL_HOURS = 73;
-
-  const isAutoExpired = (order) => {
-    if (order.status !== 'pending') return false;
-    const ref = order.createdAt || order.date;
-    if (!ref) return false;
-    const diffMs = Date.now() - new Date(ref).getTime();
-    return diffMs > AUTO_CANCEL_HOURS * 60 * 60 * 1000;
-  };
-
   const getOrderId = (o) => o.orderId || '';
   const getDate = (o) => fmtDate(o.date);
   const getPrice = (o) => o.price != null ? `${o.price}` : '';
@@ -255,12 +245,13 @@ const OrdersList = () => {
     if (filterEndDate) params.endDate = filterEndDate;
     if (selectedSourceId) params.sourceId = selectedSourceId;
     if (isSuperAdmin && viewAllWorkspaces) params.allWorkspaces = 'true';
+    if (sortOrder) params.sortOrder = sortOrder;
 
     // ❌ CACHE DÉSACTIVÉ - Phase 1 : quick endpoint uniquement
     const hasFilters = debouncedSearch || filterStatus || debouncedCity || debouncedProduct || debouncedTag || filterStartDate || filterEndDate;
     if (!hasFilters && page === 1 && !silent) {
       try {
-        const quickParams = {};
+        const quickParams = { sortOrder };
         if (selectedSourceId) quickParams.sourceId = selectedSourceId;
         const quick = await ecomApi.get('/orders/quick', { params: quickParams });
         if (quick.data.data.orders.length > 0) {
@@ -522,7 +513,8 @@ const OrdersList = () => {
       });
       
       if (res.data.success) {
-        const newSourceId = res.data.data.source?._id || res.data.data.sourceId;
+        const createdSource = res.data.data || {};
+        const newSourceId = createdSource._id || createdSource.source?._id || createdSource.sourceId;
         
         setSuccess('Source ajoutée avec succès ! Lancement de la première synchronisation...');
         setShowAddSheetModal(false);
@@ -531,6 +523,7 @@ const OrdersList = () => {
         
         // Lancer automatiquement la première synchronisation pour la nouvelle source
         if (newSourceId) {
+          setSelectedSourceId(newSourceId);
           setTimeout(() => {
             handleSync(newSourceId);
           }, 1000);
@@ -584,7 +577,7 @@ const OrdersList = () => {
     return () => clearTimeout(t);
   }, [search, filterCity, filterProduct, filterTag]);
 
-  useEffect(() => { if (!loading) fetchOrders(false); }, [debouncedSearch, filterStatus, debouncedCity, debouncedProduct, debouncedTag, filterStartDate, filterEndDate, selectedSourceId, page, viewAllWorkspaces, itemsPerPage]);
+  useEffect(() => { if (!loading) fetchOrders(false); }, [debouncedSearch, filterStatus, debouncedCity, debouncedProduct, debouncedTag, filterStartDate, filterEndDate, selectedSourceId, page, viewAllWorkspaces, itemsPerPage, sortOrder]);
   useEffect(() => { if (success) { const t = setTimeout(() => setSuccess(''), 10000); return () => clearTimeout(t); } }, [success]);
   useEffect(() => { if (error) { const t = setTimeout(() => setError(''), 5000); return () => clearTimeout(t); } }, [error]);
 
@@ -593,6 +586,10 @@ const OrdersList = () => {
   const pollingRef = useRef(false);
 
   const silentPoll = useCallback(async () => {
+    // Ne pas faire de polling si des filtres sont actifs (pour éviter d'écraser les résultats filtrés)
+    const hasActiveFilters = debouncedSearch || filterStatus || debouncedCity || debouncedProduct || debouncedTag || filterStartDate || filterEndDate;
+    if (hasActiveFilters) return;
+    
     if (pollingRef.current || loading) return;
     pollingRef.current = true;
     try {
@@ -633,7 +630,7 @@ const OrdersList = () => {
       /* silent — never show errors from polling */ 
     }
     pollingRef.current = false;
-  }, [loading, selectedSourceId]);
+  }, [loading, selectedSourceId, debouncedSearch, filterStatus, debouncedCity, debouncedProduct, debouncedTag, filterStartDate, filterEndDate]);
 
   useEffect(() => {
     if (loading) return;
@@ -758,24 +755,6 @@ const OrdersList = () => {
       setSuccess(res.data.message);
     } catch (err) { setError(getContextualError(err, 'save_client')); }
     finally { setBackfilling(false); }
-  };
-
-  const handleCancelExpiredPendingOrders = async () => {
-    if (!window.confirm('Annuler toutes les commandes en attente datant de plus de 73h ?')) return;
-    console.info('🟡 [OrdersList] Manual cancel-pending-expired started');
-    setCancellingExpiredPending(true);
-    setError('');
-    try {
-      const res = await ecomApi.post('/orders/cancel-pending-expired');
-      console.info('✅ [OrdersList] Manual cancel-pending-expired success', res.data?.data || {});
-      setSuccess(res.data?.message || 'Annulation automatique terminée');
-      await fetchOrders();
-    } catch (err) {
-      console.error('❌ [OrdersList] Manual cancel-pending-expired failed:', err);
-      setError(getContextualError(err, 'save_order'));
-    } finally {
-      setCancellingExpiredPending(false);
-    }
   };
 
   const handleSaveConfig = async () => {
@@ -1515,19 +1494,6 @@ const OrdersList = () => {
                 <span className="hidden sm:inline">Sync</span>
               </button>
               <button
-                onClick={handleCancelExpiredPendingOrders}
-                disabled={cancellingExpiredPending}
-                className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-red-600 text-white rounded-xl active:scale-95 transition text-[11px] sm:text-xs font-semibold disabled:opacity-50"
-                title="Annuler les commandes en attente de plus de 73h"
-              >
-                {cancellingExpiredPending ? (
-                  <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-white/70 border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                )}
-                <span className="hidden sm:inline">Annuler +73h</span>
-              </button>
-              <button
                 onClick={() => navigate('/ecom/stats')}
                 className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-700 text-white rounded-xl transition text-xs font-semibold"
                 title="Voir les statistiques globales"
@@ -1666,12 +1632,24 @@ const OrdersList = () => {
                 )}
               </p>
             </div>
-            {activeFiltersCount > 0 && (
-              <button onClick={clearAllFilters} className="inline-flex items-center gap-1 px-2 py-1 bg-red-50 text-red-600 hover:bg-red-100 rounded text-[10px] font-semibold transition-all">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                Réinitialiser
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {/* Sélecteur d'ordre */}
+              <select 
+                value={sortOrder} 
+                onChange={(e) => { setSortOrder(e.target.value); setPage(1); }}
+                className="text-[10px] border border-gray-300 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                title="Ordre d'affichage"
+              >
+                <option value="newest_first">Plus récentes</option>
+                <option value="oldest_first">Plus anciennes</option>
+              </select>
+              {activeFiltersCount > 0 && (
+                <button onClick={clearAllFilters} className="inline-flex items-center gap-1 px-2 py-1 bg-red-50 text-red-600 hover:bg-red-100 rounded text-[10px] font-semibold transition-all">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  Réinitialiser
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1990,8 +1968,6 @@ const OrdersList = () => {
               const productName = getProductName(o);
               const totalPrice = (o.price || 0) * (o.quantity || 1);
 
-              const effectiveStatus = isAutoExpired(o) ? 'cancelled' : o.status;
-
               return (
                 <div key={o._id} className="bg-white rounded-xl border border-gray-200 hover:border-emerald-400 hover:shadow-md transition-all duration-200 cursor-pointer group" onClick={() => navigate(`/ecom/orders/${o._id}`)}>
                   <div className="p-3">
@@ -2034,17 +2010,17 @@ const OrdersList = () => {
                       {/* Status */}
                       <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                         <select 
-                          value={effectiveStatus} 
+                          value={o.status} 
                           onChange={(e) => { 
                             if (e.target.value === '__custom') { 
                               const c = prompt('Entrez le statut personnalisé'); 
                               if (c && c.trim()) handleStatusChange(o._id, c.trim()); 
                             } else handleStatusChange(o._id, e.target.value); 
                           }}
-                          className={`text-xs px-2.5 py-1.5 rounded-lg font-semibold border cursor-pointer focus:ring-2 focus:ring-emerald-600 focus:outline-none transition-all ${getStatusColor(effectiveStatus)}`}
+                          className={`text-xs px-2.5 py-1.5 rounded-lg font-semibold border cursor-pointer focus:ring-2 focus:ring-emerald-600 focus:outline-none transition-all ${getStatusColor(o.status)}`}
                         >
                           {Object.entries(SL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                          {!SL[effectiveStatus] && <option value={effectiveStatus}>{effectiveStatus}</option>}
+                          {!SL[o.status] && <option value={o.status}>{o.status}</option>}
                           <option value="__custom">+ Personnalisé...</option>
                         </select>
                       </div>
@@ -2074,8 +2050,6 @@ const OrdersList = () => {
               const city = getCity(o);
               const productName = getProductName(o);
               const totalPrice = (o.price || 0) * (o.quantity || 1);
-
-              const effectiveStatus = isAutoExpired(o) ? 'cancelled' : o.status;
 
               return (
                 <div key={o._id} className="bg-white rounded-xl border border-gray-200 hover:border-emerald-400 hover:shadow-md transition-all" onClick={() => navigate(`/ecom/orders/${o._id}`)}>
@@ -2122,7 +2096,7 @@ const OrdersList = () => {
                   {/* Actions */}
                   <div className="border-t border-gray-100 px-2.5 py-2 flex items-center justify-between bg-gray-50/50" onClick={(e) => e.stopPropagation()}>
                     <select 
-                      value={effectiveStatus} 
+                      value={o.status} 
                       onChange={(e) => { 
                         e.stopPropagation(); 
                         if (e.target.value === '__custom') { 
@@ -2131,10 +2105,10 @@ const OrdersList = () => {
                         } else handleStatusChange(o._id, e.target.value); 
                       }}
                       onClick={(e) => e.stopPropagation()}
-                      className={`text-[9px] font-medium px-1.5 py-0.5 rounded border cursor-pointer focus:ring-2 focus:ring-emerald-600 focus:outline-none ${getStatusColor(effectiveStatus)}`}
+                      className={`text-[9px] font-medium px-1.5 py-0.5 rounded border cursor-pointer focus:ring-2 focus:ring-emerald-600 focus:outline-none ${getStatusColor(o.status)}`}
                     >
                       {Object.entries(SL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                      {!SL[effectiveStatus] && <option value={effectiveStatus}>{effectiveStatus}</option>}
+                      {!SL[o.status] && <option value={o.status}>{o.status}</option>}
                       <option value="__custom">+ Personnalisé...</option>
                     </select>
                     <div className="flex items-center gap-1.5">

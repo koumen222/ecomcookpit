@@ -116,7 +116,7 @@ router.post('/', requireEcomAuth, async (req, res) => {
       firstName: firstName.trim(),
       lastName: lastName?.trim() || '',
       phone: phoneValue,
-      phoneNormalized: normalizePhone(phoneValue),
+      phoneNormalized: normalizePhone(phoneValue, '237'),
       email: email?.trim() || '',
       city: city?.trim() || '',
       address: address?.trim() || '',
@@ -159,7 +159,7 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
         client[field] = req.body[field];
         // Normaliser le téléphone si modifié
         if (field === 'phone') {
-          client.phoneNormalized = normalizePhone(req.body[field]);
+          client.phoneNormalized = normalizePhone(req.body[field], '237');
         }
       }
     });

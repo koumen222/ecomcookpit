@@ -103,17 +103,19 @@ const WhatsAppInstanceSelector = ({ onInstanceSelected, selectedInstanceId }) =>
                 <div className="flex items-center">
                   <Smartphone className="w-4 h-4 text-gray-400 mr-2" />
                   <div>
-                    <div className="text-sm font-medium text-gray-900">{instance.name}</div>
-                    <div className="text-xs text-gray-500">{instance.instanceId}</div>
+                    <div className="text-sm font-medium text-gray-900">{instance.customName || instance.instanceName}</div>
+                    <div className="text-xs text-gray-500">{instance.instanceName}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`text-xs px-2 py-1 rounded ${
-                    instance.status === 'active' 
+                    instance.status === 'connected' || instance.status === 'active'
                       ? 'bg-green-100 text-green-700' 
-                      : 'bg-gray-100 text-gray-600'
+                      : instance.status === 'configured'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-gray-100 text-gray-600'
                   }`}>
-                    {instance.status === 'active' ? 'Actif' : 'Inactif'}
+                    {instance.status === 'connected' || instance.status === 'active' ? 'Connecté' : instance.status === 'configured' ? 'Configuré' : 'Déconnecté'}
                   </span>
                   {selectedInstanceId === instance._id && (
                     <Check className="w-4 h-4 text-green-600" />
@@ -133,7 +135,7 @@ const WhatsAppInstanceSelector = ({ onInstanceSelected, selectedInstanceId }) =>
             <p className="text-gray-600 mb-6 text-sm">Veuillez configurer vos instances dans la page "Connexion WhatsApp" de la barre latérale.</p>
             <div className="flex gap-3">
               <button onClick={() => setShowRegisterModal(false)} className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg">Fermer</button>
-              <a href="/ecom/whatsapp/connexion" className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-center">Y aller</a>
+              <a href="/ecom/whatsapp/instances" className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-center">Y aller</a>
             </div>
           </div>
         </div>
