@@ -245,6 +245,7 @@ const startServer = async () => {
       ['./routes/orders.js',                  '/api/ecom/orders'],
       ['./routes/campaigns.js',               '/api/ecom/campaigns'],
       ['./routes/mediaUpload.js',             '/api/ecom/media-upload'],
+      ['./routes/webhooks.js',                '/api/ecom/webhooks'],
       ['./routes/ecore.js',                   '/api/ecom/ecore'],
       ['./routes/push.js',                    '/api/ecom/push'],
       ['./routes/notifications.js',           '/api/ecom/notifications'],
@@ -323,16 +324,10 @@ const startServer = async () => {
       console.warn('⚠️ Auto-sync non démarré:', err.message);
     }
 
-    // ─── Google Sheets Polling for new orders ────────────────────────────
-    try {
-      const pollingMod = await import('./services/googleSheetsPolling.js');
-      if (pollingMod.startPollingService) {
-        pollingMod.startPollingService();
-        console.log('✅ Google Sheets polling service démarré');
-      }
-    } catch (err) {
-      console.warn('⚠️ Google Sheets polling non démarré:', err.message);
-    }
+    // ─── Google Sheets Polling DÉSACTIVÉ (remplacé par webhooks) ────────
+    // Le polling a été remplacé par un système de webhooks en temps réel
+    // Voir docs/WEBHOOK_SETUP.md pour la configuration
+    console.log('ℹ️ Polling désactivé - Utilisation des webhooks pour les notifications temps réel');
 
     // ─── Push scheduled notifications + automations ──────────────────────
     try {

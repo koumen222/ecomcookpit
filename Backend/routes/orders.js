@@ -139,25 +139,6 @@ router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), async (
     // Notification d'équipe (exclure l'acteur)
     notifyTeamOrderCreated(req.workspaceId, req.ecomUser._id, order, req.ecomUser.email).catch(() => {});
     
-    // 📱 Push notification
-    try {
-      const { sendPushNotification } = await import('../services/pushService.js');
-      await sendPushNotification(req.workspaceId, {
-        title: '🛒 Nouvelle commande',
-        body: `${order.clientName || order.clientPhone} - ${order.product || 'Produit'} (${order.quantity}x)`,
-        icon: '/icons/icon-192x192.png',
-        badge: '/icons/icon-72x72.png',
-        tag: 'new-order',
-        data: {
-          type: 'new_order',
-          orderId: order._id.toString(),
-          url: `/orders/${order._id}`
-        }
-      }, 'push_new_orders');
-    } catch (e) {
-      console.warn('⚠️ Push notification failed:', e.message);
-    }
-    
     res.status(201).json({ success: true, message: 'Commande créée', data: order });
   } catch (error) {
     console.error('Erreur création commande:', error);

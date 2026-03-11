@@ -88,21 +88,30 @@ class EvolutionApiService {
   async sendMedia(instanceName, instanceToken, number, mediaUrl, caption = '', fileName = 'image.jpg') {
     const cleanNumber = number.replace(/\D/g, '');
     
+    // Déterminer le mimetype depuis l'extension du fichier
+    const ext = fileName.split('.').pop().toLowerCase();
+    const mimetypes = {
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'webp': 'image/webp',
+      'mp4': 'video/mp4',
+      'pdf': 'application/pdf'
+    };
+    const mimetype = mimetypes[ext] || 'image/jpeg';
+    
     try {
       const response = await axios.post(
         `${this.baseUrl}/message/sendMedia/${instanceName}`,
         {
           number: cleanNumber,
-          mediaMessage: {
-            mediaType: 'image',
-            media: mediaUrl,
-            fileName: fileName,
-            caption: caption
-          },
-          options: {
-            delay: 1200,
-            presence: 'composing'
-          }
+          mediatype: 'image',
+          mimetype: mimetype,
+          caption: caption,
+          media: mediaUrl,
+          fileName: fileName,
+          delay: 1200
         },
         {
           headers: {
@@ -119,10 +128,19 @@ class EvolutionApiService {
       };
     } catch (error) {
       const errorData = error.response?.data;
-      console.error(`❌ Erreur Evolution API (sendMedia):`, errorData || error.message);
+      console.error(`❌ Erreur Evolution API (sendMedia):`, JSON.stringify(errorData, null, 2) || error.message);
+      console.error(`   URL tentée: ${this.baseUrl}/message/sendMedia/${instanceName}`);
+      console.error(`   Numéro: ${cleanNumber}, Media: ${mediaUrl}`);
+      
+      // Extraire le message d'erreur détaillé
+      let detailedError = errorData?.message || error.message;
+      if (Array.isArray(errorData?.response?.message)) {
+        detailedError = errorData.response.message.map(m => JSON.stringify(m)).join(', ');
+      }
+      
       return {
         success: false,
-        error: errorData?.message || error.message
+        error: detailedError
       };
     }
   }

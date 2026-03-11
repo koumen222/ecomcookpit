@@ -325,6 +325,9 @@ const EcomApp = () => {
             <Route path="/ecom/whatsapp/connexion" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppConnexion /></LayoutRoute>} />
             <Route path="/ecom/whatsapp/instances" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppInstancesList /></LayoutRoute>} />
 
+            {/* Routes affectations */}
+            <Route path="/ecom/assignments" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><AssignmentsManager /></LayoutRoute>} />
+
             {/* Routes utilisateurs */}
             <Route path="/ecom/users" element={<LayoutRoute requiredRole="ecom_admin"><UserManagement /></LayoutRoute>} />
             <Route path="/ecom/profile" element={<LayoutRoute><Profile /></LayoutRoute>} />

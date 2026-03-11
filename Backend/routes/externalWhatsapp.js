@@ -236,7 +236,7 @@ router.post('/verify-instance', async (req, res) => {
 });
 
 /**
- * @route   DELETE /api/ecom/v1/external/whatsapp/instances/:id
+ * @route   DELETE /api/ecom/v1/  external/whatsapp/instances/:id
  * @desc    Supprimer une instance WhatsApp
  * @access  Public (Sécurisé par userId)
  */

@@ -752,7 +752,7 @@ router.get('/:id', requireEcomAuth, async (req, res) => {
 // POST /api/ecom/campaigns - Créer une campagne
 router.post('/', requireEcomAuth, async (req, res) => {
   try {
-    const { name, type, messageTemplate, targetFilters, scheduledAt, tags, selectedClientIds, recipients } = req.body;
+    const { name, type, messageTemplate, targetFilters, scheduledAt, tags, selectedClientIds, recipients, media } = req.body;
     if (!name || !messageTemplate) {
       return res.status(400).json({ success: false, message: 'Nom et message requis' });
     }
@@ -877,6 +877,7 @@ router.post('/', requireEcomAuth, async (req, res) => {
       name,
       type: type || 'custom',
       messageTemplate,
+      media: media || { type: 'none', url: '', fileName: '', caption: '' },
       targetFilters: targetFilters || {},
       selectedClientIds: selectedClientIds || [],
       recipientSnapshotIds: recipientSnapshotIds, // 🆕 Snapshot des IDs client uniquement
@@ -913,7 +914,7 @@ router.post('/', requireEcomAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('Erreur create campaign:', error);
-    res.status(500).json({ success: false, message: 'Erreur serveur' });
+    res.status(500).json({ success: false, message: error.message || 'Erreur serveur' });
   }
 });
 
@@ -926,7 +927,7 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Impossible de modifier une campagne en cours ou envoyée' });
     }
 
-    const allowedFields = ['name', 'type', 'messageTemplate', 'targetFilters', 'scheduledAt', 'tags', 'status', 'selectedClientIds'];
+    const allowedFields = ['name', 'type', 'messageTemplate', 'targetFilters', 'scheduledAt', 'tags', 'status', 'selectedClientIds', 'media'];
     allowedFields.forEach(field => {
       if (req.body[field] !== undefined) campaign[field] = req.body[field];
     });
@@ -967,7 +968,7 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
     res.json({ success: true, message: 'Campagne modifiée', data: campaign });
   } catch (error) {
     console.error('Erreur update campaign:', error);
-    res.status(500).json({ success: false, message: 'Erreur serveur' });
+    res.status(500).json({ success: false, message: error.message || 'Erreur serveur' });
   }
 });
 
@@ -1411,6 +1412,17 @@ router.post('/:id/send', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Cette campagne a déjà été envoyée' });
     }
 
+    // 🔍 DEBUG: Vérifier le média de la campagne
+    console.log(`📸 [SEND] Média de la campagne "${campaign.name}":`, JSON.stringify(campaign.media));
+    if (campaign.media?.type === 'image') {
+      console.log(`📸 [SEND] Image URL: ${campaign.media.url}`);
+      console.log(`📸 [SEND] Caption: ${campaign.media.caption || 'aucune'}`);
+    } else if (campaign.media?.type === 'audio') {
+      console.log(`🎵 [SEND] Audio URL: ${campaign.media.url}`);
+    } else {
+      console.log(`📝 [SEND] Pas de média (type: ${campaign.media?.type || 'undefined'})`);
+    }
+
     // Déterminer les destinataires
     console.log(`📋 [SEND] Récupération des destinataires pour campagne "${campaign.name}"`);
     console.log(`📋 [SEND] recipientSnapshotIds: ${campaign.recipientSnapshotIds?.length || 0}`);
@@ -1598,12 +1610,48 @@ router.post('/:id/send', requireEcomAuth, async (req, res) => {
       const message = renderMessage(campaign.messageTemplate, client, orderData);
 
       try {
-        const result = await evolutionApiService.sendMessage(
-          instance.instanceName,
-          instance.instanceToken,
-          cleanPhone,
-          message
-        );
+        let result;
+
+        if (campaign.media?.type === 'image' && campaign.media?.url) {
+          console.log(`📸 [SEND] Envoi image à ${cleanPhone}: ${campaign.media.url}`);
+          result = await evolutionApiService.sendMedia(
+            instance.instanceName,
+            instance.instanceToken,
+            cleanPhone,
+            campaign.media.url,
+            campaign.media.caption || message,
+            campaign.media.fileName || 'image.jpg'
+          );
+          console.log(`📸 [SEND] Résultat envoi image:`, result.success ? '✅ Succès' : `❌ Échec: ${result.error}`);
+        } else if (campaign.media?.type === 'audio' && campaign.media?.url) {
+          console.log(`🎵 [SEND] Envoi audio à ${cleanPhone}: ${campaign.media.url}`);
+
+          const audioResult = await evolutionApiService.sendAudio(
+            instance.instanceName,
+            instance.instanceToken,
+            cleanPhone,
+            campaign.media.url
+          );
+
+          if (audioResult.success && message.trim()) {
+            await new Promise(r => setTimeout(r, 2000));
+            result = await evolutionApiService.sendMessage(
+              instance.instanceName,
+              instance.instanceToken,
+              cleanPhone,
+              message
+            );
+          } else {
+            result = audioResult;
+          }
+        } else {
+          result = await evolutionApiService.sendMessage(
+            instance.instanceName,
+            instance.instanceToken,
+            cleanPhone,
+            message
+          );
+        }
 
         if (result.success) {
           sent++;
@@ -1668,23 +1716,27 @@ router.post('/:id/send', requireEcomAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Erreur envoi campagne:', error);
-    res.status(500).json({ success: false, message: 'Erreur lors de l\'envoi de la campagne' });
+    res.status(500).json({ success: false, message: error.message || 'Erreur lors de l\'envoi de la campagne' });
   }
 });
 
 router.post('/preview-send', requireEcomAuth, async (req, res) => {
   try {
-    const { messageTemplate, clientId, media } = req.body;
+    const { messageTemplate, clientId, media, manualPhone, manualName } = req.body;
     
-    if (!messageTemplate || !clientId) {
-      return res.status(400).json({ success: false, message: 'Message et client requis' });
+    if (!messageTemplate || (!clientId && !manualPhone)) {
+      return res.status(400).json({ success: false, message: 'Message et destinataire requis' });
     }
 
     // Récupérer soit un client, soit une commande
-    let client = await Client.findOne({ _id: clientId, workspaceId: req.workspaceId });
+    let client = null;
     let orderData = null;
 
-    if (!client) {
+    if (clientId) {
+      client = await Client.findOne({ _id: clientId, workspaceId: req.workspaceId });
+    }
+
+    if (!client && clientId) {
       const order = await Order.findOne({ _id: clientId, workspaceId: req.workspaceId })
         .select('clientName clientPhone city address product price date status quantity')
         .lean();
@@ -1700,6 +1752,14 @@ router.post('/preview-send', requireEcomAuth, async (req, res) => {
         phone: order.clientPhone || '',
         city: order.city || '',
         address: order.address || ''
+      };
+    } else if (!client && manualPhone) {
+      client = {
+        firstName: manualName || 'Destinataire',
+        lastName: '',
+        phone: manualPhone,
+        city: '',
+        address: ''
       };
     }
 
@@ -1770,7 +1830,63 @@ router.post('/preview-send', requireEcomAuth, async (req, res) => {
     }
   } catch (error) {
     console.error('Erreur preview-send:', error);
-    res.status(500).json({ success: false, message: 'Erreur serveur' });
+    res.status(500).json({ success: false, message: error.message || 'Erreur serveur' });
+  }
+});
+
+router.delete('/:id', requireEcomAuth, async (req, res) => {
+  try {
+    const campaignId = req.params.id;
+    const { force } = req.query; // ?force=true pour forcer la suppression
+    
+    // Récupérer la campagne
+    const campaign = await Campaign.findOne({ 
+      _id: campaignId, 
+      workspaceId: req.workspaceId 
+    });
+    
+    if (!campaign) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Campagne non trouvée' 
+      });
+    }
+    
+    // Vérifier si la campagne est en cours d'envoi
+    if (campaign.status === 'sending' && force !== 'true') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Impossible de supprimer une campagne en cours d\'envoi. Ajoutez ?force=true pour forcer.',
+        canForce: true
+      });
+    }
+    
+    // Si la campagne est en cours d'envoi et qu'on force, la mettre en paused/interrupted d'abord
+    if (campaign.status === 'sending' && force === 'true') {
+      console.log(`⚠️ [DELETE] Forcage de la suppression d'une campagne en cours d'envoi: ${campaign.name}`);
+      campaign.status = 'interrupted';
+      await campaign.save();
+      
+      // Attendre un peu pour que les processus en cours s'arrêtent
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    // Supprimer la campagne
+    await Campaign.deleteOne({ _id: campaignId });
+    
+    console.log(`🗑️ Campagne supprimée: ${campaign.name} (ID: ${campaignId})${force === 'true' ? ' (forcé)' : ''}`);
+    
+    res.json({ 
+      success: true, 
+      message: `Campagne supprimée avec succès${force === 'true' ? ' (forcé)' : ''}` 
+    });
+    
+  } catch (error) {
+    console.error('❌ [DELETE] Erreur suppression campagne:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || 'Erreur lors de la suppression de la campagne' 
+    });
   }
 });
 

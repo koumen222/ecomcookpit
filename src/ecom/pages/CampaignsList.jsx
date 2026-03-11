@@ -112,6 +112,12 @@ const CampaignsList = () => {
   const [previewData, setPreviewData] = useState(null);
   const [selectedClient, setSelectedClient] = useState(null);
   const [previewSending, setPreviewSending] = useState(false);
+  const [showInstanceSelector, setShowInstanceSelector] = useState(false);
+  const [pendingCampaignId, setPendingCampaignId] = useState(null);
+  const [instances, setInstances] = useState([]);
+  const [loadingInstances, setLoadingInstances] = useState(false);
+  const [manualPhone, setManualPhone] = useState('');
+  const [manualName, setManualName] = useState('');
 
   const fetchCampaigns = async (useCache = true) => {
     try {
@@ -145,25 +151,67 @@ const CampaignsList = () => {
   }
 
 
+  const loadInstances = async () => {
+    try {
+      setLoadingInstances(true);
+      const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
+      const userId = user._id || user.id;
+      const response = await ecomApi.get(`/v1/external/whatsapp/instances?userId=${userId}`);
+      if (response.data.success) {
+        setInstances(response.data.instances || []);
+      }
+    } catch (err) {
+      setError('Erreur chargement instances WhatsApp');
+    } finally {
+      setLoadingInstances(false);
+    }
+  };
+
   const handleSend = async (id) => {
-    if (selectedClient && showPreview === id) {
-      if (!confirm(`Envoyer le message uniquement à ${selectedClient.firstName} ${selectedClient.lastName} ?`)) return;
+    if ((selectedClient || manualPhone.trim()) && showPreview === id) {
+      const targetLabel = manualPhone.trim()
+        ? `${manualName.trim() || 'Destinataire'} (${manualPhone.trim()})`
+        : `${selectedClient.firstName} ${selectedClient.lastName}`;
+      if (!confirm(`Envoyer le message uniquement à ${targetLabel} ?`)) return;
       setSending(id);
       try {
-        const response = await ecomApi.post('/campaigns/preview-send', { messageTemplate: previewData.messageTemplate, clientId: selectedClient._id });
+        const payload = {
+          messageTemplate: previewData.messageTemplate,
+          media: previewData.media
+        };
+        if (manualPhone.trim()) {
+          payload.manualPhone = manualPhone.trim();
+          payload.manualName = manualName.trim();
+        } else {
+          payload.clientId = selectedClient._id;
+        }
+        const response = await ecomApi.post('/campaigns/preview-send', payload);
         if (response.data.success) {
-          setSuccess(`Message envoyé à ${selectedClient.firstName} ${selectedClient.lastName} !`);
-          setShowPreview(null); setSelectedClient(null);
+          setSuccess(`Message envoyé à ${targetLabel} !`);
+          setShowPreview(null); setSelectedClient(null); setManualPhone(''); setManualName('');
         } else { setError(response.data.message || 'Erreur lors de l\'envoi'); }
       } catch (err) { setError('Erreur lors de l\'envoi du message'); }
       finally { setSending(null); }
       return;
     }
 
+    // Demander de sélectionner une instance WhatsApp
+    setPendingCampaignId(id);
+    await loadInstances();
+    setShowInstanceSelector(true);
+  };
+
+  const handleInstanceSelected = async (instance) => {
+    const id = pendingCampaignId;
+    if (!id || !instance) return;
+
+    setShowInstanceSelector(false);
+    setPendingCampaignId(null);
     setSending(id);
     setShowProgress(id);
     setSendProgress({ sent: 0, failed: 0, skipped: 0, total: 0, campaignName: '', instance: '', status: 'starting', log: [] });
     setIsPausing(false);
+    const selectedInstanceId = instance._id;
 
     try {
       const baseUrl = ecomApi.defaults.baseURL;
@@ -174,7 +222,7 @@ const CampaignsList = () => {
       const response = await fetch(`${baseUrl}/marketing/campaigns/${id}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ workspaceId: wsId })
+        body: JSON.stringify({ workspaceId: wsId, whatsappInstanceId: selectedInstanceId })
       });
 
       if (!response.ok) {
@@ -231,6 +279,7 @@ const CampaignsList = () => {
     } catch (err) {
       if (err.name !== 'AbortError') {
         setSendProgress(p => p ? { ...p, status: 'interrupted' } : null);
+        setError(err?.message || 'Erreur lors de l\'envoi de la campagne');
       }
     } finally {
       setSending(null);
@@ -282,6 +331,8 @@ const CampaignsList = () => {
       setPreviewData(res.data.data);
       setShowPreview(campaignId);
       setSelectedClient(null);
+      setManualPhone('');
+      setManualName('');
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur chargement aperçu');
     }
@@ -480,6 +531,8 @@ const CampaignsList = () => {
                   onClick={() => {
                     setShowPreview(null);
                     setSelectedClient(null); // 🆕 Réinitialiser la sélection
+                    setManualPhone('');
+                    setManualName('');
                   }}
                   className="text-white hover:bg-white hover:bg-opacity-20 rounded-lg p-1 transition"
                 >
@@ -500,6 +553,30 @@ const CampaignsList = () => {
             
             {/* Liste des clients */}
             <div className="p-4">
+              <div className="mb-4 p-3 border border-emerald-200 rounded-lg bg-emerald-50">
+                <p className="text-sm font-semibold text-gray-900 mb-3">Ajouter un numéro manuellement</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <input
+                    type="text"
+                    value={manualName}
+                    onChange={(e) => setManualName(e.target.value)}
+                    placeholder="Nom du destinataire"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <input
+                    type="text"
+                    value={manualPhone}
+                    onChange={(e) => {
+                      setManualPhone(e.target.value);
+                      setSelectedClient(null);
+                    }}
+                    placeholder="Numéro WhatsApp"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-2">Saisis un numéro pour envoyer ou relancer cette campagne vers un destinataire précis.</p>
+              </div>
+
               <div className="flex items-center justify-between mb-3">
                 <p className="text-sm font-semibold text-gray-900">Clients ciblés</p>
                 <p className="text-xs text-gray-500">Cliquez sur "Aperçu" pour envoyer à une seule personne</p>
@@ -597,7 +674,58 @@ const CampaignsList = () => {
       )}
 
 
-      {/* Modal Configuration WhatsApp supprimé */}
+      {/* Modal sélection instance WhatsApp */}
+      {showInstanceSelector && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">Sélectionner une instance WhatsApp</h2>
+                <button onClick={() => { setShowInstanceSelector(false); setPendingCampaignId(null); }} className="text-gray-400 hover:text-gray-600">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              {loadingInstances ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+                </div>
+              ) : instances.length === 0 ? (
+                <div className="text-center py-8">
+                  <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                  <p className="text-sm text-gray-600 mb-4">Aucune instance WhatsApp configurée</p>
+                  <a href="/ecom/whatsapp/instances" className="inline-block px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium">Configurer une instance</a>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {instances.map(instance => (
+                    <button
+                      key={instance._id}
+                      onClick={() => handleInstanceSelected(instance)}
+                      className="w-full p-3 border rounded-lg hover:border-emerald-500 hover:bg-emerald-50 transition text-left"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{instance.customName || instance.instanceName}</p>
+                          <p className="text-xs text-gray-500">{instance.instanceName}</p>
+                        </div>
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          instance.status === 'connected' || instance.status === 'active'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {instance.status === 'connected' || instance.status === 'active' ? 'Connecté' : 'Déconnecté'}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══ MODAL PROGRESSION EN TEMPS RÉEL ═══ */}
       {showProgress && sendProgress && (
