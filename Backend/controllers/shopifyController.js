@@ -11,6 +11,53 @@ const SHOPIFY_API_VERSION = '2024-01';
 // Frontend URL pour redirection post-OAuth
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://scalor.net';
 
+// ─── State encoding (remplace les cookies pour OAuth cross-domain) ───────────
+
+/**
+ * Encode userId, workspaceId et nonce dans le paramètre state OAuth
+ * Format: base64url( JSON + '.' + HMAC signature )
+ */
+function encodeOAuthState({ nonce, userId, workspaceId }) {
+  const payload = JSON.stringify({ n: nonce, u: userId, w: workspaceId, t: Date.now() });
+  const sig = crypto.createHmac('sha256', SHOPIFY_API_SECRET).update(payload).digest('hex');
+  return Buffer.from(payload + '.' + sig).toString('base64url');
+}
+
+/**
+ * Decode et vérifie le paramètre state OAuth
+ * Retourne { nonce, userId, workspaceId } ou null si invalide/expiré
+ */
+function decodeOAuthState(state) {
+  try {
+    const decoded = Buffer.from(state, 'base64url').toString('utf8');
+    const dotIndex = decoded.lastIndexOf('.');
+    if (dotIndex === -1) return null;
+
+    const payload = decoded.substring(0, dotIndex);
+    const sig = decoded.substring(dotIndex + 1);
+
+    // Vérifier la signature HMAC
+    const expectedSig = crypto.createHmac('sha256', SHOPIFY_API_SECRET).update(payload).digest('hex');
+    if (!crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expectedSig, 'hex'))) {
+      console.error('❌ [Shopify] Signature state invalide');
+      return null;
+    }
+
+    const data = JSON.parse(payload);
+
+    // Vérifier expiration (10 minutes)
+    if (Date.now() - data.t > 10 * 60 * 1000) {
+      console.error('❌ [Shopify] State expiré');
+      return null;
+    }
+
+    return { nonce: data.n, userId: data.u, workspaceId: data.w };
+  } catch (err) {
+    console.error('❌ [Shopify] Erreur décodage state:', err.message);
+    return null;
+  }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
@@ -85,40 +132,16 @@ export const connect = (req, res) => {
     const cleanShop = shop.trim().toLowerCase();
     const nonce = generateNonce();
 
-    // Stocker le nonce en session/cookie pour vérification au callback
-    res.cookie('shopify_nonce', nonce, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 10 * 60 * 1000 // 10 minutes
-    });
-
-    // Stocker aussi le userId et workspaceId pour le callback
+    // Encoder userId, workspaceId et nonce dans le state (pas de cookies cross-domain)
     const userId = req.user?.id || req.query.userId;
     const workspaceId = req.query.workspaceId || req.workspaceId;
-    
-    if (userId) {
-      res.cookie('shopify_user_id', userId, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 10 * 60 * 1000
-      });
-    }
-    if (workspaceId) {
-      res.cookie('shopify_workspace_id', workspaceId, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 10 * 60 * 1000
-      });
-    }
+    const stateParam = encodeOAuthState({ nonce, userId, workspaceId });
 
     const authUrl = `https://${cleanShop}/admin/oauth/authorize?` +
       `client_id=${SHOPIFY_API_KEY}` +
       `&scope=${SHOPIFY_SCOPES}` +
       `&redirect_uri=${encodeURIComponent(SHOPIFY_REDIRECT_URI)}` +
-      `&state=${nonce}`;
+      `&state=${stateParam}`;
 
     console.log(`🔗 [Shopify] Redirection OAuth vers ${cleanShop} pour user ${userId}`);
     res.redirect(authUrl);
@@ -147,25 +170,23 @@ export const callback = async (req, res) => {
       return res.redirect(`${FRONTEND_URL}/ecom/integrations/shopify?error=invalid_shop`);
     }
 
-    // Vérifier le nonce (protection CSRF)
-    const savedNonce = req.cookies?.shopify_nonce;
-    if (!state || state !== savedNonce) {
-      console.error('❌ [Shopify] Nonce invalide:', { state, savedNonce });
+    // Décoder et vérifier le state (contient nonce + userId + workspaceId)
+    const stateData = state ? decodeOAuthState(state) : null;
+    if (!stateData) {
+      console.error('❌ [Shopify] State invalide ou expiré');
       return res.redirect(`${FRONTEND_URL}/ecom/integrations/shopify?error=invalid_state`);
     }
 
-    // Vérifier le HMAC si présent
+    const { userId, workspaceId } = stateData;
+
+    // Vérifier le HMAC Shopify si présent
     if (hmac && !verifyShopifyHmac(req.query)) {
       console.error('❌ [Shopify] HMAC invalide');
       return res.redirect(`${FRONTEND_URL}/ecom/integrations/shopify?error=invalid_hmac`);
     }
 
-    // Récupérer userId et workspaceId depuis les cookies
-    const userId = req.cookies?.shopify_user_id;
-    const workspaceId = req.cookies?.shopify_workspace_id;
-
     if (!userId || !workspaceId) {
-      console.error('❌ [Shopify] userId ou workspaceId manquant dans le callback');
+      console.error('❌ [Shopify] userId ou workspaceId manquant dans le state');
       return res.redirect(`${FRONTEND_URL}/ecom/integrations/shopify?error=session_expired`);
     }
 
@@ -220,11 +241,6 @@ export const callback = async (req, res) => {
     );
 
     console.log(`✅ [Shopify] Boutique ${shop} connectée pour workspace ${workspaceId} (store ID: ${store._id})`);
-
-    // Nettoyer les cookies temporaires
-    res.clearCookie('shopify_nonce');
-    res.clearCookie('shopify_user_id');
-    res.clearCookie('shopify_workspace_id');
 
     // Rediriger vers le frontend avec succès
     res.redirect(`${FRONTEND_URL}/ecom/integrations/shopify?success=true&shop=${encodeURIComponent(shop)}`);
