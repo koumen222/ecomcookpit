@@ -71,6 +71,7 @@ export async function scrapeAlibaba(url) {
     const kvRegex = /"(?:name|key)"\s*:\s*"([^"]{2,60})"\s*,\s*"(?:value|detail)"\s*:\s*"([^"]{1,200})"/gi;
     let m;
     let count = 0;
+    kvRegex.lastIndex = 0; // Reset regex state for safety
     while ((m = kvRegex.exec(html)) !== null && count < 25) {
       result.specs[m[1]] = m[2];
       count++;

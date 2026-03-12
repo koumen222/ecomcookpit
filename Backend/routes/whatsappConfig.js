@@ -15,7 +15,7 @@ router.get('/status', requireEcomAuth, async (req, res) => {
     const workspaceId = req.workspaceId;
 
     // Vérifier si l'utilisateur a des instances WhatsApp configurées
-    const instances = await WhatsappInstance.find({ 
+    const instances = await WhatsAppInstance.find({ 
       userId, 
       isActive: true 
     });

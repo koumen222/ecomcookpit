@@ -75,31 +75,48 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
 
-// ─── Request Logger (PRODUCTION DEBUG) ────────────────────────────────────────
-app.use((req, res, next) => {
-  const start = Date.now();
-  const originalSend = res.send;
-  
-  // Log request details
-  console.log(`🚀 ${req.method} ${req.path}`);
-  console.log(`   Headers: Authorization=${req.headers.authorization ? '[Bearer]' : 'NONE'}, X-Workspace-Id=${req.headers['x-workspace-id'] || 'NONE'}`);
-  console.log(`   Origin: ${req.headers.origin || 'NONE'}, User-Agent: ${req.headers['user-agent']?.substring(0, 50) || 'NONE'}...`);
-  
-  // Override res.send to log response
-  res.send = function(data) {
-    const duration = Date.now() - start;
-    console.log(`� Response ${res.statusCode} in ${duration}ms`);
+// ─── Request Logger (DEVELOPMENT/DEBUG ONLY) ──────────────────────────────────
+// WARNING: This logs all headers including sensitive data. Disable in production.
+const enableVerboseLogging = process.env.ENABLE_VERBOSE_LOGGING === 'true' || process.env.NODE_ENV !== 'production';
+
+if (enableVerboseLogging) {
+  app.use((req, res, next) => {
+    const start = Date.now();
+    const originalSend = res.send;
     
-    // Log error responses in detail
-    if (res.statusCode >= 400) {
-      console.log(`❌ ERROR RESPONSE:`, typeof data === 'string' ? data.substring(0, 200) : JSON.stringify(data, null, 2).substring(0, 300));
-    }
+    // Log request details
+    console.log(`🚀 ${req.method} ${req.path}`);
+    console.log(`   Headers: Authorization=${req.headers.authorization ? '[Bearer]' : 'NONE'}, X-Workspace-Id=${req.headers['x-workspace-id'] || 'NONE'}`);
+    console.log(`   Origin: ${req.headers.origin || 'NONE'}, User-Agent: ${req.headers['user-agent']?.substring(0, 50) || 'NONE'}...`);
     
-    originalSend.call(this, data);
-  };
-  
-  next();
-});
+    // Override res.send to log response
+    res.send = function(data) {
+      const duration = Date.now() - start;
+      console.log(`✅ Response ${res.statusCode} in ${duration}ms`);
+      
+      // Log error responses in detail
+      if (res.statusCode >= 400) {
+        console.log(`❌ ERROR RESPONSE:`, typeof data === 'string' ? data.substring(0, 200) : JSON.stringify(data, null, 2).substring(0, 300));
+      }
+      
+      originalSend.call(this, data);
+    };
+    
+    next();
+  });
+} else {
+  // Minimal logging for production
+  app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+      const duration = Date.now() - start;
+      if (res.statusCode >= 400) {
+        console.log(`${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`);
+      }
+    });
+    next();
+  });
+}
 
 // ─── Compression (disabled for SSE routes to prevent buffering) ──────────────
 app.use(compression({
@@ -128,14 +145,12 @@ app.use((req, res, next) => {
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     res.setHeader('Expires', new Date(Date.now() + 31536000000).toUTCString());
   }
-  // Cache API responses for 5 minutes (except for real-time data)
-  else if (req.url.startsWith('/api/') && !req.url.includes('/alibaba-import') && !req.url.includes('/product-generator')) {
-    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=600');
-  }
   // Cache HTML pages for 1 hour
   else if (req.url.match(/\.(html)$/)) {
     res.setHeader('Cache-Control', 'public, max-age=3600');
   }
+  // NOTE: API route caching removed - should be opt-in per route to avoid stale data
+  // Individual routes can set their own Cache-Control headers as needed
   next();
 });
 
@@ -393,22 +408,15 @@ const startServer = async () => {
       });
     });
 
-    connectDB().then(() => {
-      console.log('✅ MongoDB connected successfully');
-      console.log(`🚀 Server starting on port ${PORT}`);
-      console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`🔍 Debug mode: ENABLED (all requests logged)`);
-      
-      app.listen(PORT, () => {
-        console.log(`🌐 Server ready on port ${PORT}`);
-        console.log(`📡 API: http://localhost:${PORT}/api`);
-        console.log(`🏪 Stores: http://localhost:${PORT}/store/:subdomain`);
-      });
-    }).catch(err => {
-      console.error('💥 MongoDB connection failed:');
-      console.error('   Error:', err.message);
-      console.error('   Stack:', err.stack);
-      process.exit(1);
+    console.log('✅ MongoDB connected successfully');
+    console.log(`🚀 Server starting on port ${PORT}`);
+    console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🔍 Debug mode: ENABLED (all requests logged)`);
+    
+    app.listen(PORT, () => {
+      console.log(`🌐 Server ready on port ${PORT}`);
+      console.log(`📡 API: http://localhost:${PORT}/api`);
+      console.log(`🏪 Stores: http://localhost:${PORT}/store/:subdomain`);
     });
   } catch (error) {
     console.error('❌ Impossible de démarrer le serveur:', error);

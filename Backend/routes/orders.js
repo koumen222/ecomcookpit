@@ -49,10 +49,8 @@ const detectCountry = (phone, city) => {
     if (cleanPhone.startsWith('243')) return { code: 'CD', name: 'Congo RDC' };
     // Congo Brazzaville
     if (cleanPhone.startsWith('242')) return { code: 'CG', name: 'Congo Brazzaville' };
-    // Canada
-    if (cleanPhone.startsWith('1')) return { code: 'CA', name: 'Canada' };
-    // USA
-    if (cleanPhone.startsWith('1')) return { code: 'US', name: 'États-Unis' };
+    // USA/Canada (both use prefix 1 - cannot distinguish without area code analysis)
+    if (cleanPhone.startsWith('1')) return { code: 'US', name: 'États-Unis/Canada' };
     // Royaume-Uni
     if (cleanPhone.startsWith('44')) return { code: 'GB', name: 'Royaume-Uni' };
     // Belgique
@@ -108,13 +106,14 @@ router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), async (
       return res.status(400).json({ success: false, message: 'Nom client ou téléphone requis' });
     }
     const phoneValue = clientPhone || '';
+    const normalizedPhone = normalizePhone(phoneValue, '237');
     const order = new Order({
       workspaceId: req.workspaceId,
       orderId: `#MAN_${Date.now().toString(36)}`,
       date: new Date(),
       clientName: clientName || '',
       clientPhone: phoneValue,
-      clientPhoneNormalized: normalizePhone(phoneValue, '237'),
+      clientPhoneNormalized: normalizedPhone || phoneValue,
       city: city || '',
       address: address || '',
       product: product || '',
@@ -173,8 +172,8 @@ router.get('/quick', requireEcomAuth, async (req, res) => {
     const filter = { workspaceId: req.workspaceId };
     if (sourceId) filter.sheetRowId = { $regex: `^source_${sourceId}_` };
 
-    // Déterminer l'ordre de tri
-    const sortDirection = sortOrder === 'oldest_first' ? -1 : 1;
+    // Déterminer l'ordre de tri (1 = ascending/oldest first, -1 = descending/newest first)
+    const sortDirection = sortOrder === 'oldest_first' ? 1 : -1;
 
     // Filtre closeuse
     if (req.ecomUser.role === 'ecom_closeuse') {
@@ -472,8 +471,8 @@ router.get('/', requireEcomAuth, async (req, res) => {
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
     
-    // Déterminer l'ordre de tri
-    const sortDirection = sortOrder === 'oldest_first' ? -1 : 1; // -1 = décroissant (anciennes d'abord), 1 = croissant (récentes d'abord)
+    // Déterminer l'ordre de tri (1 = ascending/oldest first, -1 = descending/newest first)
+    const sortDirection = sortOrder === 'oldest_first' ? 1 : -1;
     
     // Si super_admin et allWorkspaces=true, ne pas filtrer par workspaceId
     const isSuperAdmin = req.ecomUser.role === 'super_admin';

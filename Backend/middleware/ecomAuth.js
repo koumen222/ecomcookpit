@@ -3,7 +3,13 @@ import crypto from 'crypto';
 import EcomUser from '../models/EcomUser.js';
 
 // Clé secrète pour les tokens e-commerce (différente du système principal)
+// WARNING: ECOM_JWT_SECRET must be set in production! Fallback is for development only.
 const ECOM_JWT_SECRET = process.env.ECOM_JWT_SECRET || 'ecom-secret-key-change-in-production';
+
+// Validate JWT secret in production
+if (process.env.NODE_ENV === 'production' && ECOM_JWT_SECRET === 'ecom-secret-key-change-in-production') {
+  console.error('🚨 SECURITY WARNING: Using default JWT secret in production! Set ECOM_JWT_SECRET environment variable.');
+}
 
 // Cache utilisateurs en mémoire (évite 1 requête MongoDB par appel API)
 const userCache = new Map();
@@ -20,6 +26,16 @@ function setCachedUser(userId, user) {
   userCache.set(userId, { user, expiresAt: Date.now() + USER_CACHE_TTL });
 }
 
+// Periodic cleanup to prevent memory leak (every 5 minutes)
+setInterval(() => {
+  const now = Date.now();
+  for (const [userId, entry] of userCache.entries()) {
+    if (now > entry.expiresAt) {
+      userCache.delete(userId);
+    }
+  }
+}, 5 * 60 * 1000);
+
 export function invalidateUserCache(userId) {
   userCache.delete(String(userId));
 }
@@ -30,7 +46,7 @@ const generateDeviceId = () => {
 };
 
 // Fonction pour générer un token permanent par appareil
-export const generatePermanentToken = (user, deviceInfo) => {
+export const generatePermanentToken = async (user, deviceInfo) => {
   const deviceId = generateDeviceId();
   const permanentToken = 'perm:' + jwt.sign(
     { 
@@ -53,7 +69,7 @@ export const generatePermanentToken = (user, deviceInfo) => {
     platform: deviceInfo?.platform || 'unknown',
     lastSeen: new Date()
   };
-  user.save();
+  await user.save();
 
   return permanentToken;
 };

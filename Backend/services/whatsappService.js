@@ -220,7 +220,7 @@ export async function sendWhatsAppMedia({ to, mediaUrl, caption, workspaceId }) 
     instance.lastSeen = new Date();
     await instance.save();
 
-    console.log(`✅ Média WhatsApp envoyé avec succès à ${cleanNumber}`);
+    console.log(`✅ Média WhatsApp envoyé avec succès à ${cleanMediaNumber}`);
 
     return {
       success: true,

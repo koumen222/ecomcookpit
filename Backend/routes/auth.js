@@ -86,7 +86,7 @@ router.post('/login', validateEmail, async (req, res) => {
     // Si l'utilisateur demande de se souvenir de l'appareil
     if (rememberDevice) {
       console.log(`📱 Enregistrement de l'appareil demandé pour ${email}`);
-      token = generatePermanentToken(user, deviceInfo);
+      token = await generatePermanentToken(user, deviceInfo);
       isPermanent = true;
       console.log('✅ Token permanent généré');
     } else {
@@ -232,7 +232,7 @@ router.post('/register-device', async (req, res) => {
     }
 
     // Générer un token permanent
-    const permanentToken = generatePermanentToken(user, deviceInfo);
+    const permanentToken = await generatePermanentToken(user, deviceInfo);
 
     console.log(`📱 Appareil enregistré pour ${user.email}`);
 

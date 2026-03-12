@@ -78,11 +78,17 @@ router.post(
 
     // Heartbeat every 5s — keeps Railway/proxy connection alive during long GPT/DALL-E calls
     const heartbeat = setInterval(() => {
-      if (closed) return clearInterval(heartbeat);
+      if (closed) {
+        clearInterval(heartbeat);
+        return;
+      }
       try {
         res.write('data: {"type":"ping"}\n\n');
         if (typeof res.flush === 'function') res.flush();
-      } catch (_) { clearInterval(heartbeat); }
+      } catch (_) {
+        closed = true;
+        clearInterval(heartbeat);
+      }
     }, 5000);
 
     try {
