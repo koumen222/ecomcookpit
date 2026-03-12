@@ -622,7 +622,7 @@ const OrderDetail = () => {
                 {rawEntries.map(([key, val]) => (
                   <div key={key} className="flex justify-between py-1.5 border-b border-gray-50">
                     <span className="text-[11px] text-gray-500 font-medium">{key}</span>
-                    <span className="text-[11px] text-gray-900 font-medium text-right max-w-[60%] truncate" title={val}>{val}</span>
+                    <span className="text-[11px] text-gray-900 font-medium text-right max-w-[60%] truncate" title={typeof val === 'object' ? JSON.stringify(val) : val}>{typeof val === 'object' ? JSON.stringify(val) : val}</span>
                   </div>
                 ))}
               </div>
@@ -865,7 +865,7 @@ const OrderDetail = () => {
                   {rawEntries.map(([key, val]) => (
                     <tr key={key}>
                       <td>{key}</td>
-                      <td>{val}</td>
+                      <td>{typeof val === 'object' ? JSON.stringify(val) : val}</td>
                     </tr>
                   ))}
                 </tbody>
