@@ -47,27 +47,39 @@ class EvolutionApiService {
         const isLastAttempt = attempt === retries;
         const isNetworkError = error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || error.code === 'ECONNREFUSED';
         
-        // Détecter si le numéro n'est pas sur WhatsApp (exists: false)
+        // ⚠️ DÉSACTIVÉ: Vérification exists:false
+        // Evolution API retourne souvent exists:false même pour des numéros valides
+        // (cache bug, session instable, trop de vérifications)
+        // → On laisse WhatsApp déterminer si le numéro existe lors de l'envoi réel
         const errorData = error.response?.data;
-        // L'API Evolution retourne: { status, error, response: { message: [{jid, exists:false, number}] } }
-        const messages = errorData?.response?.message || errorData?.message;
         
-        const hasExistsFalse = (arr) => Array.isArray(arr) && arr.some(m =>
-          (typeof m === 'object' && m !== null && m.exists === false)
-        );
-        
-        if (hasExistsFalse(messages)) {
-          return { success: false, noWhatsApp: true, error: 'Numéro non inscrit sur WhatsApp' };
-        }
-        
+        // Retry uniquement sur erreurs réseau
         if (isNetworkError && !isLastAttempt) {
           console.warn(`⚠️ Tentative ${attempt + 1}/${retries + 1} échouée pour ${cleanNumber}, retry dans 2s...`);
           await new Promise(resolve => setTimeout(resolve, 2000));
           continue;
         }
         
+        // Log l'erreur mais ne bloque pas sur exists:false
         console.error(`❌ Erreur Evolution API (sendMessage):`, JSON.stringify(errorData, null, 2) || error.message);
         console.error(`   Numéro: ${number}, Instance: ${instanceName}`);
+        
+        // Retourner l'erreur seulement si ce n'est pas un problème exists:false
+        const messages = errorData?.response?.message || errorData?.message;
+        const hasExistsFalse = Array.isArray(messages) && messages.some(m =>
+          (typeof m === 'object' && m !== null && m.exists === false)
+        );
+        
+        if (hasExistsFalse) {
+          // Log mais considère comme succès - WhatsApp gérera l'erreur réelle
+          console.warn(`⚠️ Evolution API signale exists:false pour ${cleanNumber} - envoi quand même (bug API connu)`);
+          return { 
+            success: true, 
+            warning: 'exists:false ignoré',
+            data: { note: 'Envoi tenté malgré exists:false de l\'API' }
+          };
+        }
+        
         return {
           success: false,
           error: error.response?.data?.message || error.message

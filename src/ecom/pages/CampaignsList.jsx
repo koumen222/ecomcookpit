@@ -458,6 +458,7 @@ const CampaignsList = () => {
                   )}
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
+                  {/* Boutons pour campagnes en brouillon ou planifiées */}
                   {(c.status === 'draft' || c.status === 'scheduled') && (
                     <>
                       <button onClick={() => handlePreview(c._id)} disabled={sending === c._id} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-xs font-medium disabled:opacity-50 flex items-center gap-1">
@@ -469,11 +470,15 @@ const CampaignsList = () => {
                       </button>
                     </>
                   )}
+                  
+                  {/* Bouton Pause uniquement pour campagnes en cours d'envoi */}
                   {c.status === 'sending' && (
                     <button onClick={() => handlePause(c._id)} disabled={isPausing} className="px-3 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition text-xs font-medium flex items-center gap-1 disabled:opacity-60">
                       {isPausing ? (<><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Arrêt...</>) : (<><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> Pause</>)}
                     </button>
                   )}
+                  
+                  {/* Boutons Reprendre pour campagnes en pause/interrompues/échouées */}
                   {['paused', 'interrupted', 'failed'].includes(c.status) && (
                     <>
                       <button onClick={() => handleResume(c._id)} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs font-medium flex items-center gap-1">
@@ -486,6 +491,8 @@ const CampaignsList = () => {
                       </button>
                     </>
                   )}
+                  
+                  {/* Boutons pour campagnes envoyées */}
                   {c.status === 'sent' && (
                     <>
                       <Link to={`/ecom/campaigns/${c._id}`} className="px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg hover:bg-emerald-200 transition text-xs font-medium flex items-center gap-1">
@@ -498,10 +505,16 @@ const CampaignsList = () => {
                       </button>
                     </>
                   )}
-                  <Link to={`/ecom/campaigns/${c._id}/edit`} className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                  </Link>
-                  {isAdmin && (
+                  
+                  {/* Bouton Éditer - masqué pendant l'envoi */}
+                  {c.status !== 'sending' && (
+                    <Link to={`/ecom/campaigns/${c._id}/edit`} className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    </Link>
+                  )}
+                  
+                  {/* Bouton Supprimer - masqué pendant l'envoi */}
+                  {isAdmin && c.status !== 'sending' && (
                     <button onClick={() => handleDelete(c._id, c.name)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                     </button>
@@ -837,12 +850,21 @@ const CampaignsList = () => {
               </div>
             </div>
 
-            {/* Footer actions */}
-            {sendProgress.status === 'sending' && (
+            {/* Footer actions - Pause uniquement si en cours d'envoi */}
+            {sendProgress.status === 'sending' && !isPausing && (
               <div className="px-5 py-3 border-t bg-gray-50">
-                <button onClick={() => handlePause(showProgress)} disabled={isPausing} className="w-full py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition text-sm font-medium disabled:opacity-60 flex items-center justify-center gap-2">
-                  {isPausing ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>Arrêt en cours après ce message...</>) : (<><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>Mettre en pause</>)}
+                <button onClick={() => handlePause(showProgress)} className="w-full py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition text-sm font-medium flex items-center justify-center gap-2">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                  Mettre en pause
                 </button>
+              </div>
+            )}
+            {sendProgress.status === 'sending' && isPausing && (
+              <div className="px-5 py-3 border-t bg-orange-50">
+                <div className="flex items-center justify-center gap-2 text-sm text-orange-700 font-medium">
+                  <div className="w-4 h-4 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+                  Arrêt en cours après ce message...
+                </div>
               </div>
             )}
             {sendProgress.status === 'done' && (

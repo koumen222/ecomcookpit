@@ -282,13 +282,34 @@ router.put('/campaigns/:id', requireMarketingAccess, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.delete('/campaigns/:id', requireMarketingAccess, async (req, res) => {
   try {
-    const campaign = await EmailCampaign.findById(req.params.id);
-    if (!campaign) return res.status(404).json({ success: false, message: 'Campagne introuvable' });
-    if (campaign.status === 'sending') {
-      return res.status(400).json({ success: false, message: 'Impossible de supprimer une campagne en cours d\'envoi' });
+    // Vérifier d'abord si c'est une campagne WhatsApp en cours d'envoi
+    const whatsappCampaign = await Campaign.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
+    if (whatsappCampaign) {
+      // Empêcher la suppression si la campagne est en cours d'envoi
+      if (whatsappCampaign.status === 'sending') {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Impossible de supprimer une campagne en cours d\'envoi. Mettez-la en pause d\'abord.' 
+        });
+      }
+      await Campaign.findByIdAndDelete(req.params.id);
+      return res.json({ success: true, message: 'Campagne supprimée' });
     }
-    await campaign.deleteOne();
-    res.json({ success: true, message: 'Campagne supprimée' });
+    
+    // Sinon vérifier si c'est une campagne email
+    const emailCampaign = await EmailCampaign.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
+    if (emailCampaign) {
+      if (emailCampaign.status === 'sending') {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Impossible de supprimer une campagne en cours d\'envoi.' 
+        });
+      }
+      await EmailCampaign.findByIdAndDelete(req.params.id);
+      return res.json({ success: true, message: 'Campagne supprimée' });
+    }
+    
+    return res.status(404).json({ success: false, message: 'Campagne introuvable' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
@@ -781,12 +802,23 @@ router.post('/audience-preview', requireMarketingAccess, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/campaigns/:id/pause', requireMarketingAccess, async (req, res) => {
   try {
-    const campaign = await Campaign.findOneAndUpdate(
-      { _id: req.params.id, workspaceId: req.workspaceId, status: 'sending' },
-      { pauseRequested: true },
-      { new: true }
-    );
-    if (!campaign) return res.status(404).json({ success: false, message: 'Campagne non trouvée ou pas en cours d\'envoi' });
+    const campaign = await Campaign.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
+    if (!campaign) {
+      return res.status(404).json({ success: false, message: 'Campagne introuvable' });
+    }
+    
+    // Vérifier que la campagne est bien en cours d'envoi
+    if (campaign.status !== 'sending') {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Impossible de mettre en pause une campagne avec le statut "${campaign.status}". Seules les campagnes en cours d'envoi peuvent être mises en pause.` 
+      });
+    }
+    
+    // Marquer la demande de pause
+    campaign.pauseRequested = true;
+    await campaign.save();
+    
     res.json({ success: true, message: 'Pause demandée, arrêt après le message en cours...' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Erreur serveur' });
@@ -798,12 +830,24 @@ router.post('/campaigns/:id/pause', requireMarketingAccess, async (req, res) => 
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/campaigns/:id/resume', requireMarketingAccess, async (req, res) => {
   try {
-    const campaign = await Campaign.findOneAndUpdate(
-      { _id: req.params.id, workspaceId: req.workspaceId, status: { $in: ['paused', 'interrupted', 'failed'] } },
-      { status: 'draft', pauseRequested: false },
-      { new: true }
-    );
-    if (!campaign) return res.status(404).json({ success: false, message: 'Campagne non trouvée ou ne peut pas être reprise' });
+    const campaign = await Campaign.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
+    if (!campaign) {
+      return res.status(404).json({ success: false, message: 'Campagne introuvable' });
+    }
+    
+    // Vérifier que la campagne peut être reprise
+    const resumableStatuses = ['paused', 'interrupted', 'failed'];
+    if (!resumableStatuses.includes(campaign.status)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Impossible de reprendre une campagne avec le statut "${campaign.status}". Seules les campagnes en pause, interrompues ou échouées peuvent être reprises.` 
+      });
+    }
+    
+    campaign.status = 'draft';
+    campaign.pauseRequested = false;
+    await campaign.save();
+    
     res.json({ success: true, message: 'Campagne prête. Cliquez sur Envoyer pour relancer.' });
   } catch (err) {
     res.status(500).json({ success: false, message: 'Erreur serveur' });
