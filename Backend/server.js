@@ -294,6 +294,8 @@ const startServer = async () => {
       ['./routes/externalWhatsapp.js',        '/api/ecom/v1/external/whatsapp'],
       // ─── WhatsApp Configuration ────────────────────────────────────────
       ['./routes/whatsappConfig.js',           '/api/ecom/integrations/whatsapp'],
+      // ─── Shopify OAuth Integration ────────────────────────────────────
+      ['./routes/shopify.js',                  '/api/ecom/shopify'],
       // ─── Test Routes ───────────────────────────────────────────────────
       ['./routes/test.js',                      '/api/ecom/test'],
     ];
