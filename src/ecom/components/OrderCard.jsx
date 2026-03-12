@@ -202,7 +202,9 @@ const OrderDetails = ({
           {Object.entries(order.rawData).map(([key, val]) => (
             <div key={key} className="bg-white rounded-lg p-3 border border-gray-200">
               <p className="text-xs font-semibold text-gray-500 uppercase mb-1">{key}</p>
-              <p className="text-sm text-gray-700 break-words" title={val}>{val || '—'}</p>
+              <p className="text-sm text-gray-700 break-words" title={typeof val === 'object' ? JSON.stringify(val) : val}>
+                {typeof val === 'object' ? JSON.stringify(val) : (val || '—')}
+              </p>
             </div>
           ))}
         </div>

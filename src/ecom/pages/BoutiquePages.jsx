@@ -120,7 +120,7 @@ const SectionEditor = ({ section, onSave, onClose }) => {
         </div>
         <div className="p-5 space-y-4">
           {Object.entries(config).map(([key, value]) => {
-            if (Array.isArray(value)) return null; // skip arrays for now
+            if (Array.isArray(value) || typeof value === 'object') return null; // skip arrays and objects
             return (
               <div key={key}>
                 <label className="text-xs font-semibold text-gray-600 mb-1 block capitalize">{key.replace(/([A-Z])/g, ' $1')}</label>
