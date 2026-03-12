@@ -83,6 +83,39 @@ const GlobalSearch = ({ isSuperAdmin = false, isMobile = false }) => {
       });
 
       setResults(combinedResults);
+      
+      // Auto-redirection si seulement un résultat total
+      const totalCombinedResults = combinedResults.orders.length + combinedResults.products.length + combinedResults.clients.length + combinedResults.users.length;
+      
+      // Cas 1: Un seul résultat total → redirection automatique
+      if (totalCombinedResults === 1) {
+        let resultType = null;
+        let resultItem = null;
+        
+        if (combinedResults.orders.length === 1) {
+          resultType = 'order';
+          resultItem = combinedResults.orders[0];
+        } else if (combinedResults.products.length === 1) {
+          resultType = 'product';
+          resultItem = combinedResults.products[0];
+        } else if (combinedResults.clients.length === 1) {
+          resultType = 'client';
+          resultItem = combinedResults.clients[0];
+        } else if (combinedResults.users.length === 1) {
+          resultType = 'user';
+          resultItem = combinedResults.users[0];
+        }
+        
+        if (resultType && resultItem) {
+          setIsOpen(false);
+          setSearchTerm('');
+          handleResultClick(resultType, resultItem);
+          return;
+        }
+      }
+      
+      // Cas 2: Deux résultats ou plus → afficher les choix (pas de redirection automatique)
+      // La logique existante gère déjà l'affichage des résultats
     } catch (error) {
       console.error('Erreur recherche globale:', error);
     } finally {
