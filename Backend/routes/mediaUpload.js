@@ -44,16 +44,19 @@ router.post('/upload', requireEcomAuth, upload.single('file'), async (req, res) 
     // Générer un nom de fichier unique
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 8);
-    const ext = originalname.split('.').pop();
-    const fileName = `campaign-${mediaType}-${timestamp}-${randomStr}.webp`; // Always use WebP
+    const ext = originalname.split('.').pop().toLowerCase();
 
     let optimizedBuffer = buffer;
     let originalSize = buffer.length;
+    let finalFileName;
+    let finalMimetype;
 
-    // Optimize images before upload
     if (mediaType === 'image') {
+      // Images: optimize and convert to webp
+      finalFileName = `campaign-image-${timestamp}-${randomStr}.webp`;
+      finalMimetype = 'image/webp';
+
       try {
-        // Determine optimization strategy based on context
         const isProductImage = req.body.context === 'product';
         const isBannerImage = req.body.context === 'banner';
         
@@ -68,12 +71,17 @@ router.post('/upload', requireEcomAuth, upload.single('file'), async (req, res) 
         console.log(`🖼️  Image optimized: ${(originalSize / 1024 / 1024).toFixed(2)}MB → ${(optimizedBuffer.length / 1024 / 1024).toFixed(2)}MB (${((1 - optimizedBuffer.length / originalSize) * 100).toFixed(1)}% reduction)`);
       } catch (error) {
         console.warn('⚠️  Image optimization failed, uploading original:', error.message);
-        // Continue with original buffer if optimization fails
       }
+    } else {
+      // Audio: keep original format and mimetype
+      const audioExt = ['mp3', 'ogg', 'wav', 'm4a', 'mp4'].includes(ext) ? ext : 'mp3';
+      finalFileName = `campaign-audio-${timestamp}-${randomStr}.${audioExt}`;
+      finalMimetype = mimetype;
+      console.log(`🎵 Audio upload: ${originalname} (${mimetype}, ${(originalSize / 1024).toFixed(1)}KB)`);
     }
 
     // Upload vers Cloudflare R2
-    const uploadResult = await cloudflareImagesService.uploadToR2(optimizedBuffer, fileName, 'image/webp');
+    const uploadResult = await cloudflareImagesService.uploadToR2(optimizedBuffer, finalFileName, finalMimetype);
 
     if (!uploadResult.success) {
       return res.status(500).json({ 
@@ -86,7 +94,7 @@ router.post('/upload', requireEcomAuth, upload.single('file'), async (req, res) 
       success: true,
       data: {
         url: uploadResult.url,
-        fileName: fileName,
+        fileName: finalFileName,
         type: mediaType,
         size: optimizedBuffer.length,
         originalSize: originalSize,

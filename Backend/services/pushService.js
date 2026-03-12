@@ -1,5 +1,6 @@
 import webpush from 'web-push';
 import Subscription from '../models/Subscription.js';
+import { validateAndNormalizeSubscription } from '../utils/vapidUtils.js';
 
 // Configuration VAPID (depuis .env)
 const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
@@ -78,14 +79,17 @@ const sendPushNotification = async (workspaceId, notificationData, notificationT
     const results = await Promise.allSettled(
       subscriptions.map(async (subscription) => {
         try {
+          // Valider et normaliser le subscription (Base64URL)
+          const normalizedSub = validateAndNormalizeSubscription({
+            endpoint: subscription.endpoint,
+            keys: {
+              p256dh: subscription.keys.p256dh,
+              auth: subscription.keys.auth
+            }
+          });
+          
           await webpush.sendNotification(
-            {
-              endpoint: subscription.endpoint,
-              keys: {
-                p256dh: subscription.keys.p256dh,
-                auth: subscription.keys.auth
-              }
-            },
+            normalizedSub,
             payload,
             {
               TTL: 86400, // 24 heures
@@ -96,12 +100,12 @@ const sendPushNotification = async (workspaceId, notificationData, notificationT
           
           return { success: true, subscriptionId: subscription._id };
         } catch (error) {
-          console.error(`❌ Erreur envoi à l'abonné ${subscription._id}:`, error);
+          console.error(`❌ Erreur envoi à l'abonné ${subscription._id}:`, error.message);
           
-          // Si l'abonnement est invalide, le supprimer
-          if (error.statusCode === 410) {
+          // Si l'abonnement est invalide (410) ou mal formaté, le supprimer
+          if (error.statusCode === 410 || error.message?.includes('Base64') || error.message?.includes('32 characters')) {
             console.log(`🗑️ Suppression abonnement invalide: ${subscription._id}`);
-            await Subscription.findByIdAndDelete(subscription._id);
+            await Subscription.findByIdAndDelete(subscription._id).catch(() => {});
           }
           
           return { success: false, error: error.message, subscriptionId: subscription._id };
@@ -145,23 +149,27 @@ const sendPushNotificationToUser = async (userId, notificationData) => {
     const results = await Promise.allSettled(
       subscriptions.map(async (subscription) => {
         try {
+          // Valider et normaliser le subscription (Base64URL)
+          const normalizedSub = validateAndNormalizeSubscription({
+            endpoint: subscription.endpoint,
+            keys: {
+              p256dh: subscription.keys.p256dh,
+              auth: subscription.keys.auth
+            }
+          });
+          
           await webpush.sendNotification(
-            {
-              endpoint: subscription.endpoint,
-              keys: {
-                p256dh: subscription.keys.p256dh,
-                auth: subscription.keys.auth
-              }
-            },
+            normalizedSub,
             payload
           );
           
           return { success: true, subscriptionId: subscription._id };
         } catch (error) {
-          console.error(`❌ Erreur envoi à l'abonné ${subscription._id}:`, error);
+          console.error(`❌ Erreur envoi à l'abonné ${subscription._id}:`, error.message);
           
-          if (error.statusCode === 410) {
-            await Subscription.findByIdAndDelete(subscription._id);
+          // Si l'abonnement est invalide (410) ou mal formaté, le supprimer
+          if (error.statusCode === 410 || error.message?.includes('Base64') || error.message?.includes('32 characters')) {
+            await Subscription.findByIdAndDelete(subscription._id).catch(() => {});
           }
           
           return { success: false, error: error.message, subscriptionId: subscription._id };

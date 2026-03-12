@@ -138,15 +138,8 @@ export async function saveShopifyOrder(shopifyOrder, shopDomain, workspaceId) {
 
   // ── Notifications (asynchrone, ne bloque pas la réponse) ───────────────
   if (workspaceId) {
-    notifyNewOrder(
-      workspaceId,
-      newOrder._id,
-      clientName,
-      clientPhone,
-      product,
-      city,
-      price
-    ).catch(err => console.error('❌ [Shopify WH] Erreur notification:', err.message));
+    notifyNewOrder(workspaceId, newOrder)
+      .catch(err => console.error('❌ [Shopify WH] Erreur notification:', err.message));
   }
 
   return newOrder;

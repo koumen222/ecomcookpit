@@ -487,15 +487,23 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
         // Envoyer le média si présent (image ou vocal)
         let result;
         if (campaign.media?.type === 'image' && campaign.media?.url) {
-          // Envoyer l'image avec le message en caption
-          result = await evolutionApiService.sendMedia(
+          // Envoyer l'image d'abord (sans caption)
+          const imageResult = await evolutionApiService.sendMedia(
             instance.instanceName, 
             instance.instanceToken, 
             cleanNumber, 
             campaign.media.url,
-            message, // Le message devient la légende de l'image
+            '', // Pas de caption - le texte sera envoyé séparément
             campaign.media.fileName || 'image.jpg'
           );
+          
+          // Puis envoyer le texte séparément si l'image a réussi
+          if (imageResult.success && message.trim()) {
+            await new Promise(r => setTimeout(r, 2000)); // Délai entre image et texte
+            result = await evolutionApiService.sendMessage(instance.instanceName, instance.instanceToken, cleanNumber, message);
+          } else {
+            result = imageResult;
+          }
         } else if (campaign.media?.type === 'audio' && campaign.media?.url) {
           // Envoyer le vocal d'abord, puis le message texte
           const audioResult = await evolutionApiService.sendAudio(

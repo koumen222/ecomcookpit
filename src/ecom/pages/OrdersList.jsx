@@ -640,6 +640,63 @@ const OrdersList = () => {
     return () => clearInterval(id);
   }, [silentPoll, loading]);
 
+  // ••• WebSocket: Écouter les nouvelles commandes en temps réel •••••••••••••••
+  useEffect(() => {
+    const handleNewOrderNotification = (event) => {
+      const notif = event.detail;
+      
+      // Vérifier si c'est une notification de nouvelle commande
+      if (notif?.type === 'order_new' && notif?.metadata?.orderId) {
+        const orderId = notif.metadata.orderId;
+        
+        // Vérifier si la commande n'est pas déjà dans la liste
+        setOrders(prev => {
+          const exists = prev.some(o => o._id === orderId);
+          if (exists) return prev;
+          
+          // Récupérer la commande complète depuis l'API
+          ecomApi.get(`/orders/${orderId}`)
+            .then(res => {
+              const newOrder = res.data?.data;
+              if (newOrder) {
+                console.log('🔥 [WebSocket] Nouvelle commande reçue:', newOrder.orderId);
+                
+                // Ajouter la commande en haut de la liste
+                setOrders(prev => {
+                  // Double vérification pour éviter les doublons
+                  if (prev.some(o => o._id === newOrder._id)) return prev;
+                  
+                  // Ajouter en haut de la liste
+                  return [newOrder, ...prev];
+                });
+                
+                // Mettre à jour les stats
+                setStats(prev => ({
+                  ...prev,
+                  total: (prev.total || 0) + 1,
+                  [newOrder.status]: (prev[newOrder.status] || 0) + 1
+                }));
+                
+                // Afficher un message de succès
+                setSuccess(`✅ Nouvelle commande: ${newOrder.clientName || 'Client'} — ${newOrder.product || 'Produit'}`);
+                
+                // Jouer un son
+                playCashRegisterSound();
+              }
+            })
+            .catch(err => {
+              console.error('❌ Erreur récupération nouvelle commande:', err);
+            });
+          
+          return prev;
+        });
+      }
+    };
+    
+    window.addEventListener('ecom:notification', handleNewOrderNotification);
+    return () => window.removeEventListener('ecom:notification', handleNewOrderNotification);
+  }, []);
+
   // Fermer le menu à trois points quand on clique ailleurs
   useEffect(() => {
     if (!expandedId) return;

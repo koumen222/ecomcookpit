@@ -1613,16 +1613,25 @@ router.post('/:id/send', requireEcomAuth, async (req, res) => {
         let result;
 
         if (campaign.media?.type === 'image' && campaign.media?.url) {
+          // Envoyer l'image d'abord (sans caption)
           console.log(`📸 [SEND] Envoi image à ${cleanPhone}: ${campaign.media.url}`);
-          result = await evolutionApiService.sendMedia(
+          const imageResult = await evolutionApiService.sendMedia(
             instance.instanceName,
             instance.instanceToken,
             cleanPhone,
             campaign.media.url,
-            campaign.media.caption || message,
+            '', // Pas de caption - le texte sera envoyé séparément
             campaign.media.fileName || 'image.jpg'
           );
-          console.log(`📸 [SEND] Résultat envoi image:`, result.success ? '✅ Succès' : `❌ Échec: ${result.error}`);
+          console.log(`📸 [SEND] Résultat envoi image:`, imageResult.success ? '✅ Succès' : `❌ Échec: ${imageResult.error}`);
+          
+          // Puis envoyer le texte séparément si l'image a réussi
+          if (imageResult.success && message.trim()) {
+            await new Promise(r => setTimeout(r, 2000)); // Délai entre image et texte
+            result = await evolutionApiService.sendMessage(instance.instanceName, instance.instanceToken, cleanPhone, message);
+          } else {
+            result = imageResult;
+          }
         } else if (campaign.media?.type === 'audio' && campaign.media?.url) {
           console.log(`🎵 [SEND] Envoi audio à ${cleanPhone}: ${campaign.media.url}`);
 
@@ -1797,14 +1806,23 @@ router.post('/preview-send', requireEcomAuth, async (req, res) => {
     // Envoyer avec média si présent
     let result;
     if (media?.type === 'image' && media?.url) {
-      result = await evolutionApiService.sendMedia(
+      // Envoyer l'image d'abord (sans caption)
+      const imageResult = await evolutionApiService.sendMedia(
         instance.instanceName,
         instance.instanceToken,
         cleanNumber,
         media.url,
-        message,
+        '', // Pas de caption - le texte sera envoyé séparément
         media.fileName || 'image.jpg'
       );
+      
+      // Puis envoyer le texte séparément si l'image a réussi
+      if (imageResult.success && message.trim()) {
+        await new Promise(r => setTimeout(r, 2000));
+        result = await evolutionApiService.sendMessage(instance.instanceName, instance.instanceToken, cleanNumber, message);
+      } else {
+        result = imageResult;
+      }
     } else if (media?.type === 'audio' && media?.url) {
       const audioResult = await evolutionApiService.sendAudio(
         instance.instanceName,

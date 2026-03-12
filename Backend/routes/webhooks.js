@@ -140,15 +140,7 @@ router.post('/google-sheets/:sourceId', async (req, res) => {
     
     // 📱 Envoyer les notifications
     try {
-      await notifyNewOrder(
-        source.workspaceId,
-        newOrder._id,
-        clientName,
-        clientPhone,
-        product,
-        city,
-        price
-      );
+      await notifyNewOrder(source.workspaceId, newOrder);
       console.log(`📬 [WEBHOOK] Notifications envoyées pour commande ${orderId}`);
     } catch (notifError) {
       console.error(`❌ [WEBHOOK] Erreur envoi notifications:`, notifError);

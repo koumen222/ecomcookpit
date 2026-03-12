@@ -2,6 +2,7 @@ import express from 'express';
 import Subscription from '../models/Subscription.js';
 import { sendPushNotification } from '../services/pushService.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
+import { base64ToBase64Url } from '../utils/vapidUtils.js';
 
 const router = express.Router();
 
@@ -19,6 +20,12 @@ router.post('/subscribe', requireEcomAuth, async (req, res) => {
       });
     }
     
+    // Normaliser les clés en Base64URL (sans padding)
+    const normalizedKeys = {
+      p256dh: base64ToBase64Url(keys.p256dh),
+      auth: base64ToBase64Url(keys.auth)
+    };
+    
     // Vérifier si l'abonnement existe déjà
     const existingSubscription = await Subscription.findOne({
       workspaceId: req.workspaceId,
@@ -28,7 +35,7 @@ router.post('/subscribe', requireEcomAuth, async (req, res) => {
     
     if (existingSubscription) {
       // Mettre à jour l'abonnement existant
-      existingSubscription.keys = keys;
+      existingSubscription.keys = normalizedKeys;
       existingSubscription.userAgent = userAgent || '';
       existingSubscription.lastUsed = new Date();
       existingSubscription.isActive = true;
@@ -41,7 +48,7 @@ router.post('/subscribe', requireEcomAuth, async (req, res) => {
         workspaceId: req.workspaceId,
         userId: req.ecomUser._id,
         endpoint,
-        keys,
+        keys: normalizedKeys,
         userAgent: userAgent || '',
         lastUsed: new Date(),
         isActive: true

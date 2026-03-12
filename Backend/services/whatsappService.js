@@ -234,9 +234,70 @@ export async function sendWhatsAppMedia({ to, mediaUrl, caption, workspaceId }) 
   }
 }
 
+/**
+ * Envoie un message vocal via WhatsApp
+ * @param {Object} params - Paramètres d'envoi
+ * @param {string} params.to - Numéro de téléphone destinataire
+ * @param {string} params.audioUrl - URL du fichier audio
+ * @param {string} params.workspaceId - ID du workspace
+ * @returns {Promise<Object>} Résultat de l'envoi
+ */
+export async function sendWhatsAppAudio({ to, audioUrl, workspaceId }) {
+  try {
+    if (!to || !audioUrl) {
+      throw new Error('Numéro de téléphone et URL audio requis');
+    }
+
+    if (!workspaceId) {
+      throw new Error('workspaceId requis pour envoyer un audio WhatsApp');
+    }
+
+    const instance = await getActiveInstance(workspaceId);
+    
+    if (!instance) {
+      throw new Error('Aucune instance WhatsApp connectée. Veuillez configurer WhatsApp dans les paramètres.');
+    }
+
+    const audioPhoneCheck = formatInternationalPhone(to);
+    if (!audioPhoneCheck.success) {
+      throw new Error(`Numéro de téléphone invalide: ${audioPhoneCheck.error}`);
+    }
+    const cleanAudioNumber = audioPhoneCheck.formatted;
+
+    console.log(`📱 Envoi audio WhatsApp via instance ${instance.instanceName} à ${cleanAudioNumber}`);
+
+    const result = await evolutionApiService.sendAudio(
+      instance.instanceName,
+      instance.instanceToken,
+      cleanAudioNumber,
+      audioUrl
+    );
+
+    if (!result.success) {
+      throw new Error(result.error || 'Erreur lors de l\'envoi de l\'audio');
+    }
+
+    instance.lastSeen = new Date();
+    await instance.save();
+
+    console.log(`✅ Audio WhatsApp envoyé avec succès à ${cleanAudioNumber}`);
+
+    return {
+      success: true,
+      messageId: result.data?.key?.id || 'unknown',
+      instanceName: instance.instanceName
+    };
+
+  } catch (error) {
+    console.error('❌ Erreur sendWhatsAppAudio:', error.message);
+    throw error;
+  }
+}
+
 export default {
   sendWhatsAppMessage,
   sendOrderNotification,
   sendWhatsAppMedia,
+  sendWhatsAppAudio,
   getActiveInstance
 };

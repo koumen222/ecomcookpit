@@ -254,7 +254,7 @@ const CampaignForm = () => {
           type: isImage ? 'image' : 'audio',
           url: res.data.data.url,
           fileName: res.data.data.fileName,
-          caption: isImage ? prev.messageTemplate : ''
+          caption: '' // Image et texte sont envoyés séparément
         }
       }));
     } catch (err) {
@@ -689,7 +689,7 @@ const CampaignForm = () => {
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-semibold text-emerald-800">Image ajoutée</p>
                               <p className="text-xs text-emerald-600 truncate">{formData.media.fileName}</p>
-                              <p className="text-[10px] text-emerald-500 mt-1">Le message sera envoyé comme légende de l'image</p>
+                              <p className="text-[10px] text-emerald-500 mt-1">L'image sera envoyée en premier, puis le texte séparément</p>
                             </div>
                           </>
                         ) : (

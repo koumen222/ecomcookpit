@@ -30,3 +30,54 @@ node scripts/migratePaymentFields.js
 - `paid: false` (pour Local)
 
 Après la migration, toutes les anciennes commandes s'afficheront correctement et pourront être modifiées pour définir les statuts de paiement.
+
+---
+
+## fixPushSubscriptions.js
+
+Ce script corrige les clés Base64URL des subscriptions push pour éviter l'erreur "use maximum of 32 characters from the URL or filename-safe Base64 characters set".
+
+### Quand l'utiliser?
+
+- Si vous rencontrez l'erreur "32 characters" lors de l'envoi de notifications push
+- Après avoir mis à jour le code de gestion des push notifications
+- Pour nettoyer les subscriptions existantes avec des clés mal formatées
+
+### Comment l'exécuter?
+
+```bash
+cd Backend
+node scripts/fixPushSubscriptions.js
+```
+
+### Que fait le script?
+
+1. Connexion à la base de données MongoDB
+2. Récupération de toutes les subscriptions push
+3. Normalisation des clés `auth` et `p256dh` en Base64URL
+4. Validation de chaque subscription
+5. Suppression des subscriptions invalides
+6. Affichage d'un rapport détaillé
+
+### Format Base64URL requis
+
+- ✅ Caractères autorisés : `A-Z`, `a-z`, `0-9`, `-`, `_`
+- ❌ Caractères interdits : `+`, `/`, `=` (padding)
+- 📏 Longueur attendue :
+  - `auth` : ~22 caractères (16 bytes)
+  - `p256dh` : ~87 caractères (65 bytes)
+
+### Résultat attendu
+
+```
+📊 RÉSUMÉ DE LA MIGRATION
+============================================================
+✅ Déjà valides:      X
+🔧 Corrigées:         Y
+🗑️ Supprimées:        Z
+❌ Erreurs:           0
+📊 Total:             N
+============================================================
+```
+
+Après la migration, toutes les notifications push fonctionneront correctement sans erreur Base64URL.
