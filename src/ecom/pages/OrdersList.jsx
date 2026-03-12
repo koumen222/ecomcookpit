@@ -147,6 +147,8 @@ const OrdersList = () => {
   const [viewAllWorkspaces, setViewAllWorkspaces] = useState(false);
   const [commissions, setCommissions] = useState(null);
   const [commissionPeriod, setCommissionPeriod] = useState('month');
+  const [showImportMenu, setShowImportMenu] = useState(false);
+  const importMenuRef = useRef(null);
   const [loadingCommissions, setLoadingCommissions] = useState(false);
 
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -660,6 +662,26 @@ const OrdersList = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [expandedId]);
+
+  // Fermer le menu d'importation quand on clique ailleurs
+  useEffect(() => {
+    if (!showImportMenu) return;
+    
+    const handleClickOutside = (e) => {
+      if (importMenuRef.current && !importMenuRef.current.contains(e.target)) {
+        setShowImportMenu(false);
+      }
+    };
+    
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 100);
+    
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showImportMenu]);
 
   const handleSync = async (sourceId = null) => {
     // Protection contre les appels multiples
@@ -1477,13 +1499,46 @@ const OrdersList = () => {
                 <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                 <span className="hidden sm:inline">Ajouter</span>
               </button>
-              <button
-                onClick={() => navigate('/ecom/import')}
-                className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-emerald-600 text-white rounded-xl active:scale-95 transition text-[11px] sm:text-xs font-semibold"
-              >
-                <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 013 3h10a3 3 0 013-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                <span className="hidden sm:inline">Importer</span>
-              </button>
+              <div className="relative" ref={importMenuRef}>
+                <button
+                  onClick={() => setShowImportMenu(!showImportMenu)}
+                  className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 sm:py-2 bg-emerald-600 text-white rounded-xl active:scale-95 transition text-[11px] sm:text-xs font-semibold"
+                >
+                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 013 3h10a3 3 0 013-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  <span className="hidden sm:inline">Importer</span>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                {showImportMenu && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-50">
+                    <button
+                      onClick={() => {
+                        setShowImportMenu(false);
+                        navigate('/ecom/import');
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50 transition"
+                    >
+                      <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                      <div className="flex-1 text-left">
+                        <div className="font-medium text-gray-900">Google Sheets</div>
+                        <div className="text-xs text-gray-500">Importer depuis un tableur</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowImportMenu(false);
+                        navigate('/ecom/integrations/shopify');
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50 transition"
+                    >
+                      <svg className="w-5 h-5 text-emerald-600" fill="currentColor" viewBox="0 0 24 24"><path d="M15.337 2.136c-.012-.012-.025-.012-.037-.024-.012-.013-.025-.013-.037-.025l-.427-.214c-.287-.15-.65-.1-.888.125l-.325.3c-.1.088-.225.163-.35.238-.538-.163-1.15-.238-1.825-.125-1.05.175-2.037.713-2.787 1.525-.537.575-.925 1.275-1.137 2.038-.688.2-1.175.35-1.2.363-.362.112-.375.125-.425.475-.037.262-1.05 8.1-1.05 8.1l10.562 2.025 5.1-1.188S15.35 2.148 15.337 2.136zm-2.7.938c-.175.05-.375.113-.6.175v-.15c0-.525-.075-1-.2-1.438.375.088.65.725.8 1.413zm-1.4-.363c-.125.038-.25.075-.4.125V1.723c0-.45-.088-.875-.238-1.25.538.2.888.863 1.013 1.638-.125.037-.25.075-.375.1zm-.95-1.788c.15.375.225.813.225 1.313v.088c-.4.125-.838.25-1.288.388.25-.963.725-1.438 1.063-1.788zm-.538 10.325l-.875-2.913c.4-.15.913-.325 1.013-.363.125-.037.15.05.15.1 0 .063-.025 1.663-.288 3.176zm3.338-8.738c-.012-.537-.1-1.025-.237-1.45.537.175.875.8 1.05 1.438-.188.062-.513.15-.813.237v-.225z"/></svg>
+                      <div className="flex-1 text-left">
+                        <div className="font-medium text-gray-900">Shopify</div>
+                        <div className="text-xs text-gray-500">Importer depuis Shopify</div>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={() => handleSync()}
                 disabled={syncDisabled}
