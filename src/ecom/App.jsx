@@ -333,6 +333,15 @@ const EcomApp = () => {
             <Route path="/ecom/profile" element={<LayoutRoute><Profile /></LayoutRoute>} />
             <Route path="/ecom/settings" element={<LayoutRoute><Settings /></LayoutRoute>} />
 
+            {/* Routes Data, Objectifs, Recherche Produits et Fournisseurs */}
+            <Route path="/ecom/data" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_compta', 'super_admin']}><Data /></LayoutRoute>} />
+            <Route path="/ecom/goals" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse', 'ecom_compta']}><Goals /></LayoutRoute>} />
+            <Route path="/ecom/product-research" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse', 'ecom_compta']}><ProductResearchList /></LayoutRoute>} />
+            <Route path="/ecom/suppliers" element={<LayoutRoute requiredRole="ecom_admin"><SuppliersList /></LayoutRoute>} />
+            <Route path="/ecom/product-finder" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ProductFinder /></LayoutRoute>} />
+            <Route path="/ecom/product-finder/:id/edit" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ProductFinderEdit /></LayoutRoute>} />
+            <Route path="/ecom/stats-rapports" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse', 'ecom_compta']}><StatsRapports /></LayoutRoute>} />
+
             {/* Routes chat */}
             <Route path="/ecom/chat" element={<LayoutRoute><TeamChat /></LayoutRoute>} />
 

@@ -9,7 +9,6 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const TAG_LENGTH = 16;
 
-// Clé dérivée du secret — même toi (le propriétaire) ne peux pas lire les données sans cette clé
 function getEncryptionKey() {
   const secret = process.env.DATA_ENCRYPTION_KEY || process.env.JWT_SECRET || 'default-change-me';
   return crypto.scryptSync(secret, 'ecom-cockpit-salt', 32);
