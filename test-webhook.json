@@ -1,0 +1,33 @@
+{
+  "id": 123456789,
+  "order_number": "TEST-001",
+  "email": "test@example.com",
+  "total_price": "99.99",
+  "currency": "USD",
+  "created_at": "2026-03-12T18:30:00Z",
+  "financial_status": "paid",
+  "fulfillment_status": null,
+  "customer": {
+    "first_name": "Test",
+    "last_name": "User",
+    "email": "test@example.com",
+    "phone": "+1234567890"
+  },
+  "shipping_address": {
+    "first_name": "Test",
+    "last_name": "User",
+    "address1": "123 Test St",
+    "city": "Test City",
+    "province": "Test Province",
+    "country": "Test Country",
+    "zip": "12345"
+  },
+  "line_items": [
+    {
+      "id": 1,
+      "title": "Test Product",
+      "quantity": 2,
+      "price": "49.99"
+    }
+  ]
+}
