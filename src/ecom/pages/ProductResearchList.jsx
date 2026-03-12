@@ -460,7 +460,7 @@ const ProductResearchList = () => {
                       <div className="flex flex-col space-y-1">
                         <div className="flex space-x-2">
                           <button
-                            onClick={() => navigate(`/ecom/product-finder/${product._id}`)}
+                            onClick={() => navigate(`/ecom/product-finder/${product._id}/edit`)}
                             className="text-emerald-600 hover:text-emerald-800"
                             title="Modifier"
                           >
