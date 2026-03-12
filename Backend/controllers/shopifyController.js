@@ -14,7 +14,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'https://scalor.net';
 // ─── State encoding (remplace les cookies pour OAuth cross-domain) ───────────
 
 /**
- * Encode userId, workspaceIthrhhhhhhhhjrd et nonce dans le paramètre state OAuth
+ * Encode userId, workspaceId et nonce dans le paramètre state OAuth
  * Format: base64url( JSON + '.' + HMAC signature )
  */
 function encodeOAuthState({ nonce, userId, workspaceId }) {

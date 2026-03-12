@@ -89,7 +89,7 @@ const orderSchema = new mongoose.Schema({
   },
   source: {
     type: String,
-    enum: ['google_sheets', 'manual', 'boutique'],
+    enum: ['google_sheets', 'manual', 'boutique', 'shopify'],
     default: 'manual'
   },
   storeOrderId: {

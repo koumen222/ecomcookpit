@@ -179,4 +179,45 @@ router.get('/test', (req, res) => {
   });
 });
 
+/**
+ * POST /api/ecom/webhooks/shopify/generate-token
+ * Génère ou récupère le token webhook Shopify unique pour le workspace courant
+ */
+router.post('/shopify/generate-token', async (req, res) => {
+  try {
+    const { default: crypto } = await import('crypto');
+    const { default: Workspace } = await import('../models/Workspace.js');
+
+    // ecomApi envoie workspaceId dans le body
+    const workspaceId = req.body?.workspaceId || req.workspaceId || req.headers['x-workspace-id'];
+    if (!workspaceId) {
+      console.error('❌ [Shopify WH] workspaceId manquant dans la requête');
+      return res.status(400).json({ success: false, message: 'Workspace ID manquant' });
+    }
+
+    const workspace = await Workspace.findById(workspaceId);
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Workspace introuvable' });
+    }
+
+    // Générer un token s'il n'existe pas encore
+    if (!workspace.shopifyWebhookToken) {
+      workspace.shopifyWebhookToken = crypto.randomBytes(20).toString('hex');
+      await workspace.save();
+      console.log(`🔑 [Shopify WH] Token généré pour workspace ${workspace.name}`);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        webhookToken: workspace.shopifyWebhookToken,
+        webhookUrl: `https://api.scalor.net/api/webhooks/shopify/orders/${workspace.shopifyWebhookToken}`
+      }
+    });
+  } catch (err) {
+    console.error('❌ [Shopify WH] Erreur generate-token:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 export default router;

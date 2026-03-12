@@ -155,7 +155,15 @@ app.use((req, res, next) => {
 });
 
 // ─── Body parsers ────────────────────────────────────────────────────────────
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, _res, buf) => {
+    // Capture raw body for webhook HMAC verification (Shopify, etc.)
+    if (req.url && req.url.startsWith('/api/webhooks/')) {
+      req.rawBody = buf;
+    }
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
@@ -296,6 +304,8 @@ const startServer = async () => {
       ['./routes/whatsappConfig.js',           '/api/ecom/integrations/whatsapp'],
       // ─── Shopify OAuth Integration ────────────────────────────────────
       ['./routes/shopify.js',                  '/api/ecom/shopify'],
+      // ─── Shopify Webhooks (orders/create) ─────────────────────────────
+      ['./routes/shopifyWebhooks.js',          '/api/webhooks/shopify'],
       // ─── Test Routes ───────────────────────────────────────────────────
       ['./routes/test.js',                      '/api/ecom/test'],
     ];

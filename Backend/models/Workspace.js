@@ -77,6 +77,13 @@ const workspaceSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     default: {}
   },
+  // Unique token for Shopify webhook URL per workspace
+  shopifyWebhookToken: {
+    type: String,
+    unique: true,
+    sparse: true,
+    index: true
+  },
   isActive: {
     type: Boolean,
     default: true
