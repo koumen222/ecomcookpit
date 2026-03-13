@@ -292,7 +292,8 @@ router.put('/orders/:id', requireEcomAuth, validateEcomAccess('products', 'write
     const {
       productName, sourcing, quantity, weightKg, pricePerKg,
       purchasePrice, sellingPrice, transportCost,
-      expectedArrival, supplierName, trackingNumber, notes
+      expectedArrival, supplierName, trackingNumber, notes,
+      status, paidPurchase, paidTransport, paid
     } = req.body;
 
     let finalTransportCost;
@@ -309,6 +310,7 @@ router.put('/orders/:id', requireEcomAuth, validateEcomAccess('products', 'write
     Object.assign(order, {
       ...(productName !== undefined && { productName }),
       ...(sourcing !== undefined && { sourcing }),
+      ...(status !== undefined && { status }),
       ...(quantity !== undefined && { quantity: parseInt(quantity) || order.quantity }),
       ...(weightKg !== undefined && { weightKg: parseFloat(weightKg) || order.weightKg }),
       ...(pricePerKg !== undefined && { pricePerKg: parseFloat(pricePerKg) || order.pricePerKg }),
@@ -320,9 +322,9 @@ router.put('/orders/:id', requireEcomAuth, validateEcomAccess('products', 'write
       trackingNumber,
       notes,
       // Champs de paiement avec valeurs par défaut pour compatibilité
-      paidPurchase: req.body.paidPurchase !== undefined ? req.body.paidPurchase : (order.paidPurchase || false),
-      paidTransport: req.body.paidTransport !== undefined ? req.body.paidTransport : (order.paidTransport || false),
-      paid: req.body.paid !== undefined ? req.body.paid : (order.paid || false)
+      paidPurchase: paidPurchase !== undefined ? paidPurchase : (order.paidPurchase || false),
+      paidTransport: paidTransport !== undefined ? paidTransport : (order.paidTransport || false),
+      paid: paid !== undefined ? paid : (order.paid || false)
     });
 
     await order.save();

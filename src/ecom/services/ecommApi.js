@@ -173,6 +173,20 @@ ecomApi.interceptors.response.use(
       }
 
       originalRequest._retry = true;
+      
+      // Vérifier si on a un token avant de tenter un refresh
+      const token = localStorage.getItem('ecomToken');
+      if (!token) {
+        logAuthEvent('token_missing_on_401', { url: originalRequest.url });
+        localStorage.removeItem('ecomToken');
+        localStorage.removeItem('ecomUser');
+        localStorage.removeItem('ecomWorkspace');
+        localStorage.removeItem('ecomOriginalUser');
+        localStorage.removeItem('ecomImpersonatedUser');
+        window.location.href = '/ecom/login';
+        return Promise.reject(error);
+      }
+
       isRefreshing = true;
 
       try {

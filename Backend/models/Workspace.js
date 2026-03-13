@@ -84,6 +84,19 @@ const workspaceSchema = new mongoose.Schema({
     sparse: true,
     index: true
   },
+  // Token unique pour le webhook générique de commandes (/webhook/orders/:token)
+  orderWebhookToken: {
+    type: String,
+    unique: true,
+    sparse: true,
+    index: true
+  },
+  // Filtres applicables aux commandes reçues par webhook
+  // { allowedCities: ['Paris', 'Lyon'], allowedProducts: ['Nike'] }
+  orderWebhookFilters: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
   isActive: {
     type: Boolean,
     default: true

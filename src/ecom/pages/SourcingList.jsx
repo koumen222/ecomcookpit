@@ -270,9 +270,15 @@ export default function SourcingList() {
       // Si on reçoit le produit, on met automatiquement tous les paiements à payé
       if (action === 'receive') {
         await ecomApi.put(`/sourcing/orders/${orderId}`, {
+          status: 'received',
           paidPurchase: true,
           paidTransport: true,
           paid: true
+        });
+      } else if (action === 'back-to-transit') {
+        // Repasser en transit
+        await ecomApi.put(`/sourcing/orders/${orderId}`, {
+          status: 'in_transit'
         });
       } else {
         await ecomApi.put(`/sourcing/orders/${orderId}/${action}`);
@@ -465,6 +471,9 @@ export default function SourcingList() {
                             <button onClick={() => openOrderModal(order)} className="text-emerald-600 hover:text-emerald-900 mr-3">Modifier</button>
                             {order.status === 'in_transit' && (
                               <button onClick={() => updateOrderStatus(order._id, 'receive')} className="text-green-600 hover:text-green-900 mr-3">Recevoir</button>
+                            )}
+                            {order.status === 'received' && (
+                              <button onClick={() => updateOrderStatus(order._id, 'back-to-transit')} className="text-amber-600 hover:text-amber-900 mr-3">Repasser en transit</button>
                             )}
                             <button onClick={() => deleteOrder(order._id)} className="text-red-600 hover:text-red-900">Supprimer</button>
                           </td>

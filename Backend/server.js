@@ -306,6 +306,8 @@ const startServer = async () => {
       ['./routes/shopify.js',                  '/api/ecom/shopify'],
       // ─── Shopify Webhooks (orders/create) ─────────────────────────────
       ['./routes/shopifyWebhooks.js',          '/api/webhooks/shopify'],
+      // ─── Generic Order Webhook (external systems → /webhook/orders/:token) ─
+      ['./routes/orderWebhook.js',             '/webhook/orders'],
       // ─── Test Routes ───────────────────────────────────────────────────
       ['./routes/test.js',                      '/api/ecom/test'],
     ];
