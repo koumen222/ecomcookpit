@@ -97,6 +97,17 @@ const workspaceSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     default: {}
   },
+  // Active l'envoi automatique d'un message WhatsApp au client après commande Shopify
+  whatsappAutoConfirm: {
+    type: Boolean,
+    default: false
+  },
+  // Template personnalisé pour le message WhatsApp de confirmation
+  // Variables disponibles : {{first_name}}, {{order_number}}, {{product}}, {{quantity}}, {{city}}, {{total_price}}, {{currency}}, {{store_name}}
+  whatsappOrderTemplate: {
+    type: String,
+    default: null
+  },
   isActive: {
     type: Boolean,
     default: true

@@ -2,6 +2,7 @@ import Order from '../models/Order.js';
 import OrderSource from '../models/OrderSource.js';
 import { notifyNewOrder } from './notificationHelper.js';
 import { normalizeCity } from '../utils/cityNormalizer.js';
+import { sendClientOrderConfirmation } from './shopifyWhatsappService.js';
 
 /**
  * Sauvegarde une commande Shopify reçue par webhook.
@@ -11,7 +12,7 @@ import { normalizeCity } from '../utils/cityNormalizer.js';
  * @param {string} shopDomain     - Domaine Shopify (header X-Shopify-Shop-Domain)
  * @param {string} workspaceId    - ID du workspace (résolu via webhook token)
  */
-export async function saveShopifyOrder(shopifyOrder, shopDomain, workspaceId) {
+export async function saveShopifyOrder(shopifyOrder, shopDomain, workspaceId, workspaceSettings = {}) {
   const shopifyOrderId = String(shopifyOrder.id);
 
   if (!workspaceId) {
@@ -140,6 +141,14 @@ export async function saveShopifyOrder(shopifyOrder, shopDomain, workspaceId) {
   if (workspaceId) {
     notifyNewOrder(workspaceId, newOrder)
       .catch(err => console.error('❌ [Shopify WH] Erreur notification:', err.message));
+  }
+
+  // ── WhatsApp confirmation au client (si activé dans le workspace) ──────
+  if (workspaceSettings.whatsappAutoConfirm) {
+    sendClientOrderConfirmation(newOrder, shopifyOrder, workspaceId, {
+      storeName:      workspaceSettings.storeName || '',
+      customTemplate: workspaceSettings.whatsappOrderTemplate || null,
+    }).catch(err => console.error('❌ [Shopify WH] Erreur WhatsApp client:', err.message));
   }
 
   return newOrder;

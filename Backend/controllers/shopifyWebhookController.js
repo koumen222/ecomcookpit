@@ -101,7 +101,14 @@ export const handleOrderCreated = (req, res) => {
       const workspaceId = workspace._id;
       console.log(`   🏢 Workspace: ${workspace.name} (${workspaceId})`);
 
-      const order = await saveShopifyOrder(req.body, shopDomain, workspaceId);
+      // Extraire les settings WhatsApp pour l'auto-confirmation
+      const workspaceSettings = {
+        whatsappAutoConfirm:    workspace.whatsappAutoConfirm || false,
+        whatsappOrderTemplate:  workspace.whatsappOrderTemplate || null,
+        storeName:              workspace.storeSettings?.storeName || workspace.name || '',
+      };
+
+      const order = await saveShopifyOrder(req.body, shopDomain, workspaceId, workspaceSettings);
       const duration = Date.now() - startTime;
 
       if (order) {
