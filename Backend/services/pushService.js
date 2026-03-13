@@ -93,8 +93,7 @@ const sendPushNotification = async (workspaceId, notificationData, notificationT
             payload,
             {
               TTL: 86400, // 24 heures
-              urgency: 'normal',
-              topic: notificationData.tag
+              urgency: 'normal'
             }
           );
           

@@ -738,7 +738,7 @@ async function sendPushNotificationToUser(userId, payload) {
               }
             },
             JSON.stringify(payload),
-            { TTL: 86400, urgency: 'normal', topic: payload.tag }
+            { TTL: 86400, urgency: 'normal' }
           );
           return { success: true, subscriptionId: subscription._id };
         } catch (error) {
