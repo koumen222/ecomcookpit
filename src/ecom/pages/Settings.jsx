@@ -3,12 +3,23 @@ import { Link } from 'react-router-dom';
 import CurrencySelector from '../components/CurrencySelector.jsx';
 import { useMoney } from '../hooks/useMoney.js';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
+import { usePushNotifications } from '../hooks/usePushNotifications.jsx';
 import ecomApi, { settingsApi } from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
 
 const Settings = () => {
   const { fmt, currency, symbol } = useMoney();
   const { user, workspace, logout } = useEcomAuth();
+  const {
+    isSupported: pushSupported,
+    permission: pushPermission,
+    isSubscribed,
+    loading: pushLoading,
+    error: pushError,
+    subscribeToPush,
+    unsubscribeFromPush,
+    sendTestNotification
+  } = usePushNotifications();
   const [activeTab, setActiveTab] = useState('general');
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -27,8 +38,6 @@ const Settings = () => {
     push_low_stock: true,
     push_sync_completed: true
   });
-  const [pushEnabled, setPushEnabled] = useState(false);
-  const [pushLoading, setPushLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmWord, setDeleteConfirmWord] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
@@ -59,36 +68,25 @@ const Settings = () => {
     }
   };
 
-  const checkPushPermission = () => {
-    if (!('Notification' in window)) {
-      return false;
-    }
-    return Notification.permission === 'granted';
-  };
-
-  const requestPushPermission = async () => {
-    if (!('Notification' in window)) {
-      alert('Les notifications push ne sont pas supportées par votre navigateur.');
-      return;
-    }
-
-    setPushLoading(true);
+  const handlePushToggle = async () => {
     try {
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
-        setPushEnabled(true);
-        // Subscribe to push notifications
-        if ('serviceWorker' in navigator) {
-          const registration = await navigator.serviceWorker.ready;
-          // Add push subscription logic here if needed
-        }
-      } else {
-        setPushEnabled(false);
+      if (!pushSupported) {
+        alert('Les notifications push ne sont pas supportées par votre navigateur.');
+        return;
+      }
+
+      if (isSubscribed) {
+        await unsubscribeFromPush();
+        return;
+      }
+
+      const success = await subscribeToPush();
+      if (success) {
+        await sendTestNotification();
       }
     } catch (err) {
-      console.error('Error requesting push permission:', err);
-    } finally {
-      setPushLoading(false);
+      console.error('Error toggling push:', err);
+      alert(getContextualError(err, 'update_settings'));
     }
   };
 
@@ -161,7 +159,6 @@ const Settings = () => {
 
   useEffect(() => {
     fetchPushPreferences();
-    setPushEnabled(checkPushPermission());
   }, []);
 
   const handleAddSource = async () => {
@@ -502,7 +499,7 @@ const Settings = () => {
                         <h3 className="text-lg font-bold text-gray-900">Activer les notifications push</h3>
                       </div>
                       <p className="text-sm text-gray-600 mb-3">Recevez des notifications en temps réel sur votre appareil, même quand l'application est fermée.</p>
-                      {pushEnabled ? (
+                      {isSubscribed ? (
                         <div className="flex items-center gap-2 text-sm">
                           <span className="w-2 h-2 bg-green-500 rounded-full"></span>
                           <span className="text-green-700 font-medium">Notifications push activées</span>
@@ -514,16 +511,29 @@ const Settings = () => {
                         </div>
                       )}
                     </div>
-                    {!pushEnabled && (
-                      <button
-                        onClick={requestPushPermission}
-                        disabled={pushLoading}
-                        className="px-5 py-2.5 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                      >
-                        {pushLoading ? 'Activation...' : 'Activer'}
-                      </button>
-                    )}
+                    <button
+                      onClick={handlePushToggle}
+                      disabled={pushLoading || !pushSupported || pushPermission === 'denied'}
+                      className={`px-5 py-2.5 text-white font-semibold rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0 ${isSubscribed ? 'bg-gray-700 hover:bg-gray-800' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+                    >
+                      {pushLoading ? 'Chargement...' : isSubscribed ? 'Désactiver' : 'Activer'}
+                    </button>
                   </div>
+                  {pushPermission === 'denied' && (
+                    <p className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      Les notifications sont bloquées par le navigateur. Autorise-les depuis l'icône cadenas de la barre d'adresse.
+                    </p>
+                  )}
+                  {!pushSupported && (
+                    <p className="mt-3 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                      Cet appareil ou navigateur ne supporte pas les notifications push.
+                    </p>
+                  )}
+                  {pushError && (
+                    <p className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                      {pushError}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -591,9 +601,10 @@ const Settings = () => {
                           </div>
                           <button
                             onClick={() => savePushPreferences(item.key, !notifications[item.key])}
+                            disabled={!isSubscribed}
                             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors flex-shrink-0 ${
                               notifications[item.key] ? 'bg-emerald-600' : 'bg-gray-300'
-                            }`}
+                            } disabled:opacity-50 disabled:cursor-not-allowed`}
                           >
                             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
                               notifications[item.key] ? 'translate-x-6' : 'translate-x-1'
@@ -602,6 +613,11 @@ const Settings = () => {
                         </div>
                       ))}
                     </div>
+                    {!isSubscribed && (
+                      <p className="mt-4 text-xs text-gray-500">
+                        Active d'abord les notifications push sur cet appareil pour pouvoir gérer ces alertes.
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

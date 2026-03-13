@@ -2477,6 +2477,8 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
       if (req.body[field] !== undefined) updateData[field] = req.body[field];
     });
 
+    const statusChanged = req.body.status !== undefined && req.body.status !== order.status;
+
     // Marquer le statut comme modifié manuellement
     if (req.body.status !== undefined) {
       updateData.statusModifiedManually = true;
@@ -2484,7 +2486,7 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
     }
 
     // Auto-tagging basé sur le statut
-    if (req.body.status) {
+    if (statusChanged) {
       const statusTags = { pending: 'En attente', confirmed: 'Confirmé', shipped: 'Expédié', delivered: 'Client', returned: 'Retour', cancelled: 'Annulé', unreachable: 'Injoignable', called: 'Appelé', postponed: 'Reporté' };
       const allStatusTags = Object.values(statusTags);
       // Retirer les anciens tags de statut, garder les tags manuels
@@ -2504,41 +2506,12 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
     );
 
     // Notification interne sur changement de statut
-    if (req.body.status) {
+    if (statusChanged) {
       notifyOrderStatus(req.workspaceId, updatedOrder, req.body.status).catch(() => {});
       
       // Notification d'équipe (exclure l'acteur)
       notifyTeamOrderStatusChanged(req.workspaceId, req.ecomUser._id, updatedOrder, req.body.status, req.ecomUser.email).catch(() => {});
-      
-      // 📱 Push notification pour changement de statut
-      try {
-        const { sendPushNotification } = await import('../services/pushService.js');
-        const statusEmojis = {
-          pending: '⏳', confirmed: '✅', shipped: '📦', 
-          delivered: '🎉', returned: '↩️', cancelled: '❌',
-          unreachable: '📵', called: '📞', postponed: '⏰'
-        };
-        const statusLabels = {
-          pending: 'En attente', confirmed: 'Confirmée', shipped: 'Expédiée',
-          delivered: 'Livrée', returned: 'Retournée', cancelled: 'Annulée',
-          unreachable: 'Injoignable', called: 'Appelée', postponed: 'Reportée'
-        };
-        await sendPushNotification(req.workspaceId, {
-          title: `${statusEmojis[req.body.status] || '📋'} Commande ${statusLabels[req.body.status] || req.body.status}`,
-          body: `${updatedOrder.orderId} - ${updatedOrder.clientName || updatedOrder.clientPhone}`,
-          icon: '/icons/icon-192x192.png',
-          badge: '/icons/icon-72x72.png',
-          tag: 'order-status',
-          data: {
-            type: 'order_status_change',
-            orderId: updatedOrder._id.toString(),
-            status: req.body.status,
-            url: `/orders/${updatedOrder._id}`
-          }
-        }, 'push_status_changes');
-      } catch (e) {
-        console.warn('⚠️ Push notification failed:', e.message);
-      }
+      console.log(`📱 [Orders] Push statut envoyé via notifyOrderStatus: ${updatedOrder._id} -> ${req.body.status}`);
     }
 
     res.json({ success: true, message: 'Commande mise à jour', data: updatedOrder });
@@ -2586,6 +2559,7 @@ router.patch('/:id/status', requireEcomAuth, async (req, res) => {
     }
 
     const oldStatus = order.status;
+    const statusChanged = status !== oldStatus;
     order.status = status;
     order.statusModifiedManually = true;
     order.lastManualStatusUpdate = new Date();
@@ -2610,37 +2584,10 @@ router.patch('/:id/status', requireEcomAuth, async (req, res) => {
     await order.save();
 
     // Notifications internes
-    notifyOrderStatus(req.workspaceId, order, status).catch(() => {});
-    notifyTeamOrderStatusChanged(req.workspaceId, req.ecomUser._id, order, status, req.ecomUser.email).catch(() => {});
-    
-    // 📱 Push notification pour changement de statut
-    try {
-      const { sendPushNotification } = await import('../services/pushService.js');
-      const statusEmojis = {
-        pending: '⏳', confirmed: '✅', shipped: '📦', 
-        delivered: '🎉', returned: '↩️', cancelled: '❌',
-        unreachable: '📵', called: '📞', postponed: '⏰'
-      };
-      const statusLabels = {
-        pending: 'En attente', confirmed: 'Confirmée', shipped: 'Expédiée',
-        delivered: 'Livrée', returned: 'Retournée', cancelled: 'Annulée',
-        unreachable: 'Injoignable', called: 'Appelée', postponed: 'Reportée'
-      };
-      await sendPushNotification(req.workspaceId, {
-        title: `${statusEmojis[status] || '📋'} Commande ${statusLabels[status] || status}`,
-        body: `${order.orderId} - ${order.clientName || order.clientPhone}`,
-        icon: '/icons/icon-192x192.png',
-        badge: '/icons/icon-72x72.png',
-        tag: 'order-status',
-        data: {
-          type: 'order_status_change',
-          orderId: order._id.toString(),
-          status: status,
-          url: `/orders/${order._id}`
-        }
-      }, 'push_status_changes');
-    } catch (e) {
-      console.warn('⚠️ Push notification failed:', e.message);
+    if (statusChanged) {
+      notifyOrderStatus(req.workspaceId, order, status).catch(() => {});
+      notifyTeamOrderStatusChanged(req.workspaceId, req.ecomUser._id, order, status, req.ecomUser.email).catch(() => {});
+      console.log(`📱 [Orders] Push statut envoyé via notifyOrderStatus: ${order._id} -> ${status}`);
     }
 
     res.json({ 

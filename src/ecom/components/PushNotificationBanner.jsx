@@ -1,5 +1,8 @@
 ﻿import { useState, useEffect } from 'react';
 import { usePushNotifications } from '../hooks/usePushNotifications';
+import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
+
+const getDismissKey = (userId) => `ecomPushDismissedSession:${userId || 'anonymous'}`;
 
 /**
  * Bandeau pour activer les notifications push
@@ -7,9 +10,16 @@ import { usePushNotifications } from '../hooks/usePushNotifications';
  */
 export default function PushNotificationBanner() {
   const { isSupported, isSubscribed, permission, loading, error, subscribeToPush, sendTestNotification } = usePushNotifications();
+  const { user } = useEcomAuth();
   const [visible, setVisible] = useState(false);
   const [activating, setActivating] = useState(false);
   const [testSent, setTestSent] = useState(false);
+
+  useEffect(() => {
+    // Réinitialiser l'ancien blocage persistant pour re-solliciter les utilisateurs
+    // dès leur nouvelle session de connexion.
+    localStorage.removeItem('ecomPushDismissed');
+  }, []);
 
   useEffect(() => {
     if (loading || !isSupported) return;
@@ -17,18 +27,14 @@ export default function PushNotificationBanner() {
     // Ne pas afficher si déjù  abonné ou permission refusée définitivement
     if (isSubscribed || permission === 'denied') return;
 
-    // Vérifier si l'utilisateur a déjù  rejeté le bandeau
-    const dismissed = localStorage.getItem('ecomPushDismissed');
-    if (dismissed) {
-      const dismissedAt = new Date(dismissed);
-      const daysSince = (Date.now() - dismissedAt.getTime()) / (1000 * 60 * 60 * 24);
-      if (daysSince < 3) return; // Re-proposer après 3 jours
-    }
+    // Ne masquer que pour la session utilisateur en cours.
+    const dismissed = sessionStorage.getItem(getDismissKey(user?._id));
+    if (dismissed) return;
 
     // Attendre un peu avant d'afficher
     const timer = setTimeout(() => setVisible(true), 2000);
     return () => clearTimeout(timer);
-  }, [loading, isSupported, isSubscribed, permission]);
+  }, [loading, isSupported, isSubscribed, permission, user?._id]);
 
   const handleActivate = async () => {
     setActivating(true);
@@ -44,7 +50,7 @@ export default function PushNotificationBanner() {
 
   const handleDismiss = () => {
     setVisible(false);
-    localStorage.setItem('ecomPushDismissed', new Date().toISOString());
+    sessionStorage.setItem(getDismissKey(user?._id), new Date().toISOString());
   };
 
   if (!visible) return null;

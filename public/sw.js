@@ -151,6 +151,18 @@ self.addEventListener('push', (event) => {
     self.registration.showNotification(notificationData.title, notificationOptions)
       .then(() => {
         console.log('[Service Worker] Notification affichée:', notificationData.title);
+        // Relayer au client pour mise à jour du badge et toast in-app
+        return self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      })
+      .then((clients) => {
+        if (clients && clients.length > 0) {
+          clients.forEach((client) => {
+            client.postMessage({
+              type: 'PUSH_RECEIVED',
+              payload: notificationData
+            });
+          });
+        }
       })
       .catch((error) => {
         console.error('[Service Worker] Erreur lors de l\'affichage de la notification:', error);
