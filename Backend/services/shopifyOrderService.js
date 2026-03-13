@@ -75,6 +75,13 @@ export async function saveShopifyOrder(shopifyOrder, shopDomain, workspaceId, wo
     || shopifyOrder.phone
     || '';
 
+  // ── Log diagnostic téléphone ──────────────────────────────────────────
+  console.log(`📞 [Shopify WH] Téléphone client brut : "${clientPhone}"`);
+  console.log(`   Sources testées → customer.phone: "${customer.phone || ''}" | shipping.phone: "${shipping.phone || ''}" | order.phone: "${shopifyOrder.phone || ''}"`);
+  if (!clientPhone) {
+    console.warn(`⚠️ [Shopify WH] Commande #${shopifyOrder.order_number || shopifyOrderId} — AUCUN téléphone trouvé dans le payload Shopify`);
+  }
+
   const product = lineItems.map(li => {
     const qty = li.quantity > 1 ? ` x${li.quantity}` : '';
     return `${li.title || li.name}${qty}`;
@@ -136,6 +143,7 @@ export async function saveShopifyOrder(shopifyOrder, shopDomain, workspaceId, wo
 
   console.log(`✅ [Shopify WH] Commande #${shopifyOrder.order_number || shopifyOrderId} sauvegardée`);
   console.log(`   📧 ${shopifyOrder.email || 'N/A'} | 💰 ${price} ${currency} | 📦 ${product}`);
+  console.log(`   📞 Téléphone enregistré : "${newOrder.clientPhone}" | WhatsApp auto : ${workspaceSettings.whatsappAutoConfirm ? 'OUI ✅' : 'NON ❌'}`);
 
   // ── Notifications (asynchrone, ne bloque pas la réponse) ───────────────
   if (workspaceId) {

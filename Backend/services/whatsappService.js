@@ -56,17 +56,22 @@ export async function sendWhatsAppMessage({ to, message, workspaceId, userId, fi
     const instance = await getActiveInstance(workspaceId);
     
     if (!instance) {
+      console.error(`❌ [WhatsApp] Aucune instance connectée pour workspace ${workspaceId}`);
       throw new Error('Aucune instance WhatsApp connectée. Veuillez configurer WhatsApp dans les paramètres.');
     }
+    console.log(`🔌 [WhatsApp] Instance trouvée : "${instance.instanceName}" (status: ${instance.status})`);
 
     // Nettoyer et formater le numéro de téléphone international
     const phoneCheck = formatInternationalPhone(to);
     if (!phoneCheck.success) {
+      console.error(`❌ [WhatsApp] Numéro invalide : "${to}" → ${phoneCheck.error}`);
       throw new Error(`Numéro de téléphone invalide: ${phoneCheck.error}`);
     }
     const cleanNumber = phoneCheck.formatted;
+    console.log(`📱 [WhatsApp] Numéro formaté : "${to}" → "${cleanNumber}"`);
 
-    console.log(`📱 Envoi WhatsApp via instance ${instance.instanceName} à ${cleanNumber}`);
+    console.log(`📱 Envoi WhatsApp via instance "${instance.instanceName}" à ${cleanNumber}`);
+    console.log(`   🔗 Evolution API URL: ${process.env.EVOLUTION_API_URL || 'https://api.evolution-api.com'}/message/sendText/${instance.instanceName}`);
 
     // Envoyer via Evolution API
     const result = await evolutionApiService.sendMessage(
@@ -77,6 +82,7 @@ export async function sendWhatsAppMessage({ to, message, workspaceId, userId, fi
     );
 
     if (!result.success) {
+      console.error(`❌ Evolution API a refusé l'envoi — numéro: ${cleanNumber}, erreur: ${result.error}`);
       throw new Error(result.error || 'Erreur lors de l\'envoi du message');
     }
 
@@ -85,6 +91,7 @@ export async function sendWhatsAppMessage({ to, message, workspaceId, userId, fi
     await instance.save();
 
     console.log(`✅ Message WhatsApp envoyé avec succès à ${cleanNumber}`);
+    console.log(`   📋 Response: messageId=${result.data?.key?.id || 'N/A'}, status=${result.data?.status || 'N/A'}`);
 
     return {
       success: true,

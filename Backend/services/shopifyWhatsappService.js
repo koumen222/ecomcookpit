@@ -103,6 +103,9 @@ export async function sendClientOrderConfirmation(order, shopifyOrder, workspace
       || shopifyOrder?.phone
       || '';
 
+    console.log(`📞 ${logPrefix} Téléphone brut : "${rawPhone}"`);
+    console.log(`   Sources → order.clientPhone: "${order.clientPhone || ''}" | customer.phone: "${shopifyOrder?.customer?.phone || ''}" | shipping.phone: "${shopifyOrder?.shipping_address?.phone || ''}" | order.phone: "${shopifyOrder?.phone || ''}"`);
+
     if (!rawPhone) {
       console.log(`ℹ️ ${logPrefix} Commande #${order.orderId} — pas de téléphone client, WhatsApp non envoyé`);
       return { success: false, error: 'Pas de numéro de téléphone' };
@@ -116,6 +119,7 @@ export async function sendClientOrderConfirmation(order, shopifyOrder, workspace
     }
 
     const whatsappNumber = phoneResult.formatted;
+    console.log(`📱 ${logPrefix} Numéro formaté : "${rawPhone}" → "${whatsappNumber}"`);
 
     // ── Extraire les données pour le template ────────────────────────────
     const customer = shopifyOrder?.customer || {};
@@ -152,6 +156,7 @@ export async function sendClientOrderConfirmation(order, shopifyOrder, workspace
     );
 
     // ── Envoyer via le service WhatsApp existant ─────────────────────────
+    console.log(`📩 ${logPrefix} Envoi WhatsApp à : ${whatsappNumber}`);
     const result = await sendWhatsAppMessage({
       to:          whatsappNumber,
       message,
@@ -159,6 +164,7 @@ export async function sendClientOrderConfirmation(order, shopifyOrder, workspace
       userId:      'system',
       firstName:   'Shopify Webhook',
     });
+    console.log(`✅ ${logPrefix} WhatsApp envoyé — messageId: ${result?.messageId || 'N/A'}, instance: ${result?.instanceName || 'N/A'}`);
 
     // ── Logger dans WhatsAppLog ──────────────────────────────────────────
     await WhatsAppLog.create({

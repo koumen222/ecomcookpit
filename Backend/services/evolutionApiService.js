@@ -39,6 +39,9 @@ class EvolutionApiService {
           }
         );
 
+        console.log(`✅ [Evolution API] Message envoyé à ${cleanNumber} via ${instanceName}`);
+        console.log(`   📋 Response: ${JSON.stringify(response.data?.key || response.data?.status || 'OK').substring(0, 200)}`);
+
         return {
           success: true,
           data: response.data
