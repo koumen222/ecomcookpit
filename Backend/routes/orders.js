@@ -10,7 +10,9 @@ import Notification from '../models/Notification.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { notifyNewOrder, notifyOrderStatus, notifyTeamOrderCreated, notifyTeamOrderStatusChanged } from '../services/notificationHelper.js';
 import { sendWhatsAppMessage, sendOrderNotification } from '../services/whatsappService.js';
+import { sendOrderConfirmationToClient } from '../services/shopifyWhatsappService.js';
 import { formatInternationalPhone, isValidWhatsAppNumber, normalizePhone } from '../utils/phoneUtils.js';
+import EcomWorkspace from '../models/Workspace.js';
 import { EventEmitter } from 'events';
 
 const router = express.Router();
@@ -129,8 +131,12 @@ router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), async (
     await order.save();
     memCache.delByPrefix(`stats:${req.workspaceId}`);
     
-    // Envoyer la notification WhatsApp automatiquement
+    // Envoyer la notification WhatsApp automatiquement (au livreur)
     await sendOrderNotification(order, req.workspaceId);
+    
+    // WhatsApp confirmation au client (si activé)
+    sendOrderConfirmationToClient(order, req.workspaceId)
+      .catch(err => console.error(`❌ Erreur WhatsApp client:`, err.message));
     
     // Notification interne
     notifyNewOrder(req.workspaceId, order).catch(() => {});
@@ -2871,7 +2877,7 @@ router.post('/:id/send-whatsapp', requireEcomAuth, validateEcomAccess('products'
 // POST /api/ecom/orders/config/whatsapp - Configurer le numéro WhatsApp personnalisé
 router.post('/config/whatsapp', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
   try {
-    const { customWhatsAppNumber } = req.body;
+    const { customWhatsAppNumber, whatsappAutoConfirm } = req.body;
     
     // Validation du format international (tous pays)
     if (customWhatsAppNumber) {
@@ -2892,11 +2898,17 @@ router.post('/config/whatsapp', requireEcomAuth, validateEcomAccess('products', 
       { new: true, upsert: true }
     );
 
+    // Mettre à jour whatsappAutoConfirm sur le workspace si fourni
+    if (typeof whatsappAutoConfirm === 'boolean') {
+      await EcomWorkspace.findByIdAndUpdate(req.workspaceId, { whatsappAutoConfirm });
+    }
+
     res.json({
       success: true,
       message: `Numéro WhatsApp configuré: ${cleanNumber}`,
       data: {
-        customWhatsAppNumber: cleanNumber
+        customWhatsAppNumber: cleanNumber,
+        whatsappAutoConfirm: typeof whatsappAutoConfirm === 'boolean' ? whatsappAutoConfirm : undefined
       }
     });
 
@@ -2909,14 +2921,18 @@ router.post('/config/whatsapp', requireEcomAuth, validateEcomAccess('products', 
 // GET /api/ecom/orders/config/whatsapp - Récupérer la configuration WhatsApp
 router.get('/config/whatsapp', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
   try {
-    const settings = await WorkspaceSettings.findOne({ workspaceId: req.workspaceId });
+    const [settings, workspace] = await Promise.all([
+      WorkspaceSettings.findOne({ workspaceId: req.workspaceId }),
+      EcomWorkspace.findById(req.workspaceId).select('whatsappAutoConfirm').lean()
+    ]);
     
     res.json({
       success: true,
       data: {
         customWhatsAppNumber: settings?.customWhatsAppNumber || null,
         environmentNumber: process.env.CUSTOM_WHATSAPP_NUMBER || null,
-        whatsappNumbers: settings?.whatsappNumbers || []
+        whatsappNumbers: settings?.whatsappNumbers || [],
+        whatsappAutoConfirm: workspace?.whatsappAutoConfirm || false
       }
     });
 

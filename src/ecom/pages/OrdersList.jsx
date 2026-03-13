@@ -121,6 +121,7 @@ const OrdersList = () => {
   const [showSourceSelector, setShowSourceSelector] = useState(true);
   const [showWhatsAppConfig, setShowWhatsAppConfig] = useState(false);
   const [customWhatsAppNumber, setCustomWhatsAppNumber] = useState('');
+  const [whatsappAutoConfirm, setWhatsappAutoConfirm] = useState(false);
   const [savingWhatsAppConfig, setSavingWhatsAppConfig] = useState(false);
   const [whatsappNumbers, setWhatsappNumbers] = useState([]);
   const [showWhatsAppMultiConfig, setShowWhatsAppMultiConfig] = useState(false);
@@ -356,6 +357,7 @@ const OrdersList = () => {
       const res = await ecomApi.get('/orders/config/whatsapp');
       setCustomWhatsAppNumber(res.data.data.customWhatsAppNumber || '');
       setWhatsappNumbers(res.data.data.whatsappNumbers || []);
+      setWhatsappAutoConfirm(res.data.data.whatsappAutoConfirm || false);
     } catch (err) {
       console.error('Erreur récupération config WhatsApp:', err);
     }
@@ -441,7 +443,8 @@ const OrdersList = () => {
     setError('');
     try {
       const res = await ecomApi.post('/orders/config/whatsapp', {
-        customWhatsAppNumber: customWhatsAppNumber
+        customWhatsAppNumber: customWhatsAppNumber,
+        whatsappAutoConfirm: whatsappAutoConfirm
       });
       
       if (res.data.success) {
@@ -2418,6 +2421,27 @@ const OrdersList = () => {
             </p>
             
             <div className="space-y-4">
+              {/* Toggle confirmation WhatsApp au client */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-blue-900">Confirmation WhatsApp au client</p>
+                    <p className="text-xs text-blue-600 mt-0.5">Envoyer automatiquement un message de confirmation au client après chaque commande Shopify</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setWhatsappAutoConfirm(!whatsappAutoConfirm)}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                      whatsappAutoConfirm ? 'bg-green-500' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      whatsappAutoConfirm ? 'translate-x-5' : 'translate-x-0'
+                    }`} />
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Numéro WhatsApp</label>
                 <input

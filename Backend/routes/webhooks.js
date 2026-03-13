@@ -3,6 +3,7 @@ import Order from '../models/Order.js';
 import OrderSource from '../models/OrderSource.js';
 import { notifyNewOrder } from '../services/notificationHelper.js';
 import { normalizeCity } from '../utils/cityNormalizer.js';
+import { sendOrderConfirmationToClient } from '../services/shopifyWhatsappService.js';
 
 const router = express.Router();
 
@@ -145,6 +146,10 @@ router.post('/google-sheets/:sourceId', async (req, res) => {
     } catch (notifError) {
       console.error(`❌ [WEBHOOK] Erreur envoi notifications:`, notifError);
     }
+
+    // 📱 WhatsApp confirmation au client (si activé)
+    sendOrderConfirmationToClient(newOrder, source.workspaceId)
+      .catch(err => console.error(`❌ [WEBHOOK] Erreur WhatsApp client:`, err.message));
     
     res.json({ 
       success: true, 

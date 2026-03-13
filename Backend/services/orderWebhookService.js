@@ -13,6 +13,7 @@ import crypto from 'crypto';
 import Order from '../models/Order.js';
 import { notifyNewOrder } from './notificationHelper.js';
 import { normalizeCity } from '../utils/cityNormalizer.js';
+import { sendOrderConfirmationToClient } from './shopifyWhatsappService.js';
 
 // ─── HMAC Verification ──────────────────────────────────────────────────────
 
@@ -309,9 +310,12 @@ export async function saveWebhookOrder(orderData, workspaceId) {
   try {
     await notifyNewOrder(workspaceId, newOrder);
   } catch (notifErr) {
-    // Non bloquant : la commande est sauvegardée, la notif peut échouer
     console.warn(`⚠️ [Webhook Orders] Notification échouée: ${notifErr.message}`);
   }
+
+  // ── WhatsApp confirmation au client (si activé) ────────────────────────
+  sendOrderConfirmationToClient(newOrder, workspaceId)
+    .catch(err => console.error(`❌ [Webhook Orders] Erreur WhatsApp client: ${err.message}`));
 
   return newOrder;
 }

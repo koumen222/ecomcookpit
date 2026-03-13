@@ -16,6 +16,7 @@
 
 import { sendWhatsAppMessage } from './whatsappService.js';
 import WhatsAppLog from '../models/WhatsAppLog.js';
+import EcomWorkspace from '../models/Workspace.js';
 import { formatInternationalPhone } from '../utils/phoneUtils.js';
 
 // ─── Templates de messages ──────────────────────────────────────────────────
@@ -225,6 +226,113 @@ export async function sendClientOrderConfirmation(order, shopifyOrder, workspace
       // Ignorer si le log échoue aussi
     }
 
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Envoie un message WhatsApp de confirmation au client pour toute commande
+ * (manuelle, webhook Google Sheets, webhook générique).
+ *
+ * Vérifie automatiquement que whatsappAutoConfirm est activé sur le workspace.
+ *
+ * @param {Object} order       - Document Order Mongoose (après .save())
+ * @param {string} workspaceId - _id du workspace
+ * @returns {Promise<{success: boolean, messageId?: string, error?: string}>}
+ */
+export async function sendOrderConfirmationToClient(order, workspaceId) {
+  const logPrefix = `[Order→WhatsApp]`;
+
+  try {
+    // Vérifier que whatsappAutoConfirm est activé
+    const workspace = await EcomWorkspace.findById(workspaceId)
+      .select('whatsappAutoConfirm whatsappOrderTemplate storeSettings name')
+      .lean();
+
+    if (!workspace?.whatsappAutoConfirm) {
+      console.log(`ℹ️ ${logPrefix} WhatsApp auto désactivé pour workspace ${workspaceId}`);
+      return { success: false, error: 'WhatsApp auto désactivé' };
+    }
+
+    const rawPhone = order.clientPhone || '';
+    if (!rawPhone) {
+      console.log(`ℹ️ ${logPrefix} Commande #${order.orderId} — pas de téléphone client`);
+      return { success: false, error: 'Pas de numéro de téléphone' };
+    }
+
+    const phoneResult = formatInternationalPhone(rawPhone);
+    if (!phoneResult.success) {
+      console.warn(`⚠️ ${logPrefix} Numéro invalide "${rawPhone}" : ${phoneResult.error}`);
+      return { success: false, error: `Numéro invalide: ${phoneResult.error}` };
+    }
+
+    const whatsappNumber = phoneResult.formatted;
+    const storeName = workspace.storeSettings?.storeName || workspace.name || '';
+
+    const message = buildConfirmationMessage({
+      firstName:      order.clientName?.split(' ')[0] || 'Client',
+      orderNumber:    order.orderId,
+      product:        order.product || 'Produit',
+      quantity:       order.quantity || 1,
+      city:           order.city || '',
+      totalPrice:     order.price || 0,
+      currency:       'FCFA',
+      storeName,
+      customTemplate: workspace.whatsappOrderTemplate || null,
+    });
+
+    console.log(`📱 ${logPrefix} Envoi WhatsApp à ${whatsappNumber} — commande #${order.orderId}`);
+
+    const result = await sendWhatsAppMessage({
+      to:          whatsappNumber,
+      message,
+      workspaceId: String(workspaceId),
+      userId:      'system',
+      firstName:   'Order Webhook',
+    });
+
+    await WhatsAppLog.create({
+      workspaceId,
+      phoneNumber:  whatsappNumber,
+      message,
+      status:       'sent',
+      messageId:    result?.messageId || '',
+      instanceName: result?.instanceName || '',
+      messageType:  'text',
+      metadata: {
+        trigger: 'order_confirmation',
+        orderId: order._id,
+        orderNumber: order.orderId,
+        source: order.source || 'unknown',
+      },
+    });
+
+    // Marquer la commande comme notifiée
+    try {
+      await order.constructor.updateOne(
+        { _id: order._id },
+        { whatsappNotificationSent: true, whatsappNotificationSentAt: new Date() }
+      );
+    } catch (updateErr) {
+      console.warn(`⚠️ ${logPrefix} Erreur mise à jour flag: ${updateErr.message}`);
+    }
+
+    console.log(`✅ ${logPrefix} WhatsApp envoyé — commande #${order.orderId}, dest: ${whatsappNumber}`);
+    return { success: true, messageId: result?.messageId };
+
+  } catch (err) {
+    console.error(`❌ ${logPrefix} Erreur — commande #${order?.orderId}: ${err.message}`);
+    try {
+      await WhatsAppLog.create({
+        workspaceId,
+        phoneNumber: order.clientPhone || '',
+        message: '',
+        status: 'failed',
+        errorMessage: err.message,
+        messageType: 'text',
+        metadata: { trigger: 'order_confirmation', orderId: order._id, source: order.source },
+      });
+    } catch { /* ignore */ }
     return { success: false, error: err.message };
   }
 }
