@@ -61,6 +61,17 @@ const workspaceSettingsSchema = new mongoose.Schema({
     type: Number,
     default: 1000
   },
+  // Numéro WhatsApp personnalisé pour les notifications
+  customWhatsAppNumber: { type: String, default: '' },
+  // Numéros WhatsApp par pays pour les notifications de commandes
+  whatsappNumbers: [{
+    country: { type: String, required: true },
+    countryName: { type: String, required: true },
+    phoneNumber: { type: String, required: true },
+    isActive: { type: Boolean, default: true },
+    autoNotifyOrders: { type: Boolean, default: true },
+    createdAt: { type: Date, default: Date.now }
+  }],
   // Préférences de notifications push
   pushNotifications: {
     push_new_orders: { type: Boolean, default: true },

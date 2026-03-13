@@ -193,7 +193,7 @@ const ReportsList = () => {
         <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Rapports</h1>
         <div className="flex gap-2">
           <Link
-            to="/ecom/stats/rapports"
+            to="/ecom/stats-rapports"
             className="flex items-center gap-2 bg-emerald-700 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-emerald-800 text-sm"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -446,7 +446,7 @@ const ReportsList = () => {
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-semibold text-gray-700">Top 3 produits</h3>
             <Link
-              to="/ecom/stats/rapports"
+              to="/ecom/stats-rapports"
               className="text-xs font-medium text-emerald-600 hover:text-emerald-800 hover:underline"
             >
               Voir plus

@@ -2874,6 +2874,27 @@ router.post('/:id/send-whatsapp', requireEcomAuth, validateEcomAccess('products'
   }
 });
 
+// PATCH /api/ecom/orders/config/whatsapp-auto - Toggle rapide WhatsApp auto-confirmation
+router.patch('/config/whatsapp-auto', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
+  try {
+    const { whatsappAutoConfirm } = req.body;
+    if (typeof whatsappAutoConfirm !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'whatsappAutoConfirm doit être un booléen' });
+    }
+
+    await EcomWorkspace.findByIdAndUpdate(req.workspaceId, { whatsappAutoConfirm });
+
+    res.json({
+      success: true,
+      message: whatsappAutoConfirm ? 'Messages WhatsApp automatiques activés' : 'Messages WhatsApp automatiques désactivés',
+      data: { whatsappAutoConfirm }
+    });
+  } catch (error) {
+    console.error('Erreur toggle WhatsApp auto:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // POST /api/ecom/orders/config/whatsapp - Configurer le numéro WhatsApp personnalisé
 router.post('/config/whatsapp', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
   try {

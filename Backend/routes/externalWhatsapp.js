@@ -3,6 +3,7 @@ import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import EcomUser from '../models/EcomUser.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 import { checkMessageLimit, incrementMessageCount, getInstanceUsage } from '../services/messageLimitService.js';
+import { requireEcomAuth } from '../middleware/ecomAuth.js';
 
 const router = express.Router();
 
@@ -30,14 +31,16 @@ router.get('/', (req, res) => {
  * @desc    Enregistrer une instance WhatsApp pour un utilisateur
  * @access  Public (Public selon spécification, sécurisé par userId/instanceToken)
  */
-router.post('/link', async (req, res) => {
+router.post('/link', requireEcomAuth, async (req, res) => {
   try {
-    const { userId, instanceName, instanceToken, customName, defaultPart } = req.body;
+    const userId = req.ecomUser._id.toString();
+    const workspaceId = req.workspaceId;
+    const { instanceName, instanceToken, customName, defaultPart } = req.body;
 
-    if (!userId || !instanceName || !instanceToken) {
+    if (!instanceName || !instanceToken) {
       return res.status(400).json({
         success: false,
-        error: "userId, instanceName et instanceToken sont requis"
+        error: "instanceName et instanceToken sont requis"
       });
     }
 
@@ -86,9 +89,6 @@ router.post('/link', async (req, res) => {
     // ═══════════════════════════════════════════════════════════════
     // ÉTAPE 2 : Instance confirmée par Evolution → l'enregistrer en DB
     // ═══════════════════════════════════════════════════════════════
-    // Extraire workspaceId du token si disponible
-    const user = await EcomUser.findById(userId);
-    const workspaceId = user?.workspaceId || req.body.workspaceId;
 
     const instance = await WhatsAppInstance.findOneAndUpdate(
       { instanceName },

@@ -254,7 +254,7 @@ const WhatsAppConnexion = () => {
               <p className="text-sm text-blue-800">
                 Vous n'avez pas encore de compte ZenChat ? {' '}
                 <a 
-                  href="https://zechat.site/signup" 
+                  href="https://zechat.site/" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="font-semibold underline hover:text-blue-900 inline-flex items-center gap-1"
@@ -501,7 +501,7 @@ const WhatsAppConnexion = () => {
                       {usageStats[instance._id].limitExceeded && (
                         <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
                           <p className="text-xs text-red-800 font-medium">
-                            ⚠️ Limite atteinte. <a href="https://zenchat.app/pricing" target="_blank" rel="noopener noreferrer" className="underline font-bold">Passer au Premium</a>
+                            ⚠️ Limite atteinte. <a href="https://zechat.site/" target="_blank" rel="noopener noreferrer" className="underline font-bold">Passer au Premium</a>
                           </p>
                         </div>
                       )}

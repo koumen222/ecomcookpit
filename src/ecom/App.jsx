@@ -295,6 +295,8 @@ const EcomApp = () => {
             {/* Routes rapports */}
             <Route path="/ecom/reports" element={<LayoutRoute><ReportsList /></LayoutRoute>} />
             <Route path="/ecom/reports/new" element={<LayoutRoute><ReportForm /></LayoutRoute>} />
+            <Route path="/ecom/reports/insights" element={<LayoutRoute><ReportsInsightsPage /></LayoutRoute>} />
+            <Route path="/ecom/reports/product/:productId" element={<LayoutRoute><ProductReportDetail /></LayoutRoute>} />
             <Route path="/ecom/reports/:id" element={<LayoutRoute><ReportDetail /></LayoutRoute>} />
             <Route path="/ecom/reports/:id/edit" element={<LayoutRoute><ReportForm /></LayoutRoute>} />
 

@@ -152,12 +152,14 @@ export async function saveShopifyOrder(shopifyOrder, shopDomain, workspaceId, wo
   }
 
   // ── WhatsApp confirmation au client ─────────────────────────────────────
-  // Envoie toujours si un numéro de téléphone est disponible
-  if (newOrder.clientPhone) {
+  // Envoie seulement si whatsappAutoConfirm est activé et un téléphone est disponible
+  if (workspaceSettings.whatsappAutoConfirm && newOrder.clientPhone) {
     sendClientOrderConfirmation(newOrder, shopifyOrder, workspaceId, {
       storeName:      workspaceSettings.storeName || '',
       customTemplate: workspaceSettings.whatsappOrderTemplate || null,
     }).catch(err => console.error('❌ [Shopify WH] Erreur WhatsApp client:', err.message));
+  } else if (!workspaceSettings.whatsappAutoConfirm) {
+    console.log(`ℹ️ [Shopify WH] WhatsApp auto désactivé, message non envoyé`);
   } else {
     console.log(`ℹ️ [Shopify WH] Pas de téléphone client, WhatsApp non envoyé`);
   }
