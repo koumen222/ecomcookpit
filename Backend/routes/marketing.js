@@ -487,23 +487,25 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
         // Envoyer le média si présent (image ou vocal)
         let result;
         if (campaign.media?.type === 'image' && campaign.media?.url) {
-          // Envoyer l'image d'abord (sans caption)
+          // Étape 1 : envoyer le texte d'abord
+          emit('substep', { name: clientName, phone: cleanNumber, step: 'text', status: 'sending' });
+          const textResult = await evolutionApiService.sendMessage(instance.instanceName, instance.instanceToken, cleanNumber, message);
+          emit('substep', { name: clientName, phone: cleanNumber, step: 'text', status: textResult.success ? 'done' : 'failed', error: textResult.error });
+
+          // Étape 2 : envoyer l'image ensuite
+          await new Promise(r => setTimeout(r, 1500));
+          emit('substep', { name: clientName, phone: cleanNumber, step: 'image', status: 'sending' });
           const imageResult = await evolutionApiService.sendMedia(
-            instance.instanceName, 
-            instance.instanceToken, 
-            cleanNumber, 
+            instance.instanceName,
+            instance.instanceToken,
+            cleanNumber,
             campaign.media.url,
-            '', // Pas de caption - le texte sera envoyé séparément
+            '',
             campaign.media.fileName || 'image.jpg'
           );
-          
-          // Puis envoyer le texte séparément si l'image a réussi
-          if (imageResult.success && message.trim()) {
-            await new Promise(r => setTimeout(r, 2000)); // Délai entre image et texte
-            result = await evolutionApiService.sendMessage(instance.instanceName, instance.instanceToken, cleanNumber, message);
-          } else {
-            result = imageResult;
-          }
+          emit('substep', { name: clientName, phone: cleanNumber, step: 'image', status: imageResult.success ? 'done' : 'failed', error: imageResult.error });
+          // Succès global = le texte au moins est parti
+          result = textResult.success ? textResult : imageResult;
         } else if (campaign.media?.type === 'audio' && campaign.media?.url) {
           // Envoyer le vocal d'abord, puis le message texte
           const audioResult = await evolutionApiService.sendAudio(

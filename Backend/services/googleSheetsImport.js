@@ -188,7 +188,7 @@ const normalize = (s) =>
 const COLUMN_PATTERNS = [
   { field: 'orderId', compound: ['order id', 'order number', 'numero commande', 'n° commande', 'n commande', 'id commande', 'numero de commande', 'numero', 'n° cmd'], simple: ['ref', 'reference', 'order', 'commande', 'id', 'cmd'] },
   { field: 'date', compound: ['date & time', 'date time', 'date commande', 'date de commande', 'date creation', 'created at', 'order date'], simple: ['date', 'jour', 'day', 'created', 'timestamp'] },
-  { field: 'clientPhone', compound: ['phone number', 'numero telephone', 'num tel', 'numero de telephone', 'n° tel', 'n° telephone', 'numero client'], simple: ['tel', 'telephone', 'phone', 'mobile', 'whatsapp', 'gsm', 'portable', 'cellulaire'] },
+  { field: 'clientPhone', compound: ['phone number', 'numero telephone', 'num tel', 'numero de telephone', 'n° tel', 'n° telephone', 'numero client', 'contact telephone', 'telephone contact'], simple: ['tel', 'telephone', 'phone', 'mobile', 'whatsapp', 'gsm', 'portable', 'cellulaire', 'contact', 'numero'] },
   { field: 'clientName', compound: ['first name', 'last name', 'full name', 'nom complet', 'nom client', 'customer name', 'nom et prenom', 'nom prenom', 'nom du client'], simple: ['nom', 'name', 'client', 'prenom', 'firstname', 'lastname', 'customer', 'destinataire', 'beneficiaire', 'acheteur'] },
   { field: 'city', compound: ['ville de livraison', 'ville livraison', 'delivery city'], simple: ['ville', 'city', 'commune', 'localite', 'zone', 'region', 'wilaya', 'gouvernorat'] },
   { field: 'product', compound: ['product name', 'nom produit', 'nom article', 'nom du produit', 'libelle produit', 'product title'], simple: ['produit', 'product', 'article', 'item', 'designation', 'libelle', 'offre', 'offer', 'pack'] },

@@ -17,6 +17,41 @@ import { EventEmitter } from 'events';
 
 const router = express.Router();
 
+// Helper: récupère le téléphone depuis rawData si clientPhone est vide
+const PHONE_RAWDATA_KEYS = /^(tel|telephone|phone|mobile|whatsapp|gsm|portable|contact|numero|cellulaire)/i;
+function recoverPhoneFromRawData(order) {
+  if (order.clientPhone) return order.clientPhone;
+  if (!order.rawData || typeof order.rawData !== 'object') return '';
+  // Pass 1: match by key name
+  for (const [k, v] of Object.entries(order.rawData)) {
+    if (PHONE_RAWDATA_KEYS.test(k.trim()) && v) {
+      const candidate = String(v).replace(/^'+/, '').replace(/\D/g, '');
+      if (candidate.length >= 8) return candidate;
+    }
+  }
+  // Pass 2: match by value pattern (looks like a phone number)
+  for (const [, v] of Object.entries(order.rawData)) {
+    if (!v) continue;
+    const str = String(v).trim();
+    const digits = str.replace(/\D/g, '');
+    if (digits.length >= 8 && digits.length <= 15 && /^\+?\d[\d\s().\\-]+\d$/.test(str)) {
+      return digits;
+    }
+  }
+  return '';
+}
+function fixOrderPhone(order) {
+  if (!order.clientPhone && order.rawData) {
+    const recovered = recoverPhoneFromRawData(order);
+    if (recovered) {
+      order.clientPhone = recovered;
+      // Persister silencieusement
+      Order.updateOne({ _id: order._id }, { $set: { clientPhone: recovered, clientPhoneNormalized: recovered } }).catch(() => {});
+    }
+  }
+  return order;
+}
+
 // Créer un EventEmitter global pour la progression
 const syncProgressEmitter = new EventEmitter();
 const activeSyncControllers = new Map();
@@ -213,6 +248,8 @@ router.get('/quick', requireEcomAuth, async (req, res) => {
       .limit(20)
       .lean();
 
+    orders.forEach(fixOrderPhone);
+
     res.json({ success: true, data: { orders, partial: true } });
   } catch (error) {
     console.error('Erreur quick orders:', error);
@@ -304,6 +341,8 @@ router.get('/new-since', requireEcomAuth, async (req, res) => {
       .sort({ sheetRowIndex: 1, _id: 1 })
       .limit(100)
       .lean();
+
+    orders.forEach(fixOrderPhone);
 
     res.json({
       success: true,
@@ -682,6 +721,8 @@ router.get('/', requireEcomAuth, async (req, res) => {
       stats.periodLabel = periodLabels[period] || 'Période personnalisée';
     }
 
+    orders.forEach(fixOrderPhone);
+
     res.json({
       success: true,
       data: {
@@ -894,7 +935,7 @@ function autoDetectColumns(headers, rows = []) {
   const patterns = [
     { field: 'orderId', compound: ['order id', 'order number', 'numero commande', 'n° commande'], simple: ['order id', 'ref', 'reference'] },
     { field: 'date', compound: ['date & time', 'date time', 'date commande'], simple: ['date', 'jour', 'day', 'created'] },
-    { field: 'clientPhone', compound: ['phone number', 'numero telephone', 'num tel'], simple: ['tel', 'telephone', 'phone', 'mobile', 'whatsapp'] },
+    { field: 'clientPhone', compound: ['phone number', 'numero telephone', 'num tel', 'contact telephone', 'numero client', 'numero de telephone'], simple: ['tel', 'telephone', 'phone', 'mobile', 'whatsapp', 'gsm', 'portable', 'contact', 'numero', 'cellulaire'] },
     { field: 'clientName', compound: ['first name', 'last name', 'full name', 'nom complet', 'nom client', 'customer name'], simple: ['nom', 'name', 'client', 'prenom', 'firstname', 'lastname'] },
     { field: 'city', compound: [], simple: ['ville', 'city', 'commune', 'localite', 'zone'] },
     { field: 'product', compound: ['product name', 'nom produit', 'nom article', 'nom du produit'], simple: ['produit', 'product', 'article', 'item', 'designation'] },
@@ -1723,11 +1764,22 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
             const rawCity = getVal('city');
             const rawAddress = getVal('address');
 
+            // Fallback: si clientPhone non détecté via autoDetectColumns, chercher dans rawData
+            let rawPhone = cleanPhoneFromSheet(getVal('clientPhone'));
+            if (!rawPhone) {
+              const phoneKeys = /^(tel|telephone|phone|mobile|whatsapp|gsm|portable|contact|numero|cellulaire)/i;
+              for (const [k, v] of Object.entries(rawData)) {
+                if (phoneKeys.test(k.trim()) && v) {
+                  const candidate = cleanPhoneFromSheet(String(v));
+                  if (candidate.length >= 8) { rawPhone = candidate; break; }
+                }
+              }
+            }
             const doc = {
               orderId,
               date: getDateVal('date'),
               clientName: getVal('clientName'),
-              clientPhone: cleanPhoneFromSheet(getVal('clientPhone')),
+              clientPhone: rawPhone,
               city: rawCity || rawAddress,
               address: rawAddress,
               product: getVal('product'),
@@ -2785,6 +2837,9 @@ router.get('/:id', requireEcomAuth, async (req, res) => {
         return res.status(403).json({ success: false, message: 'Accès refusé: aucune affectation trouvée.' });
       }
     }
+
+    // Récupérer le téléphone depuis rawData si clientPhone est vide
+    fixOrderPhone(order);
 
     res.json({
       success: true,
