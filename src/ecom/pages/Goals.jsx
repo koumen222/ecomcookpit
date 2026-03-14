@@ -38,7 +38,7 @@ const Goals = () => {
   const [currentStats, setCurrentStats] = useState({});
   const [globalOrdersCount, setGlobalOrdersCount] = useState(0);
   const [period, setPeriod] = useState({
-    periodType: 'weekly',
+    periodType: 'monthly',
     year: new Date().getFullYear(),
     month: new Date().getMonth() + 1,
     week: getWeekNumber(new Date()),
@@ -49,7 +49,7 @@ const Goals = () => {
     type: 'revenue',
     targetValue: '',
     product: '',
-    periodType: 'weekly',
+    periodType: 'monthly',
     deliveryCount: '',
     closeuseId: ''
   });

@@ -1,5 +1,6 @@
 import Order from '../models/Order.js';
 import OrderSource from '../models/OrderSource.js';
+import EcomUser from '../models/EcomUser.js';
 import { notifyNewOrder } from './notificationHelper.js';
 import { normalizeCity } from '../utils/cityNormalizer.js';
 import { sendClientOrderConfirmation } from './shopifyWhatsappService.js';
@@ -28,23 +29,41 @@ export async function saveShopifyOrder(shopifyOrder, shopDomain, workspaceId, wo
   });
 
   if (!orderSource) {
+    // Chercher un admin du workspace pour createdBy
+    const adminUser = await EcomUser.findOne({
+      workspaceId,
+      role: { $in: ['ecom_admin', 'super_admin'] },
+      isActive: true
+    }).select('_id').lean();
+
+    const createdByUserId = adminUser?._id;
+    if (!createdByUserId) {
+      console.error(`❌ [Shopify WH] Impossible de créer source: aucun admin trouvé pour workspace ${workspaceId}`);
+      return null;
+    }
+
     // Créer une nouvelle source dédiée pour ce shop Shopify
     const shopName = shopDomain.replace('.myshopify.com', '');
-    orderSource = await OrderSource.create({
-      name: `Shopify - ${shopName}`,
-      description: `Commandes reçues via webhook Shopify (${shopDomain})`,
-      color: '#96bf48',
-      icon: '🛍️',
-      workspaceId,
-      createdBy: workspaceId, // Utiliser workspaceId comme createdBy (système)
-      isActive: true,
-      metadata: {
-        type: 'shopify_webhook',
-        shopDomain,
-        createdAt: new Date()
-      }
-    });
-    console.log(`📦 [Shopify WH] Source créée: ${orderSource.name} (${orderSource._id})`);
+    try {
+      orderSource = await OrderSource.create({
+        name: `Shopify - ${shopName}`,
+        description: `Commandes reçues via webhook Shopify (${shopDomain})`,
+        color: '#96bf48',
+        icon: '🛍️',
+        workspaceId,
+        createdBy: createdByUserId,
+        isActive: true,
+        metadata: {
+          type: 'shopify_webhook',
+          shopDomain,
+          createdAt: new Date()
+        }
+      });
+      console.log(`📦 [Shopify WH] Source créée: ${orderSource.name} (${orderSource._id})`);
+    } catch (err) {
+      console.error(`❌ [Shopify WH] Erreur création OrderSource:`, err);
+      return null;
+    }
   }
 
   // ── Dédoublonnage ──────────────────────────────────────────────────────

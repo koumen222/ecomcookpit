@@ -4,6 +4,7 @@ import Order from '../models/Order.js';
 import { memCache } from '../services/memoryCache.js';
 import Client from '../models/Client.js';
 import WorkspaceSettings from '../models/WorkspaceSettings.js';
+import OrderSource from '../models/OrderSource.js';
 import EcomUser from '../models/EcomUser.js';
 import CloseuseAssignment from '../models/CloseuseAssignment.js';
 import Notification from '../models/Notification.js';
@@ -2140,11 +2141,35 @@ router.get('/settings', requireEcomAuth, validateEcomAccess('products', 'write')
       settings = await WorkspaceSettings.create({ workspaceId: req.workspaceId });
     }
     
+    // Récupérer les sources webhook depuis OrderSource
+    let webhookSources = [];
+    try {
+      webhookSources = await OrderSource.find(
+        { workspaceId: req.workspaceId, isActive: true },
+        '_id name description color icon metadata isActive'
+      ).sort({ name: 1 });
+    } catch (err) {
+      console.error('Erreur fetch webhook sources:', err);
+    }
+
+    // Formatter les sources webhook pour la réponse
+    const formattedWebhookSources = webhookSources.map(src => ({
+      _id: src._id,
+      name: src.name,
+      description: src.description || '',
+      color: src.color,
+      icon: src.icon,
+      isActive: src.isActive,
+      type: 'webhook',
+      metadata: src.metadata || {}
+    }));
+    
     const response = { 
       success: true, 
       data: {
         googleSheets: settings.googleSheets,
-        sources: settings.sources || [],
+        sources: [...(settings.sources || []), ...formattedWebhookSources],
+        webhookSources: formattedWebhookSources,
         commissionRate: settings.commissionRate ?? 1000
       } 
     };

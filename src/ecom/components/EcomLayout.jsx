@@ -25,6 +25,21 @@ const EcomLayoutComponent = ({ children }) => {
   const { unreadCount, refreshCount } = useNotifications();
   const { unreadDm, clearUnread, lastMessage, clearLastMessage } = useDmUnread();
 
+  // ── Tutorial popup ──
+  const [showTutorial, setShowTutorial] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const timer = setTimeout(() => {
+      setShowTutorial(true);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [user?.id]);
+
+  const closeTutorial = () => {
+    setShowTutorial(false);
+  };
+
   // ── Toast notification in-app ──
   const [toast, setToast] = useState(null);
   const toastTimerRef = useRef(null);
@@ -581,6 +596,50 @@ const EcomLayoutComponent = ({ children }) => {
 
       {/* PWA Install Prompt */}
       <InstallPrompt />
+
+      {/* Tutorial popup */}
+      {showTutorial && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeTutorial} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 bg-[#0F6B4F]">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-white font-bold text-base leading-tight">Bienvenue sur Scalor !</h2>
+                  <p className="text-white/70 text-xs">Regardez ce tutoriel pour maîtriser la plateforme</p>
+                </div>
+              </div>
+              <button onClick={closeTutorial} className="w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 transition-colors">
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            {/* Video */}
+            <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+              <iframe
+                className="absolute inset-0 w-full h-full"
+                src="https://www.youtube.com/embed/405eKEysE0Q?autoplay=1"
+                title="Tutoriel Scalor"
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            </div>
+            {/* Footer */}
+            <div className="px-6 py-4 flex items-center justify-between bg-gray-50 border-t border-gray-100">
+              <p className="text-xs text-gray-500">Ce tutoriel ne s'affichera plus après fermeture</p>
+              <button onClick={closeTutorial} className="px-4 py-2 bg-[#0F6B4F] text-white text-sm font-medium rounded-xl hover:bg-[#0a5040] transition-colors">
+                C'est parti !
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Notification Panel - unique instance */}
       <NotificationPanel
