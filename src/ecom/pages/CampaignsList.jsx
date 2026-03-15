@@ -59,6 +59,21 @@ const statusColors = {
   failed: 'bg-red-100 text-red-700',
   interrupted: 'bg-purple-100 text-purple-700'
 };
+
+// Couleurs par défaut pour les statuts de commandes personnalisés
+const defaultOrderStatusColorMap = {
+  pending: 'bg-yellow-50 text-yellow-700 border-yellow-100',
+  confirmed: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  shipped: 'bg-emerald-50 text-emerald-800 border-emerald-100',
+  delivered: 'bg-green-50 text-green-700 border-green-100',
+  returned: 'bg-orange-50 text-orange-700 border-orange-100',
+  cancelled: 'bg-red-50 text-red-700 border-red-100',
+  unreachable: 'bg-red-50 text-red-700 border-red-100',
+  called: 'bg-blue-50 text-blue-700 border-blue-100',
+  postponed: 'bg-purple-50 text-purple-700 border-purple-100',
+  reported: 'bg-purple-50 text-purple-700 border-purple-100'
+};
+
 const typeLabels = { relance_pending: 'Relance en attente', relance_cancelled: 'Relance annulés', promo: 'Promotion', followup: 'Suivi livraison', custom: 'Personnalisée' };
 
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
@@ -107,6 +122,7 @@ const CampaignsList = () => {
   const [sendProgress, setSendProgress] = useState(null);
   const [isPausing, setIsPausing] = useState(false);
   const [isProgressMinimized, setIsProgressMinimized] = useState(false);
+  const [availableOrderStatuses, setAvailableOrderStatuses] = useState([]);
 
   // 🆕 États pour l'aperçu à une personne
   const [showPreview, setShowPreview] = useState(null);
@@ -131,7 +147,21 @@ const CampaignsList = () => {
     }
   };
 
-  useEffect(() => { fetchCampaigns().finally(() => setLoading(false)); }, []);
+  const fetchAvailableStatuses = async () => {
+    try {
+      const res = await ecomApi.get('/orders/available-statuses');
+      setAvailableOrderStatuses(res.data.data.statuses || []);
+    } catch (err) {
+      console.error('Erreur fetch available-statuses:', err);
+      // Fallback to default statuses
+      setAvailableOrderStatuses(['pending', 'confirmed', 'shipped', 'delivered', 'returned', 'cancelled', 'unreachable', 'called', 'postponed', 'reported']);
+    }
+  };
+
+  useEffect(() => { 
+    fetchCampaigns().finally(() => setLoading(false)); 
+    fetchAvailableStatuses();
+  }, []);
   
   // Force refresh when coming from campaign creation
   useEffect(() => {

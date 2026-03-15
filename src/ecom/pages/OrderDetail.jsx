@@ -4,14 +4,15 @@ import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
 
-const SL = { pending: 'En attente', confirmed: 'Confirmé', shipped: 'Expédié', delivered: 'Livré', returned: 'Retour', cancelled: 'Annulé' };
+const SL = { pending: 'En attente', confirmed: 'Confirmé', shipped: 'Expédié', delivered: 'Livré', returned: 'Retour', cancelled: 'Annulé', reported: 'Reporté' };
 const SC = {
   pending: 'bg-yellow-50 text-yellow-700 border-yellow-100',
   confirmed: 'bg-emerald-50 text-emerald-700 border-emerald-100',
   shipped: 'bg-emerald-50 text-emerald-800 border-emerald-100',
   delivered: 'bg-green-50 text-green-700 border-green-100',
   returned: 'bg-orange-50 text-orange-700 border-orange-100',
-  cancelled: 'bg-red-50 text-red-700 border-red-100'
+  cancelled: 'bg-red-50 text-red-700 border-red-100',
+  reported: 'bg-purple-50 text-purple-700 border-purple-100'
 };
 
 // Extrait le téléphone depuis rawData quand clientPhone est vide

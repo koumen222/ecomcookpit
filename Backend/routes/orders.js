@@ -207,6 +207,24 @@ router.delete('/bulk', requireEcomAuth, validateEcomAccess('products', 'write'),
   }
 });
 
+// GET /api/ecom/orders/available-statuses - Récupérer tous les statuts disponibles (standard + personnalisés)
+router.get('/available-statuses', requireEcomAuth, async (req, res) => {
+  try {
+    const defaultStatuses = ['pending', 'confirmed', 'shipped', 'delivered', 'returned', 'cancelled', 'unreachable', 'called', 'postponed', 'reported'];
+    
+    // Récupérer tous les statuts uniques actuellement utilisés dans les commandes
+    const distinctStatuses = await Order.distinct('status', { workspaceId: req.workspaceId });
+    
+    // Combiner les statuts par défaut avec les statuts personnalisés trouvés
+    const allStatuses = [...new Set([...defaultStatuses, ...distinctStatuses.filter(s => s)])];
+    
+    res.json({ success: true, data: { statuses: allStatuses.sort() } });
+  } catch (error) {
+    console.error('Erreur fetch available-statuses:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // GET /api/ecom/orders/quick - Phase 1: 20 premières commandes sans stats (affichage immédiat)
 router.get('/quick', requireEcomAuth, async (req, res) => {
   try {
@@ -766,7 +784,7 @@ router.get('/stats/detailed', requireEcomAuth, async (req, res) => {
     }
 
     // Order stats by status
-    const statuses = ['pending', 'confirmed', 'shipped', 'delivered', 'returned', 'cancelled', 'unreachable', 'called', 'postponed'];
+    const statuses = ['pending', 'confirmed', 'shipped', 'delivered', 'returned', 'cancelled', 'unreachable', 'called', 'postponed', 'reported'];
     const countPromises = statuses.map(s => Order.countDocuments({ ...wsFilter, status: s }));
     const counts = await Promise.all(countPromises);
     
@@ -2633,7 +2651,7 @@ router.patch('/:id/status', requireEcomAuth, async (req, res) => {
     }
 
     // Valider le statut
-    const validStatuses = ['pending', 'confirmed', 'shipped', 'delivered', 'returned', 'cancelled', 'unreachable', 'called', 'postponed'];
+    const validStatuses = ['pending', 'confirmed', 'shipped', 'delivered', 'returned', 'cancelled', 'unreachable', 'called', 'postponed', 'reported'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ 
         success: false, 

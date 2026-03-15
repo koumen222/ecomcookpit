@@ -27,6 +27,7 @@ const STATUS_GROUPS = [
   { id: "unreachable", label: "Injoignable",      desc: "Clients non joignables par téléphone" },
   { id: "called",      label: "Appelé",           desc: "Clients déjà contactés par téléphone" },
   { id: "postponed",   label: "Reporté",          desc: "Commandes reportées à une date ultérieure" },
+  { id: "reported",    label: "Signalé",          desc: "Commandes signalées" },
 ];
 
 const VARIABLES = [
@@ -96,11 +97,13 @@ const CampaignForm = () => {
   const [error, setError] = useState("");
   const [previewSending, setPreviewSending] = useState(null);
   const [filterOptions, setFilterOptions] = useState({ cities: [], products: [], addresses: [] });
+  const [availableStatuses, setAvailableStatuses] = useState([]);
   const [mediaUploading, setMediaUploading] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
     ecomApi.get("/campaigns/filter-options").then(res => setFilterOptions(res.data.data)).catch(() => {});
+    ecomApi.get("/orders/available-statuses").then(res => setAvailableStatuses(res.data.data.statuses || [])).catch(() => {});
     if (isEdit) {
       ecomApi.get(`/campaigns/${id}`).then(res => {
         const c = res.data.data;
@@ -456,11 +459,14 @@ const CampaignForm = () => {
                     {statusCount>0&&<span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">{statusCount} sélectionné{statusCount>1?"s":""}</span>}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {STATUS_GROUPS.map(({id,label,desc}) => {
-                      const sel = (formData.targetFilters.orderStatus||[]).includes(id);
+                    {(availableStatuses.length > 0 ? availableStatuses : STATUS_GROUPS.map(s => s.id)).map((statusId) => {
+                      const statusObj = STATUS_GROUPS.find(s => s.id === statusId);
+                      const label = statusObj?.label || statusId.charAt(0).toUpperCase() + statusId.slice(1);
+                      const desc = statusObj?.desc || '';
+                      const sel = (formData.targetFilters.orderStatus||[]).includes(statusId);
                       return (
-                        <button key={id} type="button" title={desc}
-                          onClick={() => { toggleStatus(id); setTimeout(handlePreview, 300); }}
+                        <button key={statusId} type="button" title={desc}
+                          onClick={() => { toggleStatus(statusId); setTimeout(handlePreview, 300); }}
                           className={`px-3 py-1.5 rounded-lg border-2 text-xs font-semibold transition-all ${sel?"border-emerald-500 bg-emerald-50 text-emerald-800":"border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"}`}>
                           {sel&&<span className="mr-1 text-emerald-500"></span>}{label}
                         </button>

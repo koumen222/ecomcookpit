@@ -553,7 +553,8 @@ const AdminDashboard = () => {
       shipped: 'bg-emerald-600',
       delivered: 'bg-emerald-500',
       cancelled: 'bg-red-500',
-      returned: 'bg-orange-500'
+      returned: 'bg-orange-500',
+      reported: 'bg-purple-500'
     };
     return colors[status] || 'bg-gray-500';
   };

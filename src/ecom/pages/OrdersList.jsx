@@ -8,7 +8,7 @@ import { getContextualError } from '../utils/errorMessages';
 // ❌ CACHE DÉSACTIVÉ
 // import { getCache, setCache, invalidatePrefix } from '../utils/cacheUtils.js';
 
-const SL = { pending: 'En attente', confirmed: 'Confirmé', shipped: 'Expédié', delivered: 'Livré', returned: 'Retour', cancelled: 'Annulé', unreachable: 'Injoignable', called: 'Appelé', postponed: 'Reporté' };
+const SL = { pending: 'En attente', confirmed: 'Confirmé', shipped: 'Expédié', delivered: 'Livré', returned: 'Retour', cancelled: 'Annulé', unreachable: 'Injoignable', called: 'Appelé', postponed: 'Reporté', reported: 'Reporté' };
 const SC = {
   pending: 'bg-yellow-50 text-yellow-700 border-yellow-100',
   confirmed: 'bg-emerald-50 text-emerald-700 border-emerald-100',
@@ -18,7 +18,8 @@ const SC = {
   cancelled: 'bg-red-50 text-red-700 border-red-100',
   unreachable: 'bg-gray-50 text-gray-700 border-gray-200',
   called: 'bg-cyan-50 text-cyan-700 border-cyan-100',
-  postponed: 'bg-amber-50 text-amber-700 border-amber-100'
+  postponed: 'bg-amber-50 text-amber-700 border-amber-100',
+  reported: 'bg-purple-50 text-purple-700 border-purple-100'
 };
 const STATUS_FILTER_META = [
   { key: 'pending', label: 'En attente', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-200' },
@@ -29,12 +30,13 @@ const STATUS_FILTER_META = [
   { key: 'cancelled', label: 'Annulé', color: 'bg-red-100 text-red-700 hover:bg-red-200 border border-red-200' },
   { key: 'unreachable', label: 'Injoignable', color: 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300' },
   { key: 'called', label: 'Appelé', color: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200 border border-cyan-200' },
-  { key: 'postponed', label: 'Reporté', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-200' }
+  { key: 'postponed', label: 'Reporté', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-200' },
+  { key: 'reported', label: 'Reporté', color: 'bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-200' }
 ];
 const SD = {
   pending: '', confirmed: '', shipped: '',
   delivered: '', returned: '', cancelled: '',
-  unreachable: '', called: '', postponed: ''
+  unreachable: '', called: '', postponed: '', reported: ''
 };
 const getStatusLabel = (s) => SL[s] || s;
 const getStatusColor = (s) => SC[s] || 'bg-emerald-100 text-emerald-900 border-emerald-200';
