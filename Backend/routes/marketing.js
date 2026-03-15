@@ -486,6 +486,7 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
         
         // Envoyer le média si présent (image ou vocal)
         let result;
+        try {
         if (campaign.media?.type === 'image' && campaign.media?.url) {
           // Étape 1 : envoyer le texte d'abord
           emit('substep', { name: clientName, phone: cleanNumber, step: 'text', status: 'sending' });
@@ -525,6 +526,11 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
         } else {
           // Message texte simple
           result = await evolutionApiService.sendMessage(instance.instanceName, instance.instanceToken, cleanNumber, message);
+        }
+        } catch (sendError) {
+          // Capturer toute exception pour ne pas casser la boucle
+          console.error(`❌ Exception envoi à ${cleanNumber}:`, sendError.message);
+          result = { success: false, error: sendError.message || 'Exception lors de l\'envoi' };
         }
 
         // Vérifier les limites avant chaque message

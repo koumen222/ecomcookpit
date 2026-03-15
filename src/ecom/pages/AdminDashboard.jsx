@@ -698,17 +698,28 @@ const AdminDashboard = () => {
               </button>
             </div>
 
-            {/* Video */}
-            <div className="relative w-full" style={{ paddingTop: '56.25%' }}>
-              <iframe
-                className="absolute inset-0 w-full h-full"
-                src="https://www.youtube.com/embed/405eKEysE0Q?rel=0&modestbranding=1&playsinline=1"
-                title="Tutoriel Scalor"
-                frameBorder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
+            {/* Video thumbnail — opens YouTube instead of embedding */}
+            <a
+              href="https://youtu.be/405eKEysE0Q"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block relative w-full bg-black"
+              style={{ paddingTop: '56.25%' }}
+            >
+              <img
+                src="https://img.youtube.com/vi/405eKEysE0Q/hqdefault.jpg"
+                alt="Tutoriel Scalor"
+                className="absolute inset-0 w-full h-full object-cover opacity-80"
               />
-            </div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl hover:bg-red-700 transition">
+                  <svg className="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+              </div>
+              <div className="absolute bottom-3 left-3 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                ▶ Ouvrir sur YouTube
+              </div>
+            </a>
 
             {/* Footer */}
             <div className="px-6 py-4 bg-gray-50 flex items-center justify-between gap-4">
