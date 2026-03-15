@@ -106,6 +106,7 @@ const CampaignsList = () => {
   const [showProgress, setShowProgress] = useState(null);
   const [sendProgress, setSendProgress] = useState(null);
   const [isPausing, setIsPausing] = useState(false);
+  const [isProgressMinimized, setIsProgressMinimized] = useState(false);
 
   // 🆕 États pour l'aperçu à une personne
   const [showPreview, setShowPreview] = useState(null);
@@ -715,7 +716,7 @@ const CampaignsList = () => {
                 <div className="text-center py-8">
                   <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
                   <p className="text-sm text-gray-600 mb-4">Aucune instance WhatsApp configurée</p>
-                  <a href="/ecom/whatsapp/instances" className="inline-block px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium">Configurer une instance</a>
+                  <a href="/ecom/whatsapp/connexion" className="inline-block px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium">Configurer une instance</a>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -747,8 +748,50 @@ const CampaignsList = () => {
         </div>
       )}
 
+      {/* ═══ MODAL PROGRESSION EN TEMPS RÉEL — MINIMISÉE ═══ */}
+      {showProgress && sendProgress && isProgressMinimized && (
+        <div
+          className={`fixed bottom-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl cursor-pointer text-white max-w-xs w-full ${
+            sendProgress.status === 'done' ? 'bg-green-600' :
+            sendProgress.status === 'paused' ? 'bg-orange-500' :
+            sendProgress.status === 'interrupted' ? 'bg-purple-600' :
+            'bg-emerald-600'
+          }`}
+          onClick={() => setIsProgressMinimized(false)}
+        >
+          {sendProgress.status === 'sending' && <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse flex-shrink-0"></div>}
+          {sendProgress.status === 'done' && <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>}
+          {sendProgress.status === 'paused' && <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>}
+          {sendProgress.status === 'interrupted' && <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>}
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold truncate">{sendProgress.campaignName || 'Campagne'}</p>
+            <p className="text-[11px] opacity-80">
+              {sendProgress.status === 'sending'
+                ? `${sendProgress.currentIndex || 0}/${sendProgress.total || '?'} envoyés`
+                : sendProgress.status === 'done' ? 'Terminée'
+                : sendProgress.status === 'paused' ? 'En pause'
+                : 'Interrompue'}
+            </p>
+          </div>
+          {sendProgress.total > 0 && (
+            <div className="w-10 h-10 flex-shrink-0 relative">
+              <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
+                <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="3"/>
+                <circle cx="18" cy="18" r="15" fill="none" stroke="white" strokeWidth="3"
+                  strokeDasharray={`${Math.round(((sendProgress.sent + sendProgress.failed + sendProgress.skipped) / sendProgress.total) * 94)} 94`}/>
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold">
+                {Math.round(((sendProgress.sent + sendProgress.failed + sendProgress.skipped) / sendProgress.total) * 100)}%
+              </span>
+            </div>
+          )}
+          {/* Restore icon */}
+          <svg className="w-4 h-4 flex-shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"/></svg>
+        </div>
+      )}
+
       {/* ═══ MODAL PROGRESSION EN TEMPS RÉEL ═══ */}
-      {showProgress && sendProgress && (
+      {showProgress && sendProgress && !isProgressMinimized && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
             {/* Header */}
@@ -774,11 +817,17 @@ const CampaignsList = () => {
                 </div>
                 {sendProgress.instance && <p className="text-xs opacity-80 mt-0.5">Via : {sendProgress.instance}</p>}
               </div>
-              {(sendProgress.status === 'done' || sendProgress.status === 'paused' || sendProgress.status === 'interrupted') && (
-                <button onClick={() => { setShowProgress(null); setSendProgress(null); }} className="ml-3 p-1.5 hover:bg-white/20 rounded-lg transition flex-shrink-0">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+              <div className="flex items-center gap-1 ml-3 flex-shrink-0">
+                {/* Minimize button — always visible while progress modal is open */}
+                <button onClick={() => setIsProgressMinimized(true)} title="Réduire" className="p-1.5 hover:bg-white/20 rounded-lg transition">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4"/></svg>
                 </button>
-              )}
+                {(sendProgress.status === 'done' || sendProgress.status === 'paused' || sendProgress.status === 'interrupted') && (
+                  <button onClick={() => { setShowProgress(null); setSendProgress(null); setIsProgressMinimized(false); }} className="p-1.5 hover:bg-white/20 rounded-lg transition">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Progress bar */}

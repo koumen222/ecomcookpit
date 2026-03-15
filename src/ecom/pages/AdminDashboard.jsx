@@ -223,6 +223,22 @@ const AdminDashboard = () => {
   const [currentCalendarMonth, setCurrentCalendarMonth] = useState(new Date());
   const [isSelectingEnd, setIsSelectingEnd] = useState(false);
 
+  // Tutorial popup — once per session
+  const [showTutorialModal, setShowTutorialModal] = useState(false);
+
+  useEffect(() => {
+    if (!sessionStorage.getItem('scalor_tuto_seen')) {
+      // Delay slightly so the dashboard loading screen finishes first
+      const t = setTimeout(() => setShowTutorialModal(true), 1200);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
+  const closeTutorialModal = () => {
+    sessionStorage.setItem('scalor_tuto_seen', '1');
+    setShowTutorialModal(false);
+  };
+
   // CRITICAL: Create ref first, assign after function declaration
   const loadDashboardDataRef = useRef(null);
 
@@ -666,6 +682,58 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 relative">
+
+      {/* ═══ MODAL TUTORIEL ═══ */}
+      {showTutorialModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 px-6 py-5 flex items-center justify-between">
+              <div>
+                <h2 className="text-white font-bold text-lg">🎉 Bienvenue sur Scalor !</h2>
+                <p className="text-emerald-100 text-sm mt-0.5">Regardez ce tutoriel pour démarrer rapidement</p>
+              </div>
+              <button onClick={closeTutorialModal} className="p-2 hover:bg-white/20 rounded-xl transition text-white">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+
+            {/* Video */}
+            <div className="relative w-full" style={{ paddingTop: '56.25%' }}>
+              <iframe
+                className="absolute inset-0 w-full h-full"
+                src="https://www.youtube.com/embed/405eKEysE0Q?rel=0&modestbranding=1&playsinline=1"
+                title="Tutoriel Scalor"
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-gray-50 flex items-center justify-between gap-4">
+              <p className="text-sm text-gray-500">📺 Maîtrisez Scalor en 15 minutes</p>
+              <div className="flex items-center gap-3">
+                <a
+                  href="https://youtu.be/405eKEysE0Q"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition"
+                >
+                  Ouvrir sur YouTube
+                </a>
+                <button
+                  onClick={closeTutorialModal}
+                  className="px-5 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition"
+                >
+                  C'est parti !
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Écran de chargement minimaliste */}
       {showLoadingScreen && (
         <div className="fixed inset-0 bg-white z-40 flex items-center justify-center">

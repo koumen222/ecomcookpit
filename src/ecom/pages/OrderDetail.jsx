@@ -43,7 +43,7 @@ const OrderDetail = () => {
   const navigate = useNavigate();
   const { user, workspace } = useEcomAuth();
   const { fmt } = useMoney();
-  const isAdmin = user?.role === 'ecom_admin';
+  const isAdmin = user?.role === 'ecom_admin' || user?.role === 'ecom_closeuse';
   const invoiceRef = useRef(null);
 
   const [order, setOrder] = useState(null);

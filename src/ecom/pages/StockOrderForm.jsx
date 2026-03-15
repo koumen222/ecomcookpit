@@ -21,7 +21,8 @@ const StockOrderForm = () => {
     productName: '',
     sourcing: 'local',
     quantity: '',
-    weightKg: '',
+    weightUnit: '', // Poids unitaire (par unité)
+    weightKg: '', // Poids total (calculé automatiquement)
     pricePerKg: '',
     purchasePrice: '',
     sellingPrice: '',
@@ -55,12 +56,16 @@ const StockOrderForm = () => {
       setInitialLoading(true);
       const response = await ecomApi.get(`/stock/orders/${id}`);
       const order = response.data.data;
+      const qty = order.quantity || 1;
+      const totalWeight = order.weightKg || 0;
+      const unitWeight = qty > 0 ? totalWeight / qty : 0;
       setFormData({
         productId: order.productId?._id || order.productId || '',
         productName: order.productName || '',
         sourcing: order.sourcing || 'local',
-        quantity: order.quantity?.toString() || '',
-        weightKg: order.weightKg?.toString() || '',
+        quantity: qty.toString(),
+        weightUnit: unitWeight.toString(),
+        weightKg: totalWeight.toString(),
         pricePerKg: order.pricePerKg?.toString() || '',
         purchasePrice: order.purchasePrice?.toString() || '',
         sellingPrice: order.sellingPrice?.toString() || '',
@@ -85,16 +90,25 @@ const StockOrderForm = () => {
 
   // Calculs automatiques
   const qty = parseInt(formData.quantity) || 0;
-  const weightKg = parseFloat(formData.weightKg) || 0;
+  const weightUnit = parseFloat(formData.weightUnit) || 0;
+  const totalWeightKg = qty * weightUnit; // Poids total = poids unitaire × quantité
   const pricePerKg = parseFloat(formData.pricePerKg) || 0;
   const purchasePrice = parseFloat(formData.purchasePrice) || 0;
   const sellingPrice = parseFloat(formData.sellingPrice) || 0;
-  const transportCost = weightKg * pricePerKg;
+  const transportCost = totalWeightKg * pricePerKg; // Coût transport = poids total × prix/kg
   const totalPurchaseCost = purchasePrice * qty;
   const totalCost = totalPurchaseCost + transportCost;
   const totalSellingValue = sellingPrice * qty;
   const estimatedProfit = totalSellingValue - totalCost;
   const profitPerUnit = qty > 0 ? estimatedProfit / qty : 0;
+
+  // Synchroniser weightKg avec le poids total calculé pour la soumission
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      weightKg: totalWeightKg.toString()
+    }));
+  }, [totalWeightKg]);
 
   // Supprimer la fonction formatCurrency locale car nous utilisons maintenant useMoney
 
@@ -109,7 +123,7 @@ const StockOrderForm = () => {
         productName: formData.productName,
         sourcing: formData.sourcing,
         quantity: qty,
-        weightKg,
+        weightKg: totalWeightKg, // Envoyer le poids total calculé
         pricePerKg,
         purchasePrice,
         sellingPrice,
@@ -248,18 +262,29 @@ const StockOrderForm = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Poids total (kg) *
+                Poids unitaire (kg) *
+                <span className="text-xs text-gray-500 ml-1">(par unité)</span>
               </label>
               <input
                 type="number"
-                name="weightKg"
+                name="weightUnit"
                 required
                 min="0"
                 step="0.01"
-                value={formData.weightKg}
+                value={formData.weightUnit}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Poids total (kg)
+                <span className="text-xs text-gray-500 ml-1">(calculé: poids unitaire × quantité)</span>
+              </label>
+              <div className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-gray-900 font-semibold">
+                {totalWeightKg.toFixed(2)} kg
+              </div>
             </div>
 
             <div>
@@ -408,7 +433,7 @@ const StockOrderForm = () => {
               </div>
               <div>
                 <span className="text-gray-600">Poids total:</span>
-                <p className="font-semibold">{weightKg} kg</p>
+                <p className="font-semibold">{totalWeightKg.toFixed(2)} kg</p>
               </div>
             </div>
           </div>
