@@ -14,22 +14,23 @@ router.get('/', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Workspace non trouvé' });
     }
 
-    const query = {
-      $or: [
-        { workspaceId },
-        { workspaceId: null },
-        { workspaceId: { $exists: false } }
-      ],
-      $and: [
-        {
+    const isAdmin = ['ecom_admin', 'super_admin'].includes(req.ecomUser.role);
+
+    // Admins see workspace broadcasts (userId: null) + their own targeted notifications.
+    // Other roles only see notifications explicitly addressed to them.
+    const query = isAdmin
+      ? {
+          workspaceId,
           $or: [
             { userId: null },
             { userId: { $exists: false } },
             { userId: req.ecomUser._id }
           ]
         }
-      ]
-    };
+      : {
+          workspaceId,
+          userId: req.ecomUser._id
+        };
 
     if (unreadOnly === 'true') {
       query.read = false;
@@ -71,23 +72,23 @@ router.get('/unread-count', requireEcomAuth, async (req, res) => {
       return res.json({ success: true, data: { count: 0 } });
     }
 
-    const count = await Notification.countDocuments({
-      $or: [
-        { workspaceId },
-        { workspaceId: null },
-        { workspaceId: { $exists: false } }
-      ],
-      read: false,
-      $and: [
-        {
+    const isAdmin = ['ecom_admin', 'super_admin'].includes(req.ecomUser.role);
+
+    const baseQuery = isAdmin
+      ? {
+          workspaceId,
           $or: [
             { userId: null },
             { userId: { $exists: false } },
             { userId: req.ecomUser._id }
           ]
         }
-      ]
-    });
+      : {
+          workspaceId,
+          userId: req.ecomUser._id
+        };
+
+    const count = await Notification.countDocuments({ ...baseQuery, read: false });
 
     res.json({ success: true, data: { count } });
   } catch (error) {
@@ -100,26 +101,25 @@ router.get('/unread-count', requireEcomAuth, async (req, res) => {
 router.put('/read-all', requireEcomAuth, async (req, res) => {
   try {
     const workspaceId = req.workspaceId;
+    const isAdmin = ['ecom_admin', 'super_admin'].includes(req.ecomUser.role);
+
+    const baseQuery = isAdmin
+      ? {
+          workspaceId,
+          $or: [
+            { userId: null },
+            { userId: { $exists: false } },
+            { userId: req.ecomUser._id }
+          ]
+        }
+      : {
+          workspaceId,
+          userId: req.ecomUser._id
+        };
 
     // Même logique que GET pour cibler les mêmes notifications
     const result = await Notification.updateMany(
-      {
-        $or: [
-          { workspaceId },
-          { workspaceId: null },
-          { workspaceId: { $exists: false } }
-        ],
-        read: false,
-        $and: [
-          {
-            $or: [
-              { userId: null },
-              { userId: { $exists: false } },
-              { userId: req.ecomUser._id }
-            ]
-          }
-        ]
-      },
+      { ...baseQuery, read: false },
       { read: true, readAt: new Date() }
     );
 
