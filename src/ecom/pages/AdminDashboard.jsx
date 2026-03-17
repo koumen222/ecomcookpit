@@ -225,9 +225,11 @@ const AdminDashboard = () => {
 
   // Tutorial popup — once per session
   const [showTutorialModal, setShowTutorialModal] = useState(false);
+  const tutorialShownRef = useRef(false);
 
   useEffect(() => {
-    if (!sessionStorage.getItem('scalor_tuto_seen')) {
+    if (!tutorialShownRef.current && !sessionStorage.getItem('scalor_tuto_seen')) {
+      tutorialShownRef.current = true;
       // Delay slightly so the dashboard loading screen finishes first
       const t = setTimeout(() => setShowTutorialModal(true), 1200);
       return () => clearTimeout(t);

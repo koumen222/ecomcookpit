@@ -132,7 +132,7 @@ const ProductForm = () => {
       
       navigate('/ecom/products');
     } catch (error) {
-      setError(error.response?.data?.message || `Erreur lors de ${isEditing ? 'la modification' : 'la création'} du produit`);
+      setError(error.response?.data?.message || `Une erreur est survenue lors de ${isEditing ? 'la modification' : 'la création'} du produit. Veuillez réessayer.`);
     } finally {
       setLoading(false);
     }

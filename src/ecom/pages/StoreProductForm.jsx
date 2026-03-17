@@ -463,8 +463,12 @@ const StoreProductForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.price) {
-      setError('Nom et prix sont requis');
+    if (!form.name.trim()) {
+      setError('Le nom du produit est obligatoire.');
+      return;
+    }
+    if (!form.price) {
+      setError('Le prix du produit est obligatoire.');
       return;
     }
 
