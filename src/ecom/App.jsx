@@ -73,6 +73,7 @@ import LivreurDeliveries from './pages/LivreurDeliveries.jsx';
 import LivreurDeliveryDetail from './pages/LivreurDeliveryDetail.jsx';
 import LivreurHistoryPage from './pages/LivreurHistoryPage.jsx';
 import LivreurEarningsPage from './pages/LivreurEarningsPage.jsx';
+import LivreurManagement from './pages/LivreurManagement.jsx';
 import ProductResearchList from './pages/ProductResearchList.jsx';
 import ProductFinder from './pages/ProductFinder.jsx';
 import ProductFinderEdit from './pages/ProductFinderEdit.jsx';
@@ -408,6 +409,8 @@ const EcomApp = () => {
             <Route path="/ecom/livreur/delivery/:id" element={<LayoutRoute requiredRole="ecom_livreur"><LivreurDeliveryDetail /></LayoutRoute>} />
             <Route path="/ecom/livreur/history" element={<LayoutRoute requiredRole="ecom_livreur"><LivreurHistoryPage /></LayoutRoute>} />
             <Route path="/ecom/livreur/earnings" element={<LayoutRoute requiredRole="ecom_livreur"><LivreurEarningsPage /></LayoutRoute>} />
+            <Route path="/ecom/livreur/revenus" element={<LayoutRoute requiredRole="ecom_livreur"><LivreurEarningsPage /></LayoutRoute>} />
+            <Route path="/ecom/livreur-management" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><LivreurManagement /></LayoutRoute>} />
 
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/ecom/login" replace />} />

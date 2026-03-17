@@ -54,6 +54,15 @@ const LivreurEarningsPage = () => {
             </div>
           </div>
 
+          {/* Aujourd'hui */}
+          <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold text-amber-500 uppercase tracking-wider">☀️ Aujourd'hui</p>
+            </div>
+            <p className="text-3xl font-black text-amber-600">{(stats.today?.amount || 0).toLocaleString('fr-FR')}</p>
+            <p className="text-xs text-amber-400 mt-1">FCFA · {stats.today?.delivered || 0} livraison{(stats.today?.delivered || 0) !== 1 ? 's' : ''}</p>
+          </div>
+
           {/* Détails par période */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Ce mois */}
@@ -80,6 +89,33 @@ const LivreurEarningsPage = () => {
               <p className="text-xs text-gray-400 mt-1">FCFA · {stats.thisWeek?.delivered || 0} livraison{(stats.thisWeek?.delivered || 0) !== 1 ? 's' : ''}</p>
             </div>
           </div>
+
+          {/* Dernières livraisons */}
+          {(stats.recentDeliveries || []).length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-50">
+                <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">🕓 Dernières livraisons</h2>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {(stats.recentDeliveries || []).map((d, i) => (
+                  <div key={i} className="flex items-center justify-between px-5 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{d.clientName || 'Client'}</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5 truncate">
+                        {d.city ? `📍 ${d.city}` : ''}{d.deliveryDistanceKm ? ` · ${d.deliveryDistanceKm} km` : ''}
+                      </p>
+                    </div>
+                    <div className="text-right ml-3 flex-shrink-0">
+                      <p className="text-sm font-black text-emerald-600">+{(d.deliveryCostFcfa || 0).toLocaleString('fr-FR')} FCFA</p>
+                      <p className="text-[10px] text-gray-400">
+                        {d.updatedAt ? new Date(d.updatedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : ''}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Statistiques */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">

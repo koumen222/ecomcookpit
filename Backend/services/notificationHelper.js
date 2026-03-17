@@ -1,4 +1,5 @@
 import Notification from '../models/Notification.js';
+import EcomUser from '../models/EcomUser.js';
 import { getIO } from './socketService.js';
 import { sendPushNotification } from './pushService.js';
 
@@ -435,4 +436,67 @@ export const notifyNewDM = async (workspaceId, recipientId, { senderName, conten
     link: `/ecom/messages`,
     metadata: { messageId, senderName }
   });
+};
+
+/**
+ * Notify admins and closeuses about a livreur action (récupéré / livré / refusé / problème)
+ * Only sends to admins and closeuses — not to the livreur themselves
+ */
+export const notifyAdminsLivreurAction = async (workspaceId, livreur, order, action) => {
+  const livreurName = livreur.name || livreur.email || 'Livreur';
+  const orderRef = order.orderId ? `#${order.orderId}` : '';
+  const clientLabel = order.clientName || 'Client';
+
+  const actionMap = {
+    pickup_confirmed: {
+      title: 'Commande récupérée 🚚',
+      message: `${livreurName} a récupéré la commande ${orderRef} — ${clientLabel}`,
+      type: 'order_shipped',
+      icon: 'order'
+    },
+    delivered: {
+      title: 'Commande livrée ✅',
+      message: `${livreurName} a livré la commande ${orderRef} — ${clientLabel}`,
+      type: 'order_delivered',
+      icon: 'order'
+    },
+    refused: {
+      title: 'Commande refusée ⚠️',
+      message: `${livreurName} a refusé la commande ${orderRef} — ${clientLabel}`,
+      type: 'order_status',
+      icon: 'alert'
+    },
+    issue: {
+      title: 'Problème de livraison ⚠️',
+      message: `${livreurName} a signalé un problème pour la commande ${orderRef} — ${clientLabel}`,
+      type: 'order_returned',
+      icon: 'alert'
+    }
+  };
+
+  const notifData = actionMap[action];
+  if (!notifData) return;
+
+  try {
+    const recipients = await EcomUser.find({
+      workspaceId,
+      role: { $in: ['ecom_admin', 'ecom_closeuse'] },
+      isActive: true
+    }).select('_id').lean();
+
+    await Promise.all(recipients.map(recipient =>
+      createNotification({
+        workspaceId,
+        userId: recipient._id,
+        type: notifData.type,
+        title: notifData.title,
+        message: notifData.message,
+        icon: notifData.icon,
+        link: `/ecom/orders/${order._id}`,
+        metadata: { orderId: order._id, action, livreurId: livreur._id }
+      })
+    ));
+  } catch (err) {
+    console.warn('⚠️ notifyAdminsLivreurAction failed:', err.message);
+  }
 };

@@ -99,12 +99,20 @@ export function useDmUnread() {
       window.dispatchEvent(new CustomEvent('ecom:notification', { detail: notif }));
     };
 
+    // Écouter les mises à jour de statut de commande par un livreur (temps réel admin/closeuse)
+    const onOrderLivreurUpdate = (data) => {
+      if (!data) return;
+      window.dispatchEvent(new CustomEvent('ecom:orderStatusChanged', { detail: data }));
+    };
+
     socket.on('message:new', onNewMessage);
     socket.on('notification:new', onNotification);
+    socket.on('order:livreurUpdate', onOrderLivreurUpdate);
 
     return () => {
       socket.off('message:new', onNewMessage);
       socket.off('notification:new', onNotification);
+      socket.off('order:livreurUpdate', onOrderLivreurUpdate);
     };
   }, [token]); // ✅ Seulement token - fetchUnread retiré
 

@@ -149,6 +149,50 @@ const orderSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  // Delivery GPS tracking
+  deliveryStartedAt: {
+    type: Date,
+    default: null
+  },
+  deliveryStartLat: {
+    type: Number,
+    default: null
+  },
+  deliveryStartLng: {
+    type: Number,
+    default: null
+  },
+  deliveryEndLat: {
+    type: Number,
+    default: null
+  },
+  deliveryEndLng: {
+    type: Number,
+    default: null
+  },
+  deliveryEndAddress: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  deliveryDistanceKm: {
+    type: Number,
+    default: null
+  },
+  deliveryCostFcfa: {
+    type: Number,
+    default: null
+  },
+  deliveryNote: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  nonDeliveryReason: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   createdAt: {
     type: Date,
     default: Date.now,

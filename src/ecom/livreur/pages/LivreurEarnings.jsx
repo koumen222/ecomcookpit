@@ -38,7 +38,7 @@ export default function LivreurEarnings() {
       {/* Header */}
       <div className="bg-gradient-to-br from-violet-600 to-indigo-700 px-4 pt-12 pb-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-white text-2xl font-bold">Mes gains</h1>
+          <h1 className="text-white text-2xl font-bold">Montant encaissé</h1>
           <button
             onClick={loadStats}
             className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white active:scale-95"
@@ -51,12 +51,12 @@ export default function LivreurEarnings() {
           <div className="h-20 bg-white/10 rounded-2xl animate-pulse" />
         ) : (
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-5">
-            <p className="text-violet-200 text-sm mb-1">Total cumulé</p>
+            <p className="text-violet-200 text-sm mb-1">Total encaissé (cumulé)</p>
             <p className="text-white text-4xl font-bold">
-              {fmt(stats?.allTime?.amount)} <span className="text-2xl font-medium opacity-80">FCFA</span>
+              {fmt(stats?.allTime?.collected)} <span className="text-2xl font-medium opacity-80">FCFA</span>
             </p>
             <p className="text-violet-200 text-sm mt-2">
-              {stats?.allTime?.delivered || 0} livraision{(stats?.allTime?.delivered || 0) > 1 ? 's' : ''} au total
+              {stats?.allTime?.delivered || 0} livraison{(stats?.allTime?.delivered || 0) > 1 ? 's' : ''} au total
             </p>
           </div>
         )}
@@ -76,14 +76,14 @@ export default function LivreurEarnings() {
               <PeriodCard
                 title="Ce mois"
                 icon={<TrendingUp size={20} className="text-indigo-500" />}
-                amount={fmt(stats.thisMonth?.amount)}
+                amount={fmt(stats.thisMonth?.collected)}
                 deliveries={stats.thisMonth?.delivered || 0}
                 bg="bg-indigo-50"
               />
               <PeriodCard
                 title="Cette semaine"
                 icon={<CheckCircle2 size={20} className="text-emerald-500" />}
-                amount="—"
+                amount={fmt(stats.thisWeek?.collected)}
                 deliveries={stats.thisWeek?.delivered || 0}
                 bg="bg-emerald-50"
               />
@@ -119,10 +119,10 @@ export default function LivreurEarnings() {
               <div className="flex items-start gap-3">
                 <Wallet size={20} className="text-amber-600 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-amber-800 font-semibold text-sm">Calcul des gains</p>
+                  <p className="text-amber-800 font-semibold text-sm">Montant encaissé</p>
                   <p className="text-amber-700 text-xs mt-1 leading-relaxed">
-                    Les gains affichés sont une estimation basée sur le montant des commandes livrées.
-                    Pour le détail de votre rémunération, contactez votre gestionnaire.
+                    Total des prix des commandes collectés auprès des clients lors de vos livraisons.
+                    Ce montant est à remettre à votre gestionnaire.
                   </p>
                 </div>
               </div>

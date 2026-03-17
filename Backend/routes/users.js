@@ -65,6 +65,85 @@ router.get('/livreurs/list',
   }
 );
 
+// GET /api/ecom/users/livreurs/management - Gestion complète des livreurs (admin + closeuse)
+router.get('/livreurs/management',
+  requireEcomAuth,
+  async (req, res) => {
+    try {
+      if (!['ecom_admin', 'ecom_closeuse', 'super_admin'].includes(req.ecomUser.role)) {
+        return res.status(403).json({ success: false, message: 'Accès réservé aux administrateurs.' });
+      }
+
+      const livreurs = await EcomUser.find({
+        workspaceId: req.workspaceId,
+        role: 'ecom_livreur'
+      }).select('name email phone isActive createdAt lastLogin').lean();
+
+      if (!livreurs.length) return res.json({ success: true, data: [] });
+
+      const livreurIds = livreurs.map(l => l._id);
+
+      // Orders en cours (confirmed + shipped)
+      const activeOrders = await Order.find({
+        workspaceId: req.workspaceId,
+        assignedLivreur: { $in: livreurIds },
+        status: { $in: ['confirmed', 'shipped'] }
+      }).select('assignedLivreur status orderId clientName city').lean();
+
+      // Commandes livrées aujourd'hui
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const deliveredToday = await Order.find({
+        workspaceId: req.workspaceId,
+        assignedLivreur: { $in: livreurIds },
+        status: 'delivered',
+        updatedAt: { $gte: todayStart }
+      }).select('assignedLivreur price quantity').lean();
+
+      // Total livré (all time)
+      const deliveredAll = await Order.aggregate([
+        { $match: { workspaceId: new (await import('mongoose')).default.Types.ObjectId(req.workspaceId), assignedLivreur: { $in: livreurIds }, status: 'delivered' } },
+        { $group: { _id: '$assignedLivreur', count: { $sum: 1 }, revenue: { $sum: { $multiply: [{ $ifNull: ['$price', 0] }, { $ifNull: ['$quantity', 1] }] } } } }
+      ]);
+
+      // Mapper les stats par livreurId
+      const statsMap = {};
+      for (const l of livreurs) {
+        const id = String(l._id);
+        statsMap[id] = { activeOrders: [], deliveredTodayCount: 0, totalDelivered: 0, totalRevenue: 0 };
+      }
+
+      for (const o of activeOrders) {
+        const id = String(o.assignedLivreur);
+        if (statsMap[id]) {
+          statsMap[id].activeOrders.push({ orderId: o.orderId, clientName: o.clientName, city: o.city, status: o.status });
+        }
+      }
+      for (const o of deliveredToday) {
+        const id = String(o.assignedLivreur);
+        if (statsMap[id]) statsMap[id].deliveredTodayCount++;
+      }
+      for (const d of deliveredAll) {
+        const id = String(d._id);
+        if (statsMap[id]) {
+          statsMap[id].totalDelivered = d.count;
+          statsMap[id].totalRevenue = d.revenue;
+        }
+      }
+
+      const result = livreurs.map(l => ({
+        ...l,
+        stats: statsMap[String(l._id)]
+      }));
+
+      res.json({ success: true, data: result });
+    } catch (error) {
+      console.error('Erreur gestion livreurs:', error);
+      res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+  }
+);
+
 // GET /api/ecom/users/invites/list - Liste des invitations du workspace
 router.get('/invites/list',
   requireEcomAuth,

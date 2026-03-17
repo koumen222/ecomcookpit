@@ -14,7 +14,7 @@ const navItems = [
   { to: '/ecom/livreur/available', label: 'Dispo', icon: Package },
   { to: '/ecom/livreur/deliveries', label: 'En cours', icon: Truck },
   { to: '/ecom/livreur/history', label: 'Historique', icon: History },
-  { to: '/ecom/livreur/earnings', label: 'Gains', icon: Wallet },
+  { to: '/ecom/livreur/earnings', label: 'Encaissé', icon: Wallet },
   { to: '/ecom/livreur/profile', label: 'Profil', icon: User },
 ];
 

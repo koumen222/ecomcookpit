@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
 import { playConfirmSound } from '../services/soundService.js';
@@ -13,6 +14,7 @@ const getOfferMeta = (order) => order.livreurView || {};
 
 const LivreurAvailable = () => {
   const { user } = useEcomAuth();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState({});
@@ -36,9 +38,7 @@ const LivreurAvailable = () => {
     setError(''); setSuccess('');
     try {
       await ecomApi.post(`/orders/${orderId}/assign`);
-      setSuccess('Course acceptée !');
-      setOrders(p => p.filter(o => o._id !== orderId));
-      setTimeout(() => setSuccess(''), 3000);
+      navigate('/ecom/livreur/deliveries');
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur.');
     } finally {
@@ -153,7 +153,7 @@ const LivreurAvailable = () => {
                     {order.product && <p>📦 {order.product}{order.quantity > 1 ? ` × ${order.quantity}` : ''}</p>}
                     {meta.pickupLocation && <p>🏪 Récupération: {meta.pickupLocation}</p>}
                     {meta.destination && <p>🎯 Destination: {meta.destination}</p>}
-                    {(meta.gainLabel || meta.estimatedDistanceLabel) && <p>💸 Gain: {meta.gainLabel || '—'} · 📏 {meta.estimatedDistanceLabel || 'À estimer'}</p>}
+                    {(meta.gainLabel || meta.estimatedDistanceLabel) && <p>💸 Montant : {meta.gainLabel || '—'} · 📏 {meta.estimatedDistanceLabel || 'À estimer'}</p>}
                   </div>
                   {order.price && (
                     <p className="text-sm font-bold text-[#0F6B4F] mt-2">{Number(order.price).toLocaleString('fr-FR')} FCFA</p>

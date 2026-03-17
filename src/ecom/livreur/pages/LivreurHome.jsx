@@ -113,23 +113,31 @@ export default function LivreurHome() {
 
         {/* CTA - Commandes disponibles */}
         <div
-          className="rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 p-4 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform shadow-md"
+          className={`rounded-2xl p-5 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform shadow-lg ${(stats?.available ?? 0) > 0 ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-gradient-to-r from-emerald-500 to-teal-600'}`}
           onClick={() => navigate('/ecom/livreur/available')}
         >
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-full bg-white/20 flex items-center justify-center">
-              <Bell size={22} className="text-white" />
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
+                <Bell size={26} className="text-white" />
+              </div>
+              {(stats?.available ?? 0) > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                  <span className="relative inline-flex rounded-full h-5 w-5 bg-white items-center justify-center text-[10px] font-black text-amber-600">{stats.available}</span>
+                </span>
+              )}
             </div>
             <div>
-              <p className="text-white font-semibold text-base">
-                {stats?.available
-                  ? `${stats.available} course${stats.available > 1 ? 's' : ''} disponible${stats.available > 1 ? 's' : ''}`
-                  : 'Voir les courses'}
+              <p className="text-white font-black text-xl leading-tight">
+                {(stats?.available ?? 0) > 0
+                  ? `${stats.available} course${stats.available > 1 ? 's' : ''} disponible${stats.available > 1 ? 's' : ''} !`
+                  : 'Courses disponibles'}
               </p>
-              <p className="text-emerald-100 text-xs">Accepter une nouvelle livraison</p>
+              <p className="text-white/80 text-sm mt-0.5">Appuyez pour accepter une livraison</p>
             </div>
           </div>
-          <ChevronRight size={20} className="text-white/70" />
+          <ChevronRight size={24} className="text-white/70 flex-shrink-0" />
         </div>
 
         {/* Livraisons récentes */}
@@ -170,10 +178,10 @@ export default function LivreurHome() {
           )}
         </section>
 
-        {/* Gains rapides */}
+        {/* Montant encaissé */}
         {stats && (
           <section>
-            <h2 className="font-semibold text-gray-800 text-lg mb-3">Mes gains</h2>
+            <h2 className="font-semibold text-gray-800 text-lg mb-3">Montant encaissé</h2>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
               <div className="flex items-center justify-between">
                 <div>

@@ -1,8 +1,8 @@
 ﻿import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
-import { playConfirmSound } from '../services/soundService.js';
+import { playConfirmSound, playNewOrderSound, startOrderAlarm, stopOrderAlarm } from '../services/soundService.js';
 
 const STATUS_LABELS = {
   pending: 'En attente', confirmed: 'Acceptée', shipped: 'En cours',
@@ -46,6 +46,7 @@ const Loader = () => (
 
 const LivreurDashboard = () => {
   const { user } = useEcomAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [myOrders, setMyOrders] = useState([]);
   const [availableOrders, setAvailableOrders] = useState([]);
@@ -55,12 +56,23 @@ const LivreurDashboard = () => {
   const [success, setSuccess] = useState('');
   const seenOffersRef = useRef(new Set());
   const [, setTick] = useState(0);
+  const prevAvailableCountRef = useRef(0);
+
+  // Démarre/arrête l'alarme selon les courses disponibles
+  useEffect(() => {
+    if (availableOrders.length > 0) {
+      startOrderAlarm();
+    } else {
+      stopOrderAlarm();
+    }
+    return () => stopOrderAlarm();
+  }, [availableOrders.length]);
 
   if (!user?.workspaceId) return <NoWorkspace user={user} />;
 
-  const loadData = async () => {
-    setLoading(true);
-    setError('');
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true);
+    if (!silent) setError('');
     try {
       const [statsRes, myRes, availRes] = await Promise.all([
         ecomApi.get('/orders/livreur/stats'),
@@ -70,11 +82,21 @@ const LivreurDashboard = () => {
       setStats(statsRes.data?.data || null);
       const allMy = myRes.data?.data?.orders || myRes.data?.data || [];
       setMyOrders(allMy.filter(o => ['confirmed', 'shipped'].includes(o.status)).slice(0, 5));
-      setAvailableOrders(availRes.data?.data || []);
+      const newAvailable = availRes.data?.data || [];
+      setAvailableOrders(newAvailable);
+      if (!silent) {
+        prevAvailableCountRef.current = newAvailable.length;
+      } else if (newAvailable.length > prevAvailableCountRef.current) {
+        playNewOrderSound();
+        if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
+        prevAvailableCountRef.current = newAvailable.length;
+      } else {
+        prevAvailableCountRef.current = newAvailable.length;
+      }
     } catch {
-      setError('Erreur de chargement.');
+      if (!silent) setError('Erreur de chargement.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -83,10 +105,8 @@ const LivreurDashboard = () => {
     setError(''); setSuccess('');
     try {
       await ecomApi.post(`/orders/${orderId}/assign`);
-      setSuccess('Course acceptée !');
-      setAvailableOrders(p => p.filter(o => o._id !== orderId));
-      loadData();
-      setTimeout(() => setSuccess(''), 6000);
+      stopOrderAlarm();
+      navigate('/ecom/livreur/deliveries');
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur.');
     } finally {
@@ -101,8 +121,9 @@ const LivreurDashboard = () => {
     try {
       await ecomApi.post(`/orders/${orderId}/refuse`);
       setSuccess('Course refusée.');
+      stopOrderAlarm();
       setAvailableOrders((prev) => prev.filter((order) => order._id !== orderId));
-      loadData();
+      loadData(true);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur.');
@@ -117,7 +138,7 @@ const LivreurDashboard = () => {
     try {
       await ecomApi.patch(`/orders/${orderId}/livreur-action`, { action });
       setSuccess(action === 'delivered' ? 'Livraison confirmée !' : action === 'pickup_confirmed' ? 'Récupération confirmée !' : 'Action enregistrée.');
-      loadData();
+      loadData(true);
       setTimeout(() => setSuccess(''), 6000);
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur.');
@@ -133,7 +154,7 @@ const LivreurDashboard = () => {
 
   useEffect(() => {
     loadData();
-    const pollId = setInterval(() => loadData(), 10000);
+    const pollId = setInterval(() => loadData(true), 10000);
     const tickId = setInterval(() => setTick((value) => value + 1), 1000);
     const onNotification = (event) => {
       const detail = event.detail || {};
@@ -144,7 +165,7 @@ const LivreurDashboard = () => {
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
       }
       if (detail.type === 'course' || detail.type === 'order_taken') {
-        loadData();
+        loadData(true);
       }
     };
 
@@ -173,6 +194,66 @@ const LivreurDashboard = () => {
       {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">{error}<button onClick={() => setError('')} className="float-right font-bold">&times;</button></div>}
       {success && <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm">{success}</div>}
 
+      {/* ─── Courses disponibles — PRIORITÉ ─── */}
+      <div className={`rounded-2xl border-2 overflow-hidden shadow-md transition-all ${availableOrders.length > 0 ? 'border-amber-400' : 'border-gray-100'}`}>
+        <div className={`flex items-center justify-between px-5 py-4 ${availableOrders.length > 0 ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-white'}`}>
+          <div className="flex items-center gap-3">
+            {availableOrders.length > 0 && (
+              <span className="flex h-3 w-3 relative flex-shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-white" />
+              </span>
+            )}
+            <h2 className={`text-sm font-bold uppercase tracking-wide ${availableOrders.length > 0 ? 'text-white' : 'text-gray-700'}`}>
+              📦 Courses disponibles
+              {availableOrders.length > 0 && (
+                <span className="ml-2 bg-white text-amber-600 text-xs font-black px-2 py-0.5 rounded-full">{availableOrders.length}</span>
+              )}
+            </h2>
+          </div>
+          <Link to="/ecom/livreur/available" className={`text-xs font-medium hover:underline flex-shrink-0 ${availableOrders.length > 0 ? 'text-white/80' : 'text-[#0F6B4F]'}`}>Tout voir →</Link>
+        </div>
+        <div className="bg-white">
+          {availableOrders.length === 0 ? (
+            <div className="text-center py-8 px-5">
+              <p className="text-gray-400 text-sm">Aucune course disponible pour le moment</p>
+              <p className="text-xs text-gray-300 mt-1">Les nouvelles courses apparaîtront ici automatiquement</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {availableOrders.map(order => {
+                const meta = getOfferMeta(order);
+                const remaining = formatRemaining(meta.responseDeadline);
+                return (
+                  <div key={order._id} className="p-4 hover:bg-amber-50/30 transition">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-semibold text-gray-900 truncate">{order.clientName || order.clientPhone || 'Client'}</span>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className="text-xs font-mono text-gray-300">{order.orderId}</span>
+                        {meta.isTargeted && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">Ciblée</span>}
+                        {remaining && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600">{remaining}</span>}
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-400 truncate">{order.city || order.address || '—'}{order.product ? ` · ${order.product}` : ''}</p>
+                    {meta.destination && <p className="text-xs text-gray-400 truncate mt-0.5">🎯 {meta.destination}</p>}
+                    {(meta.gainLabel || meta.estimatedDistanceLabel) && <p className="text-xs text-gray-400 truncate mt-0.5">💸 Montant : {meta.gainLabel || '—'} · 📏 {meta.estimatedDistanceLabel || 'À estimer'}</p>}
+                    {order.price && <p className="text-xs font-semibold text-[#0F6B4F] mt-0.5">{Number(order.price).toLocaleString('fr-FR')} FCFA</p>}
+                    <div className="mt-2.5 flex gap-2">
+                      <button onClick={() => handleAssign(order._id)} disabled={assigning[order._id]} className="text-xs px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition disabled:opacity-50 flex-1">
+                        {assigning[order._id] ? 'En cours…' : '✓ Accepter'}
+                      </button>
+                      <button onClick={() => handleRefuse(order._id)} disabled={assigning[order._id]} className="text-xs px-3 py-2 bg-red-50 text-red-600 border border-red-200 rounded-xl font-medium hover:bg-red-100 transition disabled:opacity-50 flex-1">
+                        {assigning[order._id] ? '…' : '✕ Refuser'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* KPI Cards */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
@@ -195,11 +276,11 @@ const LivreurDashboard = () => {
         </div>
       )}
 
-      {/* Gains rapide */}
+      {/* Montant encaissé */}
       {stats && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">💰 Gains</h2>
+            <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">💰 Montant encaissé</h2>
             <Link to="/ecom/livreur/earnings" className="text-xs text-[#0F6B4F] font-medium hover:underline">Voir tout →</Link>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -215,10 +296,8 @@ const LivreurDashboard = () => {
         </div>
       )}
 
-      {/* Deux colonnes : livraisons en cours + courses disponibles */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Mes livraisons actives */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      {/* Mes livraisons en cours */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">🚚 En cours</h2>
             <Link to="/ecom/livreur/deliveries" className="text-xs text-[#0F6B4F] font-medium hover:underline">Tout voir →</Link>
@@ -259,62 +338,12 @@ const LivreurDashboard = () => {
           )}
         </div>
 
-        {/* Courses disponibles */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">📦 Disponibles</h2>
-            <Link to="/ecom/livreur/available" className="text-xs text-[#0F6B4F] font-medium hover:underline">Tout voir →</Link>
-          </div>
-          {availableOrders.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-400 text-sm">Aucune course disponible</p>
-              <p className="text-xs text-gray-300 mt-1">Revenez dans quelques instants</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {availableOrders.map(order => (
-                <div key={order._id} className="rounded-xl border border-gray-100 p-3 hover:bg-gray-50 transition">
-                  {(() => {
-                    const meta = getOfferMeta(order);
-                    const remaining = formatRemaining(meta.responseDeadline);
-                    return (
-                      <>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-semibold text-gray-900 truncate">{order.clientName || order.clientPhone || 'Client'}</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-mono text-gray-300">{order.orderId}</span>
-                      {meta.isTargeted && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">Ciblée</span>}
-                      {remaining && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600">{remaining}</span>}
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-400 truncate">{order.city || order.address || '—'}{order.product ? ` · ${order.product}` : ''}</p>
-                  {meta.destination && <p className="text-xs text-gray-400 truncate mt-1">🎯 {meta.destination}</p>}
-                  {(meta.gainLabel || meta.estimatedDistanceLabel) && <p className="text-xs text-gray-400 truncate mt-1">💸 {meta.gainLabel || '—'} · 📏 {meta.estimatedDistanceLabel || 'À estimer'}</p>}
-                  {order.price && <p className="text-xs font-semibold text-[#0F6B4F] mt-0.5">{Number(order.price).toLocaleString('fr-FR')} FCFA</p>}
-                  <div className="mt-2 flex gap-2">
-                    <button onClick={() => handleAssign(order._id)} disabled={assigning[order._id]} className="text-xs px-3 py-1.5 bg-[#0F6B4F] text-white rounded-lg font-medium hover:bg-[#0a5740] transition disabled:opacity-50 flex-1">
-                      {assigning[order._id] ? 'Assignation…' : '✓ Accepter'}
-                    </button>
-                    <button onClick={() => handleRefuse(order._id)} disabled={assigning[order._id]} className="text-xs px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg font-medium hover:bg-red-100 transition disabled:opacity-50 flex-1">
-                      {assigning[order._id] ? '…' : '✕ Refuser'}
-                    </button>
-                  </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Actions rapides */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
           { href: '/ecom/livreur/available', icon: '📦', label: 'Courses disponibles', sub: 'Accepter de nouvelles courses' },
           { href: '/ecom/livreur/history', icon: '📋', label: 'Historique', sub: 'Toutes vos livraisons terminées' },
-          { href: '/ecom/livreur/earnings', icon: '💰', label: 'Mes gains', sub: 'Détail de vos revenus' },
+          { href: '/ecom/livreur/earnings', icon: '💰', label: 'Montant encaissé', sub: 'Détail de vos encaissements' },
         ].map((a, i) => (
           <Link key={i} to={a.href} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition group flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-xl shrink-0">{a.icon}</div>

@@ -716,6 +716,20 @@ const OrdersList = () => {
     return () => window.removeEventListener('ecom:notification', handleNewOrderNotification);
   }, []);
 
+  // ••• Temps réel: mise à jour du statut commande par le livreur ••••••••••••••
+  useEffect(() => {
+    const handleOrderStatusChanged = (event) => {
+      const { _id, orderId, status, assignedLivreur, updatedAt, tags } = event.detail || {};
+      if (!_id || !status) return;
+      console.log('🚚 [Socket] Mise à jour statut livreur:', orderId, '→', status);
+      setOrders(prev => prev.map(o =>
+        String(o._id) === String(_id) ? { ...o, status, assignedLivreur: assignedLivreur ?? o.assignedLivreur, updatedAt: updatedAt ?? o.updatedAt, tags: tags ?? o.tags } : o
+      ));
+    };
+    window.addEventListener('ecom:orderStatusChanged', handleOrderStatusChanged);
+    return () => window.removeEventListener('ecom:orderStatusChanged', handleOrderStatusChanged);
+  }, []);
+
   // Fermer le menu à trois points quand on clique ailleurs
   useEffect(() => {
     if (!expandedId) return;
