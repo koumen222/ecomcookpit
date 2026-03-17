@@ -106,7 +106,12 @@ function buildDeliveryOfferMessage(metadata) {
 }
 
 async function sendDeliveryOfferNotifications({ workspaceId, order, livreurs, workspaceName, responseDeadline, offerMode = 'broadcast' }) {
-  if (!livreurs.length) return;
+  if (!livreurs.length) {
+    console.log(`⚠️ sendDeliveryOfferNotifications: aucun livreur ciblé pour la commande ${order._id}`);
+    return;
+  }
+
+  console.log(`📦 sendDeliveryOfferNotifications: ${livreurs.length} livreur(s), mode=${offerMode}, commande=${order.orderId || order._id}`);
 
   const { sendPushNotificationToUser } = await import('../services/pushService.js');
   const metadata = buildDeliveryOfferMetadata(order, {
@@ -116,9 +121,9 @@ async function sendDeliveryOfferNotifications({ workspaceId, order, livreurs, wo
     offerMode
   });
 
-  await Promise.allSettled(
+  const results = await Promise.allSettled(
     livreurs.map(async (livreur) => {
-      await createNotification({
+      const notif = await createNotification({
         workspaceId,
         userId: livreur._id,
         type: 'course',
@@ -128,6 +133,12 @@ async function sendDeliveryOfferNotifications({ workspaceId, order, livreurs, wo
         link: `/ecom/livreur/available`,
         metadata
       });
+
+      if (!notif) {
+        console.warn(`⚠️ createNotification a retourné null pour livreur ${livreur._id}`);
+      } else {
+        console.log(`✅ Notification créée pour livreur ${livreur._id}: ${notif._id}`);
+      }
 
       await sendPushNotificationToUser(livreur._id, {
         title: offerMode === 'targeted' ? '🚚 Course proposée' : '📦 Nouvelle course disponible',
@@ -145,6 +156,11 @@ async function sendDeliveryOfferNotifications({ workspaceId, order, livreurs, wo
       });
     })
   );
+
+  const failed = results.filter(r => r.status === 'rejected');
+  if (failed.length > 0) {
+    failed.forEach(r => console.error(`❌ Erreur notification livreur:`, r.reason));
+  }
 }
 
 async function notifyDeliveryTaken({ workspaceId, order, takenByLivreurId }) {
@@ -2982,21 +2998,23 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
         const { sendPushNotificationToUser } = await import('../services/pushService.js');
         const livreur = await EcomUser.findById(req.body.assignedLivreur).select('name email');
         if (livreur) {
-          Notification.create({
+          // Utiliser createNotification pour avoir le socket emit (temps réel)
+          createNotification({
             workspaceId: req.workspaceId,
             userId: livreur._id,
             type: 'order_assigned_to_you',
             title: '🚚 Commande assignée',
             message: `Commande #${updatedOrder.orderId} — ${updatedOrder.clientName || ''} vous a été assignée`,
-            link: `/ecom/orders/${updatedOrder._id}`
-          }).catch(() => {});
+            icon: 'order',
+            link: `/ecom/livreur/available`
+          }).catch(err => console.warn('⚠️ createNotification livreur assigné failed:', err.message));
           sendPushNotificationToUser(livreur._id, {
             title: '🚚 Commande assignée',
             body: `Commande #${updatedOrder.orderId} — ${updatedOrder.clientName || ''} vous a été assignée`,
             icon: '/icons/icon-192x192.png',
             badge: '/icons/icon-72x72.png',
             tag: `assigned-${updatedOrder._id}`,
-            data: { type: 'order_assigned', orderId: updatedOrder._id.toString(), url: `/ecom/orders/${updatedOrder._id}` },
+            data: { type: 'order_assigned_to_you', orderId: updatedOrder._id.toString(), url: '/ecom/livreur/available' },
             requireInteraction: true
           }).catch(() => {});
           console.log(`📱 Notification envoyée au livreur ${livreur.name || livreur.email} pour commande ${updatedOrder.orderId}`);
