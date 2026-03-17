@@ -82,6 +82,38 @@ const orderSchema = new mongoose.Schema({
     ref: 'EcomUser',
     default: null
   },
+  deliveryOfferMode: {
+    type: String,
+    enum: ['none', 'broadcast', 'targeted'],
+    default: 'none'
+  },
+  deliveryOfferTargetLivreur: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'EcomUser',
+    default: null
+  },
+  deliveryOfferSentAt: {
+    type: Date,
+    default: null
+  },
+  deliveryOfferExpiresAt: {
+    type: Date,
+    default: null
+  },
+  deliveryOfferEscalatedAt: {
+    type: Date,
+    default: null
+  },
+  deliveryOfferRefusedBy: {
+    type: [mongoose.Schema.Types.ObjectId],
+    ref: 'EcomUser',
+    default: []
+  },
+  readyForDelivery: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
   notes: {
     type: String,
     trim: true,

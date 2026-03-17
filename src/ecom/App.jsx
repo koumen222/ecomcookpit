@@ -68,6 +68,11 @@ import SetupSuperAdmin from './pages/SetupSuperAdmin.jsx';
 import Data from './pages/Data.jsx';
 import Goals from './pages/Goals.jsx';
 import LivreurDashboard from './pages/LivreurDashboard.jsx';
+import LivreurAvailable from './pages/LivreurAvailable.jsx';
+import LivreurDeliveries from './pages/LivreurDeliveries.jsx';
+import LivreurDeliveryDetail from './pages/LivreurDeliveryDetail.jsx';
+import LivreurHistoryPage from './pages/LivreurHistoryPage.jsx';
+import LivreurEarningsPage from './pages/LivreurEarningsPage.jsx';
 import ProductResearchList from './pages/ProductResearchList.jsx';
 import ProductFinder from './pages/ProductFinder.jsx';
 import ProductFinderEdit from './pages/ProductFinderEdit.jsx';
@@ -137,7 +142,9 @@ const ProtectedRoute = ({ children, requiredRole }) => {
         'super_admin': '/ecom/super-admin',
         'ecom_admin': '/ecom/dashboard/admin',
         'ecom_closeuse': '/ecom/dashboard/closeuse',
-        'ecom_compta': '/ecom/dashboard/compta'
+        'ecom_compta': '/ecom/dashboard/compta',
+        'ecom_livreur': '/ecom/livreur',
+        'livreur': '/ecom/livreur'
       };
       return <Navigate to={roleDashboardMap[effectiveUser?.role] || '/ecom/login'} replace />;
     }
@@ -163,7 +170,8 @@ const DashboardRedirect = () => {
     'ecom_admin': '/ecom/dashboard/admin',
     'ecom_closeuse': '/ecom/dashboard/closeuse',
     'ecom_compta': '/ecom/dashboard/compta',
-    'livreur': '/ecom/livreur'
+    'livreur': '/ecom/livreur',
+    'ecom_livreur': '/ecom/livreur'
   };
 
   return <Navigate to={roleDashboardMap[effectiveUser?.role] || '/ecom/dashboard'} replace />;
@@ -184,7 +192,8 @@ const RootRedirect = () => {
     'ecom_admin': '/ecom/dashboard/admin',
     'ecom_closeuse': '/ecom/dashboard/closeuse',
     'ecom_compta': '/ecom/dashboard/compta',
-    'livreur': '/ecom/livreur'
+    'livreur': '/ecom/livreur',
+    'ecom_livreur': '/ecom/livreur'
   };
 
   return <Navigate to={roleDashboardMap[effectiveUser?.role] || '/ecom/dashboard'} replace />;
@@ -205,9 +214,20 @@ const LayoutRoute = ({ children, requiredRole }) => (
 const PageViewTracker = () => {
   const location = useLocation();
   usePosthogPageViews();
-  
+
   React.useEffect(() => {
     trackPageView(location.pathname);
+
+    // Also track with our custom analytics service
+    import('../utils/analytics.js').then(m => {
+      const analytics = m.default;
+      analytics.trackPageView(location.pathname, {
+        title: document.title,
+        referrer: document.referrer
+      });
+    }).catch(() => {
+      // Ignore import errors for analytics - non-critical
+    });
   }, [location.pathname]);
 
   return null;
@@ -284,8 +304,8 @@ const EcomApp = () => {
             <Route path="/ecom/products/:id/edit" element={<LayoutRoute requiredRole="ecom_admin"><ProductForm /></LayoutRoute>} />
 
             {/* Routes commandes */}
-            <Route path="/ecom/orders" element={<LayoutRoute><OrdersList /></LayoutRoute>} />
-            <Route path="/ecom/orders/:id" element={<LayoutRoute><OrderDetail /></LayoutRoute>} />
+            <Route path="/ecom/orders" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><OrdersList /></LayoutRoute>} />
+            <Route path="/ecom/orders/:id" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><OrderDetail /></LayoutRoute>} />
             <Route path="/ecom/import" element={<LayoutRoute requiredRole="ecom_admin"><ImportOrders /></LayoutRoute>} />
 
             {/* Routes clients */}
@@ -337,6 +357,7 @@ const EcomApp = () => {
 
             {/* Routes utilisateurs */}
             <Route path="/ecom/users" element={<LayoutRoute requiredRole="ecom_admin"><UserManagement /></LayoutRoute>} />
+            <Route path="/ecom/users/team/performance" element={<LayoutRoute requiredRole="ecom_admin"><TeamPerformance /></LayoutRoute>} />
             <Route path="/ecom/profile" element={<LayoutRoute><Profile /></LayoutRoute>} />
             <Route path="/ecom/settings" element={<LayoutRoute><Settings /></LayoutRoute>} />
 
@@ -352,9 +373,20 @@ const EcomApp = () => {
             {/* Routes chat */}
             <Route path="/ecom/chat" element={<LayoutRoute><TeamChat /></LayoutRoute>} />
 
+            {/* Route marketing */}
+            <Route path="/ecom/marketing" element={<LayoutRoute requiredRole="super_admin"><Marketing /></LayoutRoute>} />
+
             {/* Routes Super Admin */}
             <Route path="/ecom/super-admin" element={<LayoutRoute requiredRole="super_admin"><SuperAdminDashboard /></LayoutRoute>} />
             <Route path="/ecom/super-admin/users" element={<LayoutRoute requiredRole="super_admin"><SuperAdminUsers /></LayoutRoute>} />
+            <Route path="/ecom/super-admin/users/:id" element={<LayoutRoute requiredRole="super_admin"><SuperAdminUserDetail /></LayoutRoute>} />
+            <Route path="/ecom/super-admin/workspaces" element={<LayoutRoute requiredRole="super_admin"><SuperAdminWorkspaces /></LayoutRoute>} />
+            <Route path="/ecom/super-admin/analytics" element={<LayoutRoute requiredRole="super_admin"><SuperAdminAnalytics /></LayoutRoute>} />
+            <Route path="/ecom/super-admin/activity" element={<LayoutRoute requiredRole="super_admin"><SuperAdminActivity /></LayoutRoute>} />
+            <Route path="/ecom/super-admin/settings" element={<LayoutRoute requiredRole="super_admin"><SuperAdminSettings /></LayoutRoute>} />
+            <Route path="/ecom/super-admin/whatsapp-postulations" element={<LayoutRoute requiredRole="super_admin"><SuperAdminWhatsAppPostulations /></LayoutRoute>} />
+            <Route path="/ecom/super-admin/whatsapp-logs" element={<LayoutRoute requiredRole="super_admin"><SuperAdminWhatsAppLogs /></LayoutRoute>} />
+            <Route path="/ecom/super-admin/push" element={<LayoutRoute requiredRole="super_admin"><SuperAdminPushCenter /></LayoutRoute>} />
 
             {/* Routes boutique - Utilise sa propre sidebar via BoutiqueLayout */}
             <Route element={<ProtectedRoute requiredRole="ecom_admin"><BoutiqueLayout /></ProtectedRoute>}>
@@ -368,6 +400,14 @@ const EcomApp = () => {
               <Route path="/ecom/boutique/domains" element={<BoutiqueDomains />} />
               <Route path="/ecom/boutique/settings" element={<BoutiqueSettings />} />
             </Route>
+
+            {/* Routes Livreur */}
+            <Route path="/ecom/livreur" element={<LayoutRoute requiredRole="ecom_livreur"><LivreurDashboard /></LayoutRoute>} />
+            <Route path="/ecom/livreur/available" element={<LayoutRoute requiredRole="ecom_livreur"><LivreurAvailable /></LayoutRoute>} />
+            <Route path="/ecom/livreur/deliveries" element={<LayoutRoute requiredRole="ecom_livreur"><LivreurDeliveries /></LayoutRoute>} />
+            <Route path="/ecom/livreur/delivery/:id" element={<LayoutRoute requiredRole="ecom_livreur"><LivreurDeliveryDetail /></LayoutRoute>} />
+            <Route path="/ecom/livreur/history" element={<LayoutRoute requiredRole="ecom_livreur"><LivreurHistoryPage /></LayoutRoute>} />
+            <Route path="/ecom/livreur/earnings" element={<LayoutRoute requiredRole="ecom_livreur"><LivreurEarningsPage /></LayoutRoute>} />
 
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/ecom/login" replace />} />

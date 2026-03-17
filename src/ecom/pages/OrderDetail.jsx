@@ -66,8 +66,11 @@ const OrderDetail = () => {
   const [showCustomWhatsAppModal, setShowCustomWhatsAppModal] = useState(false);
   const [sendingCustomWhatsApp, setSendingCustomWhatsApp] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const [showLivreurMenu, setShowLivreurMenu] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [sendingToPool, setSendingToPool] = useState(false);
   const optionsMenuRef = useRef(null);
+  const livreurMenuRef = useRef(null);
 
   const fetchOrder = async () => {
     try {
@@ -94,6 +97,9 @@ const OrderDetail = () => {
     const handleClickOutside = (e) => {
       if (optionsMenuRef.current && !optionsMenuRef.current.contains(e.target)) {
         setShowOptionsMenu(false);
+      }
+      if (livreurMenuRef.current && !livreurMenuRef.current.contains(e.target)) {
+        setShowLivreurMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -217,30 +223,46 @@ const OrderDetail = () => {
     }
   };
 
-  const handleSendToDelivery = async () => {
+  const handleSendToDelivery = async (withWhatsApp = false) => {
     try {
-      const livreur = livreurs.find(l => l._id === selectedLivreur);
-      const phone = livreur?.phone || '';
-      if (phone) {
-        await ecomApi.post(`/orders/${id}/send-whatsapp`, {
-          phoneNumber: phone,
-          message: deliveryMessage
-        });
-        await ecomApi.post(`/orders/${id}/send-whatsapp`, { phone, message: deliveryMessage });
+      if (!selectedLivreur) {
+        setError('Sélectionnez un livreur.');
+        return;
       }
-      await ecomApi.put(`/orders/${id}`, {
-        status: 'shipped',
-        assignedLivreur: selectedLivreur || null,
-        notes: deliveryNote ? `${order.notes ? order.notes + ' | ' : ''}Livraison: ${deliveryNote}` : order.notes,
+
+      const livreur = livreurs.find(l => l._id === selectedLivreur);
+      await ecomApi.post(`/orders/${id}/delivery-offer`, {
+        mode: 'targeted',
+        livreurId: selectedLivreur,
+        message: deliveryMessage,
+        note: deliveryNote,
         deliveryLocation: editData.deliveryLocation || order.deliveryLocation || '',
-        deliveryTime: editData.deliveryTime || order.deliveryTime || ''
+        deliveryTime: editData.deliveryTime || order.deliveryTime || '',
+        sendWhatsApp: withWhatsApp
       });
-      setSuccess(`Commande envoyée${livreur ? ' à ' + (livreur.name || livreur.email) : ''} + statut expédié`);
+      setSuccess(`Offre envoyée${livreur ? ' à ' + (livreur.name || livreur.email) : ''}. Le livreur doit accepter dans l'application.`);
       setShowDeliveryModal(false);
       setDeliveryNote('');
+      setSelectedLivreur('');
       fetchOrder();
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Erreur envoi livreur');
+    }
+  };
+
+  const handleTogglePool = async () => {
+    setSendingToPool(true);
+    setError('');
+    try {
+      const newReady = !order.readyForDelivery;
+      await ecomApi.patch(`/orders/${id}/ready-for-delivery`, { ready: newReady });
+      setSuccess(newReady ? '✅ Commande passée au livreur — visible par les livreurs disponibles.' : 'Commande retirée du livreur.');
+      fetchOrder();
+      setTimeout(() => setSuccess(''), 4000);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Erreur.');
+    } finally {
+      setSendingToPool(false);
     }
   };
 
@@ -347,12 +369,46 @@ const OrderDetail = () => {
             <span className="hidden sm:inline">Facture</span>
           </button>
 
-          {/* Envoyer au livreur */}
-          {(order.status === 'confirmed' || order.status === 'pending') && (
-            <button onClick={openDeliveryModal} className="px-3 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition text-xs font-medium flex items-center gap-1.5">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/></svg>
-              <span className="hidden sm:inline">Envoyer livreur</span>
-            </button>
+          {/* Passer au livreur */}
+          {(isAdmin || user?.role === 'super_admin') && (
+            order.assignedLivreur ? (
+              <span className="px-3 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-medium flex items-center gap-1.5 border border-emerald-200 cursor-default">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                <span className="hidden sm:inline">Livreur assigné</span>
+              </span>
+            ) : (
+              <div className="relative" ref={livreurMenuRef}>
+                <button
+                  onClick={() => setShowLivreurMenu(!showLivreurMenu)}
+                  className={`px-3 py-2 rounded-lg transition text-xs font-medium flex items-center gap-1.5 ${order.readyForDelivery ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' : 'bg-amber-600 text-white hover:bg-amber-700'}`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                  <span className="hidden sm:inline">{order.readyForDelivery ? '✓ Dans pool' : 'Passer au livreur'}</span>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                {showLivreurMenu && (
+                  <div className="absolute right-0 mt-1 w-52 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                    {(order.status === 'pending' || order.status === 'confirmed') && (
+                      <button
+                        onClick={() => { setShowLivreurMenu(false); openDeliveryModal(); }}
+                        className="w-full text-left px-4 py-2.5 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                        Livreur spécifique
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setShowLivreurMenu(false); handleTogglePool(); }}
+                      disabled={sendingToPool}
+                      className="w-full text-left px-4 py-2.5 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                      {sendingToPool ? '…' : order.readyForDelivery ? 'Retirer du pool' : 'Tous les livreurs'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
           )}
 
           {/* Envoyer détails WhatsApp personnalisé */}
@@ -728,11 +784,26 @@ const OrderDetail = () => {
                 <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
                 Imprimer la facture
               </button>
-              {(order.status === 'pending' || order.status === 'confirmed') && (
-                <button onClick={openDeliveryModal} className="w-full px-3 py-2.5 bg-emerald-50 text-emerald-800 rounded-lg hover:bg-emerald-100 transition text-xs font-medium flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/></svg>
-                  Envoyer au livreur
-                </button>
+              {(isAdmin || user?.role === 'super_admin') && (
+                order.assignedLivreur ? (
+                  <div className="w-full px-3 py-2.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-medium flex items-center gap-2 border border-emerald-200">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                    Livreur déjà assigné
+                  </div>
+                ) : (
+                  <>
+                    {(order.status === 'pending' || order.status === 'confirmed') && (
+                      <button onClick={openDeliveryModal} className="w-full px-3 py-2.5 bg-emerald-50 text-emerald-800 rounded-lg hover:bg-emerald-100 transition text-xs font-medium flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                        Livreur spécifique
+                      </button>
+                    )}
+                    <button onClick={handleTogglePool} disabled={sendingToPool} className={`w-full px-3 py-2.5 rounded-lg transition text-xs font-medium flex items-center gap-2 disabled:opacity-50 ${order.readyForDelivery ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' : 'bg-amber-50 text-amber-800 hover:bg-amber-100'}`}>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                      {sendingToPool ? '…' : order.readyForDelivery ? '✓ Retirer du pool' : '📦 Tous les livreurs'}
+                    </button>
+                  </>
+                )
               )}
               {order.status === 'shipped' && (
                 <button onClick={() => handleStatusChange('delivered')} className="w-full px-3 py-2.5 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition text-xs font-medium flex items-center gap-2">
@@ -761,7 +832,7 @@ const OrderDetail = () => {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-gray-900">Envoyer au livreur</h3>
-                <p className="text-[11px] text-gray-400">Le statut passera à "Expédié"</p>
+                <p className="text-[11px] text-gray-400">Le livreur recevra une proposition à accepter dans l'application</p>
               </div>
             </div>
 
@@ -813,18 +884,13 @@ const OrderDetail = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-2">
-              <button onClick={handleSendToDelivery} className="w-full sm:flex-1 px-4 py-2.5 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 text-xs font-medium flex items-center justify-center gap-1.5">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
-                Confirmer l'envoi
+              <button onClick={() => handleSendToDelivery(false)} className="w-full sm:flex-1 px-4 py-2.5 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 text-xs font-medium flex items-center justify-center gap-1.5">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/></svg>
+                Envoyer sur l'application
               </button>
-              <button onClick={handleSendWhatsApp} disabled={sendingWhatsApp || whatsAppSent} className={`w-full sm:flex-1 px-4 py-2.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition ${whatsAppSent ? 'bg-green-100 text-green-700' : 'bg-green-600 text-white hover:bg-green-700'} disabled:opacity-60`}>
-                {sendingWhatsApp ? (
-                  <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Envoi...</>
-                ) : whatsAppSent ? (
-                  <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>Envoyé !</>
-                ) : (
-                  <><svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>Envoyer WhatsApp</>
-                )}
+              <button onClick={() => handleSendToDelivery(true)} className="w-full sm:flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs font-medium flex items-center justify-center gap-1.5">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                Application + WhatsApp
               </button>
               <button onClick={() => setShowDeliveryModal(false)} className="w-full sm:w-auto px-4 py-2.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-xs font-medium">Annuler</button>
             </div>

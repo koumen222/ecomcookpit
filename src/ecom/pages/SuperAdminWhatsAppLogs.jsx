@@ -245,7 +245,7 @@ const SuperAdminWhatsAppLogs = () => {
                                     <div className="mt-2 pt-2 border-t border-gray-100">
                                       <p className="text-gray-500 font-medium mb-1">Réponse provider :</p>
                                       <pre className="text-[10px] text-gray-600 overflow-auto max-h-24 bg-gray-50 p-2 rounded">
-                                        {JSON.stringify(Object.fromEntries(log.providerResponse), null, 2)}
+                                        {JSON.stringify(log.providerResponse, null, 2)}
                                       </pre>
                                     </div>
                                   )}

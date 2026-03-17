@@ -1,406 +1,331 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
-import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
+import { playConfirmSound } from '../services/soundService.js';
+
+const STATUS_LABELS = {
+  pending: 'En attente', confirmed: 'Acceptée', shipped: 'En cours',
+  delivered: 'Livrée', returned: 'Retour', cancelled: 'Annulée',
+};
+const STATUS_META = {
+  delivered: { bg: '#ecfdf5', text: '#065f46' },
+  confirmed: { bg: '#eff6ff', text: '#053326' },
+  pending: { bg: '#fffbeb', text: '#92400e' },
+  shipped: { bg: '#eef2ff', text: '#3730a3' },
+  returned: { bg: '#fff7ed', text: '#9a3412' },
+  cancelled: { bg: '#fef2f2', text: '#991b1b' },
+};
+
+const formatRemaining = (deadline) => {
+  if (!deadline) return null;
+  const seconds = Math.max(0, Math.ceil((new Date(deadline).getTime() - Date.now()) / 1000));
+  return `${seconds}s`;
+};
+
+const getOfferMeta = (order) => order.livreurView || {};
+
+const NoWorkspace = ({ user }) => (
+  <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="max-w-sm w-full text-center">
+      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center mx-auto mb-5 text-3xl">🚚</div>
+      <h2 className="text-xl font-bold text-gray-900 mb-2">Aucun espace configuré</h2>
+      <p className="text-sm text-gray-500 mb-6">Rejoignez une équipe existante via un lien d'invitation ou créez votre espace.</p>
+      <Link to="/ecom/workspace-setup" className="block py-3 bg-amber-600 text-white rounded-xl font-semibold text-sm hover:bg-amber-700 transition">Créer un espace</Link>
+      <p className="text-xs text-gray-400 mt-4">Pour rejoindre un espace, demandez un lien d'invitation à votre administrateur.</p>
+    </div>
+  </div>
+);
+
+const Loader = () => (
+  <div className="flex flex-col items-center justify-center h-64 gap-4">
+    <div className="w-10 h-10 rounded-full border-4 border-gray-200 border-t-amber-600 animate-spin" />
+    <p className="text-sm text-gray-400 font-medium">Chargement…</p>
+  </div>
+);
 
 const LivreurDashboard = () => {
   const { user } = useEcomAuth();
-  const { fmt } = useMoney();
-
-  // Si pas de workspace : afficher un CTA
-  if (!user?.workspaceId) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="max-w-md w-full text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-100 mb-4">
-            <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Aucun espace configuré</h2>
-          <p className="text-gray-600 mb-6">
-            {user?.role === 'ecom_admin' 
-              ? 'Créez votre propre espace pour commencer à utiliser Scalor.'
-              : 'Rejoignez une équipe existante pour accéder aux données partagées.'}
-          </p>
-          <div className="space-y-3">
-            <Link to="/ecom/workspace-setup" className="block w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition">
-              Créer un espace
-            </Link>
-            {user?.role !== 'ecom_admin' && (
-              <div className="p-3 bg-gray-100 rounded-lg text-xs text-gray-600">
-                Pour rejoindre une équipe, demandez un lien d'invitation à votre administrateur
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const navigate = useNavigate();
-  const [orders, setOrders] = useState([]);
+  const [stats, setStats] = useState(null);
   const [myOrders, setMyOrders] = useState([]);
+  const [availableOrders, setAvailableOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState({});
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [activeTab, setActiveTab] = useState('available'); // available, my_orders
-  const [filterCity, setFilterCity] = useState('');
+  const seenOffersRef = useRef(new Set());
+  const [, setTick] = useState(0);
 
-  useEffect(() => {
-    if (user?.role !== 'livreur') {
-      navigate('/ecom/dashboard');
-      return;
-    }
-    loadData();
-  }, [user, navigate]);
+  if (!user?.workspaceId) return <NoWorkspace user={user} />;
 
   const loadData = async () => {
     setLoading(true);
+    setError('');
     try {
-      const [availableRes, myOrdersRes] = await Promise.all([
-        ecomApi.get('/orders/available', { params: { city: filterCity, limit: 50 } }),
-        ecomApi.get('/orders', { params: { assignedLivreur: user._id, limit: 50 } })
+      const [statsRes, myRes, availRes] = await Promise.all([
+        ecomApi.get('/orders/livreur/stats'),
+        ecomApi.get('/orders', { params: { assignedLivreur: user._id, limit: 20 } }),
+        ecomApi.get('/orders/available', { params: { limit: 10 } }),
       ]);
-      
-      setOrders(availableRes.data.data || []);
-      setMyOrders(myOrdersRes.data.data.orders || []);
-    } catch (err) {
-      setError('Erreur chargement des commandes');
+      setStats(statsRes.data?.data || null);
+      const allMy = myRes.data?.data?.orders || myRes.data?.data || [];
+      setMyOrders(allMy.filter(o => ['confirmed', 'shipped'].includes(o.status)).slice(0, 5));
+      setAvailableOrders(availRes.data?.data || []);
+    } catch {
+      setError('Erreur de chargement.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAssignOrder = async (orderId) => {
-    setAssigning(prev => ({ ...prev, [orderId]: true }));
-    setError('');
-    setSuccess('');
-    
+  const handleAssign = async (orderId) => {
+    setAssigning(p => ({ ...p, [orderId]: true }));
+    setError(''); setSuccess('');
     try {
-      const res = await ecomApi.post(`/orders/${orderId}/assign`);
-      setSuccess('Commande assignée avec succès!');
-      
-      // Mettre à jour les listes
-      setOrders(prev => prev.filter(o => o._id !== orderId));
-      if (res.data.data) {
-        setMyOrders(prev => [res.data.data, ...prev]);
-      }
-      
-      // Rediriger vers la page de la commande
-      setTimeout(() => navigate(`/ecom/orders/${orderId}`), 1500);
+      await ecomApi.post(`/orders/${orderId}/assign`);
+      setSuccess('Course acceptée !');
+      setAvailableOrders(p => p.filter(o => o._id !== orderId));
+      loadData();
+      setTimeout(() => setSuccess(''), 6000);
     } catch (err) {
-      setError(err.response?.data?.message || 'Erreur lors de l\'assignation');
+      setError(err.response?.data?.message || 'Erreur.');
     } finally {
-      setAssigning(prev => ({ ...prev, [orderId]: false }));
+      setAssigning(p => ({ ...p, [orderId]: false }));
     }
   };
 
-  const getStatusColor = (status) => {
-    const colors = {
-      pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      confirmed: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-      shipped: 'bg-emerald-100 text-emerald-900 border-emerald-200',
-      delivered: 'bg-green-100 text-green-800 border-green-200',
-      returned: 'bg-orange-100 text-orange-800 border-orange-200',
-      cancelled: 'bg-red-100 text-red-800 border-red-200'
-    };
-    return colors[status] || 'bg-gray-100 text-gray-800 border-gray-200';
+  const handleRefuse = async (orderId) => {
+    setAssigning(p => ({ ...p, [orderId]: true }));
+    setError('');
+    setSuccess('');
+    try {
+      await ecomApi.post(`/orders/${orderId}/refuse`);
+      setSuccess('Course refusée.');
+      setAvailableOrders((prev) => prev.filter((order) => order._id !== orderId));
+      loadData();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Erreur.');
+    } finally {
+      setAssigning(p => ({ ...p, [orderId]: false }));
+    }
   };
 
-  const getStatusLabel = (status) => {
-    const labels = {
-      pending: 'En attente',
-      confirmed: 'Confirmé',
-      shipped: 'Expédié',
-      delivered: 'Livré',
-      returned: 'Retour',
-      cancelled: 'Annulé'
-    };
-    return labels[status] || status;
+  const handleAction = async (orderId, action) => {
+    setAssigning(p => ({ ...p, [orderId]: true }));
+    setError('');
+    try {
+      await ecomApi.patch(`/orders/${orderId}/livreur-action`, { action });
+      setSuccess(action === 'delivered' ? 'Livraison confirmée !' : action === 'pickup_confirmed' ? 'Récupération confirmée !' : 'Action enregistrée.');
+      loadData();
+      setTimeout(() => setSuccess(''), 6000);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Erreur.');
+    } finally {
+      setAssigning(p => ({ ...p, [orderId]: false }));
+    }
   };
 
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit' }) : '-';
-  const fmtTime = (d) => d ? new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+  const firstName = user?.name?.split(' ')[0] || 'Livreur';
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Bonjour' : hour < 18 ? 'Bon après-midi' : 'Bonsoir';
+  const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 
-  if (loading) {
-    return (
-      <div className="p-4 sm:p-6">
-        <div className="h-8 w-48 bg-gray-200 rounded-lg animate-pulse mb-6" />
-        <div className="space-y-2">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="bg-white rounded-xl border border-gray-100 p-4">
-              <div className="h-4 w-32 bg-gray-200 rounded animate-pulse mb-2" />
-              <div className="h-3 w-24 bg-gray-100 rounded animate-pulse" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    loadData();
+    const pollId = setInterval(() => loadData(), 10000);
+    const tickId = setInterval(() => setTick((value) => value + 1), 1000);
+    const onNotification = (event) => {
+      const detail = event.detail || {};
+      const orderId = detail.metadata?.orderId || detail.data?.orderId;
+      if (detail.type === 'course' && orderId && !seenOffersRef.current.has(String(orderId))) {
+        seenOffersRef.current.add(String(orderId));
+        playConfirmSound();
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      }
+      if (detail.type === 'course' || detail.type === 'order_taken') {
+        loadData();
+      }
+    };
+
+    window.addEventListener('ecom:notification', onNotification);
+    return () => {
+      clearInterval(pollId);
+      clearInterval(tickId);
+      window.removeEventListener('ecom:notification', onNotification);
+    };
+  }, []);
+
+  if (loading) return <Loader />;
 
   return (
-    <div className="p-3 sm:p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">🚚 Tableau de bord Livreur</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Bienvenue {user?.name} - Gérez vos livraisons
-        </p>
+    <div className="p-3 sm:p-6 max-w-[900px] mx-auto space-y-6">
+      {/* En-tête */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{greeting}, {firstName} 🚚</h1>
+          <p className="text-sm text-gray-400 capitalize mt-0.5">{today}</p>
+        </div>
+        <button onClick={loadData} className="px-3 py-1.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 rounded-lg transition text-gray-600">↻ Actualiser</button>
       </div>
 
       {/* Messages */}
-      {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm flex items-center justify-between">
-          {error}
-          <button onClick={() => setError('')} className="text-red-500 hover:text-red-700 ml-2">&times;</button>
-        </div>
-      )}
-      {success && (
-        <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm flex items-center justify-between">
-          {success}
-          <button onClick={() => setSuccess('')} className="text-green-500 hover:text-green-700 ml-2">&times;</button>
-        </div>
-      )}
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">{error}<button onClick={() => setError('')} className="float-right font-bold">&times;</button></div>}
+      {success && <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm">{success}</div>}
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <div className="bg-white rounded-xl shadow-sm border p-4 text-center">
-          <p className="text-2xl font-bold text-emerald-600">{orders.length}</p>
-          <p className="text-xs text-gray-500 uppercase font-medium mt-1">Disponibles</p>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm border p-4 text-center">
-          <p className="text-2xl font-bold text-green-600">{myOrders.filter(o => o.status === 'delivered').length}</p>
-          <p className="text-xs text-gray-500 uppercase font-medium mt-1">Livrées</p>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm border p-4 text-center">
-          <p className="text-2xl font-bold text-emerald-700">{myOrders.filter(o => ['confirmed', 'shipped'].includes(o.status)).length}</p>
-          <p className="text-xs text-gray-500 uppercase font-medium mt-1">En cours</p>
-        </div>
-        <div className="bg-white rounded-xl shadow-sm border p-4 text-center">
-          <p className="text-lg font-bold text-gray-700">{myOrders.reduce((sum, o) => sum + (o.price * o.quantity || 0), 0)}</p>
-          <p className="text-xs text-gray-500 uppercase font-medium mt-1">Total commandes</p>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6">
-        <button
-          onClick={() => setActiveTab('available')}
-          className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition ${
-            activeTab === 'available' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          📦 Commandes disponibles ({orders.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('my_orders')}
-          className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition ${
-            activeTab === 'my_orders' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          🚚 Mes commandes ({myOrders.length})
-        </button>
-      </div>
-
-      {/* Filter by city */}
-      <div className="bg-white rounded-xl shadow-sm border p-3 mb-4">
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700">Filtrer par ville:</label>
-          <input
-            type="text"
-            value={filterCity}
-            onChange={(e) => setFilterCity(e.target.value)}
-            placeholder="Ex: Douala, Yaoundé..."
-            className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600"
-          />
-          {filterCity && (
-            <button
-              onClick={() => setFilterCity('')}
-              className="px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded-lg transition"
-            >
-              Effacer
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Available Orders */}
-      {activeTab === 'available' && (
-        <div className="space-y-3">
-          {orders.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-xl shadow-sm border">
-              <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                </svg>
+      {/* KPI Cards */}
+      {stats && (
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {[
+            { label: 'Disponibles', value: stats.available || 0, iconBg: '#fffbeb', icon: <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>, sub: 'courses' },
+            { label: 'En cours', value: stats.inProgress || 0, iconBg: '#eef2ff', icon: <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>, sub: 'livraisons' },
+            { label: 'Ce mois', value: stats.thisMonth?.delivered || 0, iconBg: '#ecfdf5', icon: <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>, sub: 'livrées' },
+            { label: 'Semaine', value: stats.thisWeek?.delivered || 0, iconBg: '#f5f3ff', icon: <svg className="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>, sub: 'livrées' },
+            { label: 'Total', value: stats.allTime?.delivered || 0, iconBg: '#f0fdf4', icon: <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>, sub: 'livrées' },
+          ].map((k, i) => (
+            <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{k.label}</p>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: k.iconBg }}>{k.icon}</div>
               </div>
-              <p className="text-gray-500 font-medium">Aucune commande disponible</p>
-              <p className="text-sm text-gray-400 mt-1">Revenez plus tard ou essayez une autre ville</p>
+              <p className="text-3xl font-black text-gray-900">{k.value}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{k.sub}</p>
             </div>
-          ) : (
-            orders.map(order => (
-              <div key={order._id} className="bg-white rounded-xl shadow-sm border p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-sm font-semibold text-gray-900">{order.clientName}</span>
-                      <span className={`text-xs font-medium px-2 py-1 rounded-full border ${getStatusColor(order.status)}`}>
-                        {getStatusLabel(order.status)}
-                      </span>
-                      {order.orderId && (
-                        <span className="text-xs font-mono text-gray-400 bg-gray-50 px-2 py-1 rounded">
-                          #{order.orderId}
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-600 mb-3">
-                      <div className="flex items-center gap-1">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                        </svg>
-                        {order.clientPhone}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        {order.city}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                        </svg>
-                        {order.product} ({order.quantity})
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        {fmt(order.price * order.quantity)}
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 text-xs text-gray-400">
-                      <span>Commandé le {fmtDate(order.date)} à {fmtTime(order.date)}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex flex-col gap-2 ml-4">
-                    <button
-                      onClick={() => handleAssignOrder(order._id)}
-                      disabled={assigning[order._id]}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition flex items-center gap-2"
-                    >
-                      {assigning[order._id] ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          Assignation...
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          Prendre cette commande
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => navigate(`/ecom/orders/${order._id}`)}
-                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition"
-                    >
-                      Détails
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
+          ))}
         </div>
       )}
 
-      {/* My Orders */}
-      {activeTab === 'my_orders' && (
-        <div className="space-y-3">
+      {/* Gains rapide */}
+      {stats && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">💰 Gains</h2>
+            <Link to="/ecom/livreur/earnings" className="text-xs text-[#0F6B4F] font-medium hover:underline">Voir tout →</Link>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-gray-400">Ce mois</p>
+              <p className="text-2xl font-black text-gray-900">{(stats.thisMonth?.amount || 0).toLocaleString('fr-FR')} <span className="text-sm font-medium text-gray-400">FCFA</span></p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400">Total cumulé</p>
+              <p className="text-2xl font-black text-[#0F6B4F]">{(stats.allTime?.amount || 0).toLocaleString('fr-FR')} <span className="text-sm font-medium text-gray-400">FCFA</span></p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deux colonnes : livraisons en cours + courses disponibles */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Mes livraisons actives */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">🚚 En cours</h2>
+            <Link to="/ecom/livreur/deliveries" className="text-xs text-[#0F6B4F] font-medium hover:underline">Tout voir →</Link>
+          </div>
           {myOrders.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-xl shadow-sm border">
-              <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                </svg>
-              </div>
-              <p className="text-gray-500 font-medium">Aucune commande assignée</p>
-              <p className="text-sm text-gray-400 mt-1">Prenez des commandes disponibles pour commencer</p>
+            <div className="text-center py-8">
+              <p className="text-gray-400 text-sm">Aucune livraison active</p>
+              <Link to="/ecom/livreur/available" className="text-xs text-[#0F6B4F] font-medium mt-2 inline-block">Accepter une course →</Link>
             </div>
           ) : (
-            myOrders.map(order => (
-              <div key={order._id} className="bg-white rounded-xl shadow-sm border p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-sm font-semibold text-gray-900">{order.clientName}</span>
-                      <span className={`text-xs font-medium px-2 py-1 rounded-full border ${getStatusColor(order.status)}`}>
-                        {getStatusLabel(order.status)}
-                      </span>
-                      {order.orderId && (
-                        <span className="text-xs font-mono text-gray-400 bg-gray-50 px-2 py-1 rounded">
-                          #{order.orderId}
-                        </span>
+            <div className="space-y-2">
+              {myOrders.map(order => {
+                const sm = STATUS_META[order.status] || { bg: '#f9fafb', text: '#374151' };
+                return (
+                  <div key={order._id} className="rounded-xl border border-gray-100 p-3 hover:bg-gray-50 transition">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-semibold text-gray-900 truncate">{order.clientName || order.clientPhone || 'Client'}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: sm.bg, color: sm.text }}>{STATUS_LABELS[order.status] || order.status}</span>
+                    </div>
+                    <p className="text-xs text-gray-400 truncate">{order.address || order.city || '—'}</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      {order.status === 'confirmed' && (
+                        <button onClick={() => handleAction(order._id, 'pickup_confirmed')} disabled={assigning[order._id]} className="text-xs px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg font-medium hover:bg-amber-100 transition disabled:opacity-50">
+                          {assigning[order._id] ? '…' : '📦 Récupéré'}
+                        </button>
                       )}
-                    </div>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-600 mb-3">
-                      <div className="flex items-center gap-1">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                        </svg>
-                        {order.clientPhone}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        {order.city}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                        </svg>
-                        {order.product} ({order.quantity})
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        {fmt(order.price * order.quantity)}
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 text-xs text-gray-400">
-                      <span>Assigné le {fmtDate(order.updatedAt)} à {fmtTime(order.updatedAt)}</span>
+                      {order.status === 'shipped' && (
+                        <button onClick={() => handleAction(order._id, 'delivered')} disabled={assigning[order._id]} className="text-xs px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg font-medium hover:bg-green-100 transition disabled:opacity-50">
+                          {assigning[order._id] ? '…' : '✅ Livré'}
+                        </button>
+                      )}
+                      <Link to={`/ecom/livreur/delivery/${order._id}`} className="text-xs px-3 py-1.5 bg-gray-50 text-gray-600 border border-gray-200 rounded-lg font-medium hover:bg-gray-100 transition">Détails</Link>
                     </div>
                   </div>
-                  
-                  <div className="flex flex-col gap-2 ml-4">
-                    <button
-                      onClick={() => navigate(`/ecom/orders/${order._id}`)}
-                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium transition"
-                    >
-                      Gérer la livraison
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
+                );
+              })}
+            </div>
           )}
         </div>
-      )}
+
+        {/* Courses disponibles */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">📦 Disponibles</h2>
+            <Link to="/ecom/livreur/available" className="text-xs text-[#0F6B4F] font-medium hover:underline">Tout voir →</Link>
+          </div>
+          {availableOrders.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-400 text-sm">Aucune course disponible</p>
+              <p className="text-xs text-gray-300 mt-1">Revenez dans quelques instants</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {availableOrders.map(order => (
+                <div key={order._id} className="rounded-xl border border-gray-100 p-3 hover:bg-gray-50 transition">
+                  {(() => {
+                    const meta = getOfferMeta(order);
+                    const remaining = formatRemaining(meta.responseDeadline);
+                    return (
+                      <>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-semibold text-gray-900 truncate">{order.clientName || order.clientPhone || 'Client'}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-mono text-gray-300">{order.orderId}</span>
+                      {meta.isTargeted && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">Ciblée</span>}
+                      {remaining && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600">{remaining}</span>}
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400 truncate">{order.city || order.address || '—'}{order.product ? ` · ${order.product}` : ''}</p>
+                  {meta.destination && <p className="text-xs text-gray-400 truncate mt-1">🎯 {meta.destination}</p>}
+                  {(meta.gainLabel || meta.estimatedDistanceLabel) && <p className="text-xs text-gray-400 truncate mt-1">💸 {meta.gainLabel || '—'} · 📏 {meta.estimatedDistanceLabel || 'À estimer'}</p>}
+                  {order.price && <p className="text-xs font-semibold text-[#0F6B4F] mt-0.5">{Number(order.price).toLocaleString('fr-FR')} FCFA</p>}
+                  <div className="mt-2 flex gap-2">
+                    <button onClick={() => handleAssign(order._id)} disabled={assigning[order._id]} className="text-xs px-3 py-1.5 bg-[#0F6B4F] text-white rounded-lg font-medium hover:bg-[#0a5740] transition disabled:opacity-50 flex-1">
+                      {assigning[order._id] ? 'Assignation…' : '✓ Accepter'}
+                    </button>
+                    <button onClick={() => handleRefuse(order._id)} disabled={assigning[order._id]} className="text-xs px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg font-medium hover:bg-red-100 transition disabled:opacity-50 flex-1">
+                      {assigning[order._id] ? '…' : '✕ Refuser'}
+                    </button>
+                  </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Actions rapides */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {[
+          { href: '/ecom/livreur/available', icon: '📦', label: 'Courses disponibles', sub: 'Accepter de nouvelles courses' },
+          { href: '/ecom/livreur/history', icon: '📋', label: 'Historique', sub: 'Toutes vos livraisons terminées' },
+          { href: '/ecom/livreur/earnings', icon: '💰', label: 'Mes gains', sub: 'Détail de vos revenus' },
+        ].map((a, i) => (
+          <Link key={i} to={a.href} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition group flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-xl shrink-0">{a.icon}</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900">{a.label}</p>
+              <p className="text-xs text-gray-400 truncate">{a.sub}</p>
+            </div>
+            <svg className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 };

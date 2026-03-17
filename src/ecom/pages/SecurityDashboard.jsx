@@ -235,7 +235,6 @@ const SecurityDashboard = () => {
                 <option value="DELETE_USER">Suppressions</option>
                 <option value="TOGGLE_USER">Activations/Désactivations</option>
                 <option value="VIEW_SENSITIVE_DATA">Accès données sensibles</option>
-                <option value="IMPERSONATE_USER">Incarnations</option>
               </select>
               <button
                 onClick={() => fetchAuditLogs(logsPage)}

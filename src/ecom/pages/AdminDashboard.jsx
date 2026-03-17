@@ -223,24 +223,6 @@ const AdminDashboard = () => {
   const [currentCalendarMonth, setCurrentCalendarMonth] = useState(new Date());
   const [isSelectingEnd, setIsSelectingEnd] = useState(false);
 
-  // Tutorial popup — once per session
-  const [showTutorialModal, setShowTutorialModal] = useState(false);
-  const tutorialShownRef = useRef(false);
-
-  useEffect(() => {
-    if (!tutorialShownRef.current && !sessionStorage.getItem('scalor_tuto_seen')) {
-      tutorialShownRef.current = true;
-      // Delay slightly so the dashboard loading screen finishes first
-      const t = setTimeout(() => setShowTutorialModal(true), 1200);
-      return () => clearTimeout(t);
-    }
-  }, []);
-
-  const closeTutorialModal = () => {
-    sessionStorage.setItem('scalor_tuto_seen', '1');
-    setShowTutorialModal(false);
-  };
-
   // CRITICAL: Create ref first, assign after function declaration
   const loadDashboardDataRef = useRef(null);
 
@@ -367,10 +349,20 @@ const AdminDashboard = () => {
   };
 
   const loadDashboardData = async () => {
+    // Track admin dashboard access
+    import('../../utils/analytics.js').then(m => {
+      const analytics = m.default;
+      analytics.trackPageView('/ecom/dashboard/admin', {
+        page_name: 'Admin Dashboard',
+        category: 'admin',
+        user_id: user?.id
+      });
+    }).catch(() => {});
+
     // NE JAMAIS afficher le loader pour les KPI après le premier chargement
     // Utiliser isRefreshing pour indiquer un refresh silencieux en arrière-plan
     const isFirstLoad = !stats.financialStats || Object.keys(stats.financialStats).length === 0;
-    
+
     if (isFirstLoad) {
       setLoadingKpi(true);
       setLoadingSecondary(true);
@@ -383,7 +375,7 @@ const AdminDashboard = () => {
 
     let daysCount;
     let isCustomRange = timeRange === 'custom' && customStartDate && customEndDate;
-    
+
     if (isCustomRange) {
       const start = new Date(customStartDate);
       const end = new Date(customEndDate);
@@ -418,9 +410,30 @@ const AdminDashboard = () => {
         orders: d.ordersDelivered || 0,
         deliveryRate: d.ordersReceived > 0 ? d.ordersDelivered / d.ordersReceived : 0
       }));
+
+      // Track successful data load
+      if (isFirstLoad) {
+        import('../../utils/analytics.js').then(m => {
+          const analytics = m.default;
+          analytics.trackAdminAction('dashboard_data_loaded', {
+            time_range: timeRange,
+            revenue: financialData.totalRevenue || 0,
+            orders: financialData.ordersDelivered || 0
+          });
+        }).catch(() => {});
+      }
+
       setStats(prev => ({ ...prev, financialStats: financialData, prevFinancialStats: prevFinancialData, dailyFinancial }));
     } catch (e) {
       console.error('KPI load error', e);
+      // Track error
+      import('../../utils/analytics.js').then(m => {
+        const analytics = m.default;
+        analytics.trackError(e, {
+          context: 'admin_dashboard_kpi_load',
+          time_range: timeRange
+        });
+      }).catch(() => {});
     } finally {
       if (isFirstLoad) {
         setLoadingKpi(false); // page visible immédiatement après KPIs + graphique
@@ -461,7 +474,7 @@ const AdminDashboard = () => {
 
       const goalsResponse = goalsRes.data?.data || {};
       const allGoals = goalsResponse.goals || [];
-      
+
       // Agréger tous les objectifs par type pour créer 3 objectifs globaux
       const aggregateGoalsByType = (goals, type) => {
         const filtered = goals.filter(g => g.type === type);
@@ -685,68 +698,6 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 relative">
-
-      {/* ═══ MODAL TUTORIEL ═══ */}
-      {showTutorialModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 px-6 py-5 flex items-center justify-between">
-              <div>
-                <h2 className="text-white font-bold text-lg">🎉 Bienvenue sur Scalor !</h2>
-                <p className="text-emerald-100 text-sm mt-0.5">Regardez ce tutoriel pour démarrer rapidement</p>
-              </div>
-              <button onClick={closeTutorialModal} className="p-2 hover:bg-white/20 rounded-xl transition text-white">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
-              </button>
-            </div>
-
-            {/* Video thumbnail — opens YouTube instead of embedding */}
-            <a
-              href="https://youtu.be/405eKEysE0Q"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block relative w-full bg-black"
-              style={{ paddingTop: '56.25%' }}
-            >
-              <img
-                src="https://img.youtube.com/vi/405eKEysE0Q/hqdefault.jpg"
-                alt="Tutoriel Scalor"
-                className="absolute inset-0 w-full h-full object-cover opacity-80"
-              />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-2xl hover:bg-red-700 transition">
-                  <svg className="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                </div>
-              </div>
-              <div className="absolute bottom-3 left-3 bg-black/60 text-white text-xs px-2 py-1 rounded">
-                ▶ Ouvrir sur YouTube
-              </div>
-            </a>
-
-            {/* Footer */}
-            <div className="px-6 py-4 bg-gray-50 flex items-center justify-between gap-4">
-              <p className="text-sm text-gray-500">📺 Maîtrisez Scalor en 15 minutes</p>
-              <div className="flex items-center gap-3">
-                <a
-                  href="https://youtu.be/405eKEysE0Q"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-xl hover:bg-red-50 transition"
-                >
-                  Ouvrir sur YouTube
-                </a>
-                <button
-                  onClick={closeTutorialModal}
-                  className="px-5 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition"
-                >
-                  C'est parti !
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Écran de chargement minimaliste */}
       {showLoadingScreen && (

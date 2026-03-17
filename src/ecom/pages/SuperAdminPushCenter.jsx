@@ -251,7 +251,7 @@ const SuperAdminPushCenter = () => {
                 disabled={scope !== 'workspace'}
                 className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm disabled:bg-gray-50"
               >
-                <option value="">Sélectionnerâ€¦</option>
+                <option value="">Sélectionner...</option>
                 {wsOptions.map((w) => (
                   <option key={w.id} value={w.id}>{w.name}</option>
                 ))}
@@ -264,7 +264,7 @@ const SuperAdminPushCenter = () => {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"
-                placeholder="Ex: Mise ù  jour importante"
+                placeholder="Ex: Mise a jour importante"
               />
             </div>
 
@@ -368,7 +368,7 @@ const SuperAdminPushCenter = () => {
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <div>
               <h2 className="text-sm font-bold text-gray-800">Automations</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Préconfigurations ù  heures fixes (activables/désactivables).</p>
+              <p className="text-xs text-gray-500 mt-0.5">Preconfigurations a heures fixes (activables/desactivables).</p>
             </div>
             <button
               type="button"

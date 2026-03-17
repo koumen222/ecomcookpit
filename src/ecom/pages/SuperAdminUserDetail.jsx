@@ -57,7 +57,7 @@ const roleConfig = {
 };
 
 const SuperAdminUserDetail = () => {
-  const { userId } = useParams();
+  const { id } = useParams();
   const navigate = useNavigate();
   const { user: currentUser } = useEcomAuth();
   const [user, setUser] = useState(null);
@@ -67,7 +67,7 @@ const SuperAdminUserDetail = () => {
 
   const fetchUser = async () => {
     try {
-      const res = await ecomApi.get(`/super-admin/users/${userId}`);
+      const res = await ecomApi.get(`/super-admin/users/${id}`);
       setUser(res.data.data.user);
     } catch (err) {
       setError(getContextualError(err, 'load_users'));
@@ -76,11 +76,11 @@ const SuperAdminUserDetail = () => {
 
   useEffect(() => {
     fetchUser().finally(() => setLoading(false));
-  }, [userId]);
+  }, [id]);
 
   const handleToggleUser = async () => {
     try {
-      const res = await ecomApi.put(`/super-admin/users/${userId}/toggle`);
+      const res = await ecomApi.put(`/super-admin/users/${id}/toggle`);
       setSuccess(res.data.message);
       fetchUser();
     } catch (err) {
@@ -90,7 +90,7 @@ const SuperAdminUserDetail = () => {
 
   const handleChangeRole = async (newRole) => {
     try {
-      const res = await ecomApi.put(`/super-admin/users/${userId}/role`, { role: newRole });
+      const res = await ecomApi.put(`/super-admin/users/${id}/role`, { role: newRole });
       setSuccess(res.data.message);
       fetchUser();
     } catch (err) {
@@ -101,7 +101,7 @@ const SuperAdminUserDetail = () => {
   const handleDeleteUser = async () => {
     if (!confirm(`Supprimer définitivement ${user.email} ?`)) return;
     try {
-      await ecomApi.delete(`/super-admin/users/${userId}`);
+      await ecomApi.delete(`/super-admin/users/${id}`);
       setSuccess('Utilisateur supprimé');
       setTimeout(() => navigate('/ecom/super-admin/users'), 1500);
     } catch (err) {

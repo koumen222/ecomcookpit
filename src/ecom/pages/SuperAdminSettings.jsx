@@ -19,7 +19,7 @@ const SuperAdminSettings = () => {
           ecomApi.get('/super-admin/workspaces')
         ]);
         setStats({
-          totalUsers: usersRes.data.data.stats.totalUsers || 0,
+          totalUsers: usersRes.data?.data?.stats?.totalUsers || 0,
           totalWorkspaces: wsRes.data.data.totalWorkspaces || 0
         });
       } catch { }
@@ -64,7 +64,7 @@ const SuperAdminSettings = () => {
           <div className="absolute inset-0 rounded-full border-2 border-gray-200" />
           <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-emerald-700 animate-spin" />
         </div>
-        <p className="text-sm text-gray-400 font-medium">Chargementâ€¦</p>
+        <p className="text-sm text-gray-400 font-medium">Chargement...</p>
       </div>
     </div>
   );

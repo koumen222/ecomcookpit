@@ -27,7 +27,7 @@ export const createNotification = async ({ workspaceId, userId = null, type, tit
     try {
       const io = getIO();
       if (io) {
-        const payload = { _id: notification._id, type, title, message, icon, link, createdAt: notification.createdAt };
+        const payload = { _id: notification._id, type, title, message, icon, link, metadata, createdAt: notification.createdAt };
         if (userId) {
           // Notification ciblée → envoyer à l'utilisateur spécifique
           io.to(`user:${userId}`).emit('notification:new', payload);

@@ -333,7 +333,7 @@ const SuperAdminWhatsAppPostulations = () => {
                                                 </div>
                                                 <div className="space-y-1.5">
                                                     <div>
-                                                        <p className="text-xs text-gray-500">Numéro ù  configurer</p>
+                                                        <p className="text-xs text-gray-500">Numero a configurer</p>
                                                         <p className="text-sm text-green-400 font-mono font-medium">{fmtPhone(p.phoneNumber)}</p>
                                                     </div>
                                                     <div>

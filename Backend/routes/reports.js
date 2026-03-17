@@ -1245,6 +1245,227 @@ router.post('/',
   }
 );
 
+// POST /api/ecom/reports/auto-generate - Génération automatique des rapports depuis les commandes livrées
+router.post('/auto-generate',
+  requireEcomAuth,
+  validateEcomAccess('orders', 'write'),
+  async (req, res) => {
+    try {
+      const { date, startDate, endDate, mappings } = req.body || {};
+
+      // Map des assignations manuelles : nomCommande (lowercase) -> productId
+      const manualMap = {};
+      if (Array.isArray(mappings)) {
+        mappings.forEach(m => {
+          if (m.orderProductName && m.productId) {
+            manualMap[m.orderProductName.toLowerCase().trim()] = m.productId;
+          }
+        });
+      }
+
+      // Construire le filtre de date
+      let dateFilter;
+      if (date) {
+        const s = new Date(date + 'T00:00:00.000Z');
+        const e = new Date(date + 'T23:59:59.999Z');
+        dateFilter = { $gte: s, $lte: e };
+      } else if (startDate || endDate) {
+        dateFilter = {};
+        if (startDate) dateFilter.$gte = new Date(startDate + 'T00:00:00.000Z');
+        if (endDate) dateFilter.$lte = new Date(endDate + 'T23:59:59.999Z');
+      } else {
+        // Par défaut : aujourd'hui
+        const today = new Date().toISOString().split('T')[0];
+        dateFilter = { $gte: new Date(today + 'T00:00:00.000Z'), $lte: new Date(today + 'T23:59:59.999Z') };
+      }
+
+      const wsOid = new mongoose.Types.ObjectId(req.workspaceId);
+
+      // Agréger les commandes livrées par produit + date de LIVRAISON (statusModifiedAt ou updatedAt)
+      // Toutes sources confondues (pas de filtre source)
+      const [deliveredAgg, allOrdersAgg] = await Promise.all([
+        Order.aggregate([
+          { $match: {
+            workspaceId: wsOid,
+            status: 'delivered',
+            $or: [
+              { statusModifiedAt: dateFilter },
+              { $and: [{ statusModifiedAt: null }, { updatedAt: dateFilter }] }
+            ]
+          }},
+          { $addFields: {
+            _deliveryDate: {
+              $ifNull: ['$statusModifiedAt', '$updatedAt']
+            }
+          }},
+          { $group: {
+            _id: {
+              dateKey: { $dateToString: { format: '%Y-%m-%d', date: '$_deliveryDate' } },
+              product: '$product'
+            },
+            ordersDelivered: { $sum: { $ifNull: ['$quantity', 1] } }
+          }}
+        ]),
+        // Commandes reçues (créées) sur la même période, toutes sources
+        // Utilise date (création) avec fallback createdAt si date est null
+        Order.aggregate([
+          { $addFields: {
+            _orderDate: { $ifNull: ['$date', '$createdAt'] }
+          }},
+          { $match: {
+            workspaceId: wsOid,
+            product: { $ne: '' },
+            _orderDate: dateFilter
+          }},
+          { $group: {
+            _id: {
+              dateKey: { $dateToString: { format: '%Y-%m-%d', date: '$_orderDate' } },
+              product: '$product'
+            },
+            ordersReceived: { $sum: 1 }
+          }}
+        ])
+      ]);
+
+      if (deliveredAgg.length === 0) {
+        return res.json({
+          success: true,
+          message: 'Aucune commande livrée trouvée pour cette période',
+          data: { created: [], updated: [], skipped: [] }
+        });
+      }
+
+      // Map des commandes reçues par produit+date
+      const receivedMap = {};
+      allOrdersAgg.forEach(r => {
+        receivedMap[`${r._id.dateKey}|${r._id.product}`] = r.ordersReceived;
+      });
+
+      // Charger tous les produits du workspace
+      const products = await Product.find(
+        { workspaceId: req.workspaceId },
+        { name: 1, sellingPrice: 1, productCost: 1, deliveryCost: 1 }
+      ).lean();
+
+      // Map nom (en minuscules) -> produit
+      const productByName = {};
+      products.forEach(p => {
+        if (p.name) productByName[p.name.toLowerCase().trim()] = p;
+      });
+
+      const created = [];
+      const updated = [];
+      const skipped = [];
+      const unmatchedMap = {}; // productName -> { productName, totalDelivered, totalReceived, dates[] }
+
+      for (const agg of deliveredAgg) {
+        const { dateKey, product: productName } = agg._id;
+
+        if (!productName || !productName.trim()) {
+          skipped.push({ reason: 'Nom de produit vide', dateKey });
+          continue;
+        }
+
+        const key = productName.toLowerCase().trim();
+        let productDoc = productByName[key];
+
+        // Essayer l'assignation manuelle si pas trouvé par nom
+        if (!productDoc && manualMap[key]) {
+          productDoc = products.find(p => p._id.toString() === manualMap[key]);
+        }
+
+        if (!productDoc) {
+          if (!unmatchedMap[productName]) {
+            unmatchedMap[productName] = { productName, totalDelivered: 0, totalReceived: 0, dates: [] };
+          }
+          const ordDel = agg.ordersDelivered || 0;
+          const ordRec = receivedMap[`${dateKey}|${productName}`] || 0;
+          unmatchedMap[productName].totalDelivered += ordDel;
+          unmatchedMap[productName].totalReceived += ordRec;
+          unmatchedMap[productName].dates.push({ dateKey, ordersDelivered: ordDel, ordersReceived: ordRec });
+          continue;
+        }
+
+        const ordersDelivered = agg.ordersDelivered || 0;
+        const ordersReceived = receivedMap[`${dateKey}|${productName}`] || 0;
+
+        // Date normalisée à minuit UTC
+        const reportDate = new Date(dateKey + 'T00:00:00.000Z');
+        const dayStart = new Date(dateKey + 'T00:00:00.000Z');
+        const dayEnd = new Date(dateKey + 'T23:59:59.999Z');
+
+        // Calcul financier (sans dépense pub — à compléter manuellement)
+        const sp = productDoc.sellingPrice || 0;
+        const pc = productDoc.productCost || 0;
+        const dc = productDoc.deliveryCost || 0;
+        const revenue = sp * ordersDelivered;
+        const computedProductCost = pc * ordersDelivered;
+        const computedDeliveryCost = dc * ordersDelivered;
+        const cost = (pc + dc) * ordersDelivered;
+        const profit = revenue - cost;
+
+        const existing = await DailyReport.findOne({
+          workspaceId: req.workspaceId,
+          date: { $gte: dayStart, $lte: dayEnd },
+          productId: productDoc._id
+        });
+
+        if (existing) {
+          // Mettre à jour les quantités ; conserver adSpend si déjà renseigné manuellement
+          const adSpend = existing.adSpend || 0;
+          const updatedRevenue = adSpend > 0 ? existing.revenue : revenue;
+          const updatedCost = adSpend > 0 ? existing.cost : cost + adSpend;
+          const updatedProfit = updatedRevenue - updatedCost;
+          await DailyReport.updateOne(
+            { _id: existing._id },
+            { $set: {
+              ordersDelivered,
+              ordersReceived,
+              quantity: ordersDelivered,
+              productCost: computedProductCost,
+              deliveryCost: computedDeliveryCost,
+              revenue: updatedRevenue,
+              cost: updatedCost,
+              profit: updatedProfit
+            }}
+          );
+          updated.push({ dateKey, productName: productDoc.name });
+        } else {
+          await DailyReport.create({
+            workspaceId: req.workspaceId,
+            date: reportDate,
+            productId: productDoc._id,
+            ordersReceived,
+            ordersDelivered,
+            quantity: ordersDelivered,
+            adSpend: 0,
+            revenue,
+            productCost: computedProductCost,
+            deliveryCost: computedDeliveryCost,
+            cost,
+            profit,
+            reportedBy: req.ecomUser._id,
+            notes: 'Rapport généré automatiquement'
+          });
+          created.push({ dateKey, productName: productDoc.name });
+        }
+      }
+
+      const unmatched = Object.values(unmatchedMap);
+      const total = created.length + updated.length;
+      const hasUnmatched = unmatched.length > 0;
+      res.json({
+        success: true,
+        message: `${total} rapport(s) traité(s) : ${created.length} créé(s), ${updated.length} mis à jour${hasUnmatched ? ` · ${unmatched.length} produit(s) à assigner` : ''}${skipped.length > 0 ? ` · ${skipped.length} ignoré(s)` : ''}`,
+        data: { created, updated, skipped, unmatched }
+      });
+    } catch (error) {
+      console.error('Erreur auto-generate reports:', error);
+      res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+  }
+);
+
 // PUT /api/ecom/reports/:id - Modifier un rapport
 router.put('/:id', 
   requireEcomAuth, 

@@ -728,8 +728,11 @@ router.post('/create-workspace', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Le nom de l\'espace est requis (min. 2 caractères)' });
     }
 
-    const { role = 'ecom_admin' } = req.body;
-    const validRoles = ['ecom_admin', 'ecom_closeuse', 'ecom_compta', 'livreur'];
+    const { role: rawRole = 'ecom_admin' } = req.body;
+    // Normaliser 'livreur' → 'ecom_livreur' (rétro-compatibilité)
+    const roleNorm = { livreur: 'ecom_livreur' };
+    const role = roleNorm[rawRole] || rawRole;
+    const validRoles = ['ecom_admin', 'ecom_closeuse', 'ecom_compta', 'ecom_livreur'];
     if (!validRoles.includes(role)) {
       return res.status(400).json({ success: false, message: 'Rôle invalide' });
     }

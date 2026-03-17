@@ -58,7 +58,7 @@ const InviteAccept = () => {
         ecom_admin: '/ecom/dashboard/admin',
         ecom_closeuse: '/ecom/dashboard/closeuse',
         ecom_compta: '/ecom/dashboard/compta',
-        livreur: '/ecom/livreur'
+        ecom_livreur: '/ecom/livreur'
       };
       window.location.href = roleMap[selectedRole] || '/ecom/dashboard';
     } catch (err) {
@@ -72,7 +72,7 @@ const InviteAccept = () => {
     { value: 'ecom_closeuse', label: 'Closeuse', desc: 'Commandes & ventes' },
     { value: 'ecom_admin', label: 'Administrateur', desc: 'Accès complet' },
     { value: 'ecom_compta', label: 'Comptable', desc: 'Finances & rapports' },
-    { value: 'livreur', label: 'Livreur', desc: 'Livraisons' },
+    { value: 'ecom_livreur', label: 'Livreur', desc: 'Livraisons' },
   ];
 
   if (loading) return (

@@ -9,7 +9,7 @@ import EcomUser from '../models/EcomUser.js';
 import CloseuseAssignment from '../models/CloseuseAssignment.js';
 import Notification from '../models/Notification.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
-import { notifyNewOrder, notifyOrderStatus, notifyTeamOrderCreated, notifyTeamOrderStatusChanged } from '../services/notificationHelper.js';
+import { createNotification, notifyNewOrder, notifyOrderStatus, notifyTeamOrderCreated, notifyTeamOrderStatusChanged } from '../services/notificationHelper.js';
 import { sendWhatsAppMessage, sendOrderNotification } from '../services/whatsappService.js';
 import { sendOrderConfirmationToClient } from '../services/shopifyWhatsappService.js';
 import { formatInternationalPhone, isValidWhatsAppNumber, normalizePhone } from '../utils/phoneUtils.js';
@@ -56,6 +56,174 @@ function fixOrderPhone(order) {
 // Créer un EventEmitter global pour la progression
 const syncProgressEmitter = new EventEmitter();
 const activeSyncControllers = new Map();
+const DEFAULT_DELIVERY_RESPONSE_SECONDS = 15;
+
+const formatMoney = (amount = 0) => `${Number(amount || 0).toLocaleString('fr-FR')} FCFA`;
+
+function getPickupLocationLabel(workspaceName) {
+  return workspaceName ? `Base ${workspaceName}` : 'Point de récupération';
+}
+
+function getDestinationLabel(order) {
+  return order.deliveryLocation || order.address || order.city || 'Destination à confirmer';
+}
+
+function getEstimatedDistanceLabel(order) {
+  const explicitDistance = order.rawData?.estimatedDistance || order.rawData?.distance || order.rawData?.Distance;
+  if (explicitDistance) return String(explicitDistance);
+  if (order.city) return `Zone ${order.city}`;
+  return 'À estimer';
+}
+
+async function getWorkspaceName(workspaceId) {
+  const workspace = await EcomWorkspace.findById(workspaceId).select('name').lean().catch(() => null);
+  return workspace?.name || '';
+}
+
+function buildDeliveryOfferMetadata(order, options = {}) {
+  const responseWindowSeconds = options.responseWindowSeconds || DEFAULT_DELIVERY_RESPONSE_SECONDS;
+  return {
+    orderId: order._id,
+    orderIdStr: order.orderId,
+    clientName: order.clientName,
+    city: order.city,
+    product: order.product,
+    quantity: order.quantity,
+    phone: order.clientPhone,
+    pickupLocation: getPickupLocationLabel(options.workspaceName),
+    destination: getDestinationLabel(order),
+    priceLabel: formatMoney(order.price),
+    gainLabel: formatMoney(order.price),
+    estimatedDistanceLabel: getEstimatedDistanceLabel(order),
+    responseWindowSeconds,
+    responseDeadline: options.responseDeadline || null,
+    offerMode: options.offerMode || 'broadcast'
+  };
+}
+
+function buildDeliveryOfferMessage(metadata) {
+  return `Récup: ${metadata.pickupLocation} • Dest: ${metadata.destination} • Gain: ${metadata.gainLabel} • Distance: ${metadata.estimatedDistanceLabel}`;
+}
+
+async function sendDeliveryOfferNotifications({ workspaceId, order, livreurs, workspaceName, responseDeadline, offerMode = 'broadcast' }) {
+  if (!livreurs.length) return;
+
+  const { sendPushNotificationToUser } = await import('../services/pushService.js');
+  const metadata = buildDeliveryOfferMetadata(order, {
+    workspaceName,
+    responseWindowSeconds: DEFAULT_DELIVERY_RESPONSE_SECONDS,
+    responseDeadline,
+    offerMode
+  });
+
+  await Promise.allSettled(
+    livreurs.map(async (livreur) => {
+      await createNotification({
+        workspaceId,
+        userId: livreur._id,
+        type: 'course',
+        title: offerMode === 'targeted' ? '🚚 Course proposée' : '📦 Nouvelle course disponible',
+        message: buildDeliveryOfferMessage(metadata),
+        icon: 'order',
+        link: `/ecom/livreur/available`,
+        metadata
+      });
+
+      await sendPushNotificationToUser(livreur._id, {
+        title: offerMode === 'targeted' ? '🚚 Course proposée' : '📦 Nouvelle course disponible',
+        body: `${order.clientName || 'Client'} • ${metadata.destination} • ${metadata.gainLabel}`,
+        icon: '/icons/icon-192x192.png',
+        badge: '/icons/icon-72x72.png',
+        tag: `delivery-offer-${order._id}`,
+        data: {
+          type: 'course',
+          orderId: order._id.toString(),
+          url: '/ecom/livreur/available',
+          metadata
+        },
+        requireInteraction: true
+      });
+    })
+  );
+}
+
+async function notifyDeliveryTaken({ workspaceId, order, takenByLivreurId }) {
+  const takingLivreur = await EcomUser.findById(takenByLivreurId).select('name').lean().catch(() => null);
+  const livreurs = await EcomUser.find({
+    workspaceId,
+    role: 'ecom_livreur',
+    status: 'active',
+    _id: { $ne: takenByLivreurId }
+  }).select('_id').lean();
+
+  await Promise.allSettled(
+    livreurs.map((livreur) =>
+      createNotification({
+        workspaceId,
+        userId: livreur._id,
+        type: 'order_taken',
+        title: '🚚 Course prise',
+        message: `Commande #${order.orderId} prise par ${takingLivreur?.name || 'un livreur'}`,
+        icon: 'order',
+        metadata: {
+          orderId: order._id,
+          orderIdStr: order.orderId,
+          takenBy: takingLivreur?.name || 'Un livreur'
+        }
+      })
+    )
+  );
+}
+
+async function escalateExpiredDeliveryOffers(workspaceId) {
+  const now = new Date();
+  const expiredOrders = await Order.find({
+    workspaceId,
+    readyForDelivery: true,
+    assignedLivreur: null,
+    deliveryOfferMode: 'targeted',
+    deliveryOfferExpiresAt: { $lte: now },
+    deliveryOfferEscalatedAt: null
+  }).select('_id orderId clientName city product quantity price clientPhone deliveryLocation address rawData deliveryOfferRefusedBy').lean();
+
+  if (!expiredOrders.length) return;
+
+  const workspaceName = await getWorkspaceName(workspaceId);
+
+  for (const expiredOrder of expiredOrders) {
+    const refusedIds = (expiredOrder.deliveryOfferRefusedBy || []).map((entry) => entry.toString());
+    const livreurs = await EcomUser.find({
+      workspaceId,
+      role: 'ecom_livreur',
+      status: 'active',
+      _id: { $nin: refusedIds }
+    }).select('_id').lean();
+
+    await Order.updateOne(
+      { _id: expiredOrder._id, deliveryOfferEscalatedAt: null },
+      {
+        $set: {
+          deliveryOfferMode: 'broadcast',
+          deliveryOfferTargetLivreur: null,
+          deliveryOfferSentAt: now,
+          deliveryOfferExpiresAt: null,
+          deliveryOfferEscalatedAt: now
+        }
+      }
+    );
+
+    await sendDeliveryOfferNotifications({
+      workspaceId,
+      order: expiredOrder,
+      livreurs,
+      workspaceName,
+      responseDeadline: null,
+      offerMode: 'broadcast'
+    }).catch((error) => {
+      console.warn('⚠️ Escalation notification failed:', error.message);
+    });
+  }
+}
 
 // Fonction pour détecter le pays depuis le numéro de téléphone ou la ville
 const detectCountry = (phone, city) => {
@@ -195,6 +363,8 @@ router.delete('/bulk', requireEcomAuth, validateEcomAccess('products', 'write'),
     if (sourceId) {
       if (sourceId === 'legacy') {
         filter.sheetRowId = { $not: /^source_/ };
+      } else if (sourceId === 'webhook') {
+        filter.source = 'webhook';
       } else {
         filter.sheetRowId = { $regex: `^source_${sourceId}_` };
       }
@@ -230,7 +400,13 @@ router.get('/quick', requireEcomAuth, async (req, res) => {
   try {
     const { sourceId, sortOrder } = req.query;
     const filter = { workspaceId: req.workspaceId };
-    if (sourceId) filter.sheetRowId = { $regex: `^source_${sourceId}_` };
+    if (sourceId) {
+      if (sourceId === 'webhook') {
+        filter.source = 'webhook';
+      } else {
+        filter.sheetRowId = { $regex: `^source_${sourceId}_` };
+      }
+    }
 
     // Déterminer l'ordre de tri (1 = ascending/oldest first, -1 = descending/newest first)
     const sortDirection = sortOrder === 'oldest_first' ? 1 : -1;
@@ -295,7 +471,11 @@ router.get('/new-since', requireEcomAuth, async (req, res) => {
       updatedAt: { $gt: sinceDate }
     };
     if (sourceId) {
-      filter.sheetRowId = { $regex: `^source_${sourceId}_` };
+      if (sourceId === 'webhook') {
+        filter.source = 'webhook';
+      } else {
+        filter.sheetRowId = { $regex: `^source_${sourceId}_` };
+      }
     }
 
     // Filtre closeuse: ne montrer que les commandes des produits assignés
@@ -592,6 +772,8 @@ router.get('/', requireEcomAuth, async (req, res) => {
     if (sourceId) {
       if (sourceId === 'legacy') {
         filter.sheetRowId = { $not: /^source_/ };
+      } else if (sourceId === 'webhook') {
+        filter.source = 'webhook';
       } else {
         filter.sheetRowId = { $regex: `^source_${sourceId}_` };
       }
@@ -683,9 +865,14 @@ router.get('/', requireEcomAuth, async (req, res) => {
       }
     }
 
+    // Filtre livreur : ne voir que SES commandes assignées
+    if (req.ecomUser.role === 'ecom_livreur') {
+      filter.assignedLivreur = req.ecomUser._id;
+    }
+
 
     const orders = await Order.find(filter)
-      .select('orderId clientName clientPhone city address product quantity price status date createdAt updatedAt notes tags source sheetRowId assignedLivreur rawData')
+      .select('orderId clientName clientPhone city address product quantity price status date createdAt updatedAt notes tags source sheetRowId assignedLivreur readyForDelivery rawData')
       .sort({ sheetRowIndex: sortDirection, _id: sortDirection })
       .limit(limitNum)
       .skip((pageNum - 1) * limitNum)
@@ -1062,39 +1249,26 @@ function cleanPhoneFromSheet(val) {
 // Helper: notifier les livreurs des nouvelles commandes
 async function notifyLivreursOfNewOrder(order, workspaceId) {
   try {
-    // Récupérer tous les livreurs disponibles pour ce workspace
-    const livreurs = await EcomUser.find({ 
+    const workspaceName = await getWorkspaceName(workspaceId);
+    const livreurs = await EcomUser.find({
       workspaceId,
-      role: 'livreur',
+      role: 'ecom_livreur',
       status: 'active'
-    });
+    }).select('_id').lean();
 
     if (livreurs.length === 0) {
       console.log('Aucun livreur disponible pour la notification');
       return;
     }
 
-    // Créer une notification pour chaque livreur
-    const notifications = livreurs.map(livreur => ({
-      userId: livreur._id,
-      type: 'new_order',
-      title: '📦 Nouvelle commande disponible',
-      message: `Commande #${order.orderId} - ${order.clientName} à ${order.city}`,
-      data: {
-        orderId: order._id,
-        orderIdStr: order.orderId,
-        clientName: order.clientName,
-        city: order.city,
-        product: order.product,
-        price: order.price,
-        phone: order.clientPhone
-      },
-      priority: 'high',
-      actionUrl: `/ecom/orders/${order._id}`
-    }));
-
-    // Insérer toutes les notifications
-    await Notification.insertMany(notifications);
+    await sendDeliveryOfferNotifications({
+      workspaceId,
+      order,
+      livreurs,
+      workspaceName,
+      responseDeadline: null,
+      offerMode: 'broadcast'
+    });
     
     // Envoyer les messages WhatsApp
     for (const livreur of livreurs) {
@@ -1134,39 +1308,18 @@ async function notifyLivreursOfNewOrder(order, workspaceId) {
 // Helper: notifier les livreurs qu'une commande a été prise
 async function notifyOrderTaken(order, workspaceId, takenByLivreurId) {
   try {
-    // Récupérer tous les livreurs SAUF celui qui a pris la commande
-    const livreurs = await EcomUser.find({ 
+    await notifyDeliveryTaken({ workspaceId, order, takenByLivreurId });
+
+    const livreurs = await EcomUser.find({
       workspaceId,
-      role: 'livreur',
+      role: 'ecom_livreur',
       status: 'active',
       _id: { $ne: takenByLivreurId }
-    });
+    }).select('phone name').lean();
 
-    if (livreurs.length === 0) {
-      console.log('Aucun autre livreur à notifier');
-      return;
-    }
+    if (livreurs.length === 0) return;
 
-    // Récupérer le nom du livreur qui a pris la commande
-    const takingLivreur = await EcomUser.findById(takenByLivreurId).select('name');
-
-    // Créer une notification pour chaque autre livreur
-    const notifications = livreurs.map(livreur => ({
-      userId: livreur._id,
-      type: 'order_taken',
-      title: '🚚 Commande assignée',
-      message: `Commande #${order.orderId} a été prise par ${takingLivreur?.name || 'un livreur'}`,
-      data: {
-        orderId: order._id,
-        orderIdStr: order.orderId,
-        takenBy: takingLivreur?.name || 'Un livreur'
-      },
-      priority: 'medium',
-      actionUrl: null // Pas d'action car la commande n'est plus disponible
-    }));
-
-    // Insérer toutes les notifications
-    await Notification.insertMany(notifications);
+    const takingLivreur = await EcomUser.findById(takenByLivreurId).select('name').lean();
     
     // Envoyer les messages WhatsApp aux autres livreurs
     for (const livreur of livreurs) {
@@ -1883,6 +2036,7 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
                   status: { $in: ['pending', 'confirmed'] },
                   whatsappNotificationSent: { $ne: true }
                 })
+                .setOptions({ skipLean: true })
                 .sort({ date: -1 })
                 .populate('assignedLivreur', 'name email phone');
                 
@@ -1995,7 +2149,7 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
     // 📱 Envoyer notification push de synchronisation terminée
     try {
       // Importer le service push
-      const { sendPushNotification } = await import('../../backend/services/pushService.js');
+      const { sendPushNotification } = await import('../services/pushService.js');
       
       await sendPushNotification(req.workspaceId, {
         title: '📊 Synchronisation terminée',
@@ -2182,14 +2336,25 @@ router.get('/settings', requireEcomAuth, validateEcomAccess('products', 'write')
       metadata: src.metadata || {}
     }));
     
-    const response = { 
-      success: true, 
+    // Vérifier si des commandes webhook existent pour ce workspace
+    let hasWebhookOrders = false;
+    try {
+      const count = await Order.countDocuments({ workspaceId: req.workspaceId, source: 'webhook' });
+      hasWebhookOrders = count > 0;
+    } catch (err) { /* ignore */ }
+
+    const response = {
+      success: true,
       data: {
         googleSheets: settings.googleSheets,
-        sources: [...(settings.sources || []), ...formattedWebhookSources],
+        sources: [
+          ...(settings.sources || []),
+          ...formattedWebhookSources,
+          ...(hasWebhookOrders ? [{ _id: 'webhook', name: 'Webhook', type: 'webhook_all', isActive: true }] : [])
+        ],
         webhookSources: formattedWebhookSources,
         commissionRate: settings.commissionRate ?? 1000
-      } 
+      }
     };
     memCache.set(cacheKey, response, 120000);
     res.json(response);
@@ -2456,12 +2621,20 @@ router.post('/backfill-clients', requireEcomAuth, validateEcomAccess('products',
 // GET /api/ecom/orders/available - Commandes disponibles pour les livreurs
 router.get('/available', requireEcomAuth, async (req, res) => {
   try {
+    if (!['ecom_livreur', 'ecom_admin', 'super_admin'].includes(req.ecomUser.role)) {
+      return res.status(403).json({ success: false, message: 'Accès réservé aux livreurs.' });
+    }
+
+    await escalateExpiredDeliveryOffers(req.workspaceId);
+
     const { city, limit = 20 } = req.query;
+    const userId = req.ecomUser._id.toString();
+    const now = new Date();
     
-    // Filtre pour les commandes disponibles (non assignées et en attente/confirmées)
+    // Seules les commandes que l'admin a explicitement envoyées au pool livreur
     const filter = {
       workspaceId: req.workspaceId,
-      status: { $in: ['pending', 'confirmed'] },
+      readyForDelivery: true,
       assignedLivreur: null
     };
     
@@ -2472,10 +2645,35 @@ router.get('/available', requireEcomAuth, async (req, res) => {
     const orders = await Order.find(filter)
       .sort({ date: -1 })
       .limit(parseInt(limit));
+
+    const visibleOrders = orders
+      .filter((order) => {
+        const refusedBy = (order.deliveryOfferRefusedBy || []).map((entry) => entry.toString());
+        if (refusedBy.includes(userId)) return false;
+
+        const targetLivreurId = order.deliveryOfferTargetLivreur?.toString();
+        const hasActiveTarget = order.deliveryOfferMode === 'targeted' && targetLivreurId && (!order.deliveryOfferExpiresAt || new Date(order.deliveryOfferExpiresAt) > now);
+        if (!hasActiveTarget) return true;
+
+        return targetLivreurId === userId;
+      })
+      .map((order) => ({
+        ...order,
+        livreurView: {
+          stateLabel: order.assignedLivreur ? 'Acceptée' : order.deliveryOfferMode === 'targeted' ? 'En attente' : 'Disponible',
+          pickupLocation: getPickupLocationLabel(''),
+          destination: getDestinationLabel(order),
+          priceLabel: formatMoney(order.price),
+          gainLabel: formatMoney(order.price),
+          estimatedDistanceLabel: getEstimatedDistanceLabel(order),
+          responseDeadline: order.deliveryOfferExpiresAt || null,
+          isTargeted: order.deliveryOfferMode === 'targeted'
+        }
+      }));
     
     res.json({
       success: true,
-      data: orders
+      data: visibleOrders
     });
   } catch (error) {
     console.error('Erreur get available orders:', error);
@@ -2483,37 +2681,137 @@ router.get('/available', requireEcomAuth, async (req, res) => {
   }
 });
 
+// POST /api/ecom/orders/:id/delivery-offer - Proposer une commande à un livreur ciblé ou au pool
+router.post('/:id/delivery-offer', requireEcomAuth, async (req, res) => {
+  try {
+    if (!['ecom_admin', 'super_admin', 'ecom_closeuse'].includes(req.ecomUser.role)) {
+      return res.status(403).json({ success: false, message: 'Réservé aux administrateurs.' });
+    }
+
+    const { mode = 'targeted', livreurId = null, deliveryLocation, deliveryTime, note = '', sendWhatsApp = false } = req.body;
+    if (!['targeted', 'broadcast'].includes(mode)) {
+      return res.status(400).json({ success: false, message: 'Mode d\'envoi invalide.' });
+    }
+
+    if (mode === 'targeted' && !livreurId) {
+      return res.status(400).json({ success: false, message: 'Le livreur ciblé est requis.' });
+    }
+
+    const order = await Order.findOne({ _id: req.params.id, workspaceId: req.workspaceId }, null, { skipLean: true });
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Commande non trouvée.' });
+    }
+
+    if (order.assignedLivreur) {
+      return res.status(400).json({ success: false, message: 'Cette commande est déjà acceptée par un livreur.' });
+    }
+
+    const now = new Date();
+    const responseDeadline = mode === 'targeted'
+      ? new Date(now.getTime() + DEFAULT_DELIVERY_RESPONSE_SECONDS * 1000)
+      : null;
+
+    if (deliveryLocation !== undefined) order.deliveryLocation = deliveryLocation || '';
+    if (deliveryTime !== undefined) order.deliveryTime = deliveryTime || '';
+    if (note) {
+      order.notes = `${order.notes ? `${order.notes} | ` : ''}Livraison: ${note}`;
+    }
+
+    order.readyForDelivery = true;
+    order.assignedLivreur = null;
+    order.deliveryOfferMode = mode;
+    order.deliveryOfferTargetLivreur = mode === 'targeted' ? livreurId : null;
+    order.deliveryOfferSentAt = now;
+    order.deliveryOfferExpiresAt = responseDeadline;
+    order.deliveryOfferEscalatedAt = null;
+    order.deliveryOfferRefusedBy = [];
+    await order.save();
+
+    const workspaceName = await getWorkspaceName(req.workspaceId);
+    const livreurs = mode === 'targeted'
+      ? await EcomUser.find({ _id: livreurId, workspaceId: req.workspaceId, role: 'ecom_livreur', status: 'active' }).select('_id phone name').lean()
+      : await EcomUser.find({ workspaceId: req.workspaceId, role: 'ecom_livreur', status: 'active' }).select('_id phone name').lean();
+
+    if (sendWhatsApp && mode === 'targeted' && livreurs[0]?.phone) {
+      await sendWhatsAppMessage({
+        to: livreurs[0].phone,
+        message: req.body.message || `Nouvelle course: ${order.clientName || 'Client'} • ${getDestinationLabel(order)}`,
+        workspaceId: req.workspaceId,
+        userId: livreurs[0]._id,
+        firstName: livreurs[0].name
+      }).catch(() => {});
+    }
+
+    await sendDeliveryOfferNotifications({
+      workspaceId: req.workspaceId,
+      order,
+      livreurs,
+      workspaceName,
+      responseDeadline,
+      offerMode: mode
+    });
+
+    res.json({
+      success: true,
+      message: mode === 'targeted' ? 'Commande proposée au livreur.' : 'Commande envoyée au pool livreur.',
+      data: order
+    });
+  } catch (error) {
+    console.error('Erreur delivery-offer:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // POST /api/ecom/orders/:id/assign - Assigner une commande à un livreur
 router.post('/:id/assign', requireEcomAuth, async (req, res) => {
   try {
+    await escalateExpiredDeliveryOffers(req.workspaceId);
+
     const orderId = req.params.id;
-    const livreurId = req.user._id; // L'utilisateur connecté devient le livreur
+    const livreurId = req.ecomUser._id; // L'utilisateur connecté devient le livreur
     
     // Vérifier que l'utilisateur est un livreur
-    if (req.user.role !== 'livreur') {
+    if (!['ecom_livreur', 'ecom_admin', 'super_admin'].includes(req.ecomUser.role)) {
       return res.status(403).json({ success: false, message: 'Accès réservé aux livreurs.' });
     }
     
-    const order = await Order.findOneAndUpdate(
-      { 
-        _id: orderId, 
-        workspaceId: req.workspaceId,
-        assignedLivreur: null, // Non encore assignée
-        status: { $in: ['pending', 'confirmed'] } // Disponible
-      },
-      { 
-        assignedLivreur: livreurId,
-        status: 'confirmed' // Marquer comme confirmée quand assignée
-      },
-      { new: true }
-    ).populate('assignedLivreur', 'name email phone');
+    const order = await Order.findOne({
+      _id: orderId,
+      workspaceId: req.workspaceId,
+      readyForDelivery: true,
+      assignedLivreur: null
+    }, null, { skipLean: true });
     
     if (!order) {
       return res.status(404).json({ success: false, message: 'Commande non disponible ou déjà assignée.' });
     }
+
+    const refusedBy = (order.deliveryOfferRefusedBy || []).map((entry) => entry.toString());
+    if (refusedBy.includes(livreurId.toString())) {
+      return res.status(400).json({ success: false, message: 'Vous avez déjà refusé cette commande.' });
+    }
+
+    const targetLivreurId = order.deliveryOfferTargetLivreur?.toString();
+    const targetStillActive = order.deliveryOfferMode === 'targeted' && targetLivreurId && (!order.deliveryOfferExpiresAt || new Date(order.deliveryOfferExpiresAt) > new Date());
+    if (targetStillActive && targetLivreurId !== livreurId.toString()) {
+      return res.status(403).json({ success: false, message: 'Cette commande est actuellement proposée à un autre livreur.' });
+    }
+
+    order.assignedLivreur = livreurId;
+    order.readyForDelivery = false;
+    order.status = 'confirmed';
+    order.deliveryOfferMode = 'none';
+    order.deliveryOfferTargetLivreur = null;
+    order.deliveryOfferSentAt = null;
+    order.deliveryOfferExpiresAt = null;
+    order.deliveryOfferEscalatedAt = null;
+    order.deliveryOfferRefusedBy = [];
+    order.updatedAt = new Date();
+    await order.save();
+    await order.populate('assignedLivreur', 'name email phone');
     
     // Notifier les autres livreurs que cette commande n'est plus disponible
-    await notifyOrderTaken(order, req.workspaceId, req.user._id);
+    await notifyOrderTaken(order, req.workspaceId, req.ecomUser._id);
     
     // 📱 Push notification pour assignation livreur
     try {
@@ -2545,12 +2843,72 @@ router.post('/:id/assign', requireEcomAuth, async (req, res) => {
   }
 });
 
+// POST /api/ecom/orders/:id/refuse - Refuser une course disponible
+router.post('/:id/refuse', requireEcomAuth, async (req, res) => {
+  try {
+    if (!['ecom_livreur', 'ecom_admin', 'super_admin'].includes(req.ecomUser.role)) {
+      return res.status(403).json({ success: false, message: 'Accès réservé aux livreurs.' });
+    }
+
+    const order = await Order.findOne({
+      _id: req.params.id,
+      workspaceId: req.workspaceId,
+      readyForDelivery: true,
+      assignedLivreur: null
+    }, null, { skipLean: true });
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Commande non trouvée.' });
+    }
+
+    const livreurId = req.ecomUser._id.toString();
+    const refusedBy = (order.deliveryOfferRefusedBy || []).map((entry) => entry.toString());
+    if (!refusedBy.includes(livreurId)) {
+      order.deliveryOfferRefusedBy = [...(order.deliveryOfferRefusedBy || []), req.ecomUser._id];
+    }
+
+    const isTargetedToCurrentLivreur = order.deliveryOfferMode === 'targeted' && order.deliveryOfferTargetLivreur?.toString() === livreurId;
+    if (isTargetedToCurrentLivreur) {
+      order.deliveryOfferMode = 'broadcast';
+      order.deliveryOfferTargetLivreur = null;
+      order.deliveryOfferSentAt = new Date();
+      order.deliveryOfferExpiresAt = null;
+      order.deliveryOfferEscalatedAt = new Date();
+
+      const workspaceName = await getWorkspaceName(req.workspaceId);
+      const otherLivreurs = await EcomUser.find({
+        workspaceId: req.workspaceId,
+        role: 'ecom_livreur',
+        status: 'active',
+        _id: { $nin: order.deliveryOfferRefusedBy }
+      }).select('_id').lean();
+
+      await order.save();
+      await sendDeliveryOfferNotifications({
+        workspaceId: req.workspaceId,
+        order,
+        livreurs: otherLivreurs,
+        workspaceName,
+        responseDeadline: null,
+        offerMode: 'broadcast'
+      });
+    } else {
+      await order.save();
+    }
+
+    res.json({ success: true, message: 'Commande refusée.' });
+  } catch (error) {
+    console.error('Erreur refuse order:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // PUT /api/ecom/orders/:id - Modifier une commande (statut, champs, auto-tagging, client sync)
 router.put('/:id', requireEcomAuth, async (req, res) => {
   try {
     console.log(`🔧 PUT /orders/${req.params.id} - User: ${req.ecomUser?.email}, Role: ${req.ecomUser?.role}, Workspace: ${req.workspaceId}`);
     
-    const order = await Order.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
+    const order = await Order.findOne({ _id: req.params.id, workspaceId: req.workspaceId }, null, { skipLean: true });
     console.log(`📋 Order lookup result:`, order ? `Found - ${order.orderId}` : 'Not found');
     
     if (!order) {
@@ -2615,6 +2973,39 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
       console.log(`📱 [Orders] Push statut envoyé via notifyOrderStatus: ${updatedOrder._id} -> ${req.body.status}`);
     }
 
+    // Notification + push au livreur spécifique quand il est assigné
+    const livreurAssigned = req.body.assignedLivreur &&
+      req.body.assignedLivreur !== '' &&
+      String(order.assignedLivreur || '') !== String(req.body.assignedLivreur);
+    if (livreurAssigned) {
+      try {
+        const { sendPushNotificationToUser } = await import('../services/pushService.js');
+        const livreur = await EcomUser.findById(req.body.assignedLivreur).select('name email');
+        if (livreur) {
+          Notification.create({
+            workspaceId: req.workspaceId,
+            userId: livreur._id,
+            type: 'order_assigned_to_you',
+            title: '🚚 Commande assignée',
+            message: `Commande #${updatedOrder.orderId} — ${updatedOrder.clientName || ''} vous a été assignée`,
+            link: `/ecom/orders/${updatedOrder._id}`
+          }).catch(() => {});
+          sendPushNotificationToUser(livreur._id, {
+            title: '🚚 Commande assignée',
+            body: `Commande #${updatedOrder.orderId} — ${updatedOrder.clientName || ''} vous a été assignée`,
+            icon: '/icons/icon-192x192.png',
+            badge: '/icons/icon-72x72.png',
+            tag: `assigned-${updatedOrder._id}`,
+            data: { type: 'order_assigned', orderId: updatedOrder._id.toString(), url: `/ecom/orders/${updatedOrder._id}` },
+            requireInteraction: true
+          }).catch(() => {});
+          console.log(`📱 Notification envoyée au livreur ${livreur.name || livreur.email} pour commande ${updatedOrder.orderId}`);
+        }
+      } catch (notifErr) {
+        console.warn('⚠️ Push notification livreur assigné failed:', notifErr.message);
+      }
+    }
+
     res.json({ success: true, message: 'Commande mise à jour', data: updatedOrder });
   } catch (error) {
     console.error('Erreur update order:', error);
@@ -2634,7 +3025,7 @@ router.patch('/:id/status', requireEcomAuth, async (req, res) => {
       });
     }
 
-    const order = await Order.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
+    const order = await Order.findOne({ _id: req.params.id, workspaceId: req.workspaceId }, null, { skipLean: true });
     if (!order) {
       return res.status(404).json({ success: false, message: 'Commande non trouvée' });
     }
@@ -2703,6 +3094,233 @@ router.patch('/:id/status', requireEcomAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('Erreur update order status:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/ecom/orders/:id/livreur-action - Livreur met à jour le statut de livraison
+router.patch('/:id/livreur-action', requireEcomAuth, async (req, res) => {
+  try {
+    const { action } = req.body; // 'pickup_confirmed' | 'delivered' | 'refused' | 'issue'
+    const livreurId = req.ecomUser._id;
+
+    if (!['ecom_livreur', 'ecom_admin', 'super_admin'].includes(req.ecomUser.role)) {
+      return res.status(403).json({ success: false, message: 'Accès réservé aux livreurs.' });
+    }
+
+    const validActions = ['pickup_confirmed', 'delivered', 'refused', 'issue'];
+    if (!validActions.includes(action)) {
+      return res.status(400).json({ success: false, message: 'Action invalide.' });
+    }
+
+    const order = await Order.findOne({ _id: req.params.id, workspaceId: req.workspaceId }, null, { skipLean: true });
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Commande non trouvée.' });
+    }
+
+    // Seul le livreur assigné peut agir (ou un admin)
+    const isAdmin = ['ecom_admin', 'super_admin'].includes(req.ecomUser.role);
+    if (!isAdmin && order.assignedLivreur?.toString() !== livreurId.toString()) {
+      return res.status(403).json({ success: false, message: 'Vous n\'êtes pas assigné à cette commande.' });
+    }
+
+    const actionMap = {
+      pickup_confirmed: 'shipped',
+      delivered: 'delivered',
+      refused: 'pending',
+      issue: 'returned'
+    };
+
+    const newStatus = actionMap[action];
+    const oldStatus = order.status;
+
+    if (action === 'refused') {
+      order.assignedLivreur = null;
+      order.readyForDelivery = true;
+      order.deliveryOfferMode = 'broadcast';
+      order.deliveryOfferTargetLivreur = null;
+      order.deliveryOfferSentAt = new Date();
+      order.deliveryOfferExpiresAt = null;
+      order.deliveryOfferEscalatedAt = new Date();
+      order.deliveryOfferRefusedBy = [...(order.deliveryOfferRefusedBy || []), req.ecomUser._id];
+    }
+
+    order.status = newStatus;
+    order.statusModifiedManually = true;
+    order.lastManualStatusUpdate = new Date();
+    order.updatedAt = new Date();
+
+    // Auto-tagging
+    const statusTags = { pending: 'En attente', confirmed: 'Confirmé', shipped: 'Expédié', delivered: 'Client', returned: 'Retour', cancelled: 'Annulé' };
+    const allStatusTags = Object.values(statusTags);
+    order.tags = (order.tags || []).filter(t => !allStatusTags.includes(t));
+    const newTag = statusTags[newStatus];
+    if (newTag && !order.tags.includes(newTag)) order.tags.push(newTag);
+
+    await order.save();
+
+    if (action === 'refused') {
+      try {
+        const workspaceName = await getWorkspaceName(req.workspaceId);
+        const livreurs = await EcomUser.find({
+          workspaceId: req.workspaceId,
+          role: 'ecom_livreur',
+          status: 'active',
+          _id: { $nin: order.deliveryOfferRefusedBy }
+        }).select('_id').lean();
+
+        await sendDeliveryOfferNotifications({
+          workspaceId: req.workspaceId,
+          order,
+          livreurs,
+          workspaceName,
+          responseDeadline: null,
+          offerMode: 'broadcast'
+        });
+      } catch (notifyError) {
+        console.warn('⚠️ Refused order re-broadcast failed:', notifyError.message);
+      }
+    }
+
+    if (newStatus !== oldStatus) {
+      notifyOrderStatus(req.workspaceId, order, newStatus).catch(() => {});
+      notifyTeamOrderStatusChanged(req.workspaceId, req.ecomUser._id, order, newStatus, req.ecomUser.email).catch(() => {});
+    }
+
+    res.json({ success: true, message: 'Action enregistrée', data: order });
+  } catch (error) {
+    console.error('Erreur livreur action:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/ecom/orders/:id/ready-for-delivery - Admin/closeuse envoie une commande au pool livreur
+router.patch('/:id/ready-for-delivery', requireEcomAuth, async (req, res) => {
+  try {
+    if (!['ecom_admin', 'super_admin', 'ecom_closeuse'].includes(req.ecomUser.role)) {
+      return res.status(403).json({ success: false, message: 'Réservé aux administrateurs.' });
+    }
+
+    const ready = req.body.ready !== false; // défaut: true
+    const order = await Order.findOne({ _id: req.params.id, workspaceId: req.workspaceId }, null, { skipLean: true });
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Commande non trouvée.' });
+    }
+
+    order.readyForDelivery = ready;
+    order.deliveryOfferMode = ready ? 'broadcast' : 'none';
+    order.deliveryOfferTargetLivreur = null;
+    order.deliveryOfferSentAt = ready ? new Date() : null;
+    order.deliveryOfferExpiresAt = null;
+    order.deliveryOfferEscalatedAt = ready ? new Date() : null;
+    order.deliveryOfferRefusedBy = ready ? [] : order.deliveryOfferRefusedBy;
+    await order.save();
+
+    // Notification + push à tous les livreurs actifs quand on envoie au pool
+    if (ready) {
+      try {
+        const workspaceName = await getWorkspaceName(req.workspaceId);
+        const livreurs = await EcomUser.find({ workspaceId: req.workspaceId, role: 'ecom_livreur', status: 'active' }).select('_id').lean();
+        await sendDeliveryOfferNotifications({
+          workspaceId: req.workspaceId,
+          order,
+          livreurs,
+          workspaceName,
+          responseDeadline: null,
+          offerMode: 'broadcast'
+        });
+        console.log(`📱 Notifications envoyées à ${livreurs.length} livreur(s) pour commande ${order.orderId}`);
+      } catch (notifErr) {
+        console.warn('⚠️ Notification livreurs pool failed:', notifErr.message);
+      }
+    }
+
+    res.json({ success: true, message: ready ? 'Commande envoyée au pool livreur.' : 'Commande retirée du pool livreur.', data: order });
+  } catch (error) {
+    console.error('Erreur ready-for-delivery:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// GET /api/ecom/orders/livreur/history - Historique de livraisons du livreur connecté
+router.get('/livreur/history', requireEcomAuth, async (req, res) => {
+  try {
+    if (!['ecom_livreur', 'ecom_admin', 'super_admin'].includes(req.ecomUser.role)) {
+      return res.status(403).json({ success: false, message: 'Accès réservé aux livreurs.' });
+    }
+
+    const { page = 1, limit = 20, status } = req.query;
+    const filter = {
+      workspaceId: req.workspaceId,
+      assignedLivreur: req.ecomUser._id,
+      status: { $in: ['delivered', 'returned', 'cancelled'] }
+    };
+
+    if (status) filter.status = status;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const [orders, total] = await Promise.all([
+      Order.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(parseInt(limit)),
+      Order.countDocuments(filter)
+    ]);
+
+    res.json({ success: true, data: orders, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) });
+  } catch (error) {
+    console.error('Erreur livreur history:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// GET /api/ecom/orders/livreur/stats - Stats et gains du livreur connecté
+router.get('/livreur/stats', requireEcomAuth, async (req, res) => {
+  try {
+    if (!['ecom_livreur', 'ecom_admin', 'super_admin'].includes(req.ecomUser.role)) {
+      return res.status(403).json({ success: false, message: 'Accès réservé aux livreurs.' });
+    }
+
+    const livreurId = req.ecomUser._id;
+    const workspaceId = req.workspaceId;
+
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const [allDelivered, monthDelivered, weekDelivered, inProgress, available] = await Promise.all([
+      Order.countDocuments({ workspaceId, assignedLivreur: livreurId, status: 'delivered' }),
+      Order.countDocuments({ workspaceId, assignedLivreur: livreurId, status: 'delivered', updatedAt: { $gte: startOfMonth } }),
+      Order.countDocuments({ workspaceId, assignedLivreur: livreurId, status: 'delivered', updatedAt: { $gte: startOfWeek } }),
+      Order.countDocuments({ workspaceId, assignedLivreur: livreurId, status: { $in: ['confirmed', 'shipped'] } }),
+      Order.countDocuments({ workspaceId, readyForDelivery: true, assignedLivreur: null })
+    ]);
+
+    // Calcul des gains approximatifs basés sur le champ price des commandes livrées
+    const earningsAgg = await Order.aggregate([
+      { $match: { workspaceId: new mongoose.Types.ObjectId(workspaceId.toString()), assignedLivreur: new mongoose.Types.ObjectId(livreurId.toString()), status: 'delivered' } },
+      { $group: { _id: null, totalAmount: { $sum: '$price' }, count: { $sum: 1 } } }
+    ]);
+    const monthEarningsAgg = await Order.aggregate([
+      { $match: { workspaceId: new mongoose.Types.ObjectId(workspaceId.toString()), assignedLivreur: new mongoose.Types.ObjectId(livreurId.toString()), status: 'delivered', updatedAt: { $gte: startOfMonth } } },
+      { $group: { _id: null, totalAmount: { $sum: '$price' }, count: { $sum: 1 } } }
+    ]);
+
+    const totalAmount = earningsAgg[0]?.totalAmount || 0;
+    const monthAmount = monthEarningsAgg[0]?.totalAmount || 0;
+
+    res.json({
+      success: true,
+      data: {
+        allTime: { delivered: allDelivered, amount: totalAmount },
+        thisMonth: { delivered: monthDelivered, amount: monthAmount },
+        thisWeek: { delivered: weekDelivered },
+        inProgress,
+        available
+      }
+    });
+  } catch (error) {
+    console.error('Erreur livreur stats:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
@@ -2821,6 +3439,15 @@ router.get('/:id', requireEcomAuth, async (req, res) => {
 
     if (!order) {
       return res.status(404).json({ success: false, message: 'Commande non trouvée.' });
+    }
+
+    // Vérifier les permissions pour les livreurs : seulement leurs commandes assignées ou celles du pool
+    if (req.ecomUser.role === 'ecom_livreur') {
+      const isAssigned = order.assignedLivreur?.toString() === req.ecomUser._id.toString();
+      const isInPool = order.readyForDelivery === true;
+      if (!isAssigned && !isInPool) {
+        return res.status(403).json({ success: false, message: 'Accès refusé: cette commande ne vous est pas assignée.' });
+      }
     }
 
     // Vérifier les permissions pour les closeuses

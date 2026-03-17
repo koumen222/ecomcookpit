@@ -39,7 +39,7 @@ const WorkspaceSetup = () => {
     { value: 'ecom_admin', label: 'Administrateur', desc: 'Accès complet ù  toutes les fonctionnalités' },
     { value: 'ecom_closeuse', label: 'Closeuse', desc: 'Commandes & ventes' },
     { value: 'ecom_compta', label: 'Comptable', desc: 'Finances & rapports' },
-    { value: 'livreur', label: 'Livreur', desc: 'Livraisons' },
+    { value: 'ecom_livreur', label: 'Livreur', desc: 'Livraisons' },
   ];
 
   const handleCreate = async (e) => {
@@ -53,6 +53,7 @@ const WorkspaceSetup = () => {
         ecom_admin: '/ecom/dashboard/admin',
         ecom_closeuse: '/ecom/dashboard/closeuse',
         ecom_compta: '/ecom/dashboard/compta',
+        ecom_livreur: '/ecom/livreur',
         livreur: '/ecom/livreur'
       };
       navigate(roleMap[selectedRole] || '/ecom/dashboard');

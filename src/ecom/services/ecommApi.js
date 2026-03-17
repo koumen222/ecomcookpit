@@ -181,8 +181,6 @@ ecomApi.interceptors.response.use(
         localStorage.removeItem('ecomToken');
         localStorage.removeItem('ecomUser');
         localStorage.removeItem('ecomWorkspace');
-        localStorage.removeItem('ecomOriginalUser');
-        localStorage.removeItem('ecomImpersonatedUser');
         window.location.href = '/ecom/login';
         return Promise.reject(error);
       }
@@ -708,21 +706,24 @@ export const superAdminApi = {
   // Utilisateurs
   getUsers: (params = {}) => ecomApi.get('/super-admin/users', { params }),
   getUser: (id) => ecomApi.get(`/super-admin/users/${id}`),
-  updateUser: (id, data) => ecomApi.put(`/super-admin/users/${id}`, data),
+  updateUserRole: (id, role) => ecomApi.put(`/super-admin/users/${id}/role`, { role }),
+  toggleUser: (id) => ecomApi.put(`/super-admin/users/${id}/toggle`),
   deleteUser: (id) => ecomApi.delete(`/super-admin/users/${id}`),
 
   // Workspaces
   getWorkspaces: (params = {}) => ecomApi.get('/super-admin/workspaces', { params }),
-  getWorkspace: (id) => ecomApi.get(`/super-admin/workspaces/${id}`),
-  updateWorkspace: (id, data) => ecomApi.put(`/super-admin/workspaces/${id}`, data),
-  deleteWorkspace: (id) => ecomApi.delete(`/super-admin/workspaces/${id}`),
+  toggleWorkspace: (id) => ecomApi.put(`/super-admin/workspaces/${id}/toggle`),
 
-  // Analytics
-  getAnalytics: (params = {}) => ecomApi.get('/super-admin/analytics', { params }),
+  // Security & Audit
+  getSecurityInfo: () => ecomApi.get('/super-admin/security-info'),
+  getAuditLogs: (params = {}) => ecomApi.get('/super-admin/audit-logs', { params }),
 
   // WhatsApp postulations
   getWhatsAppPostulations: (params = {}) => ecomApi.get('/super-admin/whatsapp-postulations', { params }),
-  updateWhatsAppPostulation: (id, data) => ecomApi.put(`/super-admin/whatsapp-postulations/${id}`, data)
+  updateWhatsAppPostulation: (id, data) => ecomApi.put(`/super-admin/whatsapp-postulations/${id}`, data),
+
+  // WhatsApp logs
+  getWhatsAppLogs: (params = {}) => ecomApi.get('/super-admin/whatsapp-logs', { params })
 };
 
 export const productResearchApi = {

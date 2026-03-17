@@ -33,7 +33,7 @@ const notificationSchema = new mongoose.Schema({
       'team_campaign_created', 'team_campaign_sent',
       'team_product_created', 'team_product_updated', 'team_product_deleted',
       'team_report_generated', 'team_inventory_update',
-      'new_message', 'new_dm'
+      'new_message', 'new_dm', 'new_delivery', 'order_assigned_to_you', 'order_taken'
     ],
     index: true
   },

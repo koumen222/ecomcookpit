@@ -1030,11 +1030,36 @@ const OrdersList = () => {
     setError('');
     try {
       if (editingOrder) {
-        await ecomApi.put(`/orders/${editingOrder._id}`, orderForm);
+        const result = await ecomApi.put(`/orders/${editingOrder._id}`, orderForm);
         setSuccess('Commande modifiée');
+
+        // Track order update
+        import('../../utils/analytics.js').then(m => {
+          const analytics = m.default;
+          analytics.trackOrderUpdate(editingOrder._id, {
+            client_name: orderForm.clientName,
+            status: orderForm.status,
+            value: orderForm.price,
+            currency: 'EUR'
+          });
+        }).catch(() => {});
       } else {
-        await ecomApi.post('/orders', orderForm);
+        const result = await ecomApi.post('/orders', orderForm);
         setSuccess('Commande créée');
+
+        // Track order creation
+        import('../../utils/analytics.js').then(m => {
+          const analytics = m.default;
+          analytics.trackOrderCreate({
+            id: result.data?.data?._id || 'unknown',
+            client_name: orderForm.clientName,
+            product: orderForm.product,
+            quantity: orderForm.quantity,
+            total: orderForm.price,
+            status: orderForm.status,
+            currency: 'EUR'
+          });
+        }).catch(() => {});
       }
       setShowOrderModal(false);
       fetchOrders();
@@ -1049,8 +1074,20 @@ const OrdersList = () => {
     if (!window.confirm('Supprimer cette commande ?')) return;
     setDeletingOrderId(orderId);
     try {
+      const orderToDelete = orders.find(o => o._id === orderId);
       await ecomApi.delete(`/orders/${orderId}`);
       setSuccess('Commande supprimée');
+
+      // Track order deletion
+      import('../../utils/analytics.js').then(m => {
+        const analytics = m.default;
+        analytics.trackOrderDelete(orderId, {
+          client_name: orderToDelete?.clientName,
+          status: orderToDelete?.status,
+          value: orderToDelete?.price
+        });
+      }).catch(() => {});
+
       fetchOrders();
     } catch (err) {
       setError(getContextualError(err, 'delete_order'));
@@ -1734,7 +1771,7 @@ const OrdersList = () => {
                     </span>
                   )}
                 </button>
-                {(isAdmin || isSuperAdmin) && (
+                {(isAdmin || isSuperAdmin) && s._id !== 'webhook' && (
                   <button
                     onClick={() => deleteSource(s._id)}
                     disabled={deletingSource === s._id}
@@ -2155,6 +2192,15 @@ const OrdersList = () => {
                         </div>
                       )}
 
+                      {/* Pool livreur badge */}
+                      {o.readyForDelivery && !o.assignedLivreur && (
+                        <div className="flex-shrink-0" title="Dans le pool livreur">
+                          <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-300 flex items-center gap-1">
+                            <span>🚚</span> Pool
+                          </span>
+                        </div>
+                      )}
+
                       {/* Status */}
                       <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                         <select 
@@ -2243,6 +2289,10 @@ const OrdersList = () => {
 
                   {/* Actions */}
                   <div className="border-t border-gray-100 px-2.5 py-2 flex items-center justify-between bg-gray-50/50" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-1.5">
+                    {o.readyForDelivery && !o.assignedLivreur && (
+                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300">🚚 Pool</span>
+                    )}
                     <select 
                       value={o.status} 
                       onChange={(e) => { 
@@ -2259,6 +2309,7 @@ const OrdersList = () => {
                       {!SL[o.status] && <option value={o.status}>{o.status}</option>}
                       <option value="__custom">+ Personnalisé...</option>
                     </select>
+                    </div>
                     <div className="flex items-center gap-1.5">
                       {/* Bouton principal */}
                       <button onClick={(e) => { e.stopPropagation(); navigate(`/ecom/orders/${o._id}`); }} className="px-2.5 py-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition">

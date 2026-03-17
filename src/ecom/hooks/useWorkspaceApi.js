@@ -3,15 +3,10 @@ import ecomApi from '../services/ecommApi.js';
 
 // Hook pour les appels API qui tiennent compte du workspace incarné
 export const useWorkspaceApi = () => {
-  const { isImpersonating, impersonatedUser, user } = useEcomAuth();
+  const { user } = useEcomAuth();
 
-  // Obtenir le workspace actif (incarné ou original)
+  // Obtenir le workspace actif
   const getActiveWorkspace = () => {
-    if (isImpersonating && impersonatedUser?.workspaceId) {
-      console.log('🏢 Utilisation workspace incarné:', impersonatedUser.workspaceId.name);
-      return impersonatedUser.workspaceId;
-    }
-    
     const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
     if (workspace) {
       console.log('🏢 Utilisation workspace localStorage:', workspace.name);
@@ -108,7 +103,6 @@ export const useWorkspaceApi = () => {
   return {
     apiWithWorkspace,
     getActiveWorkspace,
-    isImpersonating,
     currentWorkspace: getActiveWorkspace()
   };
 };

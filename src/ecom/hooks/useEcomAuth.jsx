@@ -18,11 +18,7 @@ const initialState = {
   // Si on a un token ET un user stocké, on est potentiellement authentifié
   isAuthenticated: !!(storedToken && storedUser),
   loading: !!storedToken, // Ne charger que si on a un token à vérifier
-  error: null,
-  // Mode incarnation pour Super Admin
-  isImpersonating: false,
-  originalUser: JSON.parse(localStorage.getItem('ecomOriginalUser') || 'null'),
-  impersonatedUser: JSON.parse(localStorage.getItem('ecomImpersonatedUser') || 'null')
+  error: null
 };
 
 // Reducer pour gérer les états d'authentification
@@ -111,26 +107,6 @@ const authReducer = (state, action) => {
         isAuthenticated: true
       };
     
-    case 'START_IMPERSONATION':
-      return {
-        ...state,
-        isImpersonating: true,
-        originalUser: action.payload.originalUser,
-        impersonatedUser: action.payload.targetUser,
-        user: action.payload.targetUser,
-        workspace: action.payload.targetWorkspace
-      };
-    
-    case 'STOP_IMPERSONATION':
-      return {
-        ...state,
-        isImpersonating: false,
-        originalUser: null,
-        impersonatedUser: null,
-        user: action.payload.originalUser,
-        workspace: action.payload.originalWorkspace
-      };
-    
     default:
       return state;
   }
@@ -149,8 +125,6 @@ export const EcomAuthProvider = ({ children }) => {
     localStorage.removeItem('ecomToken');
     localStorage.removeItem('ecomUser');
     localStorage.removeItem('ecomWorkspace');
-    localStorage.removeItem('ecomOriginalUser');
-    localStorage.removeItem('ecomImpersonatedUser');
   };
 
   // Sauvegarder le token dans le localStorage
@@ -162,19 +136,6 @@ export const EcomAuthProvider = ({ children }) => {
       localStorage.setItem('ecomWorkspace', JSON.stringify(workspace));
       logWorkspace('saved', workspace);
     }
-  };
-
-  // Sauvegarder l'état d'incarnation
-  const saveImpersonation = (originalUser, targetUser, targetWorkspace) => {
-    localStorage.setItem('ecomOriginalUser', JSON.stringify(originalUser));
-    localStorage.setItem('ecomImpersonatedUser', JSON.stringify(targetUser));
-    if (targetWorkspace) localStorage.setItem('ecomWorkspace', JSON.stringify(targetWorkspace));
-  };
-
-  // Effacer l'incarnation
-  const clearImpersonation = () => {
-    localStorage.removeItem('ecomOriginalUser');
-    localStorage.removeItem('ecomImpersonatedUser');
   };
 
   // Charger l'utilisateur depuis le token
@@ -463,90 +424,6 @@ export const EcomAuthProvider = ({ children }) => {
     }
   };
 
-  // Incarnation : Super Admin peut devenir n'importe quel utilisateur
-  const impersonateUser = async (targetUserId, targetUserData = null) => {
-    // Vérifier que l'utilisateur actuel est un Super Admin
-    if (state.user?.role !== 'super_admin') {
-      throw new Error('Seul le Super Admin peut utiliser l\'incarnation');
-    }
-
-    try {
-      let targetUser, targetWorkspace;
-
-      if (targetUserData) {
-        // Utiliser les données fournies directement (depuis la liste des utilisateurs)
-        targetUser = targetUserData;
-        targetWorkspace = targetUserData.workspaceId;
-        logAuthEvent('impersonate_start', { targetEmail: targetUser.email, targetWorkspace: targetWorkspace?.name });
-      } else {
-        // Approche de secours avec données simulées
-        targetUser = {
-          _id: targetUserId,
-          email: 'user_' + targetUserId.substring(0, 8) + '@example.com',
-          role: 'ecom_admin',
-          workspaceId: null
-        };
-        targetWorkspace = null;
-      logAuthEvent('impersonate_start', { targetId: targetUserId, mode: 'simulated' });
-      }
-
-      // Démarrer l'incarnation
-      dispatch({
-        type: 'START_IMPERSONATION',
-        payload: {
-          originalUser: state.user,
-          targetUser,
-          targetWorkspace
-        }
-      });
-
-      // Sauvegarder l'état d'incarnation et le workspace
-      saveImpersonation(state.user, targetUser, targetWorkspace);
-      
-      // Mettre à jour le workspace actif dans localStorage
-      if (targetWorkspace) {
-        localStorage.setItem('ecomWorkspace', JSON.stringify(targetWorkspace));
-        logWorkspace('impersonation_active', targetWorkspace);
-      }
-
-      return { success: true, targetUser, targetWorkspace };
-    } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Erreur lors de l\'incarnation';
-      throw new Error(errorMessage);
-    }
-  };
-
-  // Arrêter l'incarnation et revenir au Super Admin
-  const stopImpersonation = () => {
-    if (!state.isImpersonating) {
-      throw new Error('Aucune incarnation en cours');
-    }
-
-    // Restaurer l'utilisateur original
-    dispatch({
-      type: 'STOP_IMPERSONATION',
-      payload: {
-        originalUser: state.originalUser,
-        originalWorkspace: state.originalUser?.workspace
-      }
-    });
-
-    // Effacer l'état d'incarnation
-    clearImpersonation();
-    
-    logAuthEvent('impersonate_stop', { originalEmail: state.originalUser?.email });
-    // Restaurer le workspace original du Super Admin
-    if (state.originalUser?.workspace) {
-      localStorage.setItem('ecomWorkspace', JSON.stringify(state.originalUser.workspace));
-      logWorkspace('restored', state.originalUser.workspace);
-    } else {
-      localStorage.removeItem('ecomWorkspace');
-    }
-
-    // Naviguer vers le dashboard Super Admin
-    window.location.href = '/ecom/super-admin';
-  };
-
   // Changer de workspace actif
   const switchWorkspace = async (newToken, updatedUser, newWorkspace) => {
     try {
@@ -578,23 +455,6 @@ export const EcomAuthProvider = ({ children }) => {
     } catch (error) {
       logAuthEvent('workspace_switch_error', { message: error.message });
       throw error;
-    }
-  };
-
-  // Restaurer l'incarnation au chargement
-  const restoreImpersonation = () => {
-    const originalUser = JSON.parse(localStorage.getItem('ecomOriginalUser') || 'null');
-    const impersonatedUser = JSON.parse(localStorage.getItem('ecomImpersonatedUser') || 'null');
-
-    if (originalUser && impersonatedUser && originalUser.role === 'super_admin') {
-      dispatch({
-        type: 'START_IMPERSONATION',
-        payload: {
-          originalUser,
-          targetUser: impersonatedUser,
-          targetWorkspace: impersonatedUser.workspace
-        }
-      });
     }
   };
 
@@ -635,8 +495,6 @@ export const EcomAuthProvider = ({ children }) => {
     
     logAuthEvent('provider_mounted', { url: window.location.pathname });
     loadUser();
-    // Restaurer l'incarnation si elle existe
-    restoreImpersonation();
 
     return () => {
       // Ne pas reset le flag au unmount pour éviter re-init
@@ -683,8 +541,6 @@ export const EcomAuthProvider = ({ children }) => {
     hasRole,
     clearError,
     loadUser,
-    impersonateUser,
-    stopImpersonation,
     switchWorkspace
   };
 

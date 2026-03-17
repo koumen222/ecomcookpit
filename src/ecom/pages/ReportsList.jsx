@@ -28,6 +28,16 @@ const ReportsList = () => {
   const [financialStats, setFinancialStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [autoModal, setAutoModal] = useState(false);
+  const [autoDate, setAutoDate] = useState(new Date().toISOString().split('T')[0]);
+  const [autoStartDate, setAutoStartDate] = useState('');
+  const [autoEndDate, setAutoEndDate] = useState('');
+  const [autoMode, setAutoMode] = useState('day'); // 'day' | 'range'
+  const [autoLoading, setAutoLoading] = useState(false);
+  const [autoResult, setAutoResult] = useState(null);
+  const [autoStep, setAutoStep] = useState('config'); // 'config' | 'assign' | 'done'
+  const [autoProducts, setAutoProducts] = useState([]); // catalogue
+  const [autoMappings, setAutoMappings] = useState({}); // { orderProductName: productId }
   const [filter, setFilter] = useState({
     dateStart: '',
     dateEnd: '',
@@ -69,6 +79,52 @@ const ReportsList = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const openAutoModal = async () => {
+    setAutoModal(true);
+    setAutoResult(null);
+    setAutoStep('config');
+    setAutoMappings({});
+    // Charger le catalogue produits
+    try {
+      const res = await ecomApi.get('/products', { params: { isActive: true, limit: 500 } });
+      const list = res.data?.data?.products || res.data?.data || [];
+      setAutoProducts(Array.isArray(list) ? list : []);
+    } catch {
+      setAutoProducts([]);
+    }
+  };
+
+  const generateAutoReports = async (extraMappings = {}) => {
+    try {
+      setAutoLoading(true);
+      setAutoResult(null);
+      const dateBody = autoMode === 'day'
+        ? { date: autoDate }
+        : { startDate: autoStartDate, endDate: autoEndDate };
+      const allMappings = Object.entries({ ...autoMappings, ...extraMappings })
+        .filter(([, v]) => v)
+        .map(([orderProductName, productId]) => ({ orderProductName, productId }));
+      const body = { ...dateBody, ...(allMappings.length > 0 ? { mappings: allMappings } : {}) };
+      const res = await ecomApi.post('/reports/auto-generate', body);
+      setAutoResult(res.data);
+      const unmatched = res.data?.data?.unmatched || [];
+      if (unmatched.length > 0 && autoStep === 'config') {
+        setAutoStep('assign');
+      } else {
+        setAutoStep('done');
+        loadData();
+      }
+    } catch (err) {
+      setAutoResult({ success: false, message: getContextualError(err, 'load_stats') });
+    } finally {
+      setAutoLoading(false);
+    }
+  };
+
+  const confirmAssignments = () => {
+    generateAutoReports(autoMappings);
   };
 
   const deleteReport = async (reportId) => {
@@ -191,7 +247,7 @@ const ReportsList = () => {
     <div className="p-3 sm:p-4 lg:p-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4 sm:mb-6">
         <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Rapports</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Link
             to="/ecom/stats-rapports"
             className="flex items-center gap-2 bg-emerald-700 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-emerald-800 text-sm"
@@ -201,6 +257,15 @@ const ReportsList = () => {
             </svg>
             Stats produits
           </Link>
+          <button
+            onClick={openAutoModal}
+            className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-blue-700 text-sm"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Rapport automatique
+          </button>
           <Link
             to="/ecom/reports/new"
             className="bg-emerald-600 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-emerald-700 text-sm"
@@ -213,6 +278,139 @@ const ReportsList = () => {
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded mb-4">
           {error}
+        </div>
+      )}
+
+      {/* Modal Rapport automatique */}
+      {autoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+
+            {/* Étape 1 : configuration date */}
+            {autoStep === 'config' && (
+              <>
+                <h2 className="text-lg font-bold text-gray-900 mb-1">Rapport automatique</h2>
+                <p className="text-sm text-gray-500 mb-4">
+                  Génère les rapports en comptant les commandes au statut <strong>livré</strong> pour chaque produit, toutes sources confondues.
+                </p>
+
+                <div className="flex gap-2 mb-4">
+                  <button onClick={() => setAutoMode('day')} className={`flex-1 py-2 rounded-lg text-sm font-medium border ${autoMode === 'day' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>Un jour</button>
+                  <button onClick={() => setAutoMode('range')} className={`flex-1 py-2 rounded-lg text-sm font-medium border ${autoMode === 'range' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>Période</button>
+                </div>
+
+                {autoMode === 'day' ? (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                    <input type="date" value={autoDate} onChange={e => setAutoDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Début</label>
+                      <input type="date" value={autoStartDate} onChange={e => setAutoStartDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Fin</label>
+                      <input type="date" value={autoEndDate} onChange={e => setAutoEndDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                    </div>
+                  </div>
+                )}
+
+                {autoResult && !autoResult.success && (
+                  <div className="rounded-lg px-4 py-3 mb-4 text-sm bg-red-50 border border-red-200 text-red-700">{autoResult.message}</div>
+                )}
+
+                <div className="flex gap-3">
+                  <button onClick={() => { setAutoModal(false); setAutoResult(null); }} className="flex-1 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm">Fermer</button>
+                  <button
+                    onClick={() => generateAutoReports()}
+                    disabled={autoLoading || (autoMode === 'range' && (!autoStartDate || !autoEndDate))}
+                    className="flex-1 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {autoLoading ? 'Analyse...' : 'Générer'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Étape 2 : assigner les produits non reconnus */}
+            {autoStep === 'assign' && (
+              <>
+                <div className="flex items-center gap-2 mb-1">
+                  <button onClick={() => { setAutoStep('config'); setAutoResult(null); }} className="text-gray-400 hover:text-gray-600">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+                  <h2 className="text-lg font-bold text-gray-900">Assigner les produits</h2>
+                </div>
+                <p className="text-sm text-gray-500 mb-4">
+                  Ces noms de produits dans les commandes n'ont pas été reconnus automatiquement. Associe-les à un produit du catalogue pour les inclure dans le rapport.
+                </p>
+
+                {autoResult?.message && (
+                  <div className="rounded-lg px-3 py-2 mb-4 text-xs bg-blue-50 border border-blue-200 text-blue-700">{autoResult.message}</div>
+                )}
+
+                <div className="space-y-3 mb-5">
+                  {(autoResult?.data?.unmatched || []).map((item) => (
+                    <div key={item.productName} className="border border-gray-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">{item.productName}</p>
+                          <p className="text-xs text-gray-500">{item.totalDelivered} commande{item.totalDelivered > 1 ? 's' : ''} livrée{item.totalDelivered > 1 ? 's' : ''}</p>
+                        </div>
+                        <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">Non reconnu</span>
+                      </div>
+                      <select
+                        value={autoMappings[item.productName] || ''}
+                        onChange={e => setAutoMappings(prev => ({ ...prev, [item.productName]: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      >
+                        <option value="">— Ignorer ce produit —</option>
+                        {autoProducts.map(p => (
+                          <option key={p._id} value={p._id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex gap-3">
+                  <button onClick={() => { setAutoModal(false); setAutoResult(null); loadData(); }} className="flex-1 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm">Fermer</button>
+                  <button
+                    onClick={confirmAssignments}
+                    disabled={autoLoading}
+                    className="flex-1 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium disabled:opacity-50"
+                  >
+                    {autoLoading ? 'Génération...' : 'Confirmer et générer'}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Étape 3 : résultat final */}
+            {autoStep === 'done' && (
+              <>
+                <h2 className="text-lg font-bold text-gray-900 mb-3">Rapport généré</h2>
+                {autoResult && (
+                  <div className={`rounded-lg px-4 py-3 mb-4 text-sm ${autoResult.success ? 'bg-green-50 border border-green-200 text-green-800' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+                    {autoResult.message}
+                    {autoResult.success && autoResult.data?.created?.length > 0 && (
+                      <ul className="mt-2 space-y-0.5">{autoResult.data.created.map((c, i) => <li key={i} className="text-xs">✓ {c.productName} — {new Date(c.dateKey).toLocaleDateString('fr-FR')}</li>)}</ul>
+                    )}
+                    {autoResult.success && autoResult.data?.updated?.length > 0 && (
+                      <ul className="mt-2 space-y-0.5">{autoResult.data.updated.map((c, i) => <li key={i} className="text-xs">↻ {c.productName} — {new Date(c.dateKey).toLocaleDateString('fr-FR')}</li>)}</ul>
+                    )}
+                    {autoResult.success && autoResult.data?.unmatched?.length > 0 && (
+                      <p className="mt-2 text-xs text-orange-700">{autoResult.data.unmatched.length} produit(s) toujours non assigné(s) ignoré(s)</p>
+                    )}
+                  </div>
+                )}
+                <button onClick={() => { setAutoModal(false); setAutoResult(null); setAutoStep('config'); }} className="w-full py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 text-sm font-medium">Fermer</button>
+              </>
+            )}
+
+          </div>
         </div>
       )}
 

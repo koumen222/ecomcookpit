@@ -76,6 +76,13 @@ const Login = () => {
     try {
       const result = await googleLogin(response.credential);
       console.log('✅ [Google Auth] Login réussi:', { user: result.data?.user?.email });
+
+      // Track successful Google login
+      import('../../utils/analytics.js').then(m => {
+        const analytics = m.default;
+        analytics.trackUserLogin(result?.data?.user?.id || result.data?.user?.email, 'google');
+      }).catch(() => {});
+
       const u = result.data?.user;
       if (u && !u.workspaceId && u.role !== 'super_admin') {
         navigate('/ecom/workspace-setup');
@@ -84,6 +91,17 @@ const Login = () => {
       }
     } catch (err) {
       console.error('❌ [Google Auth] Erreur:', err);
+
+      // Track failed Google login attempt
+      import('../../utils/analytics.js').then(m => {
+        const analytics = m.default;
+        analytics.sendEvent('login_failed', {
+          category: 'user',
+          method: 'google',
+          error_message: err.message || 'Google authentication failed'
+        });
+      }).catch(() => {});
+
       setError(getContextualError(err, 'login'));
     } finally {
       setLoading(false);
@@ -217,10 +235,27 @@ const Login = () => {
     setError('');
 
     try {
-      await login(formData.email, formData.password);
+      const result = await login(formData.email, formData.password);
+
+      // Track successful login
+      import('../../utils/analytics.js').then(m => {
+        const analytics = m.default;
+        analytics.trackUserLogin(result?.data?.user?.id || formData.email, 'email');
+      }).catch(() => {});
+
       // Afficher la popup d'enregistrement d'appareil
       setShowDevicePopup(true);
     } catch (error) {
+      // Track failed login attempt
+      import('../../utils/analytics.js').then(m => {
+        const analytics = m.default;
+        analytics.sendEvent('login_failed', {
+          category: 'user',
+          method: 'email',
+          error_message: error.message || 'Authentication failed'
+        });
+      }).catch(() => {});
+
       setError(getContextualError(error, 'login'));
     } finally {
       setLoading(false);

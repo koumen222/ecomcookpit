@@ -51,6 +51,10 @@ const ICON_MAP = {
 };
 
 const TYPE_COLORS = {
+  course: 'bg-amber-50 text-amber-600',
+  new_delivery: 'bg-amber-50 text-amber-600',
+  order_assigned_to_you: 'bg-emerald-50 text-emerald-700',
+  order_taken: 'bg-gray-50 text-gray-600',
   order_new: 'bg-emerald-50 text-emerald-600',
   order_confirmed: 'bg-emerald-50 text-emerald-600',
   order_shipped: 'bg-emerald-50 text-emerald-700',
@@ -62,6 +66,11 @@ const TYPE_COLORS = {
   stock_out: 'bg-red-50 text-red-600',
   stock_received: 'bg-emerald-50 text-emerald-600',
   report_created: 'bg-emerald-50 text-emerald-700',
+  team_order_status_changed: 'bg-blue-50 text-blue-600',
+  team_order_created: 'bg-emerald-50 text-emerald-600',
+  team_campaign_created: 'bg-purple-50 text-purple-600',
+  team_campaign_sent: 'bg-purple-50 text-purple-700',
+  team_report_generated: 'bg-emerald-50 text-emerald-700',
   user_joined: 'bg-emerald-50 text-emerald-700',
   decision_created: 'bg-emerald-50 text-emerald-600',
   goal_achieved: 'bg-green-50 text-green-600',
