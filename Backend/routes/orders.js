@@ -152,7 +152,7 @@ async function notifyDeliveryTaken({ workspaceId, order, takenByLivreurId }) {
   const livreurs = await EcomUser.find({
     workspaceId,
     role: 'ecom_livreur',
-    status: 'active',
+    isActive: true,
     _id: { $ne: takenByLivreurId }
   }).select('_id').lean();
 
@@ -195,7 +195,7 @@ async function escalateExpiredDeliveryOffers(workspaceId) {
     const livreurs = await EcomUser.find({
       workspaceId,
       role: 'ecom_livreur',
-      status: 'active',
+      isActive: true,
       _id: { $nin: refusedIds }
     }).select('_id').lean();
 
@@ -1253,7 +1253,7 @@ async function notifyLivreursOfNewOrder(order, workspaceId) {
     const livreurs = await EcomUser.find({
       workspaceId,
       role: 'ecom_livreur',
-      status: 'active'
+      isActive: true
     }).select('_id').lean();
 
     if (livreurs.length === 0) {
@@ -1313,7 +1313,7 @@ async function notifyOrderTaken(order, workspaceId, takenByLivreurId) {
     const livreurs = await EcomUser.find({
       workspaceId,
       role: 'ecom_livreur',
-      status: 'active',
+      isActive: true,
       _id: { $ne: takenByLivreurId }
     }).select('phone name').lean();
 
@@ -2729,8 +2729,8 @@ router.post('/:id/delivery-offer', requireEcomAuth, async (req, res) => {
 
     const workspaceName = await getWorkspaceName(req.workspaceId);
     const livreurs = mode === 'targeted'
-      ? await EcomUser.find({ _id: livreurId, workspaceId: req.workspaceId, role: 'ecom_livreur', status: 'active' }).select('_id phone name').lean()
-      : await EcomUser.find({ workspaceId: req.workspaceId, role: 'ecom_livreur', status: 'active' }).select('_id phone name').lean();
+      ? await EcomUser.find({ _id: livreurId, workspaceId: req.workspaceId, role: 'ecom_livreur', isActive: true }).select('_id phone name').lean()
+      : await EcomUser.find({ workspaceId: req.workspaceId, role: 'ecom_livreur', isActive: true }).select('_id phone name').lean();
 
     if (sendWhatsApp && mode === 'targeted' && livreurs[0]?.phone) {
       await sendWhatsAppMessage({
@@ -2879,7 +2879,7 @@ router.post('/:id/refuse', requireEcomAuth, async (req, res) => {
       const otherLivreurs = await EcomUser.find({
         workspaceId: req.workspaceId,
         role: 'ecom_livreur',
-        status: 'active',
+        isActive: true,
         _id: { $nin: order.deliveryOfferRefusedBy }
       }).select('_id').lean();
 
@@ -3165,7 +3165,7 @@ router.patch('/:id/livreur-action', requireEcomAuth, async (req, res) => {
         const livreurs = await EcomUser.find({
           workspaceId: req.workspaceId,
           role: 'ecom_livreur',
-          status: 'active',
+          isActive: true,
           _id: { $nin: order.deliveryOfferRefusedBy }
         }).select('_id').lean();
 
@@ -3221,7 +3221,7 @@ router.patch('/:id/ready-for-delivery', requireEcomAuth, async (req, res) => {
     if (ready) {
       try {
         const workspaceName = await getWorkspaceName(req.workspaceId);
-        const livreurs = await EcomUser.find({ workspaceId: req.workspaceId, role: 'ecom_livreur', status: 'active' }).select('_id').lean();
+        const livreurs = await EcomUser.find({ workspaceId: req.workspaceId, role: 'ecom_livreur', isActive: true }).select('_id').lean();
         await sendDeliveryOfferNotifications({
           workspaceId: req.workspaceId,
           order,
