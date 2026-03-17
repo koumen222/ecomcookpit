@@ -30,6 +30,7 @@ const EcomLayoutComponent = ({ children }) => {
 
   useEffect(() => {
     if (!user?.id) return;
+    if (user?.role === 'ecom_livreur') return;
     const timer = setTimeout(() => {
       setShowTutorial(true);
     }, 1500);
