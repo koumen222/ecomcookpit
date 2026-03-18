@@ -557,9 +557,9 @@ const RitaIATab = ({ instances }) => {
     language: 'fr',
     toneStyle: 'warm',
     useEmojis: true,
-    signMessages: true,
+    signMessages: false,
     responseDelay: 2,
-    welcomeMessage: "Bonjour ! Je suis Rita 👋 Je suis là pour vous aider à trouver le produit parfait. Comment puis-je vous aider ?",
+    welcomeMessage: "Bonjour ma chérie 👋 Tu cherches quel produit exactement ?",
     fallbackMessage: 'Je transfère votre demande à un de nos conseillers. Il vous contactera dans les plus brefs délais.',
     autonomyLevel: 3,
     canCloseDeals: false,
@@ -603,12 +603,12 @@ const RitaIATab = ({ instances }) => {
         setConfig(prev => ({ ...prev, ...data.config }));
         setConfigSaved(true);
         setShowConfig(false);
-        setSimMessages([{ role: 'agent', text: data.config.welcomeMessage || 'Bonjour ! Comment puis-je vous aider ?', time: '14:30' }]);
+        setSimMessages([{ role: 'agent', text: data.config.welcomeMessage || 'Bonjour ma chérie 👋 Tu cherches quel produit exactement ?', time: '14:30' }]);
       } else {
-        setSimMessages([{ role: 'agent', text: "Bonjour ! Je suis Rita 👋 Comment puis-je vous aider ?", time: '14:30' }]);
+        setSimMessages([{ role: 'agent', text: "Bonjour ma chérie 👋 Tu cherches quel produit exactement ?", time: '14:30' }]);
       }
     } catch {
-      setSimMessages([{ role: 'agent', text: "Bonjour ! Je suis Rita 👋 Comment puis-je vous aider ?", time: '14:30' }]);
+      setSimMessages([{ role: 'agent', text: "Bonjour ma chérie 👋 Tu cherches quel produit exactement ?", time: '14:30' }]);
     } finally { setLoadingConfig(false); }
   };
 
@@ -690,7 +690,7 @@ const RitaIATab = ({ instances }) => {
 
   const resetSim = () => {
     const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-    setSimMessages([{ role: 'agent', text: config.welcomeMessage || 'Bonjour ! Comment puis-je vous aider ?', time: now }]);
+    setSimMessages([{ role: 'agent', text: config.welcomeMessage || 'Bonjour ma chérie 👋 Tu cherches quel produit exactement ?', time: now }]);
     setSimTyping(false);
   };
 
@@ -1168,44 +1168,76 @@ const RitaIATab = ({ instances }) => {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
+            <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
+
+              {/* Left: Agent info panel */}
+              <div className="bg-[radial-gradient(circle_at_top,_rgba(236,253,245,0.9),_rgba(249,250,251,0.95)_45%,_rgba(255,255,255,1)_100%)] p-5 space-y-4 lg:order-1">
+                <div className="rounded-2xl border border-emerald-100 bg-white/90 p-4 shadow-sm">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-600">Style conversation</p>
+                  <p className="mt-2 text-[13px] leading-6 text-gray-700">Rita doit répondre comme une vendeuse camerounaise: simple, rassurante, sans blabla, sans signature à la fin.</p>
+                </div>
+
+                <div className="rounded-2xl border border-gray-200 bg-white/90 p-4 shadow-sm space-y-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Identité</p>
+                    <p className="mt-2 text-[14px] font-semibold text-gray-900">{config.agentName || 'Rita'}</p>
+                    <p className="text-[12px] text-gray-500">{config.agentRole || 'Conseillère commerciale'} · {config.language === 'fr' ? 'Français' : config.language}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-xl bg-gray-50 px-3 py-2">
+                      <p className="text-[10px] font-semibold text-gray-400">Ton</p>
+                      <p className="mt-1 text-[12px] text-gray-700">Naturel</p>
+                    </div>
+                    <div className="rounded-xl bg-gray-50 px-3 py-2">
+                      <p className="text-[10px] font-semibold text-gray-400">Signature</p>
+                      <p className="mt-1 text-[12px] text-gray-700">Désactivée</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-amber-100 bg-amber-50/90 p-4 shadow-sm">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">Règle critique</p>
+                  <p className="mt-2 text-[13px] leading-6 text-amber-900">Pas d'invention sur le prix, la livraison, le stock ou les produits. Si l'info manque, Rita doit vérifier ou demander une précision.</p>
+                </div>
+              </div>
 
               {/* Chat area */}
-              <div>
+              <div className="lg:order-2">
                 {/* WhatsApp header */}
-                <div className="px-4 py-3 bg-[#075E54] flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-400 to-indigo-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                <div className="px-4 py-3 bg-[linear-gradient(135deg,#075E54_0%,#0b7a6d_100%)] flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-300 to-teal-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0 shadow-sm">
                     {config.agentName?.[0]?.toUpperCase() || 'R'}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-[14px] font-semibold">{config.agentName || 'Rita'}</p>
-                    <p className="text-emerald-300 text-[11px]">{simTyping ? 'écrit...' : 'en ligne'}</p>
+                    <p className="text-emerald-200 text-[11px]">{simTyping ? 'en train d\'écrire...' : 'vendeuse en ligne'}</p>
                   </div>
-                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${autonomyInfo.color}`}>{autonomyInfo.label}</span>
+                  <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0 bg-white/15 text-white border border-white/10">Chat test</span>
                 </div>
 
                 {/* Chat messages */}
-                <div className="h-[380px] overflow-y-auto px-4 py-3 bg-[#efeae2] flex flex-col gap-2">
+                <div className="h-[420px] overflow-y-auto px-4 py-4 bg-[linear-gradient(180deg,#efeae2_0%,#f5efe6_100%)] flex flex-col gap-3 relative">
+                  <div className="absolute inset-0 opacity-[0.06] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#0f172a 0.6px, transparent 0.6px)', backgroundSize: '18px 18px' }} />
                   <div className="text-center flex-shrink-0">
-                    <span className="inline-block px-3 py-1 bg-white/80 text-[10px] text-gray-500 rounded-lg shadow-sm backdrop-blur-sm">Simulation — {config.agentName || 'Rita'} IA</span>
+                    <span className="inline-block px-3 py-1 bg-white/85 text-[10px] text-gray-500 rounded-lg shadow-sm backdrop-blur-sm relative z-10">Simulation client WhatsApp</span>
                   </div>
                   {simMessages.map((msg, i) => (
-                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} flex-shrink-0`}>
-                      <div className={`max-w-[82%] rounded-xl px-3.5 py-2 shadow-sm ${msg.role === 'user' ? 'bg-[#dcf8c6] rounded-tr-sm' : 'bg-white rounded-tl-sm'}`}>
+                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} flex-shrink-0 relative z-10`}>
+                      <div className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 shadow-sm border ${msg.role === 'user' ? 'bg-[#dcf8c6] border-emerald-100 rounded-tr-sm' : 'bg-white border-white/70 rounded-tl-sm'}`}>
                         {msg.role === 'agent' && (
-                          <p className="text-[10px] font-semibold text-purple-600 mb-0.5">
-                            {config.agentName || 'Rita'} <span className="text-[8px] bg-purple-100 text-purple-500 px-1 rounded">IA</span>
+                          <p className="text-[10px] font-semibold text-emerald-700 mb-1">
+                            {config.agentName || 'Rita'}
                           </p>
                         )}
-                        <p className="text-[13px] text-gray-800 leading-snug">{msg.text}</p>
-                        <p className="text-[9px] text-gray-400 mt-0.5 text-right">{msg.time}</p>
+                        <p className="text-[13px] text-gray-800 leading-6">{msg.text}</p>
+                        <p className="text-[9px] text-gray-400 mt-1 text-right">{msg.time}</p>
                       </div>
                     </div>
                   ))}
                   {simTyping && (
-                    <div className="flex justify-start flex-shrink-0">
-                      <div className="bg-white rounded-xl rounded-tl-sm px-3.5 py-2.5 shadow-sm">
-                        <p className="text-[10px] font-semibold text-purple-600 mb-1">{config.agentName || 'Rita'}</p>
+                    <div className="flex justify-start flex-shrink-0 relative z-10">
+                      <div className="bg-white rounded-2xl rounded-tl-sm px-3.5 py-2.5 shadow-sm border border-white/70">
+                        <p className="text-[10px] font-semibold text-emerald-700 mb-1">{config.agentName || 'Rita'}</p>
                         <div className="flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
                           <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '180ms' }} />
@@ -1219,7 +1251,7 @@ const RitaIATab = ({ instances }) => {
 
                 {/* Quick replies */}
                 <div className="px-3 py-2 border-t border-gray-100 bg-[#f8f8f8] flex gap-1.5 overflow-x-auto">
-                  {["C'est combien ?", "Vous livrez ?", "Je veux commander", "Trop cher !", "C'est pour offrir"].map(s => (
+                  {["Vous avez ça ?", "C'est combien ?", "Vous livrez sur Akwa ?", "Je veux seulement ça", "Je peux commander comment ?"].map(s => (
                     <button key={s} onClick={() => setSimInput(s)}
                       className="flex-shrink-0 px-2.5 py-1 bg-white border border-gray-200 text-[11px] text-gray-600 rounded-full hover:bg-gray-50 hover:border-gray-300 transition-colors whitespace-nowrap">
                       {s}
@@ -1240,40 +1272,6 @@ const RitaIATab = ({ instances }) => {
                   </button>
                 </div>
               </div>
-
-              {/* Right: Agent info panel */}
-              <div className="bg-gray-50/40 p-5 space-y-4">
-                <div className="text-center">
-                  <div className={`mx-auto w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-lg ${config.enabled ? 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-200' : 'bg-gradient-to-br from-gray-400 to-gray-500 shadow-gray-200'}`}>
-                    {config.agentName?.[0]?.toUpperCase() || 'R'}
-                  </div>
-                  <p className="text-[15px] font-bold text-gray-900 mt-3">{config.agentName || 'Rita'}</p>
-                  <p className="text-[12px] text-gray-400">{config.agentRole || 'Agent commercial IA'}</p>
-                  {config.enabled ? (
-                    <span className="inline-flex items-center gap-1.5 mt-2 text-[11px] font-bold text-emerald-600 bg-emerald-100 px-3 py-1 rounded-full">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      Agent Actif
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 mt-2 text-[11px] font-bold text-gray-400 bg-gray-100 px-3 py-1 rounded-full">En pause</span>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <InfoRow label="Langue" value={config.language === 'fr' ? '🇫🇷 Français' : config.language === 'en' ? '🇬🇧 English' : config.language === 'es' ? '🇪🇸 Español' : '🇲🇦 العربية'} />
-                  <InfoRow label="Ton" value={config.toneStyle === 'warm' ? 'Chaleureux' : config.toneStyle === 'professional' ? 'Professionnel' : config.toneStyle === 'casual' ? 'Décontracté' : config.toneStyle === 'persuasive' ? 'Persuasif' : 'Premium'} />
-                  <InfoRow label="Autonomie" value={autonomyInfo.label} />
-                  <InfoRow label="Closing" value={config.closingTechnique === 'soft' ? 'Douce' : config.closingTechnique === 'urgency' ? 'Urgence' : config.closingTechnique === 'social-proof' ? 'Sociale' : 'Valeur'} />
-                  <InfoRow label="Emojis" value={config.useEmojis ? 'Oui' : 'Non'} />
-                  <InfoRow label="Relances" value={config.followUpEnabled ? `Après ${config.followUpDelay}h` : 'Désactivées'} />
-                </div>
-
-                <button onClick={() => setShowConfig(true)}
-                  className="w-full py-2.5 text-[13px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 rounded-xl hover:bg-purple-100 transition-colors flex items-center justify-center gap-2">
-                  <Zap className="w-3.5 h-3.5" />
-                  Modifier la configuration
-                </button>
-              </div>
             </div>
 
           </div>
@@ -1283,12 +1281,5 @@ const RitaIATab = ({ instances }) => {
     </div>
   );
 };
-
-const InfoRow = ({ label, value }) => (
-  <div className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
-    <span className="text-[11px] font-medium text-gray-400">{label}</span>
-    <span className="text-[12px] font-semibold text-gray-700">{value}</span>
-  </div>
-);
 
 export default WhatsAppService;

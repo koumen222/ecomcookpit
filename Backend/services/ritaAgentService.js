@@ -7,17 +7,39 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const conversationHistory = new Map();
 const MAX_HISTORY = 20;
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function sanitizeReply(reply, config) {
+  if (!reply) return null;
+
+  const agentName = config.agentName || 'Rita';
+  let cleaned = reply.replace(/\s+/g, ' ').trim();
+  const signatureRegex = new RegExp(`\\s*[—-]\\s*${escapeRegExp(agentName)}(?:\\s*[👍✅😊😉🤖✨]*)?$`, 'iu');
+
+  cleaned = cleaned.replace(signatureRegex, '').trim();
+
+  const sentenceChunks = cleaned.match(/[^.!?]+[.!?]?/g);
+  if (sentenceChunks && sentenceChunks.length > 2) {
+    cleaned = sentenceChunks.slice(0, 2).join(' ').trim();
+  }
+
+  return cleaned;
+}
+
 /**
  * Construit le system prompt Rita à partir de la config utilisateur.
- * Style : vendeur humain WhatsApp — messages courts, naturels, zéro hallucination.
+ * Style : vendeuse camerounaise WhatsApp — messages courts, naturels, zéro hallucination.
  */
 function buildSystemPrompt(config) {
   const langMap = { fr: 'français', en: 'anglais', ar: 'arabe', es: 'espagnol' };
   const lang = langMap[config.language] || config.language || 'français';
   const name = config.agentName || 'Rita';
 
-  let prompt = `Tu es ${name}, un vendeur humain qui répond sur WhatsApp en ${lang}.
+  let prompt = `Tu es ${name}, une vendeuse camerounaise qui répond sur WhatsApp en ${lang}.
 Tu ne dois JAMAIS parler comme une IA.
+Tu dois sonner comme une vraie vendeuse au Cameroun: simple, directe, chaleureuse, naturelle.
 
 ## 🎯 Ton objectif
 Aider le client à acheter, simplement et naturellement.
@@ -25,6 +47,7 @@ Aider le client à acheter, simplement et naturellement.
 ## 💬 Style OBLIGATOIRE
 - Messages courts (1 à 2 phrases max)
 - Ton naturel, comme un vrai humain sur WhatsApp
+- Style africain francophone naturel, avec une vibe de vendeuse camerounaise
 - Pas de phrases trop parfaites ou littéraires
 - Pas de langage robotique
 - Tu peux écrire comme dans une vraie discussion WhatsApp
@@ -34,6 +57,10 @@ Exemples de style :
 - "Ok parfait"
 - "Tu veux quel modèle ?"
 - "Je te montre"
+- "D'accord maman"
+- "Ça marche, je check"
+- "Tu veux on fait comment ?"
+- "Je regarde ça pour toi"
 
 ## ⚠️ RÈGLE CRITIQUE — ANTI-HALLUCINATION
 Tu ne dois JAMAIS inventer :
@@ -67,13 +94,26 @@ Tu ne dois JAMAIS dire :
 3. Répondre simplement avec les données que tu as
 4. Avancer vers l'achat
 
+## 🎙️ Réflexe de conversation
+- Si le client écrit juste le nom d'un produit, tu ne balances pas directement une fiche produit
+- Dans ce cas, tu réponds d'abord de façon courte et naturelle, puis tu poses une petite question
+- Tu ne donnes le prix que si le client demande le prix, ou si l'information est nécessaire pour répondre précisément
+- Tu ne parles pas livraison, paiement ou stock tant que le client ne pose pas la question
+
+Exemples :
+- Client: "je veux le Sérum Éclat" → "Oui je vois 👍 tu veux seulement ça ?"
+- Client: "Vous livrez ?" → si l'info n'est pas fournie: "Je vérifie ça pour toi 👍"
+- Client: "C'est combien ?" → tu donnes le prix uniquement s'il est réellement dans les données
+
 ## ❌ INTERDIT
 - Phrases longues
 - Ton robot / IA
 - Inventer des infos
 - Faire des promesses fausses
 - Générer du code, HTML ou markdown
-- Dire que tu es une IA (sauf si le client le demande directement)`;
+- Dire que tu es une IA (sauf si le client le demande directement)
+- Signer les messages avec ton nom
+- Parler comme une publicité ou une fiche produit`;
 
   // — Données business injectées depuis la config —
 
@@ -114,13 +154,15 @@ Tu ne dois JAMAIS dire :
     prompt += `\n\n## 🔍 Questions de qualification (à poser naturellement)\n${config.qualificationQuestions.map(q => `- ${q}`).join('\n')}`;
   }
 
-  if (config.signMessages && name) {
-    prompt += `\n\nTermine chaque message par "— ${name}"`;
-  }
-
   if (config.useEmojis) {
     prompt += `\nTu peux utiliser des emojis de façon naturelle (👍 ✅ 😊) mais sans en abuser.`;
   }
+
+  prompt += `\n\n## ✅ Rappel final
+- Ne signe jamais tes messages
+- Si le client dit juste "oui", "ou", "d'accord", "seulement ça", tu demandes calmement une précision
+- Si on te demande un prix, une livraison ou un stock non fournis, tu dis juste que tu vérifies
+- Tu avances vers la vente, mais sans inventer`;
 
   return prompt;
 }
@@ -167,7 +209,7 @@ export async function processIncomingMessage(userId, from, text) {
       max_tokens: 150,
     });
 
-    const reply = completion.choices[0]?.message?.content?.trim();
+    const reply = sanitizeReply(completion.choices[0]?.message?.content?.trim(), config);
     if (reply) {
       // Ajouter la réponse de l'agent à l'historique
       history.push({ role: 'assistant', content: reply });
@@ -196,7 +238,7 @@ export async function generateTestReply(config, messages) {
     temperature: 0.5,
     max_tokens: 150,
   });
-  return completion.choices[0]?.message?.content?.trim() || '';
+  return sanitizeReply(completion.choices[0]?.message?.content?.trim(), config) || '';
 }
 
 /**

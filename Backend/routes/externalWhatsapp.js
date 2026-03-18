@@ -5,26 +5,19 @@ import RitaConfig from '../models/RitaConfig.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 import { processIncomingMessage, generateTestReply } from '../services/ritaAgentService.js';
 
+const HARD_CODED_WEBHOOK_BASE_URL = 'https://api.scalor.net';
+
 function resolveWebhookBaseUrl(req) {
-  const explicitWebhookUrl = process.env.WHATSAPP_WEBHOOK_URL || process.env.RITA_WEBHOOK_URL;
-  if (explicitWebhookUrl) {
-    return explicitWebhookUrl.replace(/\/$/, '');
-  }
-
-  const apiUrl = process.env.API_URL;
-  if (apiUrl) {
-    return apiUrl.replace(/\/$/, '');
-  }
-
   const forwardedProto = req.headers['x-forwarded-proto'];
   const proto = (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto) || req.protocol || 'http';
   const host = req.get('host');
+  const isLocalHost = host && /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(host);
 
-  if (!host) {
-    return 'http://localhost:5000';
+  if (isLocalHost) {
+    return `${proto}://${host}`.replace(/\/$/, '');
   }
 
-  return `${proto}://${host}`.replace(/\/$/, '');
+  return HARD_CODED_WEBHOOK_BASE_URL;
 }
 import { checkMessageLimit, incrementMessageCount, getInstanceUsage } from '../services/messageLimitService.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
