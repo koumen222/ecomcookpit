@@ -619,6 +619,25 @@ const RitaIATab = ({ instances }) => {
   const [editingProduct, setEditingProduct] = useState(null); // index or null
   const [newMannerism, setNewMannerism] = useState('');
   const [newForbidden, setNewForbidden] = useState('');
+  const [previewingVoice, setPreviewingVoice] = useState(null); // voiceId en cours de preview
+
+  const playVoicePreview = async (voiceId, e) => {
+    e.stopPropagation();
+    if (previewingVoice === voiceId) return;
+    setPreviewingVoice(voiceId);
+    try {
+      const { data } = await ecomApi.get(`/v1/external/whatsapp/preview-voice?voiceId=${voiceId}`);
+      if (data.success && data.audio) {
+        const bytes = Uint8Array.from(atob(data.audio), c => c.charCodeAt(0));
+        const blob = new Blob([bytes], { type: 'audio/mpeg' });
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.onended = () => { setPreviewingVoice(null); URL.revokeObjectURL(url); };
+        audio.onerror = () => { setPreviewingVoice(null); URL.revokeObjectURL(url); };
+        audio.play();
+      } else { setPreviewingVoice(null); }
+    } catch { setPreviewingVoice(null); }
+  };
 
   const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
   const userId = user._id || user.id;
@@ -1590,8 +1609,22 @@ const RitaIATab = ({ instances }) => {
                             </div>
                             <p className="text-[11px] text-gray-400">{v.desc}</p>
                           </div>
+                          <button
+                            type="button"
+                            onClick={(e) => playVoicePreview(v.id, e)}
+                            className={`ml-auto flex-shrink-0 p-1.5 rounded-full transition-colors ${
+                              previewingVoice === v.id
+                                ? 'bg-purple-500 text-white animate-pulse'
+                                : 'bg-gray-100 hover:bg-purple-100 text-gray-500 hover:text-purple-600'
+                            }`}
+                            title="Écouter cette voix">
+                            {previewingVoice === v.id
+                              ? <span className="text-[10px] font-bold">▶</span>
+                              : <span className="text-[10px]">▶</span>
+                            }
+                          </button>
                           {config.elevenlabsVoiceId === v.id && (
-                            <CheckCircle className="w-4 h-4 text-purple-500 ml-auto" />
+                            <CheckCircle className="w-4 h-4 text-purple-500 flex-shrink-0" />
                           )}
                         </button>
                       ))}

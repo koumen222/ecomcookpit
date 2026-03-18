@@ -1095,6 +1095,34 @@ router.get('/rita-config', async (req, res) => {
 });
 
 /**
+ * @route   GET /api/ecom/v1/external/whatsapp/preview-voice
+ * @desc    Génère un court échantillon audio ElevenLabs pour prévisualiser une voix
+ */
+router.get('/preview-voice', async (req, res) => {
+  try {
+    const { voiceId } = req.query;
+    if (!voiceId) return res.status(400).json({ success: false, error: 'voiceId requis' });
+
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    if (!apiKey) return res.status(500).json({ success: false, error: 'Clé ElevenLabs non configurée' });
+
+    const sampleText = 'Bonjour ! Je suis Rita, votre assistante commerciale. Comment puis-je vous aider aujourd\'hui ?';
+
+    const response = await (await import('axios')).default.post(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      { text: sampleText, model_id: 'eleven_turbo_v2_5', voice_settings: { stability: 0.5, similarity_boost: 0.75 } },
+      { headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json', Accept: 'audio/mpeg' }, responseType: 'arraybuffer', timeout: 20000 }
+    );
+
+    const audioBase64 = Buffer.from(response.data).toString('base64');
+    res.json({ success: true, audio: audioBase64 });
+  } catch (error) {
+    console.error('❌ Erreur preview-voice:', error.response?.data ? Buffer.from(error.response.data).toString('utf8') : error.message);
+    res.status(500).json({ success: false, error: 'Génération audio échouée' });
+  }
+});
+
+/**
  * @route   POST /api/ecom/v1/external/whatsapp/test-chat
  * @desc    Envoie un message au simulateur Rita et retourne la réponse IA (Groq)
  */
