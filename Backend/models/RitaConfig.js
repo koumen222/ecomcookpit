@@ -35,6 +35,39 @@ const ritaConfigSchema = new mongoose.Schema({
   usefulLinks: { type: [String], default: [] },
   competitiveAdvantages: { type: [String], default: [] },
 
+  // Catalogue produits structuré
+  productCatalog: [{
+    name: { type: String, required: true },
+    price: { type: String, default: '' },
+    description: { type: String, default: '' },
+    category: { type: String, default: '' },
+    images: [String],
+    features: [String],
+    faq: [{ question: { type: String }, answer: { type: String } }],
+    objections: [{ objection: { type: String }, response: { type: String } }],
+    inStock: { type: Boolean, default: true },
+  }],
+
+  // Personnalité & ton de l'agent
+  personality: {
+    description: { type: String, default: '' },
+    mannerisms: [String],
+    forbiddenPhrases: [String],
+    tonalGuidelines: { type: String, default: '' },
+  },
+
+  // Exemples de conversations (pairs client/agent)
+  conversationExamples: [{
+    customer: { type: String },
+    agent: { type: String },
+  }],
+
+  // Règles de comportement
+  behaviorRules: [{
+    situation: { type: String },
+    reaction: { type: String },
+  }],
+
   // Stratégie de vente
   autoReplyKeywords: { type: [String], default: [] },
   qualificationQuestions: { type: [String], default: [] },

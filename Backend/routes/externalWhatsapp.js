@@ -768,19 +768,61 @@ router.post('/incoming', async (req, res) => {
           // Extraire le numéro propre depuis le JID WhatsApp (ex: 33612345678@s.whatsapp.net)
           const cleanFrom = from.replace(/@.*$/, '');
 
-          // Envoyer la réponse via Evolution API
-          console.log(`📤 [RITA] Envoi réponse à ${cleanFrom} via ${instanceDoc.instanceName}...`);
-          const sendResult = await evolutionApiService.sendMessage(
-            instanceDoc.instanceName,
-            instanceDoc.instanceToken,
-            cleanFrom,
-            reply
-          );
+          // ─── Détecter tag [IMAGE:Nom du produit] pour envoi de photos ───
+          const imageTagMatch = reply.match(/\[IMAGE:(.+?)\]/);
+          let textToSend = reply;
+          let imageUrl = null;
 
-          if (sendResult.success) {
-            console.log(`✅ [RITA] Réponse envoyée avec succès à ${cleanFrom}`);
-          } else {
-            console.error(`❌ [RITA] Échec envoi réponse à ${cleanFrom}:`, sendResult.error);
+          if (imageTagMatch) {
+            const productName = imageTagMatch[1].trim();
+            textToSend = reply.replace(/\s*\[IMAGE:.+?\]/, '').trim();
+            console.log(`📸 [RITA] Tag image détecté pour produit: "${productName}"`);
+
+            // Chercher l'image dans le productCatalog
+            const ritaCfg = await RitaConfig.findOne({ userId }).lean();
+            const product = ritaCfg?.productCatalog?.find(
+              p => p.name.toLowerCase() === productName.toLowerCase()
+            );
+            if (product?.images?.length) {
+              imageUrl = product.images[0];
+              console.log(`📸 [RITA] Image trouvée: ${imageUrl}`);
+            } else {
+              console.log(`📸 [RITA] Aucune image trouvée pour "${productName}"`);
+            }
+          }
+
+          // Envoyer le texte
+          if (textToSend) {
+            console.log(`📤 [RITA] Envoi réponse texte à ${cleanFrom} via ${instanceDoc.instanceName}...`);
+            const sendResult = await evolutionApiService.sendMessage(
+              instanceDoc.instanceName,
+              instanceDoc.instanceToken,
+              cleanFrom,
+              textToSend
+            );
+            if (sendResult.success) {
+              console.log(`✅ [RITA] Réponse texte envoyée avec succès à ${cleanFrom}`);
+            } else {
+              console.error(`❌ [RITA] Échec envoi texte à ${cleanFrom}:`, sendResult.error);
+            }
+          }
+
+          // Envoyer l'image si disponible
+          if (imageUrl) {
+            console.log(`📸 [RITA] Envoi image à ${cleanFrom}...`);
+            const mediaResult = await evolutionApiService.sendMedia(
+              instanceDoc.instanceName,
+              instanceDoc.instanceToken,
+              cleanFrom,
+              imageUrl,
+              '',
+              'product.jpg'
+            );
+            if (mediaResult.success) {
+              console.log(`✅ [RITA] Image envoyée avec succès à ${cleanFrom}`);
+            } else {
+              console.error(`❌ [RITA] Échec envoi image à ${cleanFrom}:`, mediaResult.error);
+            }
           }
           console.log(`💬 [RITA] ══════════════════════════════════════`);
         }

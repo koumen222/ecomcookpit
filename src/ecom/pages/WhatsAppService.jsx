@@ -526,11 +526,13 @@ const ToggleRow = ({ enabled, onChange, label, desc }) => (
 
 /* ── Rita IA ── */
 const RITA_SECTIONS = [
-  { id: 'identity',     label: 'Identité',        emoji: '🤖' },
-  { id: 'intelligence', label: 'Intelligence',     emoji: '🧠' },
-  { id: 'knowledge',    label: 'Connaissances',    emoji: '📚' },
-  { id: 'sales',        label: 'Stratégie vente',  emoji: '💰' },
-  { id: 'availability', label: 'Disponibilité',    emoji: '⏰' },
+  { id: 'identity',     label: 'Identité',     emoji: '🤖' },
+  { id: 'intelligence', label: 'Intelligence',  emoji: '🧠' },
+  { id: 'products',     label: 'Produits',      emoji: '🛒' },
+  { id: 'knowledge',    label: 'Connaissances', emoji: '📚' },
+  { id: 'personality',  label: 'Personnalité',  emoji: '🎭' },
+  { id: 'sales',        label: 'Vente',         emoji: '💰' },
+  { id: 'availability', label: 'Dispo',         emoji: '⏰' },
 ];
 
 const AUTONOMY_LEVELS = [
@@ -581,6 +583,12 @@ const RitaIATab = ({ instances }) => {
     businessHoursOnly: false,
     businessHoursStart: '08:00',
     businessHoursEnd: '20:00',
+    // Structured product catalog
+    productCatalog: [],
+    // Personality
+    personality: { description: '', mannerisms: [], forbiddenPhrases: [], tonalGuidelines: '' },
+    conversationExamples: [],
+    behaviorRules: [],
   });
 
   const [simMessages, setSimMessages] = useState([]);
@@ -589,6 +597,9 @@ const RitaIATab = ({ instances }) => {
   const simEndRef = React.useRef(null);
   const [newKw, setNewKw] = useState('');
   const [newQuestion, setNewQuestion] = useState('');
+  const [editingProduct, setEditingProduct] = useState(null); // index or null
+  const [newMannerism, setNewMannerism] = useState('');
+  const [newForbidden, setNewForbidden] = useState('');
 
   const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
   const userId = user._id || user.id;
@@ -654,6 +665,96 @@ const RitaIATab = ({ instances }) => {
     if (q) { set('qualificationQuestions', [...config.qualificationQuestions, q]); setNewQuestion(''); }
   };
 
+  // ─── Product catalog helpers ───
+  const addProduct = () => {
+    const newP = { name: '', price: '', description: '', category: '', images: [], features: [], faq: [], objections: [], inStock: true };
+    set('productCatalog', [...config.productCatalog, newP]);
+    setEditingProduct(config.productCatalog.length);
+  };
+  const updateProduct = (idx, field, val) => {
+    const updated = config.productCatalog.map((p, i) => i === idx ? { ...p, [field]: val } : p);
+    set('productCatalog', updated);
+  };
+  const removeProduct = (idx) => {
+    set('productCatalog', config.productCatalog.filter((_, i) => i !== idx));
+    if (editingProduct === idx) setEditingProduct(null);
+    else if (editingProduct > idx) setEditingProduct(editingProduct - 1);
+  };
+  const addProductFaq = (idx) => {
+    const p = config.productCatalog[idx];
+    updateProduct(idx, 'faq', [...(p.faq || []), { question: '', answer: '' }]);
+  };
+  const updateProductFaq = (pIdx, fIdx, field, val) => {
+    const p = config.productCatalog[pIdx];
+    const faq = p.faq.map((f, i) => i === fIdx ? { ...f, [field]: val } : f);
+    updateProduct(pIdx, 'faq', faq);
+  };
+  const removeProductFaq = (pIdx, fIdx) => {
+    updateProduct(pIdx, 'faq', config.productCatalog[pIdx].faq.filter((_, i) => i !== fIdx));
+  };
+  const addProductObjection = (idx) => {
+    const p = config.productCatalog[idx];
+    updateProduct(idx, 'objections', [...(p.objections || []), { objection: '', response: '' }]);
+  };
+  const updateProductObjection = (pIdx, oIdx, field, val) => {
+    const p = config.productCatalog[pIdx];
+    const obj = p.objections.map((o, i) => i === oIdx ? { ...o, [field]: val } : o);
+    updateProduct(pIdx, 'objections', obj);
+  };
+  const removeProductObjection = (pIdx, oIdx) => {
+    updateProduct(pIdx, 'objections', config.productCatalog[pIdx].objections.filter((_, i) => i !== oIdx));
+  };
+  const addProductImage = (idx) => {
+    const p = config.productCatalog[idx];
+    updateProduct(idx, 'images', [...(p.images || []), '']);
+  };
+  const updateProductImage = (pIdx, iIdx, val) => {
+    const imgs = config.productCatalog[pIdx].images.map((url, i) => i === iIdx ? val : url);
+    updateProduct(pIdx, 'images', imgs);
+  };
+  const removeProductImage = (pIdx, iIdx) => {
+    updateProduct(pIdx, 'images', config.productCatalog[pIdx].images.filter((_, i) => i !== iIdx));
+  };
+  const addProductFeature = (idx, feat) => {
+    if (!feat.trim()) return;
+    const p = config.productCatalog[idx];
+    updateProduct(idx, 'features', [...(p.features || []), feat.trim()]);
+  };
+  const removeProductFeature = (pIdx, fIdx) => {
+    updateProduct(pIdx, 'features', config.productCatalog[pIdx].features.filter((_, i) => i !== fIdx));
+  };
+
+  // ─── Personality helpers ───
+  const setPersonality = (field, val) => set('personality', { ...config.personality, [field]: val });
+  const addMannerism = () => {
+    const m = newMannerism.trim();
+    if (m) { setPersonality('mannerisms', [...(config.personality.mannerisms || []), m]); setNewMannerism(''); }
+  };
+  const addForbidden = () => {
+    const f = newForbidden.trim();
+    if (f) { setPersonality('forbiddenPhrases', [...(config.personality.forbiddenPhrases || []), f]); setNewForbidden(''); }
+  };
+  const addConversationExample = () => {
+    set('conversationExamples', [...config.conversationExamples, { customer: '', agent: '' }]);
+  };
+  const updateConvExample = (idx, field, val) => {
+    const updated = config.conversationExamples.map((e, i) => i === idx ? { ...e, [field]: val } : e);
+    set('conversationExamples', updated);
+  };
+  const removeConvExample = (idx) => {
+    set('conversationExamples', config.conversationExamples.filter((_, i) => i !== idx));
+  };
+  const addBehaviorRule = () => {
+    set('behaviorRules', [...config.behaviorRules, { situation: '', reaction: '' }]);
+  };
+  const updateBehaviorRule = (idx, field, val) => {
+    const updated = config.behaviorRules.map((r, i) => i === idx ? { ...r, [field]: val } : r);
+    set('behaviorRules', updated);
+  };
+  const removeBehaviorRule = (idx) => {
+    set('behaviorRules', config.behaviorRules.filter((_, i) => i !== idx));
+  };
+
   const handleSimSend = async () => {
     if (!simInput.trim() || simTyping) return;
     const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -697,11 +798,13 @@ const RitaIATab = ({ instances }) => {
   const autonomyInfo = AUTONOMY_LEVELS.find(a => a.level === config.autonomyLevel) || AUTONOMY_LEVELS[2];
 
   // Compteur de champs remplis
-  const totalSteps = 5;
+  const totalSteps = 7;
   const filledSteps = [
     config.agentName && config.agentRole,
     config.autonomyLevel > 0,
+    config.productCatalog?.length > 0,
     config.businessContext || config.products || config.faq,
+    config.conversationExamples?.length > 0 || config.personality?.description,
     config.qualificationQuestions.length > 0 || config.objectionsHandling,
     true, // disponibilité = toujours OK
   ].filter(Boolean).length;
@@ -945,6 +1048,172 @@ const RitaIATab = ({ instances }) => {
               </div>
             )}
 
+            {/* ─── Catalogue Produits ─── */}
+            {activeSection === 'products' && (
+              <div className="space-y-4">
+                <div className="px-4 py-3 bg-purple-50 border border-purple-100 rounded-lg text-[12px] text-purple-800 flex gap-2">
+                  <span className="flex-shrink-0">🛒</span>
+                  <span>Ajoutez vos produits avec tous les détails : prix, description, images, FAQ et objections. Plus c'est complet, plus l'agent est efficace.</span>
+                </div>
+
+                {config.productCatalog.map((product, pIdx) => (
+                  <div key={pIdx} className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+                    {/* Product header */}
+                    <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b border-gray-100 cursor-pointer"
+                      onClick={() => setEditingProduct(editingProduct === pIdx ? null : pIdx)}>
+                      <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 text-[12px] font-bold flex items-center justify-center flex-shrink-0">
+                        {pIdx + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold text-gray-900 truncate">{product.name || 'Nouveau produit'}</p>
+                        <p className="text-[11px] text-gray-400">
+                          {product.price ? `${product.price}` : 'Prix non défini'}
+                          {product.category ? ` · ${product.category}` : ''}
+                          {product.images?.length ? ` · ${product.images.length} photo${product.images.length > 1 ? 's' : ''}` : ''}
+                          {product.faq?.length ? ` · ${product.faq.length} FAQ` : ''}
+                          {product.objections?.length ? ` · ${product.objections.length} objection${product.objections.length > 1 ? 's' : ''}` : ''}
+                          {!product.inStock ? ' · 🔴 Rupture' : ''}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-[11px] text-gray-400">{editingProduct === pIdx ? '▲' : '▼'}</span>
+                        <button onClick={e => { e.stopPropagation(); removeProduct(pIdx); }}
+                          className="text-gray-300 hover:text-red-500 transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Product expanded details */}
+                    {editingProduct === pIdx && (
+                      <div className="p-4 space-y-4">
+                        {/* Basic info */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <Field label="Nom du produit" required>
+                            <input value={product.name} onChange={e => updateProduct(pIdx, 'name', e.target.value)}
+                              placeholder="Sérum Éclat" className="field-input" />
+                          </Field>
+                          <Field label="Prix" hint="avec devise">
+                            <input value={product.price} onChange={e => updateProduct(pIdx, 'price', e.target.value)}
+                              placeholder="15 000 FCFA" className="field-input" />
+                          </Field>
+                          <Field label="Catégorie">
+                            <input value={product.category} onChange={e => updateProduct(pIdx, 'category', e.target.value)}
+                              placeholder="Soins visage" className="field-input" />
+                          </Field>
+                          <div className="flex items-end">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <button type="button" onClick={() => updateProduct(pIdx, 'inStock', !product.inStock)}
+                                className={`relative w-10 h-[22px] rounded-full transition-colors ${product.inStock ? 'bg-emerald-500' : 'bg-gray-200'}`}>
+                                <span className={`absolute top-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${product.inStock ? 'left-[22px]' : 'left-[3px]'}`} />
+                              </button>
+                              <span className="text-[12px] text-gray-600">{product.inStock ? '🟢 En stock' : '🔴 Rupture'}</span>
+                            </label>
+                          </div>
+                        </div>
+
+                        <Field label="Description">
+                          <textarea value={product.description} onChange={e => updateProduct(pIdx, 'description', e.target.value)}
+                            rows={2} placeholder="Anti-taches, illuminateur de teint, résultats visibles en 2 semaines"
+                            className="field-input text-xs" style={{ resize: 'vertical' }} />
+                        </Field>
+
+                        {/* Features */}
+                        <div>
+                          <p className="text-[12px] font-semibold text-gray-700 mb-2">Caractéristiques</p>
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                            {(product.features || []).map((f, fIdx) => (
+                              <span key={fIdx} className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-[11px] font-medium border border-emerald-100">
+                                {f}
+                                <button onClick={() => removeProductFeature(pIdx, fIdx)} className="text-emerald-400 hover:text-red-500 ml-0.5">×</button>
+                              </span>
+                            ))}
+                          </div>
+                          <div className="flex gap-2">
+                            <input placeholder="ex: 100% naturel, Sans paraben..."
+                              className="field-input flex-1 text-xs"
+                              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addProductFeature(pIdx, e.target.value); e.target.value = ''; } }} />
+                            <button onClick={e => { const input = e.currentTarget.previousElementSibling; addProductFeature(pIdx, input.value); input.value = ''; }}
+                              className="px-3 py-1.5 text-xs font-semibold text-white rounded-lg flex-shrink-0" style={{ background: '#7c3aed' }}>+</button>
+                          </div>
+                        </div>
+
+                        {/* Images */}
+                        <div>
+                          <p className="text-[12px] font-semibold text-gray-700 mb-2">📸 Photos du produit <span className="font-normal text-gray-400">(URLs)</span></p>
+                          {(product.images || []).map((url, iIdx) => (
+                            <div key={iIdx} className="flex gap-2 mb-2 items-center">
+                              <input value={url} onChange={e => updateProductImage(pIdx, iIdx, e.target.value)}
+                                placeholder="https://exemple.com/photo-produit.jpg"
+                                className="field-input flex-1 text-xs font-mono" />
+                              {url && <img src={url} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-200 flex-shrink-0" onError={e => e.target.style.display = 'none'} />}
+                              <button onClick={() => removeProductImage(pIdx, iIdx)}
+                                className="text-gray-300 hover:text-red-500 flex-shrink-0">×</button>
+                            </div>
+                          ))}
+                          <button onClick={() => addProductImage(pIdx)}
+                            className="text-[11px] font-medium text-purple-600 hover:text-purple-800">+ Ajouter une photo</button>
+                        </div>
+
+                        {/* Per-product FAQ */}
+                        <div>
+                          <p className="text-[12px] font-semibold text-gray-700 mb-2">❓ FAQ de ce produit</p>
+                          {(product.faq || []).map((f, fIdx) => (
+                            <div key={fIdx} className="border border-gray-100 rounded-lg p-3 mb-2 bg-gray-50 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded">Q{fIdx + 1}</span>
+                                <input value={f.question} onChange={e => updateProductFaq(pIdx, fIdx, 'question', e.target.value)}
+                                  placeholder="Question fréquente sur ce produit..."
+                                  className="field-input flex-1 text-xs" />
+                                <button onClick={() => removeProductFaq(pIdx, fIdx)} className="text-gray-300 hover:text-red-500">×</button>
+                              </div>
+                              <div className="flex items-start gap-2 pl-8">
+                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded mt-1">R</span>
+                                <textarea value={f.answer} onChange={e => updateProductFaq(pIdx, fIdx, 'answer', e.target.value)}
+                                  placeholder="Réponse que Rita doit donner..."
+                                  rows={2} className="field-input flex-1 text-xs" style={{ resize: 'none' }} />
+                              </div>
+                            </div>
+                          ))}
+                          <button onClick={() => addProductFaq(pIdx)}
+                            className="text-[11px] font-medium text-purple-600 hover:text-purple-800">+ Ajouter une FAQ</button>
+                        </div>
+
+                        {/* Per-product objections */}
+                        <div>
+                          <p className="text-[12px] font-semibold text-gray-700 mb-2">🛡️ Objections de ce produit</p>
+                          {(product.objections || []).map((o, oIdx) => (
+                            <div key={oIdx} className="border border-gray-100 rounded-lg p-3 mb-2 bg-gray-50 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded">Obj</span>
+                                <input value={o.objection} onChange={e => updateProductObjection(pIdx, oIdx, 'objection', e.target.value)}
+                                  placeholder="ex: C'est trop cher"
+                                  className="field-input flex-1 text-xs" />
+                                <button onClick={() => removeProductObjection(pIdx, oIdx)} className="text-gray-300 hover:text-red-500">×</button>
+                              </div>
+                              <div className="flex items-start gap-2 pl-8">
+                                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded mt-1">→</span>
+                                <textarea value={o.response} onChange={e => updateProductObjection(pIdx, oIdx, 'response', e.target.value)}
+                                  placeholder="Réponse pour contrer cette objection..."
+                                  rows={2} className="field-input flex-1 text-xs" style={{ resize: 'none' }} />
+                              </div>
+                            </div>
+                          ))}
+                          <button onClick={() => addProductObjection(pIdx)}
+                            className="text-[11px] font-medium text-purple-600 hover:text-purple-800">+ Ajouter une objection</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                <button onClick={addProduct}
+                  className="w-full py-3 border-2 border-dashed border-purple-200 rounded-xl text-[13px] font-semibold text-purple-600 hover:bg-purple-50 hover:border-purple-300 transition-all flex items-center justify-center gap-2">
+                  <Plus className="w-4 h-4" /> Ajouter un produit
+                </button>
+              </div>
+            )}
+
             {/* Connaissances */}
             {activeSection === 'knowledge' && (
               <div className="space-y-4">
@@ -999,6 +1268,132 @@ const RitaIATab = ({ instances }) => {
                       ))}
                     </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* ─── Personnalité ─── */}
+            {activeSection === 'personality' && (
+              <div className="space-y-5">
+                <div className="px-4 py-3 bg-pink-50 border border-pink-100 rounded-lg text-[12px] text-pink-800 flex gap-2">
+                  <span className="flex-shrink-0">🎭</span>
+                  <span>Personnalisez le ton, les expressions et les réactions de votre agent. Ajoutez des exemples de conversations pour qu'il copie exactement votre style.</span>
+                </div>
+
+                {/* Description personnalité */}
+                <Field label="Description de la personnalité" hint="décrivez qui est votre agent en quelques lignes">
+                  <textarea value={config.personality?.description || ''} onChange={e => setPersonality('description', e.target.value)}
+                    rows={3} placeholder="Vendeuse camerounaise chaleureuse, toujours souriante, elle tutoie les clientes et les appelle 'ma chérie' ou 'maman'. Elle est directe mais jamais agressive."
+                    className="field-input text-xs" style={{ resize: 'vertical' }} />
+                </Field>
+
+                {/* Tonal guidelines */}
+                <Field label="Guide de ton détaillé" hint="comment parler, quel niveau de familiarité, quels registres">
+                  <textarea value={config.personality?.tonalGuidelines || ''} onChange={e => setPersonality('tonalGuidelines', e.target.value)}
+                    rows={3} placeholder={"Toujours tutoyer les clientes\nUtiliser des expressions camerounaises naturelles\nNe jamais faire de phrases trop longues\nParler comme sur WhatsApp: simple, direct, chaleureux"}
+                    className="field-input text-xs" style={{ resize: 'vertical' }} />
+                </Field>
+
+                {/* Mannerisms / tics de langage */}
+                <div>
+                  <p className="text-[12px] font-semibold text-gray-700 mb-1">💬 Expressions typiques / tics de langage</p>
+                  <p className="text-[11px] text-gray-400 mb-2">L'agent utilisera naturellement ces phrases dans ses réponses</p>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {(config.personality?.mannerisms || []).map((m, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-50 text-purple-700 rounded-lg text-[11px] font-medium border border-purple-100">
+                        "{m}"
+                        <button onClick={() => setPersonality('mannerisms', config.personality.mannerisms.filter((_, idx) => idx !== i))} className="text-purple-400 hover:text-red-500 ml-0.5">×</button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input value={newMannerism} onChange={e => setNewMannerism(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addMannerism())}
+                      placeholder="ex: D'accord maman, Je check ça, C'est bon ma chérie"
+                      className="field-input flex-1 text-xs" />
+                    <button onClick={addMannerism} className="px-3 py-1.5 text-xs font-semibold text-white rounded-lg flex-shrink-0" style={{ background: '#7c3aed' }}>+</button>
+                  </div>
+                </div>
+
+                {/* Forbidden phrases */}
+                <div>
+                  <p className="text-[12px] font-semibold text-gray-700 mb-1">🚫 Expressions interdites</p>
+                  <p className="text-[11px] text-gray-400 mb-2">L'agent ne doit JAMAIS utiliser ces mots ou phrases</p>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {(config.personality?.forbiddenPhrases || []).map((f, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-700 rounded-lg text-[11px] font-medium border border-red-100">
+                        "{f}"
+                        <button onClick={() => setPersonality('forbiddenPhrases', config.personality.forbiddenPhrases.filter((_, idx) => idx !== i))} className="text-red-400 hover:text-red-600 ml-0.5">×</button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input value={newForbidden} onChange={e => setNewForbidden(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addForbidden())}
+                      placeholder="ex: En tant qu'IA, Je suis un assistant, Cordialement"
+                      className="field-input flex-1 text-xs" />
+                    <button onClick={addForbidden} className="px-3 py-1.5 text-xs font-semibold text-white rounded-lg flex-shrink-0 bg-red-500 hover:bg-red-600">+</button>
+                  </div>
+                </div>
+
+                {/* Conversation examples */}
+                <div>
+                  <p className="text-[14px] font-bold text-gray-900 mb-0.5">💡 Exemples de conversations</p>
+                  <p className="text-[12px] text-gray-400 mb-3">Montrez à l'agent comment répondre. Il imitera ce ton et cette énergie.</p>
+                  {config.conversationExamples.map((ex, i) => (
+                    <div key={i} className="border border-gray-100 rounded-xl p-3 mb-3 bg-gray-50 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-gray-400">Exemple {i + 1}</span>
+                        <button onClick={() => removeConvExample(i)} className="text-gray-300 hover:text-red-500 text-xs">×</button>
+                      </div>
+                      <div className="flex gap-2 items-start">
+                        <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded mt-1 flex-shrink-0">Client</span>
+                        <input value={ex.customer} onChange={e => updateConvExample(i, 'customer', e.target.value)}
+                          placeholder="C'est combien le Sérum Éclat ?"
+                          className="field-input flex-1 text-xs" />
+                      </div>
+                      <div className="flex gap-2 items-start">
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded mt-1 flex-shrink-0">Agent</span>
+                        <input value={ex.agent} onChange={e => updateConvExample(i, 'agent', e.target.value)}
+                          placeholder="Le Sérum Éclat c'est 15 000 FCFA ma chérie 👍 Tu veux seulement ça ?"
+                          className="field-input flex-1 text-xs" />
+                      </div>
+                    </div>
+                  ))}
+                  <button onClick={addConversationExample}
+                    className="w-full py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-[12px] font-semibold text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2">
+                    <Plus className="w-3.5 h-3.5" /> Ajouter un exemple
+                  </button>
+                </div>
+
+                {/* Behavior rules */}
+                <div>
+                  <p className="text-[14px] font-bold text-gray-900 mb-0.5">📋 Règles de comportement</p>
+                  <p className="text-[12px] text-gray-400 mb-3">Définissez exactement comment l'agent doit réagir dans chaque situation</p>
+                  {config.behaviorRules.map((rule, i) => (
+                    <div key={i} className="border border-gray-100 rounded-xl p-3 mb-3 bg-gray-50 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-gray-400">Règle {i + 1}</span>
+                        <button onClick={() => removeBehaviorRule(i)} className="text-gray-300 hover:text-red-500 text-xs">×</button>
+                      </div>
+                      <div className="flex gap-2 items-start">
+                        <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded mt-1 flex-shrink-0">Si</span>
+                        <input value={rule.situation} onChange={e => updateBehaviorRule(i, 'situation', e.target.value)}
+                          placeholder="le client demande un produit qui n'existe pas"
+                          className="field-input flex-1 text-xs" />
+                      </div>
+                      <div className="flex gap-2 items-start">
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded mt-1 flex-shrink-0">→</span>
+                        <input value={rule.reaction} onChange={e => updateBehaviorRule(i, 'reaction', e.target.value)}
+                          placeholder="proposer les produits similaires disponibles et demander une précision"
+                          className="field-input flex-1 text-xs" />
+                      </div>
+                    </div>
+                  ))}
+                  <button onClick={addBehaviorRule}
+                    className="w-full py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-[12px] font-semibold text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-2">
+                    <Plus className="w-3.5 h-3.5" /> Ajouter une règle
+                  </button>
                 </div>
               </div>
             )}
@@ -1123,7 +1518,7 @@ const RitaIATab = ({ instances }) => {
           </div>
 
           {/* Knowledge summary */}
-          {(config.businessContext || config.products || config.faq) && (
+          {(config.businessContext || config.products || config.faq || config.productCatalog?.length > 0) && (
             <div className="bg-white border border-gray-200 rounded-xl px-5 py-4">
               <p className="text-[13px] font-semibold text-gray-900 mb-3 flex items-center gap-2">
                 <span className="text-base">📚</span> Base de connaissances
@@ -1135,7 +1530,14 @@ const RitaIATab = ({ instances }) => {
                     <p className="text-[12px] text-gray-700 line-clamp-2">{config.businessContext}</p>
                   </div>
                 )}
-                {config.products && (
+                {config.productCatalog?.length > 0 && (
+                  <div className="bg-purple-50 rounded-lg px-3 py-2.5">
+                    <p className="text-[11px] font-semibold text-purple-600 mb-1">🛒 Produits</p>
+                    <p className="text-[12px] text-gray-700">{config.productCatalog.length} produit{config.productCatalog.length > 1 ? 's' : ''} configuré{config.productCatalog.length > 1 ? 's' : ''}</p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">{config.productCatalog.filter(p => p.images?.length).length} avec photos · {config.productCatalog.reduce((n, p) => n + (p.faq?.length || 0), 0)} FAQ</p>
+                  </div>
+                )}
+                {config.products && !config.productCatalog?.length && (
                   <div className="bg-gray-50 rounded-lg px-3 py-2.5">
                     <p className="text-[11px] font-semibold text-gray-500 mb-1">Produits</p>
                     <p className="text-[12px] text-gray-700 line-clamp-2">{config.products}</p>
@@ -1251,7 +1653,7 @@ const RitaIATab = ({ instances }) => {
 
                 {/* Quick replies */}
                 <div className="px-3 py-2 border-t border-gray-100 bg-[#f8f8f8] flex gap-1.5 overflow-x-auto">
-                  {["Vous avez ça ?", "C'est combien ?", "Vous livrez sur Akwa ?", "Je veux seulement ça", "Je peux commander comment ?"].map(s => (
+                  {["Vous avez ça ?", "C'est combien ?", "Vous livrez sur Akwa ?", "Ok je prends", "Vous avez aussi un savon ?"].map(s => (
                     <button key={s} onClick={() => setSimInput(s)}
                       className="flex-shrink-0 px-2.5 py-1 bg-white border border-gray-200 text-[11px] text-gray-600 rounded-full hover:bg-gray-50 hover:border-gray-300 transition-colors whitespace-nowrap">
                       {s}

@@ -3,9 +3,9 @@ import RitaConfig from '../models/RitaConfig.js';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// Historique in-memory par numéro de téléphone (max 20 échanges gardés)
+// Historique in-memory par numéro de téléphone (max 100 échanges gardés)
 const conversationHistory = new Map();
-const MAX_HISTORY = 20;
+const MAX_HISTORY = 100;
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -101,9 +101,46 @@ Tu ne dois JAMAIS dire :
 - Tu ne parles pas livraison, paiement ou stock tant que le client ne pose pas la question
 
 Exemples :
-- Client: "je veux le Sérum Éclat" → "Oui je vois 👍 tu veux seulement ça ?"
+- Client: "je veux le Sérum Éclat" → "Oui je vois 👍 tu cherches quelque chose pour compléter aussi, ou juste ça pour l'instant ?"
 - Client: "Vous livrez ?" → si l'info n'est pas fournie: "Je vérifie ça pour toi 👍"
 - Client: "C'est combien ?" → tu donnes le prix uniquement s'il est réellement dans les données
+
+## ❓ Messages ambigus (prénom, erreur de frappe, mot inconnu)
+Si le client envoie un mot que tu ne reconnais pas comme un produit connu :
+→ Ne dis JAMAIS "je ne connais pas de produit qui s'appelle X"
+→ Demande plutôt une clarification naturelle et bienveillante
+
+Exemples :
+- Client: "Rita" → "Haha c'est mon prénom 😄 Tu cherches quelque chose en particulier ?"
+- Client: "azert" → "Désolée, j'ai pas bien compris 😅 Tu parles d'un produit en particulier ?"
+- Client: n'importe quel mot court sans contexte → "Je veux m'assurer de bien t'aider 😊 C'est un produit ou tu voulais dire autre chose ?"
+
+## 🔁 Vente additionnelle (Cross-selling)
+Quand le client confirme un produit ou semble prêt à commander, ne pose JAMAIS une question fermée comme "tu veux juste ça ?".
+→ Propose naturellement un produit complémentaire qui a du sens
+
+Exemples :
+- Client a choisi une crème : "Super choix 👍 Tu veux ajouter un savon gommant ou une huile pour compléter ta routine ?"
+- Client a choisi un soin : "Ok parfait ! Beaucoup de clientes prennent aussi [produit complémentaire] avec ça, tu veux voir ?"
+- Si tu n'as pas de complémentaire évident : "Ok super, t'as d'autres choses qui t'intéressent ou on peut préparer ta commande ?"
+
+## 🏥 Qualification avant alternative
+Quand tu dois proposer un produit alternatif (parce que le demandé n'est pas disponible) :
+→ Ne bascule JAMAIS directement sur un autre produit sans explication ni question
+→ Explique d'abord pourquoi l'alternative est pertinente, puis demande la situation du client si utile
+
+Exemples :
+- Client demande crème solaire (non dispo) : "On n'a pas de crème solaire pour le moment, mais notre crème hydratante est top pour apaiser la peau après le soleil 🌞 Tu as la peau grasse ou sèche ?"
+- Selon la réponse, tu affines la recommandation
+
+## 📦 Prise de commande (quand le client dit oui au prix ou confirme)
+Dès que le client confirme qu'il veut commander, tu lances la collecte des infos nécessaires dans cet ordre :
+1. "Super ! Pour préparer ton colis, j'ai besoin de ton nom complet, ta ville/quartier, et un numéro de contact 📦"
+2. Tu attends les infos, tu les confirmes, tu demandes ce qui manque
+3. Tu ne confirmes JAMAIS que la commande est passée — tu dis juste que tu transmets
+
+Exemple :
+- Client: "Ok je prends" → "Super ! 🎉 Pour préparer ton colis, dis-moi ton nom complet, ta ville ou quartier, et un numéro où te joindre 📦"
 
 ## ❌ INTERDIT
 - Phrases longues
@@ -121,29 +158,112 @@ Exemples :
     prompt += `\n\n## 🏢 Contexte business\n${config.businessContext}`;
   }
 
-  if (config.products?.length) {
-    prompt += `\n\n## 🛒 Produits / Services (TES SEULES DONNÉES)\nTu proposes UNIQUEMENT ces produits. Si un produit n'est pas dans cette liste → tu ne l'inventes pas, tu demandes une précision ou tu dis que tu vérifies.\n${config.products.map(p => `- ${p}`).join('\n')}`;
+  // ─── CATALOGUE PRODUITS STRUCTURÉ ───
+  const catalog = config.productCatalog?.filter(p => p.name);
+  if (catalog?.length) {
+    prompt += `\n\n## 🛒 CATALOGUE PRODUITS (TES SEULES DONNÉES)
+Tu proposes UNIQUEMENT ces produits. Si un produit n'est pas dans cette liste → tu ne l'inventes pas, tu demandes une précision ou tu dis que tu vérifies.\n`;
+
+    for (const p of catalog) {
+      prompt += `\n### ${p.name}`;
+      if (p.price) prompt += `\n- 💰 Prix : ${p.price}`;
+      if (p.description) prompt += `\n- 📝 ${p.description}`;
+      if (p.category) prompt += `\n- 📂 Catégorie : ${p.category}`;
+      if (p.features?.length) prompt += `\n- ✅ Caractéristiques : ${p.features.join(', ')}`;
+      prompt += `\n- ${p.inStock !== false ? '🟢 En stock' : '🔴 Rupture de stock'}`;
+      if (p.images?.length) prompt += `\n- 📸 Photos disponibles (tu peux proposer d'envoyer une photo)`;
+
+      if (p.faq?.length) {
+        prompt += `\n\nFAQ de ce produit :`;
+        for (const f of p.faq) {
+          prompt += `\nQ: ${f.question}\nR: ${f.answer}`;
+        }
+      }
+
+      if (p.objections?.length) {
+        prompt += `\n\nObjections courantes :`;
+        for (const o of p.objections) {
+          prompt += `\n"${o.objection}" → ${o.response}`;
+        }
+      }
+    }
+
+    // Instruction envoi d'images
+    const hasImages = catalog.some(p => p.images?.length);
+    if (hasImages) {
+      prompt += `\n\n## 📸 ENVOI DE PHOTOS
+Si le client veut voir un produit ou demande une photo/image, tu peux envoyer l'image.
+Pour envoyer une photo, ajoute à la fin de ta réponse le tag : [IMAGE:Nom du produit]
+Exemple : "Voilà le produit 👇 [IMAGE:Sérum Éclat]"
+Le système enverra automatiquement la photo. Tu dois utiliser le nom exact du produit.
+Ne mets qu'un seul tag [IMAGE:...] par message.`;
+    }
+  } else if (config.products?.length) {
+    // Fallback ancien format (simple strings)
+    const prodList = Array.isArray(config.products) ? config.products : [config.products];
+    prompt += `\n\n## 🛒 Produits / Services (TES SEULES DONNÉES)\nTu proposes UNIQUEMENT ces produits. Si un produit n'est pas dans cette liste → tu ne l'inventes pas, tu demandes une précision ou tu dis que tu vérifies.\n${prodList.map(p => `- ${p}`).join('\n')}`;
   }
 
   if (config.faq?.length) {
-    prompt += `\n\n## ❓ FAQ\n${config.faq.map(f => `- ${f}`).join('\n')}`;
+    const faqList = Array.isArray(config.faq) ? config.faq : [config.faq];
+    prompt += `\n\n## ❓ FAQ\n${faqList.map(f => `- ${f}`).join('\n')}`;
   }
 
   if (config.competitiveAdvantages?.length) {
-    prompt += `\n\n## 💪 Avantages\n${config.competitiveAdvantages.map(a => `- ${a}`).join('\n')}`;
+    const advList = Array.isArray(config.competitiveAdvantages) ? config.competitiveAdvantages : [config.competitiveAdvantages];
+    prompt += `\n\n## 💪 Avantages\n${advList.map(a => `- ${a}`).join('\n')}`;
+  }
+
+  // ─── PERSONNALITÉ ───
+  if (config.personality?.description) {
+    prompt += `\n\n## 🎭 TA PERSONNALITÉ\n${config.personality.description}`;
+  }
+
+  if (config.personality?.mannerisms?.length) {
+    prompt += `\n\n## 💬 Tes expressions / tics de langage typiques\nUtilise naturellement ces expressions dans tes réponses :\n${config.personality.mannerisms.map(m => `- "${m}"`).join('\n')}`;
+  }
+
+  if (config.personality?.forbiddenPhrases?.length) {
+    prompt += `\n\n## 🚫 Expressions INTERDITES (ne jamais utiliser)\n${config.personality.forbiddenPhrases.map(f => `- "${f}"`).join('\n')}`;
+  }
+
+  if (config.personality?.tonalGuidelines) {
+    prompt += `\n\n## 🎙️ Guide de ton\n${config.personality.tonalGuidelines}`;
+  }
+
+  // ─── EXEMPLES DE CONVERSATIONS ───
+  if (config.conversationExamples?.length) {
+    prompt += `\n\n## 💡 EXEMPLES DE CONVERSATIONS (imite ce style)
+Voici comment tu dois répondre. Copie ce ton, cette longueur, cette énergie :\n`;
+    for (const ex of config.conversationExamples) {
+      prompt += `\nClient : "${ex.customer}"\nToi : "${ex.agent}"\n`;
+    }
+  }
+
+  // ─── RÈGLES DE COMPORTEMENT ───
+  if (config.behaviorRules?.length) {
+    prompt += `\n\n## 📋 RÈGLES DE COMPORTEMENT
+Voici exactement comment tu dois réagir dans ces situations :\n`;
+    for (const r of config.behaviorRules) {
+      prompt += `\n- Si ${r.situation} → ${r.reaction}`;
+    }
   }
 
   if (config.objectionsHandling) {
-    prompt += `\n\n## 🛡️ Gestion des objections\n${config.objectionsHandling}`;
+    prompt += `\n\n## 🛡️ Gestion des objections générales\n${config.objectionsHandling}`;
   }
 
   if (config.usefulLinks?.length) {
-    prompt += `\n\n## 🔗 Liens utiles\n${config.usefulLinks.map(l => `- ${l}`).join('\n')}`;
+    const linkList = Array.isArray(config.usefulLinks) ? config.usefulLinks : [config.usefulLinks];
+    prompt += `\n\n## 🔗 Liens utiles\n${linkList.map(l => `- ${l}`).join('\n')}`;
   }
 
   if (config.closingTechnique) {
     const closeMap = {
       soft: 'douce et sans pression',
+      urgency: 'crée un sentiment d\'urgence (stock limité, offre qui expire)',
+      'social-proof': 'cite des avis clients et témoignages',
+      value: 'met en avant les bénéfices et le rapport qualité-prix',
       assertive: 'directe, tu proposes la commande naturellement',
       consultative: 'tu poses des questions pour comprendre et adapter',
     };
@@ -160,9 +280,12 @@ Exemples :
 
   prompt += `\n\n## ✅ Rappel final
 - Ne signe jamais tes messages
-- Si le client dit juste "oui", "ou", "d'accord", "seulement ça", tu demandes calmement une précision
+- Si le client dit juste "oui", "ou", "d'accord", tu enchaînes vers la prise de commande (nom, ville, contact)
 - Si on te demande un prix, une livraison ou un stock non fournis, tu dis juste que tu vérifies
-- Tu avances vers la vente, mais sans inventer`;
+- Tu avances vers la vente, mais sans inventer
+- Ne pose JAMAIS une question fermée qui incite à répondre "oui" sans aller plus loin
+- Si un mot envoyé seul ne correspond à aucun produit connu, demande une clarification douce — ne l'interprète PAS comme un nom de produit
+- Si tu n'as pas le produit demandé, explique le lien avec ton alternative AVANT de la proposer`;
 
   return prompt;
 }
@@ -206,7 +329,7 @@ export async function processIncomingMessage(userId, from, text) {
         ...history,
       ],
       temperature: 0.5,
-      max_tokens: 150,
+      max_tokens: 200,
     });
 
     const reply = sanitizeReply(completion.choices[0]?.message?.content?.trim(), config);
@@ -236,7 +359,7 @@ export async function generateTestReply(config, messages) {
       ...messages,
     ],
     temperature: 0.5,
-    max_tokens: 150,
+    max_tokens: 200,
   });
   return sanitizeReply(completion.choices[0]?.message?.content?.trim(), config) || '';
 }
