@@ -606,7 +606,7 @@ const RitaIATab = ({ instances }) => {
     responseMode: 'text',
     voiceMode: false,
     elevenlabsApiKey: '',
-    elevenlabsVoiceId: 'cgSgspJ2msm6clMCkdW9',
+    elevenlabsVoiceId: '9ZATEeixBigmezesCGAk',
     elevenlabsModel: 'eleven_v3',
   });
 
@@ -1561,13 +1561,16 @@ const RitaIATab = ({ instances }) => {
                   {/* Voix présélectionnées */}
                   <div>
                     <p className="text-[12px] font-medium text-gray-500 mb-2">Voix de Rita (cliquer pour sélectionner)</p>
+                    <p className="text-[11px] text-purple-600 font-semibold mb-2">🌍 Voix africaines prioritaires</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {[
-                        { id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica', desc: 'Femme · FR · Naturel — 🇨🇲🇨🇮🇸🇳' },
-                        { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', desc: 'Femme · FR/EN · Doux — 🇨🇲🇲🇦' },
-                        { id: 'XB0fDUnXU5powFXDhCwa', name: 'Charlotte', desc: 'Femme · Multilingual · Chaleureux' },
-                        { id: 'jBpfuIE2acCO8z3wKNLl', name: 'Gigi', desc: 'Femme · FR · Dynamique — 🇨🇮🇧🇯' },
-                        { id: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel', desc: 'Homme · FR · Posé — 🇨🇲🇬🇦' },
+                        { id: '9ZATEeixBigmezesCGAk', name: 'Rita ⭐', desc: 'Voix personnalisée · FR · Accent africain naturel — 🇨🇲🇨🇮🇸🇳', badge: '✨ Par défaut' },
+                        { id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica', desc: 'Femme · FR · Chaleureux — 🇨🇮🇨🇲🇸🇳' },
+                        { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', desc: 'Femme · FR/EN · Doux — 🇨🇲🇲🇦🇸🇳' },
+                        { id: 'jBpfuIE2acCO8z3wKNLl', name: 'Aminata', desc: 'Femme · FR · Dynamique — 🇸🇳🇨🇮🇧🇯' },
+                        { id: 'XB0fDUnXU5powFXDhCwa', name: 'Charlotte', desc: 'Femme · Multilingual · Naturel — 🌍' },
+                        { id: 'onwK4e9ZLuTAKqWW03F9', name: 'Kofi', desc: 'Homme · FR · Posé — 🇨🇲🇬🇦🇨🇩' },
+                        { id: 'N2lVS1w4EtoT3dr4eOWO', name: 'Callum', desc: 'Homme · Multilingual · Posé — 🌍' },
                         { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam', desc: 'Homme · Multilingual · Pro' },
                       ].map(v => (
                         <button key={v.id} type="button"
@@ -1578,10 +1581,13 @@ const RitaIATab = ({ instances }) => {
                               : 'border-gray-200 bg-white hover:border-gray-300'
                           }`}>
                           <span className="text-lg">🎙️</span>
-                          <div>
-                            <p className={`text-[13px] font-semibold ${
-                              config.elevenlabsVoiceId === v.id ? 'text-purple-700' : 'text-gray-800'
-                            }`}>{v.name}</p>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className={`text-[13px] font-semibold ${
+                                config.elevenlabsVoiceId === v.id ? 'text-purple-700' : 'text-gray-800'
+                              }`}>{v.name}</p>
+                              {v.badge && <span className="text-[9px] bg-purple-100 text-purple-600 font-bold px-1.5 py-0.5 rounded-full">{v.badge}</span>}
+                            </div>
                             <p className="text-[11px] text-gray-400">{v.desc}</p>
                           </div>
                           {config.elevenlabsVoiceId === v.id && (
