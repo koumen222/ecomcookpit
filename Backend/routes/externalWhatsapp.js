@@ -735,6 +735,11 @@ router.post('/incoming', async (req, res) => {
             console.log(`⏩ [RITA] Message envoyé par le bot (fromMe=true), ignoré.`);
             continue;
           }
+          // Ignorer les messages venant de groupes WhatsApp (JID se termine par @g.us)
+          if (from && from.endsWith('@g.us')) {
+            console.log(`⏩ [RITA] Message de groupe ignoré (${from}).`);
+            continue;
+          }
           if (!from || !text) {
             console.log(`⏩ [RITA] Message vide ou sans expéditeur, ignoré.`);
             continue;
