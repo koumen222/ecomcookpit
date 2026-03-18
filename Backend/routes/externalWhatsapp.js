@@ -6,6 +6,8 @@ import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import EcomUser from '../models/EcomUser.js';
 import RitaConfig from '../models/RitaConfig.js';
 import WhatsAppOrder from '../models/WhatsAppOrder.js';
+import Order from '../models/Order.js';
+import { normalizePhone } from '../utils/phoneUtils.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 import { processIncomingMessage, generateTestReply, transcribeAudio, textToSpeech } from '../services/ritaAgentService.js';
 
@@ -868,7 +870,39 @@ router.post('/incoming', async (req, res) => {
                 status: 'pending',
                 conversationSummary: `${orderData.product} → ${orderData.name} (${orderData.city})`,
               });
-              console.log(`✅ [RITA] Commande enregistrée en base pour ${cleanFrom}`);
+              console.log(`✅ [RITA] WhatsAppOrder enregistrée pour ${cleanFrom}`);
+
+              // ─── Créer aussi une vraie commande dans ecom_orders (source: rita) ───
+              if (instanceDoc.workspaceId) {
+                try {
+                  const phoneVal = cleanFrom || '';
+                  const priceVal = parseFloat(String(orderData.price || '0').replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
+                  const ritaOrder = new Order({
+                    workspaceId: instanceDoc.workspaceId,
+                    orderId: `#RITA_${Date.now().toString(36)}`,
+                    date: new Date(),
+                    clientName: orderData.name || pushName || '',
+                    clientPhone: phoneVal,
+                    clientPhoneNormalized: normalizePhone(phoneVal, '237'),
+                    city: orderData.city || '',
+                    product: orderData.product || '',
+                    quantity: 1,
+                    price: priceVal,
+                    status: 'confirmed',
+                    notes: `Via Rita WhatsApp — ${orderData.delivery_date || ''} ${orderData.delivery_time || ''}`.trim(),
+                    tags: ['rita'],
+                    source: 'rita',
+                    sheetRowId: `rita_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                    sheetRowIndex: 999999,
+                  });
+                  await ritaOrder.save();
+                  console.log(`✅ [RITA] Commande ecom créée: ${ritaOrder.orderId} (workspaceId=${instanceDoc.workspaceId})`);
+                } catch (orderErr) {
+                  console.error(`❌ [RITA] Erreur création commande ecom:`, orderErr.message);
+                }
+              } else {
+                console.warn(`⚠️ [RITA] Pas de workspaceId sur l'instance, commande ecom non créée`);
+              }
             } catch (parseErr) {
               console.error(`❌ [RITA] Erreur parsing ORDER_DATA:`, parseErr.message);
             }
@@ -913,13 +947,13 @@ router.post('/incoming', async (req, res) => {
           const responseMode = ritaCfgVoice?.responseMode || (ritaCfgVoice?.voiceMode ? 'voice' : 'text');
           const canDoVoice = !!(effectiveApiKey && textToSend);
 
-          // En mode "both" : vocal uniquement si la réponse est longue (explication détaillée / mise en confiance)
-          // Seuil : ≥ 120 caractères ou ≥ 2 phrases → vocal pour rassurer, convaincre, expliquer
+          // En mode "both" (mixte) : vocal UNIQUEMENT pour les vraies explications longues
+          // Réponses courtes/moyennes → texte. Vocal réservé aux gros paragraphes explicatifs.
           let useVoiceThisTurn = false;
           if (responseMode === 'both' && canDoVoice && textToSend) {
             const charCount = textToSend.length;
             const sentenceCount = (textToSend.match(/[.!?…]+/g) || []).length;
-            useVoiceThisTurn = charCount >= 120 || sentenceCount >= 2;
+            useVoiceThisTurn = charCount >= 300 && sentenceCount >= 3;
           }
           const sendText  = responseMode === 'text' || (responseMode === 'both' && !useVoiceThisTurn);
           const sendVoice = responseMode === 'voice' || (responseMode === 'both' && useVoiceThisTurn);
