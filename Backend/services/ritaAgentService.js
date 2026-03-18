@@ -15,14 +15,19 @@ function sanitizeReply(reply, config) {
   if (!reply) return null;
 
   const agentName = config.agentName || 'Rita';
-  let cleaned = reply.replace(/\s+/g, ' ').trim();
+  let cleaned = reply.trim();
   const signatureRegex = new RegExp(`\\s*[—-]\\s*${escapeRegExp(agentName)}(?:\\s*[👍✅😊😉🤖✨]*)?$`, 'iu');
 
   cleaned = cleaned.replace(signatureRegex, '').trim();
 
-  const sentenceChunks = cleaned.match(/[^.!?]+[.!?]?/g);
-  if (sentenceChunks && sentenceChunks.length > 2) {
-    cleaned = sentenceChunks.slice(0, 2).join(' ').trim();
+  // Ne PAS tronquer les messages structurés (récap commande, flow de vente)
+  const isStructured = /\[ORDER_DATA:|RÉCAP|récap|Confirmer|confirmer|📦|✅.*COMMANDE/i.test(cleaned);
+  if (!isStructured) {
+    // Pour les messages conversationnels normaux, limiter à 3 phrases
+    const sentenceChunks = cleaned.match(/[^.!?\n]+[.!?]?/g);
+    if (sentenceChunks && sentenceChunks.length > 3) {
+      cleaned = sentenceChunks.slice(0, 3).join(' ').trim();
+    }
   }
 
   return cleaned;
@@ -133,14 +138,39 @@ Exemples :
 - Client demande crème solaire (non dispo) : "On n'a pas de crème solaire pour le moment, mais notre crème hydratante est top pour apaiser la peau après le soleil 🌞 Tu as la peau grasse ou sèche ?"
 - Selon la réponse, tu affines la recommandation
 
-## 📦 Prise de commande (quand le client dit oui au prix ou confirme)
-Dès que le client confirme qu'il veut commander, tu lances la collecte des infos nécessaires dans cet ordre :
-1. "Super ! Pour préparer ton colis, j'ai besoin de ton nom complet, ta ville/quartier, et un numéro de contact 📦"
-2. Tu attends les infos, tu les confirmes, tu demandes ce qui manque
-3. Tu ne confirmes JAMAIS que la commande est passée — tu dis juste que tu transmets
+## 📦 FLOW DE COMMANDE STRUCTURÉ (TRÈS IMPORTANT)
+Quand le client confirme vouloir acheter, tu suis ces étapes dans l'ORDRE, une par une.
+Ne saute JAMAIS d'étape. Pose les questions une par une, pas tout d'un coup.
 
+### Étape 1 — Confirmation produit + prix
+Répète le produit et le prix, puis demande confirmation.
 Exemple :
-- Client: "Ok je prends" → "Super ! 🎉 Pour préparer ton colis, dis-moi ton nom complet, ta ville ou quartier, et un numéro où te joindre 📦"
+"Ok parfait ! Donc [Produit] à [Prix] 👍\n\nTu confirmes ? (Oui / Non)"
+
+### Étape 2 — Infos client
+Après le "oui" du client, demande les infos de livraison :
+"Super ! 🎉 Pour préparer ton colis j'ai besoin de :\n- Ton nom complet\n- Ta ville / quartier\n- Un numéro de téléphone 📦"
+
+### Étape 3 — Date et heure de livraison
+Après avoir reçu les infos client, demande la date/heure :
+"Merci ! 📅 Tu veux être livré(e) quand ?\n(ex: aujourd'hui 18h, demain matin, samedi après-midi...)"
+
+### Étape 4 — Récapitulatif complet
+Une fois TOUTES les infos collectées (nom, ville, téléphone, date, heure), envoie le récap :
+"✅ RÉCAP COMMANDE :\n\n📦 Produit : [nom]\n💰 Prix : [prix]\n👤 Nom : [nom client]\n📍 Ville : [ville/quartier]\n📱 Téléphone : [numéro]\n📅 Livraison : [date] à [heure]\n\nTout est bon ? (Oui / Modifier)"
+
+### Étape 5 — Confirmation finale
+Quand le client confirme le récap, dis :
+"C'est noté ma chérie ! 🎉 Ta commande est transmise, on te contacte très vite pour la livraison 👍"
+Et ajoute OBLIGATOIREMENT à la FIN de ce message le tag :
+[ORDER_DATA:{"name":"...","city":"...","phone":"...","product":"...","price":"...","delivery_date":"...","delivery_time":"..."}]
+
+Le tag [ORDER_DATA:...] doit contenir un JSON valide avec les vraies données collectées.
+Tu ne dois ajouter ce tag QUE quand le client a confirmé le récapitulatif.
+Le tag ne sera PAS visible par le client.
+
+Exemple complet d'étape 5 :
+"C'est noté ! 🎉 Ta commande est transmise, on te contacte très vite 👍 [ORDER_DATA:{"name":"Morgan","city":"Douala Akwa","phone":"676778377","product":"Ventilateur 48W","price":"15000 FCFA","delivery_date":"2026-03-18","delivery_time":"18:00"}]"
 
 ## ❌ INTERDIT
 - Phrases longues
@@ -280,8 +310,10 @@ Voici exactement comment tu dois réagir dans ces situations :\n`;
 
   prompt += `\n\n## ✅ Rappel final
 - Ne signe jamais tes messages
-- Si le client dit juste "oui", "ou", "d'accord", tu enchaînes vers la prise de commande (nom, ville, contact)
+- Si le client dit juste "oui", "ou", "d'accord" pendant le flow de commande, tu passes à l'étape suivante
+- Si le client dit "oui" en dehors du flow de commande et qu'il a déjà montré de l'intérêt pour un produit, tu lances l'étape 1 du flow de commande
 - Si on te demande un prix, une livraison ou un stock non fournis, tu dis juste que tu vérifies
+- APRÈS avoir envoyé une image produit, tu DOIS enchaîner avec le prix et proposer la commande
 - Tu avances vers la vente, mais sans inventer
 - Ne pose JAMAIS une question fermée qui incite à répondre "oui" sans aller plus loin
 - Si un mot envoyé seul ne correspond à aucun produit connu, demande une clarification douce — ne l'interprète PAS comme un nom de produit
@@ -329,7 +361,7 @@ export async function processIncomingMessage(userId, from, text) {
         ...history,
       ],
       temperature: 0.5,
-      max_tokens: 200,
+      max_tokens: 400,
     });
 
     const reply = sanitizeReply(completion.choices[0]?.message?.content?.trim(), config);
@@ -359,7 +391,7 @@ export async function generateTestReply(config, messages) {
       ...messages,
     ],
     temperature: 0.5,
-    max_tokens: 200,
+    max_tokens: 400,
   });
   return sanitizeReply(completion.choices[0]?.message?.content?.trim(), config) || '';
 }

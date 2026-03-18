@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Plus, Trash2, RefreshCw, CheckCircle, AlertCircle, Loader2,
   ExternalLink, Copy, Check, Bot, Smartphone, Zap, Send,
-  Eye, EyeOff, X, Globe, MessageSquare,
+  Eye, EyeOff, X, Globe, MessageSquare, Package,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import ecomApi from '../services/ecommApi.js';
@@ -35,11 +35,19 @@ const WhatsAppService = () => {
   const [linkResult, setLinkResult] = useState(null);
   const [showTokens, setShowTokens] = useState({});
   const [webhookPanels, setWebhookPanels] = useState({});
+  const [orderCount, setOrderCount] = useState(0);
 
   const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
   const userId = user._id || user.id;
 
-  useEffect(() => { loadInstances(); }, []);
+  useEffect(() => { loadInstances(); loadOrderCount(); }, []);
+
+  const loadOrderCount = async () => {
+    try {
+      const { data } = await ecomApi.get('/v1/external/whatsapp/orders/stats');
+      if (data.success) setOrderCount(data.stats?.pending || 0);
+    } catch {}
+  };
 
   const loadInstances = async () => {
     try {
@@ -152,6 +160,7 @@ const WhatsAppService = () => {
   const TABS = [
     { id: 'instances', label: 'Instances', icon: Smartphone, count: instances.length },
     { id: 'rita',      label: 'Rita IA',   icon: Bot },
+    { id: 'orders',   label: 'Commandes',  icon: Package, count: orderCount || undefined },
   ];
 
   return (
@@ -458,6 +467,9 @@ const WhatsAppService = () => {
 
       {/* Tab: Rita IA */}
       {activeTab === 'rita' && <RitaIATab instances={instances} />}
+
+      {/* Tab: Commandes */}
+      {activeTab === 'orders' && <OrdersTab onCountChange={setOrderCount} />}
 
       <style>{`
         .field-input {
@@ -1703,6 +1715,198 @@ const RitaIATab = ({ instances }) => {
         </div>
       )}
 
+    </div>
+  );
+};
+
+/* ── Commandes WhatsApp (OrdersTab) ── */
+const STATUS_LABELS = {
+  pending:   { label: 'En attente', bg: 'bg-amber-50',   text: 'text-amber-700',   dot: 'bg-amber-400' },
+  accepted:  { label: 'Acceptée',   bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' },
+  refused:   { label: 'Refusée',    bg: 'bg-red-50',     text: 'text-red-700',     dot: 'bg-red-500' },
+  delivered: { label: 'Livrée',     bg: 'bg-blue-50',    text: 'text-blue-700',    dot: 'bg-blue-500' },
+  cancelled: { label: 'Annulée',    bg: 'bg-gray-50',    text: 'text-gray-600',    dot: 'bg-gray-400' },
+};
+
+const FILTER_TABS = [
+  { id: '',         label: 'Toutes' },
+  { id: 'pending',  label: 'En attente' },
+  { id: 'accepted', label: 'Acceptées' },
+  { id: 'refused',  label: 'Refusées' },
+];
+
+const OrdersTab = ({ onCountChange }) => {
+  const [orders, setOrders] = useState([]);
+  const [stats, setStats] = useState({ pending: 0, accepted: 0, refused: 0, total: 0 });
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('');
+  const [updatingId, setUpdatingId] = useState(null);
+
+  useEffect(() => { fetchAll(); }, [filter]);
+
+  const fetchAll = async () => {
+    setLoading(true);
+    try {
+      const qs = filter ? `?status=${filter}` : '';
+      const [ordRes, stRes] = await Promise.all([
+        ecomApi.get(`/v1/external/whatsapp/orders${qs}`),
+        ecomApi.get('/v1/external/whatsapp/orders/stats'),
+      ]);
+      if (ordRes.data.success) setOrders(ordRes.data.orders || []);
+      if (stRes.data.success) {
+        setStats(stRes.data.stats || {});
+        onCountChange?.(stRes.data.stats?.pending || 0);
+      }
+    } catch {} finally { setLoading(false); }
+  };
+
+  const updateStatus = async (id, status) => {
+    setUpdatingId(id);
+    try {
+      const { data } = await ecomApi.patch(`/v1/external/whatsapp/orders/${id}`, { status });
+      if (data.success) await fetchAll();
+    } catch {} finally { setUpdatingId(null); }
+  };
+
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+  const fmtTime = (d) => d ? new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+
+  return (
+    <div className="space-y-5">
+
+      {/* Stats cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: 'Total',      value: stats.total,    color: 'text-gray-900', bg: 'bg-gray-50' },
+          { label: 'En attente', value: stats.pending,  color: 'text-amber-700', bg: 'bg-amber-50' },
+          { label: 'Acceptées',  value: stats.accepted, color: 'text-emerald-700', bg: 'bg-emerald-50' },
+          { label: 'Refusées',   value: stats.refused,  color: 'text-red-700', bg: 'bg-red-50' },
+        ].map(s => (
+          <div key={s.label} className={`${s.bg} rounded-xl px-4 py-3 border border-gray-100`}>
+            <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">{s.label}</p>
+            <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value ?? 0}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter tabs */}
+      <div className="flex gap-2">
+        {FILTER_TABS.map(f => (
+          <button key={f.id} onClick={() => setFilter(f.id)}
+            className={`px-3.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${
+              filter === f.id ? 'text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            }`}
+            style={filter === f.id ? { background: ACCENT } : undefined}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Loading */}
+      {loading && (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+          <span className="ml-2 text-sm text-gray-400">Chargement...</span>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && orders.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 px-4">
+          <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mb-4">
+            <Package className="w-6 h-6 text-gray-300" />
+          </div>
+          <p className="text-sm font-medium text-gray-900 mb-1">Aucune commande</p>
+          <p className="text-xs text-gray-400 text-center max-w-xs">
+            Les commandes collectées par Rita apparaîtront ici.
+          </p>
+        </div>
+      )}
+
+      {/* Order cards */}
+      {!loading && orders.length > 0 && (
+        <div className="space-y-3">
+          {orders.map(order => {
+            const st = STATUS_LABELS[order.status] || STATUS_LABELS.pending;
+            const isPending = order.status === 'pending';
+            const isUpdating = updatingId === order._id;
+            return (
+              <div key={order._id} className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-sm transition-shadow">
+                <div className="p-4 sm:p-5">
+                  {/* Header row */}
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-[15px] text-gray-900 leading-tight truncate">
+                        {order.customerName || order.pushName || 'Client'}
+                      </p>
+                      <p className="text-[12px] text-gray-400 mt-0.5">{order.customerPhone}</p>
+                    </div>
+                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${st.bg} ${st.text}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
+                      {st.label}
+                    </span>
+                  </div>
+
+                  {/* Details grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 text-[13px]">
+                    <div>
+                      <span className="text-gray-400 text-[11px] block">Produit</span>
+                      <span className="font-medium text-gray-800">{order.productName || '—'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-[11px] block">Prix</span>
+                      <span className="font-semibold text-gray-900">{order.productPrice || '—'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-[11px] block">Ville</span>
+                      <span className="text-gray-700">{order.customerCity || '—'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-[11px] block">Livraison</span>
+                      <span className="text-gray-700">{order.deliveryDate || '—'}{order.deliveryTime ? ` à ${order.deliveryTime}` : ''}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-[11px] block">Quantité</span>
+                      <span className="text-gray-700">{order.quantity || 1}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 text-[11px] block">Date</span>
+                      <span className="text-gray-500 text-[12px]">{fmtDate(order.createdAt)} {fmtTime(order.createdAt)}</span>
+                    </div>
+                  </div>
+
+                  {/* Conversation summary */}
+                  {order.conversationSummary && (
+                    <p className="mt-3 text-[12px] text-gray-500 bg-gray-50 rounded-lg px-3 py-2 line-clamp-2">
+                      {order.conversationSummary}
+                    </p>
+                  )}
+
+                  {/* Actions */}
+                  {isPending && (
+                    <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100">
+                      <button
+                        onClick={() => updateStatus(order._id, 'accepted')}
+                        disabled={isUpdating}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors disabled:opacity-50">
+                        {isUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                        Accepter
+                      </button>
+                      <button
+                        onClick={() => updateStatus(order._id, 'refused')}
+                        disabled={isUpdating}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors disabled:opacity-50">
+                        {isUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                        Refuser
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

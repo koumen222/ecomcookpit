@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import EcomUser from '../models/EcomUser.js';
 import RitaConfig from '../models/RitaConfig.js';
+import WhatsAppOrder from '../models/WhatsAppOrder.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 import { processIncomingMessage, generateTestReply } from '../services/ritaAgentService.js';
 
@@ -808,30 +809,60 @@ router.post('/incoming', async (req, res) => {
           // Extraire le numéro propre depuis le JID WhatsApp (ex: 33612345678@s.whatsapp.net)
           const cleanFrom = from.replace(/@.*$/, '');
 
+          // ─── Détecter tag [ORDER_DATA:{...}] pour enregistrer la commande ───
+          const orderTagMatch = reply.match(/\[ORDER_DATA:(\{.+?\})\]/);
+          let replyClean = reply;
+
+          if (orderTagMatch) {
+            replyClean = reply.replace(/\s*\[ORDER_DATA:\{.+?\}\]/, '').trim();
+            try {
+              const orderData = JSON.parse(orderTagMatch[1]);
+              console.log(`📦 [RITA] Commande détectée:`, JSON.stringify(orderData));
+              await WhatsAppOrder.create({
+                userId,
+                instanceName: instanceDoc.instanceName,
+                customerPhone: cleanFrom,
+                customerName: orderData.name || '',
+                customerCity: orderData.city || '',
+                pushName: pushName || '',
+                productName: orderData.product || '',
+                productPrice: orderData.price || '',
+                deliveryDate: orderData.delivery_date || '',
+                deliveryTime: orderData.delivery_time || '',
+                status: 'pending',
+                conversationSummary: `${orderData.product} → ${orderData.name} (${orderData.city})`,
+              });
+              console.log(`✅ [RITA] Commande enregistrée en base pour ${cleanFrom}`);
+            } catch (parseErr) {
+              console.error(`❌ [RITA] Erreur parsing ORDER_DATA:`, parseErr.message);
+            }
+          }
+
           // ─── Détecter tag [IMAGE:Nom du produit] pour envoi de photos ───
-          const imageTagMatch = reply.match(/\[IMAGE:(.+?)\]/);
-          let textToSend = reply;
+          const imageTagMatch = replyClean.match(/\[IMAGE:(.+?)\]/);
+          let textToSend = replyClean;
           let imageUrl = null;
+          let imageProductName = null;
 
           if (imageTagMatch) {
-            const productName = imageTagMatch[1].trim();
-            textToSend = reply.replace(/\s*\[IMAGE:.+?\]/, '').trim();
-            console.log(`📸 [RITA] Tag image détecté pour produit: "${productName}"`);
+            imageProductName = imageTagMatch[1].trim();
+            textToSend = replyClean.replace(/\s*\[IMAGE:.+?\]/, '').trim();
+            console.log(`📸 [RITA] Tag image détecté pour produit: "${imageProductName}"`);
 
             // Chercher l'image dans le productCatalog
             const ritaCfg = await RitaConfig.findOne({ userId }).lean();
             const product = ritaCfg?.productCatalog?.find(
-              p => p.name.toLowerCase() === productName.toLowerCase()
+              p => p.name.toLowerCase() === imageProductName.toLowerCase()
             );
             if (product?.images?.length) {
               imageUrl = product.images[0];
               console.log(`📸 [RITA] Image trouvée: ${imageUrl}`);
             } else {
-              console.log(`📸 [RITA] Aucune image trouvée pour "${productName}"`);
+              console.log(`📸 [RITA] Aucune image trouvée pour "${imageProductName}"`);
             }
           }
 
-          // Envoyer le texte
+          // Envoyer le texte d'abord
           if (textToSend) {
             console.log(`📤 [RITA] Envoi réponse texte à ${cleanFrom} via ${instanceDoc.instanceName}...`);
             const sendResult = await evolutionApiService.sendMessage(
@@ -862,6 +893,27 @@ router.post('/incoming', async (req, res) => {
               console.log(`✅ [RITA] Image envoyée avec succès à ${cleanFrom}`);
             } else {
               console.error(`❌ [RITA] Échec envoi image à ${cleanFrom}:`, mediaResult.error);
+            }
+
+            // ─── RELANCE après image: proposer achat avec prix ───
+            const ritaCfgForPrice = await RitaConfig.findOne({ userId }).lean();
+            const matchedProduct = ritaCfgForPrice?.productCatalog?.find(
+              p => p.name.toLowerCase() === imageProductName?.toLowerCase()
+            );
+            if (matchedProduct) {
+              let followUp = `Voilà le ${matchedProduct.name} 👍`;
+              if (matchedProduct.price) followUp += `\n\n💰 Prix : ${matchedProduct.price}`;
+              followUp += `\n\nTu confirmes la commande ? (Oui / Non)`;
+
+              // Petit délai pour que l'image arrive avant le texte
+              await new Promise(r => setTimeout(r, 1500));
+              await evolutionApiService.sendMessage(
+                instanceDoc.instanceName,
+                instanceDoc.instanceToken,
+                cleanFrom,
+                followUp
+              );
+              console.log(`📤 [RITA] Relance après image envoyée à ${cleanFrom}`);
             }
           }
           console.log(`💬 [RITA] ══════════════════════════════════════`);
@@ -967,6 +1019,71 @@ router.post('/test-chat', async (req, res) => {
   } catch (error) {
     console.error('❌ Erreur test-chat:', error.message);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// COMMANDES WHATSAPP (Orders)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * @route   GET /api/ecom/v1/external/whatsapp/orders
+ * @desc    Liste les commandes WhatsApp d'un utilisateur
+ */
+router.get('/orders', requireEcomAuth, async (req, res) => {
+  try {
+    const userId = req.ecomUser._id.toString();
+    const { status } = req.query;
+    const filter = { userId };
+    if (status && status !== 'all') filter.status = status;
+
+    const orders = await WhatsAppOrder.find(filter).sort({ createdAt: -1 }).limit(200).lean();
+    res.json({ success: true, orders });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * @route   PATCH /api/ecom/v1/external/whatsapp/orders/:id
+ * @desc    Mettre à jour le statut d'une commande (accepter, refuser, etc.)
+ */
+router.patch('/orders/:id', requireEcomAuth, async (req, res) => {
+  try {
+    const userId = req.ecomUser._id.toString();
+    const { status, notes } = req.body;
+    const update = {};
+    if (status) update.status = status;
+    if (notes !== undefined) update.notes = notes;
+
+    const order = await WhatsAppOrder.findOneAndUpdate(
+      { _id: req.params.id, userId },
+      { $set: update },
+      { new: true }
+    );
+    if (!order) return res.status(404).json({ success: false, error: 'Commande introuvable' });
+    res.json({ success: true, order });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * @route   GET /api/ecom/v1/external/whatsapp/orders/stats
+ * @desc    Stats rapides des commandes
+ */
+router.get('/orders/stats', requireEcomAuth, async (req, res) => {
+  try {
+    const userId = req.ecomUser._id.toString();
+    const [pending, accepted, refused, total] = await Promise.all([
+      WhatsAppOrder.countDocuments({ userId, status: 'pending' }),
+      WhatsAppOrder.countDocuments({ userId, status: 'accepted' }),
+      WhatsAppOrder.countDocuments({ userId, status: 'refused' }),
+      WhatsAppOrder.countDocuments({ userId }),
+    ]);
+    res.json({ success: true, stats: { pending, accepted, refused, total } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
