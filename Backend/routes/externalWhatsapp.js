@@ -958,7 +958,13 @@ router.post('/incoming', async (req, res) => {
               }
               console.log(`📸 [RITA] Image trouvée: ${imageUrl}`);
             } else {
-              console.log(`📸 [RITA] Aucune image trouvée pour "${imageProductName}"`);
+              console.log(`📸 [RITA] Aucune image trouvée pour "${imageProductName}" — envoi message client`);
+              // Si Rita a mis le tag mais le produit n'a pas d'image, informer le client
+              if (!textToSend) {
+                textToSend = `L'image de ce produit ne nous a pas encore été fournie 🙏 Mais je peux vous donner tous les détails !`;
+              } else {
+                textToSend += `\n\n_(L'image de ce produit ne nous a pas encore été fournie 🙏)_`;
+              }
             }
           }
 
@@ -1120,6 +1126,47 @@ router.get('/instances/:id/usage', async (req, res) => {
   } catch (error) {
     console.error('❌ Erreur récupération usage:', error.message);
     res.status(500).json({ success: false, error: "Erreur lors de la récupération des statistiques" });
+  }
+});
+
+/**
+ * @route   POST /api/ecom/v1/external/whatsapp/test-boss-notification
+ * @desc    Envoyer un message de test au numéro WhatsApp du boss
+ */
+router.post('/test-boss-notification', async (req, res) => {
+  try {
+    const { userId, bossPhone } = req.body;
+    if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
+
+    const phone = (bossPhone || '').replace(/\D/g, '');
+    if (!phone || phone.length < 8) {
+      return res.status(400).json({ success: false, error: 'Numéro WhatsApp invalide' });
+    }
+
+    const instance = await WhatsAppInstance.findOne({
+      userId,
+      isActive: true,
+      status: { $in: ['connected', 'active'] }
+    }).lean();
+
+    if (!instance) {
+      return res.status(400).json({ success: false, error: "Aucune instance WhatsApp connectée. Connectez d'abord une instance." });
+    }
+
+    const testMsg = `✅ *Test Rita — Notifications Boss*\n\nBonjour ! 👋 Ce message confirme que les notifications Rita sont bien configurées.\n\n📱 Instance: *${instance.instanceName}*\n⏰ ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Douala' })}\n\n🔔 Vous recevrez désormais les alertes pour:\n• 📦 Chaque commande confirmée\n• 📊 Le rapport quotidien\n\n_Généré par Rita IA_`;
+
+    await evolutionApiService.sendMessage(
+      instance.instanceName,
+      instance.instanceToken,
+      phone,
+      testMsg
+    );
+
+    console.log(`✅ [RITA] Test notification boss envoyé à ${phone} (userId=${userId})`);
+    res.status(200).json({ success: true, message: `Message de test envoyé au ${phone}` });
+  } catch (error) {
+    console.error('❌ Erreur test notification boss:', error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

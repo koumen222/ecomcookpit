@@ -735,6 +735,26 @@ const RitaIATab = ({ instances }) => {
   const [newMannerism, setNewMannerism] = useState('');
   const [newForbidden, setNewForbidden] = useState('');
   const [previewingVoice, setPreviewingVoice] = useState(null); // voiceId en cours de preview
+  const [testingBoss, setTestingBoss] = useState(false);
+  const [testBossResult, setTestBossResult] = useState(null); // { ok, msg }
+
+  const handleTestBossNotif = async () => {
+    const phone = (config.bossPhone || '').replace(/\D/g, '');
+    if (!phone || phone.length < 8) {
+      setTestBossResult({ ok: false, msg: 'Entrez d\'abord le numéro WhatsApp du boss.' });
+      return;
+    }
+    setTestingBoss(true); setTestBossResult(null);
+    try {
+      const { data } = await ecomApi.post('/v1/external/whatsapp/test-boss-notification', { userId, bossPhone: phone });
+      setTestBossResult({ ok: data.success, msg: data.success ? `✅ Message test envoyé au ${phone}` : (data.error || 'Erreur inconnue') });
+    } catch (e) {
+      setTestBossResult({ ok: false, msg: e?.response?.data?.error || 'Erreur de connexion' });
+    } finally {
+      setTestingBoss(false);
+      setTimeout(() => setTestBossResult(null), 6000);
+    }
+  };
 
   const playVoicePreview = async (voiceId, e) => {
     e.stopPropagation();
@@ -1844,8 +1864,19 @@ const RitaIATab = ({ instances }) => {
                 {config.bossNotifications && (
                   <>
                     <Field label="Numéro WhatsApp du boss" hint="Format international ex: 237699887766">
-                      <input type="tel" value={config.bossPhone} onChange={e => set('bossPhone', e.target.value)}
-                        placeholder="237699887766" className="field-input" />
+                      <div className="flex gap-2">
+                        <input type="tel" value={config.bossPhone || ''} onChange={e => { set('bossPhone', e.target.value); setTestBossResult(null); }}
+                          placeholder="237699887766" className="field-input flex-1" />
+                        <button onClick={handleTestBossNotif} disabled={testingBoss}
+                          className="px-3 py-2 text-[12px] font-medium rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 whitespace-nowrap flex items-center gap-1.5 transition-all">
+                          {testingBoss ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Test...</> : '📤 Tester'}
+                        </button>
+                      </div>
+                      {testBossResult && (
+                        <p className={`mt-1.5 text-[11.5px] font-medium ${testBossResult.ok ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {testBossResult.msg}
+                        </p>
+                      )}
                     </Field>
                     <div className="space-y-2 pt-1">
                       <ToggleRow enabled={config.notifyOnOrder} onChange={v => set('notifyOnOrder', v)}
@@ -1860,7 +1891,7 @@ const RitaIATab = ({ instances }) => {
                     </div>
                     {config.dailySummary && (
                       <Field label="Heure du rapport quotidien">
-                        <input type="time" value={config.dailySummaryTime} onChange={e => set('dailySummaryTime', e.target.value)}
+                        <input type="time" value={config.dailySummaryTime || '20:00'} onChange={e => set('dailySummaryTime', e.target.value)}
                           className="field-input" />
                       </Field>
                     )}
