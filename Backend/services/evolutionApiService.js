@@ -117,13 +117,13 @@ class EvolutionApiService {
       'png': 'image/png', 'gif': 'image/gif',
       'webp': 'image/webp', 'mp4': 'video/mp4', 'pdf': 'application/pdf'
     };
-    const mimetype = mimetypes[ext] || 'image/jpeg';
+    let mimetype = mimetypes[ext] || 'image/jpeg';
 
-    // ── Convertir en base64 : fichier local OU téléchargement HTTP ──
+    // ── Résoudre le média : fichier local → base64, URL externe → envoi direct ──
     let mediaPayload = mediaUrl;
     console.log(`📸 [Evolution] sendMedia — URL source: ${mediaUrl}`);
     try {
-      // Détecter si c'est une URL locale (api.scalor.net/uploads/...) → lire directement depuis le disque
+      // Détecter si c'est une URL locale (api.scalor.net/uploads/...) → lire depuis le disque
       const localMatch = mediaUrl.match(/(?:https?:\/\/(?:api\.scalor\.net|localhost[:\d]*))\/uploads\/(.+)$/);
       if (localMatch) {
         const decodedFile = decodeURIComponent(localMatch[1]);
@@ -135,43 +135,23 @@ class EvolutionApiService {
           mediaPayload = `data:${mimetype};base64,${b64}`;
           console.log(`📸 [Evolution] Fichier local lu (${Math.round(fileBuffer.byteLength / 1024)} KB) → envoi base64`);
         } else {
-          console.warn(`⚠️ [Evolution] Fichier local introuvable: ${localPath}`);
-          // Chercher dans les sous-dossiers d'uploads (workspaceId/...)
-          const uploadsDir = path.resolve(__dirname, '..', 'uploads');
-          if (fs.existsSync(uploadsDir)) {
-            // Lister pour diagnostic
-            const topFiles = fs.readdirSync(uploadsDir).slice(0, 15);
-            console.warn(`   📂 Contenu uploads/ (${topFiles.length} premiers): ${topFiles.join(', ')}`);
-            // Tenter de trouver le fichier par son basename dans les sous-dossiers
-            const basename = path.basename(decodedFile);
-            const altPaths = topFiles
-              .filter(f => { try { return fs.statSync(path.join(uploadsDir, f)).isDirectory(); } catch { return false; } })
-              .map(d => path.join(uploadsDir, d, basename))
-              .filter(p => fs.existsSync(p));
-            if (altPaths.length) {
-              console.log(`📸 [Evolution] Fichier trouvé dans sous-dossier: ${altPaths[0]}`);
-              const fileBuffer = fs.readFileSync(altPaths[0]);
-              const b64 = fileBuffer.toString('base64');
-              mediaPayload = `data:${mimetype};base64,${b64}`;
-              console.log(`📸 [Evolution] Fichier alternatif lu (${Math.round(fileBuffer.byteLength / 1024)} KB) → envoi base64`);
-            }
-          }
+          console.warn(`⚠️ [Evolution] Fichier local introuvable: ${localPath} — image perdue (stockage éphémère)`);
+          return { success: false, error: `Fichier local introuvable: ${decodedFile} — l'image doit être re-uploadée vers R2` };
         }
-      }
-      // Si pas local ou fallback, télécharger via HTTP
-      if (mediaPayload === mediaUrl) {
-        console.log(`📸 [Evolution] Téléchargement HTTP: ${mediaUrl}`);
-        const dlRes = await axios.get(mediaUrl, { responseType: 'arraybuffer', timeout: 20000 });
-        const b64 = Buffer.from(dlRes.data).toString('base64');
-        const detectedMime = dlRes.headers['content-type']?.split(';')[0] || mimetype;
-        mediaPayload = `data:${detectedMime};base64,${b64}`;
-        console.log(`📸 [Evolution] Image téléchargée (${Math.round(dlRes.data.byteLength / 1024)} KB) → envoi base64`);
+      } else if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
+        // URL externe (R2, CDN, etc.) → envoyer l'URL directement à Evolution API
+        // Evolution API téléchargera l'image elle-même
+        mediaPayload = mediaUrl;
+        // Détecter le vrai mimetype depuis l'extension de l'URL
+        const urlExt = urlForExt.split('.').pop()?.toLowerCase();
+        if (urlExt && mimetypes[urlExt]) {
+          mimetype = mimetypes[urlExt];
+        }
+        console.log(`📸 [Evolution] URL externe → envoi direct à Evolution API (mimetype: ${mimetype})`);
       }
     } catch (dlErr) {
-      console.error(`❌ [Evolution] Échec récupération image: ${dlErr.message}`);
+      console.error(`❌ [Evolution] Erreur résolution média: ${dlErr.message}`);
       console.error(`   URL: ${mediaUrl}`);
-      // Fallback: envoyer l'URL directe à Evolution API
-      console.warn(`⚠️ [Evolution] Fallback → envoi URL directe à Evolution API`);
     }
 
     try {
@@ -188,7 +168,8 @@ class EvolutionApiService {
         },
         {
           headers: { 'Content-Type': 'application/json', 'apikey': instanceToken },
-          timeout: 45000
+          timeout: 45000,
+          maxBodyLength: 50 * 1024 * 1024
         }
       );
 

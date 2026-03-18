@@ -1380,6 +1380,9 @@ router.post('/incoming', async (req, res) => {
 
           // Envoyer l'image si disponible
           if (imageUrl) {
+            // Déduire l'extension réelle de l'URL pour le fileName
+            const imgExt = (imageUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
+            const imgFileName = `product.${imgExt}`;
             console.log(`📸 [RITA] Envoi image à ${cleanFrom}... URL: ${imageUrl}`);
             let imageSent = false;
 
@@ -1390,7 +1393,7 @@ router.post('/incoming', async (req, res) => {
               cleanFrom,
               imageUrl,
               '',
-              'product.jpg'
+              imgFileName
             );
             if (mediaResult.success) {
               imageSent = true;
@@ -1404,6 +1407,7 @@ router.post('/incoming', async (req, res) => {
                   let altUrl = matchedProductForMedia.images[imgIdx];
                   if (altUrl && altUrl.startsWith('/')) altUrl = `https://api.scalor.net${altUrl}`;
                   if (!altUrl) continue;
+                  const altExt = (altUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
                   console.log(`📸 [RITA] Retry avec image alternative ${imgIdx + 1}: ${altUrl}`);
                   const retryResult = await evolutionApiService.sendMedia(
                     instanceDoc.instanceName,
@@ -1411,7 +1415,7 @@ router.post('/incoming', async (req, res) => {
                     cleanFrom,
                     altUrl,
                     '',
-                    'product.jpg'
+                    `product.${altExt}`
                   );
                   if (retryResult.success) {
                     imageSent = true;
