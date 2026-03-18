@@ -993,16 +993,19 @@ router.post('/incoming', async (req, res) => {
 
           if (imageTagMatch) {
             imageProductName = imageTagMatch[1].trim();
-            textToSend = textToSend.replace(/\s*\[IMAGE:.+?\]/, '').trim();
+            textToSend = textToSend.replace(/\s*\[IMAGE:.+?\]/g, '').trim();
             console.log(`📸 [RITA] Tag image détecté pour produit: "${imageProductName}"`);
 
-            // Chercher l'image dans le productCatalog (exact → partiel → premier avec image)
+            // Chercher l'image dans le productCatalog (exact → partiel UNIQUEMENT — pas de fallback générique)
             const ritaCfg = await RitaConfig.findOne({ userId }).lean();
             const catalog = ritaCfg?.productCatalog || [];
             const nameLow = imageProductName.toLowerCase();
+            // Tokenise le nom demandé pour matching plus souple (ex: "montre Z7" matche "Montre Connectée Z7 Ultra")
+            const nameTokens = nameLow.split(/\s+/).filter(t => t.length > 2);
             let product = catalog.find(p => p.name.toLowerCase() === nameLow)
               || catalog.find(p => p.name.toLowerCase().includes(nameLow) || nameLow.includes(p.name.toLowerCase()))
-              || catalog.find(p => p.images?.length);
+              || catalog.find(p => nameTokens.length > 0 && nameTokens.every(t => p.name.toLowerCase().includes(t)));
+            // ⚠️ PAS de fallback générique — si on ne trouve pas le bon produit, on n'envoie rien
             if (product?.images?.length) {
               imageUrl = product.images[0];
               if (imageUrl && imageUrl.startsWith('/')) {
@@ -1022,15 +1025,17 @@ router.post('/incoming', async (req, res) => {
 
           if (videoTagMatch && !imageTagMatch) {
             videoProductName = videoTagMatch[1].trim();
-            textToSend = textToSend.replace(/\s*\[VIDEO:.+?\]/, '').trim();
+            textToSend = textToSend.replace(/\s*\[VIDEO:.+?\]/g, '').trim();
             console.log(`🎬 [RITA] Tag vidéo détecté pour produit: "${videoProductName}"`);
 
             const ritaCfgV = await RitaConfig.findOne({ userId }).lean();
             const catalogV = ritaCfgV?.productCatalog || [];
             const nameLowV = videoProductName.toLowerCase();
+            const nameTokensV = nameLowV.split(/\s+/).filter(t => t.length > 2);
             let productV = catalogV.find(p => p.name.toLowerCase() === nameLowV)
               || catalogV.find(p => p.name.toLowerCase().includes(nameLowV) || nameLowV.includes(p.name.toLowerCase()))
-              || catalogV.find(p => p.videos?.length);
+              || catalogV.find(p => nameTokensV.length > 0 && nameTokensV.every(t => p.name.toLowerCase().includes(t)));
+            // ⚠️ PAS de fallback générique — si on ne trouve pas le bon produit, on n'envoie rien
             if (productV?.videos?.length) {
               videoUrl = productV.videos[0];
               if (videoUrl && videoUrl.startsWith('/')) {
@@ -1157,10 +1162,13 @@ router.post('/incoming', async (req, res) => {
             }
 
             // ─── RELANCE après image: proposer achat avec prix ───
-            if (matchedProductForMedia) {
-              let followUp = `Voilà le ${matchedProductForMedia.name} 👍`;
-              if (matchedProductForMedia.price) followUp += `\n\n💰 Prix : ${matchedProductForMedia.price}`;
-              followUp += `\n\nTu confirmes la commande ? (Oui / Non)`;
+            // Seulement si le texte de Rita ne contient pas déjà une offre de closing
+            const textAlreadyCloses = /confirm|réserv|commande|livr|veux qu|tu veux|on fait|je te prépare/i.test(textToSend);
+            if (matchedProductForMedia && !textAlreadyCloses) {
+              const p = matchedProductForMedia;
+              const followUp = p.price
+                ? `${p.name} à ${p.price} 👍 Tu veux qu'on te le réserve ?`
+                : `Tu veux qu'on te réserve le ${p.name} ? 👍`;
 
               // Petit délai pour que l'image arrive avant le texte
               await new Promise(r => setTimeout(r, 1500));
