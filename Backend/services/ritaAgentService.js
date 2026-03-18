@@ -66,7 +66,7 @@ function stripForTTS(text) {
  */
 export async function textToSpeech(text, config) {
   const apiKey = config?.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY || 'sk_567189791888b879d02332a0b65b58493821cd1dcb0d2dcd';
-  const voiceId = config?.elevenlabsVoiceId || 'cgSgspJ2msm6clMCkdW9';
+  const voiceId = config?.elevenlabsVoiceId || '9ZATEeixBigmezesCGAk';
   if (!apiKey || !text?.trim()) return null;
 
   const clean = stripForTTS(text);
