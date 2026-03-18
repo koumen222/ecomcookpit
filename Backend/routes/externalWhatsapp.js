@@ -53,6 +53,36 @@ import { requireEcomAuth } from '../middleware/ecomAuth.js';
 
 const router = express.Router();
 
+// Normalise une chaîne : minuscules + suppression des accents/diacritiques
+function normalizeStr(s) {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+// Cherche le meilleur produit correspondant à un nom dans le catalogue
+function findProductByName(catalog, query) {
+  const q = normalizeStr(query);
+  // 1. Exact
+  let p = catalog.find(p => normalizeStr(p.name) === q);
+  if (p) return p;
+  // 2. Contenu (l'un dans l'autre)
+  p = catalog.find(p => { const n = normalizeStr(p.name); return n.includes(q) || q.includes(n); });
+  if (p) return p;
+  // 3. Tous les tokens significatifs du nom demandé sont dans le nom du produit
+  const tokens = q.split(/\s+/).filter(t => t.length > 1);
+  if (tokens.length > 0) {
+    p = catalog.find(p => tokens.every(t => normalizeStr(p.name).includes(t)));
+    if (p) return p;
+    // 4. Au moins 60% des tokens matchent
+    p = catalog.reduce((best, p) => {
+      const matched = tokens.filter(t => normalizeStr(p.name).includes(t)).length;
+      const score = matched / tokens.length;
+      return score > (best?.score || 0) ? { p, score } : best;
+    }, null);
+    if (p?.score >= 0.6) return p.p;
+  }
+  return null;
+}
+
 // ─── Escalades boss en attente: userId → [{ clientPhone, question, askedAt, instanceName, instanceToken }]
 // Queue FIFO : chaque réponse du boss est transmise au prochain client en attente.
 const pendingBossEscalations = new Map();
@@ -1056,12 +1086,10 @@ router.post('/incoming', async (req, res) => {
           if (!replyClean.includes('[IMAGE:') && /tu veux voir l[a']? ?image|voir (la |une )?photo|je t'envoie (la |une )?image/i.test(replyClean)) {
             try {
               const ritaCfgSafeImg = await RitaConfig.findOne({ userId }).lean();
-              // Uniquement les produits qui ONT des images
               const safeImgCatalog = (ritaCfgSafeImg?.productCatalog || []).filter(p => p.name && p.images?.length);
-              const safeImgMatched = safeImgCatalog.find(p => replyClean.toLowerCase().includes(p.name.toLowerCase()))
-                || safeImgCatalog.find(p => p.name.toLowerCase().split(/\s+/).filter(t => t.length > 3).every(t => replyClean.toLowerCase().includes(t)));
+              const allProducts = ritaCfgSafeImg?.productCatalog || [];
+              const safeImgMatched = findProductByName(safeImgCatalog, replyClean);
               if (safeImgMatched) {
-                // Supprimer la question et injecter le tag directement
                 replyClean = replyClean
                   .replace(/[,.]?\s*Tu veux voir l[a']? ?image\s*[?!]?/gi, '')
                   .replace(/[,.]?\s*Tu veux voir (la |une )?photo\s*[?!]?/gi, '')
@@ -1069,7 +1097,7 @@ router.post('/incoming', async (req, res) => {
                 replyClean += ` [IMAGE:${safeImgMatched.name}]`;
                 console.log(`🔧 [RITA] Filet sécurité: question image remplacée par tag [IMAGE:${safeImgMatched.name}]`);
               } else {
-                // Produit trouvé mais sans image → remplacer la question par un message clair
+                // Produit sans image
                 replyClean = replyClean
                   .replace(/[,.]?\s*Tu veux voir l[a']? ?image\s*[?!]?/gi, '')
                   .replace(/[,.]?\s*Tu veux voir (la |une )?photo\s*[?!]?/gi, '')
@@ -1086,18 +1114,15 @@ router.post('/incoming', async (req, res) => {
               const lastBot = getLastAssistantMessage(userId, from);
               if (lastBot && /image|photo|voir/i.test(lastBot)) {
                 const ritaCfgSafeImg2 = await RitaConfig.findOne({ userId }).lean();
-                // Uniquement les produits qui ONT des images
                 const safeImgCatalog2 = (ritaCfgSafeImg2?.productCatalog || []).filter(p => p.name && p.images?.length);
-                const safeImgMatched2 = safeImgCatalog2.find(p => lastBot.toLowerCase().includes(p.name.toLowerCase()))
-                  || safeImgCatalog2.find(p => p.name.toLowerCase().split(/\s+/).filter(t => t.length > 3).every(t => lastBot.toLowerCase().includes(t)));
+                const allProds2 = ritaCfgSafeImg2?.productCatalog || [];
+                const safeImgMatched2 = findProductByName(safeImgCatalog2, lastBot);
                 if (safeImgMatched2) {
                   replyClean = replyClean.replace(/[,.]?\s*Tu veux voir l[a']? ?image\s*[?!]?/gi, '').trim();
                   replyClean += ` [IMAGE:${safeImgMatched2.name}]`;
                   console.log(`🔧 [RITA] Filet sécurité: "oui" → image injectée [IMAGE:${safeImgMatched2.name}]`);
                 } else {
-                  // Produit trouvé dans le dernier message mais sans image
-                  const allProducts2 = (ritaCfgSafeImg2?.productCatalog || []).filter(p => p.name);
-                  const noImgProduct = allProducts2.find(p => lastBot.toLowerCase().includes(p.name.toLowerCase()));
+                  const noImgProduct = findProductByName(allProds2, lastBot);
                   if (noImgProduct) {
                     replyClean += `\n\nDésolé, on n'a pas encore la photo de ce produit 🙏`;
                     console.log(`🔧 [RITA] Filet sécurité: pas d'image pour ${noImgProduct.name}`);
@@ -1161,16 +1186,11 @@ router.post('/incoming', async (req, res) => {
             textToSend = textToSend.replace(/\s*\[IMAGE:.+?\]/g, '').trim();
             console.log(`📸 [RITA] Tag image détecté pour produit: "${imageProductName}"`);
 
-            // Chercher l'image dans le productCatalog (exact → partiel UNIQUEMENT — pas de fallback générique)
             const ritaCfg = await RitaConfig.findOne({ userId }).lean();
             const catalog = ritaCfg?.productCatalog || [];
-            const nameLow = imageProductName.toLowerCase();
-            // Tokenise le nom demandé pour matching plus souple (ex: "montre Z7" matche "Montre Connectée Z7 Ultra")
-            const nameTokens = nameLow.split(/\s+/).filter(t => t.length > 2);
-            let product = catalog.find(p => p.name.toLowerCase() === nameLow)
-              || catalog.find(p => p.name.toLowerCase().includes(nameLow) || nameLow.includes(p.name.toLowerCase()))
-              || catalog.find(p => nameTokens.length > 0 && nameTokens.every(t => p.name.toLowerCase().includes(t)));
-            // ⚠️ PAS de fallback générique — si on ne trouve pas le bon produit, on n'envoie rien
+            const product = findProductByName(catalog, imageProductName);
+            console.log(`📸 [RITA] Produit trouvé: ${product ? product.name : 'AUCUN'} | images: ${product?.images?.length || 0}`);
+
             if (product?.images?.length) {
               imageUrl = product.images[0];
               if (imageUrl && imageUrl.startsWith('/')) {
@@ -1179,7 +1199,7 @@ router.post('/incoming', async (req, res) => {
               matchedProductForMedia = product;
               console.log(`📸 [RITA] Image trouvée: ${imageUrl}`);
             } else {
-              console.log(`📸 [RITA] Aucune image trouvée pour "${imageProductName}" — envoi message client`);
+              console.log(`📸 [RITA] Aucune image pour "${imageProductName}"`);
               const noImgMsg = `Désolé, on n'a pas encore la photo de ce produit 🙏 Mais je peux te donner tous les détails !`;
               if (!textToSend) {
                 textToSend = noImgMsg;
@@ -1196,12 +1216,8 @@ router.post('/incoming', async (req, res) => {
 
             const ritaCfgV = await RitaConfig.findOne({ userId }).lean();
             const catalogV = ritaCfgV?.productCatalog || [];
-            const nameLowV = videoProductName.toLowerCase();
-            const nameTokensV = nameLowV.split(/\s+/).filter(t => t.length > 2);
-            let productV = catalogV.find(p => p.name.toLowerCase() === nameLowV)
-              || catalogV.find(p => p.name.toLowerCase().includes(nameLowV) || nameLowV.includes(p.name.toLowerCase()))
-              || catalogV.find(p => nameTokensV.length > 0 && nameTokensV.every(t => p.name.toLowerCase().includes(t)));
-            // ⚠️ PAS de fallback générique — si on ne trouve pas le bon produit, on n'envoie rien
+            const productV = findProductByName(catalogV, videoProductName);
+            console.log(`🎬 [RITA] Produit vidéo trouvé: ${productV ? productV.name : 'AUCUN'} | vidéos: ${productV?.videos?.length || 0}`);
             if (productV?.videos?.length) {
               videoUrl = productV.videos[0];
               if (videoUrl && videoUrl.startsWith('/')) {
