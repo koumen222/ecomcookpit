@@ -172,14 +172,21 @@ class EvolutionApiService {
   async sendAudio(instanceName, instanceToken, number, audioUrl) {
     const cleanNumber = number.replace(/\D/g, '');
     
+    // Détecter si c'est du base64 (data URI ou raw) vs une URL
+    const isBase64 = audioUrl.startsWith('data:') || !audioUrl.startsWith('http');
+    let audioPayload;
+    if (isBase64) {
+      // Extraire le base64 brut (retirer le préfixe data:audio/mpeg;base64, si présent)
+      const rawBase64 = audioUrl.replace(/^data:[^;]+;base64,/, '');
+      audioPayload = { number: cleanNumber, audio: rawBase64, delay: 1200, encoding: true };
+    } else {
+      audioPayload = { number: cleanNumber, audio: audioUrl, delay: 1200 };
+    }
+    
     try {
       const response = await axios.post(
         `${this.baseUrl}/message/sendWhatsAppAudio/${instanceName}`,
-        {
-          number: cleanNumber,
-          audio: audioUrl,
-          delay: 1200
-        },
+        audioPayload,
         {
           headers: {
             'Content-Type': 'application/json',
