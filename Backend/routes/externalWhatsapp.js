@@ -665,6 +665,19 @@ router.post('/activate', async (req, res) => {
 });
 
 /**
+ * @route   GET /api/ecom/v1/external/whatsapp/incoming
+ * @desc    Endpoint de diagnostic pour vérifier que l'URL webhook est bien exposée.
+ */
+router.get('/incoming', async (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Webhook WhatsApp Rita disponible',
+    method: 'Utiliser POST pour les événements Evolution API',
+    webhookUrl: 'https://api.scalor.net/api/ecom/v1/external/whatsapp/incoming'
+  });
+});
+
+/**
  * @route   POST /api/ecom/v1/external/whatsapp/incoming
  * @desc    Reçoit les événements entrants d'Evolution API (MESSAGES_UPSERT, CONNECTION_UPDATE, etc.)
  *          Ce endpoint est configuré automatiquement comme webhook URL sur toutes les instances.
@@ -675,16 +688,20 @@ router.post('/incoming', async (req, res) => {
 
   const { event, instance, data } = req.body;
   if (!event) return;
+  const normalizedEvent = String(event).toUpperCase().replace(/\./g, '_');
 
   console.log(`\n📩 ═══════════════════════════════════════════════════`);
   console.log(`📩 [WH INCOMING] event=${event} instance=${instance}`);
+  console.log(`📩 [WH INCOMING] normalizedEvent=${normalizedEvent}`);
   console.log(`📩 [WH INCOMING] data keys: ${Object.keys(data || {}).join(', ')}`);
 
   // Traitement asynchrone
   setImmediate(async () => {
     try {
-      if (event === 'MESSAGES_UPSERT') {
-        const messages = data?.messages || [];
+      if (normalizedEvent === 'MESSAGES_UPSERT') {
+        const messages = Array.isArray(data?.messages)
+          ? data.messages
+          : (data?.key && data?.message ? [data] : []);
         console.log(`📩 [WH INCOMING] ${messages.length} message(s) reçu(s)`);
 
         // Trouver l'instance WhatsApp correspondante pour récupérer le userId
@@ -699,9 +716,20 @@ router.post('/incoming', async (req, res) => {
         for (const msg of messages) {
           const fromMe = msg.key?.fromMe;
           const from = msg.key?.remoteJid;
-          const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+          const text =
+            msg.message?.conversation ||
+            msg.message?.extendedTextMessage?.text ||
+            msg.message?.imageMessage?.caption ||
+            msg.message?.videoMessage?.caption ||
+            msg.message?.buttonsResponseMessage?.selectedButtonId ||
+            msg.message?.listResponseMessage?.title ||
+            '';
+          const pushName = msg.pushName || data?.pushName || '';
 
           console.log(`📩 [WH INCOMING] Message — from=${from} fromMe=${fromMe} text="${(text || '').substring(0, 80)}"`);
+          if (pushName) {
+            console.log(`📩 [WH INCOMING] pushName=${pushName}`);
+          }
 
           if (fromMe) {
             console.log(`⏩ [RITA] Message envoyé par le bot (fromMe=true), ignoré.`);
@@ -756,8 +784,10 @@ router.post('/incoming', async (req, res) => {
           }
           console.log(`💬 [RITA] ══════════════════════════════════════`);
         }
-      } else if (event === 'CONNECTION_UPDATE') {
+      } else if (normalizedEvent === 'CONNECTION_UPDATE') {
         console.log(`🔌 [WH] Connexion mise à jour — instance: ${instance}, état: ${JSON.stringify(data?.state)}`);
+      } else {
+        console.log(`ℹ️ [WH INCOMING] Événement non traité: ${event}`);
       }
       console.log(`📩 ═══════════════════════════════════════════════════\n`);
     } catch (err) {
