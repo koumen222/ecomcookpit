@@ -849,13 +849,19 @@ router.post('/incoming', async (req, res) => {
             textToSend = replyClean.replace(/\s*\[IMAGE:.+?\]/, '').trim();
             console.log(`📸 [RITA] Tag image détecté pour produit: "${imageProductName}"`);
 
-            // Chercher l'image dans le productCatalog
+            // Chercher l'image dans le productCatalog (exact → partiel → premier avec image)
             const ritaCfg = await RitaConfig.findOne({ userId }).lean();
-            const product = ritaCfg?.productCatalog?.find(
-              p => p.name.toLowerCase() === imageProductName.toLowerCase()
-            );
+            const catalog = ritaCfg?.productCatalog || [];
+            const nameLow = imageProductName.toLowerCase();
+            let product = catalog.find(p => p.name.toLowerCase() === nameLow)
+              || catalog.find(p => p.name.toLowerCase().includes(nameLow) || nameLow.includes(p.name.toLowerCase()))
+              || catalog.find(p => p.images?.length);
             if (product?.images?.length) {
               imageUrl = product.images[0];
+              // Si l'URL est relative (/uploads/...), la rendre absolue pour que l'API Evolution puisse y accéder
+              if (imageUrl && imageUrl.startsWith('/')) {
+                imageUrl = `https://api.scalor.net${imageUrl}`;
+              }
               console.log(`📸 [RITA] Image trouvée: ${imageUrl}`);
             } else {
               console.log(`📸 [RITA] Aucune image trouvée pour "${imageProductName}"`);
@@ -896,10 +902,8 @@ router.post('/incoming', async (req, res) => {
             }
 
             // ─── RELANCE après image: proposer achat avec prix ───
-            const ritaCfgForPrice = await RitaConfig.findOne({ userId }).lean();
-            const matchedProduct = ritaCfgForPrice?.productCatalog?.find(
-              p => p.name.toLowerCase() === imageProductName?.toLowerCase()
-            );
+            // Réutilise ritaCfg + même logique de matching flou
+            const matchedProduct = product; // déjà trouvé ci-dessus
             if (matchedProduct) {
               let followUp = `Voilà le ${matchedProduct.name} 👍`;
               if (matchedProduct.price) followUp += `\n\n💰 Prix : ${matchedProduct.price}`;
