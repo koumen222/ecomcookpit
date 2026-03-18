@@ -300,6 +300,7 @@ const startServer = async () => {
       ['./routes/sourcingStats.js',           '/api/ecom/sourcing/stats'],
       // ─── WhatsApp External Integration (NAND/NK) ───────────────────────────
       ['./routes/externalWhatsapp.js',        '/api/ecom/v1/external/whatsapp'],
+      ['./routes/upload.js',                  '/api/ecom/upload'],
       // ─── WhatsApp Configuration ────────────────────────────────────────
       ['./routes/whatsappConfig.js',           '/api/ecom/integrations/whatsapp'],
       // ─── Shopify OAuth Integration ────────────────────────────────────
@@ -323,6 +324,9 @@ const startServer = async () => {
         console.error(`   Stack: ${err.stack}`);
       }
     }
+
+    // ─── Static uploads (images) ───
+    app.use('/uploads', express.static(path.join(process.cwd(), 'Backend/uploads')));
 
     // ─── Public Storefront Routes (MUST BE LAST) ───────────────────────
     // These handle subdomain-based store access (e.g., koumen.scalor.net)
