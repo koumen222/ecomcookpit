@@ -248,7 +248,7 @@ orderSchema.statics.findOptimized = function(filter, options = {}) {
   const {
     page = 1,
     limit = 50,
-    sort = { date: -1 },
+    sort = { createdAt: -1 },
     skipLean = false
   } = options;
 

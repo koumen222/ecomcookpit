@@ -746,7 +746,7 @@ const CampaignsList = () => {
                 <div className="text-center py-8">
                   <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
                   <p className="text-sm text-gray-600 mb-4">Aucune instance WhatsApp configurée</p>
-                  <a href="/ecom/whatsapp/connexion" className="inline-block px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium">Configurer une instance</a>
+                  <a href="/ecom/whatsapp/service" className="inline-block px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium">Configurer une instance</a>
                 </div>
               ) : (
                 <div className="space-y-2">

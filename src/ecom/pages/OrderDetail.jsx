@@ -682,12 +682,20 @@ const OrderDetail = () => {
                 )}
                 {order.deliveryTime && (
                   <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 bg-teal-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    </div>
+                    {(order.status === 'postponed' || order.status === 'reported') ? (
+                      <div className="w-9 h-9 bg-amber-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                      </div>
+                    ) : (
+                      <div className="w-9 h-9 bg-teal-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                      </div>
+                    )}
                     <div>
-                      <p className="text-[9px] text-gray-400 uppercase font-medium">Heure de livraison</p>
-                      <p className="text-sm font-semibold text-gray-900">{order.deliveryTime}</p>
+                      <p className="text-[9px] text-gray-400 uppercase font-medium">
+                        {(order.status === 'postponed' || order.status === 'reported') ? 'Date de report' : 'Heure de livraison'}
+                      </p>
+                      <p className={`text-sm font-semibold ${(order.status === 'postponed' || order.status === 'reported') ? 'text-amber-700' : 'text-gray-900'}`}>{order.deliveryTime}</p>
                     </div>
                   </div>
                 )}

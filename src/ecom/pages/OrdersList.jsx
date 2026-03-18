@@ -1,5 +1,5 @@
-﻿import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+﻿import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
@@ -78,13 +78,28 @@ const COUNTRIES = [
   { code: 'OTHER', name: 'Autre', flag: '🌍', dialCode: '+' }
 ];
 
+const SCROLL_STORAGE_KEY = 'orders_list_scroll';
+const FILTERS_STORAGE_KEY = 'orders_list_filters';
+
 const OrdersList = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useEcomAuth();
   const { fmt } = useMoney();
   const isAdmin = user?.role === 'ecom_admin';
   const isSuperAdmin = user?.role === 'super_admin';
   const isCloseuse = user?.role === 'ecom_closeuse';
+  const listContainerRef = useRef(null);
+  const shouldRestoreScroll = useRef(false);
+
+  // Restore saved filters from sessionStorage (when coming back from detail)
+  const savedFilters = useMemo(() => {
+    try {
+      const raw = sessionStorage.getItem(FILTERS_STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return null;
+  }, []);
 
     const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState({});
@@ -97,13 +112,13 @@ const OrdersList = () => {
   const [backfilling, setBackfilling] = useState(false);
   const [showSyncClientsModal, setShowSyncClientsModal] = useState(false);
   const [syncClientsStatuses, setSyncClientsStatuses] = useState(['delivered', 'confirmed', 'pending', 'shipped']);
-  const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterCity, setFilterCity] = useState('');
-  const [filterProduct, setFilterProduct] = useState('');
-  const [filterTag, setFilterTag] = useState('');
-  const [filterStartDate, setFilterStartDate] = useState('');
-  const [filterEndDate, setFilterEndDate] = useState('');
+  const [search, setSearch] = useState(savedFilters?.search || '');
+  const [filterStatus, setFilterStatus] = useState(savedFilters?.filterStatus || '');
+  const [filterCity, setFilterCity] = useState(savedFilters?.filterCity || '');
+  const [filterProduct, setFilterProduct] = useState(savedFilters?.filterProduct || '');
+  const [filterTag, setFilterTag] = useState(savedFilters?.filterTag || '');
+  const [filterStartDate, setFilterStartDate] = useState(savedFilters?.filterStartDate || '');
+  const [filterEndDate, setFilterEndDate] = useState(savedFilters?.filterEndDate || '');
   const [showFilters, setShowFilters] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -115,9 +130,9 @@ const OrdersList = () => {
   const [sourcesConfig, setSourcesConfig] = useState({});
   const [lastSyncs, setLastSyncs] = useState({});
   const [expandedId, setExpandedId] = useState(null);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(savedFilters?.page || 1);
   const [pagination, setPagination] = useState({});
-  const [itemsPerPage, setItemsPerPage] = useState(100);
+  const [itemsPerPage, setItemsPerPage] = useState(savedFilters?.itemsPerPage || 100);
   const [sortOrder, setSortOrder] = useState('newest_first'); // 'newest_first' | 'oldest_first'
   const [viewMode, setViewMode] = useState('table');
   const [showSourceSelector, setShowSourceSelector] = useState(true);
@@ -147,6 +162,9 @@ const OrdersList = () => {
   const [savingOrder, setSavingOrder] = useState(false);
   const [deletingOrderId, setDeletingOrderId] = useState(null);
   const [deletingAll, setDeletingAll] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedOrders, setSelectedOrders] = useState(new Set());
+  const [deletingSelected, setDeletingSelected] = useState(false);
   const [viewAllWorkspaces, setViewAllWorkspaces] = useState(false);
   const [commissions, setCommissions] = useState(null);
   const [commissionPeriod, setCommissionPeriod] = useState('month');
@@ -229,6 +247,75 @@ const OrdersList = () => {
     if (!dateStr) return '';
     const date = new Date(dateStr);
     return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+  };
+
+  // Format postponed/reported date for list display
+  const fmtPostponedDate = (deliveryTime) => {
+    if (!deliveryTime) return '';
+    // deliveryTime can be a raw string from user input (e.g. "28/02/2026 14:00") or an ISO date
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Try to parse the date
+    let parsed = null;
+    // Try ISO format first
+    const isoDate = new Date(deliveryTime);
+    if (!isNaN(isoDate.getTime())) {
+      parsed = isoDate;
+    } else {
+      // Try DD/MM/YYYY or DD/MM/YYYY HH:mm
+      const match = deliveryTime.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\s*(\d{1,2}:\d{2})?/);
+      if (match) {
+        const day = parseInt(match[1], 10);
+        const month = parseInt(match[2], 10) - 1;
+        const year = match[3].length === 2 ? 2000 + parseInt(match[3], 10) : parseInt(match[3], 10);
+        parsed = new Date(year, month, day);
+        if (match[4]) {
+          const [h, m] = match[4].split(':');
+          parsed.setHours(parseInt(h, 10), parseInt(m, 10));
+        }
+      }
+    }
+
+    if (parsed && !isNaN(parsed.getTime())) {
+      const parsedDay = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+      if (parsedDay.getTime() === today.getTime()) return "Aujourd'hui";
+      if (parsedDay.getTime() === tomorrow.getTime()) return 'Demain';
+      if (parsedDay < today) return 'Dépassé';
+      return parsed.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+    }
+    // Fallback: return raw string trimmed
+    return deliveryTime.length > 16 ? deliveryTime.slice(0, 16) + '…' : deliveryTime;
+  };
+
+  const getPostponedBadgeColor = (deliveryTime) => {
+    if (!deliveryTime) return 'bg-amber-50 text-amber-700 border-amber-200';
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    let parsed = null;
+    const isoDate = new Date(deliveryTime);
+    if (!isNaN(isoDate.getTime())) {
+      parsed = isoDate;
+    } else {
+      const match = deliveryTime.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+      if (match) {
+        const day = parseInt(match[1], 10);
+        const month = parseInt(match[2], 10) - 1;
+        const year = match[3].length === 2 ? 2000 + parseInt(match[3], 10) : parseInt(match[3], 10);
+        parsed = new Date(year, month, day);
+      }
+    }
+    if (parsed && !isNaN(parsed.getTime())) {
+      const parsedDay = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+      if (parsedDay < today) return 'bg-red-50 text-red-700 border-red-300';
+      if (parsedDay.getTime() === today.getTime()) return 'bg-emerald-50 text-emerald-700 border-emerald-300';
+      if (parsedDay.getTime() === tomorrow.getTime()) return 'bg-blue-50 text-blue-700 border-blue-300';
+    }
+    return 'bg-amber-50 text-amber-700 border-amber-200';
   };
 
   const fmtTime = (dateStr) => {
@@ -601,6 +688,42 @@ const OrdersList = () => {
   useEffect(() => { if (!loading) fetchOrders(false); }, [debouncedSearch, filterStatus, debouncedCity, debouncedProduct, debouncedTag, filterStartDate, filterEndDate, selectedSourceId, page, viewAllWorkspaces, itemsPerPage, sortOrder]);
   useEffect(() => { if (success) { const t = setTimeout(() => setSuccess(''), 10000); return () => clearTimeout(t); } }, [success]);
   useEffect(() => { if (error) { const t = setTimeout(() => setError(''), 5000); return () => clearTimeout(t); } }, [error]);
+
+  // Restore scroll position after orders have loaded (when coming back from detail)
+  useEffect(() => {
+    if (!loading && orders.length > 0 && shouldRestoreScroll.current) {
+      shouldRestoreScroll.current = false;
+      try {
+        const savedScroll = sessionStorage.getItem(SCROLL_STORAGE_KEY);
+        if (savedScroll) {
+          const scrollY = parseInt(savedScroll, 10);
+          requestAnimationFrame(() => {
+            window.scrollTo(0, scrollY);
+          });
+          sessionStorage.removeItem(SCROLL_STORAGE_KEY);
+        }
+      } catch {}
+    }
+  }, [loading, orders]);
+
+  // On first mount, check if we should restore scroll (coming back from detail)
+  useEffect(() => {
+    if (savedFilters) {
+      shouldRestoreScroll.current = true;
+    }
+  }, []);
+
+  // Save filters to sessionStorage whenever they change
+  useEffect(() => {
+    const filters = { search, filterStatus, filterCity, filterProduct, filterTag, filterStartDate, filterEndDate, page, itemsPerPage };
+    sessionStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters));
+  }, [search, filterStatus, filterCity, filterProduct, filterTag, filterStartDate, filterEndDate, page, itemsPerPage]);
+
+  // Helper to save scroll position before navigating to order detail
+  const navigateToOrder = useCallback((orderId) => {
+    sessionStorage.setItem(SCROLL_STORAGE_KEY, String(window.scrollY));
+    navigate(`/ecom/orders/${orderId}`);
+  }, [navigate]);
 
   // ••• Silent background polling (10s) — no loader, no messages ••••••••••••••
   const lastPollRef = useRef(new Date().toISOString());
@@ -1161,6 +1284,45 @@ const OrdersList = () => {
     }
   };
 
+  const toggleSelectionMode = () => {
+    setSelectionMode(prev => !prev);
+    setSelectedOrders(new Set());
+  };
+
+  const toggleOrderSelection = (id) => {
+    setSelectedOrders(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedOrders.size === orders.length) {
+      setSelectedOrders(new Set());
+    } else {
+      setSelectedOrders(new Set(orders.map(o => o._id)));
+    }
+  };
+
+  const handleBulkDeleteSelected = async () => {
+    if (selectedOrders.size === 0) return;
+    if (!window.confirm(`Supprimer ${selectedOrders.size} commande(s) sélectionnée(s) ? Cette action est irréversible.`)) return;
+    setDeletingSelected(true);
+    try {
+      const res = await ecomApi.delete('/orders/bulk-selected', { data: { ids: [...selectedOrders] } });
+      setSuccess(res.data.message);
+      setSelectedOrders(new Set());
+      setSelectionMode(false);
+      fetchOrders();
+    } catch (err) {
+      setError(getContextualError(err, 'delete_order'));
+    } finally {
+      setDeletingSelected(false);
+    }
+  };
+
   
   const getProductName = (o) => {
     if (o.product && typeof o.product === 'string' && o.product.trim()) {
@@ -1701,6 +1863,16 @@ const OrdersList = () => {
               </button>
               {orders.length > 0 && (
                 <button
+                  onClick={toggleSelectionMode}
+                  className={`inline-flex items-center gap-1 px-2.5 py-2 rounded-lg transition text-xs font-medium ${selectionMode ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
+                  title="Sélection multiple"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                  <span className="hidden sm:inline">{selectionMode ? 'Annuler' : 'Sélectionner'}</span>
+                </button>
+              )}
+              {orders.length > 0 && (
+                <button
                   onClick={handleDeleteAll}
                   disabled={deletingAll}
                   className="inline-flex items-center gap-1 px-2.5 py-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition text-xs font-medium"
@@ -2142,6 +2314,31 @@ const OrdersList = () => {
         </div>
       </div>
 
+      {/* Floating bulk action bar */}
+      {selectionMode && selectedOrders.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-gray-900 text-white rounded-2xl shadow-2xl px-5 py-3">
+          <span className="text-sm font-semibold">{selectedOrders.size} sélectionnée(s)</span>
+          <button
+            onClick={handleBulkDeleteSelected}
+            disabled={deletingSelected}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-semibold transition disabled:opacity-50"
+          >
+            {deletingSelected ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            )}
+            Supprimer
+          </button>
+          <button
+            onClick={() => { setSelectedOrders(new Set()); setSelectionMode(false); }}
+            className="px-3 py-2 text-gray-300 hover:text-white text-sm transition"
+          >
+            Annuler
+          </button>
+        </div>
+      )}
+
       {/* Orders */}
       {orders.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border p-10 text-center">
@@ -2160,18 +2357,43 @@ const OrdersList = () => {
         <>
           {/* Vue liste épurée — Desktop */}
           <div className="hidden md:block space-y-2">
+            {/* Select-all bar (desktop) */}
+            {selectionMode && (
+              <div className="flex items-center gap-3 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <input
+                  type="checkbox"
+                  checked={selectedOrders.size === orders.length && orders.length > 0}
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 rounded accent-emerald-600 cursor-pointer"
+                />
+                <span className="text-xs font-semibold text-emerald-700">
+                  {selectedOrders.size === 0 ? 'Tout sélectionner' : `${selectedOrders.size} / ${orders.length} sélectionnée(s)`}
+                </span>
+              </div>
+            )}
             {orders.map((o) => {
               const clientName = getClientName(o);
               const clientPhone = getClientPhone(o);
               const city = getCity(o);
               const productName = getProductName(o);
               const totalPrice = (o.price || 0) * (o.quantity || 1);
+              const isSelected = selectedOrders.has(o._id);
 
               return (
-                <div key={o._id} className="bg-white rounded-xl border border-gray-200 hover:border-emerald-400 hover:shadow-md transition-all duration-200 cursor-pointer group" onClick={() => navigate(`/ecom/orders/${o._id}`)}>
+                <div key={o._id} className={`bg-white rounded-xl border transition-all duration-200 group ${selectionMode ? 'cursor-default' : 'cursor-pointer hover:border-emerald-400 hover:shadow-md'} ${isSelected ? 'border-emerald-500 ring-1 ring-emerald-400' : 'border-gray-200'}`} onClick={() => selectionMode ? toggleOrderSelection(o._id) : navigateToOrder(o._id)}>
                   <div className="p-3">
                     <div className="flex items-center justify-between gap-4">
-                      {/* Client Info */}
+                      {/* Checkbox (selection mode) */}
+                      {selectionMode && (
+                        <div className="flex-shrink-0" onClick={(e) => { e.stopPropagation(); toggleOrderSelection(o._id); }}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleOrderSelection(o._id)}
+                            className="w-4 h-4 rounded accent-emerald-600 cursor-pointer"
+                          />
+                        </div>
+                      )}
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         <div className="w-9 h-9 bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm flex-shrink-0">
                           {clientName ? clientName.charAt(0).toUpperCase() : '?'}
@@ -2188,6 +2410,16 @@ const OrdersList = () => {
                           </div>
                         </div>
                       </div>
+
+                      {/* Postponed date badge */}
+                      {(o.status === 'postponed' || o.status === 'reported') && o.deliveryTime && (
+                        <div className="flex-shrink-0" title={`Reporté au : ${o.deliveryTime}`}>
+                          <span className={`text-[10px] font-semibold px-2 py-1 rounded-full border flex items-center gap-1 ${getPostponedBadgeColor(o.deliveryTime)}`}>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            {fmtPostponedDate(o.deliveryTime)}
+                          </span>
+                        </div>
+                      )}
 
                       {/* Product */}
                       {productName && (
@@ -2252,19 +2484,44 @@ const OrdersList = () => {
 
           {/* Vue cartes — Mobile */}
           <div className="md:hidden space-y-3">
+            {/* Select-all bar (mobile) */}
+            {selectionMode && (
+              <div className="flex items-center gap-3 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <input
+                  type="checkbox"
+                  checked={selectedOrders.size === orders.length && orders.length > 0}
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 rounded accent-emerald-600 cursor-pointer"
+                />
+                <span className="text-xs font-semibold text-emerald-700">
+                  {selectedOrders.size === 0 ? 'Tout sélectionner' : `${selectedOrders.size} / ${orders.length} sélectionnée(s)`}
+                </span>
+              </div>
+            )}
             {orders.map(o => {
               const clientName = getClientName(o);
               const clientPhone = getClientPhone(o);
               const city = getCity(o);
               const productName = getProductName(o);
               const totalPrice = (o.price || 0) * (o.quantity || 1);
+              const isSelected = selectedOrders.has(o._id);
 
               return (
-                <div key={o._id} className="bg-white rounded-xl border border-gray-200 hover:border-emerald-400 hover:shadow-md transition-all" onClick={() => navigate(`/ecom/orders/${o._id}`)}>
+                <div key={o._id} className={`bg-white rounded-xl border transition-all ${selectionMode ? 'cursor-default' : 'hover:border-emerald-400 hover:shadow-md'} ${isSelected ? 'border-emerald-500 ring-1 ring-emerald-400' : 'border-gray-200'}`} onClick={() => selectionMode ? toggleOrderSelection(o._id) : navigateToOrder(o._id)}>
                   <div className="p-2.5">
                     {/* En-tête: Nom + Prix */}
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
+                        {selectionMode && (
+                          <div onClick={(e) => { e.stopPropagation(); toggleOrderSelection(o._id); }}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleOrderSelection(o._id)}
+                              className="w-4 h-4 rounded accent-emerald-600 cursor-pointer"
+                            />
+                          </div>
+                        )}
                         <div className="w-8 h-8 bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-md flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
                           {clientName ? clientName.charAt(0).toUpperCase() : '?'}
                         </div>
@@ -2276,6 +2533,16 @@ const OrdersList = () => {
                         <p className="text-sm font-bold text-gray-900 ml-2 flex-shrink-0">{fmt(totalPrice)}</p>
                       )}
                     </div>
+
+                    {/* Postponed date badge — Mobile */}
+                    {(o.status === 'postponed' || o.status === 'reported') && o.deliveryTime && (
+                      <div className="mb-2">
+                        <span className={`text-[10px] font-semibold px-2 py-1 rounded-full border inline-flex items-center gap-1 ${getPostponedBadgeColor(o.deliveryTime)}`}>
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                          Reporté : {fmtPostponedDate(o.deliveryTime)}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Infos essentielles */}
                     <div className="mb-2 space-y-1">
@@ -2326,7 +2593,7 @@ const OrdersList = () => {
                     </div>
                     <div className="flex items-center gap-1.5">
                       {/* Bouton principal */}
-                      <button onClick={(e) => { e.stopPropagation(); navigate(`/ecom/orders/${o._id}`); }} className="px-2.5 py-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition">
+                      <button onClick={(e) => { e.stopPropagation(); navigateToOrder(o._id); }} className="px-2.5 py-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition">
                         Voir
                       </button>
                       {/* Menu ⋯ */}

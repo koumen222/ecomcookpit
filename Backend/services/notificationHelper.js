@@ -1,7 +1,8 @@
 import Notification from '../models/Notification.js';
 import EcomUser from '../models/EcomUser.js';
+import CloseuseAssignment from '../models/CloseuseAssignment.js';
 import { getIO } from './socketService.js';
-import { sendPushNotification } from './pushService.js';
+import { sendPushNotification, sendPushNotificationToUser } from './pushService.js';
 
 /**
  * Create a notification for a workspace (broadcast) or specific user
@@ -439,8 +440,59 @@ export const notifyNewDM = async (workspaceId, recipientId, { senderName, conten
 };
 
 /**
- * Notify admins and closeuses about a livreur action (récupéré / livré / refusé / problème)
- * Only sends to admins and closeuses — not to the livreur themselves
+ * Find the closeuse(s) responsible for a given order.
+ * Matches by assignedCloseuse field, or via CloseuseAssignment (source / product / city).
+ */
+const findResponsibleCloseuses = async (workspaceId, order) => {
+  // 1. Direct assignment on the order
+  if (order.assignedCloseuse) {
+    const user = await EcomUser.findOne({ _id: order.assignedCloseuse, workspaceId, isActive: true }).select('_id').lean();
+    if (user) return [user];
+  }
+
+  // 2. Look through CloseuseAssignment to find who handles this order
+  const assignments = await CloseuseAssignment.find({ workspaceId, isActive: true }).lean();
+  const matchedIds = new Set();
+
+  for (const assignment of assignments) {
+    let matched = false;
+
+    // Match by source
+    if (!matched && order.sheetRowId) {
+      for (const src of assignment.orderSources || []) {
+        const sid = String(src.sourceId);
+        if (sid === 'legacy' && !/^source_/.test(order.sheetRowId)) { matched = true; break; }
+        if (sid !== 'legacy' && order.sheetRowId.startsWith(`source_${sid}_`)) { matched = true; break; }
+      }
+    }
+    if (!matched && order.source === 'webhook') {
+      for (const src of assignment.orderSources || []) {
+        if (String(src.sourceId) === 'webhook') { matched = true; break; }
+      }
+    }
+
+    // Match by product name
+    if (!matched && order.product) {
+      const allProductNames = (assignment.productAssignments || []).flatMap(pa => pa.sheetProductNames || []);
+      matched = allProductNames.some(n => n && order.product && n.trim().toLowerCase() === order.product.trim().toLowerCase());
+    }
+
+    // Match by city
+    if (!matched && order.city) {
+      const allCities = (assignment.cityAssignments || []).flatMap(ca => ca.cityNames || []);
+      matched = allCities.some(c => c && order.city && c.trim().toLowerCase() === order.city.trim().toLowerCase());
+    }
+
+    if (matched) matchedIds.add(String(assignment.closeuseId));
+  }
+
+  if (matchedIds.size === 0) return [];
+  return await EcomUser.find({ _id: { $in: [...matchedIds] }, workspaceId, isActive: true }).select('_id').lean();
+};
+
+/**
+ * Notify admins and the responsible closeuse about a livreur action.
+ * For the 'delivered' action, also sends push notifications.
  */
 export const notifyAdminsLivreurAction = async (workspaceId, livreur, order, action) => {
   const livreurName = livreur.name || livreur.email || 'Livreur';
@@ -478,13 +530,29 @@ export const notifyAdminsLivreurAction = async (workspaceId, livreur, order, act
   if (!notifData) return;
 
   try {
-    const recipients = await EcomUser.find({
+    // All admins always get notified
+    const admins = await EcomUser.find({
       workspaceId,
-      role: { $in: ['ecom_admin', 'ecom_closeuse'] },
+      role: { $in: ['ecom_admin', 'super_admin'] },
       isActive: true
     }).select('_id').lean();
 
-    await Promise.all(recipients.map(recipient =>
+    // Only the responsible closeuse gets notified (not all closeuses)
+    const responsibleCloseuses = await findResponsibleCloseuses(workspaceId, order).catch(() => []);
+
+    const recipients = [...admins, ...responsibleCloseuses];
+
+    // De-duplicate in case an admin is also returned
+    const seen = new Set();
+    const uniqueRecipients = recipients.filter(r => {
+      const id = String(r._id);
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+
+    // Send in-app notifications
+    await Promise.all(uniqueRecipients.map(recipient =>
       createNotification({
         workspaceId,
         userId: recipient._id,
@@ -496,6 +564,27 @@ export const notifyAdminsLivreurAction = async (workspaceId, livreur, order, act
         metadata: { orderId: order._id, action, livreurId: livreur._id }
       })
     ));
+
+    // For 'delivered': also send push notifications to each recipient
+    if (action === 'delivered') {
+      const pushPayload = {
+        title: '✅ Commande livrée !',
+        body: `${livreurName} a livré la commande ${orderRef} — ${clientLabel}`,
+        icon: '/icons/icon-192x192.png',
+        badge: '/icons/badge.png',
+        tag: `order-delivered-${order._id}`,
+        data: {
+          type: 'order_delivered',
+          orderId: String(order._id),
+          url: `/ecom/orders/${order._id}`
+        },
+        requireInteraction: false
+      };
+
+      await Promise.all(uniqueRecipients.map(recipient =>
+        sendPushNotificationToUser(recipient._id, pushPayload).catch(() => {})
+      ));
+    }
   } catch (err) {
     console.warn('⚠️ notifyAdminsLivreurAction failed:', err.message);
   }

@@ -1,0 +1,1294 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Plus, Trash2, RefreshCw, CheckCircle, AlertCircle, Loader2,
+  ExternalLink, Copy, Check, Bot, Smartphone, Zap, Send,
+  Eye, EyeOff, X, Globe, MessageSquare,
+} from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import ecomApi from '../services/ecommApi.js';
+
+const ACCENT = '#0F6B4F';
+const ACCENT_LIGHT = 'rgba(15,107,79,0.08)';
+
+const WEBHOOK_EVENTS = [
+  { id: 'MESSAGES_UPSERT',   label: 'Messages reçus' },
+  { id: 'MESSAGES_UPDATE',   label: 'Statuts messages' },
+  { id: 'SEND_MESSAGE',      label: 'Messages envoyés' },
+  { id: 'CONNECTION_UPDATE', label: 'Connexion' },
+  { id: 'QRCODE_UPDATED',    label: 'QR Code' },
+  { id: 'CONTACTS_UPSERT',   label: 'Nouveaux contacts' },
+];
+
+const WhatsAppService = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'instances';
+  const setTab = (tab) => setSearchParams({ tab });
+
+  const [instances, setInstances] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [copiedId, setCopiedId] = useState(null);
+  const [testResults, setTestResults] = useState({});
+  const [formData, setFormData] = useState({ instanceName: '', instanceToken: '', customName: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [linkResult, setLinkResult] = useState(null);
+  const [showTokens, setShowTokens] = useState({});
+  const [webhookPanels, setWebhookPanels] = useState({});
+
+  const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
+  const userId = user._id || user.id;
+
+  useEffect(() => { loadInstances(); }, []);
+
+  const loadInstances = async () => {
+    try {
+      setLoading(true); setError('');
+      const { data } = await ecomApi.get(`/v1/external/whatsapp/instances?userId=${userId}`);
+      setInstances(data.success ? data.instances || [] : []);
+    } catch { setInstances([]); } finally { setLoading(false); }
+  };
+
+  const refreshAllStatuses = async () => {
+    try {
+      setLoading(true); setError('');
+      const { data } = await ecomApi.post('/v1/external/whatsapp/refresh-status', { userId });
+      if (data.success) setInstances(data.instances || []);
+    } catch { setError('Erreur lors de la synchronisation'); } finally { setLoading(false); }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const STATUS_MAP = {
+    connected:    { label: 'Connecté',   dot: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50' },
+    active:       { label: 'Actif',      dot: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50' },
+    configured:   { label: 'Configuré',  dot: 'bg-blue-500',    text: 'text-blue-700',    bg: 'bg-blue-50'    },
+    disconnected: { label: 'Déconnecté', dot: 'bg-red-500',     text: 'text-red-700',     bg: 'bg-red-50'     },
+  };
+  const getStatus = (s) => STATUS_MAP[s] || { label: 'Non vérifié', dot: 'bg-gray-400', text: 'text-gray-600', bg: 'bg-gray-100' };
+
+  const handleLinkInstance = async (e) => {
+    e.preventDefault(); setSubmitting(true); setError(''); setLinkResult(null);
+    try {
+      const { data } = await ecomApi.post('/v1/external/whatsapp/link', { userId, ...formData });
+      if (data.success) {
+        setFormData({ instanceName: '', instanceToken: '', customName: '' });
+        setShowAddForm(false);
+        setLinkResult({ verified: data.verified, message: data.verificationMessage, status: data.data?.status });
+        loadInstances();
+      } else { setError(data.error || 'Erreur lors de la liaison'); }
+    } catch (err) { setError(err.response?.data?.error || err.message || 'Erreur serveur'); }
+    finally { setSubmitting(false); }
+  };
+
+  const copyToClipboard = (text, id) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const testConnection = async (instance) => {
+    setTestResults(prev => ({ ...prev, [instance._id]: { loading: true } }));
+    try {
+      const { data } = await ecomApi.post('/v1/external/whatsapp/verify-instance', { instanceId: instance._id });
+      setTestResults(prev => ({
+        ...prev,
+        [instance._id]: { loading: false, success: data.success, message: data.success ? 'Connectée' : (data.error || data.message) },
+      }));
+      if (data.status) setInstances(prev => prev.map(i => i._id === instance._id ? { ...i, status: data.status } : i));
+    } catch {
+      setTestResults(prev => ({ ...prev, [instance._id]: { loading: false, success: false, message: 'Injoignable' } }));
+    }
+  };
+
+  const deleteInstance = async (instance) => {
+    if (!confirm(`Supprimer "${instance.customName || instance.instanceName}" ?`)) return;
+    try {
+      const { data } = await ecomApi.delete(`/v1/external/whatsapp/instances/${instance._id}?userId=${userId}`);
+      if (data.success) setInstances(prev => prev.filter(i => i._id !== instance._id));
+      else setError(data.error || 'Erreur suppression');
+    } catch (err) { setError(err.response?.data?.error || err.message || 'Erreur serveur'); }
+  };
+
+  const connectedCount = instances.filter(i => i.status === 'connected' || i.status === 'active').length;
+
+  const updateWh = (instId, patch) =>
+    setWebhookPanels(prev => ({ ...prev, [instId]: { ...prev[instId], ...patch } }));
+
+  const toggleWebhookPanel = async (inst) => {
+    const cur = webhookPanels[inst._id];
+    if (cur?.open) { updateWh(inst._id, { open: false }); return; }
+    updateWh(inst._id, { open: true, loading: true, saving: false, error: '', saved: false, config: { enabled: false, url: '', events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'] } });
+    try {
+      const { data } = await ecomApi.get(`/v1/external/whatsapp/instances/${inst._id}/webhook?userId=${userId}`);
+      if (data.success && data.data) {
+        updateWh(inst._id, { loading: false, config: { enabled: !!data.data.enabled, url: data.data.url || '', events: data.data.events || ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'] } });
+      } else {
+        updateWh(inst._id, { loading: false });
+      }
+    } catch { updateWh(inst._id, { loading: false }); }
+  };
+
+  const saveWebhookConfig = async (inst) => {
+    const wh = webhookPanels[inst._id];
+    if (!wh) return;
+    updateWh(inst._id, { saving: true, error: '', saved: false });
+    try {
+      const { data } = await ecomApi.post(`/v1/external/whatsapp/instances/${inst._id}/webhook`, { userId, ...wh.config });
+      if (data.success) {
+        updateWh(inst._id, { saving: false, saved: true });
+        setTimeout(() => updateWh(inst._id, { saved: false }), 3000);
+      } else {
+        updateWh(inst._id, { saving: false, error: data.error || 'Erreur' });
+      }
+    } catch (err) {
+      updateWh(inst._id, { saving: false, error: err.response?.data?.error || err.message || 'Erreur serveur' });
+    }
+  };
+
+  const TABS = [
+    { id: 'instances', label: 'Instances', icon: Smartphone, count: instances.length },
+    { id: 'rita',      label: 'Rita IA',   icon: Bot },
+  ];
+
+  return (
+    <div className="px-4 sm:px-6 py-5 sm:py-6 space-y-5">
+
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: ACCENT_LIGHT }}>
+            <MessageSquare className="w-[18px] h-[18px]" style={{ color: ACCENT }} />
+          </div>
+          <div>
+            <h1 className="text-[17px] font-semibold text-gray-900 leading-tight">WhatsApp Service</h1>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {instances.length} instance{instances.length !== 1 ? 's' : ''}{' · '}
+              <span className="text-emerald-600 font-medium">{connectedCount} en ligne</span>
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={refreshAllStatuses} disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-[7px] text-[13px] font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50">
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Synchroniser</span>
+          </button>
+          <button onClick={() => { setTab('instances'); setShowAddForm(true); }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-[7px] text-[13px] font-semibold text-white rounded-lg transition-colors"
+            style={{ background: ACCENT }}>
+            <Plus className="w-3.5 h-3.5" />
+            Ajouter
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="flex gap-0 -mb-px">
+          {TABS.map(tab => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button key={tab.id} onClick={() => setTab(tab.id)}
+                className={`relative flex items-center gap-2 px-4 py-2.5 text-[13px] font-medium transition-colors whitespace-nowrap ${active ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}>
+                <Icon className="w-4 h-4" />
+                {tab.label}
+                {tab.count !== undefined && (
+                  <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-md ${active ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                    {tab.count}
+                  </span>
+                )}
+                {active && <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-t" style={{ background: ACCENT }} />}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      {/* Alerts */}
+      {error && <Alert type="error" message={error} onClose={() => setError('')} />}
+      {linkResult && (
+        <Alert
+          type={linkResult.verified && linkResult.status === 'connected' ? 'success' : 'warning'}
+          message={linkResult.verified && linkResult.status === 'connected' ? 'Instance connectée avec succès' : linkResult.message || 'Instance enregistrée'}
+          onClose={() => setLinkResult(null)}
+        />
+      )}
+
+      {/* Tab: Instances */}
+      {activeTab === 'instances' && (
+        <div className="space-y-4">
+
+          {/* Add Form */}
+          {showAddForm && (
+            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Plus className="w-4 h-4 text-gray-400" />
+                  <span className="text-sm font-semibold text-gray-900">Nouvelle instance ZenChat</span>
+                </div>
+                <button onClick={() => setShowAddForm(false)} className="p-1 text-gray-400 hover:text-gray-600 rounded transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <form onSubmit={handleLinkInstance} className="p-5 space-y-4">
+                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg">
+                  <ExternalLink className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                  <p className="text-xs text-blue-700">
+                    Pas de compte ?{' '}
+                    <a href="https://zechat.site/" target="_blank" rel="noopener noreferrer" className="font-semibold underline">Créer sur ZenChat</a>
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Field label="Nom de l'instance" required>
+                    <input type="text" name="instanceName" value={formData.instanceName} onChange={handleInputChange}
+                      placeholder="ex: ma_boutique" required className="field-input" />
+                  </Field>
+                  <Field label="Token API" required>
+                    <input type="password" name="instanceToken" value={formData.instanceToken} onChange={handleInputChange}
+                      placeholder="Votre token" required className="field-input" />
+                  </Field>
+                  <Field label="Nom d'affichage" hint="optionnel">
+                    <input type="text" name="customName" value={formData.customName} onChange={handleInputChange}
+                      placeholder="ex: Support Client" className="field-input" />
+                  </Field>
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                  <button type="button" onClick={() => setShowAddForm(false)}
+                    className="px-3.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                    Annuler
+                  </button>
+                  <button type="submit" disabled={submitting}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-50 transition-colors"
+                    style={{ background: ACCENT }}>
+                    {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                    {submitting ? 'Connexion...' : 'Connecter'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* Loading */}
+          {loading && (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+              <span className="ml-2.5 text-sm text-gray-400">Chargement...</span>
+            </div>
+          )}
+
+          {/* Empty */}
+          {!loading && instances.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 px-4">
+              <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mb-4">
+                <Smartphone className="w-6 h-6 text-gray-300" />
+              </div>
+              <p className="text-sm font-medium text-gray-900 mb-1">Aucune instance</p>
+              <p className="text-xs text-gray-400 text-center max-w-xs mb-5">Liez une instance ZenChat API pour envoyer des messages WhatsApp.</p>
+              <button onClick={() => setShowAddForm(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-lg"
+                style={{ background: ACCENT }}>
+                <Plus className="w-3.5 h-3.5" /> Ajouter une instance
+              </button>
+            </div>
+          )}
+
+          {/* Instance Cards */}
+          {!loading && instances.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {instances.map((inst) => {
+                const st = getStatus(inst.status);
+                const test = testResults[inst._id];
+                const wh = webhookPanels[inst._id];
+                const isConnected = inst.status === 'connected' || inst.status === 'active';
+                return (
+                  <div key={inst._id} className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md hover:border-gray-300 transition-all">
+                    <div className={`h-[3px] ${isConnected ? 'bg-emerald-500' : inst.status === 'configured' ? 'bg-blue-400' : 'bg-red-400'}`} />
+                    <div className="p-5 space-y-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${st.bg}`}>
+                            <Smartphone className={`w-5 h-5 ${st.text}`} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-gray-900 text-[14px] truncate leading-tight">
+                              {inst.customName || inst.instanceName}
+                            </p>
+                            <p className="text-[11px] text-gray-400 font-mono truncate mt-0.5">{inst.instanceName}</p>
+                          </div>
+                        </div>
+                        <span className={`inline-flex items-center gap-1.5 flex-shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-full ${st.bg} ${st.text}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${st.dot} ${isConnected ? 'animate-pulse' : ''}`} />
+                          {st.label}
+                        </span>
+                      </div>
+
+                      {/* Token */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                          <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Token</span>
+                          <div className="flex items-center gap-1.5">
+                            <code className="text-[12px] text-gray-600 font-mono">
+                              {showTokens[inst._id] ? inst.instanceToken : '••••••••••••'}
+                            </code>
+                            <button onClick={() => setShowTokens(p => ({ ...p, [inst._id]: !p[inst._id] }))}
+                              className="text-gray-400 hover:text-gray-600 p-0.5 rounded">
+                              {showTokens[inst._id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            </button>
+                            <button onClick={() => copyToClipboard(inst.instanceToken, inst._id + 't')}
+                              className="text-gray-400 hover:text-gray-600 p-0.5 rounded">
+                              {copiedId === inst._id + 't' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Test result */}
+                      {test && !test.loading && test.message && (
+                        <div className={`text-[11px] font-medium px-3 py-2 rounded-lg ${test.success ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+                          {test.success ? '✓ ' : '✗ '}{test.message}
+                        </div>
+                      )}
+
+                      {/* Webhook panel */}
+                      {wh?.open && (
+                        <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-[12px] font-semibold text-gray-800 flex items-center gap-1.5">
+                              <Globe className="w-3.5 h-3.5 text-blue-400" />
+                              Webhook
+                            </p>
+                            <button onClick={() => updateWh(inst._id, { open: false })} className="text-gray-400 hover:text-gray-600">
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          {wh.loading ? (
+                            <div className="flex items-center gap-2 py-1">
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />
+                              <span className="text-[11px] text-gray-400">Chargement...</span>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center justify-between">
+                                <span className="text-[12px] text-gray-600">Activer</span>
+                                <button onClick={() => updateWh(inst._id, { config: { ...wh.config, enabled: !wh.config?.enabled } })} type="button"
+                                  className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${wh.config?.enabled ? 'bg-emerald-500' : 'bg-gray-200'}`}>
+                                  <span className={`absolute top-[3px] w-3.5 h-3.5 bg-white rounded-full shadow-sm transition-all ${wh.config?.enabled ? 'left-[19px]' : 'left-[3px]'}`} />
+                                </button>
+                              </div>
+                              <div>
+                                <label className="block text-[11px] font-medium text-gray-600 mb-1">URL du webhook</label>
+                                <input
+                                  value={wh.config?.url || ''}
+                                  onChange={e => updateWh(inst._id, { config: { ...wh.config, url: e.target.value } })}
+                                  placeholder="https://votre-serveur.com/webhook"
+                                  className="field-input text-[12px]"
+                                />
+                              </div>
+                              <div>
+                                <p className="text-[11px] font-medium text-gray-600 mb-1.5">Événements</p>
+                                <div className="grid grid-cols-2 gap-y-1.5 gap-x-3">
+                                  {WEBHOOK_EVENTS.map(ev => (
+                                    <label key={ev.id} className="flex items-center gap-1.5 text-[11px] text-gray-600 cursor-pointer select-none">
+                                      <input type="checkbox"
+                                        checked={(wh.config?.events || []).includes(ev.id)}
+                                        onChange={e => {
+                                          const evts = e.target.checked
+                                            ? [...(wh.config?.events || []), ev.id]
+                                            : (wh.config?.events || []).filter(x => x !== ev.id);
+                                          updateWh(inst._id, { config: { ...wh.config, events: evts } });
+                                        }}
+                                        className="w-3 h-3 cursor-pointer accent-emerald-500"
+                                      />
+                                      {ev.label}
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                              <button onClick={() => saveWebhookConfig(inst)} disabled={wh.saving}
+                                className="w-full py-1.5 text-[12px] font-semibold text-white rounded-lg disabled:opacity-50 transition-opacity"
+                                style={{ background: ACCENT }}>
+                                {wh.saving ? 'Sauvegarde...' : 'Enregistrer'}
+                              </button>
+                              {wh.error && <p className="text-[11px] text-red-600">{wh.error}</p>}
+                              {wh.saved && <p className="text-[11px] text-emerald-600 font-medium">✓ Webhook configuré</p>}
+                            </>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Footer */}
+                      <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                        <span className="text-[11px] text-gray-300">
+                          Modifié le {inst.updatedAt ? new Date(inst.updatedAt).toLocaleDateString('fr-FR') : '—'}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => testConnection(inst)} disabled={test?.loading}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-colors ${
+                              test?.success === true ? 'bg-emerald-50 text-emerald-700' :
+                              test?.success === false ? 'bg-red-50 text-red-600' :
+                              'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            } disabled:opacity-50`}>
+                            {test?.loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                            {test?.loading ? 'Test...' : test?.success === true ? 'OK' : test?.success === false ? 'Erreur' : 'Tester'}
+                          </button>
+                          <button onClick={() => toggleWebhookPanel(inst)}
+                            title="Configurer le webhook"
+                            className={`p-1.5 rounded-lg transition-colors ${wh?.open ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50'}`}>
+                            <Globe className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => deleteInstance(inst)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab: Rita IA */}
+      {activeTab === 'rita' && <RitaIATab instances={instances} />}
+
+      <style>{`
+        .field-input {
+          width: 100%;
+          padding: 7px 12px;
+          font-size: 13px;
+          background: #fafafa;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          outline: none;
+          transition: border-color .15s, box-shadow .15s;
+        }
+        .field-input:focus {
+          border-color: ${ACCENT};
+          box-shadow: 0 0 0 3px ${ACCENT_LIGHT};
+          background: #fff;
+        }
+      `}</style>
+    </div>
+  );
+};
+
+/* ── Reusable UI ── */
+const Alert = ({ type, message, onClose }) => {
+  const styles = {
+    error:   'bg-red-50 border-red-200 text-red-700',
+    success: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+    warning: 'bg-amber-50 border-amber-200 text-amber-700',
+  };
+  const icons = {
+    error:   <AlertCircle className="w-4 h-4 flex-shrink-0" />,
+    success: <CheckCircle className="w-4 h-4 flex-shrink-0" />,
+    warning: <AlertCircle className="w-4 h-4 flex-shrink-0" />,
+  };
+  return (
+    <div className={`flex items-center gap-2.5 px-3.5 py-2.5 text-sm rounded-lg border ${styles[type]}`}>
+      {icons[type]}
+      <span className="flex-1 font-medium text-[13px]">{message}</span>
+      {onClose && <button onClick={onClose} className="opacity-50 hover:opacity-100"><X className="w-3.5 h-3.5" /></button>}
+    </div>
+  );
+};
+
+const Field = ({ label, hint, required, children }) => (
+  <div>
+    <label className="block text-[13px] font-medium text-gray-700 mb-1">
+      {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+      {hint && <span className="text-gray-400 font-normal ml-1">({hint})</span>}
+    </label>
+    {children}
+  </div>
+);
+
+const ToggleRow = ({ enabled, onChange, label, desc }) => (
+  <div className="flex items-center justify-between gap-4 py-0.5">
+    <div className="flex-1 min-w-0">
+      <p className="text-[13px] font-medium text-gray-700 leading-tight">{label}</p>
+      {desc && <p className="text-[11px] text-gray-400 mt-0.5">{desc}</p>}
+    </div>
+    <button onClick={() => onChange(!enabled)} type="button"
+      className={`relative w-10 h-[22px] rounded-full transition-colors flex-shrink-0 ${enabled ? 'bg-emerald-500' : 'bg-gray-200'}`}>
+      <span className={`absolute top-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${enabled ? 'left-[22px]' : 'left-[3px]'}`} />
+    </button>
+  </div>
+);
+
+/* ── Rita IA ── */
+const RITA_SECTIONS = [
+  { id: 'identity',     label: 'Identité',        emoji: '🤖' },
+  { id: 'intelligence', label: 'Intelligence',     emoji: '🧠' },
+  { id: 'knowledge',    label: 'Connaissances',    emoji: '📚' },
+  { id: 'sales',        label: 'Stratégie vente',  emoji: '💰' },
+  { id: 'availability', label: 'Disponibilité',    emoji: '⏰' },
+];
+
+const AUTONOMY_LEVELS = [
+  { level: 1, label: 'Assistante',   desc: "Répond aux questions simples uniquement",                    color: 'bg-blue-100 text-blue-700' },
+  { level: 2, label: 'Conseillère',  desc: 'Recommande des produits et qualifie les leads',              color: 'bg-cyan-100 text-cyan-700' },
+  { level: 3, label: 'Commerciale',  desc: "Gère les objections et pousse à l'achat",                   color: 'bg-emerald-100 text-emerald-700' },
+  { level: 4, label: 'Négociatrice', desc: 'Conclut des ventes de façon autonome et gère les relances', color: 'bg-amber-100 text-amber-700' },
+  { level: 5, label: 'Chasseuse',    desc: 'Mode offensif : qualification, closing agressif, upsell',   color: 'bg-red-100 text-red-700' },
+];
+
+const RitaIATab = ({ instances }) => {
+  const [activeSection, setActiveSection] = useState('identity');
+  const [saving, setSaving] = useState(false);
+  const [loadingConfig, setLoadingConfig] = useState(true);
+  const [saveStatus, setSaveStatus] = useState(null);
+  const [configSaved, setConfigSaved] = useState(false);
+  const [showConfig, setShowConfig] = useState(true);
+
+  const [config, setConfig] = useState({
+    enabled: false,
+    instanceId: '',
+    agentName: 'Rita',
+    agentRole: 'Commerciale IA',
+    language: 'fr',
+    toneStyle: 'warm',
+    useEmojis: true,
+    signMessages: true,
+    responseDelay: 2,
+    welcomeMessage: "Bonjour ! Je suis Rita 👋 Je suis là pour vous aider à trouver le produit parfait. Comment puis-je vous aider ?",
+    fallbackMessage: 'Je transfère votre demande à un de nos conseillers. Il vous contactera dans les plus brefs délais.',
+    autonomyLevel: 3,
+    canCloseDeals: false,
+    canSendPaymentLinks: false,
+    requireHumanApproval: true,
+    followUpEnabled: false,
+    followUpDelay: 24,
+    followUpMessage: "Bonjour ! Avez-vous eu le temps de réfléchir à notre offre ? Je suis là pour répondre à vos questions 😊",
+    escalateAfterMessages: 10,
+    businessContext: '',
+    products: '',
+    faq: '',
+    usefulLinks: '',
+    competitiveAdvantages: '',
+    autoReplyKeywords: [],
+    qualificationQuestions: ['Quel est votre budget ?', 'Pour quand en avez-vous besoin ?'],
+    closingTechnique: 'soft',
+    objectionsHandling: '',
+    businessHoursOnly: false,
+    businessHoursStart: '08:00',
+    businessHoursEnd: '20:00',
+  });
+
+  const [simMessages, setSimMessages] = useState([]);
+  const [simInput, setSimInput] = useState('');
+  const [simTyping, setSimTyping] = useState(false);
+  const simEndRef = React.useRef(null);
+  const [newKw, setNewKw] = useState('');
+  const [newQuestion, setNewQuestion] = useState('');
+
+  const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
+  const userId = user._id || user.id;
+
+  useEffect(() => { loadConfig(); }, []);
+  useEffect(() => { simEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [simMessages, simTyping]);
+
+  const loadConfig = async () => {
+    try {
+      const { data } = await ecomApi.get(`/v1/external/whatsapp/rita-config?userId=${userId}`);
+      if (data.success && data.config) {
+        setConfig(prev => ({ ...prev, ...data.config }));
+        setConfigSaved(true);
+        setShowConfig(false);
+        setSimMessages([{ role: 'agent', text: data.config.welcomeMessage || 'Bonjour ! Comment puis-je vous aider ?', time: '14:30' }]);
+      } else {
+        setSimMessages([{ role: 'agent', text: "Bonjour ! Je suis Rita 👋 Comment puis-je vous aider ?", time: '14:30' }]);
+      }
+    } catch {
+      setSimMessages([{ role: 'agent', text: "Bonjour ! Je suis Rita 👋 Comment puis-je vous aider ?", time: '14:30' }]);
+    } finally { setLoadingConfig(false); }
+  };
+
+  const handleSave = async (overrideEnabled) => {
+    const effectiveConfig = overrideEnabled !== undefined ? { ...config, enabled: overrideEnabled } : config;
+    setSaving(true); setSaveStatus(null);
+    try {
+      const { data } = await ecomApi.post('/v1/external/whatsapp/rita-config', { userId, config: effectiveConfig });
+      if (!data.success) { setSaveStatus({ type: 'error' }); return; }
+
+      const { data: whData } = await ecomApi.post('/v1/external/whatsapp/activate', {
+        userId,
+        enabled: effectiveConfig.enabled,
+        instanceId: effectiveConfig.instanceId || undefined,
+      });
+      const count = whData.configured ?? 0;
+      setSaveStatus({ type: 'success', count });
+      setConfigSaved(true);
+      setShowConfig(false);
+      setTimeout(() => setSaveStatus(null), 4000);
+    } catch { setSaveStatus({ type: 'error' }); }
+    finally { setSaving(false); }
+  };
+
+  const toggleEnabled = async () => {
+    const next = !config.enabled;
+    set('enabled', next);
+    await handleSave(next);
+  };
+
+  const set = (field, value) => setConfig(prev => ({ ...prev, [field]: value }));
+
+  const addKw = () => {
+    const kw = newKw.trim();
+    if (kw && !config.autoReplyKeywords.includes(kw)) {
+      set('autoReplyKeywords', [...config.autoReplyKeywords, kw]);
+      setNewKw('');
+    }
+  };
+
+  const addQuestion = () => {
+    const q = newQuestion.trim();
+    if (q) { set('qualificationQuestions', [...config.qualificationQuestions, q]); setNewQuestion(''); }
+  };
+
+  const handleSimSend = async () => {
+    if (!simInput.trim() || simTyping) return;
+    const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const userText = simInput.trim();
+    setSimMessages(prev => [...prev, { role: 'user', text: userText, time: now }]);
+    setSimInput('');
+    setSimTyping(true);
+
+    try {
+      // Construire l'historique pour l'API (sans les timestamps)
+      const apiMessages = [...simMessages, { role: 'user', text: userText }]
+        .filter(m => m.text)
+        .map(m => ({ role: m.role === 'agent' ? 'assistant' : 'user', content: m.text }));
+
+      const { data } = await ecomApi.post('/v1/external/whatsapp/test-chat', {
+        userId,
+        messages: apiMessages,
+      });
+
+      const nowResp = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      setSimTyping(false);
+
+      if (data.success && data.reply) {
+        setSimMessages(prev => [...prev, { role: 'agent', text: data.reply, time: nowResp }]);
+      } else {
+        setSimMessages(prev => [...prev, { role: 'agent', text: '⚠️ Erreur : aucune réponse de l\'IA. Vérifiez la configuration.', time: nowResp }]);
+      }
+    } catch (err) {
+      const nowResp = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      setSimTyping(false);
+      setSimMessages(prev => [...prev, { role: 'agent', text: `❌ Erreur : ${err.response?.data?.error || err.message}`, time: nowResp }]);
+    }
+  };
+
+  const resetSim = () => {
+    const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    setSimMessages([{ role: 'agent', text: config.welcomeMessage || 'Bonjour ! Comment puis-je vous aider ?', time: now }]);
+    setSimTyping(false);
+  };
+
+  const autonomyInfo = AUTONOMY_LEVELS.find(a => a.level === config.autonomyLevel) || AUTONOMY_LEVELS[2];
+
+  // Compteur de champs remplis
+  const totalSteps = 5;
+  const filledSteps = [
+    config.agentName && config.agentRole,
+    config.autonomyLevel > 0,
+    config.businessContext || config.products || config.faq,
+    config.qualificationQuestions.length > 0 || config.objectionsHandling,
+    true, // disponibilité = toujours OK
+  ].filter(Boolean).length;
+  const progressPct = Math.round((filledSteps / totalSteps) * 100);
+
+  if (loadingConfig) return (
+    <div className="flex items-center justify-center py-20">
+      <div className="text-center">
+        <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center mb-3 shadow-lg shadow-purple-200 animate-pulse">
+          <Bot className="w-6 h-6 text-white" />
+        </div>
+        <span className="text-sm text-gray-400">Chargement de la configuration...</span>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+
+      {/* ─── Agent Status Banner ─── */}
+      <div className={`relative overflow-hidden rounded-2xl border ${configSaved && config.enabled ? 'border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-emerald-50' : configSaved ? 'border-gray-200 bg-white' : 'border-purple-200 bg-gradient-to-r from-purple-50 via-white to-indigo-50'}`}>
+        {configSaved && config.enabled && (
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 via-emerald-500 to-teal-400" />
+        )}
+        {!configSaved && (
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 via-indigo-500 to-purple-400" />
+        )}
+        <div className="px-5 py-5">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-4 flex-1 min-w-0">
+              <div className={`relative w-14 h-14 rounded-2xl flex items-center justify-center text-white text-xl font-bold flex-shrink-0 shadow-lg ${configSaved && config.enabled ? 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-200' : 'bg-gradient-to-br from-purple-500 to-indigo-600 shadow-purple-200'}`}>
+                {config.agentName?.[0]?.toUpperCase() || 'R'}
+                {configSaved && config.enabled && (
+                  <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full flex items-center justify-center">
+                    <CheckCircle className="w-2.5 h-2.5 text-white" />
+                  </span>
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-lg font-bold text-gray-900">{config.agentName || 'Rita'}</h2>
+                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${autonomyInfo.color}`}>{autonomyInfo.label}</span>
+                  {configSaved && config.enabled ? (
+                    <span className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-100 px-2.5 py-0.5 rounded-full">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      Agent Actif
+                    </span>
+                  ) : configSaved ? (
+                    <span className="text-[11px] font-bold text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full">En pause</span>
+                  ) : (
+                    <span className="text-[11px] font-bold text-purple-600 bg-purple-100 px-2.5 py-0.5 rounded-full">Configuration requise</span>
+                  )}
+                </div>
+                <p className="text-[12px] text-gray-400 mt-0.5">
+                  {config.agentRole || 'Agent commercial IA'} · {config.language === 'fr' ? '🇫🇷 Français' : config.language === 'en' ? '🇬🇧 English' : config.language === 'es' ? '🇪🇸 Español' : config.language === 'ar' ? '🇲🇦 العربية' : config.language}
+                  {configSaved && ` · ${instances.length} instance${instances.length !== 1 ? 's' : ''} liée${instances.length !== 1 ? 's' : ''}`}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              {configSaved && (
+                <div className="flex items-center gap-2 text-[12px] text-gray-500">
+                  <span>{config.enabled ? 'Désactiver' : 'Activer'}</span>
+                  <button onClick={toggleEnabled} disabled={saving} type="button"
+                    className={`relative w-12 h-7 rounded-full transition-colors disabled:opacity-60 ${config.enabled ? 'bg-emerald-500' : 'bg-gray-200'}`}>
+                    <span className={`absolute top-[3px] w-[22px] h-[22px] bg-white rounded-full shadow-sm transition-all ${config.enabled ? 'left-[26px]' : 'left-[3px]'}`} />
+                  </button>
+                </div>
+              )}
+              <div className="flex items-center gap-2 pl-3 border-l border-gray-200/60">
+                {saveStatus?.type === 'success' && (
+                  <span className="text-[12px] font-semibold text-emerald-600 flex items-center gap-1">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Enregistré{saveStatus.count > 0 ? ` · ${saveStatus.count} webhook${saveStatus.count > 1 ? 's' : ''}` : ''}
+                  </span>
+                )}
+                {saveStatus?.type === 'error' && <span className="text-[12px] font-semibold text-red-600 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" />Erreur</span>}
+                {configSaved && (
+                  <button onClick={() => setShowConfig(!showConfig)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                    {showConfig ? <X className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />}
+                    {showConfig ? 'Fermer' : 'Modifier'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Progress bar (only before first save) ─── */}
+      {!configSaved && (
+        <div className="bg-white border border-gray-200 rounded-xl px-5 py-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[13px] font-semibold text-gray-700">Configuration de l'agent</p>
+            <span className="text-[12px] font-bold text-purple-600">{progressPct}%</span>
+          </div>
+          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full transition-all duration-500" style={{ width: `${progressPct}%` }} />
+          </div>
+          <div className="flex gap-1 mt-3">
+            {RITA_SECTIONS.map((s, i) => (
+              <button key={s.id} onClick={() => { setActiveSection(s.id); setShowConfig(true); }}
+                className={`flex-1 h-1.5 rounded-full transition-colors ${i < filledSteps ? 'bg-purple-400' : 'bg-gray-200'}`} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Config Panels ─── */}
+      {(showConfig || !configSaved) && (
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+          {/* Section nav */}
+          <div className="flex overflow-x-auto border-b border-gray-100 bg-gray-50/60">
+            {RITA_SECTIONS.map(s => (
+              <button key={s.id} onClick={() => setActiveSection(s.id)}
+                className={`flex items-center gap-2 px-5 py-3.5 text-[13px] font-medium whitespace-nowrap relative transition-all border-b-2
+                  ${activeSection === s.id
+                    ? 'text-purple-700 bg-white border-purple-500'
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50 border-transparent'}`}>
+                <span className="text-base leading-none">{s.emoji}</span>
+                {s.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="p-6">
+
+            {/* Identité */}
+            {activeSection === 'identity' && (
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field label="Nom de l'agent" required>
+                    <input value={config.agentName} onChange={e => set('agentName', e.target.value)} placeholder="Rita" className="field-input" />
+                  </Field>
+                  <Field label="Rôle affiché au client">
+                    <input value={config.agentRole} onChange={e => set('agentRole', e.target.value)} placeholder="Commerciale IA" className="field-input" />
+                  </Field>
+                  <Field label="Langue principale">
+                    <select value={config.language} onChange={e => set('language', e.target.value)} className="field-input">
+                      <option value="fr">🇫🇷 Français</option>
+                      <option value="en">🇬🇧 English</option>
+                      <option value="es">🇪🇸 Español</option>
+                      <option value="ar">🇲🇦 العربية</option>
+                    </select>
+                  </Field>
+                  <Field label="Ton de communication">
+                    <select value={config.toneStyle} onChange={e => set('toneStyle', e.target.value)} className="field-input">
+                      <option value="warm">😊 Chaleureux et Proche</option>
+                      <option value="professional">💼 Professionnel et Sérieux</option>
+                      <option value="casual">😎 Décontracté et Moderne</option>
+                      <option value="persuasive">🎯 Persuasif et Direct</option>
+                      <option value="luxury">✨ Premium et Exclusif</option>
+                    </select>
+                  </Field>
+                  <Field label="Délai avant de répondre" hint="secondes">
+                    <input type="number" value={config.responseDelay} onChange={e => set('responseDelay', parseInt(e.target.value) || 0)} min="0" max="30" className="field-input" />
+                  </Field>
+                  <Field label="Instance WhatsApp">
+                    <select value={config.instanceId} onChange={e => set('instanceId', e.target.value)} className="field-input">
+                      <option value="">Sélectionner une instance...</option>
+                      {instances.map(inst => (
+                        <option key={inst._id} value={inst._id}>{inst.customName || inst.instanceName}</option>
+                      ))}
+                    </select>
+                    {instances.length === 0 && <p className="text-[11px] text-amber-600 mt-1.5">Ajoutez une instance dans l'onglet Instances d'abord.</p>}
+                  </Field>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-6 pt-1">
+                  <ToggleRow enabled={config.useEmojis} onChange={v => set('useEmojis', v)} label="Utiliser des emojis" desc="Rend les messages plus chaleureux et humains" />
+                  <ToggleRow enabled={config.signMessages} onChange={v => set('signMessages', v)} label="Signer les messages" desc={`Ajoute — ${config.agentName || 'Rita'} en fin de message`} />
+                </div>
+                <div className="space-y-3">
+                  <Field label="Message d'accueil">
+                    <textarea value={config.welcomeMessage} onChange={e => set('welcomeMessage', e.target.value)} rows={3}
+                      placeholder="Bonjour ! Je suis Rita 👋 Comment puis-je vous aider ?"
+                      className="field-input" style={{ resize: 'none' }} />
+                  </Field>
+                  <Field label="Message de transfert humain" hint="quand Rita passe la main">
+                    <textarea value={config.fallbackMessage} onChange={e => set('fallbackMessage', e.target.value)} rows={2}
+                      placeholder="Je transfère votre demande à un conseiller..."
+                      className="field-input" style={{ resize: 'none' }} />
+                  </Field>
+                </div>
+              </div>
+            )}
+
+            {/* Intelligence */}
+            {activeSection === 'intelligence' && (
+              <div className="space-y-6">
+                <div>
+                  <p className="text-[14px] font-bold text-gray-900 mb-0.5">Niveau d'autonomie</p>
+                  <p className="text-[12px] text-gray-400 mb-4">Contrôlez jusqu'où Rita peut aller sans intervention humaine</p>
+                  <div className="space-y-2">
+                    {AUTONOMY_LEVELS.map(lvl => (
+                      <button key={lvl.level} onClick={() => set('autonomyLevel', lvl.level)}
+                        className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl border-2 text-left transition-all ${
+                          config.autonomyLevel === lvl.level ? 'border-purple-400 bg-purple-50' : 'border-gray-100 bg-gray-50/50 hover:border-gray-200 hover:bg-gray-50'
+                        }`}>
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 ${lvl.color}`}>{lvl.level}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-900 text-[13px]">{lvl.label}</span>
+                            {config.autonomyLevel === lvl.level && <span className="text-[10px] font-bold text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">Actif</span>}
+                          </div>
+                          <p className="text-[12px] text-gray-400 mt-0.5">{lvl.desc}</p>
+                        </div>
+                        <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 transition-colors ${config.autonomyLevel === lvl.level ? 'border-purple-500 bg-purple-500' : 'border-gray-300'}`} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-100 pt-5 space-y-3">
+                  <p className="text-[14px] font-bold text-gray-900 mb-3">Permissions</p>
+                  <ToggleRow enabled={config.canCloseDeals} onChange={v => set('canCloseDeals', v)} label="Peut confirmer des commandes" desc="Rita peut valider et enregistrer une vente sans intervention humaine" />
+                  <ToggleRow enabled={config.canSendPaymentLinks} onChange={v => set('canSendPaymentLinks', v)} label="Peut envoyer des liens de paiement" desc="Envoie automatiquement le lien de checkout au client" />
+                  <ToggleRow enabled={config.requireHumanApproval} onChange={v => set('requireHumanApproval', v)} label="Validation humaine avant offre commerciale" desc="Notifie un agent avant d'envoyer un prix ou une offre" />
+                </div>
+
+                <div className="border-t border-gray-100 pt-5 space-y-3">
+                  <p className="text-[14px] font-bold text-gray-900 mb-3">Relances automatiques</p>
+                  <ToggleRow enabled={config.followUpEnabled} onChange={v => set('followUpEnabled', v)} label="Activer les relances" desc="Rita relance automatiquement les prospects silencieux" />
+                  {config.followUpEnabled && (
+                    <div className="space-y-3 pt-1">
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="Relancer après" hint="heures sans réponse">
+                          <input type="number" value={config.followUpDelay} onChange={e => set('followUpDelay', parseInt(e.target.value) || 24)} min="1" className="field-input" />
+                        </Field>
+                        <Field label="Escalader après" hint="messages sans réponse">
+                          <input type="number" value={config.escalateAfterMessages} onChange={e => set('escalateAfterMessages', parseInt(e.target.value) || 10)} min="1" className="field-input" />
+                        </Field>
+                      </div>
+                      <Field label="Message de relance">
+                        <textarea value={config.followUpMessage} onChange={e => set('followUpMessage', e.target.value)} rows={3}
+                          className="field-input" style={{ resize: 'none' }} />
+                      </Field>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Connaissances */}
+            {activeSection === 'knowledge' && (
+              <div className="space-y-4">
+                <div className="px-4 py-3 bg-amber-50 border border-amber-100 rounded-lg text-[12px] text-amber-800 flex gap-2">
+                  <span className="flex-shrink-0">💡</span>
+                  <span>Plus votre base est complète et structurée, plus Rita sera précise et convaincante.</span>
+                </div>
+                <Field label="Contexte business" hint="qui vous êtes, votre positionnement">
+                  <textarea value={config.businessContext} onChange={e => set('businessContext', e.target.value)} rows={4}
+                    placeholder={"Boutique de cosmétiques naturels\nProduits 100% naturels sans paraben\nLivraison dans toute la CI en 24-48h"}
+                    className="field-input" style={{ resize: 'vertical' }} />
+                </Field>
+                <Field label="Catalogue produits" hint="noms, prix, descriptions, cibles">
+                  <textarea value={config.products} onChange={e => set('products', e.target.value)} rows={6}
+                    placeholder={"- Sérum Éclat : 15 000 FCFA — anti-taches, illuminateur\n- Crème Hydratante : 8 500 FCFA — 24h hydratation\n- Huile de Baobab : 12 000 FCFA — anti-âge, bestseller"}
+                    className="field-input font-mono text-xs leading-relaxed" style={{ resize: 'vertical' }} />
+                </Field>
+                <Field label="FAQ — Questions / Réponses fréquentes">
+                  <textarea value={config.faq} onChange={e => set('faq', e.target.value)} rows={6}
+                    placeholder={"Q: Comment payer ?\nR: Orange Money, Wave, MTN Money.\n\nQ: Livraison partout ?\nR: Oui, toute la CI. Gratuit dès 25 000 FCFA."}
+                    className="field-input font-mono text-xs leading-relaxed" style={{ resize: 'vertical' }} />
+                </Field>
+                <Field label="Avantages concurrentiels">
+                  <textarea value={config.competitiveAdvantages} onChange={e => set('competitiveAdvantages', e.target.value)} rows={3}
+                    placeholder="Seule boutique certifiée bio en CI, garantie 30 jours, livraison express 4h..."
+                    className="field-input" style={{ resize: 'none' }} />
+                </Field>
+                <Field label="Liens utiles" hint="site, Instagram, catalogue PDF...">
+                  <textarea value={config.usefulLinks} onChange={e => set('usefulLinks', e.target.value)} rows={2}
+                    placeholder={"Site: https://monsite.ci\nInstagram: @maboutique"}
+                    className="field-input font-mono text-xs" style={{ resize: 'none' }} />
+                </Field>
+                <div>
+                  <Field label="Mots-clés déclencheurs">
+                    <div className="flex gap-2 mt-1">
+                      <input value={newKw} onChange={e => setNewKw(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addKw())}
+                        placeholder="ex: prix, commander, livraison..."
+                        className="field-input flex-1" />
+                      <button onClick={addKw} className="px-3 py-1.5 text-xs font-semibold text-white rounded-lg flex-shrink-0" style={{ background: ACCENT }}>
+                        Ajouter
+                      </button>
+                    </div>
+                  </Field>
+                  {config.autoReplyKeywords.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2.5">
+                      {config.autoReplyKeywords.map(kw => (
+                        <span key={kw} className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-600 rounded-lg text-[11px] font-medium">
+                          {kw}
+                          <button onClick={() => set('autoReplyKeywords', config.autoReplyKeywords.filter(k => k !== kw))} className="text-gray-400 hover:text-red-500 ml-0.5">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Stratégie vente */}
+            {activeSection === 'sales' && (
+              <div className="space-y-6">
+                <div>
+                  <p className="text-[14px] font-bold text-gray-900 mb-0.5">Questions de qualification</p>
+                  <p className="text-[12px] text-gray-400 mb-3">Rita pose ces questions pour comprendre le prospect</p>
+                  <div className="space-y-2">
+                    {config.qualificationQuestions.map((q, i) => (
+                      <div key={i} className="flex items-center gap-2.5 px-3 py-2.5 bg-gray-50 rounded-xl border border-gray-100">
+                        <span className="w-5 h-5 rounded-md bg-purple-100 text-purple-600 text-[10px] font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                        <p className="text-[13px] text-gray-700 flex-1">{q}</p>
+                        <button onClick={() => set('qualificationQuestions', config.qualificationQuestions.filter((_, idx) => idx !== i))}
+                          className="text-gray-300 hover:text-red-500 transition-colors flex-shrink-0 text-base leading-none">×</button>
+                      </div>
+                    ))}
+                    <div className="flex gap-2">
+                      <input value={newQuestion} onChange={e => setNewQuestion(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addQuestion())}
+                        placeholder="Ex: Pour qui achetez-vous ?"
+                        className="field-input flex-1" />
+                      <button onClick={addQuestion} className="px-3 py-1.5 text-xs font-semibold text-white rounded-lg flex-shrink-0" style={{ background: ACCENT }}>
+                        Ajouter
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[14px] font-bold text-gray-900 mb-0.5">Technique de closing</p>
+                  <p className="text-[12px] text-gray-400 mb-3">Comment Rita amène le prospect à décider</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {[
+                      { id: 'soft',         label: '🤝 Approche douce',   desc: 'Propose sans pression, respecte le rythme du prospect' },
+                      { id: 'urgency',      label: '⏰ Urgence et Rareté', desc: "Crée un sentiment d'urgence : stock limité, offre qui expire" },
+                      { id: 'social-proof', label: '⭐ Preuve sociale',    desc: 'Cite des avis clients, témoignages, chiffres de vente' },
+                      { id: 'value',        label: '💎 Arguments valeur',  desc: 'Met en avant les bénéfices et ROI plutôt que le prix' },
+                    ].map(ct => (
+                      <button key={ct.id} onClick={() => set('closingTechnique', ct.id)}
+                        className={`text-left px-4 py-3 rounded-xl border-2 transition-all ${
+                          config.closingTechnique === ct.id ? 'border-purple-400 bg-purple-50' : 'border-gray-100 bg-gray-50 hover:border-gray-200 hover:bg-gray-50'
+                        }`}>
+                        <p className="font-semibold text-gray-800 text-[13px]">{ct.label}</p>
+                        <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">{ct.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[14px] font-bold text-gray-900 mb-0.5">Gestion des objections</p>
+                  <p className="text-[12px] text-gray-400 mb-2">Réponses prêtes pour les freins à l'achat courants</p>
+                  <textarea value={config.objectionsHandling} onChange={e => set('objectionsHandling', e.target.value)} rows={7}
+                    placeholder={"C'est trop cher : Nos produits sont faits pour durer. Livraison gratuite incluse !\n\nJ'ai besoin d'y réfléchir : Notre stock est limité. Voulez-vous que je réserve votre commande ?\n\nJe trouve moins cher ailleurs : Nos produits sont certifiés avec un SAV premium."}
+                    className="field-input font-mono text-xs leading-relaxed" style={{ resize: 'vertical' }} />
+                </div>
+              </div>
+            )}
+
+            {/* Disponibilité */}
+            {activeSection === 'availability' && (
+              <div className="space-y-4">
+                <ToggleRow enabled={config.businessHoursOnly} onChange={v => set('businessHoursOnly', v)}
+                  label="Restreindre aux heures d'ouverture"
+                  desc="Hors horaires, Rita envoie le message de transfert et se met en veille" />
+                {config.businessHoursOnly && (
+                  <div className="grid grid-cols-2 gap-4 pt-1">
+                    <Field label="Ouverture"><input type="time" value={config.businessHoursStart} onChange={e => set('businessHoursStart', e.target.value)} className="field-input" /></Field>
+                    <Field label="Fermeture"><input type="time" value={config.businessHoursEnd} onChange={e => set('businessHoursEnd', e.target.value)} className="field-input" /></Field>
+                  </div>
+                )}
+                <div className="mt-2 px-4 py-3 bg-gray-50 border border-gray-100 rounded-lg text-[12px] text-gray-500">
+                  Rita est configurée en {autonomyInfo.label} · {config.followUpEnabled ? `Relances après ${config.followUpDelay}h.` : 'Relances désactivées.'} {config.canCloseDeals ? 'Peut conclure des ventes.' : ''}
+                </div>
+              </div>
+            )}
+
+          </div>
+
+          {/* Save bar inside config panel */}
+          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/60 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 text-[12px] text-gray-400">
+              {!configSaved && <span>Remplissez les informations puis enregistrez pour activer l'agent.</span>}
+              {configSaved && saveStatus?.type === 'success' && (
+                <span className="text-emerald-600 font-semibold flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" />Configuration enregistrée</span>
+              )}
+              {saveStatus?.type === 'error' && <span className="text-red-600 font-semibold flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" />Erreur lors de la sauvegarde</span>}
+            </div>
+            <button onClick={() => handleSave()} disabled={saving}
+              className="inline-flex items-center gap-2 px-6 py-2.5 text-[13px] font-bold text-white rounded-xl disabled:opacity-50 transition-all shadow-md hover:shadow-lg"
+              style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+              {saving ? 'Sauvegarde...' : configSaved ? 'Mettre à jour' : 'Enregistrer l\'agent'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Agent Actif + Test section (shown only after save) ─── */}
+      {configSaved && !showConfig && (
+        <div className="space-y-4">
+
+          {/* Stats cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: 'Statut', value: config.enabled ? 'Actif' : 'En pause', color: config.enabled ? 'text-emerald-600' : 'text-gray-400', icon: config.enabled ? '🟢' : '⏸️' },
+              { label: 'Autonomie', value: autonomyInfo.label, color: 'text-purple-600', icon: '🧠' },
+              { label: 'Instances', value: `${instances.length}`, color: 'text-blue-600', icon: '📱' },
+              { label: 'Technique', value: config.closingTechnique === 'soft' ? 'Douce' : config.closingTechnique === 'urgency' ? 'Urgence' : config.closingTechnique === 'social-proof' ? 'Sociale' : 'Valeur', color: 'text-amber-600', icon: '🎯' },
+            ].map((s, i) => (
+              <div key={i} className="bg-white border border-gray-200 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm">{s.icon}</span>
+                  <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">{s.label}</span>
+                </div>
+                <p className={`text-[15px] font-bold ${s.color}`}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Knowledge summary */}
+          {(config.businessContext || config.products || config.faq) && (
+            <div className="bg-white border border-gray-200 rounded-xl px-5 py-4">
+              <p className="text-[13px] font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <span className="text-base">📚</span> Base de connaissances
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {config.businessContext && (
+                  <div className="bg-gray-50 rounded-lg px-3 py-2.5">
+                    <p className="text-[11px] font-semibold text-gray-500 mb-1">Contexte</p>
+                    <p className="text-[12px] text-gray-700 line-clamp-2">{config.businessContext}</p>
+                  </div>
+                )}
+                {config.products && (
+                  <div className="bg-gray-50 rounded-lg px-3 py-2.5">
+                    <p className="text-[11px] font-semibold text-gray-500 mb-1">Produits</p>
+                    <p className="text-[12px] text-gray-700 line-clamp-2">{config.products}</p>
+                  </div>
+                )}
+                {config.faq && (
+                  <div className="bg-gray-50 rounded-lg px-3 py-2.5">
+                    <p className="text-[11px] font-semibold text-gray-500 mb-1">FAQ</p>
+                    <p className="text-[12px] text-gray-700 line-clamp-2">{config.faq}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Simulator */}
+          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-gray-50 to-white">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
+                  <Send className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <p className="text-[14px] font-bold text-gray-900">Tester l'agent</p>
+                  <p className="text-[11px] text-gray-400">Simulez une conversation comme un vrai client WhatsApp</p>
+                </div>
+              </div>
+              <button onClick={resetSim} className="text-[12px] font-medium text-gray-400 hover:text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                ↺ Recommencer
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
+
+              {/* Chat area */}
+              <div>
+                {/* WhatsApp header */}
+                <div className="px-4 py-3 bg-[#075E54] flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-400 to-indigo-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                    {config.agentName?.[0]?.toUpperCase() || 'R'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-[14px] font-semibold">{config.agentName || 'Rita'}</p>
+                    <p className="text-emerald-300 text-[11px]">{simTyping ? 'écrit...' : 'en ligne'}</p>
+                  </div>
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${autonomyInfo.color}`}>{autonomyInfo.label}</span>
+                </div>
+
+                {/* Chat messages */}
+                <div className="h-[380px] overflow-y-auto px-4 py-3 bg-[#efeae2] flex flex-col gap-2">
+                  <div className="text-center flex-shrink-0">
+                    <span className="inline-block px-3 py-1 bg-white/80 text-[10px] text-gray-500 rounded-lg shadow-sm backdrop-blur-sm">Simulation — {config.agentName || 'Rita'} IA</span>
+                  </div>
+                  {simMessages.map((msg, i) => (
+                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} flex-shrink-0`}>
+                      <div className={`max-w-[82%] rounded-xl px-3.5 py-2 shadow-sm ${msg.role === 'user' ? 'bg-[#dcf8c6] rounded-tr-sm' : 'bg-white rounded-tl-sm'}`}>
+                        {msg.role === 'agent' && (
+                          <p className="text-[10px] font-semibold text-purple-600 mb-0.5">
+                            {config.agentName || 'Rita'} <span className="text-[8px] bg-purple-100 text-purple-500 px-1 rounded">IA</span>
+                          </p>
+                        )}
+                        <p className="text-[13px] text-gray-800 leading-snug">{msg.text}</p>
+                        <p className="text-[9px] text-gray-400 mt-0.5 text-right">{msg.time}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {simTyping && (
+                    <div className="flex justify-start flex-shrink-0">
+                      <div className="bg-white rounded-xl rounded-tl-sm px-3.5 py-2.5 shadow-sm">
+                        <p className="text-[10px] font-semibold text-purple-600 mb-1">{config.agentName || 'Rita'}</p>
+                        <div className="flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '180ms' }} />
+                          <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '360ms' }} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <div ref={simEndRef} />
+                </div>
+
+                {/* Quick replies */}
+                <div className="px-3 py-2 border-t border-gray-100 bg-[#f8f8f8] flex gap-1.5 overflow-x-auto">
+                  {["C'est combien ?", "Vous livrez ?", "Je veux commander", "Trop cher !", "C'est pour offrir"].map(s => (
+                    <button key={s} onClick={() => setSimInput(s)}
+                      className="flex-shrink-0 px-2.5 py-1 bg-white border border-gray-200 text-[11px] text-gray-600 rounded-full hover:bg-gray-50 hover:border-gray-300 transition-colors whitespace-nowrap">
+                      {s}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Input */}
+                <div className="px-3 py-2.5 bg-[#f0f0f0] flex items-center gap-2">
+                  <input value={simInput} onChange={e => setSimInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSimSend()}
+                    placeholder="Tapez un message comme un client..."
+                    className="flex-1 bg-white rounded-full px-4 py-2 text-[13px] outline-none border border-transparent focus:border-gray-300" />
+                  <button onClick={handleSimSend} disabled={!simInput.trim() || simTyping}
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-white transition-opacity disabled:opacity-40"
+                    style={{ background: '#075E54' }}>
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Right: Agent info panel */}
+              <div className="bg-gray-50/40 p-5 space-y-4">
+                <div className="text-center">
+                  <div className={`mx-auto w-16 h-16 rounded-2xl flex items-center justify-center text-white text-2xl font-bold shadow-lg ${config.enabled ? 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-200' : 'bg-gradient-to-br from-gray-400 to-gray-500 shadow-gray-200'}`}>
+                    {config.agentName?.[0]?.toUpperCase() || 'R'}
+                  </div>
+                  <p className="text-[15px] font-bold text-gray-900 mt-3">{config.agentName || 'Rita'}</p>
+                  <p className="text-[12px] text-gray-400">{config.agentRole || 'Agent commercial IA'}</p>
+                  {config.enabled ? (
+                    <span className="inline-flex items-center gap-1.5 mt-2 text-[11px] font-bold text-emerald-600 bg-emerald-100 px-3 py-1 rounded-full">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      Agent Actif
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 mt-2 text-[11px] font-bold text-gray-400 bg-gray-100 px-3 py-1 rounded-full">En pause</span>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <InfoRow label="Langue" value={config.language === 'fr' ? '🇫🇷 Français' : config.language === 'en' ? '🇬🇧 English' : config.language === 'es' ? '🇪🇸 Español' : '🇲🇦 العربية'} />
+                  <InfoRow label="Ton" value={config.toneStyle === 'warm' ? 'Chaleureux' : config.toneStyle === 'professional' ? 'Professionnel' : config.toneStyle === 'casual' ? 'Décontracté' : config.toneStyle === 'persuasive' ? 'Persuasif' : 'Premium'} />
+                  <InfoRow label="Autonomie" value={autonomyInfo.label} />
+                  <InfoRow label="Closing" value={config.closingTechnique === 'soft' ? 'Douce' : config.closingTechnique === 'urgency' ? 'Urgence' : config.closingTechnique === 'social-proof' ? 'Sociale' : 'Valeur'} />
+                  <InfoRow label="Emojis" value={config.useEmojis ? 'Oui' : 'Non'} />
+                  <InfoRow label="Relances" value={config.followUpEnabled ? `Après ${config.followUpDelay}h` : 'Désactivées'} />
+                </div>
+
+                <button onClick={() => setShowConfig(true)}
+                  className="w-full py-2.5 text-[13px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 rounded-xl hover:bg-purple-100 transition-colors flex items-center justify-center gap-2">
+                  <Zap className="w-3.5 h-3.5" />
+                  Modifier la configuration
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+};
+
+const InfoRow = ({ label, value }) => (
+  <div className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
+    <span className="text-[11px] font-medium text-gray-400">{label}</span>
+    <span className="text-[12px] font-semibold text-gray-700">{value}</span>
+  </div>
+);
+
+export default WhatsAppService;

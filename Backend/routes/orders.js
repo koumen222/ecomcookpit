@@ -372,6 +372,23 @@ router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), async (
   }
 });
 
+// DELETE /api/ecom/orders/bulk-selected - Supprimer une sélection de commandes par IDs
+router.delete('/bulk-selected', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'Aucun identifiant fourni.' });
+    }
+    // Limit to max 200 at a time to avoid abuse
+    const safeIds = ids.slice(0, 200);
+    const result = await Order.deleteMany({ _id: { $in: safeIds }, workspaceId: req.workspaceId });
+    res.json({ success: true, message: `${result.deletedCount} commande(s) supprimée(s)`, data: { deletedCount: result.deletedCount } });
+  } catch (error) {
+    console.error('Erreur suppression bulk-selected:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // DELETE /api/ecom/orders/bulk - Supprimer toutes les commandes (optionnel: filtrées par sourceId)
 router.delete('/bulk', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
   try {
@@ -455,8 +472,8 @@ router.get('/quick', requireEcomAuth, async (req, res) => {
     }
 
     const orders = await Order.find(filter)
-      .select('orderId clientName clientPhone city address product quantity price status date createdAt notes tags source sheetRowId rawData')
-      .sort({ sheetRowIndex: sortDirection, _id: sortDirection })
+      .select('orderId clientName clientPhone city address product quantity price status date createdAt notes tags source sheetRowId rawData deliveryTime')
+      .sort({ createdAt: sortDirection, _id: sortDirection })
       .limit(20)
       .lean();
 
@@ -553,7 +570,7 @@ router.get('/new-since', requireEcomAuth, async (req, res) => {
     }
 
     const orders = await Order.find(filter)
-      .select('orderId clientName clientPhone city address product quantity price status date createdAt updatedAt notes tags source sheetRowId rawData')
+      .select('orderId clientName clientPhone city address product quantity price status date createdAt updatedAt notes tags source sheetRowId rawData deliveryTime')
       .sort({ sheetRowIndex: 1, _id: 1 })
       .limit(100)
       .lean();
@@ -889,8 +906,8 @@ router.get('/', requireEcomAuth, async (req, res) => {
 
 
     const orders = await Order.find(filter)
-      .select('orderId clientName clientPhone city address product quantity price status date createdAt updatedAt notes tags source sheetRowId assignedLivreur readyForDelivery rawData deliveryStartedAt deliveryStartLat deliveryStartLng deliveryEndLat deliveryEndLng deliveryEndAddress deliveryDistanceKm deliveryCostFcfa')
-      .sort({ sheetRowIndex: sortDirection, _id: sortDirection })
+      .select('orderId clientName clientPhone city address product quantity price status date createdAt updatedAt notes tags source sheetRowId assignedLivreur readyForDelivery rawData deliveryTime deliveryStartedAt deliveryStartLat deliveryStartLng deliveryEndLat deliveryEndLng deliveryEndAddress deliveryDistanceKm deliveryCostFcfa')
+      .sort({ createdAt: sortDirection, _id: sortDirection })
       .limit(limitNum)
       .skip((pageNum - 1) * limitNum)
       .lean();
@@ -2662,7 +2679,7 @@ router.get('/livreur-tracking', requireEcomAuth, async (req, res) => {
     const [orders, total] = await Promise.all([
       Order.find(filter)
         .populate('assignedLivreur', 'name email phone')
-        .sort({ updatedAt: -1 })
+        .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
         .lean(),
@@ -2728,7 +2745,7 @@ router.get('/available', requireEcomAuth, async (req, res) => {
     }
     
     const orders = await Order.find(filter)
-      .sort({ date: -1 })
+      .sort({ createdAt: -1 })
       .limit(parseInt(limit));
 
     const visibleOrders = orders
@@ -3402,7 +3419,7 @@ router.get('/livreur/history', requireEcomAuth, async (req, res) => {
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const [orders, total] = await Promise.all([
-      Order.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(parseInt(limit)),
+      Order.find(filter).sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)),
       Order.countDocuments(filter)
     ]);
 

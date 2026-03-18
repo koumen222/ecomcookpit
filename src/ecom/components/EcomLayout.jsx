@@ -10,6 +10,7 @@ import InstallPrompt from './InstallPrompt.jsx';
 import { useDmUnread } from '../hooks/useDmUnread.js';
 import GlobalSearch from './GlobalSearch.jsx';
 import WorkspaceSwitcherMenu from './WorkspaceSwitcherMenu.jsx';
+import WorkspaceSwitcher from './WorkspaceSwitcher.jsx';
 import TopLoader from './TopLoader.jsx';
 
 const EcomLayoutComponent = ({ children }) => {
@@ -31,6 +32,9 @@ const EcomLayoutComponent = ({ children }) => {
   useEffect(() => {
     if (!user?.id) return;
     if (user?.role === 'ecom_livreur') return;
+    const todayKey = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+    const storageKey = `ecom_tutorial_shown_${user.id}`;
+    if (localStorage.getItem(storageKey) === todayKey) return;
     const timer = setTimeout(() => {
       setShowTutorial(true);
     }, 1500);
@@ -39,6 +43,9 @@ const EcomLayoutComponent = ({ children }) => {
 
   const closeTutorial = () => {
     setShowTutorial(false);
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const storageKey = `ecom_tutorial_shown_${user?.id}`;
+    localStorage.setItem(storageKey, todayKey);
   };
 
   // ── Toast notification in-app ──
@@ -245,7 +252,7 @@ const EcomLayoutComponent = ({ children }) => {
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg>
     },
     {
-      name: 'Connexion WhatsApp', shortName: 'WhatsApp', href: '/ecom/whatsapp/connexion', primary: false,
+      name: 'Service WhatsApp', shortName: 'WhatsApp', href: '/ecom/whatsapp/service', primary: false,
       roles: ['ecom_admin'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
     },
@@ -387,16 +394,8 @@ const EcomLayoutComponent = ({ children }) => {
             <Link to={dashboardPath} className="flex items-center gap-2.5 mb-3">
               <img src="/logo.png" alt="Scalor" className="h-8 object-contain" />
             </Link>
-            {/* Workspace chip */}
-            {!isSuperAdmin && (
-              <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg">
-                <div className="w-5 h-5 rounded-md bg-[#0F6B4F]/15 flex items-center justify-center flex-shrink-0">
-                  <span className="text-[#0F6B4F] text-[10px] font-bold">{(displayWorkspace?.name || workspace?.name || 'W')?.charAt(0)?.toUpperCase()}</span>
-                </div>
-                <span className="text-xs font-semibold text-gray-700 truncate flex-1">{displayWorkspace?.name || workspace?.name || 'Workspace'}</span>
-                <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-              </div>
-            )}
+            {/* Workspace switcher */}
+            {!isSuperAdmin && <WorkspaceSwitcher />}
           </div>
 
           {/* Main navigation */}
@@ -810,7 +809,8 @@ const getPageTitle = (pathname) => {
   if (pathname.includes('/clients/new')) return 'Nouveau client';
   if (pathname.includes('/clients') && pathname.includes('/edit')) return 'Modifier client';
   if (pathname.includes('/clients')) return 'Clients';
-  if (pathname.includes('/whatsapp/connexion')) return 'Connexion WhatsApp';
+  if (pathname.includes('/whatsapp/service')) return 'Service WhatsApp';
+  if (pathname.includes('/whatsapp/connexion')) return 'Service WhatsApp';
   if (pathname.includes('/campaigns')) return 'Marketing';
   if (pathname.includes('/super-admin/users')) return 'Gestion des utilisateurs';
   if (pathname.includes('/super-admin/workspaces')) return 'Gestion des espaces';

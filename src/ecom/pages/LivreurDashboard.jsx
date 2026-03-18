@@ -106,10 +106,10 @@ const LivreurDashboard = () => {
     try {
       await ecomApi.post(`/orders/${orderId}/assign`);
       stopOrderAlarm();
-      navigate('/ecom/livreur/deliveries');
+      window.location.href = '/ecom/livreur/deliveries';
     } catch (err) {
-      setError(err.response?.data?.message || 'Erreur.');
-    } finally {
+      console.error('[Assign error]', err);
+      setError(err.response?.data?.message || `Erreur: ${err.message || 'impossible d\'accepter. Vérifiez que le serveur est démarré.'}`);
       setAssigning(p => ({ ...p, [orderId]: false }));
     }
   };

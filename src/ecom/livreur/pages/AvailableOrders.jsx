@@ -49,12 +49,7 @@ export default function AvailableOrders() {
     setError(null);
     try {
       await livreurApi.assignOrder(orderId);
-      setSuccess('Course acceptée !');
-      setOrders((prev) => prev.filter((o) => o._id !== orderId));
-      setTimeout(() => {
-        setSuccess(null);
-        navigate('/ecom/livreur/deliveries');
-      }, 1200);
+      navigate('/ecom/livreur/deliveries');
     } catch (err) {
       setError(err.response?.data?.message || 'Impossible d\'accepter cette course.');
     } finally {

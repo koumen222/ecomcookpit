@@ -95,7 +95,7 @@ import SuperAdminPushCenter from './pages/SuperAdminPushCenter.jsx';
 import WhyScalor from './pages/WhyScalor.jsx';
 import Tarifs from './pages/Tarifs.jsx';
 import SourcingStats from './pages/SourcingStats.jsx';
-import WhatsAppConnexion from './pages/WhatsAppConnexion.jsx';
+import WhatsAppService from './pages/WhatsAppService.jsx';
 import WhatsAppInstancesList from './pages/WhatsAppInstancesList.jsx';
 import ConnectShopify from './pages/ConnectShopify.jsx';
 
@@ -347,7 +347,8 @@ const EcomApp = () => {
 
             {/* Routes WhatsApp */}
             <Route path="/ecom/whatsapp-postulation" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppPostulation /></LayoutRoute>} />
-            <Route path="/ecom/whatsapp/connexion" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppConnexion /></LayoutRoute>} />
+            <Route path="/ecom/whatsapp/service" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppService /></LayoutRoute>} />
+            <Route path="/ecom/whatsapp/connexion" element={<Navigate to="/ecom/whatsapp/service" replace />} />
             <Route path="/ecom/whatsapp/instances" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppInstancesList /></LayoutRoute>} />
 
             {/* Routes Intégrations */}

@@ -9,6 +9,8 @@ import {
   RefreshCw,
   MapPin,
   Bell,
+  Navigation,
+  X,
 } from 'lucide-react';
 import { useEcomAuth } from '../../hooks/useEcomAuth.jsx';
 import { livreurApi } from '../services/livreurApi.js';
@@ -31,6 +33,48 @@ export default function LivreurHome() {
   const [recentDeliveries, setRecentDeliveries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // GPS state: 'unknown' | 'prompt' | 'granted' | 'denied'
+  const [gpsStatus, setGpsStatus] = useState('unknown');
+  const [gpsRequesting, setGpsRequesting] = useState(false);
+  const [gpsDismissed, setGpsDismissed] = useState(
+    () => sessionStorage.getItem('gps_banner_dismissed') === '1'
+  );
+
+  // Check GPS permission on mount
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setGpsStatus('denied');
+      return;
+    }
+    if (navigator.permissions) {
+      navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+        setGpsStatus(result.state); // 'granted' | 'denied' | 'prompt'
+        result.onchange = () => setGpsStatus(result.state);
+      }).catch(() => setGpsStatus('prompt'));
+    } else {
+      setGpsStatus('prompt');
+    }
+  }, []);
+
+  const requestGps = () => {
+    setGpsRequesting(true);
+    navigator.geolocation.getCurrentPosition(
+      () => {
+        setGpsStatus('granted');
+        setGpsRequesting(false);
+      },
+      () => {
+        setGpsStatus('denied');
+        setGpsRequesting(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const dismissGpsBanner = () => {
+    sessionStorage.setItem('gps_banner_dismissed', '1');
+    setGpsDismissed(true);
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -103,6 +147,42 @@ export default function LivreurHome() {
           />
         </div>
       </div>
+
+      {/* GPS Banner */}
+      {!gpsDismissed && gpsStatus !== 'granted' && (
+        <div className={`mx-4 mt-4 rounded-2xl px-4 py-3.5 flex items-center gap-3 shadow-md ${gpsStatus === 'denied' ? 'bg-red-50 border border-red-200' : 'bg-amber-50 border border-amber-200'}`}>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${gpsStatus === 'denied' ? 'bg-red-100' : 'bg-amber-100'}`}>
+            <Navigation size={20} className={gpsStatus === 'denied' ? 'text-red-500' : 'text-amber-500'} />
+          </div>
+          <div className="flex-1 min-w-0">
+            {gpsStatus === 'denied' ? (
+              <>
+                <p className="text-red-700 font-semibold text-sm">GPS désactivé</p>
+                <p className="text-red-500 text-xs mt-0.5">Activez la localisation dans les réglages de votre téléphone pour utiliser la navigation.</p>
+              </>
+            ) : (
+              <>
+                <p className="text-amber-800 font-semibold text-sm">Activer le GPS</p>
+                <p className="text-amber-600 text-xs mt-0.5">Indispensable pour la navigation et le suivi des livraisons.</p>
+              </>
+            )}
+          </div>
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            {gpsStatus !== 'denied' && (
+              <button
+                onClick={requestGps}
+                disabled={gpsRequesting}
+                className="bg-amber-500 active:bg-amber-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-60"
+              >
+                {gpsRequesting ? '...' : 'Activer'}
+              </button>
+            )}
+            <button onClick={dismissGpsBanner} className="p-1 text-gray-400 active:text-gray-600">
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="px-4 py-4 space-y-5">
         {error && (

@@ -38,10 +38,10 @@ const LivreurAvailable = () => {
     setError(''); setSuccess('');
     try {
       await ecomApi.post(`/orders/${orderId}/assign`);
-      navigate('/ecom/livreur/deliveries');
+      window.location.href = '/ecom/livreur/deliveries';
     } catch (err) {
-      setError(err.response?.data?.message || 'Erreur.');
-    } finally {
+      console.error('[Assign error]', err);
+      setError(err.response?.data?.message || `Erreur: ${err.message || 'impossible d\'accepter cette course. Vérifiez que le serveur est démarré.'}`);
       setAssigning(p => ({ ...p, [orderId]: false }));
     }
   };

@@ -21,7 +21,17 @@ const roleDashMap = {
   'ecom_admin': '/ecom/dashboard/admin',
   'ecom_closeuse': '/ecom/dashboard/closeuse',
   'ecom_compta': '/ecom/dashboard/compta',
+  'ecom_livreur': '/ecom/livreur',
   'livreur': '/ecom/livreur'
+};
+
+const navigateAfterSwitch = (role) => {
+  const target = roleDashMap[role] || '/ecom/dashboard';
+  if (window.location.pathname === target) {
+    window.location.reload();
+  } else {
+    window.location.href = target;
+  }
 };
 
 // Overlay plein écran pendant le switch
@@ -80,7 +90,9 @@ const WorkspaceSwitcher = () => {
       if (res.data.success) {
         const { token, user: nextUser, workspace: nextWs } = res.data.data;
         if (switchWorkspace) await switchWorkspace(token, nextUser, nextWs);
-        window.location.href = roleDashMap[nextUser?.role] || '/ecom/dashboard';
+        navigateAfterSwitch(nextUser?.role);
+      } else {
+        setSwitchingId(null);
       }
     } catch (err) {
       alert(err.response?.data?.message || 'Erreur lors du changement d\'espace');
@@ -90,8 +102,7 @@ const WorkspaceSwitcher = () => {
 
   const currentWorkspace = workspaces.find(w => w.isActive);
   const otherWorkspaces = workspaces.filter(w => !w.isActive);
-
-  if (loading || workspaces.length <= 1) return null;
+  const canSwitch = !loading && workspaces.length > 1;
 
   const wsName = currentWorkspace?.name || workspace?.name || 'Espace';
 
@@ -102,9 +113,9 @@ const WorkspaceSwitcher = () => {
       <div className="relative" ref={dropdownRef}>
         {/* Trigger */}
         <button
-          onClick={() => setIsOpen(!isOpen)}
-          disabled={!!switchingId}
-          className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-left group"
+          onClick={() => canSwitch && setIsOpen(!isOpen)}
+          disabled={!!switchingId || !canSwitch}
+          className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-xl transition-colors text-left group ${canSwitch ? 'hover:bg-gray-100 cursor-pointer' : 'cursor-default'}`}
         >
           {/* Avatar initiales */}
           <div
@@ -117,13 +128,15 @@ const WorkspaceSwitcher = () => {
             <p className="text-sm font-semibold text-gray-900 truncate leading-tight">{wsName}</p>
             <p className="text-[10px] text-gray-400 leading-tight">{roleLabels[currentWorkspace?.role] || 'Espace'}</p>
           </div>
-          <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
+          {canSwitch && (
+            <svg className={`w-3.5 h-3.5 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          )}
         </button>
 
         {/* Dropdown */}
-        {isOpen && (
+        {canSwitch && isOpen && (
           <div className="absolute left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-gray-200 py-1.5 z-50 overflow-hidden">
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-3 pb-1.5 pt-0.5">
               Mes espaces ({workspaces.length})

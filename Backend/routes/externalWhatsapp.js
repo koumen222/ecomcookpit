@@ -1,7 +1,31 @@
 import express from 'express';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import EcomUser from '../models/EcomUser.js';
+import RitaConfig from '../models/RitaConfig.js';
 import evolutionApiService from '../services/evolutionApiService.js';
+import { processIncomingMessage, generateTestReply } from '../services/ritaAgentService.js';
+
+function resolveWebhookBaseUrl(req) {
+  const explicitWebhookUrl = process.env.WHATSAPP_WEBHOOK_URL || process.env.RITA_WEBHOOK_URL;
+  if (explicitWebhookUrl) {
+    return explicitWebhookUrl.replace(/\/$/, '');
+  }
+
+  const apiUrl = process.env.API_URL;
+  if (apiUrl) {
+    return apiUrl.replace(/\/$/, '');
+  }
+
+  const forwardedProto = req.headers['x-forwarded-proto'];
+  const proto = (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto) || req.protocol || 'http';
+  const host = req.get('host');
+
+  if (!host) {
+    return 'http://localhost:5000';
+  }
+
+  return `${proto}://${host}`.replace(/\/$/, '');
+}
 import { checkMessageLimit, incrementMessageCount, getInstanceUsage } from '../services/messageLimitService.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 
@@ -494,6 +518,263 @@ router.post('/refresh-status', async (req, res) => {
 });
 
 /**
+ * @route   POST /api/ecom/v1/external/whatsapp/instances/:id/webhook
+ * @desc    Configurer le webhook Evolution API d'une instance
+ * @access  Private
+ */
+router.post('/instances/:id/webhook', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId, enabled, url, webhookByEvents, webhookBase64, events } = req.body;
+
+    if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
+    if (enabled && !url) return res.status(400).json({ success: false, error: 'URL requise pour activer le webhook' });
+    if (enabled && (!events || events.length === 0)) return res.status(400).json({ success: false, error: 'Au moins un événement est requis' });
+
+    const instance = await WhatsAppInstance.findOne({ _id: id, userId });
+    if (!instance) return res.status(404).json({ success: false, error: 'Instance introuvable ou non autorisée' });
+
+    const result = await evolutionApiService.setWebhook(instance.instanceName, instance.instanceToken, {
+      enabled: !!enabled,
+      url: url || '',
+      webhookByEvents: !!webhookByEvents,
+      webhookBase64: !!webhookBase64,
+      events: events || []
+    });
+
+    if (!result.success) {
+      return res.status(500).json({ success: false, error: result.error });
+    }
+
+    res.status(200).json({ success: true, data: result.data });
+  } catch (error) {
+    console.error('❌ Erreur configuration webhook:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/ecom/v1/external/whatsapp/instances/:id/webhook
+ * @desc    Récupérer la config webhook actuelle d'une instance
+ * @access  Private
+ */
+router.get('/instances/:id/webhook', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.query;
+
+    if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
+
+    const instance = await WhatsAppInstance.findOne({ _id: id, userId });
+    if (!instance) return res.status(404).json({ success: false, error: 'Instance introuvable ou non autorisée' });
+
+    const result = await evolutionApiService.getWebhook(instance.instanceName, instance.instanceToken);
+    if (!result.success) {
+      return res.status(200).json({ success: false, data: null, error: result.error });
+    }
+
+    res.status(200).json({ success: true, data: result.data });
+  } catch (error) {
+    console.error('❌ Erreur récupération webhook:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/ecom/v1/external/whatsapp/activate
+ * @desc    Active ou désactive le webhook Evolution API sur l'instance sélectionnée (ou toutes si pas d'instanceId).
+ *          Appelé automatiquement quand Rita IA est activé/désactivé.
+ */
+router.post('/activate', async (req, res) => {
+  try {
+    const { userId, enabled, instanceId } = req.body;
+    if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
+
+    console.log(`\n🔧 ═══════════════════════════════════════════════════`);
+    console.log(`🔧 [ACTIVATE] userId=${userId} enabled=${enabled} instanceId=${instanceId || 'ALL'}`);
+
+    // Chercher l'instance spécifique OU toutes les instances actives
+    let instances;
+    if (instanceId) {
+      const inst = await WhatsAppInstance.findOne({ _id: instanceId, userId, isActive: true });
+      instances = inst ? [inst] : [];
+      console.log(`🔧 [ACTIVATE] Instance ciblée: ${inst ? inst.instanceName : 'INTROUVABLE (id=' + instanceId + ')'}`);  
+    } else {
+      instances = await WhatsAppInstance.find({ userId, isActive: true });
+      console.log(`🔧 [ACTIVATE] Toutes les instances: ${instances.map(i => i.instanceName).join(', ') || 'aucune'}`);
+    }
+
+    if (!instances.length) {
+      console.log(`⚠️ [ACTIVATE] Aucune instance trouvée`);
+      console.log(`🔧 ═══════════════════════════════════════════════════\n`);
+      return res.status(200).json({ success: true, message: 'Aucune instance à configurer', configured: 0, results: [] });
+    }
+
+    const webhookBaseUrl = resolveWebhookBaseUrl(req);
+    const webhookUrl = `${webhookBaseUrl}/api/ecom/v1/external/whatsapp/incoming`;
+    const events = ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'SEND_MESSAGE', 'CONNECTION_UPDATE', 'QRCODE_UPDATED'];
+    const isLocalWebhook = /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(webhookUrl);
+    console.log(`🔧 [ACTIVATE] Webhook URL: ${webhookUrl}`);
+    if (isLocalWebhook) {
+      console.log('⚠️ [ACTIVATE] Webhook local détecté. Evolution API doit pouvoir joindre cette machine (même réseau, tunnel ngrok/cloudflared, ou Evolution local).');
+    }
+    console.log(`🔧 [ACTIVATE] Events: ${events.join(', ')}`);
+
+    const results = await Promise.all(instances.map(async (inst) => {
+      try {
+        console.log(`📡 [ACTIVATE] Configuration webhook sur "${inst.instanceName}" (token: ${inst.instanceToken?.substring(0, 8)}...)`);
+        const result = await evolutionApiService.setWebhook(
+          inst.instanceName,
+          inst.instanceToken,
+          { enabled: !!enabled, url: webhookUrl, webhookByEvents: false, webhookBase64: false, events }
+        );
+        console.log(`${result.success ? '✅' : '❌'} [ACTIVATE] Webhook ${enabled ? 'activé' : 'désactivé'} sur ${inst.instanceName}`, result.success ? '' : result.error);
+        return { instanceName: inst.customName || inst.instanceName, instanceId: inst._id, success: result.success, error: result.error || null };
+      } catch (err) {
+        console.error(`❌ [ACTIVATE] Erreur pour ${inst.instanceName}:`, err.message);
+        return { instanceName: inst.customName || inst.instanceName, instanceId: inst._id, success: false, error: err.message };
+      }
+    }));
+
+    const configured = results.filter(r => r.success).length;
+    console.log(`📡 [ACTIVATE] Résultat: ${configured}/${instances.length} instances configurées (enabled=${enabled})`);
+
+    // Envoyer un message WhatsApp de confirmation au propriétaire si activation réussie
+    if (enabled && configured > 0) {
+      try {
+        const owner = await EcomUser.findById(userId).lean();
+        const ownerPhone = owner?.phone?.replace(/\D/g, '');
+        console.log(`📲 [ACTIVATE] Propriétaire: ${owner?.email || 'inconnu'}, téléphone: ${ownerPhone || 'NON RENSEIGNÉ'}`);
+        if (ownerPhone) {
+          const targetInst = instances[0];
+          const ritaConfig = await RitaConfig.findOne({ userId }).lean();
+          const agentName = ritaConfig?.agentName || 'Rita';
+          const confirmMsg = `✅ *${agentName} IA est maintenant active !*\n\n` +
+            `Instance: ${targetInst.customName || targetInst.instanceName}\n` +
+            `Envoyez un message ici pour tester la réponse automatique en temps réel.\n\n` +
+            `— ${agentName} 🤖`;
+          const sendResult = await evolutionApiService.sendMessage(targetInst.instanceName, targetInst.instanceToken, ownerPhone, confirmMsg);
+          console.log(`📲 [ACTIVATE] Message de confirmation envoyé à ${ownerPhone} via ${targetInst.instanceName}:`, sendResult.success ? '✅ OK' : `❌ ${sendResult.error}`);
+        } else {
+          console.log(`⚠️ [ACTIVATE] Pas de numéro de téléphone pour le propriétaire — message de confirmation non envoyé`);
+        }
+      } catch (confirmErr) {
+        console.warn('⚠️ [ACTIVATE] Impossible d\'envoyer le message de confirmation:', confirmErr.message);
+      }
+    }
+
+    console.log(`🔧 ═══════════════════════════════════════════════════\n`);
+    res.status(200).json({ success: true, configured, total: instances.length, results, webhookUrl, webhookBaseUrl });
+  } catch (error) {
+    console.error('❌ Erreur activation webhooks:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/ecom/v1/external/whatsapp/incoming
+ * @desc    Reçoit les événements entrants d'Evolution API (MESSAGES_UPSERT, CONNECTION_UPDATE, etc.)
+ *          Ce endpoint est configuré automatiquement comme webhook URL sur toutes les instances.
+ */
+router.post('/incoming', async (req, res) => {
+  // Répondre immédiatement (Evolution API n'attend pas plus de 5 secondes)
+  res.status(200).json({ success: true, received: true });
+
+  const { event, instance, data } = req.body;
+  if (!event) return;
+
+  console.log(`\n📩 ═══════════════════════════════════════════════════`);
+  console.log(`📩 [WH INCOMING] event=${event} instance=${instance}`);
+  console.log(`📩 [WH INCOMING] data keys: ${Object.keys(data || {}).join(', ')}`);
+
+  // Traitement asynchrone
+  setImmediate(async () => {
+    try {
+      if (event === 'MESSAGES_UPSERT') {
+        const messages = data?.messages || [];
+        console.log(`📩 [WH INCOMING] ${messages.length} message(s) reçu(s)`);
+
+        // Trouver l'instance WhatsApp correspondante pour récupérer le userId
+        const instanceDoc = instance
+          ? await WhatsAppInstance.findOne({ instanceName: instance, isActive: true }).lean()
+          : null;
+
+        if (instanceDoc) {
+          console.log(`📩 [WH INCOMING] Instance trouvée: ${instanceDoc.instanceName} (userId=${instanceDoc.userId})`);
+        }
+
+        for (const msg of messages) {
+          const fromMe = msg.key?.fromMe;
+          const from = msg.key?.remoteJid;
+          const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+
+          console.log(`📩 [WH INCOMING] Message — from=${from} fromMe=${fromMe} text="${(text || '').substring(0, 80)}"`);
+
+          if (fromMe) {
+            console.log(`⏩ [RITA] Message envoyé par le bot (fromMe=true), ignoré.`);
+            continue;
+          }
+          if (!from || !text) {
+            console.log(`⏩ [RITA] Message vide ou sans expéditeur, ignoré.`);
+            continue;
+          }
+
+          console.log(`💬 [RITA] ══════════════════════════════════════`);
+          console.log(`💬 [RITA] Message entrant de ${from}`);
+          console.log(`💬 [RITA] Contenu: "${text.substring(0, 200)}"`);
+
+          if (!instanceDoc) {
+            console.warn(`⚠️ [RITA] Instance "${instance}" introuvable en base, message ignoré.`);
+            continue;
+          }
+
+          const userId = instanceDoc.userId;
+          console.log(`💬 [RITA] Traitement pour userId=${userId}...`);
+
+          // Générer la réponse IA
+          const startTime = Date.now();
+          const reply = await processIncomingMessage(userId, from, text);
+          const elapsed = Date.now() - startTime;
+
+          if (!reply) {
+            console.log(`ℹ️ [RITA] Rita désactivée ou pas de réponse pour userId=${userId} (${elapsed}ms)`);
+            continue;
+          }
+
+          console.log(`🤖 [RITA] Réponse générée en ${elapsed}ms pour ${from}:`);
+          console.log(`🤖 [RITA] "${reply.substring(0, 200)}"`);
+
+          // Extraire le numéro propre depuis le JID WhatsApp (ex: 33612345678@s.whatsapp.net)
+          const cleanFrom = from.replace(/@.*$/, '');
+
+          // Envoyer la réponse via Evolution API
+          console.log(`📤 [RITA] Envoi réponse à ${cleanFrom} via ${instanceDoc.instanceName}...`);
+          const sendResult = await evolutionApiService.sendMessage(
+            instanceDoc.instanceName,
+            instanceDoc.instanceToken,
+            cleanFrom,
+            reply
+          );
+
+          if (sendResult.success) {
+            console.log(`✅ [RITA] Réponse envoyée avec succès à ${cleanFrom}`);
+          } else {
+            console.error(`❌ [RITA] Échec envoi réponse à ${cleanFrom}:`, sendResult.error);
+          }
+          console.log(`💬 [RITA] ══════════════════════════════════════`);
+        }
+      } else if (event === 'CONNECTION_UPDATE') {
+        console.log(`🔌 [WH] Connexion mise à jour — instance: ${instance}, état: ${JSON.stringify(data?.state)}`);
+      }
+      console.log(`📩 ═══════════════════════════════════════════════════\n`);
+    } catch (err) {
+      console.error('❌ [WH INCOMING] Erreur traitement:', err.message);
+      console.error(err.stack);
+    }
+  });
+});
+
+/**
  * @route   GET /api/ecom/v1/external/whatsapp/instances/:id/usage
  * @desc    Consulter la consommation de messages d'une instance
  * @access  Public (Sécurisé par userId)
@@ -522,6 +803,65 @@ router.get('/instances/:id/usage', async (req, res) => {
   } catch (error) {
     console.error('❌ Erreur récupération usage:', error.message);
     res.status(500).json({ success: false, error: "Erreur lors de la récupération des statistiques" });
+  }
+});
+
+/**
+ * @route   POST /api/ecom/v1/external/whatsapp/rita-config
+ * @desc    Sauvegarder la configuration Rita IA d'un utilisateur
+ */
+router.post('/rita-config', async (req, res) => {
+  try {
+    const { userId, config } = req.body;
+    if (!userId || !config) return res.status(400).json({ success: false, error: 'userId et config requis' });
+
+    const updated = await RitaConfig.findOneAndUpdate(
+      { userId },
+      { userId, ...config },
+      { upsert: true, new: true, runValidators: false }
+    );
+
+    res.status(200).json({ success: true, config: updated });
+  } catch (error) {
+    console.error('❌ Erreur sauvegarde rita-config:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/ecom/v1/external/whatsapp/rita-config
+ * @desc    Charger la configuration Rita IA d'un utilisateur
+ */
+router.get('/rita-config', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
+
+    const config = await RitaConfig.findOne({ userId }).lean();
+    res.status(200).json({ success: true, config: config || null });
+  } catch (error) {
+    console.error('❌ Erreur chargement rita-config:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/ecom/v1/external/whatsapp/test-chat
+ * @desc    Envoie un message au simulateur Rita et retourne la réponse IA (Groq)
+ */
+router.post('/test-chat', async (req, res) => {
+  try {
+    const { userId, messages } = req.body;
+    if (!userId || !messages) return res.status(400).json({ success: false, error: 'userId et messages requis' });
+
+    const config = await RitaConfig.findOne({ userId }).lean();
+    if (!config) return res.status(404).json({ success: false, error: 'Configuration Rita introuvable. Enregistrez d\'abord.' });
+
+    const reply = await generateTestReply(config, messages);
+    res.status(200).json({ success: true, reply });
+  } catch (error) {
+    console.error('❌ Erreur test-chat:', error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

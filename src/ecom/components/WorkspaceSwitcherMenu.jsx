@@ -62,15 +62,22 @@ const WorkspaceSwitcherMenu = ({ isSuperAdmin, onWorkspaceSwitch }) => {
       if (res.data.success) {
         const { token, user: nextUser, workspace: nextWs } = res.data.data;
         if (switchWorkspace) await switchWorkspace(token, nextUser, nextWs);
-        // Navigation propre sans reload
         const roleDashMap = {
           'super_admin': '/ecom/super-admin',
           'ecom_admin': '/ecom/dashboard/admin',
           'ecom_closeuse': '/ecom/dashboard/closeuse',
           'ecom_compta': '/ecom/dashboard/compta',
+          'ecom_livreur': '/ecom/livreur',
           'livreur': '/ecom/livreur'
         };
-        window.location.href = roleDashMap[nextUser?.role] || '/ecom/dashboard';
+        const target = roleDashMap[nextUser?.role] || '/ecom/dashboard';
+        if (window.location.pathname === target) {
+          window.location.reload();
+        } else {
+          window.location.href = target;
+        }
+      } else {
+        setSwitchingId(null);
       }
     } catch (err) {
       alert(err.response?.data?.message || 'Erreur lors du changement d\'espace');

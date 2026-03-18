@@ -224,6 +224,48 @@ class EvolutionApiService {
       return null;
     }
   }
+
+  /**
+   * Configure le webhook d'une instance
+   * POST /webhook/set/{instance}
+   */
+  async setWebhook(instanceName, instanceToken, { enabled, url, webhookByEvents = false, webhookBase64 = false, events }) {
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/webhook/set/${instanceName}`,
+        { webhook: { enabled, url, webhookByEvents, webhookBase64, events } },
+        {
+          headers: { 'Content-Type': 'application/json', 'apikey': instanceToken },
+          timeout: 15000
+        }
+      );
+      console.log(`✅ [Evolution API] Webhook configuré pour ${instanceName}`);
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error(`❌ Erreur Evolution API (setWebhook):`, error.response?.data || error.message);
+      return { success: false, error: error.response?.data?.message || error.message };
+    }
+  }
+
+  /**
+   * Récupère la config webhook d'une instance
+   * GET /webhook/find/{instance}
+   */
+  async getWebhook(instanceName, instanceToken) {
+    try {
+      const response = await axios.get(
+        `${this.baseUrl}/webhook/find/${instanceName}`,
+        {
+          headers: { 'apikey': instanceToken },
+          timeout: 15000
+        }
+      );
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error(`❌ Erreur Evolution API (getWebhook):`, error.response?.data || error.message);
+      return { success: false, error: error.response?.data?.message || error.message };
+    }
+  }
 }
 
 export default new EvolutionApiService();
