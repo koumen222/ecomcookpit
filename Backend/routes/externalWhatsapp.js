@@ -9,7 +9,7 @@ import WhatsAppOrder from '../models/WhatsAppOrder.js';
 import Order from '../models/Order.js';
 import { normalizePhone } from '../utils/phoneUtils.js';
 import evolutionApiService from '../services/evolutionApiService.js';
-import { processIncomingMessage, generateTestReply, transcribeAudio, textToSpeech } from '../services/ritaAgentService.js';
+import { processIncomingMessage, generateTestReply, transcribeAudio, textToSpeech, getLastAssistantMessage } from '../services/ritaAgentService.js';
 import { logRitaActivity } from '../services/ritaBossReportService.js';
 import { analyzeImage as analyzeProductImage } from '../services/agentImageService.js';
 
@@ -52,6 +52,31 @@ import { checkMessageLimit, incrementMessageCount, getInstanceUsage } from '../s
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 
 const router = express.Router();
+
+// ─── Escalades boss en attente: userId → [{ clientPhone, question, askedAt, instanceName, instanceToken }]
+// Queue FIFO : chaque réponse du boss est transmise au prochain client en attente.
+const pendingBossEscalations = new Map();
+
+function addPendingEscalation(userId, entry) {
+  if (!pendingBossEscalations.has(userId)) pendingBossEscalations.set(userId, []);
+  // Éviter les doublons pour le même client
+  const queue = pendingBossEscalations.get(userId).filter(e => e.clientPhone !== entry.clientPhone);
+  queue.push(entry);
+  pendingBossEscalations.set(userId, queue);
+}
+
+function shiftPendingEscalation(userId) {
+  const queue = pendingBossEscalations.get(userId) || [];
+  if (!queue.length) return null;
+  const next = queue.shift();
+  pendingBossEscalations.set(userId, queue);
+  return next;
+}
+
+function hasPendingEscalation(userId, clientPhone) {
+  const queue = pendingBossEscalations.get(userId) || [];
+  return queue.some(e => e.clientPhone === clientPhone);
+}
 
 /**
  * @route   GET /api/ecom/v1/external/whatsapp/
@@ -881,8 +906,54 @@ router.post('/incoming', async (req, res) => {
           const userId = instanceDoc.userId;
           console.log(`💬 [RITA] Traitement pour userId=${userId}...`);
 
+          // ─── Détecter si c'est le boss qui répond à une escalade ───
+          {
+            const ritaCfgEsc = await RitaConfig.findOne({ userId }).lean();
+            const bossRaw = (ritaCfgEsc?.bossPhone || '').replace(/\D/g, '');
+            const fromRaw  = from.replace(/@.*$/, '').replace(/\D/g, '');
+            if (bossRaw && fromRaw === bossRaw && ritaCfgEsc?.bossEscalationEnabled) {
+              const pending = shiftPendingEscalation(userId);
+              if (pending) {
+                console.log(`🤝 [BOSS] Réponse boss reçue → transmission au client ${pending.clientPhone}`);
+                const clientJid = `${pending.clientPhone}@s.whatsapp.net`;
+                await evolutionApiService.sendMessage(
+                  instanceDoc.instanceName,
+                  instanceDoc.instanceToken,
+                  clientJid,
+                  text
+                );
+                logRitaActivity(userId, 'message_replied', { customerPhone: pending.clientPhone, details: `[Boss reply] ${text.substring(0, 200)}` });
+                console.log(`✅ [BOSS] Réponse transmise au client ${pending.clientPhone}`);
+                continue; // Ne pas traiter ce message comme une conversation client
+              } else {
+                console.log(`ℹ️ [BOSS] Message du boss sans escalade en attente — traitement normal.`);
+              }
+            }
+          }
+
           // Log message reçu
           logRitaActivity(userId, 'message_received', { customerPhone: from.replace(/@.*$/, ''), customerName: pushName || '', details: text.substring(0, 200) });
+
+          // ─── Vérifier si ce client est en attente d'une réponse boss (escalade) ───
+          const cleanFromEarly = from.replace(/@.*$/, '');
+          if (hasPendingEscalation(userId, cleanFromEarly)) {
+            const escQueue = pendingBossEscalations.get(userId) || [];
+            const clientEsc = escQueue.find(e => e.clientPhone === cleanFromEarly);
+            const elapsedEscMin = clientEsc ? (Date.now() - clientEsc.askedAt) / 60000 : Infinity;
+            const timeoutMin = clientEsc?.timeoutMin || 30;
+            if (elapsedEscMin < timeoutMin) {
+              // Toujours en attente, timeout pas encore expiré
+              console.log(`⏳ [BOSS] Client ${cleanFromEarly} en attente de réponse boss (${Math.round(elapsedEscMin)} min / ${timeoutMin} min)`);
+              const waitMsg = `Je suis toujours en train de vérifier pour toi 🙏 Une petite patience, j'arrive !`;
+              await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFromEarly, waitMsg, 2, 1500);
+              continue;
+            } else {
+              // Timeout expiré → retirer l'escalade, laisser Rita improviser
+              console.log(`⏰ [BOSS] Timeout écoulé pour ${cleanFromEarly} — Rita improvise`);
+              const queue2 = (pendingBossEscalations.get(userId) || []).filter(e => e.clientPhone !== cleanFromEarly);
+              pendingBossEscalations.set(userId, queue2);
+            }
+          }
 
           // Générer la réponse IA
           const startTime = Date.now();
@@ -980,6 +1051,100 @@ router.post('/incoming', async (req, res) => {
             }
           }
 
+          // ─── Filet de sécurité image (code-level) ───
+          // Cas 1 : Rita a demandé "Tu veux voir l'image ?" sans envoyer le tag → on remplace par le tag
+          if (!replyClean.includes('[IMAGE:') && /tu veux voir l[a']? ?image|voir (la |une )?photo|je t'envoie (la |une )?image/i.test(replyClean)) {
+            try {
+              const ritaCfgSafeImg = await RitaConfig.findOne({ userId }).lean();
+              // Uniquement les produits qui ONT des images
+              const safeImgCatalog = (ritaCfgSafeImg?.productCatalog || []).filter(p => p.name && p.images?.length);
+              const safeImgMatched = safeImgCatalog.find(p => replyClean.toLowerCase().includes(p.name.toLowerCase()))
+                || safeImgCatalog.find(p => p.name.toLowerCase().split(/\s+/).filter(t => t.length > 3).every(t => replyClean.toLowerCase().includes(t)));
+              if (safeImgMatched) {
+                // Supprimer la question et injecter le tag directement
+                replyClean = replyClean
+                  .replace(/[,.]?\s*Tu veux voir l[a']? ?image\s*[?!]?/gi, '')
+                  .replace(/[,.]?\s*Tu veux voir (la |une )?photo\s*[?!]?/gi, '')
+                  .trim();
+                replyClean += ` [IMAGE:${safeImgMatched.name}]`;
+                console.log(`🔧 [RITA] Filet sécurité: question image remplacée par tag [IMAGE:${safeImgMatched.name}]`);
+              } else {
+                // Produit trouvé mais sans image → remplacer la question par un message clair
+                replyClean = replyClean
+                  .replace(/[,.]?\s*Tu veux voir l[a']? ?image\s*[?!]?/gi, '')
+                  .replace(/[,.]?\s*Tu veux voir (la |une )?photo\s*[?!]?/gi, '')
+                  .trim();
+                replyClean += `\n\nDésolé, on n'a pas encore la photo de ce produit 🙏`;
+                console.log(`🔧 [RITA] Filet sécurité: pas d'image disponible pour ce produit`);
+              }
+            } catch (safeImgErr) { console.error('❌ [RITA] Filet image cas 1:', safeImgErr.message); }
+          }
+          // Cas 2 : Client répond "oui" à une question d'image → forcer l'envoi
+          const isAffirmative = /^(oui|yes|ok|ouais|yep|d'accord|dac|oki|okay|y|si|sure|yeah|mh|mhm)[\s!.]*$/i.test(text.trim());
+          if (isAffirmative && !replyClean.includes('[IMAGE:')) {
+            try {
+              const lastBot = getLastAssistantMessage(userId, from);
+              if (lastBot && /image|photo|voir/i.test(lastBot)) {
+                const ritaCfgSafeImg2 = await RitaConfig.findOne({ userId }).lean();
+                // Uniquement les produits qui ONT des images
+                const safeImgCatalog2 = (ritaCfgSafeImg2?.productCatalog || []).filter(p => p.name && p.images?.length);
+                const safeImgMatched2 = safeImgCatalog2.find(p => lastBot.toLowerCase().includes(p.name.toLowerCase()))
+                  || safeImgCatalog2.find(p => p.name.toLowerCase().split(/\s+/).filter(t => t.length > 3).every(t => lastBot.toLowerCase().includes(t)));
+                if (safeImgMatched2) {
+                  replyClean = replyClean.replace(/[,.]?\s*Tu veux voir l[a']? ?image\s*[?!]?/gi, '').trim();
+                  replyClean += ` [IMAGE:${safeImgMatched2.name}]`;
+                  console.log(`🔧 [RITA] Filet sécurité: "oui" → image injectée [IMAGE:${safeImgMatched2.name}]`);
+                } else {
+                  // Produit trouvé dans le dernier message mais sans image
+                  const allProducts2 = (ritaCfgSafeImg2?.productCatalog || []).filter(p => p.name);
+                  const noImgProduct = allProducts2.find(p => lastBot.toLowerCase().includes(p.name.toLowerCase()));
+                  if (noImgProduct) {
+                    replyClean += `\n\nDésolé, on n'a pas encore la photo de ce produit 🙏`;
+                    console.log(`🔧 [RITA] Filet sécurité: pas d'image pour ${noImgProduct.name}`);
+                  }
+                }
+              }
+            } catch (safeImgErr2) { console.error('❌ [RITA] Filet image cas 2:', safeImgErr2.message); }
+          }
+
+          // ─── Détecter tag [ASK_BOSS:question] pour escalade boss ───
+          const askBossMatch = replyClean.match(/\[ASK_BOSS:(.+?)\]/);
+          if (askBossMatch) {
+            replyClean = replyClean.replace(/\s*\[ASK_BOSS:.+?\]/g, '').trim();
+            try {
+              const ritaCfgEsc2 = await RitaConfig.findOne({ userId }).lean();
+              if (ritaCfgEsc2?.bossEscalationEnabled && ritaCfgEsc2?.bossPhone) {
+                const question = askBossMatch[1].trim();
+                const bossPhone = ritaCfgEsc2.bossPhone.replace(/\D/g, '');
+                const currentCleanFrom = from.replace(/@.*$/, '');
+                const timeoutMin = ritaCfgEsc2.bossEscalationTimeoutMin || 30;
+                // Stocker l'escalade
+                addPendingEscalation(userId, {
+                  clientPhone: currentCleanFrom,
+                  question,
+                  askedAt: Date.now(),
+                  timeoutMin,
+                  instanceName: instanceDoc.instanceName,
+                  instanceToken: instanceDoc.instanceToken,
+                });
+                // Notifier le boss
+                const bossMsg = `❓ *Question client sans réponse — Rita*\n\n📱 Client: ${currentCleanFrom}\n❓ Question: ${question}\n\nRéponds à ce message pour que Rita transmette ta réponse automatiquement au client.\n_(Si pas de réponse dans ${timeoutMin} min, Rita improvisera.)_`;
+                await evolutionApiService.sendMessage(
+                  instanceDoc.instanceName,
+                  instanceDoc.instanceToken,
+                  bossPhone,
+                  bossMsg
+                );
+                console.log(`🤝 [BOSS] Escalade envoyée au boss (${bossPhone}) pour client ${currentCleanFrom}: ${question}`);
+                logRitaActivity(userId, 'escalation', { customerPhone: currentCleanFrom, details: question });
+              } else {
+                console.log(`ℹ️ [BOSS] Escalade détectée mais bossEscalationEnabled=false ou bossPhone absent — Rita répond normalement`);
+              }
+            } catch (escErr) {
+              console.error(`❌ [BOSS] Erreur escalade:`, escErr.message);
+            }
+          }
+
           // ─── Détecter tag [IMAGE:Nom du produit] pour envoi de photos ───
           const imageTagMatch = replyClean.match(/\[IMAGE:(.+?)\]/);
           // ─── Détecter tag [VIDEO:Nom du produit] pour envoi de vidéos ───
@@ -1015,10 +1180,11 @@ router.post('/incoming', async (req, res) => {
               console.log(`📸 [RITA] Image trouvée: ${imageUrl}`);
             } else {
               console.log(`📸 [RITA] Aucune image trouvée pour "${imageProductName}" — envoi message client`);
+              const noImgMsg = `Désolé, on n'a pas encore la photo de ce produit 🙏 Mais je peux te donner tous les détails !`;
               if (!textToSend) {
-                textToSend = `L'image de ce produit ne nous a pas encore été fournie 🙏 Mais je peux vous donner tous les détails !`;
+                textToSend = noImgMsg;
               } else {
-                textToSend += `\n\n_(L'image de ce produit ne nous a pas encore été fournie 🙏)_`;
+                textToSend += `\n\n${noImgMsg}`;
               }
             }
           }
@@ -1157,8 +1323,16 @@ router.post('/incoming', async (req, res) => {
             );
             if (mediaResult.success) {
               console.log(`✅ [RITA] Image envoyée avec succès à ${cleanFrom}`);
+              logRitaActivity(userId, 'image_sent', { customerPhone: cleanFrom });
             } else {
               console.error(`❌ [RITA] Échec envoi image à ${cleanFrom}:`, mediaResult.error);
+              // Informer le client que l'image n'a pas pu être envoyée
+              await evolutionApiService.sendMessage(
+                instanceDoc.instanceName,
+                instanceDoc.instanceToken,
+                cleanFrom,
+                `Désolé, je n'arrive pas à envoyer la photo en ce moment 🙏 Mais le produit est bien disponible, tu veux qu'on te le réserve ?`
+              );
             }
 
             // ─── RELANCE après image: proposer achat avec prix ───

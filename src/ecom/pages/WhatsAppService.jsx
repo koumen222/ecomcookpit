@@ -913,6 +913,9 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
     notifyOnScheduled: true,
     dailySummary: true,
     dailySummaryTime: '20:00',
+    // Escalade boss
+    bossEscalationEnabled: false,
+    bossEscalationTimeoutMin: 30,
   });
 
   const [simMessages, setSimMessages] = useState([]);
@@ -1385,6 +1388,19 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                       className="field-input" />
                   </Field>
                 )}
+                <div className="pt-2 border-t border-gray-100 space-y-2">
+                  <p className="text-[12px] font-bold text-gray-700 flex items-center gap-1.5">🤝 Escalade — questions sans réponse</p>
+                  <ToggleRow enabled={config.bossEscalationEnabled} onChange={v => set('bossEscalationEnabled', v)}
+                    label="Demander au boss si Rita ne sait pas"
+                    desc="Quand Rita n'a pas de réponse précise, elle alerte le boss. Sa réponse est renvoyée automatiquement au client." />
+                  {config.bossEscalationEnabled && (
+                    <Field label="Délai avant que Rita improvise (minutes)" hint="Si le boss ne répond pas dans ce délai, Rita improvise">
+                      <input type="number" min={5} max={120} value={config.bossEscalationTimeoutMin || 30}
+                        onChange={e => set('bossEscalationTimeoutMin', Math.max(5, parseInt(e.target.value) || 30))}
+                        className="field-input w-28" />
+                    </Field>
+                  )}
+                </div>
                 <div className="px-4 py-3 bg-purple-50 border border-purple-100 rounded-lg">
                   <p className="text-[12px] text-purple-700">
                     📱 Rita enverra les notifications via la même instance WhatsApp connectée. Assurez-vous que le numéro du boss est correct.

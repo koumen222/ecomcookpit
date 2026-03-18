@@ -87,6 +87,10 @@ const ritaConfigSchema = new mongoose.Schema({
   bossNotifications: { type: Boolean, default: false },
   bossPhone: { type: String, default: '' },
   notifyOnOrder: { type: Boolean, default: true },
+
+  // 🤝 Escalade boss (question sans réponse → demander au boss)
+  bossEscalationEnabled: { type: Boolean, default: false },
+  bossEscalationTimeoutMin: { type: Number, default: 30 },
   notifyOnScheduled: { type: Boolean, default: true },
   dailySummary: { type: Boolean, default: true },
   dailySummaryTime: { type: String, default: '20:00' },
