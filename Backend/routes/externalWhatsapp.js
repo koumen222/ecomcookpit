@@ -913,14 +913,13 @@ router.post('/incoming', async (req, res) => {
           const responseMode = ritaCfgVoice?.responseMode || (ritaCfgVoice?.voiceMode ? 'voice' : 'text');
           const canDoVoice = !!(effectiveApiKey && textToSend);
 
-          // En mode "both", on ALTERNE entre texte et vocal à chaque message
-          // Compteur par conversation (userId:from) stocké en mémoire
+          // En mode "both" : vocal uniquement si la réponse est longue (explication détaillée / mise en confiance)
+          // Seuil : ≥ 120 caractères ou ≥ 2 phrases → vocal pour rassurer, convaincre, expliquer
           let useVoiceThisTurn = false;
-          if (responseMode === 'both' && canDoVoice) {
-            const altKey = `alt:${userId}:${cleanFrom}`;
-            const count = (global.__ritaAltCounter || (global.__ritaAltCounter = new Map())).get(altKey) || 0;
-            useVoiceThisTurn = count % 3 !== 0; // 1 texte, puis 2 vocaux, en boucle
-            global.__ritaAltCounter.set(altKey, count + 1);
+          if (responseMode === 'both' && canDoVoice && textToSend) {
+            const charCount = textToSend.length;
+            const sentenceCount = (textToSend.match(/[.!?…]+/g) || []).length;
+            useVoiceThisTurn = charCount >= 120 || sentenceCount >= 2;
           }
           const sendText  = responseMode === 'text' || (responseMode === 'both' && !useVoiceThisTurn);
           const sendVoice = responseMode === 'voice' || (responseMode === 'both' && useVoiceThisTurn);

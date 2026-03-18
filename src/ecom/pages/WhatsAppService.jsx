@@ -617,6 +617,9 @@ const RitaIATab = ({ instances }) => {
   const [newKw, setNewKw] = useState('');
   const [newQuestion, setNewQuestion] = useState('');
   const [editingProduct, setEditingProduct] = useState(null); // index or null
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+  const [bulkImportResult, setBulkImportResult] = useState(null);
   const [newMannerism, setNewMannerism] = useState('');
   const [newForbidden, setNewForbidden] = useState('');
   const [previewingVoice, setPreviewingVoice] = useState(null); // voiceId en cours de preview
@@ -708,6 +711,30 @@ const RitaIATab = ({ instances }) => {
     const newP = { name: '', price: '', description: '', category: '', images: [], features: [], faq: [], objections: [], inStock: true };
     set('productCatalog', [...config.productCatalog, newP]);
     setEditingProduct(config.productCatalog.length);
+  };
+
+  const parseBulkProducts = () => {
+    const lines = bulkText.split('\n').map(l => l.trim()).filter(Boolean);
+    const parsed = [];
+    for (const line of lines) {
+      // Supporte séparateurs : | ; , (tab)
+      const sep = line.includes('|') ? '|' : line.includes(';') ? ';' : line.includes('\t') ? '\t' : ',';
+      const parts = line.split(sep).map(p => p.trim());
+      const name = parts[0] || '';
+      if (!name) continue;
+      parsed.push({
+        name,
+        price: parts[1] || '',
+        category: parts[2] || '',
+        description: parts[3] || '',
+        images: [], features: [], faq: [], objections: [], inStock: true,
+      });
+    }
+    if (!parsed.length) return;
+    set('productCatalog', [...config.productCatalog, ...parsed]);
+    setBulkImportResult(parsed.length);
+    setBulkText('');
+    setTimeout(() => { setBulkImportResult(null); setShowBulkImport(false); }, 2000);
   };
   const updateProduct = (idx, field, val) => {
     const updated = config.productCatalog.map((p, i) => i === idx ? { ...p, [field]: val } : p);
@@ -1268,10 +1295,49 @@ const RitaIATab = ({ instances }) => {
                   </div>
                 ))}
 
-                <button onClick={addProduct}
-                  className="w-full py-3 border-2 border-dashed border-purple-200 rounded-xl text-[13px] font-semibold text-purple-600 hover:bg-purple-50 hover:border-purple-300 transition-all flex items-center justify-center gap-2">
-                  <Plus className="w-4 h-4" /> Ajouter un produit
-                </button>
+                {/* ── Import en masse ── */}
+                {showBulkImport && (
+                  <div className="border-2 border-dashed border-emerald-300 rounded-xl p-4 bg-emerald-50 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-[13px] font-bold text-emerald-800">📋 Import en masse</p>
+                        <p className="text-[11px] text-emerald-600 mt-0.5">Une ligne = un produit. Format : <strong>Nom | Prix | Catégorie | Description</strong></p>
+                        <p className="text-[10px] text-emerald-500 mt-0.5">Séparateurs acceptés : | ; , ou tabulation. Seul le Nom est obligatoire.</p>
+                      </div>
+                      <button onClick={() => setShowBulkImport(false)} className="text-emerald-400 hover:text-emerald-700 text-lg leading-none flex-shrink-0">×</button>
+                    </div>
+                    <textarea
+                      value={bulkText}
+                      onChange={e => setBulkText(e.target.value)}
+                      rows={8}
+                      placeholder={`Sérum Éclat | 15000 FCFA | Soins visage | Anti-taches, résultats en 2 semaines\nCrème Hydratante | 8000 FCFA | Soins corps | Hydratation 24h\nHuile de Baobab | 12000 FCFA | Cheveux\nSavon Karité | 3500 FCFA | Savons\n...`}
+                      className="w-full text-[12px] font-mono border border-emerald-200 rounded-lg p-3 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                      style={{ resize: 'vertical' }}
+                    />
+                    <div className="flex items-center gap-3">
+                      <button onClick={parseBulkProducts}
+                        disabled={!bulkText.trim()}
+                        className="flex-1 py-2 rounded-lg text-[13px] font-bold text-white transition-all disabled:opacity-40"
+                        style={{ background: '#059669' }}>
+                        {bulkImportResult ? `✅ ${bulkImportResult} produit${bulkImportResult > 1 ? 's' : ''} importé${bulkImportResult > 1 ? 's' : ''} !` : `Importer ${bulkText.trim() ? bulkText.split('\n').filter(l => l.trim()).length : 0} produit(s)`}
+                      </button>
+                      <button onClick={() => setBulkText('')} className="px-3 py-2 text-[11px] text-gray-400 hover:text-red-500">Vider</button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <button onClick={addProduct}
+                    className="flex-1 py-3 border-2 border-dashed border-purple-200 rounded-xl text-[13px] font-semibold text-purple-600 hover:bg-purple-50 hover:border-purple-300 transition-all flex items-center justify-center gap-2">
+                    <Plus className="w-4 h-4" /> Ajouter un produit
+                  </button>
+                  <button onClick={() => setShowBulkImport(v => !v)}
+                    className={`px-4 py-3 border-2 border-dashed rounded-xl text-[13px] font-semibold transition-all flex items-center gap-2 flex-shrink-0 ${
+                      showBulkImport ? 'border-emerald-400 bg-emerald-50 text-emerald-700' : 'border-gray-200 text-gray-500 hover:border-emerald-300 hover:text-emerald-600'
+                    }`}>
+                    📋 Import liste
+                  </button>
+                </div>
               </div>
             )}
 
@@ -1528,7 +1594,7 @@ const RitaIATab = ({ instances }) => {
                     {[
                       { value: 'text', icon: '💬', label: 'Texte', desc: 'Messages écrits uniquement' },
                       { value: 'voice', icon: '🎙️', label: 'Vocal', desc: 'Notes audio uniquement' },
-                      { value: 'both', icon: '💬🎙️', label: 'Mixte', desc: 'Alterne texte et vocal' },
+                      { value: 'both', icon: '💬🎙️', label: 'Mixte', desc: 'Vocal pour les longues explications' },
                     ].map(m => (
                       <button key={m.value} type="button"
                         onClick={() => { set('responseMode', m.value); set('voiceMode', m.value !== 'text'); }}
@@ -1546,7 +1612,7 @@ const RitaIATab = ({ instances }) => {
                   {(config.responseMode === 'both') && (
                     <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg mt-2">
                       <span className="text-emerald-500 text-sm">✅</span>
-                      <p className="text-[11px] text-emerald-700">Rita <strong>alterne automatiquement</strong> entre texte et vocal au fil de la conversation. Plus naturel et humain — comme une vraie vendeuse.</p>
+                    <p className="text-[11px] text-emerald-700">Rita envoie un <strong>vocal</strong> quand la réponse est longue (explication, mise en confiance, présentation produit) et un <strong>texte</strong> pour les réponses courtes. Naturel et stratégique.</p>
                     </div>
                   )}
                   {(config.responseMode === 'voice') && (
