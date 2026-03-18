@@ -3,17 +3,13 @@ nixPkgs = ["nodejs_22"]
 
 [phases.install]
 cmds = [
-  # Install frontend dependencies
   "npm ci",
-  # Install backend dependencies (include dev for prisma generate)
   "cd Backend && npm ci --include=dev"
 ]
 
 [phases.build]
 cmds = [
-  # Build React frontend (Vite → dist/)
   "npm run build",
-  # Copy frontend build to Backend/client/build for storefront serving
   "mkdir -p Backend/client/build",
   "cp -r dist/* Backend/client/build/"
 ]
