@@ -74,6 +74,14 @@ const ritaConfigSchema = new mongoose.Schema({
   closingTechnique: { type: String, default: 'soft' },
   objectionsHandling: { type: String, default: '' },
 
+  // 🎙️ Réponses vocales
+  // responseMode: 'text' | 'voice' | 'both'
+  responseMode: { type: String, enum: ['text', 'voice', 'both'], default: 'text' },
+  voiceMode: { type: Boolean, default: false }, // legacy compat
+  elevenlabsApiKey: { type: String, default: '' },
+  elevenlabsVoiceId: { type: String, default: 'cgSgspJ2msm6clMCkdW9' }, // Jessica (FR multilingual)
+  elevenlabsModel: { type: String, default: 'eleven_v3' }, // Eleven v3 — meilleur modèle (70+ langues)
+
   // Disponibilité
   businessHoursOnly: { type: Boolean, default: false },
   businessHoursStart: { type: String, default: '09:00' },

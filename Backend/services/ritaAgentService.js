@@ -1,4 +1,5 @@
 import Groq from 'groq-sdk';
+import axios from 'axios';
 import RitaConfig from '../models/RitaConfig.js';
 import { Readable } from 'stream';
 
@@ -41,6 +42,57 @@ export async function transcribeAudio(base64, mimetype = 'audio/ogg') {
     return text || null;
   } catch (err) {
     console.error(`❌ [WHISPER] Erreur transcription:`, err.message);
+    return null;
+  }
+}
+
+/**
+ * Supprime les emojis du texte avant envoi TTS (ils ne s'entendent pas)
+ */
+function stripForTTS(text) {
+  return text
+    .replace(/[IMAGE:[^\]]+\]/g, '')
+    .replace(/[ORDER_DATA:[^\]]+\]/g, '')
+    .replace(/[\u{1F000}-\u{1FFFF}]|[\u{2600}-\u{27FF}]|\u{FE0F}/gu, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+/**
+ * Convertit un texte en audio via ElevenLabs TTS
+ * @param {string} text - Texte à lire
+ * @param {object} config - Config Rita (elevenlabsApiKey, elevenlabsVoiceId)
+ * @returns {Promise<Buffer|null>} - Buffer MP3 ou null si erreur
+ */
+export async function textToSpeech(text, config) {
+  const apiKey = config?.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY;
+  const voiceId = config?.elevenlabsVoiceId || 'cgSgspJ2msm6clMCkdW9';
+  if (!apiKey || !text?.trim()) return null;
+
+  const clean = stripForTTS(text);
+  if (!clean) return null;
+
+  try {
+    console.log(`🎙️ [TTS] Génération vocale pour: "${clean.substring(0, 80)}..."`);
+    const modelId = config?.elevenlabsModel || 'eleven_v3';
+    const response = await axios.post(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      {
+        text: clean,
+        model_id: modelId,
+        voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.4, use_speaker_boost: true },
+      },
+      {
+        headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
+        responseType: 'arraybuffer',
+        timeout: 30000,
+      }
+    );
+    console.log(`🎙️ [TTS] Audio généré (${response.data.byteLength} bytes)`);
+    return Buffer.from(response.data);
+  } catch (err) {
+    const detail = err.response?.data ? Buffer.from(err.response.data).toString('utf8') : err.message;
+    console.error(`❌ [TTS] Erreur ElevenLabs:`, detail?.substring(0, 300));
     return null;
   }
 }

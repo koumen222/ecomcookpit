@@ -545,6 +545,7 @@ const RITA_SECTIONS = [
   { id: 'personality',  label: 'Personnalité',  emoji: '🎭' },
   { id: 'sales',        label: 'Vente',         emoji: '💰' },
   { id: 'availability', label: 'Dispo',         emoji: '⏰' },
+  { id: 'voice',        label: 'Vocal',         emoji: '🎙️' },
 ];
 
 const AUTONOMY_LEVELS = [
@@ -601,6 +602,12 @@ const RitaIATab = ({ instances }) => {
     personality: { description: '', mannerisms: [], forbiddenPhrases: [], tonalGuidelines: '' },
     conversationExamples: [],
     behaviorRules: [],
+    // Vocal
+    responseMode: 'text',
+    voiceMode: false,
+    elevenlabsApiKey: '',
+    elevenlabsVoiceId: 'cgSgspJ2msm6clMCkdW9',
+    elevenlabsModel: 'eleven_v3',
   });
 
   const [simMessages, setSimMessages] = useState([]);
@@ -1492,6 +1499,131 @@ const RitaIATab = ({ instances }) => {
             )}
 
             {/* Disponibilité */}
+            {activeSection === 'voice' && (
+              <div className="space-y-5">
+                {/* Mode de réponse: text / voice / both */}
+                <div className="p-4 bg-purple-50 border border-purple-100 rounded-xl space-y-3">
+                  <p className="text-[14px] font-bold text-gray-900">🎚️ Mode de réponse</p>
+                  <p className="text-[12px] text-gray-500">Choisissez comment Rita répond aux clients sur WhatsApp</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { value: 'text', icon: '💬', label: 'Texte', desc: 'Messages écrits uniquement' },
+                      { value: 'voice', icon: '🎙️', label: 'Vocal', desc: 'Notes audio uniquement' },
+                      { value: 'both', icon: '💬🎙️', label: 'Les deux', desc: 'Texte + note audio' },
+                    ].map(m => (
+                      <button key={m.value} type="button"
+                        onClick={() => { set('responseMode', m.value); set('voiceMode', m.value !== 'text'); }}
+                        className={`flex flex-col items-center gap-1.5 px-3 py-4 rounded-xl border-2 transition-all ${
+                          (config.responseMode || 'text') === m.value
+                            ? 'border-purple-500 bg-purple-100 shadow-sm'
+                            : 'border-gray-200 bg-white hover:border-gray-300'
+                        }`}>
+                        <span className="text-2xl">{m.icon}</span>
+                        <p className={`text-[13px] font-bold ${(config.responseMode || 'text') === m.value ? 'text-purple-700' : 'text-gray-700'}`}>{m.label}</p>
+                        <p className="text-[10px] text-gray-400 text-center leading-tight">{m.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                  {(config.responseMode === 'both') && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg mt-2">
+                      <span className="text-emerald-500 text-sm">✅</span>
+                      <p className="text-[11px] text-emerald-700">Le client recevra le texte écrit <strong>suivi d'une note audio</strong> du même message. Idéal pour l'accessibilité.</p>
+                    </div>
+                  )}
+                  {(config.responseMode === 'voice') && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg mt-2">
+                      <span className="text-amber-500 text-sm">⚠️</span>
+                      <p className="text-[11px] text-amber-700">En mode vocal seul, si la génération audio échoue, Rita basculera automatiquement en texte.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* ElevenLabs config */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg">
+                    <span className="text-blue-500 text-sm">&#9432;</span>
+                    <p className="text-xs text-blue-700">
+                      Propulsé par{' '}
+                      <a href="https://elevenlabs.io" target="_blank" rel="noopener noreferrer" className="font-semibold underline">ElevenLabs</a>
+                      {' '}  &mdash; 10 000 caractères/mois gratuits. Créez un compte et copiez votre clé API.
+                    </p>
+                  </div>
+
+                  <Field label="Clé API ElevenLabs" hint="obligatoire pour le mode vocal">
+                    <input
+                      type="password"
+                      value={config.elevenlabsApiKey}
+                      onChange={e => set('elevenlabsApiKey', e.target.value)}
+                      placeholder="sk_..."
+                      className="field-input font-mono"
+                    />
+                  </Field>
+
+                  <Field label="Modèle TTS" hint="eleven_v3 recommandé — 70+ langues dont français, arabe, wolof…">
+                    <select
+                      value={config.elevenlabsModel || 'eleven_v3'}
+                      onChange={e => set('elevenlabsModel', e.target.value)}
+                      className="field-input">
+                      <option value="eleven_v3">Eleven v3 ⭐ (meilleur · 70+ langues · émotions)</option>
+                      <option value="eleven_flash_v2_5">Eleven Flash v2.5 (rapide · 32 langues)</option>
+                      <option value="eleven_multilingual_v2">Eleven Multilingual v2 (classique)</option>
+                    </select>
+                  </Field>
+
+                  <Field label="Voice ID" hint="optionnel — coller un ID depuis ElevenLabs">
+                    <input
+                      type="text"
+                      value={config.elevenlabsVoiceId}
+                      onChange={e => set('elevenlabsVoiceId', e.target.value)}
+                      placeholder="cgSgspJ2msm6clMCkdW9"
+                      className="field-input font-mono"
+                    />
+                  </Field>
+
+                  {/* Voix présélectionnées */}
+                  <div>
+                    <p className="text-[12px] font-medium text-gray-500 mb-2">Voix recommandées — marché Afrique francophone (cliquer pour sélectionner)</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {[
+                        { id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica', desc: 'Femme · FR · Naturel — 🇨🇲🇨🇮🇸🇳' },
+                        { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', desc: 'Femme · FR/EN · Doux — 🇨🇲🇲🇦' },
+                        { id: 'XB0fDUnXU5powFXDhCwa', name: 'Charlotte', desc: 'Femme · Multilingual · Chaleureux' },
+                        { id: 'jBpfuIE2acCO8z3wKNLl', name: 'Gigi', desc: 'Femme · FR · Dynamique — 🇨🇮🇧🇯' },
+                        { id: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel', desc: 'Homme · FR · Posé — 🇨🇲🇬🇦' },
+                        { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam', desc: 'Homme · Multilingual · Pro' },
+                      ].map(v => (
+                        <button key={v.id} type="button"
+                          onClick={() => set('elevenlabsVoiceId', v.id)}
+                          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors ${
+                            config.elevenlabsVoiceId === v.id
+                              ? 'border-purple-400 bg-purple-50'
+                              : 'border-gray-200 bg-white hover:border-gray-300'
+                          }`}>
+                          <span className="text-lg">🎙️</span>
+                          <div>
+                            <p className={`text-[13px] font-semibold ${
+                              config.elevenlabsVoiceId === v.id ? 'text-purple-700' : 'text-gray-800'
+                            }`}>{v.name}</p>
+                            <p className="text-[11px] text-gray-400">{v.desc}</p>
+                          </div>
+                          {config.elevenlabsVoiceId === v.id && (
+                            <CheckCircle className="w-4 h-4 text-purple-500 ml-auto" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="px-4 py-3 bg-amber-50 border border-amber-100 rounded-lg">
+                    <p className="text-[12px] text-amber-700">
+                      ⚠️ En mode vocal, Rita envoie une <strong>note audio</strong> et ne répond plus en texte.
+                      Si la génération échoue, elle bascule automatiquement en texte.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {activeSection === 'availability' && (
               <div className="space-y-4">
                 <ToggleRow enabled={config.businessHoursOnly} onChange={v => set('businessHoursOnly', v)}

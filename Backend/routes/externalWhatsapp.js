@@ -7,7 +7,7 @@ import EcomUser from '../models/EcomUser.js';
 import RitaConfig from '../models/RitaConfig.js';
 import WhatsAppOrder from '../models/WhatsAppOrder.js';
 import evolutionApiService from '../services/evolutionApiService.js';
-import { processIncomingMessage, generateTestReply, transcribeAudio } from '../services/ritaAgentService.js';
+import { processIncomingMessage, generateTestReply, transcribeAudio, textToSpeech } from '../services/ritaAgentService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -904,8 +904,21 @@ router.post('/incoming', async (req, res) => {
             }
           }
 
-          // Envoyer le texte d'abord
-          if (textToSend) {
+          // ─── Déterminer le mode de réponse ───
+          const ritaCfgVoice = await RitaConfig.findOne({ userId }).lean();
+          // Utiliser la clé API de la config Rita OU celle du .env en fallback
+          const effectiveApiKey = ritaCfgVoice?.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY || '';
+          const ttsConfig = { ...ritaCfgVoice, elevenlabsApiKey: effectiveApiKey };
+          // responseMode: 'text' | 'voice' | 'both'. Legacy compat: voiceMode=true → 'voice'
+          const responseMode = ritaCfgVoice?.responseMode || (ritaCfgVoice?.voiceMode ? 'voice' : 'text');
+          const canDoVoice = !!(effectiveApiKey && textToSend);
+          const sendText  = responseMode === 'text'  || responseMode === 'both';
+          const sendVoice = (responseMode === 'voice' || responseMode === 'both') && canDoVoice;
+
+          console.log(`🎚️ [RITA] Mode réponse: ${responseMode} | texte:${sendText} vocal:${sendVoice} apiKey:${effectiveApiKey ? 'oui' : 'non'}`);
+
+          // ── 1. Envoyer le texte si nécessaire ──
+          if (textToSend && sendText) {
             console.log(`📤 [RITA] Envoi réponse texte à ${cleanFrom} via ${instanceDoc.instanceName}...`);
             const sendResult = await evolutionApiService.sendMessage(
               instanceDoc.instanceName,
@@ -917,6 +930,43 @@ router.post('/incoming', async (req, res) => {
               console.log(`✅ [RITA] Réponse texte envoyée avec succès à ${cleanFrom}`);
             } else {
               console.error(`❌ [RITA] Échec envoi texte à ${cleanFrom}:`, sendResult.error);
+            }
+          }
+
+          // ── 2. Envoyer la note vocale si nécessaire ──
+          if (textToSend && sendVoice) {
+            console.log(`🎙️ [RITA] Génération TTS (${responseMode})...`);
+            try {
+              const audioBuffer = await textToSpeech(textToSend, ttsConfig);
+              if (audioBuffer) {
+                const audioBase64 = audioBuffer.toString('base64');
+                const audioResult = await evolutionApiService.sendAudio(
+                  instanceDoc.instanceName,
+                  instanceDoc.instanceToken,
+                  cleanFrom,
+                  `data:audio/mpeg;base64,${audioBase64}`
+                );
+                if (audioResult.success) {
+                  console.log(`✅ [RITA] Note vocale envoyée avec succès à ${cleanFrom}`);
+                } else {
+                  console.error(`❌ [RITA] Échec envoi vocal:`, audioResult.error);
+                  // Fallback texte uniquement si on n'a pas déjà envoyé le texte
+                  if (!sendText) {
+                    console.warn(`⚠️ [RITA] Fallback texte (vocal échoué)`);
+                    await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
+                  }
+                }
+              } else {
+                if (!sendText) {
+                  console.warn(`⚠️ [RITA] TTS null, fallback texte`);
+                  await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
+                }
+              }
+            } catch (ttsErr) {
+              console.error(`❌ [RITA] Erreur TTS:`, ttsErr.message);
+              if (!sendText) {
+                await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
+              }
             }
           }
 
