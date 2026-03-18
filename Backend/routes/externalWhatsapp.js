@@ -996,8 +996,8 @@ router.post('/incoming', async (req, res) => {
           }
 
           console.log(`🤖 [RITA] Réponse générée en ${elapsed}ms pour ${from}:`);
-          console.log(`🤖 [RITA] "${reply.substring(0, 200)}"`);
-
+          console.log(`🤖 [RITA] "${reply.substring(0, 300)}"`);
+          console.log(`🤖 [RITA] Tags détectés: IMAGE=${/\[IMAGE:/.test(reply)} VIDEO=${/\[VIDEO:/.test(reply)} ORDER=${/\[ORDER_DATA:/.test(reply)} ASK_BOSS=${/\[ASK_BOSS:/.test(reply)}`);
           // Extraire le numéro propre depuis le JID WhatsApp (ex: 33612345678@s.whatsapp.net)
           const cleanFrom = from.replace(/@.*$/, '');
 

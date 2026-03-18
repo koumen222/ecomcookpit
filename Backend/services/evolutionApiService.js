@@ -1,4 +1,10 @@
 import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Service pour interagir avec Evolution API pour WhatsApp
@@ -113,16 +119,44 @@ class EvolutionApiService {
     };
     const mimetype = mimetypes[ext] || 'image/jpeg';
 
-    // ── Télécharger l'image et l'envoyer en base64 (plus fiable que URL directe) ──
-    let mediaPayload = mediaUrl; // fallback URL si téléchargement échoue
+    // ── Convertir en base64 : fichier local OU téléchargement HTTP ──
+    let mediaPayload = mediaUrl;
+    console.log(`📸 [Evolution] sendMedia — URL source: ${mediaUrl}`);
     try {
-      const dlRes = await axios.get(mediaUrl, { responseType: 'arraybuffer', timeout: 20000 });
-      const b64 = Buffer.from(dlRes.data).toString('base64');
-      const detectedMime = dlRes.headers['content-type']?.split(';')[0] || mimetype;
-      mediaPayload = `data:${detectedMime};base64,${b64}`;
-      console.log(`📸 [Evolution] Image téléchargée (${Math.round(dlRes.data.byteLength / 1024)} KB) → envoi base64`);
+      // Détecter si c'est une URL locale (api.scalor.net/uploads/...) → lire directement depuis le disque
+      const localMatch = mediaUrl.match(/(?:https?:\/\/(?:api\.scalor\.net|localhost[:\d]*))\/uploads\/(.+)$/);
+      if (localMatch) {
+        const localPath = path.resolve(__dirname, '..', 'uploads', decodeURIComponent(localMatch[1]));
+        console.log(`📸 [Evolution] Fichier local détecté: ${localPath}`);
+        if (fs.existsSync(localPath)) {
+          const fileBuffer = fs.readFileSync(localPath);
+          const b64 = fileBuffer.toString('base64');
+          mediaPayload = `data:${mimetype};base64,${b64}`;
+          console.log(`📸 [Evolution] Fichier local lu (${Math.round(fileBuffer.byteLength / 1024)} KB) → envoi base64`);
+        } else {
+          console.warn(`⚠️ [Evolution] Fichier local introuvable: ${localPath}`);
+          // Lister les fichiers du dossier uploads pour diagnostiquer
+          const uploadsDir = path.resolve(__dirname, '..', 'uploads');
+          if (fs.existsSync(uploadsDir)) {
+            const files = fs.readdirSync(uploadsDir).slice(0, 10);
+            console.warn(`   📂 Fichiers dans uploads/ (${files.length} premiers): ${files.join(', ')}`);
+          }
+        }
+      }
+      // Si pas local ou fallback, télécharger via HTTP
+      if (mediaPayload === mediaUrl) {
+        console.log(`📸 [Evolution] Téléchargement HTTP: ${mediaUrl}`);
+        const dlRes = await axios.get(mediaUrl, { responseType: 'arraybuffer', timeout: 20000 });
+        const b64 = Buffer.from(dlRes.data).toString('base64');
+        const detectedMime = dlRes.headers['content-type']?.split(';')[0] || mimetype;
+        mediaPayload = `data:${detectedMime};base64,${b64}`;
+        console.log(`📸 [Evolution] Image téléchargée (${Math.round(dlRes.data.byteLength / 1024)} KB) → envoi base64`);
+      }
     } catch (dlErr) {
-      console.warn(`⚠️ [Evolution] Téléchargement image échoué (${dlErr.message}), tentative URL directe`);
+      console.error(`❌ [Evolution] Échec récupération image: ${dlErr.message}`);
+      console.error(`   URL: ${mediaUrl}`);
+      // Fallback: envoyer l'URL directe à Evolution API
+      console.warn(`⚠️ [Evolution] Fallback → envoi URL directe à Evolution API`);
     }
 
     try {
