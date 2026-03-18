@@ -1140,7 +1140,7 @@ const RitaIATab = ({ instances }) => {
 
                         {/* Images */}
                         <div>
-                          <p className="text-[12px] font-semibold text-gray-700 mb-2">📸 Photos du produit <span className="font-normal text-gray-400">(URLs)</span></p>
+                          <p className="text-[12px] font-semibold text-gray-700 mb-2">📸 Photos du produit</p>
                           {(product.images || []).map((url, iIdx) => (
                             <div key={iIdx} className="flex gap-2 mb-2 items-center">
                               <input value={url} onChange={e => updateProductImage(pIdx, iIdx, e.target.value)}
@@ -1151,8 +1151,31 @@ const RitaIATab = ({ instances }) => {
                                 className="text-gray-300 hover:text-red-500 flex-shrink-0">×</button>
                             </div>
                           ))}
-                          <button onClick={() => addProductImage(pIdx)}
-                            className="text-[11px] font-medium text-purple-600 hover:text-purple-800">+ Ajouter une photo</button>
+                          <div className="flex items-center gap-3 mt-1">
+                            <button onClick={() => addProductImage(pIdx)}
+                              className="text-[11px] font-medium text-purple-600 hover:text-purple-800">+ URL</button>
+                            <span className="text-gray-300 text-[11px]">|</span>
+                            <label className="text-[11px] font-medium text-emerald-600 hover:text-emerald-800 cursor-pointer flex items-center gap-1">
+                              <input type="file" accept="image/*" className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const fd = new FormData();
+                                  fd.append('image', file);
+                                  try {
+                                    const { data } = await ecomApi.post('/v1/external/whatsapp/upload-image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                                    if (data.success && data.url) {
+                                      const existingImages = product.images || [];
+                                      updateProduct(pIdx, 'images', [...existingImages, data.url]);
+                                    }
+                                  } catch (err) {
+                                    alert('Erreur upload: ' + (err.response?.data?.error || err.message));
+                                  }
+                                  e.target.value = '';
+                                }} />
+                              📤 Uploader une photo
+                            </label>
+                          </div>
                         </div>
 
                         {/* Per-product FAQ */}

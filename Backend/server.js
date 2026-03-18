@@ -326,8 +326,10 @@ const startServer = async () => {
       }
     }
 
-    // ─── Static uploads (images) ───
-    app.use('/uploads', express.static(path.join(process.cwd(), 'Backend/uploads')));
+    // ─── Static uploads (images produit Rita) ───────────────────────────────
+    const { fileURLToPath: _fup } = await import('url');
+    const _serverDir = path.dirname(_fup(import.meta.url));
+    app.use('/uploads', express.static(path.join(_serverDir, 'uploads')));
 
     // ─── Public Storefront Routes (MUST BE LAST) ───────────────────────
     // These handle subdomain-based store access (e.g., koumen.scalor.net)

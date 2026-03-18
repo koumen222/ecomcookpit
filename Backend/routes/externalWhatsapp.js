@@ -1,9 +1,33 @@
 import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import EcomUser from '../models/EcomUser.js';
 import RitaConfig from '../models/RitaConfig.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 import { processIncomingMessage, generateTestReply } from '../services/ritaAgentService.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ─── Multer config pour upload d'images produit Rita ───────────────────────
+const _uploadStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, path.join(__dirname, '../uploads')),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const safeName = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '');
+    cb(null, `rita-${safeName}-${Date.now()}${ext}`);
+  },
+});
+const _upload = multer({
+  storage: _uploadStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) return cb(new Error('Seules les images sont acceptées'));
+    cb(null, true);
+  },
+});
 
 const HARD_CODED_WEBHOOK_BASE_URL = 'https://api.scalor.net';
 
@@ -662,6 +686,17 @@ router.post('/activate', async (req, res) => {
     console.error('❌ Erreur activation webhooks:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+/**
+ * @route   POST /api/ecom/v1/external/whatsapp/upload-image
+ * @desc    Upload une image produit Rita → retourne l'URL publique
+ */
+router.post('/upload-image', requireEcomAuth, _upload.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ success: false, error: 'Aucun fichier reçu' });
+  const baseUrl = HARD_CODED_WEBHOOK_BASE_URL;
+  const url = `${baseUrl}/uploads/${req.file.filename}`;
+  res.json({ success: true, url });
 });
 
 /**
