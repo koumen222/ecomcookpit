@@ -11,6 +11,7 @@ import { normalizePhone } from '../utils/phoneUtils.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 import { processIncomingMessage, generateTestReply, transcribeAudio, textToSpeech } from '../services/ritaAgentService.js';
 import { logRitaActivity } from '../services/ritaBossReportService.js';
+import { analyzeImage as analyzeProductImage } from '../services/agentImageService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -813,6 +814,53 @@ router.post('/incoming', async (req, res) => {
             } catch (audioErr) {
               console.error(`❌ [RITA] Erreur transcription vocale:`, audioErr.message);
               continue;
+            }
+          }
+
+          // ─── Détecter message image ───
+          const isImage = !!(msg.message?.imageMessage);
+          let imageAnalysisResult = null;
+
+          if (isImage && instanceDoc) {
+            console.log(`🖼️ [RITA] Image détectée — téléchargement en cours...`);
+            try {
+              const mediaData = await evolutionApiService.getMediaBase64(
+                instanceDoc.instanceName,
+                instanceDoc.instanceToken,
+                msg.key
+              );
+              if (mediaData?.base64) {
+                const workspaceId = instanceDoc.workspaceId;
+                if (workspaceId) {
+                  imageAnalysisResult = await analyzeProductImage(
+                    mediaData.base64,
+                    mediaData.mimetype || msg.message?.imageMessage?.mimetype || 'image/jpeg',
+                    workspaceId
+                  );
+                  console.log(`🖼️ [RITA] Analyse image:`, {
+                    description: imageAnalysisResult.description,
+                    isProduct: imageAnalysisResult.isProductImage,
+                    matched: imageAnalysisResult.matchedProductName,
+                    confidence: imageAnalysisResult.confidence
+                  });
+                  // Injecter le contexte image dans le texte pour que Rita le traite
+                  const imageCaption = msg.message?.imageMessage?.caption || '';
+                  if (imageAnalysisResult.isProductImage && imageAnalysisResult.matchedProductName) {
+                    text = `[Le client a envoyé une image du produit "${imageAnalysisResult.matchedProductName}" (confiance: ${imageAnalysisResult.confidence}%). Description: ${imageAnalysisResult.description}]${imageCaption ? ' ' + imageCaption : ''}`;
+                  } else if (imageAnalysisResult.isProductImage) {
+                    text = `[Le client a envoyé une image d'un produit non identifié dans notre catalogue. Description: ${imageAnalysisResult.description}]${imageCaption ? ' ' + imageCaption : ''}`;
+                  } else {
+                    text = `[Le client a envoyé une image. Description: ${imageAnalysisResult.description}]${imageCaption ? ' ' + imageCaption : ''}`;
+                  }
+                  if (instanceDoc?.userId) logRitaActivity(instanceDoc.userId, 'image_analyzed', { customerPhone: from.replace(/@.*$/, ''), details: imageAnalysisResult.description?.substring(0, 200) });
+                } else {
+                  console.log(`⚠️ [RITA] Pas de workspaceId, analyse image impossible.`);
+                }
+              } else {
+                console.log(`🖼️ [RITA] Impossible de télécharger l'image.`);
+              }
+            } catch (imgErr) {
+              console.error(`❌ [RITA] Erreur analyse image:`, imgErr.message);
             }
           }
 

@@ -3,6 +3,7 @@ import AgentConversation from '../models/AgentConversation.js';
 import AgentMessage from '../models/AgentMessage.js';
 import ProductConfig from '../models/ProductConfig.js';
 import Order from '../models/Order.js';
+import { analyzeImage, buildImageResponsePrompt } from './agentImageService.js';
 
 let openai = null;
 
@@ -111,16 +112,27 @@ const buildSystemPrompt = (productConfig, conversation) => {
   let systemPrompt = `Tu es un vendeur camerounais expérimenté et persuasif pour une boutique en ligne.
 ${tonality}
 
-🎯 OBJECTIF PRINCIPAL: Confirmer la livraison AUJOURD'HUI.
+🎯 OBJECTIF PRINCIPAL: Identifier ce que le prospect veut et lui proposer le bon produit.
+Le prospect t'écrit parce qu'il a vu une annonce → il a déjà un produit en tête.
+Tu dois COMPRENDRE rapidement quel produit l'intéresse, le lui proposer avec le prix, et pousser vers la livraison.
 
 📋 RÈGLES STRICTES:
-1. Réponds TOUJOURS aux questions du client de manière complète
-2. Rassure le client sur ses inquiétudes
-3. Ramène TOUJOURS la conversation vers la livraison aujourd'hui
-4. Termine CHAQUE message par une question ou une proposition concrète
-5. Messages courts (max 3-4 phrases)
-6. Utilise des emojis avec modération (1-2 max)
-7. Adapte ton langage au contexte camerounais
+1. IDENTIFIE le besoin du prospect dès le premier message
+2. Si le prospect dit juste "bonjour" → demande quel produit l'a intéressé dans l'annonce
+3. Dès que le produit est identifié → donne le prix et propose la livraison
+4. Réponds TOUJOURS aux questions du client de manière complète
+5. Rassure le client sur ses inquiétudes
+6. Ramène TOUJOURS la conversation vers la commande
+7. Termine CHAQUE message par une question ou une proposition concrète
+8. Messages courts (max 3-4 phrases)
+9. Utilise des emojis avec modération (1-2 max)
+10. Adapte ton langage au contexte camerounais
+
+🖼️ SI LE CLIENT ENVOIE UNE IMAGE:
+- Tu recevras la description de l'image entre crochets
+- Si c'est un de tes produits → confirme le nom, donne le prix, propose la commande
+- Si c'est pas dans ton catalogue → dis-le poliment et propose ce que tu as
+- Réagis toujours naturellement à l'image
 
 🛒 INFORMATIONS PRODUIT:
 - Nom: ${productConfig?.productName || conversation.productName || 'Non spécifié'}
@@ -558,6 +570,228 @@ const deactivateStaleConversations = async (workspaceId = null) => {
   return result.modifiedCount;
 };
 
+/**
+ * Traite un message image entrant du client.
+ * Télécharge l'image, l'analyse via OpenAI Vision, cherche une correspondance produit,
+ * puis génère une réponse agent adaptée.
+ *
+ * @param {Object} conversation  - Document AgentConversation
+ * @param {string} base64Image   - Image en base64
+ * @param {string} mimetype      - ex: 'image/jpeg'
+ * @param {string} caption       - Légende envoyée avec l'image (optionnel)
+ * @param {string} whatsappMessageId
+ * @returns {Promise<Object|null>}
+ */
+const processIncomingImageMessage = async (conversation, base64Image, mimetype, caption, whatsappMessageId) => {
+  console.log('🖼️ ==================== ANALYSE IMAGE ====================');
+  console.log('📞 Conversation ID:', conversation._id);
+  console.log('👤 Client:', conversation.clientName);
+  console.log('📝 Caption:', caption || '(aucune)');
+
+  // Vérifier doublon
+  const isProcessed = conversation.isMessageProcessed
+    ? conversation.isMessageProcessed(whatsappMessageId)
+    : (conversation.processedMessageIds || []).includes(whatsappMessageId);
+
+  if (isProcessed) {
+    console.log(`⚠️ Message image ${whatsappMessageId} déjà traité, ignoré`);
+    return null;
+  }
+
+  // 1. Analyser l'image avec OpenAI Vision
+  let imageAnalysis;
+  try {
+    imageAnalysis = await analyzeImage(base64Image, mimetype, conversation.workspaceId);
+    console.log('🔍 Analyse image:', {
+      description: imageAnalysis.description,
+      isProduct: imageAnalysis.isProductImage,
+      matched: imageAnalysis.matchedProductName,
+      confidence: imageAnalysis.confidence
+    });
+  } catch (error) {
+    console.error('❌ Erreur analyse image:', error.message);
+    imageAnalysis = {
+      description: 'Image non analysée (erreur)',
+      isProductImage: false,
+      matchedProductName: null,
+      matchedProduct: null,
+      confidence: 0,
+      details: error.message,
+      tokensUsed: 0,
+      processingTime: 0
+    };
+  }
+
+  // 2. Sauvegarder le message image du client
+  const contentText = caption || `[Image: ${imageAnalysis.description || 'image envoyée'}]`;
+  const intent = caption ? analyzeIntent(caption) : 'question';
+  const sentiment = caption ? analyzeSentiment(caption) : 'neutral';
+  const confidenceImpact = calculateConfidenceImpact(intent, sentiment);
+
+  const clientMessage = new AgentMessage({
+    conversationId: conversation._id,
+    workspaceId: conversation.workspaceId,
+    direction: 'inbound',
+    sender: 'client',
+    content: contentText,
+    whatsappMessageId,
+    messageType: 'image',
+    intent,
+    sentiment,
+    confidenceImpact,
+    deliveryStatus: 'delivered',
+    imageAnalysis: {
+      description: imageAnalysis.description,
+      isProductImage: imageAnalysis.isProductImage,
+      matchedProductName: imageAnalysis.matchedProductName,
+      confidence: imageAnalysis.confidence
+    }
+  });
+  await clientMessage.save();
+  console.log('💾 Message image client sauvegardé:', clientMessage._id);
+
+  // Mettre à jour la conversation
+  if (conversation.markMessageProcessed) {
+    conversation.markMessageProcessed(whatsappMessageId);
+  } else {
+    if (!conversation.processedMessageIds) conversation.processedMessageIds = [];
+    if (!conversation.processedMessageIds.includes(whatsappMessageId)) {
+      conversation.processedMessageIds.push(whatsappMessageId);
+    }
+  }
+
+  if (conversation.updateConfidenceScore) {
+    conversation.updateConfidenceScore(confidenceImpact);
+  } else {
+    conversation.confidenceScore = Math.max(0, Math.min(100, (conversation.confidenceScore || 50) + confidenceImpact));
+  }
+
+  conversation.sentiment = sentiment;
+  conversation.lastInteractionAt = new Date();
+  conversation.lastMessageFromClient = new Date();
+  if (!conversation.metadata) conversation.metadata = {};
+  conversation.metadata.messageCount = (conversation.metadata.messageCount || 0) + 1;
+  conversation.metadata.clientMessageCount = (conversation.metadata.clientMessageCount || 0) + 1;
+  await conversation.save();
+
+  // 3. Générer une réponse agent basée sur l'analyse
+  let agentResponse = null;
+
+  if (conversation.active && conversation.state !== 'escalated') {
+    console.log('🤖 ==================== GÉNÉRATION RÉPONSE IMAGE ====================');
+    try {
+      const imageContext = buildImageResponsePrompt(imageAnalysis, conversation);
+      const gptResult = await generateAgentImageResponse(conversation, imageContext, caption);
+
+      console.log('✨ Réponse GPT (image) générée:', {
+        length: gptResult.response?.length,
+        tokens: gptResult.tokensUsed,
+        processingTime: gptResult.processingTime + 'ms'
+      });
+
+      agentResponse = new AgentMessage({
+        conversationId: conversation._id,
+        workspaceId: conversation.workspaceId,
+        direction: 'outbound',
+        sender: 'agent',
+        content: gptResult.response,
+        intent: imageAnalysis.isProductImage ? 'follow_up' : 'question',
+        promptUsed: gptResult.promptUsed,
+        gptModel: gptResult.gptModel,
+        gptTokensUsed: gptResult.tokensUsed,
+        deliveryStatus: 'pending',
+        metadata: {
+          processingTime: gptResult.processingTime,
+          extractedInfo: {
+            imageAnalysis: {
+              isProductImage: imageAnalysis.isProductImage,
+              matchedProductName: imageAnalysis.matchedProductName,
+              confidence: imageAnalysis.confidence
+            }
+          }
+        }
+      });
+      await agentResponse.save();
+      console.log('💾 Réponse agent (image) sauvegardée:', agentResponse._id);
+
+      conversation.lastMessageFromAgent = new Date();
+      conversation.metadata.agentMessageCount = (conversation.metadata.agentMessageCount || 0) + 1;
+      await conversation.save();
+    } catch (error) {
+      console.error('❌ Erreur génération réponse agent (image):', error.message);
+    }
+  }
+
+  return {
+    clientMessage,
+    agentResponse,
+    imageAnalysis,
+    conversationState: conversation.state,
+    confidenceScore: conversation.confidenceScore,
+    shouldSendResponse: agentResponse !== null && conversation.active
+  };
+};
+
+/**
+ * Génère une réponse agent en tenant compte du contexte image.
+ */
+const generateAgentImageResponse = async (conversation, imageContext, caption) => {
+  initOpenAI();
+  if (!openai) throw new Error('OpenAI non configuré');
+
+  const productConfig = await ProductConfig.findByProductName(
+    conversation.workspaceId,
+    conversation.productName
+  );
+
+  const conversationHistory = await AgentMessage.formatForPrompt(conversation._id, 10);
+  const clientFirstName = conversation.clientName ? conversation.clientName.split(' ')[0] : 'cher client';
+
+  const systemPrompt = buildSystemPrompt(productConfig, conversation);
+  const userPrompt = `${imageContext}
+
+${caption ? `Le client a aussi écrit: "${caption}"` : ''}
+
+Prénom client: ${clientFirstName}
+
+Historique récent:
+${conversationHistory}
+
+Génère une réponse naturelle qui:
+1. Réagit à l'image envoyée
+2. Si c'est un produit du catalogue → confirme et pousse vers la livraison
+3. Si ce n'est pas un produit du catalogue → oriente vers nos produits
+4. Maximum 3-4 phrases, ton naturel`;
+
+  const startTime = Date.now();
+
+  const completion = await openai.chat.completions.create({
+    model: process.env.AGENT_GPT_MODEL || 'gpt-4o-mini',
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    max_tokens: 300,
+    temperature: 0.7
+  });
+
+  const processingTime = Date.now() - startTime;
+  let response = completion.choices[0].message.content.trim();
+  const tokensUsed = completion.usage?.total_tokens || 0;
+
+  if (!response.toLowerCase().includes(clientFirstName.toLowerCase())) {
+    response = `${clientFirstName}, ${response}`;
+  }
+
+  return {
+    response,
+    promptUsed: systemPrompt.substring(0, 500) + '...',
+    gptModel: process.env.AGENT_GPT_MODEL || 'gpt-4o-mini',
+    tokensUsed,
+    processingTime
+  };
+};
+
 const getConversationStats = async (workspaceId, dateFrom = null, dateTo = null) => {
   const matchQuery = { workspaceId };
   
@@ -605,6 +839,7 @@ export {
   calculateConfidenceImpact,
   generateAgentResponse,
   processIncomingMessage,
+  processIncomingImageMessage,
   createConversationForOrder,
   generateInitialMessage,
   generateRelanceMessage,

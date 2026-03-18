@@ -87,6 +87,16 @@ const agentMessageSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  mediaUrl: {
+    type: String,
+    default: null
+  },
+  imageAnalysis: {
+    description: { type: String, default: null },
+    isProductImage: { type: Boolean, default: false },
+    matchedProductName: { type: String, default: null },
+    confidence: { type: Number, default: 0 }
+  },
   metadata: {
     responseTime: { type: Number, default: 0 },
     processingTime: { type: Number, default: 0 },
@@ -118,6 +128,9 @@ agentMessageSchema.statics.formatForPrompt = async function(conversationId, limi
   
   return messages.reverse().map(msg => {
     const role = msg.sender === 'client' ? 'Client' : 'Agent';
+    if (msg.messageType === 'image' && msg.imageAnalysis?.description) {
+      return `${role}: [Image: ${msg.imageAnalysis.description}]${msg.content ? ' ' + msg.content : ''}`;
+    }
     return `${role}: ${msg.content}`;
   }).join('\n');
 };
