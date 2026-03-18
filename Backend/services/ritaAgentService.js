@@ -203,11 +203,12 @@ function sanitizeReply(reply, config) {
 
   cleaned = cleaned.replace(signatureRegex, '').trim();
 
-  // Ne PAS tronquer les messages structurés (récap commande, flow de vente, tags image)
-  const isStructured = /\[ORDER_DATA:|\[IMAGE:|\[VIDEO:|RÉCAP|récap|Confirmer|confirmer|📦|✅.*COMMANDE/i.test(cleaned);
+  // Ne PAS tronquer les messages structurés (récap commande, flow de vente, tags image, listes produits)
+  const isStructured = /\[ORDER_DATA:|\[IMAGE:|\[VIDEO:|\[ASK_BOSS:|RÉCAP|récap|Confirmer|confirmer|📦|✅.*COMMANDE|\d+\.\s+\S/i.test(cleaned);
   if (!isStructured) {
     // Pour les messages conversationnels normaux, limiter à 3 phrases
-    const sentenceChunks = cleaned.match(/[^.!?\n]+[.!?]?/g);
+    // Regex améliorée : ne pas couper sur les points des numéros de liste (1. 2. etc.)
+    const sentenceChunks = cleaned.match(/(?:[^.!?\n]|\d\.)+[.!?]?/g);
     if (sentenceChunks && sentenceChunks.length > 3) {
       cleaned = sentenceChunks.slice(0, 3).join(' ').trim();
     }
@@ -766,7 +767,7 @@ export async function processIncomingMessage(userId, from, text) {
         ...history,
       ],
       temperature: 0.5,
-      max_tokens: 400,
+      max_tokens: 600,
     });
 
     const reply = sanitizeReply(completion.choices[0]?.message?.content?.trim(), config);
