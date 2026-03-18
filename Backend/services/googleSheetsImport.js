@@ -186,17 +186,17 @@ const normalize = (s) =>
     .trim();
 
 const COLUMN_PATTERNS = [
-  { field: 'orderId', compound: ['order id', 'order number', 'numero commande', 'n° commande', 'n commande', 'id commande', 'numero de commande', 'numero', 'n° cmd'], simple: ['ref', 'reference', 'order', 'commande', 'id', 'cmd'] },
-  { field: 'date', compound: ['date & time', 'date time', 'date commande', 'date de commande', 'date creation', 'created at', 'order date'], simple: ['date', 'jour', 'day', 'created', 'timestamp'] },
-  { field: 'clientPhone', compound: ['phone number', 'numero telephone', 'num tel', 'numero de telephone', 'n° tel', 'n° telephone', 'numero client', 'contact telephone', 'telephone contact'], simple: ['tel', 'telephone', 'phone', 'mobile', 'whatsapp', 'gsm', 'portable', 'cellulaire', 'contact', 'numero'] },
-  { field: 'clientName', compound: ['first name', 'last name', 'full name', 'nom complet', 'nom client', 'customer name', 'nom et prenom', 'nom prenom', 'nom du client'], simple: ['nom', 'name', 'client', 'prenom', 'firstname', 'lastname', 'customer', 'destinataire', 'beneficiaire', 'acheteur'] },
-  { field: 'city', compound: ['ville de livraison', 'ville livraison', 'delivery city'], simple: ['ville', 'city', 'commune', 'localite', 'zone', 'region', 'wilaya', 'gouvernorat'] },
-  { field: 'product', compound: ['product name', 'nom produit', 'nom article', 'nom du produit', 'libelle produit', 'product title'], simple: ['produit', 'product', 'article', 'item', 'designation', 'libelle', 'offre', 'offer', 'pack'] },
-  { field: 'price', compound: ['product price', 'Product Price', 'prix produit', 'prix unitaire', 'unit price', 'selling price', 'prix de vente', 'total price', 'prix total', 'prix ttc', 'prix ht', 'amount', 'montant', 'productprice', 'product&price'], simple: ['prix', 'price', 'tarif', 'valeur'] },
+  { field: 'orderId', compound: ['order id', 'order number', 'numero commande', 'n commande', 'id commande', 'numero de commande', 'n cmd', 'ref commande', 'reference commande', 'numero'], simple: ['ref', 'reference', 'order', 'commande', 'id', 'cmd'] },
+  { field: 'date', compound: ['date time', 'date commande', 'date de commande', 'date creation', 'created at', 'order date', 'date de creation'], simple: ['date', 'jour', 'day', 'created', 'timestamp', 'horodateur'] },
+  { field: 'clientPhone', compound: ['phone number', 'numero telephone', 'num tel', 'numero de telephone', 'n tel', 'n telephone', 'numero client', 'contact telephone', 'telephone contact', 'tel client', 'telephone client', 'whatsapp number'], simple: ['tel', 'telephone', 'phone', 'mobile', 'whatsapp', 'gsm', 'portable', 'cellulaire', 'contact', 'numero'] },
+  { field: 'clientName', compound: ['first name', 'last name', 'full name', 'nom complet', 'nom client', 'customer name', 'nom et prenom', 'nom prenom', 'nom du client', 'prenom nom', 'prenom et nom', 'nom beneficiaire', 'nom destinataire', 'nom acheteur'], simple: ['nom', 'name', 'client', 'prenom', 'firstname', 'lastname', 'customer', 'destinataire', 'beneficiaire', 'acheteur'] },
+  { field: 'city', compound: ['ville de livraison', 'ville livraison', 'delivery city', 'zone de livraison', 'region livraison'], simple: ['ville', 'city', 'commune', 'localite', 'zone', 'region', 'wilaya', 'gouvernorat', 'quartier', 'secteur'] },
+  { field: 'product', compound: ['product name', 'nom produit', 'nom article', 'nom du produit', 'libelle produit', 'product title', 'produit commande', 'article commande'], simple: ['produit', 'product', 'article', 'item', 'designation', 'libelle', 'offre', 'offer', 'pack'] },
+  { field: 'price', compound: ['product price', 'prix produit', 'prix unitaire', 'unit price', 'selling price', 'prix de vente', 'total price', 'prix total', 'prix ttc', 'prix ht', 'montant total', 'montant ttc', 'total a payer', 'cout total', 'productprice'], simple: ['prix', 'price', 'montant', 'amount', 'total', 'cout', 'cost', 'tarif', 'valeur', 'somme', 'pv', 'cash'] },
   { field: 'quantity', compound: [], simple: ['quantite', 'quantity', 'qte', 'qty', 'nb', 'nombre', 'pieces', 'unites'] },
-  { field: 'status', compound: ['order status', 'statut commande', 'statut de livraison', 'delivery status', 'etat commande'], simple: ['statut', 'status', 'etat', 'state', 'livraison', 'delivery', 'situation'] },
+  { field: 'status', compound: ['order status', 'statut commande', 'statut de livraison', 'delivery status', 'etat commande', 'etat de la commande', 'statut de la commande'], simple: ['statut', 'status', 'etat', 'state', 'livraison', 'delivery', 'situation'] },
   { field: 'notes', compound: [], simple: ['notes', 'note', 'commentaire', 'comment', 'remarque', 'observation', 'description', 'details', 'info'] },
-  { field: 'address', compound: ['address 1', 'adresse 1', 'adresse de livraison', 'delivery address', 'adresse complete'], simple: ['adresse', 'address', 'rue', 'street'] },
+  { field: 'address', compound: ['adresse de livraison', 'delivery address', 'adresse complete', 'adresse client'], simple: ['adresse', 'address', 'rue', 'street'] },
 ];
 
 /**
@@ -244,13 +244,15 @@ function detectColumnsByContent(rows, headers) {
         columnScores[idx].clientPhone += 1;
       }
 
-      // Check for prices (numbers between 500-10000000 with comma or space)
+      // Check for prices (numbers with currency symbols or in typical price range)
+      const hasCurrency = /fcfa|cfa|xof|xaf|dh|mad|da|dzd|dt|tnd|gnf|eur|usd|\$|€/i.test(val);
       const numVal = parseFloat(cleanNumericString(val));
-      if (!isNaN(numVal) && numVal >= 500 && numVal <= 10000000) {
-        // If it has comma or space, likely a price
-        if (val.includes(',') || val.includes(' ') || val.includes('.')) {
+      if (!isNaN(numVal) && numVal > 0 && numVal <= 10000000) {
+        if (hasCurrency) {
+          columnScores[idx].price += 3;
+        } else if (numVal >= 100 && (val.includes(',') || val.includes(' ') || val.includes('.'))) {
           columnScores[idx].price += 2;
-        } else if (numVal > 1000) {
+        } else if (numVal >= 500) {
           columnScores[idx].price += 1;
         }
       }
@@ -323,7 +325,7 @@ export function autoDetectColumns(headers, rows = []) {
   headers.forEach((header, index) => {
     const h = normalize(header);
     for (const p of COLUMN_PATTERNS) {
-      if (!mapping[p.field] && p.compound.some(c => h.includes(c))) {
+      if (!mapping[p.field] && p.compound.some(c => h.includes(normalize(c)))) {
         mapping[p.field] = index;
         console.log(`✅ [IMPORT] Mapped ${p.field} -> column ${index} (${header}) [compound]`);
       }
@@ -336,7 +338,7 @@ export function autoDetectColumns(headers, rows = []) {
     if (usedIndices.has(index)) return;
     const h = normalize(header);
     for (const p of COLUMN_PATTERNS) {
-      if (!mapping[p.field] && p.simple.some(k => h.includes(k))) {
+      if (!mapping[p.field] && p.simple.some(k => h.includes(normalize(k)))) {
         mapping[p.field] = index;
         usedIndices.add(index);
         console.log(`✅ [IMPORT] Mapped ${p.field} -> column ${index} (${header}) [simple]`);
@@ -403,29 +405,36 @@ function cleanNumericString(val) {
   // Remove Google Sheets apostrophe prefix first
   s = s.replace(/^'+/, '');
   
+  // Remove currency text (FCFA, CFA, DH, MAD, €, $, etc.)
+  s = s.replace(/\b(fcfa|cfa|xof|xaf|dh|mad|da|dzd|dt|tnd|gnf|eur|usd|ariary|ar)\b/gi, '');
+  s = s.replace(/[€$£¥]/g, '');
+  
   // Handle French format: "12 000,00" or "12 000"
   // Remove spaces used as thousands separators
   s = s.replace(/\s/g, '');
   
-  // Now clean remaining non-numeric chars except , and .
-  let cleaned = s.replace(/[^0-9,\.\-]/g, '').trim();
+  // Remove remaining non-numeric chars except , . -
+  let cleaned = s.replace(/[^0-9,.\-]/g, '').trim();
   if (!cleaned) return '0';
   
   const lastComma = cleaned.lastIndexOf(',');
   const lastDot = cleaned.lastIndexOf('.');
   
-  // French format: comma is decimal separator
+  // French format: comma is decimal separator (e.g. "12000,50")
   if (lastComma > lastDot) {
     cleaned = cleaned.replace(/\./g, '').replace(',', '.');
   } else if (lastDot > lastComma && lastComma !== -1) {
-    // Mixed format - remove commas
+    // English format with commas as thousands (e.g. "12,000.50")
     cleaned = cleaned.replace(/,/g, '');
   } else if (lastComma !== -1 && lastDot === -1) {
     // Only comma - check if it's decimal or thousands
-    const afterComma = cleaned.split(',')[1];
+    const parts = cleaned.split(',');
+    const afterComma = parts[parts.length - 1];
     if (afterComma && afterComma.length <= 2) {
-      cleaned = cleaned.replace(',', '.');
+      // Likely decimal: "12000,50" → "12000.50"
+      cleaned = cleaned.replace(/,(?=\d{1,2}$)/, '.').replace(/,/g, '');
     } else {
+      // Likely thousands: "12,000" → "12000"
       cleaned = cleaned.replace(/,/g, '');
     }
   }
@@ -519,23 +528,21 @@ export function parseOrderRow(row, rowIndex, columnMap, headers, sourceName) {
       const idx = columnMap[field];
       if (idx === undefined || !row.c[idx]) return 0;
       const cell = row.c[idx];
-      // Handle both formatted (f) and raw (v) values
+      // Prefer raw numeric value from Google Sheets API (most reliable)
+      if (typeof cell.v === 'number') {
+        return cell.v;
+      }
+      // Fallback: parse from string value (v) or formatted value (f)
       let raw;
-      if (cell.f !== undefined && cell.f !== null) {
-        raw = String(cell.f);
-      } else if (cell.v !== undefined && cell.v !== null) {
-        // If value is a number, use it directly
-        if (typeof cell.v === 'number') {
-          return cell.v;
-        }
+      if (cell.v !== undefined && cell.v !== null) {
         raw = String(cell.v);
+      } else if (cell.f !== undefined && cell.f !== null) {
+        raw = String(cell.f);
       } else {
         return 0;
       }
-      // Remove Google Sheets apostrophe prefix (used to force text format)
       raw = raw.replace(/^'+/, '');
       const result = parseFloat(cleanNumericString(raw)) || 0;
-      console.log(`💰 [IMPORT] ${field} = ${result} (raw: ${raw})`);
       return result;
     };
 

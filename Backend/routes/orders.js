@@ -1169,28 +1169,28 @@ function extractSpreadsheetId(input) {
 // Helper: auto-détecter les colonnes depuis les headers et contenu
 function autoDetectColumns(headers, rows = []) {
   const mapping = {};
-  const normalize = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const normalize = (s) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
 
   // Patterns ordonnés par priorité (les plus spécifiques d'abord)
   const patterns = [
-    { field: 'orderId', compound: ['order id', 'order number', 'numero commande', 'n° commande'], simple: ['order id', 'ref', 'reference'] },
-    { field: 'date', compound: ['date & time', 'date time', 'date commande'], simple: ['date', 'jour', 'day', 'created'] },
-    { field: 'clientPhone', compound: ['phone number', 'numero telephone', 'num tel', 'contact telephone', 'numero client', 'numero de telephone'], simple: ['tel', 'telephone', 'phone', 'mobile', 'whatsapp', 'gsm', 'portable', 'contact', 'numero', 'cellulaire'] },
-    { field: 'clientName', compound: ['first name', 'last name', 'full name', 'nom complet', 'nom client', 'customer name'], simple: ['nom', 'name', 'client', 'prenom', 'firstname', 'lastname'] },
-    { field: 'city', compound: [], simple: ['ville', 'city', 'commune', 'localite', 'zone'] },
-    { field: 'product', compound: ['product name', 'nom produit', 'nom article', 'nom du produit'], simple: ['produit', 'product', 'article', 'item', 'designation'] },
-    { field: 'price', compound: ['product price', 'prix produit', 'prix unitaire', 'unit price', 'selling price'], simple: ['prix', 'price', 'montant', 'amount', 'total', 'cout', 'cost', 'tarif'] },
-    { field: 'quantity', compound: [], simple: ['quantite', 'quantity', 'qte', 'qty', 'nb', 'nombre'] },
-    { field: 'status', compound: ['statut livraison', 'statut commande', 'delivery status', 'order status'], simple: ['statut', 'status', 'etat', 'state'] },
-    { field: 'notes', compound: [], simple: ['notes', 'note', 'commentaire', 'comment', 'remarque', 'observation'] },
-    { field: 'address', compound: ['address 1', 'adresse 1'], simple: ['adresse', 'address'] },
+    { field: 'orderId', compound: ['order id', 'order number', 'numero commande', 'n commande', 'id commande', 'numero de commande', 'n cmd', 'ref commande', 'reference commande', 'numero'], simple: ['ref', 'reference', 'order', 'commande', 'id', 'cmd'] },
+    { field: 'date', compound: ['date time', 'date commande', 'date de commande', 'date creation', 'created at', 'order date'], simple: ['date', 'jour', 'day', 'created', 'timestamp', 'horodateur'] },
+    { field: 'clientPhone', compound: ['phone number', 'numero telephone', 'num tel', 'numero de telephone', 'n tel', 'n telephone', 'numero client', 'contact telephone', 'telephone contact', 'tel client', 'telephone client'], simple: ['tel', 'telephone', 'phone', 'mobile', 'whatsapp', 'gsm', 'portable', 'contact', 'numero', 'cellulaire'] },
+    { field: 'clientName', compound: ['first name', 'last name', 'full name', 'nom complet', 'nom client', 'customer name', 'nom et prenom', 'nom prenom', 'nom du client', 'prenom nom', 'nom beneficiaire', 'nom destinataire'], simple: ['nom', 'name', 'client', 'prenom', 'firstname', 'lastname', 'customer', 'destinataire', 'beneficiaire', 'acheteur'] },
+    { field: 'city', compound: ['ville de livraison', 'ville livraison', 'delivery city', 'zone de livraison'], simple: ['ville', 'city', 'commune', 'localite', 'zone', 'region', 'wilaya', 'gouvernorat', 'quartier', 'secteur'] },
+    { field: 'product', compound: ['product name', 'nom produit', 'nom article', 'nom du produit', 'libelle produit', 'product title', 'produit commande'], simple: ['produit', 'product', 'article', 'item', 'designation', 'libelle', 'offre', 'offer', 'pack'] },
+    { field: 'price', compound: ['product price', 'prix produit', 'prix unitaire', 'unit price', 'selling price', 'prix de vente', 'total price', 'prix total', 'prix ttc', 'prix ht', 'montant total', 'montant ttc', 'total a payer', 'cout total', 'productprice'], simple: ['prix', 'price', 'montant', 'amount', 'total', 'cout', 'cost', 'tarif', 'valeur', 'somme', 'pv', 'cash'] },
+    { field: 'quantity', compound: [], simple: ['quantite', 'quantity', 'qte', 'qty', 'nb', 'nombre', 'pieces', 'unites'] },
+    { field: 'status', compound: ['statut livraison', 'statut commande', 'delivery status', 'order status', 'etat commande', 'etat de la commande', 'statut de la commande'], simple: ['statut', 'status', 'etat', 'state', 'livraison', 'delivery', 'situation'] },
+    { field: 'notes', compound: [], simple: ['notes', 'note', 'commentaire', 'comment', 'remarque', 'observation', 'description', 'details', 'info'] },
+    { field: 'address', compound: ['adresse de livraison', 'delivery address', 'adresse complete', 'adresse client'], simple: ['adresse', 'address', 'rue', 'street'] },
   ];
 
   // Pass 1: compound matches (plus spécifiques)
   headers.forEach((header, index) => {
     const h = normalize(header);
     for (const p of patterns) {
-      if (!mapping[p.field] && p.compound.some(c => h.includes(c))) {
+      if (!mapping[p.field] && p.compound.some(c => h.includes(normalize(c)))) {
         mapping[p.field] = index;
       }
     }
@@ -1202,7 +1202,7 @@ function autoDetectColumns(headers, rows = []) {
     if (usedIndices.has(index)) return;
     const h = normalize(header);
     for (const p of patterns) {
-      if (!mapping[p.field] && p.simple.some(k => h.includes(k))) {
+      if (!mapping[p.field] && p.simple.some(k => h.includes(normalize(k)))) {
         mapping[p.field] = index;
         usedIndices.add(index);
         break;
@@ -1212,7 +1212,6 @@ function autoDetectColumns(headers, rows = []) {
 
   // Pass 3: content-based detection for missing fields (price, phone, etc.)
   if (rows.length > 0 && mapping.price === undefined) {
-    // Analyze first few rows to detect price column by content
     const sampleSize = Math.min(5, rows.length);
     for (let colIdx = 0; colIdx < headers.length; colIdx++) {
       if (usedIndices.has(colIdx)) continue;
@@ -1223,10 +1222,17 @@ function autoDetectColumns(headers, rows = []) {
         if (!row.c || !row.c[colIdx]) continue;
         const val = String(row.c[colIdx].v || '').trim().replace(/^'+/, '');
         
-        // Check for price pattern: numbers between 500-10000000
-        const numVal = parseFloat(val.replace(/\s/g, '').replace(',', '.'));
-        if (!isNaN(numVal) && numVal >= 500 && numVal <= 10000000) {
-          priceScore++;
+        // Check for currency text
+        const hasCurrency = /fcfa|cfa|xof|xaf|dh|mad|da|dzd|dt|tnd|gnf|eur|usd|\$|€/i.test(val);
+        // Clean and parse: remove currency text, spaces, commas
+        const cleaned = val.replace(/[^0-9,.\s-]/g, '').replace(/\s/g, '').replace(',', '.');
+        const numVal = parseFloat(cleaned);
+        if (!isNaN(numVal) && numVal > 0 && numVal <= 10000000) {
+          if (hasCurrency) {
+            priceScore += 2;
+          } else if (numVal >= 100) {
+            priceScore++;
+          }
         }
       }
       
@@ -1901,7 +1907,33 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
             const getNumVal = (field) => {
               const idx = columnMap[field];
               if (idx === undefined || !row.c[idx]) return 0;
-              return parseFloat(row.c[idx].v) || 0;
+              const cell = row.c[idx];
+              // Prefer raw numeric value
+              if (typeof cell.v === 'number') return cell.v;
+              // Parse from string (handle "12 000 FCFA", "12,000", etc.)
+              const raw = String(cell.v ?? cell.f ?? '').replace(/^'+/, '');
+              if (!raw) return 0;
+              // Remove currency text and non-numeric chars
+              let s = raw.replace(/\b(fcfa|cfa|xof|xaf|dh|mad|da|dzd|dt|tnd|gnf|eur|usd|ariary|ar)\b/gi, '').replace(/[€$£¥]/g, '');
+              s = s.replace(/\s/g, '');
+              let cleaned = s.replace(/[^0-9,.\-]/g, '');
+              if (!cleaned) return 0;
+              // French comma as decimal
+              const lastComma = cleaned.lastIndexOf(',');
+              const lastDot = cleaned.lastIndexOf('.');
+              if (lastComma > lastDot) {
+                cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+              } else if (lastDot > lastComma && lastComma !== -1) {
+                cleaned = cleaned.replace(/,/g, '');
+              } else if (lastComma !== -1 && lastDot === -1) {
+                const afterComma = cleaned.split(',').pop();
+                if (afterComma && afterComma.length <= 2) {
+                  cleaned = cleaned.replace(/,(?=\d{1,2}$)/, '.').replace(/,/g, '');
+                } else {
+                  cleaned = cleaned.replace(/,/g, '');
+                }
+              }
+              return parseFloat(cleaned) || 0;
             };
 
             const getDateVal = (field) => {
