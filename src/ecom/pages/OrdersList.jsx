@@ -2,6 +2,7 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
+import { formatMoney } from '../utils/currency.js';
 import ecomApi from '../services/ecommApi.js';
 import { playCashRegisterSound, playConfirmSound } from '../services/soundService.js';
 import { getContextualError } from '../utils/errorMessages';
@@ -86,6 +87,8 @@ const OrdersList = () => {
   const location = useLocation();
   const { user } = useEcomAuth();
   const { fmt, currency: userCurrency } = useMoney();
+  // Affiche le montant dans la devise de la commande (pas de conversion, juste le bon symbole)
+  const fmtOrder = (amount, orderCurrency) => formatMoney(amount, orderCurrency || userCurrency || 'XAF');
   const isAdmin = user?.role === 'ecom_admin';
   const isSuperAdmin = user?.role === 'super_admin';
   const isCloseuse = user?.role === 'ecom_closeuse';
@@ -1255,8 +1258,8 @@ const OrdersList = () => {
 🏠 Adresse: ${address}
 📦 Produit: ${product}
 📝 Quantité: ${quantity}
-💸 Prix unitaire: ${fmt(price, order.currency || 'XAF')}
-💸 Total: ${fmt(total, order.currency || 'XAF')}
+💸 Prix unitaire: ${fmtOrder(price, order.currency)}
+💸 Total: ${fmtOrder(total, order.currency)}
 📝 Statut: ${status}
 📝 Notes: ${notes || 'Aucune'}
 `;
@@ -2435,7 +2438,7 @@ const OrdersList = () => {
                       {/* Price */}
                       {totalPrice > 0 && (
                         <div className="flex-shrink-0">
-                          <p className="text-sm font-bold text-gray-900">{fmt(totalPrice, o.currency || 'XAF')}</p>
+                          <p className="text-sm font-bold text-gray-900">{fmtOrder(totalPrice, o.currency)}</p>
                         </div>
                       )}
 
@@ -2531,7 +2534,7 @@ const OrdersList = () => {
                         </div>
                       </div>
                       {totalPrice > 0 && (
-                        <p className="text-sm font-bold text-gray-900 ml-2 flex-shrink-0">{fmt(totalPrice, o.currency || 'XAF')}</p>
+                        <p className="text-sm font-bold text-gray-900 ml-2 flex-shrink-0">{fmtOrder(totalPrice, o.currency)}</p>
                       )}
                     </div>
 

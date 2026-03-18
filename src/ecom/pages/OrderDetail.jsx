@@ -2,6 +2,7 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
+import { formatMoney } from '../utils/currency.js';
 import ecomApi from '../services/ecommApi.js';
 
 const SL = { pending: 'En attente', confirmed: 'Confirmé', shipped: 'Expédié', delivered: 'Livré', returned: 'Retour', cancelled: 'Annulé', reported: 'Reporté' };
@@ -44,6 +45,8 @@ const OrderDetail = () => {
   const navigate = useNavigate();
   const { user, workspace } = useEcomAuth();
   const { fmt } = useMoney();
+  // Affiche le montant dans la devise de la commande (pas de conversion, juste le bon symbole)
+  const fmtOrder = (amount, orderCurrency) => formatMoney(amount, orderCurrency || 'XAF');
   const isAdmin = user?.role === 'ecom_admin' || user?.role === 'ecom_closeuse';
   const invoiceRef = useRef(null);
 
@@ -739,7 +742,7 @@ const OrderDetail = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-xs text-gray-500">Prix unitaire</span>
-                <span className="text-xs font-medium text-gray-900">{fmt(order.price, order.currency || 'XAF')}</span>
+                <span className="text-xs font-medium text-gray-900">{fmtOrder(order.price, order.currency)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-xs text-gray-500">Quantité</span>
@@ -747,7 +750,7 @@ const OrderDetail = () => {
               </div>
               <div className="border-t border-gray-100 pt-2.5 flex justify-between">
                 <span className="text-sm font-bold text-gray-900">Total</span>
-                <span className="text-sm font-bold text-gray-900">{fmt((order.price || 0) * (order.quantity || 1), order.currency || 'XAF')}</span>
+                <span className="text-sm font-bold text-gray-900">{fmtOrder((order.price || 0) * (order.quantity || 1), order.currency)}</span>
               </div>
             </div>
           </div>
@@ -945,12 +948,12 @@ const OrderDetail = () => {
                 <tr>
                   <td>{order.product || '—'}</td>
                   <td style={{textAlign: 'center'}}>{order.quantity || 1}</td>
-                  <td style={{textAlign: 'right'}}>{fmt(order.price, order.currency || 'XAF')}</td>
-                  <td style={{textAlign: 'right'}}>{fmt((order.price || 0) * (order.quantity || 1), order.currency || 'XAF')}</td>
+                  <td style={{textAlign: 'right'}}>{fmtOrder(order.price, order.currency)}</td>
+                  <td style={{textAlign: 'right'}}>{fmtOrder((order.price || 0) * (order.quantity || 1), order.currency)}</td>
                 </tr>
                 <tr className="total-row">
                   <td colSpan="3">TOTAL</td>
-                  <td style={{textAlign: 'right'}}>{fmt((order.price || 0) * (order.quantity || 1), order.currency || 'XAF')}</td>
+                  <td style={{textAlign: 'right'}}>{fmtOrder((order.price || 0) * (order.quantity || 1), order.currency)}</td>
                 </tr>
               </tbody>
             </table>
@@ -1017,7 +1020,7 @@ const OrderDetail = () => {
                   <p>📍 Ville: {order.city}</p>
                   <p>📦 Produit: {order.product}</p>
                   <p>🔢 Quantité: {order.quantity}</p>
-                  <p>💰 Total: {fmt((order.price || 0) * (order.quantity || 1), order.currency || 'XAF')}</p>
+                  <p>💰 Total: {fmtOrder((order.price || 0) * (order.quantity || 1), order.currency)}</p>
                   <p>📋 Statut: {order.status}</p>
                 </div>
               </div>
