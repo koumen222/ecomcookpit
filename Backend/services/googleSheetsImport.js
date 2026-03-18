@@ -196,7 +196,7 @@ const COLUMN_PATTERNS = [
   { field: 'quantity', compound: [], simple: ['quantite', 'quantity', 'qte', 'qty', 'nb', 'nombre', 'pieces', 'unites'] },
   { field: 'status', compound: ['order status', 'statut commande', 'statut de livraison', 'delivery status', 'etat commande', 'etat de la commande', 'statut de la commande'], simple: ['statut', 'status', 'etat', 'state', 'livraison', 'delivery', 'situation'] },
   { field: 'notes', compound: [], simple: ['notes', 'note', 'commentaire', 'comment', 'remarque', 'observation', 'description', 'details', 'info'] },
-  { field: 'address', compound: ['adresse de livraison', 'delivery address', 'adresse complete', 'adresse client'], simple: ['adresse', 'address', 'rue', 'street'] },
+  { field: 'address', compound: ['address 1', 'adresse 1', 'adresse de livraison', 'delivery address', 'adresse complete', 'adresse client'], simple: ['adresse', 'address', 'rue', 'street'] },
 ];
 
 /**
@@ -357,7 +357,59 @@ export function autoDetectColumns(headers, rows = []) {
       }
     });
   }
+  // Pass 4: Content-based validation — detect and fix swapped columns
+  if (rows.length > 0) {
+    const sampleRows = rows.slice(0, Math.min(10, rows.length));
 
+    const analyzeColumn = (colIdx) => {
+      let numericCount = 0, textCount = 0, dateCount = 0, urlCount = 0, total = 0;
+      for (const row of sampleRows) {
+        if (!row?.c?.[colIdx]) continue;
+        const cell = row.c[colIdx];
+        if (cell.v == null) continue;
+        total++;
+        if (typeof cell.v === 'number') { numericCount++; continue; }
+        const val = String(cell.f || cell.v).trim();
+        if (!val) continue;
+        if (/^https?:\/\//i.test(val)) { urlCount++; continue; }
+        if (/^\d{4}-\d{2}-\d{2}/.test(val) || (typeof cell.v === 'string' && cell.v.startsWith('Date('))) { dateCount++; continue; }
+        const numCleaned = parseFloat(cleanNumericString(val));
+        if (!isNaN(numCleaned) && numCleaned > 0 && /^[\d'+]/.test(val.trim())) { numericCount++; } else { textCount++; }
+      }
+      return { numericCount, textCount, dateCount, urlCount, total };
+    };
+
+    // Fix price \u2194 product swap: if price col has text and product col has numbers
+    if (mapping.price !== undefined && mapping.product !== undefined) {
+      const priceA = analyzeColumn(mapping.price);
+      const productA = analyzeColumn(mapping.product);
+      if (priceA.textCount > priceA.total / 2 && productA.numericCount > productA.total / 2) {
+        console.log(`\ud83d\udd04 [IMPORT] Swapping price (col ${mapping.price}) \u2194 product (col ${mapping.product}) \u2014 content mismatch`);
+        [mapping.price, mapping.product] = [mapping.product, mapping.price];
+      }
+    }
+
+    // Fix city \u2194 address swap: if city col has dates/timestamps and address has city-like text
+    if (mapping.city !== undefined && mapping.address !== undefined) {
+      const cityA = analyzeColumn(mapping.city);
+      const addressA = analyzeColumn(mapping.address);
+      if ((cityA.dateCount + cityA.urlCount) > cityA.total / 2 && addressA.textCount > addressA.total / 2) {
+        console.log(`\ud83d\udd04 [IMPORT] Swapping city (col ${mapping.city}) \u2194 address (col ${mapping.address}) \u2014 content mismatch`);
+        [mapping.city, mapping.address] = [mapping.address, mapping.city];
+      }
+    }
+
+    // Fix orderId \u2192 date: if orderId has dates but date col has URLs/garbage
+    if (mapping.orderId !== undefined && mapping.date !== undefined) {
+      const orderA = analyzeColumn(mapping.orderId);
+      const dateA = analyzeColumn(mapping.date);
+      if (orderA.dateCount > orderA.total / 2 && (dateA.urlCount + dateA.textCount) > dateA.total / 2) {
+        console.log(`\ud83d\udd04 [IMPORT] Moving orderId (col ${mapping.orderId}) \u2192 date \u2014 orderId has dates, date col has non-date content`);
+        mapping.date = mapping.orderId;
+        delete mapping.orderId;
+      }
+    }
+  }
   console.log('🔍 [IMPORT] Final mapping:', mapping);
   return mapping;
 }
@@ -420,23 +472,35 @@ function cleanNumericString(val) {
   const lastComma = cleaned.lastIndexOf(',');
   const lastDot = cleaned.lastIndexOf('.');
   
-  // French format: comma is decimal separator (e.g. "12000,50")
-  if (lastComma > lastDot) {
-    cleaned = cleaned.replace(/\./g, '').replace(',', '.');
-  } else if (lastDot > lastComma && lastComma !== -1) {
-    // English format with commas as thousands (e.g. "12,000.50")
-    cleaned = cleaned.replace(/,/g, '');
-  } else if (lastComma !== -1 && lastDot === -1) {
-    // Only comma - check if it's decimal or thousands
+  if (lastComma !== -1 && lastDot !== -1) {
+    // Both comma and dot present — determine format by position
+    if (lastComma > lastDot) {
+      // French: "12.000,50" → dots are thousands, comma is decimal
+      cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+    } else {
+      // English: "12,000.50" → commas are thousands, dot is decimal
+      cleaned = cleaned.replace(/,/g, '');
+    }
+  } else if (lastComma !== -1) {
+    // Only commas, no dots
     const parts = cleaned.split(',');
     const afterComma = parts[parts.length - 1];
     if (afterComma && afterComma.length <= 2) {
-      // Likely decimal: "12000,50" → "12000.50"
+      // Likely decimal: "12000,50" or "12,50"
       cleaned = cleaned.replace(/,(?=\d{1,2}$)/, '.').replace(/,/g, '');
     } else {
-      // Likely thousands: "12,000" → "12000"
+      // Likely thousands: "12,000" or "1,000,000"
       cleaned = cleaned.replace(/,/g, '');
     }
+  } else if (lastDot !== -1) {
+    // Only dots, no commas
+    const parts = cleaned.split('.');
+    const afterDot = parts[parts.length - 1];
+    if (parts.length > 1 && afterDot.length === 3 && parts[0].length <= 3) {
+      // Likely thousands separator: "15.000", "1.000.000"
+      cleaned = cleaned.replace(/\./g, '');
+    }
+    // Otherwise keep as-is (decimal: "25.99")
   }
   return cleaned || '0';
 }

@@ -16,7 +16,7 @@ class EvolutionApiService {
    * @param {string} number - Numéro de téléphone (format international sans +)
    * @param {string} message - Contenu du message
    */
-  async sendMessage(instanceName, instanceToken, number, message, retries = 2) {
+  async sendMessage(instanceName, instanceToken, number, message, retries = 2, delayMs = 1200) {
     // Nettoyage du numéro (garder uniquement les chiffres)
     const cleanNumber = number.replace(/\D/g, '');
     
@@ -27,7 +27,7 @@ class EvolutionApiService {
           {
             number: cleanNumber,
             text: message,
-            delay: 1200,
+            delay: delayMs,
             linkPreview: false
           },
           {

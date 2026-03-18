@@ -536,6 +536,109 @@ const ToggleRow = ({ enabled, onChange, label, desc }) => (
   </div>
 );
 
+/* ── Rita Rapport Section ── */
+const ACTIVITY_LABELS = {
+  message_received: { label: 'Message reçu', emoji: '💬', color: 'text-blue-600 bg-blue-50' },
+  message_replied: { label: 'Réponse envoyée', emoji: '📤', color: 'text-emerald-600 bg-emerald-50' },
+  order_confirmed: { label: 'Commande confirmée', emoji: '📦', color: 'text-purple-600 bg-purple-50' },
+  vocal_transcribed: { label: 'Vocal transcrit', emoji: '🎤', color: 'text-amber-600 bg-amber-50' },
+  vocal_sent: { label: 'Note vocale', emoji: '🔊', color: 'text-pink-600 bg-pink-50' },
+  image_sent: { label: 'Image envoyée', emoji: '📸', color: 'text-cyan-600 bg-cyan-50' },
+  escalation: { label: 'Escalade', emoji: '⚠️', color: 'text-red-600 bg-red-50' },
+};
+
+const RitaRapportSection = ({ userId }) => {
+  const [activityData, setActivityData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState(1);
+
+  const fetchActivity = async (d) => {
+    setLoading(true);
+    try {
+      const { data } = await ecomApi.get(`/v1/external/whatsapp/rita-activity?userId=${userId}&days=${d}`);
+      if (data.success) setActivityData(data);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { if (userId) fetchActivity(days); }, [userId, days]);
+
+  if (loading) return <div className="flex items-center justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>;
+  if (!activityData) return <div className="text-center py-8 text-gray-400 text-[13px]">Aucune donnée disponible</div>;
+
+  const { stats, recent } = activityData;
+
+  return (
+    <div className="space-y-4">
+      {/* Period selector */}
+      <div className="flex gap-2">
+        {[{ v: 1, l: "Aujourd'hui" }, { v: 7, l: '7 jours' }, { v: 30, l: '30 jours' }].map(p => (
+          <button key={p.v} onClick={() => setDays(p.v)}
+            className={`px-3 py-1.5 text-[12px] rounded-lg font-medium transition-all ${days === p.v ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-200' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>
+            {p.l}
+          </button>
+        ))}
+      </div>
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: 'Messages reçus', value: stats.messagesReceived, color: 'text-blue-600', bg: 'bg-blue-50' },
+          { label: 'Réponses', value: stats.messagesReplied, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+          { label: 'Commandes', value: stats.ordersConfirmed, color: 'text-purple-600', bg: 'bg-purple-50' },
+          { label: 'Clients uniques', value: stats.uniqueClients, color: 'text-amber-600', bg: 'bg-amber-50' },
+        ].map(s => (
+          <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
+            <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
+            <div className="text-[11px] text-gray-500 mt-0.5">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {(stats.vocalsTranscribed > 0 || stats.vocalsSent > 0) && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-amber-50 rounded-xl p-3 text-center">
+            <div className="text-lg font-bold text-amber-600">{stats.vocalsTranscribed}</div>
+            <div className="text-[11px] text-gray-500">Vocaux transcrits</div>
+          </div>
+          <div className="bg-pink-50 rounded-xl p-3 text-center">
+            <div className="text-lg font-bold text-pink-600">{stats.vocalsSent}</div>
+            <div className="text-[11px] text-gray-500">Notes vocales</div>
+          </div>
+        </div>
+      )}
+
+      {/* Timeline */}
+      <div>
+        <h4 className="text-[13px] font-semibold text-gray-700 mb-2">Activité récente</h4>
+        {recent.length === 0 ? (
+          <p className="text-[12px] text-gray-400 py-4 text-center">Aucune activité pour cette période</p>
+        ) : (
+          <div className="space-y-1.5 max-h-[350px] overflow-y-auto pr-1">
+            {recent.map((a, i) => {
+              const info = ACTIVITY_LABELS[a.type] || { label: a.type, emoji: '•', color: 'text-gray-600 bg-gray-50' };
+              const time = new Date(a.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+              const dateStr = new Date(a.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+              return (
+                <div key={i} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg ${info.color}`}>
+                  <span className="text-base flex-shrink-0">{info.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[12px] font-medium">{info.label}</span>
+                    {a.customerName && <span className="text-[11px] ml-1.5 opacity-70">— {a.customerName}</span>}
+                    {a.product && <span className="text-[11px] ml-1.5 opacity-70">· {a.product}</span>}
+                    {a.price && <span className="text-[11px] ml-1 font-semibold">· {a.price}</span>}
+                  </div>
+                  <span className="text-[10px] opacity-50 flex-shrink-0">{dateStr} {time}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 /* ── Rita IA ── */
 const RITA_SECTIONS = [
   { id: 'identity',     label: 'Identité',     emoji: '🤖' },
@@ -546,6 +649,8 @@ const RITA_SECTIONS = [
   { id: 'sales',        label: 'Vente',         emoji: '💰' },
   { id: 'availability', label: 'Dispo',         emoji: '⏰' },
   { id: 'voice',        label: 'Vocal',         emoji: '🎙️' },
+  { id: 'notifications', label: 'Notifications', emoji: '🔔' },
+  { id: 'rapport',      label: 'Rapport',       emoji: '📊' },
 ];
 
 const AUTONOMY_LEVELS = [
@@ -608,6 +713,13 @@ const RitaIATab = ({ instances }) => {
     elevenlabsApiKey: '',
     elevenlabsVoiceId: '9ZATEeixBigmezesCGAk',
     elevenlabsModel: 'eleven_v3',
+    // Notifications boss
+    bossNotifications: false,
+    bossPhone: '',
+    notifyOnOrder: true,
+    notifyOnScheduled: true,
+    dailySummary: true,
+    dailySummaryTime: '20:00',
   });
 
   const [simMessages, setSimMessages] = useState([]);
@@ -1723,6 +1835,46 @@ const RitaIATab = ({ instances }) => {
                 </div>
               </div>
             )}
+
+            {activeSection === 'notifications' && (
+              <div className="space-y-4">
+                <ToggleRow enabled={config.bossNotifications} onChange={v => set('bossNotifications', v)}
+                  label="Activer les notifications boss"
+                  desc="Rita envoie des alertes WhatsApp au responsable (commandes confirmées, rapport quotidien)" />
+                {config.bossNotifications && (
+                  <>
+                    <Field label="Numéro WhatsApp du boss" hint="Format international ex: 237699887766">
+                      <input type="tel" value={config.bossPhone} onChange={e => set('bossPhone', e.target.value)}
+                        placeholder="237699887766" className="field-input" />
+                    </Field>
+                    <div className="space-y-2 pt-1">
+                      <ToggleRow enabled={config.notifyOnOrder} onChange={v => set('notifyOnOrder', v)}
+                        label="Notification à chaque commande"
+                        desc="Rita prévient le boss dès qu'une commande est confirmée avec tous les détails" />
+                      <ToggleRow enabled={config.notifyOnScheduled} onChange={v => set('notifyOnScheduled', v)}
+                        label="Notification commande planifiée"
+                        desc="Alerte quand un client programme une livraison à une date précise" />
+                      <ToggleRow enabled={config.dailySummary} onChange={v => set('dailySummary', v)}
+                        label="Rapport quotidien automatique"
+                        desc="Résumé WhatsApp en fin de journée : commandes, messages, CA du jour" />
+                    </div>
+                    {config.dailySummary && (
+                      <Field label="Heure du rapport quotidien">
+                        <input type="time" value={config.dailySummaryTime} onChange={e => set('dailySummaryTime', e.target.value)}
+                          className="field-input" />
+                      </Field>
+                    )}
+                    <div className="px-4 py-3 bg-purple-50 border border-purple-100 rounded-lg">
+                      <p className="text-[12px] text-purple-700">
+                        📱 Rita enverra les notifications via la même instance WhatsApp connectée. Assurez-vous que le numéro du boss est correct.
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {activeSection === 'rapport' && <RitaRapportSection userId={userId} />}
 
           </div>
 

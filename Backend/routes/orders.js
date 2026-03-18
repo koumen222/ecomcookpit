@@ -1183,7 +1183,7 @@ function autoDetectColumns(headers, rows = []) {
     { field: 'quantity', compound: [], simple: ['quantite', 'quantity', 'qte', 'qty', 'nb', 'nombre', 'pieces', 'unites'] },
     { field: 'status', compound: ['statut livraison', 'statut commande', 'delivery status', 'order status', 'etat commande', 'etat de la commande', 'statut de la commande'], simple: ['statut', 'status', 'etat', 'state', 'livraison', 'delivery', 'situation'] },
     { field: 'notes', compound: [], simple: ['notes', 'note', 'commentaire', 'comment', 'remarque', 'observation', 'description', 'details', 'info'] },
-    { field: 'address', compound: ['adresse de livraison', 'delivery address', 'adresse complete', 'adresse client'], simple: ['adresse', 'address', 'rue', 'street'] },
+    { field: 'address', compound: ['address 1', 'adresse 1', 'adresse de livraison', 'delivery address', 'adresse complete', 'adresse client'], simple: ['adresse', 'address', 'rue', 'street'] },
   ];
 
   // Pass 1: compound matches (plus spécifiques)
@@ -1240,6 +1240,60 @@ function autoDetectColumns(headers, rows = []) {
         mapping.price = colIdx;
         console.log(`✅ [SYNC] Price column detected by content at index ${colIdx}`);
         break;
+      }
+    }
+  }
+
+  // Pass 4: Content-based validation — detect and fix swapped columns
+  if (rows.length > 0) {
+    const sampleRows = rows.slice(0, Math.min(10, rows.length));
+
+    const analyzeColumn = (colIdx) => {
+      let numericCount = 0, textCount = 0, dateCount = 0, urlCount = 0, total = 0;
+      for (const row of sampleRows) {
+        if (!row?.c?.[colIdx]) continue;
+        const cell = row.c[colIdx];
+        if (cell.v == null) continue;
+        total++;
+        if (typeof cell.v === 'number') { numericCount++; continue; }
+        const val = String(cell.f || cell.v).trim();
+        if (!val) continue;
+        if (/^https?:\/\//i.test(val)) { urlCount++; continue; }
+        if (/^\d{4}-\d{2}-\d{2}/.test(val) || (typeof cell.v === 'string' && cell.v.startsWith('Date('))) { dateCount++; continue; }
+        const numCleaned = parseFloat(val.replace(/[^0-9,.\s-]/g, '').replace(/\s/g, '').replace(',', '.'));
+        if (!isNaN(numCleaned) && numCleaned > 0 && /^[\d'+]/.test(val.trim())) { numericCount++; } else { textCount++; }
+      }
+      return { numericCount, textCount, dateCount, urlCount, total };
+    };
+
+    // Fix price ↔ product swap
+    if (mapping.price !== undefined && mapping.product !== undefined) {
+      const priceA = analyzeColumn(mapping.price);
+      const productA = analyzeColumn(mapping.product);
+      if (priceA.textCount > priceA.total / 2 && productA.numericCount > productA.total / 2) {
+        console.log(`🔄 [SYNC] Swapping price ↔ product — content mismatch`);
+        [mapping.price, mapping.product] = [mapping.product, mapping.price];
+      }
+    }
+
+    // Fix city ↔ address swap
+    if (mapping.city !== undefined && mapping.address !== undefined) {
+      const cityA = analyzeColumn(mapping.city);
+      const addressA = analyzeColumn(mapping.address);
+      if ((cityA.dateCount + cityA.urlCount) > cityA.total / 2 && addressA.textCount > addressA.total / 2) {
+        console.log(`🔄 [SYNC] Swapping city ↔ address — content mismatch`);
+        [mapping.city, mapping.address] = [mapping.address, mapping.city];
+      }
+    }
+
+    // Fix orderId → date
+    if (mapping.orderId !== undefined && mapping.date !== undefined) {
+      const orderA = analyzeColumn(mapping.orderId);
+      const dateA = analyzeColumn(mapping.date);
+      if (orderA.dateCount > orderA.total / 2 && (dateA.urlCount + dateA.textCount) > dateA.total / 2) {
+        console.log(`🔄 [SYNC] Moving orderId → date — orderId has dates, date col has non-date content`);
+        mapping.date = mapping.orderId;
+        delete mapping.orderId;
       }
     }
   }
@@ -1913,24 +1967,31 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
               // Parse from string (handle "12 000 FCFA", "12,000", etc.)
               const raw = String(cell.v ?? cell.f ?? '').replace(/^'+/, '');
               if (!raw) return 0;
-              // Remove currency text and non-numeric chars
+              // Remove currency text and symbols
               let s = raw.replace(/\b(fcfa|cfa|xof|xaf|dh|mad|da|dzd|dt|tnd|gnf|eur|usd|ariary|ar)\b/gi, '').replace(/[€$£¥]/g, '');
               s = s.replace(/\s/g, '');
               let cleaned = s.replace(/[^0-9,.\-]/g, '');
               if (!cleaned) return 0;
-              // French comma as decimal
               const lastComma = cleaned.lastIndexOf(',');
               const lastDot = cleaned.lastIndexOf('.');
-              if (lastComma > lastDot) {
-                cleaned = cleaned.replace(/\./g, '').replace(',', '.');
-              } else if (lastDot > lastComma && lastComma !== -1) {
-                cleaned = cleaned.replace(/,/g, '');
-              } else if (lastComma !== -1 && lastDot === -1) {
+              if (lastComma !== -1 && lastDot !== -1) {
+                if (lastComma > lastDot) {
+                  cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+                } else {
+                  cleaned = cleaned.replace(/,/g, '');
+                }
+              } else if (lastComma !== -1) {
                 const afterComma = cleaned.split(',').pop();
                 if (afterComma && afterComma.length <= 2) {
                   cleaned = cleaned.replace(/,(?=\d{1,2}$)/, '.').replace(/,/g, '');
                 } else {
                   cleaned = cleaned.replace(/,/g, '');
+                }
+              } else if (lastDot !== -1) {
+                const parts = cleaned.split('.');
+                const afterDot = parts[parts.length - 1];
+                if (parts.length > 1 && afterDot.length === 3 && parts[0].length <= 3) {
+                  cleaned = cleaned.replace(/\./g, '');
                 }
               }
               return parseFloat(cleaned) || 0;

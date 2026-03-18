@@ -10,6 +10,7 @@ import Order from '../models/Order.js';
 import { normalizePhone } from '../utils/phoneUtils.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 import { processIncomingMessage, generateTestReply, transcribeAudio, textToSpeech } from '../services/ritaAgentService.js';
+import { logRitaActivity } from '../services/ritaBossReportService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -800,6 +801,7 @@ router.post('/incoming', async (req, res) => {
                 if (transcribed) {
                   text = transcribed;
                   console.log(`🎤 [RITA] Vocal transcrit: "${transcribed.substring(0, 200)}"`);
+                  if (instanceDoc?.userId) logRitaActivity(instanceDoc.userId, 'vocal_transcribed', { customerPhone: from.replace(/@.*$/, ''), details: transcribed.substring(0, 200) });
                 } else {
                   console.log(`🎤 [RITA] Transcription échouée, message ignoré.`);
                   continue;
@@ -830,6 +832,9 @@ router.post('/incoming', async (req, res) => {
 
           const userId = instanceDoc.userId;
           console.log(`💬 [RITA] Traitement pour userId=${userId}...`);
+
+          // Log message reçu
+          logRitaActivity(userId, 'message_received', { customerPhone: from.replace(/@.*$/, ''), customerName: pushName || '', details: text.substring(0, 200) });
 
           // Générer la réponse IA
           const startTime = Date.now();
@@ -871,6 +876,7 @@ router.post('/incoming', async (req, res) => {
                 conversationSummary: `${orderData.product} → ${orderData.name} (${orderData.city})`,
               });
               console.log(`✅ [RITA] WhatsAppOrder enregistrée pour ${cleanFrom}`);
+              logRitaActivity(userId, 'order_confirmed', { customerPhone: cleanFrom, customerName: orderData.name || '', product: orderData.product || '', price: orderData.price || '' });
 
               // ─── Créer aussi une vraie commande dans ecom_orders (source: rita) ───
               if (instanceDoc.workspaceId) {
@@ -902,6 +908,24 @@ router.post('/incoming', async (req, res) => {
                 }
               } else {
                 console.warn(`⚠️ [RITA] Pas de workspaceId sur l'instance, commande ecom non créée`);
+              }
+
+              // ─── Notification WhatsApp au boss ───
+              try {
+                const ritaCfgBoss = await RitaConfig.findOne({ userId }).lean();
+                if (ritaCfgBoss?.bossNotifications && ritaCfgBoss?.bossPhone && ritaCfgBoss?.notifyOnOrder) {
+                  const bossMsg = `📦 *Nouvelle commande confirmée par Rita*\n\n👤 Client: ${orderData.name || 'N/A'}\n📱 Tél: ${cleanFrom}\n📍 Ville: ${orderData.city || 'N/A'}\n🛍️ Produit: ${orderData.product || 'N/A'}\n💰 Prix: ${orderData.price || 'N/A'}\n📅 Livraison: ${orderData.delivery_date || ''} ${orderData.delivery_time || ''}\n⏰ ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Douala' })}`;
+                  const bossPhone = ritaCfgBoss.bossPhone.replace(/\D/g, '');
+                  await evolutionApiService.sendMessage(
+                    instanceDoc.instanceName,
+                    instanceDoc.instanceToken,
+                    bossPhone,
+                    bossMsg
+                  );
+                  console.log(`✅ [RITA] Notification boss envoyée à ${bossPhone}`);
+                }
+              } catch (bossErr) {
+                console.error(`⚠️ [RITA] Erreur notification boss:`, bossErr.message);
               }
             } catch (parseErr) {
               console.error(`❌ [RITA] Erreur parsing ORDER_DATA:`, parseErr.message);
@@ -947,6 +971,13 @@ router.post('/incoming', async (req, res) => {
           const responseMode = ritaCfgVoice?.responseMode || (ritaCfgVoice?.voiceMode ? 'voice' : 'text');
           const canDoVoice = !!(effectiveApiKey && textToSend);
 
+          // Délai de réponse configuré (en secondes) → converti en ms pour Evolution API
+          const responseDelayMs = Math.max(500, Math.min(30000, (ritaCfgVoice?.responseDelay || 2) * 1000));
+          if (responseDelayMs > 1500) {
+            // Attendre avant d'envoyer (simule une vraie frappe humaine)
+            await new Promise(r => setTimeout(r, responseDelayMs - 1000));
+          }
+
           // En mode "both" (mixte) : vocal UNIQUEMENT pour les vraies explications longues
           // Réponses courtes/moyennes → texte. Vocal réservé aux gros paragraphes explicatifs.
           let useVoiceThisTurn = false;
@@ -962,15 +993,18 @@ router.post('/incoming', async (req, res) => {
 
           // ── Envoyer le texte ──
           if (textToSend && sendText) {
-            console.log(`📤 [RITA] Envoi réponse texte à ${cleanFrom}...`);
+            console.log(`📤 [RITA] Envoi réponse texte à ${cleanFrom} (délai: ${responseDelayMs}ms)...`);
             const sendResult = await evolutionApiService.sendMessage(
               instanceDoc.instanceName,
               instanceDoc.instanceToken,
               cleanFrom,
-              textToSend
+              textToSend,
+              2,
+              responseDelayMs
             );
             if (sendResult.success) {
               console.log(`✅ [RITA] Réponse texte envoyée`);
+              logRitaActivity(userId, 'message_replied', { customerPhone: cleanFrom, details: textToSend.substring(0, 200) });
             } else {
               console.error(`❌ [RITA] Échec envoi texte:`, sendResult.error);
             }
@@ -991,6 +1025,7 @@ router.post('/incoming', async (req, res) => {
                 );
                 if (audioResult.success) {
                   console.log(`✅ [RITA] Note vocale envoyée`);
+                  logRitaActivity(userId, 'vocal_sent', { customerPhone: cleanFrom });
                 } else {
                   console.error(`❌ [RITA] Échec vocal, fallback texte:`, audioResult.error);
                   await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
@@ -1123,6 +1158,55 @@ router.get('/rita-config', async (req, res) => {
     res.status(200).json({ success: true, config: config || null });
   } catch (error) {
     console.error('❌ Erreur chargement rita-config:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/ecom/v1/external/whatsapp/rita-activity
+ * @desc    Récupérer l'activité Rita pour le dashboard (aujourd'hui + stats)
+ */
+router.get('/rita-activity', async (req, res) => {
+  try {
+    const { userId, days } = req.query;
+    if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
+
+    const RitaActivity = (await import('../models/RitaActivity.js')).default;
+    const daysBack = parseInt(days) || 1;
+    const since = new Date();
+    since.setDate(since.getDate() - daysBack);
+    since.setHours(0, 0, 0, 0);
+
+    const activities = await RitaActivity.find({ userId, createdAt: { $gte: since } })
+      .sort({ createdAt: -1 })
+      .limit(500)
+      .lean();
+
+    // Compute stats
+    const stats = {
+      messagesReceived: activities.filter(a => a.type === 'message_received').length,
+      messagesReplied: activities.filter(a => a.type === 'message_replied').length,
+      ordersConfirmed: activities.filter(a => a.type === 'order_confirmed').length,
+      vocalsTranscribed: activities.filter(a => a.type === 'vocal_transcribed').length,
+      vocalsSent: activities.filter(a => a.type === 'vocal_sent').length,
+      imagesSent: activities.filter(a => a.type === 'image_sent').length,
+      uniqueClients: new Set(activities.filter(a => a.customerPhone).map(a => a.customerPhone)).size,
+    };
+
+    // Recent activities (last 50 for timeline)
+    const recent = activities.slice(0, 50).map(a => ({
+      type: a.type,
+      customerPhone: a.customerPhone,
+      customerName: a.customerName,
+      product: a.product,
+      price: a.price,
+      details: a.details,
+      date: a.createdAt,
+    }));
+
+    res.status(200).json({ success: true, stats, recent, total: activities.length });
+  } catch (error) {
+    console.error('❌ Erreur chargement rita-activity:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
