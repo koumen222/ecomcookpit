@@ -12,27 +12,43 @@ import evolutionApiService from '../services/evolutionApiService.js';
 import { processIncomingMessage, generateTestReply, transcribeAudio, textToSpeech, getLastAssistantMessage } from '../services/ritaAgentService.js';
 import { logRitaActivity } from '../services/ritaBossReportService.js';
 import { analyzeImage as analyzeProductImage } from '../services/agentImageService.js';
+import { uploadImage as uploadImageToR2, isConfigured as isR2Configured } from '../services/cloudflareImagesService.js';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ─── Multer config pour upload d'images produit Rita ───────────────────────
-const _uploadStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, '../uploads')),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const safeName = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '');
-    cb(null, `rita-${safeName}-${Date.now()}${ext}`);
-  },
-});
-const _upload = multer({
-  storage: _uploadStorage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB max
+// ─── Multer config pour upload d'images/vidéos produit Rita ───────────────
+// On utilise memoryStorage pour envoyer directement à R2 (fallback disk si R2 indisponible)
+const _uploadMemory = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 }, // 15 MB max
   fileFilter: (req, file, cb) => {
-    if (!file.mimetype.startsWith('image/')) return cb(new Error('Seules les images sont acceptées'));
+    if (!file.mimetype.startsWith('image/') && !file.mimetype.startsWith('video/')) {
+      return cb(new Error('Seuls les images et vidéos sont acceptés'));
+    }
     cb(null, true);
   },
 });
+// Fallback disk storage si R2 n'est pas configuré
+const _uploadDisk = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, path.join(__dirname, '../uploads')),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      const safeName = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '');
+      cb(null, `rita-${safeName}-${Date.now()}${ext}`);
+    },
+  }),
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('image/') && !file.mimetype.startsWith('video/')) {
+      return cb(new Error('Seuls les images et vidéos sont acceptés'));
+    }
+    cb(null, true);
+  },
+});
+const _upload = isR2Configured() ? _uploadMemory : _uploadDisk;
 
 const HARD_CODED_WEBHOOK_BASE_URL = 'https://api.scalor.net';
 
@@ -752,11 +768,47 @@ router.post('/activate', async (req, res) => {
  * @route   POST /api/ecom/v1/external/whatsapp/upload-image
  * @desc    Upload une image produit Rita → retourne l'URL publique
  */
-router.post('/upload-image', requireEcomAuth, _upload.single('image'), (req, res) => {
-  if (!req.file) return res.status(400).json({ success: false, error: 'Aucun fichier reçu' });
-  const baseUrl = HARD_CODED_WEBHOOK_BASE_URL;
-  const url = `${baseUrl}/uploads/${req.file.filename}`;
-  res.json({ success: true, url });
+router.post('/upload-image', requireEcomAuth, _upload.any(), async (req, res) => {
+  const file = req.files?.[0];
+  if (!file) return res.status(400).json({ success: false, error: 'Aucun fichier reçu' });
+
+  try {
+    // Si R2 est configuré et qu'on a un buffer (memoryStorage) → upload R2
+    if (isR2Configured() && file.buffer) {
+      const result = await uploadImageToR2(file.buffer, file.originalname, {
+        workspaceId: req.user?.workspaceId || 'rita',
+        uploadedBy: req.user?._id || 'rita',
+        mimeType: file.mimetype,
+      });
+      console.log(`✅ [RITA] Image uploadée vers R2: ${result.url}`);
+      return res.json({ success: true, url: result.url });
+    }
+
+    // Fallback: fichier local (diskStorage)
+    const baseUrl = HARD_CODED_WEBHOOK_BASE_URL;
+    const url = `${baseUrl}/uploads/${file.filename}`;
+    console.log(`📁 [RITA] Image uploadée localement: ${url}`);
+    res.json({ success: true, url });
+  } catch (err) {
+    console.error(`❌ [RITA] Erreur upload image:`, err.message);
+    // Si R2 échoue et qu'on a un buffer, sauver sur disque en fallback
+    if (file.buffer) {
+      try {
+        const ext = path.extname(file.originalname) || '.jpg';
+        const safeName = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, '');
+        const filename = `rita-${safeName}-${Date.now()}${ext}`;
+        const uploadsDir = path.join(__dirname, '../uploads');
+        if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+        fs.writeFileSync(path.join(uploadsDir, filename), file.buffer);
+        const url = `${HARD_CODED_WEBHOOK_BASE_URL}/uploads/${filename}`;
+        console.log(`📁 [RITA] Fallback disque après erreur R2: ${url}`);
+        return res.json({ success: true, url });
+      } catch (diskErr) {
+        console.error(`❌ [RITA] Fallback disque échoué:`, diskErr.message);
+      }
+    }
+    res.status(500).json({ success: false, error: 'Échec upload image' });
+  }
 });
 
 /**
@@ -1328,7 +1380,10 @@ router.post('/incoming', async (req, res) => {
 
           // Envoyer l'image si disponible
           if (imageUrl) {
-            console.log(`📸 [RITA] Envoi image à ${cleanFrom}...`);
+            console.log(`📸 [RITA] Envoi image à ${cleanFrom}... URL: ${imageUrl}`);
+            let imageSent = false;
+
+            // Essayer avec l'URL principale
             const mediaResult = await evolutionApiService.sendMedia(
               instanceDoc.instanceName,
               instanceDoc.instanceToken,
@@ -1338,11 +1393,40 @@ router.post('/incoming', async (req, res) => {
               'product.jpg'
             );
             if (mediaResult.success) {
+              imageSent = true;
               console.log(`✅ [RITA] Image envoyée avec succès à ${cleanFrom}`);
               logRitaActivity(userId, 'image_sent', { customerPhone: cleanFrom });
             } else {
-              console.error(`❌ [RITA] Échec envoi image à ${cleanFrom}:`, mediaResult.error);
-              // Informer le client que l'image n'a pas pu être envoyée
+              console.error(`❌ [RITA] Échec envoi image (tentative 1) à ${cleanFrom}:`, mediaResult.error);
+              // Retry avec les autres images du produit
+              if (matchedProductForMedia?.images?.length > 1) {
+                for (let imgIdx = 1; imgIdx < matchedProductForMedia.images.length; imgIdx++) {
+                  let altUrl = matchedProductForMedia.images[imgIdx];
+                  if (altUrl && altUrl.startsWith('/')) altUrl = `https://api.scalor.net${altUrl}`;
+                  if (!altUrl) continue;
+                  console.log(`📸 [RITA] Retry avec image alternative ${imgIdx + 1}: ${altUrl}`);
+                  const retryResult = await evolutionApiService.sendMedia(
+                    instanceDoc.instanceName,
+                    instanceDoc.instanceToken,
+                    cleanFrom,
+                    altUrl,
+                    '',
+                    'product.jpg'
+                  );
+                  if (retryResult.success) {
+                    imageSent = true;
+                    console.log(`✅ [RITA] Image alternative ${imgIdx + 1} envoyée avec succès`);
+                    logRitaActivity(userId, 'image_sent', { customerPhone: cleanFrom });
+                    break;
+                  }
+                }
+              }
+            }
+
+            if (!imageSent) {
+              console.error(`❌ [RITA] Toutes les tentatives d'envoi image ont échoué pour ${cleanFrom}`);
+              console.error(`   URL tentée: ${imageUrl}`);
+              console.error(`   Produit: ${matchedProductForMedia?.name || 'N/A'}, Images: ${JSON.stringify(matchedProductForMedia?.images || [])}`);
               await evolutionApiService.sendMessage(
                 instanceDoc.instanceName,
                 instanceDoc.instanceToken,
@@ -1393,6 +1477,14 @@ router.post('/incoming', async (req, res) => {
           }
           console.log(`💬 [RITA] ══════════════════════════════════════`);
         }
+      } else if (normalizedEvent === 'MESSAGES_UPDATE') {
+        // Accusés de réception / statuts de livraison — log discret
+        const statusLabels = { 0: 'ERROR', 1: 'PENDING', 2: 'SERVER_ACK', 3: 'DELIVERY_ACK', 4: 'READ', 5: 'PLAYED' };
+        const label = statusLabels[data?.status] || data?.status || '?';
+        console.log(`📬 [WH] Statut message: ${label} — from=${data?.remoteJid || '?'} fromMe=${data?.fromMe} instance=${instance}`);
+      } else if (normalizedEvent === 'SEND_MESSAGE') {
+        // Écho des messages sortants — log discret
+        console.log(`📤 [WH] Message sortant confirmé — to=${data?.key?.remoteJid || '?'} type=${data?.messageType || '?'} instance=${instance}`);
       } else if (normalizedEvent === 'CONNECTION_UPDATE') {
         console.log(`🔌 [WH] Connexion mise à jour — instance: ${instance}, état: ${JSON.stringify(data?.state)}`);
       } else {

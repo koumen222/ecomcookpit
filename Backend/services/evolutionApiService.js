@@ -126,7 +126,8 @@ class EvolutionApiService {
       // Détecter si c'est une URL locale (api.scalor.net/uploads/...) → lire directement depuis le disque
       const localMatch = mediaUrl.match(/(?:https?:\/\/(?:api\.scalor\.net|localhost[:\d]*))\/uploads\/(.+)$/);
       if (localMatch) {
-        const localPath = path.resolve(__dirname, '..', 'uploads', decodeURIComponent(localMatch[1]));
+        const decodedFile = decodeURIComponent(localMatch[1]);
+        const localPath = path.resolve(__dirname, '..', 'uploads', decodedFile);
         console.log(`📸 [Evolution] Fichier local détecté: ${localPath}`);
         if (fs.existsSync(localPath)) {
           const fileBuffer = fs.readFileSync(localPath);
@@ -135,11 +136,25 @@ class EvolutionApiService {
           console.log(`📸 [Evolution] Fichier local lu (${Math.round(fileBuffer.byteLength / 1024)} KB) → envoi base64`);
         } else {
           console.warn(`⚠️ [Evolution] Fichier local introuvable: ${localPath}`);
-          // Lister les fichiers du dossier uploads pour diagnostiquer
+          // Chercher dans les sous-dossiers d'uploads (workspaceId/...)
           const uploadsDir = path.resolve(__dirname, '..', 'uploads');
           if (fs.existsSync(uploadsDir)) {
-            const files = fs.readdirSync(uploadsDir).slice(0, 10);
-            console.warn(`   📂 Fichiers dans uploads/ (${files.length} premiers): ${files.join(', ')}`);
+            // Lister pour diagnostic
+            const topFiles = fs.readdirSync(uploadsDir).slice(0, 15);
+            console.warn(`   📂 Contenu uploads/ (${topFiles.length} premiers): ${topFiles.join(', ')}`);
+            // Tenter de trouver le fichier par son basename dans les sous-dossiers
+            const basename = path.basename(decodedFile);
+            const altPaths = topFiles
+              .filter(f => { try { return fs.statSync(path.join(uploadsDir, f)).isDirectory(); } catch { return false; } })
+              .map(d => path.join(uploadsDir, d, basename))
+              .filter(p => fs.existsSync(p));
+            if (altPaths.length) {
+              console.log(`📸 [Evolution] Fichier trouvé dans sous-dossier: ${altPaths[0]}`);
+              const fileBuffer = fs.readFileSync(altPaths[0]);
+              const b64 = fileBuffer.toString('base64');
+              mediaPayload = `data:${mimetype};base64,${b64}`;
+              console.log(`📸 [Evolution] Fichier alternatif lu (${Math.round(fileBuffer.byteLength / 1024)} KB) → envoi base64`);
+            }
           }
         }
       }
