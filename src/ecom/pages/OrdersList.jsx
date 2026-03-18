@@ -85,7 +85,7 @@ const OrdersList = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useEcomAuth();
-  const { fmt } = useMoney();
+  const { fmt, currency: userCurrency } = useMoney();
   const isAdmin = user?.role === 'ecom_admin';
   const isSuperAdmin = user?.role === 'super_admin';
   const isCloseuse = user?.role === 'ecom_closeuse';
@@ -1138,7 +1138,7 @@ const OrdersList = () => {
 
   const openCreateOrder = () => {
     setEditingOrder(null);
-    setOrderForm({ clientName: '', clientPhone: '', city: '', address: '', product: '', quantity: 1, price: 0, status: 'pending', notes: '' });
+    setOrderForm({ clientName: '', clientPhone: '', city: '', address: '', product: '', quantity: 1, price: 0, status: 'pending', notes: '', currency: userCurrency || 'XAF' });
     setShowOrderModal(true);
   };
 
@@ -1152,6 +1152,7 @@ const OrdersList = () => {
       product: order.product || '',
       quantity: order.quantity || 1,
       price: order.price || 0,
+      currency: order.currency || userCurrency || 'XAF',
       status: order.status || 'pending',
       notes: order.notes || ''
     });
@@ -1254,8 +1255,8 @@ const OrdersList = () => {
 🏠 Adresse: ${address}
 📦 Produit: ${product}
 📝 Quantité: ${quantity}
-💸 Prix unitaire: ${fmt(price)}
-💸 Total: ${fmt(total)}
+💸 Prix unitaire: ${fmt(price, order.currency || 'XAF')}
+💸 Total: ${fmt(total, order.currency || 'XAF')}
 📝 Statut: ${status}
 📝 Notes: ${notes || 'Aucune'}
 `;
@@ -2434,7 +2435,7 @@ const OrdersList = () => {
                       {/* Price */}
                       {totalPrice > 0 && (
                         <div className="flex-shrink-0">
-                          <p className="text-sm font-bold text-gray-900">{fmt(totalPrice)}</p>
+                          <p className="text-sm font-bold text-gray-900">{fmt(totalPrice, o.currency || 'XAF')}</p>
                         </div>
                       )}
 
@@ -2530,7 +2531,7 @@ const OrdersList = () => {
                         </div>
                       </div>
                       {totalPrice > 0 && (
-                        <p className="text-sm font-bold text-gray-900 ml-2 flex-shrink-0">{fmt(totalPrice)}</p>
+                        <p className="text-sm font-bold text-gray-900 ml-2 flex-shrink-0">{fmt(totalPrice, o.currency || 'XAF')}</p>
                       )}
                     </div>
 

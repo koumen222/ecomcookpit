@@ -982,13 +982,18 @@ router.post('/incoming', async (req, res) => {
 
           // ─── Détecter tag [IMAGE:Nom du produit] pour envoi de photos ───
           const imageTagMatch = replyClean.match(/\[IMAGE:(.+?)\]/);
+          // ─── Détecter tag [VIDEO:Nom du produit] pour envoi de vidéos ───
+          const videoTagMatch = replyClean.match(/\[VIDEO:(.+?)\]/);
           let textToSend = replyClean;
           let imageUrl = null;
           let imageProductName = null;
+          let videoUrl = null;
+          let videoProductName = null;
+          let matchedProductForMedia = null;
 
           if (imageTagMatch) {
             imageProductName = imageTagMatch[1].trim();
-            textToSend = replyClean.replace(/\s*\[IMAGE:.+?\]/, '').trim();
+            textToSend = textToSend.replace(/\s*\[IMAGE:.+?\]/, '').trim();
             console.log(`📸 [RITA] Tag image détecté pour produit: "${imageProductName}"`);
 
             // Chercher l'image dans le productCatalog (exact → partiel → premier avec image)
@@ -1000,19 +1005,41 @@ router.post('/incoming', async (req, res) => {
               || catalog.find(p => p.images?.length);
             if (product?.images?.length) {
               imageUrl = product.images[0];
-              // Si l'URL est relative (/uploads/...), la rendre absolue pour que l'API Evolution puisse y accéder
               if (imageUrl && imageUrl.startsWith('/')) {
                 imageUrl = `https://api.scalor.net${imageUrl}`;
               }
+              matchedProductForMedia = product;
               console.log(`📸 [RITA] Image trouvée: ${imageUrl}`);
             } else {
               console.log(`📸 [RITA] Aucune image trouvée pour "${imageProductName}" — envoi message client`);
-              // Si Rita a mis le tag mais le produit n'a pas d'image, informer le client
               if (!textToSend) {
                 textToSend = `L'image de ce produit ne nous a pas encore été fournie 🙏 Mais je peux vous donner tous les détails !`;
               } else {
                 textToSend += `\n\n_(L'image de ce produit ne nous a pas encore été fournie 🙏)_`;
               }
+            }
+          }
+
+          if (videoTagMatch && !imageTagMatch) {
+            videoProductName = videoTagMatch[1].trim();
+            textToSend = textToSend.replace(/\s*\[VIDEO:.+?\]/, '').trim();
+            console.log(`🎬 [RITA] Tag vidéo détecté pour produit: "${videoProductName}"`);
+
+            const ritaCfgV = await RitaConfig.findOne({ userId }).lean();
+            const catalogV = ritaCfgV?.productCatalog || [];
+            const nameLowV = videoProductName.toLowerCase();
+            let productV = catalogV.find(p => p.name.toLowerCase() === nameLowV)
+              || catalogV.find(p => p.name.toLowerCase().includes(nameLowV) || nameLowV.includes(p.name.toLowerCase()))
+              || catalogV.find(p => p.videos?.length);
+            if (productV?.videos?.length) {
+              videoUrl = productV.videos[0];
+              if (videoUrl && videoUrl.startsWith('/')) {
+                videoUrl = `https://api.scalor.net${videoUrl}`;
+              }
+              matchedProductForMedia = productV;
+              console.log(`🎬 [RITA] Vidéo trouvée: ${videoUrl}`);
+            } else {
+              console.log(`🎬 [RITA] Aucune vidéo trouvée pour "${videoProductName}"`);
             }
           }
 
@@ -1130,11 +1157,9 @@ router.post('/incoming', async (req, res) => {
             }
 
             // ─── RELANCE après image: proposer achat avec prix ───
-            // Réutilise ritaCfg + même logique de matching flou
-            const matchedProduct = product; // déjà trouvé ci-dessus
-            if (matchedProduct) {
-              let followUp = `Voilà le ${matchedProduct.name} 👍`;
-              if (matchedProduct.price) followUp += `\n\n💰 Prix : ${matchedProduct.price}`;
+            if (matchedProductForMedia) {
+              let followUp = `Voilà le ${matchedProductForMedia.name} 👍`;
+              if (matchedProductForMedia.price) followUp += `\n\n💰 Prix : ${matchedProductForMedia.price}`;
               followUp += `\n\nTu confirmes la commande ? (Oui / Non)`;
 
               // Petit délai pour que l'image arrive avant le texte
@@ -1146,6 +1171,26 @@ router.post('/incoming', async (req, res) => {
                 followUp
               );
               console.log(`📤 [RITA] Relance après image envoyée à ${cleanFrom}`);
+            }
+          }
+
+          // Envoyer la vidéo si disponible
+          if (videoUrl) {
+            console.log(`🎬 [RITA] Envoi vidéo à ${cleanFrom}...`);
+            await new Promise(r => setTimeout(r, 1000));
+            const videoResult = await evolutionApiService.sendVideo(
+              instanceDoc.instanceName,
+              instanceDoc.instanceToken,
+              cleanFrom,
+              videoUrl,
+              matchedProductForMedia?.name || '',
+              'product.mp4'
+            );
+            if (videoResult.success) {
+              console.log(`✅ [RITA] Vidéo envoyée avec succès à ${cleanFrom}`);
+              logRitaActivity(userId, 'video_sent', { customerPhone: cleanFrom });
+            } else {
+              console.error(`❌ [RITA] Échec envoi vidéo à ${cleanFrom}:`, videoResult.error);
             }
           }
           console.log(`💬 [RITA] ══════════════════════════════════════`);

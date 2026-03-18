@@ -925,6 +925,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [bulkText, setBulkText] = useState('');
   const [bulkImportResult, setBulkImportResult] = useState(null);
+  const [selectedProducts, setSelectedProducts] = useState(new Set()); // multi-select indexes
   const [newMannerism, setNewMannerism] = useState('');
   const [newForbidden, setNewForbidden] = useState('');
   const [previewingVoice, setPreviewingVoice] = useState(null); // voiceId en cours de preview
@@ -1033,9 +1034,31 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
 
   // ─── Product catalog helpers ───
   const addProduct = () => {
-    const newP = { name: '', price: '', description: '', category: '', images: [], features: [], faq: [], objections: [], inStock: true };
+    const newP = { name: '', price: '', description: '', category: '', images: [], videos: [], features: [], faq: [], objections: [], inStock: true };
     set('productCatalog', [...config.productCatalog, newP]);
     setEditingProduct(config.productCatalog.length);
+  };
+
+  const toggleSelectProduct = (idx) => {
+    setSelectedProducts(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (selectedProducts.size === config.productCatalog.length) {
+      setSelectedProducts(new Set());
+    } else {
+      setSelectedProducts(new Set(config.productCatalog.map((_, i) => i)));
+    }
+  };
+  const deleteSelectedProducts = () => {
+    if (selectedProducts.size === 0) return;
+    const updated = config.productCatalog.filter((_, i) => !selectedProducts.has(i));
+    set('productCatalog', updated);
+    setSelectedProducts(new Set());
+    setEditingProduct(null);
   };
 
   const parseBulkProducts = () => {
@@ -1052,7 +1075,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
         price: parts[1] || '',
         category: parts[2] || '',
         description: parts[3] || '',
-        images: [], features: [], faq: [], objections: [], inStock: true,
+        images: [], videos: [], features: [], faq: [], objections: [], inStock: true,
       });
     }
     if (!parsed.length) return;
@@ -1069,6 +1092,11 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
     set('productCatalog', config.productCatalog.filter((_, i) => i !== idx));
     if (editingProduct === idx) setEditingProduct(null);
     else if (editingProduct > idx) setEditingProduct(editingProduct - 1);
+    setSelectedProducts(prev => {
+      const next = new Set();
+      prev.forEach(i => { if (i !== idx) next.add(i > idx ? i - 1 : i); });
+      return next;
+    });
   };
   const addProductFaq = (idx) => {
     const p = config.productCatalog[idx];
@@ -1104,6 +1132,17 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
   };
   const removeProductImage = (pIdx, iIdx) => {
     updateProduct(pIdx, 'images', config.productCatalog[pIdx].images.filter((_, i) => i !== iIdx));
+  };
+  const addProductVideo = (idx) => {
+    const p = config.productCatalog[idx];
+    updateProduct(idx, 'videos', [...(p.videos || []), '']);
+  };
+  const updateProductVideo = (pIdx, vIdx, val) => {
+    const vids = config.productCatalog[pIdx].videos.map((url, i) => i === vIdx ? val : url);
+    updateProduct(pIdx, 'videos', vids);
+  };
+  const removeProductVideo = (pIdx, vIdx) => {
+    updateProduct(pIdx, 'videos', config.productCatalog[pIdx].videos.filter((_, i) => i !== vIdx));
   };
   const addProductFeature = (idx, feat) => {
     if (!feat.trim()) return;
@@ -1541,14 +1580,39 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
               <div className="space-y-4">
                 <div className="px-4 py-3 bg-purple-50/80 border border-purple-100 rounded-2xl text-[12px] text-purple-800 flex gap-2.5 items-start">
                   <span className="flex-shrink-0 text-sm mt-0.5">🛒</span>
-                  <span>Ajoutez vos produits avec tous les détails : prix, description, images, FAQ et objections. Plus c'est complet, plus l'agent est efficace.</span>
+                  <span>Ajoutez vos produits avec tous les détails : prix, description, images, vidéos, FAQ et objections. Plus c'est complet, plus l'agent est efficace.</span>
                 </div>
 
+                {/* ── Barre multi-sélection ── */}
+                {config.productCatalog.length > 0 && (
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer select-none text-[12px] text-gray-500 hover:text-gray-700">
+                      <input type="checkbox"
+                        checked={selectedProducts.size > 0 && selectedProducts.size === config.productCatalog.length}
+                        ref={el => { if (el) el.indeterminate = selectedProducts.size > 0 && selectedProducts.size < config.productCatalog.length; }}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 accent-purple-600" />
+                      {selectedProducts.size === 0 ? 'Tout sélectionner' : `${selectedProducts.size} sélectionné${selectedProducts.size > 1 ? 's' : ''}`}
+                    </label>
+                    {selectedProducts.size > 0 && (
+                      <button onClick={deleteSelectedProducts}
+                        className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 text-[11px] font-semibold transition-colors">
+                        <Trash2 className="w-3 h-3" />
+                        Supprimer la sélection
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {config.productCatalog.map((product, pIdx) => (
-                  <div key={pIdx} className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+                  <div key={pIdx} className={`border rounded-xl overflow-hidden bg-white transition-colors ${selectedProducts.has(pIdx) ? 'border-purple-400 ring-1 ring-purple-200' : 'border-gray-200'}`}>
                     {/* Product header */}
                     <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b border-gray-100 cursor-pointer"
                       onClick={() => setEditingProduct(editingProduct === pIdx ? null : pIdx)}>
+                      <input type="checkbox" checked={selectedProducts.has(pIdx)}
+                        onClick={e => e.stopPropagation()}
+                        onChange={() => toggleSelectProduct(pIdx)}
+                        className="w-4 h-4 accent-purple-600 flex-shrink-0" />
                       <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 text-[12px] font-bold flex items-center justify-center flex-shrink-0">
                         {pIdx + 1}
                       </div>
@@ -1557,9 +1621,10 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                         <p className="text-[11px] text-gray-400">
                           {product.price ? `${product.price}` : 'Prix non défini'}
                           {product.category ? ` · ${product.category}` : ''}
-                          {product.images?.length ? ` · ${product.images.length} photo${product.images.length > 1 ? 's' : ''}` : ''}
+                          {product.images?.length ? ` · 📸 ${product.images.length}` : ''}
+                          {product.videos?.length ? ` · 🎬 ${product.videos.length}` : ''}
                           {product.faq?.length ? ` · ${product.faq.length} FAQ` : ''}
-                          {product.objections?.length ? ` · ${product.objections.length} objection${product.objections.length > 1 ? 's' : ''}` : ''}
+                          {product.objections?.length ? ` · ${product.objections.length} obj.` : ''}
                           {!product.inStock ? ' · 🔴 Rupture' : ''}
                         </p>
                       </div>
@@ -1663,6 +1728,50 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                                   e.target.value = '';
                                 }} />
                               📤 Uploader une photo
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Videos */}
+                        <div>
+                          <p className="text-[12px] font-semibold text-gray-700 mb-2">🎬 Vidéos du produit</p>
+                          <p className="text-[10px] text-gray-400 mb-2">Rita envoie la vidéo quand le client hésite ou veut voir le produit en action.</p>
+                          {(product.videos || []).map((url, vIdx) => (
+                            <div key={vIdx} className="flex gap-2 mb-2 items-center">
+                              <input value={url} onChange={e => updateProductVideo(pIdx, vIdx, e.target.value)}
+                                placeholder="https://exemple.com/video-produit.mp4"
+                                className="field-input flex-1 text-xs font-mono" />
+                              {url && (
+                                <a href={url} target="_blank" rel="noreferrer"
+                                  className="text-[10px] text-blue-500 hover:underline flex-shrink-0">▶</a>
+                              )}
+                              <button onClick={() => removeProductVideo(pIdx, vIdx)}
+                                className="text-gray-300 hover:text-red-500 flex-shrink-0">×</button>
+                            </div>
+                          ))}
+                          <div className="flex items-center gap-3 mt-1">
+                            <button onClick={() => addProductVideo(pIdx)}
+                              className="text-[11px] font-medium text-purple-600 hover:text-purple-800">+ URL vidéo</button>
+                            <span className="text-gray-300 text-[11px]">|</span>
+                            <label className="text-[11px] font-medium text-blue-600 hover:text-blue-800 cursor-pointer flex items-center gap-1">
+                              <input type="file" accept="video/*" className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const fd = new FormData();
+                                  fd.append('video', file);
+                                  try {
+                                    const { data } = await ecomApi.post('/v1/external/whatsapp/upload-image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                                    if (data.success && data.url) {
+                                      const existingVideos = product.videos || [];
+                                      updateProduct(pIdx, 'videos', [...existingVideos, data.url]);
+                                    }
+                                  } catch (err) {
+                                    alert('Erreur upload vidéo: ' + (err.response?.data?.error || err.message));
+                                  }
+                                  e.target.value = '';
+                                }} />
+                              📤 Uploader une vidéo
                             </label>
                           </div>
                         </div>

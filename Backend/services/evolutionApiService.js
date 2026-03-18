@@ -163,6 +163,33 @@ class EvolutionApiService {
   }
 
   /**
+   * Envoie une vidéo via WhatsApp
+   */
+  async sendVideo(instanceName, instanceToken, number, videoUrl, caption = '', fileName = 'video.mp4') {
+    const cleanNumber = number.replace(/\D/g, '');
+    const ext = fileName.split('.').pop().toLowerCase();
+    const mimetypes = { 'mp4': 'video/mp4', 'webm': 'video/webm', 'mov': 'video/quicktime', 'avi': 'video/x-msvideo' };
+    const mimetype = mimetypes[ext] || 'video/mp4';
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/message/sendMedia/${instanceName}`,
+        { number: cleanNumber, mediatype: 'video', mimetype, caption, media: videoUrl, fileName, delay: 1500 },
+        { headers: { 'Content-Type': 'application/json', 'apikey': instanceToken }, timeout: 60000 }
+      );
+      console.log(`✅ [Evolution API] Vidéo envoyée à ${cleanNumber}`);
+      return { success: true, data: response.data };
+    } catch (error) {
+      const errorData = error.response?.data;
+      console.error(`❌ Erreur Evolution API (sendVideo):`, JSON.stringify(errorData, null, 2) || error.message);
+      let detailedError = errorData?.message || error.message;
+      if (Array.isArray(errorData?.response?.message)) {
+        detailedError = errorData.response.message.map(m => JSON.stringify(m)).join(', ');
+      }
+      return { success: false, error: detailedError };
+    }
+  }
+
+  /**
    * Envoie un message vocal via WhatsApp
    * @param {string} instanceName - Nom de l'instance
    * @param {string} instanceToken - Token de l'instance

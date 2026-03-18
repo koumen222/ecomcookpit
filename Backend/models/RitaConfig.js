@@ -42,6 +42,7 @@ const ritaConfigSchema = new mongoose.Schema({
     description: { type: String, default: '' },
     category: { type: String, default: '' },
     images: [String],
+    videos: [String],
     features: [String],
     faq: [{ question: { type: String }, answer: { type: String } }],
     objections: [{ objection: { type: String }, response: { type: String } }],

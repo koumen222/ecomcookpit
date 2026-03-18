@@ -324,7 +324,7 @@ const detectCountry = (phone, city) => {
 // ─── Route: Créer une commande (POST /) ───────────────────────────────────────
 router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), async (req, res) => {
   try {
-    const { clientName, clientPhone, city, address, product, quantity, price, status, notes, tags } = req.body;
+    const { clientName, clientPhone, city, address, product, quantity, price, status, notes, tags, currency } = req.body;
     if (!clientName && !clientPhone) {
       return res.status(400).json({ success: false, message: 'Nom client ou téléphone requis' });
     }
@@ -342,6 +342,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), async (
       product: product || '',
       quantity: quantity || 1,
       price: price || 0,
+      currency: currency || 'XAF',
       status: status || 'pending',
       notes: notes || '',
       tags: tags || [],
@@ -1628,6 +1629,12 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
     // 🔒 CRÉATION LOCK TEMPORAIRE (2 minutes)
     const lockExpiresAt = new Date(Date.now() + 120000); // 2 minutes
     let settings = null;
+    // Devise du workspace (pour stocker avec chaque commande importée)
+    let workspaceCurrency = 'XAF';
+    try {
+      const ws = await EcomWorkspace.findById(req.workspaceId).select('settings').lean();
+      workspaceCurrency = ws?.settings?.currency || 'XAF';
+    } catch (_) { /* garder XAF par défaut */ }
     
     // Émettre progression: création du lock
     syncProgressEmitter.emit('progress', {
@@ -2084,6 +2091,7 @@ router.post('/sync-sheets', requireEcomAuth, validateEcomAccess('orders', 'write
               product: getVal('product'),
               quantity: parseInt(getNumVal('quantity')) || 1,
               price: getNumVal('price'),
+              currency: workspaceCurrency,
               status: mappedStatus,
               tags: [sourceToSync.name],
               notes: getVal('notes'),
@@ -3125,7 +3133,7 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
       });
     }
 
-    const allowedFields = ['status', 'notes', 'clientName', 'clientPhone', 'city', 'address', 'product', 'quantity', 'price', 'deliveryLocation', 'deliveryTime', 'tags', 'assignedLivreur'];
+    const allowedFields = ['status', 'notes', 'clientName', 'clientPhone', 'city', 'address', 'product', 'quantity', 'price', 'currency', 'deliveryLocation', 'deliveryTime', 'tags', 'assignedLivreur'];
     const updateData = {};
     allowedFields.forEach(field => {
       if (req.body[field] !== undefined) updateData[field] = req.body[field];

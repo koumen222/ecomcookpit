@@ -118,7 +118,7 @@ const OrderDetail = () => {
     setSaving(true);
     try {
       const updates = {};
-      ['status', 'notes', 'clientName', 'clientPhone', 'city', 'product', 'quantity', 'price', 'deliveryLocation', 'deliveryTime'].forEach(f => {
+      ['status', 'notes', 'clientName', 'clientPhone', 'city', 'product', 'quantity', 'price', 'currency', 'deliveryLocation', 'deliveryTime'].forEach(f => {
         if (editData[f] !== undefined) updates[f] = editData[f];
       });
       await ecomApi.put(`/orders/${id}`, updates);
@@ -160,7 +160,7 @@ const OrderDetail = () => {
     const rawProduct = order.rawData ? Object.entries(order.rawData).find(([k, v]) => v && isNaN(v) && /produit|product|article|item|désignation|designation/i.test(k))?.[1] : '';
     msg += `Article : ${productName || rawProduct || '—'}\n\n`;
     msg += `Quantité : ${String(order.quantity || 1).padStart(2, '0')}\n\n`;
-    msg += `Montant : ${total.toLocaleString('fr-FR')}fcfa`;
+    msg += `Montant : ${total.toLocaleString('fr-FR')} ${order.currency || 'FCFA'}`;
     if (order.notes) msg += `\n\nNotes : ${order.notes}`;
     if (deliveryNote) msg += `\n\nInstructions : ${deliveryNote}`;
     return msg;
@@ -739,7 +739,7 @@ const OrderDetail = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-xs text-gray-500">Prix unitaire</span>
-                <span className="text-xs font-medium text-gray-900">{fmt(order.price)}</span>
+                <span className="text-xs font-medium text-gray-900">{fmt(order.price, order.currency || 'XAF')}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-xs text-gray-500">Quantité</span>
@@ -747,7 +747,7 @@ const OrderDetail = () => {
               </div>
               <div className="border-t border-gray-100 pt-2.5 flex justify-between">
                 <span className="text-sm font-bold text-gray-900">Total</span>
-                <span className="text-sm font-bold text-gray-900">{fmt((order.price || 0) * (order.quantity || 1))}</span>
+                <span className="text-sm font-bold text-gray-900">{fmt((order.price || 0) * (order.quantity || 1), order.currency || 'XAF')}</span>
               </div>
             </div>
           </div>
@@ -945,12 +945,12 @@ const OrderDetail = () => {
                 <tr>
                   <td>{order.product || '—'}</td>
                   <td style={{textAlign: 'center'}}>{order.quantity || 1}</td>
-                  <td style={{textAlign: 'right'}}>{fmt(order.price)}</td>
-                  <td style={{textAlign: 'right'}}>{fmt((order.price || 0) * (order.quantity || 1))}</td>
+                  <td style={{textAlign: 'right'}}>{fmt(order.price, order.currency || 'XAF')}</td>
+                  <td style={{textAlign: 'right'}}>{fmt((order.price || 0) * (order.quantity || 1), order.currency || 'XAF')}</td>
                 </tr>
                 <tr className="total-row">
                   <td colSpan="3">TOTAL</td>
-                  <td style={{textAlign: 'right'}}>{fmt((order.price || 0) * (order.quantity || 1))}</td>
+                  <td style={{textAlign: 'right'}}>{fmt((order.price || 0) * (order.quantity || 1), order.currency || 'XAF')}</td>
                 </tr>
               </tbody>
             </table>
@@ -1017,7 +1017,7 @@ const OrderDetail = () => {
                   <p>📍 Ville: {order.city}</p>
                   <p>📦 Produit: {order.product}</p>
                   <p>🔢 Quantité: {order.quantity}</p>
-                  <p>💰 Total: {fmt((order.price || 0) * (order.quantity || 1))}</p>
+                  <p>💰 Total: {fmt((order.price || 0) * (order.quantity || 1), order.currency || 'XAF')}</p>
                   <p>📋 Statut: {order.status}</p>
                 </div>
               </div>

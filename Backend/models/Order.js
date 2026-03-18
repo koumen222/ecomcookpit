@@ -59,6 +59,10 @@ const orderSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  currency: {
+    type: String,
+    default: 'XAF'
+  },
   status: {
     type: String,
     default: 'pending'
