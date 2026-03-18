@@ -49,19 +49,79 @@ export async function transcribeAudio(base64, mimetype = 'audio/ogg') {
 /**
  * Supprime les emojis et normalise les abréviations pour une bonne lecture TTS en français
  */
+/**
+ * Épelle un numéro de téléphone chiffre par chiffre, lisible à l'oral.
+ * Ex: "237699887766" → "deux trois sept, six neuf neuf, huit huit sept, sept six six"
+ */
+function spellPhone(digits) {
+  const names = ['zéro','un','deux','trois','quatre','cinq','six','sept','huit','neuf'];
+  const spelled = digits.split('').map(d => names[parseInt(d)] || d);
+  // Group by 3 for natural reading
+  const groups = [];
+  for (let i = 0; i < spelled.length; i += 3) {
+    groups.push(spelled.slice(i, i + 3).join(' '));
+  }
+  return groups.join(', ');
+}
+
+/**
+ * Convertit un grand nombre en texte naturel parlé.
+ * Ex: 19900 → "dix-neuf mille neuf cents"
+ */
+function spellNumber(n) {
+  if (isNaN(n) || n < 0) return String(n);
+  if (n === 0) return 'zéro';
+  const units = ['','un','deux','trois','quatre','cinq','six','sept','huit','neuf','dix','onze','douze','treize','quatorze','quinze','seize','dix-sept','dix-huit','dix-neuf'];
+  const tens = ['','','vingt','trente','quarante','cinquante','soixante','soixante','quatre-vingt','quatre-vingt'];
+  function under1000(x) {
+    if (x < 20) return units[x];
+    if (x < 100) {
+      const t = Math.floor(x / 10);
+      const u = x % 10;
+      if (t === 7 || t === 9) return tens[t] + '-' + units[10 + u]; // soixante-dix, quatre-vingt-dix
+      if (t === 8 && u === 0) return 'quatre-vingts';
+      return tens[t] + (u ? '-' + units[u] : '');
+    }
+    const h = Math.floor(x / 100);
+    const rest = x % 100;
+    let s = h === 1 ? 'cent' : units[h] + ' cents';
+    if (rest > 0) s = (h === 1 ? 'cent' : units[h] + ' cent') + ' ' + under1000(rest);
+    return s;
+  }
+  if (n >= 1000000) {
+    const m = Math.floor(n / 1000000);
+    const rest = n % 1000000;
+    return (m === 1 ? 'un million' : under1000(m) + ' millions') + (rest ? ' ' + spellNumber(rest) : '');
+  }
+  if (n >= 1000) {
+    const k = Math.floor(n / 1000);
+    const rest = n % 1000;
+    return (k === 1 ? 'mille' : under1000(k) + ' mille') + (rest ? ' ' + under1000(rest) : '');
+  }
+  return under1000(n);
+}
+
 function stripForTTS(text) {
-  return text
+  let s = text
     .replace(/\[IMAGE:[^\]]+\]/g, '')
     .replace(/\[ORDER_DATA:[^\]]+\]/g, '')
-    // ── Monnaies & prix ──
-    .replace(/\b(\d[\d\s]*)\s*FCFA\b/gi,       '$1 francs CFA')
-    .replace(/\bFCFA\b/gi,                       'francs CFA')
-    .replace(/\b(\d[\d\s]*)\s*F\s*CFA\b/gi,     '$1 francs CFA')
-    .replace(/\b(\d[\d\s]*)\s*XAF\b/gi,         '$1 francs CFA')
-    .replace(/\b(\d[\d\s]*)\s*XOF\b/gi,         '$1 francs CFA')
-    .replace(/\b(\d[\d\s]*)\s*€/gi,             '$1 euros')
-    .replace(/\b(\d[\d\s]*)\s*\$/gi,             '$1 dollars')
-    .replace(/\b(\d[\d\s]*)\s*£/gi,             '$1 livres')
+    .replace(/\[VOICE\]/gi, '')
+    // ── Numéros de téléphone → épelés chiffre par chiffre ──
+    .replace(/(?:\+?(\d{9,15}))/g, (_, digits) => spellPhone(digits))
+    // ── Prix avec devise → nombre en lettres + francs CFA ──
+    .replace(/(\d[\d\s.,]*)\s*(?:FCFA|F\s*CFA|XAF|XOF|CFA)/gi, (_, num) => {
+      const n = parseInt(num.replace(/[\s.,]/g, ''));
+      return isNaN(n) ? num + ' francs CFA' : spellNumber(n) + ' francs CFA';
+    })
+    .replace(/\bFCFA\b/gi, 'francs CFA')
+    .replace(/(\d[\d\s.,]*)\s*€/gi, (_, num) => {
+      const n = parseInt(num.replace(/[\s.,]/g, ''));
+      return isNaN(n) ? num + ' euros' : spellNumber(n) + ' euros';
+    })
+    .replace(/(\d[\d\s.,]*)\s*\$/gi, (_, num) => {
+      const n = parseInt(num.replace(/[\s.,]/g, ''));
+      return isNaN(n) ? num + ' dollars' : spellNumber(n) + ' dollars';
+    })
     // ── Unités ──
     .replace(/\bkg\b/gi,  'kilogrammes')
     .replace(/\bml\b/gi,  'millilitres')
@@ -91,6 +151,7 @@ function stripForTTS(text) {
     .replace(/[*_~`#|>]/g, '')       // markdown
     .replace(/\s{2,}/g, ' ')
     .trim();
+  return s;
 }
 
 /**
@@ -280,9 +341,11 @@ Après avoir reçu les infos client, demande la date/heure :
 Une fois TOUTES les infos collectées (nom, ville, téléphone, date, heure), envoie le récap :
 "✅ RÉCAP COMMANDE :\n\n📦 Produit : [nom]\n💰 Prix : [prix]\n👤 Nom : [nom client]\n📍 Ville : [ville/quartier]\n📱 Téléphone : [numéro]\n📅 Livraison : [date] à [heure]\n\nTout est bon ? (Oui / Modifier)"
 
-### Étape 5 — Confirmation finale
-Quand le client confirme le récap, dis :
-"C'est noté ma chérie ! 🎉 Ta commande est transmise, on te contacte très vite pour la livraison 👍"
+### Étape 5 — Confirmation finale (TOUJOURS UN VOCAL)
+Quand le client confirme le récap, tu envoies un message VOCAL — chaleureux, naturel, comme une vraie personne.
+Ton message doit dire en substance : "C'est bon, ta commande est bien enregistrée ! On va te contacter demain pour organiser la livraison. Merci beaucoup !"
+Adapte les mots, sois naturelle et spontanée, comme si tu parlais à une amie. Ne récite pas un script.
+Ajoute le tag [VOICE] au début du message pour forcer l'envoi vocal.
 Et ajoute OBLIGATOIREMENT à la FIN de ce message le tag :
 [ORDER_DATA:{"name":"...","city":"...","phone":"...","product":"...","price":"...","delivery_date":"...","delivery_time":"..."}]
 
@@ -291,7 +354,7 @@ Tu ne dois ajouter ce tag QUE quand le client a confirmé le récapitulatif.
 Le tag ne sera PAS visible par le client.
 
 Exemple complet d'étape 5 :
-"C'est noté ! 🎉 Ta commande est transmise, on te contacte très vite 👍 [ORDER_DATA:{"name":"Morgan","city":"Douala Akwa","phone":"676778377","product":"Ventilateur 48W","price":"15000 FCFA","delivery_date":"2026-03-18","delivery_time":"18:00"}]"
+"[VOICE] C'est bon ma belle, ta commande est bien enregistrée ! On va t'appeler demain pour organiser ta livraison à Douala. Merci beaucoup et à très vite ! [ORDER_DATA:{"name":"Morgan","city":"Douala Akwa","phone":"676778377","product":"Ventilateur 48W","price":"15000 FCFA","delivery_date":"2026-03-18","delivery_time":"18:00"}]"
 
 ## ❌ INTERDIT
 - Phrases longues
@@ -428,6 +491,42 @@ Voici exactement comment tu dois réagir dans ces situations :\n`;
 
   if (config.useEmojis) {
     prompt += `\nTu peux utiliser des emojis de façon naturelle (👍 ✅ 😊) mais sans en abuser.`;
+  }
+
+  // ─── INSTRUCTIONS VOCAL / TEXTE ───
+  const responseMode = config.responseMode || 'text';
+  if (responseMode === 'both' || responseMode === 'voice') {
+    prompt += `\n\n## 🎙️ QUAND ENVOYER UN VOCAL vs UN TEXTE
+Tu as la capacité d'envoyer des notes vocales. Utilise-les intelligemment :
+
+**VOCAL obligatoire** (ajoute le tag [VOICE] au DÉBUT de ta réponse) :
+- Quand le client demande une explication détaillée (effets, ingrédients, composition, comment utiliser, effets secondaires, différences entre produits)
+- Quand tu dois rassurer le client sur un point précis (qualité, authenticité, livraison)
+- Quand la réponse fait plus de 3 phrases et nécessite de l'énergie / du ton
+- TOUJOURS pour la confirmation finale de commande (étape 5)
+- Quand le client envoie lui-même un vocal
+
+**TEXTE (pas de tag [VOICE])** :
+- Salutations rapides, messages courts
+- Questions simples ("quel produit ?", "quelle ville ?")
+- Envoi de prix, de liens, de récapitulatif
+- Messages avec des chiffres précis (prix, dates, horaires)
+- Tout message de moins de 2 phrases
+
+**RÈGLES pour le texte envoyé en vocal** :
+- Écris comme tu PARLERAIS. Pas de listes à puces, pas de numérotation.
+- N'écris JAMAIS "FCFA" → écris "francs CFA"
+- N'écris JAMAIS un numéro de téléphone brut → dis plutôt "on va t'appeler"
+- Sois naturelle, chaleureuse, comme une vraie conversation entre amies
+- Pas de formatage markdown (* _ etc.)
+- Utilise des mots de liaison : "alors", "du coup", "en fait", "tu sais"
+- Le vocal doit sonner bien quand on le lit à voix haute
+
+Exemple VOCAL (explication) :
+"[VOICE] Alors le sérum, en fait c'est un soin qu'on applique matin et soir sur le visage propre. Tu mets juste quelques gouttes et tu masses doucement. Au bout de deux semaines tu vas déjà voir la différence sur ton teint. Et le gros avantage c'est qu'il convient à tous les types de peau."
+
+Exemple TEXTE (question simple) :
+"Tu veux le grand format ou le petit ? 😊"`;
   }
 
   prompt += `\n\n## ✅ Rappel final

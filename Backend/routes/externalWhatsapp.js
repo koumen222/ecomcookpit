@@ -977,6 +977,13 @@ router.post('/incoming', async (req, res) => {
           const responseMode = ritaCfgVoice?.responseMode || (ritaCfgVoice?.voiceMode ? 'voice' : 'text');
           const canDoVoice = !!(effectiveApiKey && textToSend);
 
+          // Détecter le tag [VOICE] dans la réponse → Rita a décidé d'envoyer un vocal
+          const hasVoiceTag = /\[VOICE\]/i.test(textToSend);
+          if (hasVoiceTag) {
+            textToSend = textToSend.replace(/\[VOICE\]\s*/gi, '').trim();
+            console.log(`🎙️ [RITA] Tag [VOICE] détecté — forçage vocal pour ce tour`);
+          }
+
           // Délai de réponse configuré (en secondes) → converti en ms pour Evolution API
           const responseDelayMs = Math.max(500, Math.min(30000, (ritaCfgVoice?.responseDelay || 2) * 1000));
           if (responseDelayMs > 1500) {
@@ -984,18 +991,29 @@ router.post('/incoming', async (req, res) => {
             await new Promise(r => setTimeout(r, responseDelayMs - 1000));
           }
 
-          // En mode "both" (mixte) : vocal UNIQUEMENT pour les vraies explications longues
-          // Réponses courtes/moyennes → texte. Vocal réservé aux gros paragraphes explicatifs.
+          // Déterminer vocal vs texte pour ce tour :
+          // 1. Si tag [VOICE] → forcer vocal (Rita a décidé)
+          // 2. Si mode "voice" → toujours vocal
+          // 3. Si mode "both" → vocal si longue explication OU si [VOICE] tag
+          // 4. Si mode "text" → toujours texte (sauf [VOICE] tag en mode both/voice)
           let useVoiceThisTurn = false;
-          if (responseMode === 'both' && canDoVoice && textToSend) {
+          if (hasVoiceTag && canDoVoice && responseMode !== 'text') {
+            useVoiceThisTurn = true;
+          } else if (responseMode === 'both' && canDoVoice && textToSend) {
             const charCount = textToSend.length;
             const sentenceCount = (textToSend.match(/[.!?…]+/g) || []).length;
             useVoiceThisTurn = charCount >= 300 && sentenceCount >= 3;
           }
-          const sendText  = responseMode === 'text' || (responseMode === 'both' && !useVoiceThisTurn);
-          const sendVoice = responseMode === 'voice' || (responseMode === 'both' && useVoiceThisTurn);
+          // Si le message contient ORDER_DATA → confirmation de commande, forcer vocal si possible
+          if (orderTagMatch && canDoVoice && responseMode !== 'text') {
+            useVoiceThisTurn = true;
+            console.log(`🎙️ [RITA] Commande confirmée — vocal forcé pour la confirmation`);
+          }
+          const sendText  = responseMode === 'text' || (!useVoiceThisTurn && responseMode !== 'voice');
+          const sendVoice = responseMode === 'voice' || useVoiceThisTurn;
 
-          console.log(`🎚️ [RITA] Mode: ${responseMode} | tour: ${useVoiceThisTurn ? 'vocal' : 'texte'} | apiKey: ${effectiveApiKey ? 'oui' : 'non'}`);
+          console.log(`🎚️ [RITA] Mode: ${responseMode} | tour: ${useVoiceThisTurn ? 'vocal' : 'texte'} | voiceTag: ${hasVoiceTag} | apiKey: ${effectiveApiKey ? 'oui' : 'non'}`);
+
 
           // ── Envoyer le texte ──
           if (textToSend && sendText) {

@@ -22,7 +22,14 @@ const WEBHOOK_EVENTS = [
 const WhatsAppService = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'instances';
-  const setTab = (tab) => setSearchParams({ tab });
+  const ritaPanel = searchParams.get('ritaPanel') || '';
+  const setTab = (tab, extra = {}) => {
+    const nextParams = { tab, ...extra };
+    Object.keys(nextParams).forEach(key => {
+      if (nextParams[key] === '' || nextParams[key] == null) delete nextParams[key];
+    });
+    setSearchParams(nextParams);
+  };
 
   const [instances, setInstances] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -196,8 +203,8 @@ const WhatsAppService = () => {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="flex gap-0 -mb-px">
+      <div className="border-b border-gray-200 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <nav className="flex gap-0 -mb-px overflow-x-auto">
           {TABS.map(tab => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -216,6 +223,29 @@ const WhatsAppService = () => {
             );
           })}
         </nav>
+
+        <div className="flex items-center gap-2 pb-2 sm:pb-2">
+          {[
+            { id: 'notifications', label: 'Notifications', emoji: '🔔' },
+            { id: 'rapport', label: 'Rapport', emoji: '📊' },
+          ].map(item => {
+            const active = activeTab === 'rita' && ritaPanel === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setTab('rita', { ritaPanel: item.id })}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all whitespace-nowrap ${
+                  active
+                    ? 'bg-gray-900 text-white shadow-sm'
+                    : 'text-gray-500 bg-gray-50 hover:bg-gray-100 hover:text-gray-700'
+                }`}
+              >
+                <span className="text-[13px] leading-none">{item.emoji}</span>
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Alerts */}
@@ -466,7 +496,13 @@ const WhatsAppService = () => {
       )}
 
       {/* Tab: Rita IA */}
-      {activeTab === 'rita' && <RitaIATab instances={instances} />}
+      {activeTab === 'rita' && (
+        <RitaIATab
+          instances={instances}
+          externalPanel={ritaPanel || null}
+          onExternalPanelChange={(panel) => setTab('rita', { ritaPanel: panel || '' })}
+        />
+      )}
 
       {/* Tab: Commandes */}
       {activeTab === 'orders' && <OrdersTab onCountChange={setOrderCount} />}
@@ -474,19 +510,108 @@ const WhatsAppService = () => {
       <style>{`
         .field-input {
           width: 100%;
-          padding: 7px 12px;
+          padding: 9px 14px;
           font-size: 13px;
-          background: #fafafa;
-          border: 1px solid #e5e7eb;
-          border-radius: 8px;
+          font-weight: 450;
+          color: #1f2937;
+          background: #fafbfc;
+          border: 1.5px solid #e5e7eb;
+          border-radius: 12px;
           outline: none;
-          transition: border-color .15s, box-shadow .15s;
+          transition: all .2s cubic-bezier(.4,0,.2,1);
+          -webkit-appearance: none;
         }
-        .field-input:focus {
-          border-color: ${ACCENT};
-          box-shadow: 0 0 0 3px ${ACCENT_LIGHT};
+        .field-input:hover {
+          border-color: #d1d5db;
           background: #fff;
         }
+        .field-input:focus {
+          border-color: #a78bfa;
+          box-shadow: 0 0 0 3px rgba(167,139,250,0.12);
+          background: #fff;
+        }
+        .field-input::placeholder {
+          color: #9ca3af;
+          font-weight: 400;
+        }
+        textarea.field-input { resize: vertical; }
+        .rita-select-trigger {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          padding: 9px 14px;
+          font-size: 13px;
+          font-weight: 500;
+          color: #1f2937;
+          background: #fafbfc;
+          border: 1.5px solid #e5e7eb;
+          border-radius: 12px;
+          outline: none;
+          cursor: pointer;
+          transition: all .2s cubic-bezier(.4,0,.2,1);
+          -webkit-appearance: none;
+        }
+        .rita-select-trigger:hover {
+          border-color: #d1d5db;
+          background: #fff;
+        }
+        .rita-select-trigger:focus-visible {
+          border-color: #a78bfa;
+          box-shadow: 0 0 0 3px rgba(167,139,250,0.15);
+          background: #fff;
+        }
+        .rita-select-open {
+          border-color: #a78bfa;
+          box-shadow: 0 0 0 3px rgba(167,139,250,0.15);
+          background: #fff;
+        }
+        .rita-select-dropdown {
+          position: absolute;
+          z-index: 50;
+          top: calc(100% + 4px);
+          left: 0;
+          right: 0;
+          max-height: 260px;
+          overflow-y: auto;
+          background: white;
+          border: 1px solid rgba(0,0,0,0.06);
+          border-radius: 14px;
+          box-shadow: 0 12px 40px -8px rgba(0,0,0,0.12), 0 4px 16px -4px rgba(0,0,0,0.06);
+          padding: 4px;
+          animation: ritaDropIn .18s cubic-bezier(.2,0,0,1);
+        }
+        @keyframes ritaDropIn {
+          from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .rita-select-option {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 9px 12px;
+          font-size: 13px;
+          font-weight: 500;
+          color: #374151;
+          border-radius: 10px;
+          cursor: pointer;
+          transition: background .1s;
+        }
+        .rita-select-option:hover,
+        .rita-select-option-focused {
+          background: #f5f3ff;
+        }
+        .rita-select-option-active {
+          color: #7c3aed;
+          font-weight: 600;
+          background: #f5f3ff;
+        }
+        .rita-select-dropdown::-webkit-scrollbar { width: 6px; }
+        .rita-select-dropdown::-webkit-scrollbar-track { background: transparent; }
+        .rita-select-dropdown::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 3px; }
+        .rita-section-nav { scrollbar-width: none; -ms-overflow-style: none; }
+        .rita-section-nav::-webkit-scrollbar { display: none; }
       `}</style>
     </div>
   );
@@ -514,27 +639,96 @@ const Alert = ({ type, message, onClose }) => {
 };
 
 const Field = ({ label, hint, required, children }) => (
-  <div>
-    <label className="block text-[13px] font-medium text-gray-700 mb-1">
-      {label}{required && <span className="text-red-400 ml-0.5">*</span>}
-      {hint && <span className="text-gray-400 font-normal ml-1">({hint})</span>}
+  <div className="space-y-1.5">
+    <label className="flex items-baseline gap-1.5 text-[13px] font-semibold text-gray-700">
+      {label}{required && <span className="text-red-400 text-[11px]">*</span>}
+      {hint && <span className="text-[11.5px] text-gray-400 font-normal">({hint})</span>}
     </label>
     {children}
   </div>
 );
 
 const ToggleRow = ({ enabled, onChange, label, desc }) => (
-  <div className="flex items-center justify-between gap-4 py-0.5">
+  <div className="flex items-center justify-between gap-4 py-1.5 group">
     <div className="flex-1 min-w-0">
-      <p className="text-[13px] font-medium text-gray-700 leading-tight">{label}</p>
-      {desc && <p className="text-[11px] text-gray-400 mt-0.5">{desc}</p>}
+      <p className="text-[13px] font-semibold text-gray-700 leading-tight group-hover:text-gray-900 transition-colors">{label}</p>
+      {desc && <p className="text-[11.5px] text-gray-400 mt-0.5 leading-snug">{desc}</p>}
     </div>
     <button onClick={() => onChange(!enabled)} type="button"
-      className={`relative w-10 h-[22px] rounded-full transition-colors flex-shrink-0 ${enabled ? 'bg-emerald-500' : 'bg-gray-200'}`}>
-      <span className={`absolute top-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${enabled ? 'left-[22px]' : 'left-[3px]'}`} />
+      role="switch" aria-checked={enabled} aria-label={label}
+      className={`relative w-[44px] h-[26px] rounded-full transition-all duration-200 flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:ring-offset-2 ${enabled ? 'bg-emerald-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
+      <span className={`absolute top-[3px] w-5 h-5 bg-white rounded-full shadow-md transition-all duration-200 ${enabled ? 'left-[21px]' : 'left-[3px]'}`} />
     </button>
   </div>
 );
+
+const CustomSelect = ({ value, onChange, options, placeholder = 'Sélectionner...' }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [focused, setFocused] = useState(-1);
+  const ref = React.useRef(null);
+  const listRef = React.useRef(null);
+  const selected = options.find(o => o.value === value);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setIsOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleKeyDown = (e) => {
+    if (!isOpen && (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown')) {
+      e.preventDefault(); setIsOpen(true); setFocused(options.findIndex(o => o.value === value)); return;
+    }
+    if (!isOpen) return;
+    switch (e.key) {
+      case 'ArrowDown': e.preventDefault(); setFocused(prev => Math.min(prev + 1, options.length - 1)); break;
+      case 'ArrowUp': e.preventDefault(); setFocused(prev => Math.max(prev - 1, 0)); break;
+      case 'Enter': e.preventDefault(); if (focused >= 0) { onChange(options[focused].value); setIsOpen(false); } break;
+      case 'Escape': setIsOpen(false); break;
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && focused >= 0 && listRef.current) {
+      const el = listRef.current.children[focused];
+      if (el) el.scrollIntoView({ block: 'nearest' });
+    }
+  }, [focused, isOpen]);
+
+  return (
+    <div ref={ref} className="relative" onKeyDown={handleKeyDown}>
+      <button type="button" onClick={() => { setIsOpen(!isOpen); setFocused(options.findIndex(o => o.value === value)); }}
+        className={`rita-select-trigger ${isOpen ? 'rita-select-open' : ''}`}
+        role="combobox" aria-expanded={isOpen} aria-haspopup="listbox">
+        <span className="flex items-center gap-2 flex-1 min-w-0 truncate">
+          {selected ? selected.label : <span className="text-gray-400">{placeholder}</span>}
+        </span>
+        <svg className={`w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {isOpen && (
+        <div className="rita-select-dropdown" role="listbox" ref={listRef}>
+          {options.map((opt, i) => (
+            <div key={opt.value} role="option" aria-selected={opt.value === value}
+              className={`rita-select-option ${opt.value === value ? 'rita-select-option-active' : ''} ${focused === i ? 'rita-select-option-focused' : ''}`}
+              onClick={() => { onChange(opt.value); setIsOpen(false); }}
+              onMouseEnter={() => setFocused(i)}>
+              <span className="flex-1 min-w-0 truncate">{opt.label}</span>
+              {opt.value === value && (
+                <svg className="w-4 h-4 text-purple-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 /* ── Rita Rapport Section ── */
 const ACTIVITY_LABELS = {
@@ -649,8 +843,6 @@ const RITA_SECTIONS = [
   { id: 'sales',        label: 'Vente',         emoji: '💰' },
   { id: 'availability', label: 'Dispo',         emoji: '⏰' },
   { id: 'voice',        label: 'Vocal',         emoji: '🎙️' },
-  { id: 'notifications', label: 'Notifications', emoji: '🔔' },
-  { id: 'rapport',      label: 'Rapport',       emoji: '📊' },
 ];
 
 const AUTONOMY_LEVELS = [
@@ -661,13 +853,14 @@ const AUTONOMY_LEVELS = [
   { level: 5, label: 'Chasseuse',    desc: 'Mode offensif : qualification, closing agressif, upsell',   color: 'bg-red-100 text-red-700' },
 ];
 
-const RitaIATab = ({ instances }) => {
+const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) => {
   const [activeSection, setActiveSection] = useState('identity');
   const [saving, setSaving] = useState(false);
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [saveStatus, setSaveStatus] = useState(null);
   const [configSaved, setConfigSaved] = useState(false);
   const [showConfig, setShowConfig] = useState(true);
+  const [topPanel, setTopPanel] = useState(null);
 
   const [config, setConfig] = useState({
     enabled: false,
@@ -1007,13 +1200,21 @@ const RitaIATab = ({ instances }) => {
   ].filter(Boolean).length;
   const progressPct = Math.round((filledSteps / totalSteps) * 100);
 
+  useEffect(() => {
+    if (externalPanel === 'notifications' || externalPanel === 'rapport') {
+      setTopPanel(externalPanel);
+      return;
+    }
+    setTopPanel(null);
+  }, [externalPanel]);
+
   if (loadingConfig) return (
     <div className="flex items-center justify-center py-20">
       <div className="text-center">
-        <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center mb-3 shadow-lg shadow-purple-200 animate-pulse">
-          <Bot className="w-6 h-6 text-white" />
+        <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center mb-4 shadow-lg shadow-purple-200/60 animate-pulse">
+          <Bot className="w-7 h-7 text-white" />
         </div>
-        <span className="text-sm text-gray-400">Chargement de la configuration...</span>
+        <span className="text-[13px] text-gray-400 font-medium">Chargement de Rita...</span>
       </div>
     </div>
   );
@@ -1021,18 +1222,16 @@ const RitaIATab = ({ instances }) => {
   return (
     <div className="space-y-4">
 
-      {/* ─── Agent Status Banner ─── */}
-      <div className={`relative overflow-hidden rounded-2xl border ${configSaved && config.enabled ? 'border-emerald-200 bg-gradient-to-r from-emerald-50 via-white to-emerald-50' : configSaved ? 'border-gray-200 bg-white' : 'border-purple-200 bg-gradient-to-r from-purple-50 via-white to-indigo-50'}`}>
-        {configSaved && config.enabled && (
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 via-emerald-500 to-teal-400" />
-        )}
-        {!configSaved && (
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 via-indigo-500 to-purple-400" />
-        )}
-        <div className="px-5 py-5">
+      {/* ═══════════ AGENT STATUS BANNER ═══════════ */}
+      <div className={`relative overflow-hidden rounded-2xl border transition-all duration-300 ${configSaved && config.enabled ? 'border-emerald-200/80 bg-gradient-to-r from-emerald-50/80 via-white to-emerald-50/50' : configSaved ? 'border-gray-200/80 bg-white' : 'border-purple-200/80 bg-gradient-to-r from-purple-50/60 via-white to-indigo-50/40'}`}>
+        {configSaved && config.enabled && <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-emerald-400 via-emerald-500 to-teal-400" />}
+        {!configSaved && <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-purple-400 via-indigo-500 to-purple-400" />}
+
+        <div className="px-5 py-4">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex items-center gap-4 flex-1 min-w-0">
-              <div className={`relative w-14 h-14 rounded-2xl flex items-center justify-center text-white text-xl font-bold flex-shrink-0 shadow-lg ${configSaved && config.enabled ? 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-200' : 'bg-gradient-to-br from-purple-500 to-indigo-600 shadow-purple-200'}`}>
+            {/* Agent avatar + info */}
+            <div className="flex items-center gap-3.5 flex-1 min-w-0">
+              <div className={`relative w-12 h-12 rounded-2xl flex items-center justify-center text-white text-lg font-bold flex-shrink-0 shadow-lg ${configSaved && config.enabled ? 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-200/60' : 'bg-gradient-to-br from-purple-500 to-indigo-600 shadow-purple-200/60'}`}>
                 {config.agentName?.[0]?.toUpperCase() || 'R'}
                 {configSaved && config.enabled && (
                   <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full flex items-center justify-center">
@@ -1042,93 +1241,175 @@ const RitaIATab = ({ instances }) => {
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-bold text-gray-900">{config.agentName || 'Rita'}</h2>
+                  <h2 className="text-[16px] font-bold text-gray-900">{config.agentName || 'Rita'}</h2>
                   <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${autonomyInfo.color}`}>{autonomyInfo.label}</span>
                   {configSaved && config.enabled ? (
-                    <span className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-100 px-2.5 py-0.5 rounded-full">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      Agent Actif
+                    <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Actif
                     </span>
                   ) : configSaved ? (
-                    <span className="text-[11px] font-bold text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full">En pause</span>
+                    <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Pause</span>
                   ) : (
-                    <span className="text-[11px] font-bold text-purple-600 bg-purple-100 px-2.5 py-0.5 rounded-full">Configuration requise</span>
+                    <span className="text-[10px] font-bold text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">Non configuré</span>
                   )}
                 </div>
-                <p className="text-[12px] text-gray-400 mt-0.5">
-                  {config.agentRole || 'Agent commercial IA'} · {config.language === 'fr' ? '🇫🇷 Français' : config.language === 'en' ? '🇬🇧 English' : config.language === 'es' ? '🇪🇸 Español' : config.language === 'ar' ? '🇲🇦 العربية' : config.language}
-                  {configSaved && ` · ${instances.length} instance${instances.length !== 1 ? 's' : ''} liée${instances.length !== 1 ? 's' : ''}`}
+                <p className="text-[11.5px] text-gray-400 mt-0.5">
+                  {config.agentRole || 'Agent commercial IA'} · {config.language === 'fr' ? '🇫🇷' : config.language === 'en' ? '🇬🇧' : config.language === 'es' ? '🇪🇸' : '🇲🇦'} {config.language === 'fr' ? 'Français' : config.language === 'en' ? 'English' : config.language === 'es' ? 'Español' : 'العربية'}
+                  {configSaved && ` · ${instances.length} instance${instances.length !== 1 ? 's' : ''}`}
                 </p>
               </div>
             </div>
+
+            {/* Actions */}
             <div className="flex items-center gap-3 flex-shrink-0">
               {configSaved && (
                 <div className="flex items-center gap-2 text-[12px] text-gray-500">
-                  <span>{config.enabled ? 'Désactiver' : 'Activer'}</span>
+                  <span className="text-[11px] font-medium">{config.enabled ? 'On' : 'Off'}</span>
                   <button onClick={toggleEnabled} disabled={saving} type="button"
-                    className={`relative w-12 h-7 rounded-full transition-colors disabled:opacity-60 ${config.enabled ? 'bg-emerald-500' : 'bg-gray-200'}`}>
-                    <span className={`absolute top-[3px] w-[22px] h-[22px] bg-white rounded-full shadow-sm transition-all ${config.enabled ? 'left-[26px]' : 'left-[3px]'}`} />
+                    role="switch" aria-checked={config.enabled} aria-label={config.enabled ? 'Désactiver' : 'Activer'}
+                    className={`relative w-[48px] h-[28px] rounded-full transition-all duration-200 disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400 focus-visible:ring-offset-2 ${config.enabled ? 'bg-emerald-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
+                    <span className={`absolute top-[3px] w-[22px] h-[22px] bg-white rounded-full shadow-md transition-all duration-200 ${config.enabled ? 'left-[23px]' : 'left-[3px]'}`} />
                   </button>
                 </div>
               )}
-              <div className="flex items-center gap-2 pl-3 border-l border-gray-200/60">
+              {/* Save status */}
+              <div className="flex items-center gap-2">
                 {saveStatus?.type === 'success' && (
-                  <span className="text-[12px] font-semibold text-emerald-600 flex items-center gap-1">
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    Enregistré{saveStatus.count > 0 ? ` · ${saveStatus.count} webhook${saveStatus.count > 1 ? 's' : ''}` : ''}
+                  <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" /> Enregistré
                   </span>
                 )}
-                {saveStatus?.type === 'error' && <span className="text-[12px] font-semibold text-red-600 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" />Erreur</span>}
-                {configSaved && (
-                  <button onClick={() => setShowConfig(!showConfig)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
-                    {showConfig ? <X className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />}
-                    {showConfig ? 'Fermer' : 'Modifier'}
-                  </button>
-                )}
+                {saveStatus?.type === 'error' && <span className="text-[11px] font-semibold text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />Erreur</span>}
+                <button onClick={() => handleSave()} disabled={saving}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-[12px] font-bold text-white rounded-xl disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+                  style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
+                  {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                  {saving ? 'Sauvegarde...' : configSaved ? 'Sauvegarder' : 'Enregistrer'}
+                </button>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ─── Progress bar (only before first save) ─── */}
-      {!configSaved && (
-        <div className="bg-white border border-gray-200 rounded-xl px-5 py-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[13px] font-semibold text-gray-700">Configuration de l'agent</p>
-            <span className="text-[12px] font-bold text-purple-600">{progressPct}%</span>
+      {topPanel === 'notifications' && (
+        <div className="bg-white border border-gray-200/80 rounded-2xl overflow-hidden shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)]">
+          <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/40 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[14px] font-bold text-gray-900 flex items-center gap-2"><span>🔔</span> Notifications boss</p>
+              <p className="text-[11.5px] text-gray-400 mt-0.5">Alerte WhatsApp et rapport quotidien envoyés au responsable.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onExternalPanelChange?.(null)}
+              className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              Fermer
+            </button>
           </div>
-          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full transition-all duration-500" style={{ width: `${progressPct}%` }} />
-          </div>
-          <div className="flex gap-1 mt-3">
-            {RITA_SECTIONS.map((s, i) => (
-              <button key={s.id} onClick={() => { setActiveSection(s.id); setShowConfig(true); }}
-                className={`flex-1 h-1.5 rounded-full transition-colors ${i < filledSteps ? 'bg-purple-400' : 'bg-gray-200'}`} />
-            ))}
+          <div className="p-5 space-y-4">
+            <ToggleRow enabled={config.bossNotifications} onChange={v => set('bossNotifications', v)}
+              label="Activer les notifications boss"
+              desc="Rita envoie des alertes WhatsApp au responsable (commandes confirmées, rapport quotidien)" />
+            {config.bossNotifications && (
+              <>
+                <Field label="Numéro WhatsApp du boss" hint="Format international ex: 237699887766">
+                  <div className="flex gap-2">
+                    <input type="tel" value={config.bossPhone || ''} onChange={e => { set('bossPhone', e.target.value); setTestBossResult(null); }}
+                      placeholder="237699887766" className="field-input flex-1" />
+                    <button onClick={handleTestBossNotif} disabled={testingBoss}
+                      className="px-3 py-2 text-[12px] font-medium rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 whitespace-nowrap flex items-center gap-1.5 transition-all">
+                      {testingBoss ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Test...</> : '📤 Tester'}
+                    </button>
+                  </div>
+                  {testBossResult && (
+                    <p className={`mt-1.5 text-[11.5px] font-medium ${testBossResult.ok ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {testBossResult.msg}
+                    </p>
+                  )}
+                </Field>
+                <div className="space-y-2 pt-1">
+                  <ToggleRow enabled={config.notifyOnOrder} onChange={v => set('notifyOnOrder', v)}
+                    label="Notification à chaque commande"
+                    desc="Rita prévient le boss dès qu'une commande est confirmée avec tous les détails" />
+                  <ToggleRow enabled={config.notifyOnScheduled} onChange={v => set('notifyOnScheduled', v)}
+                    label="Notification commande planifiée"
+                    desc="Alerte quand un client programme une livraison à une date précise" />
+                  <ToggleRow enabled={config.dailySummary} onChange={v => set('dailySummary', v)}
+                    label="Rapport quotidien automatique"
+                    desc="Résumé WhatsApp en fin de journée : commandes, messages, CA du jour" />
+                </div>
+                {config.dailySummary && (
+                  <Field label="Heure du rapport quotidien">
+                    <input type="time" value={config.dailySummaryTime || '20:00'} onChange={e => set('dailySummaryTime', e.target.value)}
+                      className="field-input" />
+                  </Field>
+                )}
+                <div className="px-4 py-3 bg-purple-50 border border-purple-100 rounded-lg">
+                  <p className="text-[12px] text-purple-700">
+                    📱 Rita enverra les notifications via la même instance WhatsApp connectée. Assurez-vous que le numéro du boss est correct.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
 
-      {/* ─── Config Panels ─── */}
-      {(showConfig || !configSaved) && (
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-          {/* Section nav */}
-          <div className="flex overflow-x-auto border-b border-gray-100 bg-gray-50/60">
+      {topPanel === 'rapport' && (
+        <div className="bg-white border border-gray-200/80 rounded-2xl overflow-hidden shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] p-1">
+          <div className="px-4 pt-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[14px] font-bold text-gray-900 flex items-center gap-2"><span>📊</span> Rapport Rita</p>
+              <p className="text-[11.5px] text-gray-400 mt-0.5">Vue d'activité et performances de l'agent.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onExternalPanelChange?.(null)}
+              className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              Fermer
+            </button>
+          </div>
+          <RitaRapportSection userId={userId} />
+        </div>
+      )}
+
+      {/* ═══════════ PROGRESS BAR (only before first save) ═══════════ */}
+      {!configSaved && (
+        <div className="bg-white border border-gray-200/80 rounded-2xl px-5 py-3.5 shadow-[0_1px_6px_-2px_rgba(0,0,0,0.05)]">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[12px] font-semibold text-gray-600">Progression</p>
+            <span className="text-[11px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">{progressPct}%</span>
+          </div>
+          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full transition-all duration-700 ease-out" style={{ width: `${progressPct}%` }} />
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════ MAIN LAYOUT: NAV + CONTENT (ALWAYS VISIBLE) ═══════════ */}
+      <div className="bg-white border border-gray-200/80 rounded-2xl overflow-hidden shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)]">
+
+        {/* ── Section Navigation (pill tabs, always visible) ── */}
+        <div className="px-3 py-2.5 border-b border-gray-100 bg-gray-50/30">
+          <div className="flex gap-1 overflow-x-auto rita-section-nav">
             {RITA_SECTIONS.map(s => (
               <button key={s.id} onClick={() => setActiveSection(s.id)}
-                className={`flex items-center gap-2 px-5 py-3.5 text-[13px] font-medium whitespace-nowrap relative transition-all border-b-2
+                className={`flex items-center gap-1.5 px-3.5 py-2 text-[12.5px] font-semibold whitespace-nowrap rounded-xl transition-all duration-200
                   ${activeSection === s.id
-                    ? 'text-purple-700 bg-white border-purple-500'
-                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50 border-transparent'}`}>
-                <span className="text-base leading-none">{s.emoji}</span>
-                {s.label}
+                    ? 'text-purple-700 bg-white shadow-sm ring-1 ring-black/[0.04]'
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-white/60'}`}>
+                <span className="text-[13px] leading-none">{s.emoji}</span>
+                <span className="hidden sm:inline">{s.label}</span>
               </button>
             ))}
           </div>
+        </div>
 
-          <div className="p-6">
+        {/* ── Section Content ── */}
+        <div className="p-5 sm:p-6">
 
             {/* Identité */}
             {activeSection === 'identity' && (
@@ -1141,32 +1422,40 @@ const RitaIATab = ({ instances }) => {
                     <input value={config.agentRole} onChange={e => set('agentRole', e.target.value)} placeholder="Commerciale IA" className="field-input" />
                   </Field>
                   <Field label="Langue principale">
-                    <select value={config.language} onChange={e => set('language', e.target.value)} className="field-input">
-                      <option value="fr">🇫🇷 Français</option>
-                      <option value="en">🇬🇧 English</option>
-                      <option value="es">🇪🇸 Español</option>
-                      <option value="ar">🇲🇦 العربية</option>
-                    </select>
+                    <CustomSelect
+                      value={config.language}
+                      onChange={v => set('language', v)}
+                      options={[
+                        { value: 'fr', label: '🇫🇷 Français' },
+                        { value: 'en', label: '🇬🇧 English' },
+                        { value: 'es', label: '🇪🇸 Español' },
+                        { value: 'ar', label: '🇲🇦 العربية' },
+                      ]}
+                    />
                   </Field>
                   <Field label="Ton de communication">
-                    <select value={config.toneStyle} onChange={e => set('toneStyle', e.target.value)} className="field-input">
-                      <option value="warm">😊 Chaleureux et Proche</option>
-                      <option value="professional">💼 Professionnel et Sérieux</option>
-                      <option value="casual">😎 Décontracté et Moderne</option>
-                      <option value="persuasive">🎯 Persuasif et Direct</option>
-                      <option value="luxury">✨ Premium et Exclusif</option>
-                    </select>
+                    <CustomSelect
+                      value={config.toneStyle}
+                      onChange={v => set('toneStyle', v)}
+                      options={[
+                        { value: 'warm', label: '😊 Chaleureux et Proche' },
+                        { value: 'professional', label: '💼 Professionnel et Sérieux' },
+                        { value: 'casual', label: '😎 Décontracté et Moderne' },
+                        { value: 'persuasive', label: '🎯 Persuasif et Direct' },
+                        { value: 'luxury', label: '✨ Premium et Exclusif' },
+                      ]}
+                    />
                   </Field>
                   <Field label="Délai avant de répondre" hint="secondes">
                     <input type="number" value={config.responseDelay} onChange={e => set('responseDelay', parseInt(e.target.value) || 0)} min="0" max="30" className="field-input" />
                   </Field>
                   <Field label="Instance WhatsApp">
-                    <select value={config.instanceId} onChange={e => set('instanceId', e.target.value)} className="field-input">
-                      <option value="">Sélectionner une instance...</option>
-                      {instances.map(inst => (
-                        <option key={inst._id} value={inst._id}>{inst.customName || inst.instanceName}</option>
-                      ))}
-                    </select>
+                    <CustomSelect
+                      value={config.instanceId}
+                      onChange={v => set('instanceId', v)}
+                      placeholder="Sélectionner une instance..."
+                      options={instances.map(inst => ({ value: inst._id, label: inst.customName || inst.instanceName }))}
+                    />
                     {instances.length === 0 && <p className="text-[11px] text-amber-600 mt-1.5">Ajoutez une instance dans l'onglet Instances d'abord.</p>}
                   </Field>
                 </div>
@@ -1195,21 +1484,23 @@ const RitaIATab = ({ instances }) => {
                 <div>
                   <p className="text-[14px] font-bold text-gray-900 mb-0.5">Niveau d'autonomie</p>
                   <p className="text-[12px] text-gray-400 mb-4">Contrôlez jusqu'où Rita peut aller sans intervention humaine</p>
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     {AUTONOMY_LEVELS.map(lvl => (
                       <button key={lvl.level} onClick={() => set('autonomyLevel', lvl.level)}
-                        className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl border-2 text-left transition-all ${
-                          config.autonomyLevel === lvl.level ? 'border-purple-400 bg-purple-50' : 'border-gray-100 bg-gray-50/50 hover:border-gray-200 hover:bg-gray-50'
+                        className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl border-2 text-left transition-all duration-200 ${
+                          config.autonomyLevel === lvl.level ? 'border-purple-400 bg-purple-50/70 shadow-sm shadow-purple-100' : 'border-gray-100 bg-gray-50/50 hover:border-gray-200 hover:bg-gray-50 hover:shadow-sm'
                         }`}>
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 ${lvl.color}`}>{lvl.level}</div>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 transition-transform duration-200 ${config.autonomyLevel === lvl.level ? 'scale-110' : ''} ${lvl.color}`}>{lvl.level}</div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-gray-900 text-[13px]">{lvl.label}</span>
-                            {config.autonomyLevel === lvl.level && <span className="text-[10px] font-bold text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">Actif</span>}
+                            {config.autonomyLevel === lvl.level && <span className="text-[10px] font-bold text-purple-600 bg-purple-100 px-2.5 py-0.5 rounded-full">Actif</span>}
                           </div>
                           <p className="text-[12px] text-gray-400 mt-0.5">{lvl.desc}</p>
                         </div>
-                        <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 transition-colors ${config.autonomyLevel === lvl.level ? 'border-purple-500 bg-purple-500' : 'border-gray-300'}`} />
+                        <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 transition-all duration-200 flex items-center justify-center ${config.autonomyLevel === lvl.level ? 'border-purple-500 bg-purple-500' : 'border-gray-300'}`}>
+                          {config.autonomyLevel === lvl.level && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -1248,8 +1539,8 @@ const RitaIATab = ({ instances }) => {
             {/* ─── Catalogue Produits ─── */}
             {activeSection === 'products' && (
               <div className="space-y-4">
-                <div className="px-4 py-3 bg-purple-50 border border-purple-100 rounded-lg text-[12px] text-purple-800 flex gap-2">
-                  <span className="flex-shrink-0">🛒</span>
+                <div className="px-4 py-3 bg-purple-50/80 border border-purple-100 rounded-2xl text-[12px] text-purple-800 flex gap-2.5 items-start">
+                  <span className="flex-shrink-0 text-sm mt-0.5">🛒</span>
                   <span>Ajoutez vos produits avec tous les détails : prix, description, images, FAQ et objections. Plus c'est complet, plus l'agent est efficace.</span>
                 </div>
 
@@ -1299,12 +1590,13 @@ const RitaIATab = ({ instances }) => {
                               placeholder="Soins visage" className="field-input" />
                           </Field>
                           <div className="flex items-end">
-                            <label className="flex items-center gap-2 cursor-pointer">
+                            <label className="flex items-center gap-2.5 cursor-pointer">
                               <button type="button" onClick={() => updateProduct(pIdx, 'inStock', !product.inStock)}
-                                className={`relative w-10 h-[22px] rounded-full transition-colors ${product.inStock ? 'bg-emerald-500' : 'bg-gray-200'}`}>
-                                <span className={`absolute top-[3px] w-4 h-4 bg-white rounded-full shadow-sm transition-all ${product.inStock ? 'left-[22px]' : 'left-[3px]'}`} />
+                                role="switch" aria-checked={product.inStock} aria-label="En stock"
+                                className={`relative w-[44px] h-[26px] rounded-full transition-all duration-200 ${product.inStock ? 'bg-emerald-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
+                                <span className={`absolute top-[3px] w-5 h-5 bg-white rounded-full shadow-md transition-all duration-200 ${product.inStock ? 'left-[21px]' : 'left-[3px]'}`} />
                               </button>
-                              <span className="text-[12px] text-gray-600">{product.inStock ? '🟢 En stock' : '🔴 Rupture'}</span>
+                              <span className="text-[12px] text-gray-600 font-medium">{product.inStock ? '🟢 En stock' : '🔴 Rupture'}</span>
                             </label>
                           </div>
                         </div>
@@ -1476,8 +1768,8 @@ const RitaIATab = ({ instances }) => {
             {/* Connaissances */}
             {activeSection === 'knowledge' && (
               <div className="space-y-4">
-                <div className="px-4 py-3 bg-amber-50 border border-amber-100 rounded-lg text-[12px] text-amber-800 flex gap-2">
-                  <span className="flex-shrink-0">💡</span>
+                <div className="px-4 py-3 bg-amber-50/80 border border-amber-100 rounded-2xl text-[12px] text-amber-800 flex gap-2.5 items-start">
+                  <span className="flex-shrink-0 text-sm mt-0.5">💡</span>
                   <span>Plus votre base est complète et structurée, plus Rita sera précise et convaincante.</span>
                 </div>
                 <Field label="Contexte business" hint="qui vous êtes, votre positionnement">
@@ -1534,8 +1826,8 @@ const RitaIATab = ({ instances }) => {
             {/* ─── Personnalité ─── */}
             {activeSection === 'personality' && (
               <div className="space-y-5">
-                <div className="px-4 py-3 bg-pink-50 border border-pink-100 rounded-lg text-[12px] text-pink-800 flex gap-2">
-                  <span className="flex-shrink-0">🎭</span>
+                <div className="px-4 py-3 bg-pink-50/80 border border-pink-100 rounded-2xl text-[12px] text-pink-800 flex gap-2.5 items-start">
+                  <span className="flex-shrink-0 text-sm mt-0.5">🎭</span>
                   <span>Personnalisez le ton, les expressions et les réactions de votre agent. Ajoutez des exemples de conversations pour qu'il copie exactement votre style.</span>
                 </div>
 
@@ -1695,11 +1987,11 @@ const RitaIATab = ({ instances }) => {
                       { id: 'value',        label: '💎 Arguments valeur',  desc: 'Met en avant les bénéfices et ROI plutôt que le prix' },
                     ].map(ct => (
                       <button key={ct.id} onClick={() => set('closingTechnique', ct.id)}
-                        className={`text-left px-4 py-3 rounded-xl border-2 transition-all ${
-                          config.closingTechnique === ct.id ? 'border-purple-400 bg-purple-50' : 'border-gray-100 bg-gray-50 hover:border-gray-200 hover:bg-gray-50'
+                        className={`text-left px-4 py-3.5 rounded-2xl border-2 transition-all duration-200 ${
+                          config.closingTechnique === ct.id ? 'border-purple-400 bg-purple-50/70 shadow-sm shadow-purple-100' : 'border-gray-100 bg-gray-50/50 hover:border-gray-200 hover:bg-gray-50 hover:shadow-sm'
                         }`}>
                         <p className="font-semibold text-gray-800 text-[13px]">{ct.label}</p>
-                        <p className="text-[11px] text-gray-400 mt-0.5 leading-relaxed">{ct.desc}</p>
+                        <p className="text-[11px] text-gray-400 mt-1 leading-relaxed">{ct.desc}</p>
                       </button>
                     ))}
                   </div>
@@ -1730,10 +2022,10 @@ const RitaIATab = ({ instances }) => {
                     ].map(m => (
                       <button key={m.value} type="button"
                         onClick={() => { set('responseMode', m.value); set('voiceMode', m.value !== 'text'); }}
-                        className={`flex flex-col items-center gap-1.5 px-3 py-4 rounded-xl border-2 transition-all ${
+                        className={`flex flex-col items-center gap-2 px-3 py-5 rounded-2xl border-2 transition-all duration-200 ${
                           (config.responseMode || 'text') === m.value
-                            ? 'border-purple-500 bg-purple-100 shadow-sm'
-                            : 'border-gray-200 bg-white hover:border-gray-300'
+                            ? 'border-purple-500 bg-purple-50/70 shadow-sm shadow-purple-100 scale-[1.02]'
+                            : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
                         }`}>
                         <span className="text-2xl">{m.icon}</span>
                         <p className={`text-[13px] font-bold ${(config.responseMode || 'text') === m.value ? 'text-purple-700' : 'text-gray-700'}`}>{m.label}</p>
@@ -1765,14 +2057,15 @@ const RitaIATab = ({ instances }) => {
                   </div>
 
                   <Field label="Modèle TTS" hint="eleven_v3 recommandé — 70+ langues dont français, arabe, wolof…">
-                    <select
+                    <CustomSelect
                       value={config.elevenlabsModel || 'eleven_v3'}
-                      onChange={e => set('elevenlabsModel', e.target.value)}
-                      className="field-input">
-                      <option value="eleven_v3">Eleven v3 ⭐ (meilleur · 70+ langues · émotions)</option>
-                      <option value="eleven_flash_v2_5">Eleven Flash v2.5 (rapide · 32 langues)</option>
-                      <option value="eleven_multilingual_v2">Eleven Multilingual v2 (classique)</option>
-                    </select>
+                      onChange={v => set('elevenlabsModel', v)}
+                      options={[
+                        { value: 'eleven_v3', label: 'Eleven v3 ⭐ (meilleur · 70+ langues · émotions)' },
+                        { value: 'eleven_flash_v2_5', label: 'Eleven Flash v2.5 (rapide · 32 langues)' },
+                        { value: 'eleven_multilingual_v2', label: 'Eleven Multilingual v2 (classique)' },
+                      ]}
+                    />
                   </Field>
 
                   {/* Voix présélectionnées */}
@@ -1792,10 +2085,10 @@ const RitaIATab = ({ instances }) => {
                       ].map(v => (
                         <button key={v.id} type="button"
                           onClick={() => set('elevenlabsVoiceId', v.id)}
-                          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors ${
+                          className={`flex items-center gap-3 px-3.5 py-3 rounded-xl border-2 text-left transition-all duration-200 ${
                             config.elevenlabsVoiceId === v.id
-                              ? 'border-purple-400 bg-purple-50'
-                              : 'border-gray-200 bg-white hover:border-gray-300'
+                              ? 'border-purple-400 bg-purple-50/70 shadow-sm shadow-purple-100'
+                              : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
                           }`}>
                           <span className="text-lg">🎙️</span>
                           <div className="flex-1 min-w-0">
@@ -1856,77 +2149,8 @@ const RitaIATab = ({ instances }) => {
               </div>
             )}
 
-            {activeSection === 'notifications' && (
-              <div className="space-y-4">
-                <ToggleRow enabled={config.bossNotifications} onChange={v => set('bossNotifications', v)}
-                  label="Activer les notifications boss"
-                  desc="Rita envoie des alertes WhatsApp au responsable (commandes confirmées, rapport quotidien)" />
-                {config.bossNotifications && (
-                  <>
-                    <Field label="Numéro WhatsApp du boss" hint="Format international ex: 237699887766">
-                      <div className="flex gap-2">
-                        <input type="tel" value={config.bossPhone || ''} onChange={e => { set('bossPhone', e.target.value); setTestBossResult(null); }}
-                          placeholder="237699887766" className="field-input flex-1" />
-                        <button onClick={handleTestBossNotif} disabled={testingBoss}
-                          className="px-3 py-2 text-[12px] font-medium rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 whitespace-nowrap flex items-center gap-1.5 transition-all">
-                          {testingBoss ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Test...</> : '📤 Tester'}
-                        </button>
-                      </div>
-                      {testBossResult && (
-                        <p className={`mt-1.5 text-[11.5px] font-medium ${testBossResult.ok ? 'text-emerald-600' : 'text-red-500'}`}>
-                          {testBossResult.msg}
-                        </p>
-                      )}
-                    </Field>
-                    <div className="space-y-2 pt-1">
-                      <ToggleRow enabled={config.notifyOnOrder} onChange={v => set('notifyOnOrder', v)}
-                        label="Notification à chaque commande"
-                        desc="Rita prévient le boss dès qu'une commande est confirmée avec tous les détails" />
-                      <ToggleRow enabled={config.notifyOnScheduled} onChange={v => set('notifyOnScheduled', v)}
-                        label="Notification commande planifiée"
-                        desc="Alerte quand un client programme une livraison à une date précise" />
-                      <ToggleRow enabled={config.dailySummary} onChange={v => set('dailySummary', v)}
-                        label="Rapport quotidien automatique"
-                        desc="Résumé WhatsApp en fin de journée : commandes, messages, CA du jour" />
-                    </div>
-                    {config.dailySummary && (
-                      <Field label="Heure du rapport quotidien">
-                        <input type="time" value={config.dailySummaryTime || '20:00'} onChange={e => set('dailySummaryTime', e.target.value)}
-                          className="field-input" />
-                      </Field>
-                    )}
-                    <div className="px-4 py-3 bg-purple-50 border border-purple-100 rounded-lg">
-                      <p className="text-[12px] text-purple-700">
-                        📱 Rita enverra les notifications via la même instance WhatsApp connectée. Assurez-vous que le numéro du boss est correct.
-                      </p>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {activeSection === 'rapport' && <RitaRapportSection userId={userId} />}
-
-          </div>
-
-          {/* Save bar inside config panel */}
-          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/60 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 text-[12px] text-gray-400">
-              {!configSaved && <span>Remplissez les informations puis enregistrez pour activer l'agent.</span>}
-              {configSaved && saveStatus?.type === 'success' && (
-                <span className="text-emerald-600 font-semibold flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" />Configuration enregistrée</span>
-              )}
-              {saveStatus?.type === 'error' && <span className="text-red-600 font-semibold flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" />Erreur lors de la sauvegarde</span>}
-            </div>
-            <button onClick={() => handleSave()} disabled={saving}
-              className="inline-flex items-center gap-2 px-6 py-2.5 text-[13px] font-bold text-white rounded-xl disabled:opacity-50 transition-all shadow-md hover:shadow-lg"
-              style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-              {saving ? 'Sauvegarde...' : configSaved ? 'Mettre à jour' : 'Enregistrer l\'agent'}
-            </button>
           </div>
         </div>
-      )}
 
       {/* ─── Agent Actif + Test section (shown only after save) ─── */}
       {configSaved && !showConfig && (
@@ -1940,10 +2164,10 @@ const RitaIATab = ({ instances }) => {
               { label: 'Instances', value: `${instances.length}`, color: 'text-blue-600', icon: '📱' },
               { label: 'Technique', value: config.closingTechnique === 'soft' ? 'Douce' : config.closingTechnique === 'urgency' ? 'Urgence' : config.closingTechnique === 'social-proof' ? 'Sociale' : 'Valeur', color: 'text-amber-600', icon: '🎯' },
             ].map((s, i) => (
-              <div key={i} className="bg-white border border-gray-200 rounded-xl px-4 py-3">
-                <div className="flex items-center gap-2 mb-1">
+              <div key={i} className="bg-white border border-gray-200/80 rounded-2xl px-4 py-3.5 shadow-[0_1px_4px_-1px_rgba(0,0,0,0.05)] hover:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.08)] transition-shadow duration-200">
+                <div className="flex items-center gap-2 mb-1.5">
                   <span className="text-sm">{s.icon}</span>
-                  <span className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">{s.label}</span>
+                  <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{s.label}</span>
                 </div>
                 <p className={`text-[15px] font-bold ${s.color}`}>{s.value}</p>
               </div>
@@ -1987,7 +2211,7 @@ const RitaIATab = ({ instances }) => {
           )}
 
           {/* Simulator */}
-          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="bg-white border border-gray-200/80 rounded-2xl overflow-hidden shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)]">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-gray-50 to-white">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
