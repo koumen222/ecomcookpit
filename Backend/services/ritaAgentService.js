@@ -47,13 +47,48 @@ export async function transcribeAudio(base64, mimetype = 'audio/ogg') {
 }
 
 /**
- * Supprime les emojis du texte avant envoi TTS (ils ne s'entendent pas)
+ * Supprime les emojis et normalise les abréviations pour une bonne lecture TTS en français
  */
 function stripForTTS(text) {
   return text
-    .replace(/[IMAGE:[^\]]+\]/g, '')
-    .replace(/[ORDER_DATA:[^\]]+\]/g, '')
+    .replace(/\[IMAGE:[^\]]+\]/g, '')
+    .replace(/\[ORDER_DATA:[^\]]+\]/g, '')
+    // ── Monnaies & prix ──
+    .replace(/\b(\d[\d\s]*)\s*FCFA\b/gi,       '$1 francs CFA')
+    .replace(/\bFCFA\b/gi,                       'francs CFA')
+    .replace(/\b(\d[\d\s]*)\s*F\s*CFA\b/gi,     '$1 francs CFA')
+    .replace(/\b(\d[\d\s]*)\s*XAF\b/gi,         '$1 francs CFA')
+    .replace(/\b(\d[\d\s]*)\s*XOF\b/gi,         '$1 francs CFA')
+    .replace(/\b(\d[\d\s]*)\s*€/gi,             '$1 euros')
+    .replace(/\b(\d[\d\s]*)\s*\$/gi,             '$1 dollars')
+    .replace(/\b(\d[\d\s]*)\s*£/gi,             '$1 livres')
+    // ── Unités ──
+    .replace(/\bkg\b/gi,  'kilogrammes')
+    .replace(/\bml\b/gi,  'millilitres')
+    .replace(/\bcl\b/gi,  'centilitres')
+    .replace(/\bcm\b/gi,  'centimètres')
+    // ── Commerce & délais ──
+    .replace(/\bh\b/g,    'heures')
+    .replace(/\bj\b/g,    'jours')
+    .replace(/\bJO\b/g,   'jours ouvrés')
+    .replace(/\bTVA\b/gi, 'taxes')
+    .replace(/\bHT\b/g,   'hors taxes')
+    .replace(/\bTTC\b/g,  'toutes taxes comprises')
+    .replace(/\bRDV\b/gi, 'rendez-vous')
+    .replace(/\bSAV\b/gi, 'service après-vente')
+    .replace(/\bCOD\b/gi, 'paiement à la livraison')
+    .replace(/\bpayts\b/gi, 'paiement à la livraison')
+    // ── Raccourcis courants ──
+    .replace(/\bsvp\b/gi, 's\'il vous plaît')
+    .replace(/\bstp\b/gi, 's\'il te plaît')
+    .replace(/\bNB\b/g,   'nota bene')
+    .replace(/\bPS\b/g,   'post-scriptum')
+    .replace(/\bVIP\b/gi, 'v i p')
+    .replace(/\bOK\b/g,   'd\'accord')
+    .replace(/\bWA\b/gi,  'WhatsApp')
+    // ── Supprimer emojis et autres symboles non lisibles ──
     .replace(/[\u{1F000}-\u{1FFFF}]|[\u{2600}-\u{27FF}]|\u{FE0F}/gu, '')
+    .replace(/[*_~`#|>]/g, '')       // markdown
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
