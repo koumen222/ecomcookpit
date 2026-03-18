@@ -2,6 +2,7 @@ import express from 'express';
 import EcomUser from '../models/EcomUser.js';
 import Workspace from '../models/Workspace.js';
 import WhatsAppLog from '../models/WhatsAppLog.js';
+import SupportConversation from '../models/SupportConversation.js';
 import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
 import { logAudit, auditSensitiveAccess, AuditLog } from '../middleware/security.js';
 
@@ -554,5 +555,102 @@ router.get('/whatsapp-logs',
     }
   }
 );
+
+// ═══════════════════════════════════════════════════════════════
+// SUPPORT CHAT — Admin endpoints
+// ═══════════════════════════════════════════════════════════════
+
+// GET /api/ecom/super-admin/support — Liste des conversations
+router.get('/support', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { status, page = 1, limit = 50 } = req.query;
+    const filter = {};
+    if (status && status !== 'all') filter.status = status;
+
+    const conversations = await SupportConversation.find(filter)
+      .sort({ lastMessageAt: -1 })
+      .limit(Number(limit))
+      .skip((Number(page) - 1) * Number(limit));
+
+    const total = await SupportConversation.countDocuments(filter);
+    const unreadTotal = await SupportConversation.aggregate([
+      { $group: { _id: null, total: { $sum: '$unreadAdmin' } } }
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        conversations,
+        total,
+        unreadTotal: unreadTotal[0]?.total || 0,
+        page: Number(page),
+      }
+    });
+  } catch (err) {
+    console.error('[Support Admin] GET /support:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// GET /api/ecom/super-admin/support/:sessionId — Détail + mark as read
+router.get('/support/:sessionId', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const conv = await SupportConversation.findOneAndUpdate(
+      { sessionId: req.params.sessionId },
+      { $set: { unreadAdmin: 0 } },
+      { new: true }
+    );
+    if (!conv) return res.status(404).json({ success: false, message: 'Conversation introuvable' });
+    res.json({ success: true, data: { conversation: conv } });
+  } catch (err) {
+    console.error('[Support Admin] GET /support/:id:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// POST /api/ecom/super-admin/support/:sessionId/reply — Agent réplique
+router.post('/support/:sessionId/reply', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { text, agentName } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ success: false, message: 'Message requis' });
+    }
+
+    const conv = await SupportConversation.findOneAndUpdate(
+      { sessionId: req.params.sessionId },
+      {
+        $push: { messages: { from: 'agent', text: text.trim().slice(0, 2000), agentName: agentName || 'Rita' } },
+        $set:  { status: 'replied', lastMessageAt: new Date() },
+      },
+      { new: true }
+    );
+
+    if (!conv) return res.status(404).json({ success: false, message: 'Conversation introuvable' });
+    res.json({ success: true, data: { conversation: conv } });
+  } catch (err) {
+    console.error('[Support Admin] POST /support/:id/reply:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// PUT /api/ecom/super-admin/support/:sessionId/status — Changer le statut
+router.put('/support/:sessionId/status', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!['open', 'replied', 'closed'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Statut invalide' });
+    }
+    const conv = await SupportConversation.findOneAndUpdate(
+      { sessionId: req.params.sessionId },
+      { $set: { status } },
+      { new: true }
+    );
+    if (!conv) return res.status(404).json({ success: false, message: 'Conversation introuvable' });
+    res.json({ success: true, data: { conversation: conv } });
+  } catch (err) {
+    console.error('[Support Admin] PUT /support/:id/status:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
 
 export default router;

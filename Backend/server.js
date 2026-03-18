@@ -262,6 +262,7 @@ const startServer = async () => {
       ['./routes/users.js',                   '/api/ecom/users'],
       ['./routes/superAdmin.js',              '/api/ecom/super-admin'],
       ['./routes/superAdminPush.js',          '/api/ecom/super-admin/push'],
+      ['./routes/support.js',                 '/api/ecom/support'],
       ['./routes/analytics.js',               '/api/ecom/analytics'],
       ['./routes/marketing.js',               '/api/ecom/marketing'],
       ['./routes/import.js',                  '/api/ecom/import'],

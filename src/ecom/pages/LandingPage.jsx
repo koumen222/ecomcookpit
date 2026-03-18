@@ -56,26 +56,94 @@ const SupportChat = () => {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
+  // ── Session ID (persisted in localStorage) ──
+  const sessionId = useRef((() => {
+    const k = 'scalor_support_session';
+    let sid = localStorage.getItem(k);
+    if (!sid) { sid = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10); localStorage.setItem(k, sid); }
+    return sid;
+  })());
+
+  // ── Resolve API base URL (mirrors ecommApi.js logic) ──
+  const apiBase = (() => {
+    const viteApi = typeof import.meta !== 'undefined' ? (import.meta.env?.VITE_API_URL || import.meta.env?.VITE_BACKEND_URL || '') : '';
+    if (viteApi) {
+      const norm = viteApi.replace(/\/$/, '');
+      return norm.endsWith('/api/ecom') ? norm : norm + '/api/ecom';
+    }
+    if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) return 'https://api.scalor.net/api/ecom';
+    return 'https://ecomcookpit-production-7a08.up.railway.app/api/ecom';
+  })();
+
+  // Track which agent message IDs we've already displayed (to avoid duplicates on poll)
+  const shownAgentIds = useRef(new Set());
+
   const AUTO_REPLIES = [
-    "Merci pour votre message ! Un membre de notre équipe vous répondra très prochainement. En attendant, consultez notre documentation.",
-    "Bonne question ! Notre équipe est disponible du lundi au samedi de 8h à 20h. Vous recevrez une réponse sous peu.",
-    "Nous avons bien reçu votre message et allons vous répondre dans les plus brefs délais. Merci de votre confiance !",
+    "Merci pour votre message ! Nous allons vous répondre dans les plus brefs délais. 🙏",
+    "Bien reçu ! Notre équipe est disponible du lundi au samedi de 8h à 20h.",
+    "Message reçu ! Rita revient vers vous très bientôt.",
   ];
 
   const [messages, setMessages] = useState([
     {
       id: 1,
       from: 'agent',
-      text: "Bonjour 👋 Bienvenue sur Scalor ! Je suis Sarah, du support. Comment puis-je vous aider aujourd'hui ?",
+      text: "Bonjour 👋 Bienvenue sur Scalor ! Je suis Rita, du support. Comment puis-je vous aider aujourd'hui ?",
       time: 'Maintenant',
+      source: 'auto',
     },
   ]);
+
+  // Save visitor message to backend (fire-and-forget)
+  const saveToBackend = async (text) => {
+    try {
+      await fetch(`${apiBase}/support/message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: sessionId.current, text }),
+      });
+    } catch { /* silent — user still sees their message locally */ }
+  };
+
+  // Poll for real agent replies from backend
+  const pollReplies = useRef(null);
 
   useEffect(() => {
     if (open) {
       setUnread(0);
       setTimeout(() => inputRef.current?.focus(), 300);
+
+      // Start polling every 6s for real admin replies
+      const poll = async () => {
+        try {
+          const res = await fetch(`${apiBase}/support/session/${sessionId.current}`);
+          if (!res.ok) return;
+          const data = await res.json();
+          const agentMsgs = data?.data?.messages || [];
+          agentMsgs.forEach(msg => {
+            const msgId = msg.id || msg._id;
+            if (msgId && !shownAgentIds.current.has(msgId)) {
+              shownAgentIds.current.add(msgId);
+              const t = new Date(msg.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+              setMessages(prev => [...prev, {
+                id: msgId + '_real',
+                from: 'agent',
+                text: msg.text,
+                time: t,
+                source: 'real',
+                agentName: msg.agentName || 'Rita',
+              }]);
+            }
+          });
+        } catch { /* silent */ }
+      };
+
+      poll(); // immediate first poll
+      pollReplies.current = setInterval(poll, 6000);
+    } else {
+      if (pollReplies.current) { clearInterval(pollReplies.current); pollReplies.current = null; }
     }
+    return () => { if (pollReplies.current) clearInterval(pollReplies.current); };
   }, [open]);
 
   useEffect(() => {
@@ -88,15 +156,19 @@ const SupportChat = () => {
     if (!text) return;
 
     const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-    setMessages(prev => [...prev, { id: Date.now(), from: 'user', text, time: now }]);
+    setMessages(prev => [...prev, { id: Date.now(), from: 'user', text, time: now, source: 'user' }]);
     setInput('');
     setTyping(true);
 
-    const delay = 1400 + Math.random() * 800;
+    // Save to backend
+    saveToBackend(text);
+
+    // Show auto-reply after ~2s (canned, not from DB)
+    const delay = 1600 + Math.random() * 600;
     setTimeout(() => {
       setTyping(false);
       const reply = AUTO_REPLIES[Math.floor(Math.random() * AUTO_REPLIES.length)];
-      setMessages(prev => [...prev, { id: Date.now() + 1, from: 'agent', text: reply, time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) }]);
+      setMessages(prev => [...prev, { id: Date.now() + 1, from: 'agent', text: reply, time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }), source: 'auto' }]);
     }, delay);
   };
 
@@ -116,12 +188,12 @@ const SupportChat = () => {
           {/* Header */}
           <div className="flex items-center gap-3 px-4 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600">
             <div className="relative flex-shrink-0">
-              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm border-2 border-white/30">S</div>
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm border-2 border-white/30">R</div>
               <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-emerald-600" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold text-white leading-tight">Support Scalor</p>
-              <p className="text-[11px] text-white/75 mt-0.5">En ligne · Répond en quelques heures</p>
+              <p className="text-[11px] text-white/75 mt-0.5">Rita · Répond en quelques heures</p>
             </div>
             <button onClick={() => setOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition flex-shrink-0">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -133,13 +205,18 @@ const SupportChat = () => {
             {messages.map(msg => (
               <div key={msg.id} className={`flex items-end gap-2 ${msg.from === 'user' ? 'flex-row-reverse' : ''}`}>
                 {msg.from === 'agent' && (
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mb-1">S</div>
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mb-1">R</div>
                 )}
                 <div className={`max-w-[78%] ${msg.from === 'user' ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
+                  {msg.source === 'real' && (
+                    <span className="text-[9px] text-emerald-600 font-semibold px-1">{msg.agentName || 'Rita'} · support</span>
+                  )}
                   <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
                     msg.from === 'user'
                       ? 'bg-emerald-600 text-white rounded-br-md'
-                      : 'bg-white text-gray-800 rounded-bl-md border border-gray-100 shadow-sm'
+                      : msg.source === 'real'
+                        ? 'bg-emerald-50 text-emerald-900 rounded-bl-md border border-emerald-200'
+                        : 'bg-white text-gray-800 rounded-bl-md border border-gray-100 shadow-sm'
                   }`}>
                     {msg.text}
                   </div>
@@ -151,7 +228,7 @@ const SupportChat = () => {
             {/* Typing indicator */}
             {typing && (
               <div className="flex items-end gap-2">
-                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mb-1">S</div>
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mb-1">R</div>
                 <div className="px-4 py-3 bg-white rounded-2xl rounded-bl-md border border-gray-100 shadow-sm flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                   <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '160ms' }} />
