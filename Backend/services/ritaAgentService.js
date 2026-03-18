@@ -1,5 +1,6 @@
 import Groq from 'groq-sdk';
 import RitaConfig from '../models/RitaConfig.js';
+import { Readable } from 'stream';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -9,6 +10,39 @@ const MAX_HISTORY = 100;
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Transcrit un audio base64 en texte via Groq Whisper
+ * @param {string} base64 - Contenu audio encodé en base64
+ * @param {string} mimetype - ex: 'audio/ogg', 'audio/mpeg'
+ * @returns {Promise<string|null>} - Transcription ou null
+ */
+export async function transcribeAudio(base64, mimetype = 'audio/ogg') {
+  try {
+    const buffer = Buffer.from(base64, 'base64');
+    // Groq Whisper attend un objet File-like avec name, type et stream
+    const ext = mimetype.includes('mp4') ? 'mp4' : mimetype.includes('mpeg') || mimetype.includes('mp3') ? 'mp3' : 'ogg';
+    const filename = `voice.${ext}`;
+
+    // Créer un objet File compatible (Node.js 20+ / groq-sdk accepte un Blob ou File)
+    const blob = new Blob([buffer], { type: mimetype });
+    const file = new File([blob], filename, { type: mimetype });
+
+    const transcription = await groq.audio.transcriptions.create({
+      file,
+      model: 'whisper-large-v3',
+      language: 'fr',
+      response_format: 'text',
+    });
+
+    const text = typeof transcription === 'string' ? transcription.trim() : transcription?.text?.trim();
+    console.log(`🎤 [WHISPER] Transcription: "${text?.substring(0, 200)}"`);
+    return text || null;
+  } catch (err) {
+    console.error(`❌ [WHISPER] Erreur transcription:`, err.message);
+    return null;
+  }
 }
 
 function sanitizeReply(reply, config) {

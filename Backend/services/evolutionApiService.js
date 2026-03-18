@@ -204,6 +204,33 @@ class EvolutionApiService {
   }
 
   /**
+   * Télécharge un message media (audio/vocal) en base64 via Evolution API
+   * POST /chat/getBase64FromMediaMessage/{instance}
+   * @param {string} instanceName
+   * @param {string} instanceToken
+   * @param {object} messageKey - msg.key de l'objet message WhatsApp
+   * @returns {Promise<{base64: string, mimetype: string}|null>}
+   */
+  async getMediaBase64(instanceName, instanceToken, messageKey) {
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/chat/getBase64FromMediaMessage/${instanceName}`,
+        { message: { key: messageKey }, convertToMp4: false },
+        {
+          headers: { 'Content-Type': 'application/json', 'apikey': instanceToken },
+          timeout: 30000,
+        }
+      );
+      const d = response.data;
+      if (d?.base64) return { base64: d.base64, mimetype: d.mimetype || 'audio/ogg' };
+      return null;
+    } catch (error) {
+      console.error(`❌ Erreur Evolution API (getMediaBase64):`, error.response?.data || error.message);
+      return null;
+    }
+  }
+
+  /**
    * Vérifie le statut d'une instance
    * @param {string} instanceName 
    * @param {string} instanceToken 

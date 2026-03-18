@@ -7,7 +7,7 @@ import EcomUser from '../models/EcomUser.js';
 import RitaConfig from '../models/RitaConfig.js';
 import WhatsAppOrder from '../models/WhatsAppOrder.js';
 import evolutionApiService from '../services/evolutionApiService.js';
-import { processIncomingMessage, generateTestReply } from '../services/ritaAgentService.js';
+import { processIncomingMessage, generateTestReply, transcribeAudio } from '../services/ritaAgentService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -752,7 +752,10 @@ router.post('/incoming', async (req, res) => {
         for (const msg of messages) {
           const fromMe = msg.key?.fromMe;
           const from = msg.key?.remoteJid;
-          const text =
+
+          // ─── Détecter message vocal / audio ───
+          const isAudio = !!(msg.message?.audioMessage || msg.message?.pttMessage);
+          let text =
             msg.message?.conversation ||
             msg.message?.extendedTextMessage?.text ||
             msg.message?.imageMessage?.caption ||
@@ -762,7 +765,7 @@ router.post('/incoming', async (req, res) => {
             '';
           const pushName = msg.pushName || data?.pushName || '';
 
-          console.log(`📩 [WH INCOMING] Message — from=${from} fromMe=${fromMe} text="${(text || '').substring(0, 80)}"`);
+          console.log(`📩 [WH INCOMING] Message — from=${from} fromMe=${fromMe} isAudio=${isAudio} text="${(text || '').substring(0, 80)}"`);
           if (pushName) {
             console.log(`📩 [WH INCOMING] pushName=${pushName}`);
           }
@@ -776,8 +779,41 @@ router.post('/incoming', async (req, res) => {
             console.log(`⏩ [RITA] Message de groupe ignoré (${from}).`);
             continue;
           }
-          if (!from || !text) {
-            console.log(`⏩ [RITA] Message vide ou sans expéditeur, ignoré.`);
+          if (!from) {
+            console.log(`⏩ [RITA] Message sans expéditeur, ignoré.`);
+            continue;
+          }
+
+          // ─── Transcription vocale si c'est un audio ───
+          if (isAudio && instanceDoc) {
+            console.log(`🎤 [RITA] Message vocal détecté — téléchargement en cours...`);
+            try {
+              const mediaData = await evolutionApiService.getMediaBase64(
+                instanceDoc.instanceName,
+                instanceDoc.instanceToken,
+                msg.key
+              );
+              if (mediaData?.base64) {
+                const transcribed = await transcribeAudio(mediaData.base64, mediaData.mimetype);
+                if (transcribed) {
+                  text = transcribed;
+                  console.log(`🎤 [RITA] Vocal transcrit: "${transcribed.substring(0, 200)}"`);
+                } else {
+                  console.log(`🎤 [RITA] Transcription échouée, message ignoré.`);
+                  continue;
+                }
+              } else {
+                console.log(`🎤 [RITA] Impossible de télécharger le vocal, ignoré.`);
+                continue;
+              }
+            } catch (audioErr) {
+              console.error(`❌ [RITA] Erreur transcription vocale:`, audioErr.message);
+              continue;
+            }
+          }
+
+          if (!text) {
+            console.log(`⏩ [RITA] Message vide, ignoré.`);
             continue;
           }
 
