@@ -102,20 +102,29 @@ class EvolutionApiService {
    */
   async sendMedia(instanceName, instanceToken, number, mediaUrl, caption = '', fileName = 'image.jpg') {
     const cleanNumber = number.replace(/\D/g, '');
-    
-    // Déterminer le mimetype depuis l'extension du fichier
-    const ext = fileName.split('.').pop().toLowerCase();
+
+    // Déterminer le mimetype depuis l'extension du fichier ou de l'URL
+    const urlForExt = mediaUrl.split('?')[0];
+    const ext = (fileName.split('.').pop() || urlForExt.split('.').pop() || 'jpg').toLowerCase();
     const mimetypes = {
-      'jpg': 'image/jpeg',
-      'jpeg': 'image/jpeg',
-      'png': 'image/png',
-      'gif': 'image/gif',
-      'webp': 'image/webp',
-      'mp4': 'video/mp4',
-      'pdf': 'application/pdf'
+      'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+      'png': 'image/png', 'gif': 'image/gif',
+      'webp': 'image/webp', 'mp4': 'video/mp4', 'pdf': 'application/pdf'
     };
     const mimetype = mimetypes[ext] || 'image/jpeg';
-    
+
+    // ── Télécharger l'image et l'envoyer en base64 (plus fiable que URL directe) ──
+    let mediaPayload = mediaUrl; // fallback URL si téléchargement échoue
+    try {
+      const dlRes = await axios.get(mediaUrl, { responseType: 'arraybuffer', timeout: 20000 });
+      const b64 = Buffer.from(dlRes.data).toString('base64');
+      const detectedMime = dlRes.headers['content-type']?.split(';')[0] || mimetype;
+      mediaPayload = `data:${detectedMime};base64,${b64}`;
+      console.log(`📸 [Evolution] Image téléchargée (${Math.round(dlRes.data.byteLength / 1024)} KB) → envoi base64`);
+    } catch (dlErr) {
+      console.warn(`⚠️ [Evolution] Téléchargement image échoué (${dlErr.message}), tentative URL directe`);
+    }
+
     try {
       const response = await axios.post(
         `${this.baseUrl}/message/sendMedia/${instanceName}`,
@@ -124,41 +133,31 @@ class EvolutionApiService {
           mediatype: 'image',
           mimetype: mimetype,
           caption: caption,
-          media: mediaUrl,
+          media: mediaPayload,
           fileName: fileName,
           delay: 1200
         },
         {
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': instanceToken
-          },
-          timeout: 45000 // 45 secondes pour l'upload
+          headers: { 'Content-Type': 'application/json', 'apikey': instanceToken },
+          timeout: 45000
         }
       );
 
       console.log(`✅ [Evolution API] Média envoyé à ${cleanNumber} via ${instanceName}`);
       console.log(`   📋 Response: ${JSON.stringify(response.data?.key || response.data?.status || 'OK').substring(0, 200)}`);
-      return {
-        success: true,
-        data: response.data
-      };
+      return { success: true, data: response.data };
     } catch (error) {
       const errorData = error.response?.data;
       console.error(`❌ Erreur Evolution API (sendMedia):`, JSON.stringify(errorData, null, 2) || error.message);
       console.error(`   URL tentée: ${this.baseUrl}/message/sendMedia/${instanceName}`);
       console.error(`   Numéro: ${cleanNumber}, Media: ${mediaUrl}`);
-      
-      // Extraire le message d'erreur détaillé
+
       let detailedError = errorData?.message || error.message;
       if (Array.isArray(errorData?.response?.message)) {
         detailedError = errorData.response.message.map(m => JSON.stringify(m)).join(', ');
       }
-      
-      return {
-        success: false,
-        error: detailedError
-      };
+
+      return { success: false, error: detailedError };
     }
   }
 
