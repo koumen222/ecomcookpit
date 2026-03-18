@@ -912,14 +912,24 @@ router.post('/incoming', async (req, res) => {
           // responseMode: 'text' | 'voice' | 'both'. Legacy compat: voiceMode=true → 'voice'
           const responseMode = ritaCfgVoice?.responseMode || (ritaCfgVoice?.voiceMode ? 'voice' : 'text');
           const canDoVoice = !!(effectiveApiKey && textToSend);
-          const sendText  = responseMode === 'text'  || responseMode === 'both';
-          const sendVoice = (responseMode === 'voice' || responseMode === 'both') && canDoVoice;
 
-          console.log(`🎚️ [RITA] Mode réponse: ${responseMode} | texte:${sendText} vocal:${sendVoice} apiKey:${effectiveApiKey ? 'oui' : 'non'}`);
+          // En mode "both", on ALTERNE entre texte et vocal à chaque message
+          // Compteur par conversation (userId:from) stocké en mémoire
+          let useVoiceThisTurn = false;
+          if (responseMode === 'both' && canDoVoice) {
+            const altKey = `alt:${userId}:${cleanFrom}`;
+            const count = (global.__ritaAltCounter || (global.__ritaAltCounter = new Map())).get(altKey) || 0;
+            useVoiceThisTurn = count % 3 !== 0; // 1 texte, puis 2 vocaux, en boucle
+            global.__ritaAltCounter.set(altKey, count + 1);
+          }
+          const sendText  = responseMode === 'text' || (responseMode === 'both' && !useVoiceThisTurn);
+          const sendVoice = responseMode === 'voice' || (responseMode === 'both' && useVoiceThisTurn);
 
-          // ── 1. Envoyer le texte si nécessaire ──
+          console.log(`🎚️ [RITA] Mode: ${responseMode} | tour: ${useVoiceThisTurn ? 'vocal' : 'texte'} | apiKey: ${effectiveApiKey ? 'oui' : 'non'}`);
+
+          // ── Envoyer le texte ──
           if (textToSend && sendText) {
-            console.log(`📤 [RITA] Envoi réponse texte à ${cleanFrom} via ${instanceDoc.instanceName}...`);
+            console.log(`📤 [RITA] Envoi réponse texte à ${cleanFrom}...`);
             const sendResult = await evolutionApiService.sendMessage(
               instanceDoc.instanceName,
               instanceDoc.instanceToken,
@@ -927,15 +937,15 @@ router.post('/incoming', async (req, res) => {
               textToSend
             );
             if (sendResult.success) {
-              console.log(`✅ [RITA] Réponse texte envoyée avec succès à ${cleanFrom}`);
+              console.log(`✅ [RITA] Réponse texte envoyée`);
             } else {
-              console.error(`❌ [RITA] Échec envoi texte à ${cleanFrom}:`, sendResult.error);
+              console.error(`❌ [RITA] Échec envoi texte:`, sendResult.error);
             }
           }
 
-          // ── 2. Envoyer la note vocale si nécessaire ──
-          if (textToSend && sendVoice) {
-            console.log(`🎙️ [RITA] Génération TTS (${responseMode})...`);
+          // ── Envoyer la note vocale ──
+          if (textToSend && sendVoice && canDoVoice) {
+            console.log(`🎙️ [RITA] Génération TTS...`);
             try {
               const audioBuffer = await textToSpeech(textToSend, ttsConfig);
               if (audioBuffer) {
@@ -947,26 +957,18 @@ router.post('/incoming', async (req, res) => {
                   `data:audio/mpeg;base64,${audioBase64}`
                 );
                 if (audioResult.success) {
-                  console.log(`✅ [RITA] Note vocale envoyée avec succès à ${cleanFrom}`);
+                  console.log(`✅ [RITA] Note vocale envoyée`);
                 } else {
-                  console.error(`❌ [RITA] Échec envoi vocal:`, audioResult.error);
-                  // Fallback texte uniquement si on n'a pas déjà envoyé le texte
-                  if (!sendText) {
-                    console.warn(`⚠️ [RITA] Fallback texte (vocal échoué)`);
-                    await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
-                  }
-                }
-              } else {
-                if (!sendText) {
-                  console.warn(`⚠️ [RITA] TTS null, fallback texte`);
+                  console.error(`❌ [RITA] Échec vocal, fallback texte:`, audioResult.error);
                   await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
                 }
+              } else {
+                console.warn(`⚠️ [RITA] TTS null, fallback texte`);
+                await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
               }
             } catch (ttsErr) {
               console.error(`❌ [RITA] Erreur TTS:`, ttsErr.message);
-              if (!sendText) {
-                await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
-              }
+              await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
             }
           }
 

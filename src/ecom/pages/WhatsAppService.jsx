@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   Plus, Trash2, RefreshCw, CheckCircle, AlertCircle, Loader2,
   ExternalLink, Copy, Check, Bot, Smartphone, Zap, Send,
@@ -1509,7 +1509,7 @@ const RitaIATab = ({ instances }) => {
                     {[
                       { value: 'text', icon: '💬', label: 'Texte', desc: 'Messages écrits uniquement' },
                       { value: 'voice', icon: '🎙️', label: 'Vocal', desc: 'Notes audio uniquement' },
-                      { value: 'both', icon: '💬🎙️', label: 'Les deux', desc: 'Texte + note audio' },
+                      { value: 'both', icon: '💬🎙️', label: 'Mixte', desc: 'Alterne texte et vocal' },
                     ].map(m => (
                       <button key={m.value} type="button"
                         onClick={() => { set('responseMode', m.value); set('voiceMode', m.value !== 'text'); }}
@@ -1527,7 +1527,7 @@ const RitaIATab = ({ instances }) => {
                   {(config.responseMode === 'both') && (
                     <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg mt-2">
                       <span className="text-emerald-500 text-sm">✅</span>
-                      <p className="text-[11px] text-emerald-700">Le client recevra le texte écrit <strong>suivi d'une note audio</strong> du même message. Idéal pour l'accessibilité.</p>
+                      <p className="text-[11px] text-emerald-700">Rita <strong>alterne automatiquement</strong> entre texte et vocal au fil de la conversation. Plus naturel et humain — comme une vraie vendeuse.</p>
                     </div>
                   )}
                   {(config.responseMode === 'voice') && (
@@ -1538,26 +1538,14 @@ const RitaIATab = ({ instances }) => {
                   )}
                 </div>
 
-                {/* ElevenLabs config */}
+                {/* ElevenLabs config — pré-configuré */}
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg">
-                    <span className="text-blue-500 text-sm">&#9432;</span>
-                    <p className="text-xs text-blue-700">
-                      Propulsé par{' '}
-                      <a href="https://elevenlabs.io" target="_blank" rel="noopener noreferrer" className="font-semibold underline">ElevenLabs</a>
-                      {' '}  &mdash; 10 000 caractères/mois gratuits. Créez un compte et copiez votre clé API.
+                  <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg">
+                    <span className="text-emerald-500 text-sm">&#10003;</span>
+                    <p className="text-xs text-emerald-700">
+                      <strong>ElevenLabs pré-configuré</strong> &mdash; le mode vocal fonctionne directement. Vous pouvez personnaliser la voix et le modèle ci-dessous.
                     </p>
                   </div>
-
-                  <Field label="Clé API ElevenLabs" hint="obligatoire pour le mode vocal">
-                    <input
-                      type="password"
-                      value={config.elevenlabsApiKey}
-                      onChange={e => set('elevenlabsApiKey', e.target.value)}
-                      placeholder="sk_..."
-                      className="field-input font-mono"
-                    />
-                  </Field>
 
                   <Field label="Modèle TTS" hint="eleven_v3 recommandé — 70+ langues dont français, arabe, wolof…">
                     <select
@@ -1570,19 +1558,9 @@ const RitaIATab = ({ instances }) => {
                     </select>
                   </Field>
 
-                  <Field label="Voice ID" hint="optionnel — coller un ID depuis ElevenLabs">
-                    <input
-                      type="text"
-                      value={config.elevenlabsVoiceId}
-                      onChange={e => set('elevenlabsVoiceId', e.target.value)}
-                      placeholder="cgSgspJ2msm6clMCkdW9"
-                      className="field-input font-mono"
-                    />
-                  </Field>
-
                   {/* Voix présélectionnées */}
                   <div>
-                    <p className="text-[12px] font-medium text-gray-500 mb-2">Voix recommandées — marché Afrique francophone (cliquer pour sélectionner)</p>
+                    <p className="text-[12px] font-medium text-gray-500 mb-2">Voix de Rita (cliquer pour sélectionner)</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {[
                         { id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica', desc: 'Femme · FR · Naturel — 🇨🇲🇨🇮🇸🇳' },
