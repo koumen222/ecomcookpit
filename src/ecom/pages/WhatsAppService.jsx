@@ -1499,11 +1499,12 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                       value={config.toneStyle}
                       onChange={v => set('toneStyle', v)}
                       options={[
-                        { value: 'warm', label: '😊 Chaleureux et Proche' },
-                        { value: 'professional', label: '💼 Professionnel et Sérieux' },
-                        { value: 'casual', label: '😎 Décontracté et Moderne' },
-                        { value: 'persuasive', label: '🎯 Persuasif et Direct' },
-                        { value: 'luxury', label: '✨ Premium et Exclusif' },
+                        { value: 'warm', label: '😊 Chaleureux et Proche (tutoiement)' },
+                        { value: 'professional', label: '💼 Professionnel et Sérieux (tutoiement)' },
+                        { value: 'casual', label: '😎 Décontracté et Moderne (tutoiement)' },
+                        { value: 'persuasive', label: '🎯 Persuasif et Direct (tutoiement)' },
+                        { value: 'formal', label: '🤝 Formel et Respectueux (vouvoiement)' },
+                        { value: 'luxury', label: '✨ Premium et Exclusif (vouvoiement)' },
                       ]}
                     />
                   </Field>

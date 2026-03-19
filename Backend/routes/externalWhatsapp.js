@@ -67,6 +67,61 @@ function resolveWebhookBaseUrl(req) {
 import { checkMessageLimit, incrementMessageCount, getInstanceUsage } from '../services/messageLimitService.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 
+/**
+ * Découpe un message long en plusieurs parties pour WhatsApp.
+ * Coupe sur les doubles retours à la ligne, puis les retours simples, puis les phrases.
+ * @param {string} text - Message complet
+ * @param {number} maxLen - Longueur max par partie (défaut 1500)
+ * @returns {string[]} - Tableau de parties
+ */
+function splitWhatsAppMessage(text, maxLen = 1500) {
+  if (!text || text.length <= maxLen) return [text];
+
+  const parts = [];
+  let remaining = text;
+
+  while (remaining.length > maxLen) {
+    let cutIndex = -1;
+
+    // 1. Essayer de couper sur un double retour à la ligne
+    const doubleNewline = remaining.lastIndexOf('\n\n', maxLen);
+    if (doubleNewline > maxLen * 0.3) {
+      cutIndex = doubleNewline;
+    }
+
+    // 2. Sinon couper sur un retour à la ligne simple
+    if (cutIndex === -1) {
+      const singleNewline = remaining.lastIndexOf('\n', maxLen);
+      if (singleNewline > maxLen * 0.3) {
+        cutIndex = singleNewline;
+      }
+    }
+
+    // 3. Sinon couper sur une fin de phrase (. ! ?)
+    if (cutIndex === -1) {
+      const sentenceEnd = remaining.substring(0, maxLen).search(/[.!?]\s+[^\s]/);
+      if (sentenceEnd > maxLen * 0.3) {
+        cutIndex = sentenceEnd + 1;
+      }
+    }
+
+    // 4. Dernier recours : couper sur un espace
+    if (cutIndex === -1) {
+      cutIndex = remaining.lastIndexOf(' ', maxLen);
+      if (cutIndex <= 0) cutIndex = maxLen;
+    }
+
+    parts.push(remaining.substring(0, cutIndex).trim());
+    remaining = remaining.substring(cutIndex).trim();
+  }
+
+  if (remaining) {
+    parts.push(remaining);
+  }
+
+  return parts;
+}
+
 const router = express.Router();
 
 // Normalise une chaîne : minuscules + suppression des accents/diacritiques
@@ -1329,23 +1384,32 @@ router.post('/incoming', async (req, res) => {
           console.log(`🎚️ [RITA] Mode: ${responseMode} | tour: ${useVoiceThisTurn ? 'vocal' : 'texte'} | voiceTag: ${hasVoiceTag} | apiKey: ${effectiveApiKey ? 'oui' : 'non'}`);
 
 
-          // ── Envoyer le texte ──
+          // ── Envoyer le texte (avec découpage si trop long) ──
           if (textToSend && sendText) {
-            console.log(`📤 [RITA] Envoi réponse texte à ${cleanFrom} (délai: ${responseDelayMs}ms)...`);
-            const sendResult = await evolutionApiService.sendMessage(
-              instanceDoc.instanceName,
-              instanceDoc.instanceToken,
-              cleanFrom,
-              textToSend,
-              2,
-              responseDelayMs
-            );
-            if (sendResult.success) {
-              console.log(`✅ [RITA] Réponse texte envoyée`);
-              logRitaActivity(userId, 'message_replied', { customerPhone: cleanFrom, details: textToSend.substring(0, 200) });
-            } else {
-              console.error(`❌ [RITA] Échec envoi texte:`, sendResult.error);
+            // Découper les messages longs en plusieurs envois WhatsApp
+            const messageParts = splitWhatsAppMessage(textToSend, 1500);
+            console.log(`📤 [RITA] Envoi réponse texte à ${cleanFrom} (${messageParts.length} partie(s), délai: ${responseDelayMs}ms)...`);
+            for (let partIdx = 0; partIdx < messageParts.length; partIdx++) {
+              const part = messageParts[partIdx];
+              const sendResult = await evolutionApiService.sendMessage(
+                instanceDoc.instanceName,
+                instanceDoc.instanceToken,
+                cleanFrom,
+                part,
+                2,
+                partIdx === 0 ? responseDelayMs : 800
+              );
+              if (sendResult.success) {
+                console.log(`✅ [RITA] Réponse texte partie ${partIdx + 1}/${messageParts.length} envoyée`);
+              } else {
+                console.error(`❌ [RITA] Échec envoi texte partie ${partIdx + 1}:`, sendResult.error);
+              }
+              // Petit délai entre les parties pour garder l'ordre
+              if (partIdx < messageParts.length - 1) {
+                await new Promise(r => setTimeout(r, 600));
+              }
             }
+            logRitaActivity(userId, 'message_replied', { customerPhone: cleanFrom, details: textToSend.substring(0, 200) });
           }
 
           // ── Envoyer la note vocale ──
