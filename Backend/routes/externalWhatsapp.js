@@ -960,7 +960,10 @@ router.post('/incoming', async (req, res) => {
                 msg.key
               );
               if (mediaData?.base64) {
-                const transcribed = await transcribeAudio(mediaData.base64, mediaData.mimetype);
+                // Déterminer la langue pour Whisper
+                const ritaCfgLang = await RitaConfig.findOne({ userId: instanceDoc.userId }).lean();
+                const langHint = ritaCfgLang?.language || 'fr';
+                const transcribed = await transcribeAudio(mediaData.base64, mediaData.mimetype, langHint);
                 if (transcribed) {
                   text = transcribed;
                   console.log(`🎤 [RITA] Vocal transcrit: "${transcribed.substring(0, 200)}"`);
@@ -1391,10 +1394,12 @@ router.post('/incoming', async (req, res) => {
           console.log(`🎚️ [RITA] Mode: ${responseMode} | tour: ${useVoiceThisTurn ? 'vocal' : 'texte'} | voiceTag: ${hasVoiceTag} | apiKey: ${effectiveApiKey ? 'oui' : 'non'}`);
 
 
-          // ── Envoyer le texte (avec découpage si trop long) ──
+          // ── Envoyer le texte (avec découpage [SPLIT] puis splitWhatsAppMessage) ──
           if (textToSend && sendText) {
-            // Découper les messages longs en plusieurs envois WhatsApp
-            const messageParts = splitWhatsAppMessage(textToSend, 1500);
+            // 1. Découpage par tag [SPLIT] (décidé par Rita dans sa réponse)
+            const splitParts = textToSend.split(/\s*\[SPLIT\]\s*/).map(p => p.trim()).filter(Boolean);
+            // 2. Chaque partie est ensuite découpée si encore trop longue (> 1500 chars)
+            const messageParts = splitParts.flatMap(p => splitWhatsAppMessage(p, 1500));
             console.log(`📤 [RITA] Envoi réponse texte à ${cleanFrom} (${messageParts.length} partie(s), délai: ${responseDelayMs}ms)...`);
             for (let partIdx = 0; partIdx < messageParts.length; partIdx++) {
               const part = messageParts[partIdx];

@@ -23,7 +23,7 @@ function escapeRegExp(value) {
  * @param {string} mimetype - ex: 'audio/ogg', 'audio/mpeg'
  * @returns {Promise<string|null>} - Transcription ou null
  */
-export async function transcribeAudio(base64, mimetype = 'audio/ogg') {
+export async function transcribeAudio(base64, mimetype = 'audio/ogg', langHint = 'fr') {
   try {
     const buffer = Buffer.from(base64, 'base64');
     // Groq Whisper attend un objet File-like avec name, type et stream
@@ -34,12 +34,20 @@ export async function transcribeAudio(base64, mimetype = 'audio/ogg') {
     const blob = new Blob([buffer], { type: mimetype });
     const file = new File([blob], filename, { type: mimetype });
 
-    const transcription = await groq.audio.transcriptions.create({
+    // For bilingual (fr_en) or English mode, let Whisper auto-detect language
+    const whisperOpts = {
       file,
       model: 'whisper-large-v3',
-      language: 'fr',
       response_format: 'text',
-    });
+    };
+    if (langHint === 'fr_en') {
+      // Auto-detect: no language hint → Whisper chooses fr or en
+      console.log(`🎤 [WHISPER] Mode bilingue — auto-detection langue`);
+    } else {
+      whisperOpts.language = langHint === 'en' ? 'en' : 'fr';
+    }
+
+    const transcription = await groq.audio.transcriptions.create(whisperOpts);
 
     const text = typeof transcription === 'string' ? transcription.trim() : transcription?.text?.trim();
     console.log(`🎤 [WHISPER] Transcription: "${text?.substring(0, 200)}"`);
@@ -55,10 +63,13 @@ export async function transcribeAudio(base64, mimetype = 'audio/ogg') {
  */
 /**
  * Épelle un numéro de téléphone chiffre par chiffre, lisible à l'oral.
- * Ex: "237699887766" → "deux trois sept, six neuf neuf, huit huit sept, sept six six"
+ * Ex FR: "237699887766" → "deux trois sept, six neuf neuf, huit huit sept, sept six six"
+ * Ex EN: "237699887766" → "two three seven, six nine nine, eight eight seven, seven six six"
  */
-function spellPhone(digits) {
-  const names = ['zéro','un','deux','trois','quatre','cinq','six','sept','huit','neuf'];
+function spellPhone(digits, lang = 'fr') {
+  const namesFr = ['zéro','un','deux','trois','quatre','cinq','six','sept','huit','neuf'];
+  const namesEn = ['zero','one','two','three','four','five','six','seven','eight','nine'];
+  const names = lang === 'en' ? namesEn : namesFr;
   const spelled = digits.split('').map(d => names[parseInt(d)] || d);
   // Group by 3 for natural reading
   const groups = [];
@@ -105,53 +116,119 @@ function spellNumber(n) {
   return under1000(n);
 }
 
-function stripForTTS(text) {
+/**
+ * Spell a number in English for TTS.
+ * Ex: 19900 → "nineteen thousand nine hundred"
+ */
+function spellNumberEn(n) {
+  if (isNaN(n) || n < 0) return String(n);
+  if (n === 0) return 'zero';
+  const ones = ['','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+  const tens = ['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+  function under1000(x) {
+    if (x < 20) return ones[x];
+    if (x < 100) {
+      const t = Math.floor(x / 10);
+      const u = x % 10;
+      return tens[t] + (u ? '-' + ones[u] : '');
+    }
+    const h = Math.floor(x / 100);
+    const rest = x % 100;
+    return ones[h] + ' hundred' + (rest ? ' and ' + under1000(rest) : '');
+  }
+  if (n >= 1000000) {
+    const m = Math.floor(n / 1000000);
+    const rest = n % 1000000;
+    return under1000(m) + ' million' + (rest ? ' ' + spellNumberEn(rest) : '');
+  }
+  if (n >= 1000) {
+    const k = Math.floor(n / 1000);
+    const rest = n % 1000;
+    return under1000(k) + ' thousand' + (rest ? ' ' + under1000(rest) : '');
+  }
+  return under1000(n);
+}
+
+/**
+ * Detect if text is predominantly English.
+ */
+function detectIsEnglish(text) {
+  const enWords = /\b(the|is|are|you|your|we|will|can|have|this|that|with|for|and|not|yes|no|please|thank|want|need|order|delivery|price|product|how|much|what|which)\b/gi;
+  const frWords = /\b(le|la|les|est|sont|vous|votre|nous|avec|pour|pas|oui|non|merci|veux|besoin|commande|livraison|prix|produit|combien|quel|quelle)\b/gi;
+  const enCount = (text.match(enWords) || []).length;
+  const frCount = (text.match(frWords) || []).length;
+  return enCount > frCount;
+}
+
+function stripForTTS(text, lang = 'fr') {
+  // Auto-detect language from content when bilingual
+  const isEn = lang === 'en' || (lang === 'fr_en' && detectIsEnglish(text));
+  const spellNum = isEn ? spellNumberEn : spellNumber;
+  const spellPh = (digits) => spellPhone(digits, isEn ? 'en' : 'fr');
+
   let s = text
     .replace(/\[IMAGE:[^\]]+\]/g, '')
     .replace(/\[VIDEO:[^\]]+\]/g, '')
     .replace(/\[ORDER_DATA:[^\]]+\]/g, '')
     .replace(/\[VOICE\]/gi, '')
     // ── Numéros de téléphone → épelés chiffre par chiffre ──
-    .replace(/(?:\+?(\d{9,15}))/g, (_, digits) => spellPhone(digits))
-    // ── Prix avec devise → nombre en lettres + francs CFA ──
+    .replace(/(?:\+?(\d{9,15}))/g, (_, digits) => spellPh(digits))
+    // ── Prix avec devise → nombre en lettres + devise lisible ──
     .replace(/(\d[\d\s.,]*)\s*(?:FCFA|F\s*CFA|XAF|XOF|CFA)/gi, (_, num) => {
       const n = parseInt(num.replace(/[\s.,]/g, ''));
-      return isNaN(n) ? num + ' francs CFA' : spellNumber(n) + ' francs CFA';
+      return isNaN(n) ? num + (isEn ? ' CFA francs' : ' francs CFA') : spellNum(n) + (isEn ? ' CFA francs' : ' francs CFA');
     })
-    .replace(/\bFCFA\b/gi, 'francs CFA')
+    .replace(/\bFCFA\b/gi, isEn ? 'CFA francs' : 'francs CFA')
     .replace(/(\d[\d\s.,]*)\s*€/gi, (_, num) => {
       const n = parseInt(num.replace(/[\s.,]/g, ''));
-      return isNaN(n) ? num + ' euros' : spellNumber(n) + ' euros';
+      return isNaN(n) ? num + ' euros' : spellNum(n) + ' euros';
     })
     .replace(/(\d[\d\s.,]*)\s*\$/gi, (_, num) => {
       const n = parseInt(num.replace(/[\s.,]/g, ''));
-      return isNaN(n) ? num + ' dollars' : spellNumber(n) + ' dollars';
-    })
-    // ── Unités ──
-    .replace(/\bkg\b/gi,  'kilogrammes')
-    .replace(/\bml\b/gi,  'millilitres')
-    .replace(/\bcl\b/gi,  'centilitres')
-    .replace(/\bcm\b/gi,  'centimètres')
-    // ── Commerce & délais ──
-    .replace(/\bh\b/g,    'heures')
-    .replace(/\bj\b/g,    'jours')
-    .replace(/\bJO\b/g,   'jours ouvrés')
-    .replace(/\bTVA\b/gi, 'taxes')
-    .replace(/\bHT\b/g,   'hors taxes')
-    .replace(/\bTTC\b/g,  'toutes taxes comprises')
-    .replace(/\bRDV\b/gi, 'rendez-vous')
-    .replace(/\bSAV\b/gi, 'service après-vente')
-    .replace(/\bCOD\b/gi, 'paiement à la livraison')
-    .replace(/\bpayts\b/gi, 'paiement à la livraison')
-    // ── Raccourcis courants ──
-    .replace(/\bsvp\b/gi, 's\'il vous plaît')
-    .replace(/\bstp\b/gi, 's\'il te plaît')
-    .replace(/\bNB\b/g,   'nota bene')
-    .replace(/\bPS\b/g,   'post-scriptum')
-    .replace(/\bVIP\b/gi, 'v i p')
-    .replace(/\bOK\b/g,   'd\'accord')
-    .replace(/\bWA\b/gi,  'WhatsApp')
-    // ── Supprimer emojis et autres symboles non lisibles ──
+      return isNaN(n) ? num + ' dollars' : spellNum(n) + ' dollars';
+    });
+
+  if (isEn) {
+    // ── English abbreviations ──
+    s = s
+      .replace(/\bkg\b/gi,  'kilograms')
+      .replace(/\bml\b/gi,  'milliliters')
+      .replace(/\bcl\b/gi,  'centiliters')
+      .replace(/\bcm\b/gi,  'centimeters')
+      .replace(/\bCOD\b/gi, 'cash on delivery')
+      .replace(/\bASAP\b/gi, 'as soon as possible')
+      .replace(/\bFYI\b/gi, 'for your information')
+      .replace(/\bVIP\b/gi, 'V I P')
+      .replace(/\bOK\b/g,   'okay')
+      .replace(/\bWA\b/gi,  'WhatsApp');
+  } else {
+    // ── French abbreviations (existing) ──
+    s = s
+      .replace(/\bkg\b/gi,  'kilogrammes')
+      .replace(/\bml\b/gi,  'millilitres')
+      .replace(/\bcl\b/gi,  'centilitres')
+      .replace(/\bcm\b/gi,  'centimètres')
+      .replace(/\bh\b/g,    'heures')
+      .replace(/\bj\b/g,    'jours')
+      .replace(/\bJO\b/g,   'jours ouvrés')
+      .replace(/\bTVA\b/gi, 'taxes')
+      .replace(/\bHT\b/g,   'hors taxes')
+      .replace(/\bTTC\b/g,  'toutes taxes comprises')
+      .replace(/\bRDV\b/gi, 'rendez-vous')
+      .replace(/\bSAV\b/gi, 'service après-vente')
+      .replace(/\bCOD\b/gi, 'paiement à la livraison')
+      .replace(/\bpayts\b/gi, 'paiement à la livraison')
+      .replace(/\bsvp\b/gi, 's\'il vous plaît')
+      .replace(/\bstp\b/gi, 's\'il te plaît')
+      .replace(/\bNB\b/g,   'nota bene')
+      .replace(/\bPS\b/g,   'post-scriptum')
+      .replace(/\bVIP\b/gi, 'v i p')
+      .replace(/\bOK\b/g,   'd\'accord')
+      .replace(/\bWA\b/gi,  'WhatsApp');
+  }
+
+  // ── Supprimer emojis et autres symboles non lisibles ──
+  s = s
     .replace(/[\u{1F000}-\u{1FFFF}]|[\u{2600}-\u{27FF}]|\u{FE0F}/gu, '')
     .replace(/[*_~`#|>]/g, '')       // markdown
     .replace(/\s{2,}/g, ' ')
@@ -170,7 +247,8 @@ export async function textToSpeech(text, config) {
   const voiceId = config?.elevenlabsVoiceId || '9ZATEeixBigmezesCGAk';
   if (!apiKey || !text?.trim()) return null;
 
-  const clean = stripForTTS(text);
+  const lang = config?.language || 'fr';
+  const clean = stripForTTS(text, lang);
   if (!clean) return null;
 
   try {
@@ -225,8 +303,10 @@ function sanitizeReply(reply, config) {
  * Style : vendeuse camerounaise WhatsApp — messages courts, naturels, zéro hallucination.
  */
 function buildSystemPrompt(config) {
-  const langMap = { fr: 'français', en: 'anglais', ar: 'arabe', es: 'espagnol' };
+  const langMap = { fr: 'français', en: 'anglais', ar: 'arabe', es: 'espagnol', fr_en: 'français et anglais' };
   const lang = langMap[config.language] || config.language || 'français';
+  const isBilingual = config.language === 'fr_en';
+  const isEnglish = config.language === 'en';
   const name = config.agentName || 'Rita';
   const toneStyle = config.toneStyle || 'warm';
 
@@ -247,6 +327,18 @@ Tu ne dois JAMAIS parler comme une IA.
 Tu dois sonner comme une vraie vendeuse au Cameroun: ${tone.desc}.
 ${tone.extra}
 ${usesVous ? '⚠️ RÈGLE ABSOLUE : Tu utilises TOUJOURS le VOUVOIEMENT ("vous", "votre", "vos"). JAMAIS de "tu", "ton", "ta", "tes". Chaque message doit respecter cette règle sans exception.' : '⚠️ Tu TUTOIES le client ("tu", "ton", "ta"). Style naturel et proche.'}
+${isBilingual ? `
+## 🌍 LANGUES — RÈGLE ABSOLUE
+Tu parles FRANÇAIS et ANGLAIS. Tu détectes automatiquement la langue du client :
+- Client écrit en français → tu réponds en français
+- Client écrit en anglais → tu réponds en anglais
+- Client mélange les deux → tu réponds dans la langue dominante du message
+Tu DOIS répondre dans la MÊME LANGUE que le client. Ne change jamais de langue sauf si le client change.
+Tu adaptes aussi le vocal : si le message est en anglais tu parles en anglais, si en français tu parles en français.` : ''}
+${isEnglish ? `
+## 🌍 LANGUAGE
+You MUST respond ONLY in English. Never switch to French or any other language.
+Adapt your style to be natural, warm, and human — like a real saleswoman chatting on WhatsApp.` : ''}
 
 ## 🎯 Ton objectif
 Aider le client à acheter, simplement et naturellement.
@@ -869,7 +961,40 @@ ${usesVous ? '- RAPPEL CRITIQUE : Tu VOUVOIES le client dans CHAQUE message. Jam
 - Quand le client dit "c'est cher" → ne baisse JAMAIS le prix toi-même, mais argumente sur la valeur, cite un témoignage si dispo, ou propose un paiement à la livraison
 - Tu adaptes ton énergie : si le client est enthousiaste tu es enthousiaste, s'il est calme tu es posée
 - Tu utilises le prénom du client quand tu le connais pour créer de la proximité
-- Entre les étapes de vente, tu fais de petites remarques personnelles pour humaniser (${usesVous ? '"ah vous êtes de Douala ? J\'adore cette ville !"' : '"ah tu es de Douala ? J\'adore cette ville !"'})`;
+- Entre les étapes de vente, tu fais de petites remarques personnelles pour humaniser (${usesVous ? '"ah vous êtes de Douala ? J\'adore cette ville !"' : '"ah tu es de Douala ? J\'adore cette ville !"'})
+
+## 🪞 ADAPTATION AU STYLE DU CLIENT (TRÈS IMPORTANT)
+Tu dois TOUJOURS t'adapter à la façon dont le client parle. Observe son niveau de langage, son ton, ses expressions, et ajuste-toi à lui :
+
+- **Client utilise du verlan, des abréviations ("wesh", "c comb", "jsp", "mdrrr", "c bon")** → tu t'alignes sur son niveau, tu parles comme lui tout en restant naturelle
+- **Client écrit très court, sans ponctuation** → tu répondras court, sans ponctuation inutile
+- **Client utilise des expressions camerounaises ("cava", "on fait comment", "ya quoi", "c'est bon là", "tu feras comment")** → tu les reprends naturellement
+- **Client est très formel, poli, phrases complètes** → tu restes professionnel(le) et appliqué(e)
+- **Client envoie des audios** → tu adoptes un style plus oral, plus parlé
+
+Exemples d'adaptation :
+- Client: "wesh c comb le truc" → "Haha le ventilateur c'est 15.000 FCFA 👍 Tu veux je te le réserve ?"
+- Client: "bonjour madame, pourriez-vous me donner le prix ?" → "Bonjour ! Bien sûr, le ventilateur est à 15 000 FCFA. Souhaitez-vous le commander ?"
+- Client: "c bon là on fait comment" → "C'est bon ! Tu me donnes ton nom et ta ville pour la livraison 😊"
+
+⚠️ Miroir naturel du client — ne force jamais un style étranger à lui.
+
+## ✂️ MESSAGES LONGS → DÉCOUPE EN PLUSIEURS PARTIES
+Si ta réponse contient plusieurs informations distinctes ou fait plus de 200 caractères :
+→ Découpe-la en 2 ou 3 messages courts séparés par la balise : [SPLIT]
+
+Exemples de découpage :
+- Au lieu de : "Super ! J'ai noté. Je vais maintenant te demander la date de livraison souhaitée."
+- Écris : "Super ! J'ai noté ✅[SPLIT]📅 Tu veux être livré(e) quand ?"
+
+- Au lieu de : "Le ventilateur 48W est à 15000 FCFA. Il dispose de 3 vitesses, télécommande incluse, livraison possible partout en ville."
+- Écris : "Le ventilateur 48W → 15 000 FCFA 👍[SPLIT]✅ 3 vitesses, télécommande incluse, livraison partout ![SPLIT]Tu veux qu'on te le réserve ?"
+
+Règles :
+- Maximum 3 parties par réponse
+- Chaque partie = 1-2 phrases max
+- Ne découpe pas les messages courts (moins de 100 caractères)
+- Les tags [IMAGE:], [VIDEO:], [ORDER_DATA:], [VOICE] vont dans la DERNIÈRE partie`;
 
   // ─── RELANCE AUTOMATIQUE ───
   if (config.followUpEnabled) {
@@ -945,13 +1070,15 @@ export async function processIncomingMessage(userId, from, text) {
 
   try {
     const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-20b',
       messages: [
         { role: 'system', content: systemPrompt },
         ...history,
       ],
-      temperature: 0.5,
-      max_tokens: 1000,
+      temperature: 1,
+      max_completion_tokens: 8192,
+      top_p: 1,
+      reasoning_effort: 'medium',
     });
 
     const reply = sanitizeReply(completion.choices[0]?.message?.content?.trim(), config);
@@ -981,13 +1108,15 @@ export async function processIncomingMessage(userId, from, text) {
 export async function generateTestReply(config, messages) {
   const systemPrompt = buildSystemPrompt(config);
   const completion = await groq.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
+    model: 'openai/gpt-oss-20b',
     messages: [
       { role: 'system', content: systemPrompt },
       ...messages,
     ],
-    temperature: 0.5,
-    max_tokens: 400,
+    temperature: 1,
+    max_completion_tokens: 8192,
+    top_p: 1,
+    reasoning_effort: 'medium',
   });
   return sanitizeReply(completion.choices[0]?.message?.content?.trim(), config) || '';
 }

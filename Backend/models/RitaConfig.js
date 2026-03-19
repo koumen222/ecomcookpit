@@ -10,7 +10,7 @@ const ritaConfigSchema = new mongoose.Schema({
   // Identité de l'agent
   agentName: { type: String, default: 'Rita' },
   agentRole: { type: String, default: 'Conseillère commerciale' },
-  language: { type: String, default: 'fr' },
+  language: { type: String, default: 'fr' }, // fr, en, fr_en, es, ar
   toneStyle: { type: String, default: 'professional_warm' },
   useEmojis: { type: Boolean, default: true },
   signMessages: { type: Boolean, default: false },

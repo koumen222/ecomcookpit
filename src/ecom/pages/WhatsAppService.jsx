@@ -1303,7 +1303,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                   )}
                 </div>
                 <p className="text-[11.5px] text-gray-400 mt-0.5">
-                  {config.agentRole || 'Agent commercial IA'} · {config.language === 'fr' ? '🇫🇷' : config.language === 'en' ? '🇬🇧' : config.language === 'es' ? '🇪🇸' : '🇲🇦'} {config.language === 'fr' ? 'Français' : config.language === 'en' ? 'English' : config.language === 'es' ? 'Español' : 'العربية'}
+                  {config.agentRole || 'Agent commercial IA'} · {config.language === 'fr' ? '🇫🇷' : config.language === 'en' ? '🇬🇧' : config.language === 'fr_en' ? '🇫🇷🇬🇧' : config.language === 'es' ? '🇪🇸' : '🇲🇦'} {config.language === 'fr' ? 'Français' : config.language === 'en' ? 'English' : config.language === 'fr_en' ? 'FR + EN' : config.language === 'es' ? 'Español' : 'العربية'}
                   {configSaved && ` · ${instances.length} instance${instances.length !== 1 ? 's' : ''}`}
                 </p>
               </div>
@@ -1489,6 +1489,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                       options={[
                         { value: 'fr', label: '🇫🇷 Français' },
                         { value: 'en', label: '🇬🇧 English' },
+                        { value: 'fr_en', label: '🇫🇷🇬🇧 Français + English (auto)' },
                         { value: 'es', label: '🇪🇸 Español' },
                         { value: 'ar', label: '🇲🇦 العربية' },
                       ]}
