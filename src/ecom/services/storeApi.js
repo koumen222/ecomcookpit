@@ -61,6 +61,12 @@ export const storeOrdersApi = {
   getStats: () => ecomApi.get('/store-orders/stats'),
 };
 
+export const storeDeliveryZonesApi = {
+  // ─── Delivery Zones Management ────────────────────────────────────────
+  getZones: () => ecomApi.get('/store/delivery-zones'),
+  saveZones: (data) => ecomApi.put('/store/delivery-zones', data),
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // PUBLIC STORE APIs (no auth — direct calls to api.scalor.net)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -91,6 +97,9 @@ export const publicStoreApi = {
 
   // Get store categories
   getCategories: (subdomain) => publicApi.get(`/${subdomain}/categories`),
+
+  // Get delivery zones for checkout
+  getDeliveryZones: (subdomain) => publicApi.get(`/${subdomain}/delivery-zones`),
 
   // Place a public order (guest checkout)
   placeOrder: (subdomain, orderData) => publicApi.post(`/${subdomain}/orders`, orderData),

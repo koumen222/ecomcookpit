@@ -411,4 +411,73 @@ router.put('/settings', requireEcomAuth, requireWorkspace, async (req, res) => {
   }
 });
 
+// ─── DELIVERY ZONES ────────────────────────────────────────────────────────────
+
+/**
+ * GET /store/delivery-zones
+ * Get delivery zones config for the workspace.
+ * Structure stored in workspace.storeDeliveryZones (Mixed):
+ * {
+ *   countries: ['Cameroun', 'Gabon'],
+ *   zones: [
+ *     { id, country, city, aliases: [], cost: 1500, enabled: true },
+ *     ...
+ *   ]
+ * }
+ */
+router.get('/delivery-zones', requireEcomAuth, requireWorkspace, async (req, res) => {
+  try {
+    const workspace = await Workspace.findById(req.workspaceId)
+      .select('storeDeliveryZones')
+      .lean();
+
+    res.json({
+      success: true,
+      data: workspace?.storeDeliveryZones || { countries: [], zones: [] }
+    });
+  } catch (error) {
+    console.error('Error GET /store/delivery-zones:', error);
+    res.status(500).json({ success: false, message: 'Error loading delivery zones' });
+  }
+});
+
+/**
+ * PUT /store/delivery-zones
+ * Save the full delivery zones config.
+ */
+router.put('/delivery-zones', requireEcomAuth, requireWorkspace, async (req, res) => {
+  try {
+    const { countries, zones } = req.body;
+
+    // Validate structure
+    if (!Array.isArray(countries) || !Array.isArray(zones)) {
+      return res.status(400).json({ success: false, message: 'Format invalide: countries et zones sont requis' });
+    }
+
+    // Sanitize zones
+    const sanitizedZones = zones.map((z, i) => ({
+      id: z.id || `zone_${Date.now()}_${i}`,
+      country: String(z.country || '').trim(),
+      city: String(z.city || '').trim(),
+      aliases: Array.isArray(z.aliases) ? z.aliases.map(a => String(a).trim()).filter(Boolean) : [],
+      cost: Math.max(0, Number(z.cost) || 0),
+      enabled: z.enabled !== false
+    }));
+
+    // Sanitize countries
+    const sanitizedCountries = countries.map(c => String(c || '').trim()).filter(Boolean);
+
+    await Workspace.findByIdAndUpdate(
+      req.workspaceId,
+      { $set: { storeDeliveryZones: { countries: sanitizedCountries, zones: sanitizedZones } } },
+      { new: true }
+    );
+
+    res.json({ success: true, message: 'Zones de livraison mises à jour' });
+  } catch (error) {
+    console.error('Error PUT /store/delivery-zones:', error);
+    res.status(500).json({ success: false, message: 'Error saving delivery zones' });
+  }
+});
+
 export default router;

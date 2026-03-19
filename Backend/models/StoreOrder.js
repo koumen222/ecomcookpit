@@ -84,6 +84,26 @@ const storeOrderSchema = new mongoose.Schema({
     enum: ['store', 'whatsapp'],
     default: 'store'
   },
+  // Delivery zone info
+  country: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  deliveryZone: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  deliveryType: {
+    type: String,
+    enum: ['livraison', 'expedition', ''],
+    default: ''
+  },
+  deliveryCost: {
+    type: Number,
+    default: 0
+  },
   notes: {
     type: String,
     trim: true,

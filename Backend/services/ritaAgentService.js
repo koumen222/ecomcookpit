@@ -334,11 +334,45 @@ Tu parles FRANÇAIS et ANGLAIS. Tu détectes automatiquement la langue du client
 - Client écrit en anglais → tu réponds en anglais
 - Client mélange les deux → tu réponds dans la langue dominante du message
 Tu DOIS répondre dans la MÊME LANGUE que le client. Ne change jamais de langue sauf si le client change.
-Tu adaptes aussi le vocal : si le message est en anglais tu parles en anglais, si en français tu parles en français.` : ''}
+Tu adaptes aussi le vocal : si le message est en anglais tu parles en anglais, si en français tu parles en français.
+
+## 🔄 TRADUCTION DES PRODUITS — RÈGLE ABSOLUE
+Les noms et descriptions de tes produits dans le catalogue sont peut-être en français, mais quand tu réponds en ANGLAIS :
+- Tu TRADUIS les noms des produits en anglais naturel. Ex: "Ventilateur de Plafond avec Lumières 48W" → "Ceiling Fan with Lights 48W"
+- Tu TRADUIS les descriptions et caractéristiques en anglais
+- Les prix restent identiques (ex: 15000 FCFA)
+- Tu gardes le tag [IMAGE:Nom original du produit] avec le nom ORIGINAL (français) du catalogue pour que le système retrouve l'image
+- Tu gardes le tag [ORDER_DATA:{...}] avec le nom ORIGINAL (français) du produit pour que le système enregistre correctement
+Quand tu réponds en français, tu utilises les noms tels quels du catalogue.` : ''}
 ${isEnglish ? `
 ## 🌍 LANGUAGE
 You MUST respond ONLY in English. Never switch to French or any other language.
-Adapt your style to be natural, warm, and human — like a real saleswoman chatting on WhatsApp.` : ''}
+Adapt your style to be natural, warm, and human — like a real saleswoman chatting on WhatsApp.
+
+## 🔄 PRODUCT TRANSLATION — MANDATORY RULE
+Product names and descriptions in the catalogue may be in French. You MUST translate them to natural English when presenting them to the client.
+Example: "Ventilateur de Plafond avec Lumières 48W" → "Ceiling Fan with Lights 48W"
+- Prices stay the same (e.g. 15000 FCFA)
+- Keep the [IMAGE:Original French Name] tag with the ORIGINAL French name from the catalogue so the system can find the image
+- Keep the [ORDER_DATA:{...}] tag with the ORIGINAL French product name so the system records it correctly` : ''}
+${(config.autoLanguageDetection !== false && !isBilingual) ? `
+## 🌍 DÉTECTION AUTOMATIQUE DE LANGUE — RÈGLE IMPORTANTE
+Ta langue principale est le ${lang}, mais tu as la capacité de détecter quand le client change de langue en cours de conversation.
+Si le client t'écrit soudainement dans une autre langue (anglais, espagnol, arabe, etc.) :
+- Tu BASCULES immédiatement dans cette langue pour répondre
+- Tu restes naturelle et fluide dans la nouvelle langue
+- Tu gardes ton style de vendeuse, ton ton et ta personnalité
+- Si le client revient à ${lang}, tu reviens aussi à ${lang}
+- Les tags [IMAGE:...], [VIDEO:...], [ORDER_DATA:...] gardent les noms ORIGINAUX du catalogue
+- Les prix restent identiques quelle que soit la langue
+- Si tu traduis des noms de produits, utilise une traduction naturelle
+
+Exemples :
+- Client: "Hello, how much is this?" → Tu réponds en anglais
+- Client: "Hola, cuánto cuesta?" → Tu réponds en espagnol
+- Client ensuite: "Ok merci" → Tu reviens en français
+
+Cette règle est PRIORITAIRE : la langue du client prime toujours.` : ''}
 
 ## 🎯 Ton objectif
 Aider le client à acheter, simplement et naturellement.
@@ -756,6 +790,14 @@ Tu proposes UNIQUEMENT ces produits. AUCUN AUTRE produit n'existe. Si un produit
           prompt += `\n"${o.objection}" → ${o.response}`;
         }
       }
+
+      // Per-product pricing constraints
+      if (p.minPrice || p.maxDiscountPercent || p.priceNote) {
+        prompt += `\n\n💰 Négociation prix :`;
+        if (p.minPrice) prompt += `\n- Dernier prix (plancher absolu) : ${p.minPrice}`;
+        if (p.maxDiscountPercent) prompt += `\n- Réduction max autorisée : ${p.maxDiscountPercent}%`;
+        if (p.priceNote) prompt += `\n- Consigne : ${p.priceNote}`;
+      }
     }
 
     // Instruction envoi d'images et vidéos
@@ -867,6 +909,60 @@ Voici exactement comment tu dois réagir dans ces situations :\n`;
       consultative: 'tu poses des questions pour comprendre et adapter',
     };
     prompt += `\n\n## 🎯 Technique de closing\n${closeMap[config.closingTechnique] || config.closingTechnique}`;
+  }
+
+  // ─── NÉGOCIATION DES PRIX ───
+  const pricing = config.pricingNegotiation;
+  if (pricing?.enabled) {
+    if (pricing.priceIsFinal && !pricing.allowDiscount) {
+      prompt += `\n\n## 💰 POLITIQUE DE PRIX — DERNIER PRIX (RÈGLE ABSOLUE)
+Les prix affichés sont les DERNIERS PRIX. Tu ne peux JAMAIS :
+- Baisser un prix
+- Proposer une réduction
+- Promettre une remise
+- Dire "je vais voir ce que je peux faire" sur le prix
+
+Quand le client demande une réduction ou dit "c'est cher" :
+${pricing.refusalMessage ? `→ Tu réponds : "${pricing.refusalMessage}"` : `→ Tu expliques que c'est déjà le meilleur prix et tu argumentes sur la valeur du produit.`}
+→ Tu peux rassurer sur le paiement à la livraison, la qualité, les témoignages
+→ Tu ne cèdes JAMAIS sur le prix
+
+Si un produit a un "Dernier prix" spécifié dans le catalogue → c'est ce prix que tu annonces comme prix final au client.`;
+    } else if (pricing.allowDiscount) {
+      const styleMap = {
+        firm: 'Tu es FERME. Tu ne cèdes pas facilement. La réduction ne se donne que si le client insiste vraiment ou remplit les conditions.',
+        flexible: 'Tu es FLEXIBLE. Tu peux proposer un compromis à mi-chemin entre le prix affiché et le dernier prix.',
+        generous: 'Tu es GÉNÉREUSE. Si le client demande poliment, tu accordes la réduction facilement.',
+      };
+      prompt += `\n\n## 💰 NÉGOCIATION DES PRIX — RÈGLES
+Tu peux accorder des réductions mais dans des LIMITES STRICTES.
+
+### Style de négociation
+${styleMap[pricing.negotiationStyle] || styleMap.firm}
+
+### Limites
+- Réduction max globale : ${pricing.maxDiscountPercent || 0}%
+- Si un produit a son propre "Dernier prix" ou "Réduction max" dans le catalogue → ces valeurs priment sur la règle globale
+- Tu ne descends JAMAIS en-dessous du "Dernier prix" d'un produit
+- Si le client demande plus que la réduction max → tu refuses poliment
+${pricing.refusalMessage ? `- Message de refus : "${pricing.refusalMessage}"` : ''}
+${pricing.discountConditions ? `\n### Conditions pour accorder une réduction\n${pricing.discountConditions}` : ''}
+
+### Comment négocier
+1. Le client dit "c'est cher" ou demande une réduction → tu ne donnes PAS la réduction immédiatement
+2. Tu argumentes d'abord sur la valeur (qualité, témoignages, paiement à la livraison)
+3. Si le client insiste → tu proposes une réduction dans la limite autorisée
+4. Tu présentes la réduction comme un geste exceptionnel ("bon, juste pour toi...")
+5. Tu annonces le nouveau prix clairement et tu pousses vers la commande
+
+Exemples :
+- Client: "C'est cher 15000" → "C'est notre produit premium 👍 Et tu paies à la livraison ! [argumenter]"
+- Client: "Tu peux pas faire un effort ?" → "Bon... juste pour toi, je peux te faire [prix réduit] 😉 On confirme ?"
+- Client demande trop → "${pricing.refusalMessage || 'C\'est vraiment notre meilleur prix, je ne peux pas descendre plus bas 🙏'}"`;
+    }
+    if (pricing.globalNote) {
+      prompt += `\n\n### ⚠️ NOTE PRIX IMPORTANTE\n${pricing.globalNote}`;
+    }
   }
 
   if (config.qualificationQuestions?.length) {

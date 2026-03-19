@@ -21,6 +21,23 @@ router.get('/:subdomain', resolveStoreBySubdomain, async (req, res) => {
   try {
     const { store } = req;
 
+    // Also get delivery zones from workspace
+    const workspace = await EcomWorkspace.findById(store._id)
+      .select('storeDeliveryZones')
+      .lean();
+    const deliveryConfig = workspace?.storeDeliveryZones || { countries: [], zones: [] };
+
+    // Only expose enabled zones publicly
+    const publicZones = (deliveryConfig.zones || [])
+      .filter(z => z.enabled !== false)
+      .map(z => ({
+        id: z.id,
+        country: z.country,
+        city: z.city,
+        aliases: z.aliases || [],
+        cost: z.cost || 0
+      }));
+
     res.json({
       success: true,
       data: {
@@ -38,7 +55,9 @@ router.get('/:subdomain', resolveStoreBySubdomain, async (req, res) => {
         accentColor: store.storeSettings?.accentColor || '#059669',
         backgroundColor: store.storeSettings?.backgroundColor || '#FFFFFF',
         textColor: store.storeSettings?.textColor || '#111827',
-        font: store.storeSettings?.font || 'inter'
+        font: store.storeSettings?.font || 'inter',
+        deliveryCountries: deliveryConfig.countries || [],
+        deliveryZones: publicZones
       }
     });
   } catch (error) {
@@ -170,13 +189,50 @@ router.get('/:subdomain/categories', resolveStoreBySubdomain, async (req, res) =
 });
 
 /**
+ * GET /public/store/:subdomain/delivery-zones
+ * Get delivery zones for public checkout (no auth).
+ * Returns countries and zones so checkout can validate the customer's location.
+ */
+router.get('/:subdomain/delivery-zones', resolveStoreBySubdomain, async (req, res) => {
+  try {
+    const workspace = await EcomWorkspace.findById(req.storeWorkspaceId)
+      .select('storeDeliveryZones')
+      .lean();
+
+    const config = workspace?.storeDeliveryZones || { countries: [], zones: [] };
+
+    // Only return enabled zones to the public
+    const publicZones = (config.zones || [])
+      .filter(z => z.enabled !== false)
+      .map(z => ({
+        id: z.id,
+        country: z.country,
+        city: z.city,
+        aliases: z.aliases || [],
+        cost: z.cost || 0
+      }));
+
+    res.json({
+      success: true,
+      data: {
+        countries: config.countries || [],
+        zones: publicZones
+      }
+    });
+  } catch (error) {
+    console.error('Erreur GET /public/store/:subdomain/delivery-zones:', error.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+/**
  * POST /public/store/:subdomain/orders
  * Place a public order (guest checkout — no auth required).
  * Validates stock, creates order, decrements stock.
  */
 router.post('/:subdomain/orders', resolveStoreBySubdomain, async (req, res) => {
   try {
-    const { customerName, phone, email, address, city, products, notes, channel } = req.body;
+    const { customerName, phone, email, address, city, country, products, notes, channel, deliveryType, deliveryCost } = req.body;
 
     // Validate required fields
     if (!customerName || !phone || !products?.length) {
@@ -242,8 +298,12 @@ router.post('/:subdomain/orders', resolveStoreBySubdomain, async (req, res) => {
       email: email?.trim() || '',
       address: address?.trim() || '',
       city: city?.trim() || '',
+      country: country?.trim() || '',
+      deliveryType: deliveryType || '',
+      deliveryCost: Math.max(0, Number(deliveryCost) || 0),
+      deliveryZone: city?.trim() || '',
       products: orderProducts,
-      total,
+      total: total + Math.max(0, Number(deliveryCost) || 0),
       currency: req.store.storeSettings?.storeCurrency || 'XAF',
       channel: channel || 'store',
       notes: notes?.trim() || ''

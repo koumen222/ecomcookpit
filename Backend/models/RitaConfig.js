@@ -58,6 +58,10 @@ const ritaConfigSchema = new mongoose.Schema({
     faq: [{ question: { type: String }, answer: { type: String } }],
     objections: [{ objection: { type: String }, response: { type: String } }],
     inStock: { type: Boolean, default: true },
+    // Pricing negotiation per product
+    minPrice: { type: String, default: '' },
+    maxDiscountPercent: { type: Number, default: 0 },
+    priceNote: { type: String, default: '' },
   }],
 
   // Personnalité & ton de l'agent
@@ -85,6 +89,21 @@ const ritaConfigSchema = new mongoose.Schema({
   qualificationQuestions: { type: [String], default: [] },
   closingTechnique: { type: String, default: 'soft' },
   objectionsHandling: { type: String, default: '' },
+
+  // 💰 Négociation & prix
+  pricingNegotiation: {
+    enabled: { type: Boolean, default: false },
+    allowDiscount: { type: Boolean, default: false },
+    maxDiscountPercent: { type: Number, default: 0 },
+    negotiationStyle: { type: String, default: 'firm' }, // firm, flexible, generous
+    priceIsFinal: { type: Boolean, default: true },
+    discountConditions: { type: String, default: '' },
+    refusalMessage: { type: String, default: '' },
+    globalNote: { type: String, default: '' },
+  },
+
+  // 🌍 Détection automatique de langue
+  autoLanguageDetection: { type: Boolean, default: true },
 
   // 🎙️ Réponses vocales
   // responseMode: 'text' | 'voice' | 'both'

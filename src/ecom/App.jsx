@@ -118,6 +118,7 @@ import BoutiquePixel from './pages/BoutiquePixel.jsx';
 import BoutiquePayments from './pages/BoutiquePayments.jsx';
 import BoutiqueDomains from './pages/BoutiqueDomains.jsx';
 import BoutiqueSettings from './pages/BoutiqueSettings.jsx';
+import BoutiqueDeliveryZones from './pages/BoutiqueDeliveryZones.jsx';
 
 // ═══════════════════════════════════════════════════════════════
 // PROTECTION DES ROUTES
@@ -402,6 +403,7 @@ const EcomApp = () => {
               <Route path="/ecom/boutique/pixel" element={<BoutiquePixel />} />
               <Route path="/ecom/boutique/payments" element={<BoutiquePayments />} />
               <Route path="/ecom/boutique/domains" element={<BoutiqueDomains />} />
+              <Route path="/ecom/boutique/delivery-zones" element={<BoutiqueDeliveryZones />} />
               <Route path="/ecom/boutique/settings" element={<BoutiqueSettings />} />
             </Route>
 

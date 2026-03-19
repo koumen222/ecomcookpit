@@ -897,6 +897,10 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
     qualificationQuestions: ['Quel est votre budget ?', 'Pour quand en avez-vous besoin ?'],
     closingTechnique: 'soft',
     objectionsHandling: '',
+    // Pricing negotiation
+    pricingNegotiation: { enabled: false, allowDiscount: false, maxDiscountPercent: 0, negotiationStyle: 'firm', priceIsFinal: true, discountConditions: '', refusalMessage: '', globalNote: '' },
+    // Auto language detection
+    autoLanguageDetection: true,
     businessHoursOnly: false,
     businessHoursStart: '08:00',
     businessHoursEnd: '20:00',
@@ -1043,7 +1047,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
 
   // ─── Product catalog helpers ───
   const addProduct = () => {
-    const newP = { name: '', price: '', description: '', category: '', images: [], videos: [], features: [], faq: [], objections: [], inStock: true };
+    const newP = { name: '', price: '', description: '', category: '', images: [], videos: [], features: [], faq: [], objections: [], inStock: true, minPrice: '', maxDiscountPercent: 0, priceNote: '' };
     set('productCatalog', [...config.productCatalog, newP]);
     setEditingProduct(config.productCatalog.length);
   };
@@ -1084,7 +1088,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
         price: parts[1] || '',
         category: parts[2] || '',
         description: parts[3] || '',
-        images: [], videos: [], features: [], faq: [], objections: [], inStock: true,
+        images: [], videos: [], features: [], faq: [], objections: [], inStock: true, minPrice: '', maxDiscountPercent: 0, priceNote: '',
       });
     }
     if (!parsed.length) return;
@@ -1495,6 +1499,19 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                       ]}
                     />
                   </Field>
+                  <div className="col-span-full">
+                    <label className="flex items-center gap-2.5 cursor-pointer">
+                      <button type="button" onClick={() => set('autoLanguageDetection', !config.autoLanguageDetection)}
+                        role="switch" aria-checked={config.autoLanguageDetection !== false}
+                        className={`relative w-[44px] h-[26px] rounded-full transition-all duration-200 ${config.autoLanguageDetection !== false ? 'bg-emerald-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
+                        <span className={`absolute top-[3px] w-5 h-5 bg-white rounded-full shadow-md transition-all duration-200 ${config.autoLanguageDetection !== false ? 'left-[21px]' : 'left-[3px]'}`} />
+                      </button>
+                      <div>
+                        <span className="text-[12px] text-gray-700 font-medium">🌍 Détection automatique de langue</span>
+                        <p className="text-[10px] text-gray-400">Si le client change de langue en cours de conversation, Rita s'adapte automatiquement</p>
+                      </div>
+                    </label>
+                  </div>
                   <Field label="Ton de communication">
                     <CustomSelect
                       value={config.toneStyle}
@@ -1708,6 +1725,28 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                             </label>
                           </div>
                         </div>
+
+                        {/* Pricing negotiation per product */}
+                        {config.pricingNegotiation?.enabled && (
+                          <div className="p-3 bg-amber-50/60 border border-amber-100 rounded-xl space-y-3">
+                            <p className="text-[12px] font-semibold text-amber-700">💰 Négociation prix</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <Field label="Dernier prix" hint="prix plancher">
+                                <input value={product.minPrice || ''} onChange={e => updateProduct(pIdx, 'minPrice', e.target.value)}
+                                  placeholder="ex: 12 000 FCFA" className="field-input text-xs" />
+                              </Field>
+                              <Field label="Réduction max %" hint="0 = pas de réduction">
+                                <input type="number" min="0" max="100" value={product.maxDiscountPercent || 0}
+                                  onChange={e => updateProduct(pIdx, 'maxDiscountPercent', parseInt(e.target.value) || 0)}
+                                  className="field-input text-xs" />
+                              </Field>
+                              <Field label="Note prix" hint="consigne spécifique">
+                                <input value={product.priceNote || ''} onChange={e => updateProduct(pIdx, 'priceNote', e.target.value)}
+                                  placeholder="ex: Offrir livraison si ≥2" className="field-input text-xs" />
+                              </Field>
+                            </div>
+                          </div>
+                        )}
 
                         <Field label="Description">
                           <textarea value={product.description} onChange={e => updateProduct(pIdx, 'description', e.target.value)}
@@ -2196,6 +2235,102 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                   <textarea value={config.objectionsHandling} onChange={e => set('objectionsHandling', e.target.value)} rows={7}
                     placeholder={"C'est trop cher : Nos produits sont faits pour durer. Livraison gratuite incluse !\n\nJ'ai besoin d'y réfléchir : Notre stock est limité. Voulez-vous que je réserve votre commande ?\n\nJe trouve moins cher ailleurs : Nos produits sont certifiés avec un SAV premium."}
                     className="field-input font-mono text-xs leading-relaxed" style={{ resize: 'vertical' }} />
+                </div>
+
+                {/* Négociation des prix */}
+                <div className="p-4 bg-amber-50/50 border border-amber-200 rounded-2xl space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[14px] font-bold text-gray-900">💰 Négociation des prix</p>
+                      <p className="text-[12px] text-gray-400">Configure comment Rita gère les demandes de réduction</p>
+                    </div>
+                    <label className="flex items-center gap-2.5 cursor-pointer">
+                      <button type="button" onClick={() => set('pricingNegotiation', { ...config.pricingNegotiation, enabled: !config.pricingNegotiation?.enabled })}
+                        role="switch" aria-checked={config.pricingNegotiation?.enabled || false}
+                        className={`relative w-[44px] h-[26px] rounded-full transition-all duration-200 ${config.pricingNegotiation?.enabled ? 'bg-amber-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
+                        <span className={`absolute top-[3px] w-5 h-5 bg-white rounded-full shadow-md transition-all duration-200 ${config.pricingNegotiation?.enabled ? 'left-[21px]' : 'left-[3px]'}`} />
+                      </button>
+                    </label>
+                  </div>
+
+                  {config.pricingNegotiation?.enabled && (
+                    <div className="space-y-4 pt-2 border-t border-amber-100">
+                      {/* Prix final ou négociable */}
+                      <div>
+                        <p className="text-[12px] font-semibold text-gray-700 mb-2">Politique de prix</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <button type="button" onClick={() => set('pricingNegotiation', { ...config.pricingNegotiation, priceIsFinal: true, allowDiscount: false })}
+                            className={`text-left px-4 py-3 rounded-xl border-2 transition-all duration-200 ${
+                              config.pricingNegotiation?.priceIsFinal ? 'border-amber-400 bg-amber-50 shadow-sm' : 'border-gray-100 bg-white hover:border-gray-200'
+                            }`}>
+                            <p className="font-semibold text-[13px] text-gray-800">🔒 Prix fixe (dernier prix)</p>
+                            <p className="text-[11px] text-gray-400 mt-0.5">Rita ne négocie pas. Le prix affiché est le dernier prix.</p>
+                          </button>
+                          <button type="button" onClick={() => set('pricingNegotiation', { ...config.pricingNegotiation, priceIsFinal: false, allowDiscount: true })}
+                            className={`text-left px-4 py-3 rounded-xl border-2 transition-all duration-200 ${
+                              !config.pricingNegotiation?.priceIsFinal ? 'border-amber-400 bg-amber-50 shadow-sm' : 'border-gray-100 bg-white hover:border-gray-200'
+                            }`}>
+                            <p className="font-semibold text-[13px] text-gray-800">🤝 Prix négociable</p>
+                            <p className="text-[11px] text-gray-400 mt-0.5">Rita peut accorder des réductions selon tes règles.</p>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Si prix négociable */}
+                      {config.pricingNegotiation?.allowDiscount && (
+                        <div className="space-y-3">
+                          <p className="text-[12px] font-semibold text-gray-700 mb-1">Style de négociation</p>
+                          <div className="grid grid-cols-3 gap-2">
+                            {[
+                              { id: 'firm', label: '💪 Ferme', desc: 'Réduction rare, seulement si le client insiste' },
+                              { id: 'flexible', label: '🤝 Flexible', desc: 'Ouvert à la discussion, propose à mi-chemin' },
+                              { id: 'generous', label: '🎁 Généreux', desc: 'Accorde facilement la réduction max' },
+                            ].map(s => (
+                              <button key={s.id} type="button" onClick={() => set('pricingNegotiation', { ...config.pricingNegotiation, negotiationStyle: s.id })}
+                                className={`text-left px-3 py-2.5 rounded-xl border-2 transition-all duration-200 ${
+                                  config.pricingNegotiation?.negotiationStyle === s.id ? 'border-amber-400 bg-amber-50 shadow-sm' : 'border-gray-100 bg-white hover:border-gray-200'
+                                }`}>
+                                <p className="font-semibold text-[12px] text-gray-800">{s.label}</p>
+                                <p className="text-[10px] text-gray-400 mt-0.5">{s.desc}</p>
+                              </button>
+                            ))}
+                          </div>
+
+                          <Field label="Réduction globale max %" hint="s'applique à tous les produits sans config spécifique">
+                            <input type="number" min="0" max="100" value={config.pricingNegotiation?.maxDiscountPercent || 0}
+                              onChange={e => set('pricingNegotiation', { ...config.pricingNegotiation, maxDiscountPercent: parseInt(e.target.value) || 0 })}
+                              className="field-input text-xs w-32" />
+                          </Field>
+
+                          <Field label="Conditions de réduction" hint="quand autoriser une réduction">
+                            <textarea value={config.pricingNegotiation?.discountConditions || ''} rows={2}
+                              onChange={e => set('pricingNegotiation', { ...config.pricingNegotiation, discountConditions: e.target.value })}
+                              placeholder="ex: Si le client achète 2 produits ou plus. Si le client est un ancien client."
+                              className="field-input text-xs" style={{ resize: 'vertical' }} />
+                          </Field>
+                        </div>
+                      )}
+
+                      <Field label="Message de refus personnalisé" hint="quand le client demande une réduction impossible">
+                        <input value={config.pricingNegotiation?.refusalMessage || ''}
+                          onChange={e => set('pricingNegotiation', { ...config.pricingNegotiation, refusalMessage: e.target.value })}
+                          placeholder="ex: C'est déjà notre meilleur prix, on ne peut pas descendre plus bas 🙏"
+                          className="field-input text-xs" />
+                      </Field>
+
+                      <Field label="Note globale sur les prix" hint="instructions spéciales pour Rita sur les prix">
+                        <textarea value={config.pricingNegotiation?.globalNote || ''} rows={2}
+                          onChange={e => set('pricingNegotiation', { ...config.pricingNegotiation, globalNote: e.target.value })}
+                          placeholder="ex: Ne jamais descendre en dessous du dernier prix. Proposer la livraison gratuite à la place d'une réduction."
+                          className="field-input text-xs" style={{ resize: 'vertical' }} />
+                      </Field>
+
+                      <div className="flex items-center gap-2 px-3 py-2 bg-amber-100/50 border border-amber-200 rounded-lg">
+                        <span className="text-amber-600 text-sm">💡</span>
+                        <p className="text-[11px] text-amber-700">Tu peux aussi configurer le <strong>dernier prix</strong> et la <strong>réduction max</strong> par produit dans l'onglet <strong>🛒 Produits</strong>.</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
