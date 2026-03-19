@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import OrderSource from '../models/OrderSource.js';
 import CloseuseAssignment from '../models/CloseuseAssignment.js';
 import EcomUser from '../models/EcomUser.js';
@@ -662,6 +663,10 @@ router.post('/', requireEcomAuth, async (req, res) => {
 router.put('/:id', requireEcomAuth, async (req, res) => {
   try {
     const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
     const { closeuseId, orderSources, productAssignments, notes, commission, commissionType } = req.body;
 
     const assignment = await CloseuseAssignment.findOne({
@@ -738,6 +743,9 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
 router.delete('/:id', requireEcomAuth, async (req, res) => {
   try {
     const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
 
     const assignment = await CloseuseAssignment.findOne({ 
       _id: id, 

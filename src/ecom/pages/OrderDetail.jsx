@@ -76,6 +76,11 @@ const OrderDetail = () => {
   const livreurMenuRef = useRef(null);
 
   const fetchOrder = async () => {
+    if (!id || !/^[a-f0-9]{24}$/i.test(id)) {
+      setError('ID de commande invalide');
+      setLoading(false);
+      return;
+    }
     try {
       const res = await ecomApi.get(`/orders/${id}`);
       setOrder(res.data.data);

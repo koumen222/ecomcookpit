@@ -800,6 +800,38 @@ Tu proposes UNIQUEMENT ces produits. AUCUN AUTRE produit n'existe. Si un produit
       }
     }
 
+    // ─── STOCK PAR VILLE ───
+    if (config.stockManagementEnabled && config.stockEntries?.length) {
+      prompt += `\n\n## 📦 STOCK PAR VILLE — DONNÉES EN TEMPS RÉEL
+Tu disposes des stocks réels de chaque produit par ville. Tu DOIS consulter ces données AVANT de valider une livraison.
+
+### RÈGLES DE STOCK (TRÈS IMPORTANT)
+1. Quand le client donne sa ville de livraison → tu VÉRIFIES le stock du produit dans sa ville
+2. Si le stock est > 0 dans sa ville → tu confirmes "Oui c'est disponible à [ville] 👍" et tu continues le flow de commande
+3. Si le stock est 0 dans sa ville → tu dis honnêtement qu'il n'est pas disponible dans cette ville, et tu proposes une ville alternative où le stock est disponible
+4. Tu ne CONFIRMES JAMAIS une livraison dans une ville où le stock est à 0
+5. Si le stock est 0 PARTOUT → tu informes le client que le produit est temporairement en rupture
+
+### Stock actuel:\n`;
+      // Group stock entries by product
+      const stockByProduct = {};
+      for (const entry of config.stockEntries) {
+        if (!stockByProduct[entry.productName]) stockByProduct[entry.productName] = [];
+        stockByProduct[entry.productName].push(entry);
+      }
+      for (const [productName, entries] of Object.entries(stockByProduct)) {
+        prompt += `\n**${productName}** :`;
+        for (const e of entries) {
+          const status = e.quantity > 0 ? `✅ ${e.quantity} unité(s)` : '❌ Rupture';
+          prompt += `\n- ${e.city} : ${status}${e.notes ? ` (${e.notes})` : ''}`;
+        }
+      }
+      prompt += `\n\n### Exemples de réponse stock :
+- Client à Douala, produit dispo : "Oui c'est disponible à Douala 👍 On te livre quand ?"
+- Client à Bafoussam, produit pas dispo : "Malheureusement on n'a plus de stock à Bafoussam pour le moment 😕 Mais on en a à Douala ! Tu veux qu'on organise depuis là-bas ?"
+- Produit en rupture totale : "Ce produit est en rupture pour le moment 🙏 Dès qu'il est de retour je te préviens !"`;
+    }
+
     // Instruction envoi d'images et vidéos
     prompt += `\n\n## 📸 PHOTOS & VIDÉOS PRODUIT — RÈGLES ABSOLUES
 

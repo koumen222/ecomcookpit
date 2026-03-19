@@ -838,6 +838,7 @@ const RITA_SECTIONS = [
   { id: 'identity',     label: 'Identité',     emoji: '🤖' },
   { id: 'intelligence', label: 'Intelligence',  emoji: '🧠' },
   { id: 'products',     label: 'Produits',      emoji: '🛒' },
+  { id: 'stock',        label: 'Stock',         emoji: '📦' },
   { id: 'knowledge',    label: 'Connaissances', emoji: '📚' },
   { id: 'personality',  label: 'Personnalité',  emoji: '🎭' },
   { id: 'sales',        label: 'Vente',         emoji: '💰' },
@@ -904,6 +905,9 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
     businessHoursOnly: false,
     businessHoursStart: '08:00',
     businessHoursEnd: '20:00',
+    // Stock management
+    stockManagementEnabled: false,
+    stockEntries: [],
     // Structured product catalog
     productCatalog: [],
     // Personality
@@ -1957,6 +1961,163 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
             )}
 
             {/* Connaissances */}
+            {activeSection === 'stock' && (
+              <div className="space-y-5">
+                <ToggleRow enabled={config.stockManagementEnabled} onChange={v => set('stockManagementEnabled', v)}
+                  label="Gestion de stock par ville"
+                  desc="Rita vérifiera le stock dans la ville du client avant de confirmer une livraison" />
+
+                {config.stockManagementEnabled && (
+                  <div className="space-y-4">
+                    {/* Info box */}
+                    <div className="px-4 py-3 bg-blue-50 border border-blue-100 rounded-xl text-[12px] text-blue-800 leading-relaxed">
+                      <strong>Comment ça marche :</strong> Ajoutez le stock de chaque produit par ville. Quand un client demande une livraison, Rita vérifiera automatiquement si le produit est disponible dans sa ville avant de confirmer.
+                    </div>
+
+                    {/* Add stock entry form */}
+                    <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+                      <p className="text-[13px] font-semibold text-gray-800 flex items-center gap-2">
+                        <span>➕</span> Ajouter du stock
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <Field label="Produit" required>
+                          <select
+                            id="stock-product-select"
+                            className="field-input"
+                            defaultValue=""
+                          >
+                            <option value="" disabled>Choisir un produit...</option>
+                            {config.productCatalog?.filter(p => p.name).map((p, i) => (
+                              <option key={i} value={p.name}>{p.name}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Ville" required>
+                          <input id="stock-city-input" placeholder="Ex: Douala, Yaoundé..." className="field-input" />
+                        </Field>
+                        <Field label="Quantité" required>
+                          <input id="stock-qty-input" type="number" min="0" placeholder="0" className="field-input" />
+                        </Field>
+                        <Field label="Notes">
+                          <input id="stock-notes-input" placeholder="Optionnel" className="field-input" />
+                        </Field>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const productName = document.getElementById('stock-product-select')?.value;
+                          const city = document.getElementById('stock-city-input')?.value?.trim();
+                          const quantity = parseInt(document.getElementById('stock-qty-input')?.value) || 0;
+                          const notes = document.getElementById('stock-notes-input')?.value?.trim() || '';
+                          if (!productName || !city) return;
+                          const existing = (config.stockEntries || []).findIndex(e => e.productName === productName && e.city.toLowerCase() === city.toLowerCase());
+                          let updated;
+                          if (existing >= 0) {
+                            updated = [...config.stockEntries];
+                            updated[existing] = { ...updated[existing], quantity, notes };
+                          } else {
+                            updated = [...(config.stockEntries || []), { productName, city, quantity, notes }];
+                          }
+                          set('stockEntries', updated);
+                          document.getElementById('stock-product-select').value = '';
+                          document.getElementById('stock-city-input').value = '';
+                          document.getElementById('stock-qty-input').value = '';
+                          document.getElementById('stock-notes-input').value = '';
+                        }}
+                        className="inline-flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-xl transition-colors"
+                        style={{ background: ACCENT }}
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Ajouter / Mettre à jour
+                      </button>
+                    </div>
+
+                    {/* Stock entries table */}
+                    {config.stockEntries?.length > 0 && (
+                      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+                          <p className="text-[13px] font-semibold text-gray-800">
+                            📦 Stock actuel ({config.stockEntries.length} entrée{config.stockEntries.length > 1 ? 's' : ''})
+                          </p>
+                        </div>
+                        <div className="divide-y divide-gray-50">
+                          {/* Group by product */}
+                          {(() => {
+                            const grouped = {};
+                            (config.stockEntries || []).forEach((e, idx) => {
+                              if (!grouped[e.productName]) grouped[e.productName] = [];
+                              grouped[e.productName].push({ ...e, _idx: idx });
+                            });
+                            return Object.entries(grouped).map(([productName, entries]) => (
+                              <div key={productName} className="">
+                                <div className="px-4 py-2.5 bg-purple-50/50">
+                                  <p className="text-[12px] font-bold text-purple-700">🛒 {productName}</p>
+                                </div>
+                                {entries.map(entry => (
+                                  <div key={entry._idx} className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-50/50 transition-colors">
+                                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                                      <span className="text-[12px] font-medium text-gray-700 min-w-[100px]">📍 {entry.city}</span>
+                                      <span className={`text-[12px] font-bold px-2 py-0.5 rounded-md ${
+                                        entry.quantity > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
+                                      }`}>
+                                        {entry.quantity > 0 ? `${entry.quantity} unité${entry.quantity > 1 ? 's' : ''}` : 'Rupture'}
+                                      </span>
+                                      {entry.notes && <span className="text-[11px] text-gray-400 truncate">{entry.notes}</span>}
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={() => {
+                                          const newQty = prompt('Nouvelle quantité :', entry.quantity);
+                                          if (newQty !== null && !isNaN(parseInt(newQty))) {
+                                            const updated = [...config.stockEntries];
+                                            updated[entry._idx] = { ...updated[entry._idx], quantity: Math.max(0, parseInt(newQty)) };
+                                            set('stockEntries', updated);
+                                          }
+                                        }}
+                                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                        title="Modifier la quantité"
+                                      >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          const updated = config.stockEntries.filter((_, i) => i !== entry._idx);
+                                          set('stockEntries', updated);
+                                        }}
+                                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                        title="Supprimer"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ));
+                          })()}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Empty state */}
+                    {(!config.stockEntries || config.stockEntries.length === 0) && (
+                      <div className="text-center py-8 text-gray-400">
+                        <Package className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                        <p className="text-[13px] font-medium">Aucun stock configuré</p>
+                        <p className="text-[11px] mt-1">Ajoutez le stock de vos produits par ville pour que Rita puisse vérifier la disponibilité</p>
+                      </div>
+                    )}
+
+                    {/* No products warning */}
+                    {(!config.productCatalog || config.productCatalog.filter(p => p.name).length === 0) && (
+                      <div className="px-4 py-3 bg-amber-50 border border-amber-100 rounded-xl text-[12px] text-amber-800">
+                        ⚠️ Vous devez d'abord ajouter des produits dans l'onglet <strong>Produits</strong> avant de configurer le stock.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeSection === 'knowledge' && (
               <div className="space-y-4">
                 <div className="px-4 py-3 bg-amber-50/80 border border-amber-100 rounded-2xl text-[12px] text-amber-800 flex gap-2.5 items-start">

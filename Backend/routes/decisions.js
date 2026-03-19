@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import Decision from '../models/Decision.js';
 import Product from '../models/Product.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
@@ -57,6 +58,10 @@ router.get('/', requireEcomAuth, async (req, res) => {
 // GET /api/ecom/decisions/:id - Détail d'une décision
 router.get('/:id', requireEcomAuth, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
     const decision = await Decision.findOne({ _id: req.params.id, workspaceId: req.workspaceId })
       .populate('productId', 'name status sellingPrice stock')
       .populate('assignedTo', 'email')
@@ -167,6 +172,10 @@ router.put('/:id/assign',
   validateEcomAccess('products', 'write'),
   async (req, res) => {
     try {
+      if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+        return res.status(400).json({ success: false, message: 'ID invalide' });
+      }
+
       const { assignedTo } = req.body;
       
       const decision = await Decision.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
@@ -212,6 +221,10 @@ router.put('/:id/complete',
   validateEcomAccess('products', 'write'),
   async (req, res) => {
     try {
+      if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+        return res.status(400).json({ success: false, message: 'ID invalide' });
+      }
+
       const { followUpResult } = req.body;
       
       const decision = await Decision.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
@@ -269,6 +282,10 @@ router.put('/:id/cancel',
   validateEcomAccess('products', 'write'),
   async (req, res) => {
     try {
+      if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+        return res.status(400).json({ success: false, message: 'ID invalide' });
+      }
+
       const decision = await Decision.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
       if (!decision) {
         return res.status(404).json({

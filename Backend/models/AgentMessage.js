@@ -49,7 +49,7 @@ const agentMessageSchema = new mongoose.Schema({
       'thanks',             // Remerciement
       'unclear',            // Intention pas claire
       'positive',           // Réponse positive générale
-      'negative',           // Réponse négative générale
+      'negative',           // Réponsssse négative générale
       'initial_message',    // Message initial de l'agent
       'follow_up',          // Relance agent
       'closing',            // Clôture conversation

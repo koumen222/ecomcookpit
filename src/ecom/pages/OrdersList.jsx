@@ -890,7 +890,8 @@ const OrdersList = () => {
       
       // Vérifier si c'est une notification de nouvelle commande
       if (notif?.type === 'order_new' && notif?.metadata?.orderId) {
-        const orderId = notif.metadata.orderId;
+        const orderId = String(notif.metadata.orderId);
+        if (!/^[a-f0-9]{24}$/i.test(orderId)) return;
         
         // Vérifier si la commande n'est pas déjà dans la liste
         setOrders(prev => {

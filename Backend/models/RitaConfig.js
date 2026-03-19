@@ -125,6 +125,15 @@ const ritaConfigSchema = new mongoose.Schema({
   dailySummary: { type: Boolean, default: true },
   dailySummaryTime: { type: String, default: '20:00' },
 
+  // 📦 Gestion de stock par ville
+  stockManagementEnabled: { type: Boolean, default: false },
+  stockEntries: [{
+    productName: { type: String, required: true },
+    city: { type: String, required: true },
+    quantity: { type: Number, default: 0, min: 0 },
+    notes: { type: String, default: '' },
+  }],
+
   // Disponibilité
   businessHoursOnly: { type: Boolean, default: false },
   businessHoursStart: { type: String, default: '09:00' },

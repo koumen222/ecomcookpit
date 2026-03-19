@@ -92,6 +92,10 @@ router.get('/conversations', requireEcomAuth, async (req, res) => {
 // GET /api/ecom/dm/:userId - Messages avec un utilisateur (cursor-based pagination)
 router.get('/:userId', requireEcomAuth, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
+      return res.status(400).json({ success: false, message: 'ID utilisateur invalide' });
+    }
+
     const meId = req.ecomUser._id;
     const otherId = new mongoose.Types.ObjectId(req.params.userId);
     const workspaceId = req.workspaceId;
@@ -160,6 +164,10 @@ router.get('/:userId', requireEcomAuth, async (req, res) => {
 // POST /api/ecom/dm/:userId - Envoyer un message direct (text, media, reply)
 router.post('/:userId', requireEcomAuth, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
+      return res.status(400).json({ success: false, message: 'ID utilisateur invalide' });
+    }
+
     const meId = req.ecomUser._id;
     const otherId = new mongoose.Types.ObjectId(req.params.userId);
     const {
@@ -377,6 +385,10 @@ router.post('/message/:id/reaction', requireEcomAuth, async (req, res) => {
 // POST /api/ecom/dm/:userId/read - Marquer tous les messages comme lus
 router.post('/:userId/read', requireEcomAuth, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
+      return res.status(400).json({ success: false, message: 'ID utilisateur invalide' });
+    }
+
     const meId = req.ecomUser._id;
     const otherId = new mongoose.Types.ObjectId(req.params.userId);
 

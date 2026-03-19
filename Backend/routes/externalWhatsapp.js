@@ -13,6 +13,7 @@ import { processIncomingMessage, generateTestReply, transcribeAudio, textToSpeec
 import { logRitaActivity } from '../services/ritaBossReportService.js';
 import { analyzeImage as analyzeProductImage } from '../services/agentImageService.js';
 import { uploadImage as uploadImageToR2, isConfigured as isR2Configured } from '../services/cloudflareImagesService.js';
+import mongoose from 'mongoose';
 import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -419,6 +420,10 @@ router.delete('/instances/:id', async (req, res) => {
 
     if (!userId) {
       return res.status(400).json({ success: false, error: "userId est requis" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, error: 'ID invalide' });
     }
 
     const instance = await WhatsAppInstance.findOne({ _id: id, userId });
@@ -1815,6 +1820,10 @@ router.get('/orders', requireEcomAuth, async (req, res) => {
  */
 router.patch('/orders/:id', requireEcomAuth, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, error: 'ID invalide' });
+    }
+
     const userId = req.ecomUser._id.toString();
     const { status, notes } = req.body;
     const update = {};

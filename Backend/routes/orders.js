@@ -2888,6 +2888,10 @@ router.get('/available', requireEcomAuth, async (req, res) => {
 // POST /api/ecom/orders/:id/delivery-offer - Proposer une commande à un livreur ciblé ou au pool
 router.post('/:id/delivery-offer', requireEcomAuth, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
     if (!['ecom_admin', 'super_admin', 'ecom_closeuse'].includes(req.ecomUser.role)) {
       return res.status(403).json({ success: false, message: 'Réservé aux administrateurs.' });
     }
@@ -2969,6 +2973,10 @@ router.post('/:id/delivery-offer', requireEcomAuth, async (req, res) => {
 // POST /api/ecom/orders/:id/assign - Assigner une commande à un livreur
 router.post('/:id/assign', requireEcomAuth, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
     await escalateExpiredDeliveryOffers(req.workspaceId);
 
     const orderId = req.params.id;
@@ -3050,6 +3058,10 @@ router.post('/:id/assign', requireEcomAuth, async (req, res) => {
 // POST /api/ecom/orders/:id/refuse - Refuser une course disponible
 router.post('/:id/refuse', requireEcomAuth, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
     if (!['ecom_livreur', 'ecom_admin', 'super_admin'].includes(req.ecomUser.role)) {
       return res.status(403).json({ success: false, message: 'Accès réservé aux livreurs.' });
     }
@@ -3110,6 +3122,10 @@ router.post('/:id/refuse', requireEcomAuth, async (req, res) => {
 // PUT /api/ecom/orders/:id - Modifier une commande (statut, champs, auto-tagging, client sync)
 router.put('/:id', requireEcomAuth, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
     console.log(`🔧 PUT /orders/${req.params.id} - User: ${req.ecomUser?.email}, Role: ${req.ecomUser?.role}, Workspace: ${req.workspaceId}`);
     
     const order = await Order.findOne({ _id: req.params.id, workspaceId: req.workspaceId }, null, { skipLean: true });
@@ -3222,6 +3238,10 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
 // PATCH /api/ecom/orders/:id/status - Modifier uniquement le statut (route optimisée pour closeuses)
 router.patch('/:id/status', requireEcomAuth, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
     const { status } = req.body;
     
     if (!status) {
@@ -3307,6 +3327,10 @@ router.patch('/:id/status', requireEcomAuth, async (req, res) => {
 // PATCH /api/ecom/orders/:id/livreur-action - Livreur met à jour le statut de livraison
 router.patch('/:id/livreur-action', requireEcomAuth, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
     const { action, startLat, startLng, endLat, endLng, endAddress, distanceKm, deliveryNote, nonDeliveryReason } = req.body;
     const livreurId = req.ecomUser._id;
 
@@ -3457,6 +3481,10 @@ router.patch('/:id/livreur-action', requireEcomAuth, async (req, res) => {
 // PATCH /api/ecom/orders/:id/ready-for-delivery - Admin/closeuse envoie une commande au pool livreur
 router.patch('/:id/ready-for-delivery', requireEcomAuth, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
     if (!['ecom_admin', 'super_admin', 'ecom_closeuse'].includes(req.ecomUser.role)) {
       return res.status(403).json({ success: false, message: 'Réservé aux administrateurs.' });
     }
@@ -3608,6 +3636,10 @@ router.get('/livreur/stats', requireEcomAuth, async (req, res) => {
 // DELETE /api/ecom/orders/:id - Supprimer une commande
 router.delete('/:id', requireEcomAuth, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
     const order = await Order.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
     if (!order) {
       return res.status(404).json({ success: false, message: 'Commande non trouvée' });
@@ -3708,9 +3740,164 @@ router.post('/cancel-pending-expired', requireEcomAuth, validateEcomAccess('prod
   }
 });
 
+// IMPORTANT: Ces routes statiques doivent être AVANT /:id pour éviter qu'Express les capture comme paramètre
+
+// GET /api/ecom/orders/whatsapp-instances - Lister les instances WhatsApp du workspace
+router.get('/whatsapp-instances', requireEcomAuth, validateEcomAccess('products', 'read'), async (req, res) => {
+  try {
+    const userId = req.ecomUser?._id ? String(req.ecomUser._id) : null;
+    
+    // Chercher par workspaceId OU userId pour couvrir tous les cas
+    const orConditions = [];
+    if (req.workspaceId) orConditions.push({ workspaceId: req.workspaceId });
+    if (userId) orConditions.push({ userId });
+    
+    if (orConditions.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const instances = await WhatsAppInstance.find({
+      $or: orConditions,
+      isActive: true
+    }).select('_id instanceName customName status lastSeen').sort({ lastSeen: -1 });
+
+    // Dédupliquer par instanceName
+    const seen = new Set();
+    const unique = instances.filter(i => {
+      if (seen.has(i.instanceName)) return false;
+      seen.add(i.instanceName);
+      return true;
+    });
+
+    res.json({
+      success: true,
+      data: unique.map(i => ({
+        _id: i._id,
+        instanceName: i.instanceName,
+        customName: i.customName || i.instanceName,
+        status: i.status,
+        isConnected: ['connected', 'active'].includes(i.status)
+      }))
+    });
+  } catch (error) {
+    console.error('Erreur récupération instances WhatsApp:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// GET /api/ecom/orders/whatsapp-numbers - Lister tous les numéros WhatsApp configurés
+router.get('/whatsapp-numbers', requireEcomAuth, validateEcomAccess('products', 'read'), async (req, res) => {
+  try {
+    const settings = await WorkspaceSettings.findOne({ workspaceId: req.workspaceId });
+    const whatsappNumbers = settings?.whatsappNumbers || [];
+    res.json({ success: true, data: whatsappNumbers });
+  } catch (error) {
+    console.error('Erreur récupération numéros WhatsApp:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// GET /api/ecom/orders/revenue-periods - Statistiques des revenus par période
+router.get('/revenue-periods', requireEcomAuth, async (req, res) => {
+  try {
+    const { allWorkspaces } = req.query;
+    
+    // Si super_admin et allWorkspaces=true, ne pas filtrer par workspaceId
+    const isSuperAdmin = req.ecomUser.role === 'super_admin';
+    const viewAllWorkspaces = isSuperAdmin && allWorkspaces === 'true';
+    
+    const baseFilter = viewAllWorkspaces ? {} : { workspaceId: req.workspaceId };
+    const now = new Date();
+    
+    // Définir les périodes
+    const periods = [
+      {
+        key: 'today',
+        label: "Aujourd'hui",
+        start: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
+        end: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+      },
+      {
+        key: '7days',
+        label: '7 derniers jours',
+        start: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+        end: new Date()
+      },
+      {
+        key: '30days',
+        label: '30 derniers jours',
+        start: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
+        end: new Date()
+      },
+      {
+        key: '90days',
+        label: '90 derniers jours',
+        start: new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000),
+        end: new Date()
+      }
+    ];
+    
+    // Calculer les revenus pour chaque période
+    const revenueStats = await Promise.all(
+      periods.map(async (period) => {
+        const deliveredOrders = await Order.find(
+          {
+            ...baseFilter,
+            status: 'delivered',
+            date: { $gte: period.start, $lt: period.end }
+          },
+          { price: 1, quantity: 1 }
+        ).lean();
+        
+        const revenue = deliveredOrders.reduce((sum, o) => sum + ((o.price || 0) * (o.quantity || 1)), 0);
+        const orderCount = deliveredOrders.length;
+        
+        return {
+          period: period.key,
+          label: period.label,
+          revenue,
+          orderCount,
+          avgOrderValue: orderCount > 0 ? revenue / orderCount : 0,
+          startDate: period.start,
+          endDate: period.end
+        };
+      })
+    );
+    
+    // Statistiques globales
+    const totalDeliveredOrders = await Order.find(
+      { ...baseFilter, status: 'delivered' },
+      { price: 1, quantity: 1 }
+    ).lean();
+    
+    const totalRevenue = totalDeliveredOrders.reduce((sum, o) => sum + ((o.price || 0) * (o.quantity || 1)), 0);
+    const totalOrderCount = totalDeliveredOrders.length;
+    
+    res.json({
+      success: true,
+      data: {
+        periods: revenueStats,
+        total: {
+          revenue: totalRevenue,
+          orderCount: totalOrderCount,
+          avgOrderValue: totalOrderCount > 0 ? totalRevenue / totalOrderCount : 0
+        },
+        generatedAt: new Date()
+      }
+    });
+  } catch (error) {
+    console.error('Erreur revenue periods:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // GET /api/ecom/orders/:id - Détails d'une commande spécifique
 router.get('/:id', requireEcomAuth, async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
     const order = await Order.findOne({ 
       _id: req.params.id, 
       workspaceId: req.workspaceId 
@@ -3805,6 +3992,10 @@ router.get('/:id', requireEcomAuth, async (req, res) => {
 // POST /api/ecom/orders/:id/send-whatsapp - Envoyer les détails d'une commande par WhatsApp
 router.post('/:id/send-whatsapp', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
     const { phoneNumber } = req.body;
     
     if (!phoneNumber) {
@@ -3976,61 +4167,6 @@ router.get('/config/whatsapp', requireEcomAuth, validateEcomAccess('products', '
 
   } catch (error) {
     console.error('Erreur récupération config WhatsApp:', error);
-    res.status(500).json({ success: false, message: 'Erreur serveur' });
-  }
-});
-
-// GET /api/ecom/orders/whatsapp-instances - Lister les instances WhatsApp du workspace
-router.get('/whatsapp-instances', requireEcomAuth, validateEcomAccess('products', 'read'), async (req, res) => {
-  try {
-    const userId = req.ecomUser?._id ? String(req.ecomUser._id) : null;
-    
-    // Chercher par workspaceId OU userId pour couvrir tous les cas
-    const orConditions = [];
-    if (req.workspaceId) orConditions.push({ workspaceId: req.workspaceId });
-    if (userId) orConditions.push({ userId });
-    
-    if (orConditions.length === 0) {
-      return res.json({ success: true, data: [] });
-    }
-
-    const instances = await WhatsAppInstance.find({
-      $or: orConditions,
-      isActive: true
-    }).select('_id instanceName customName status lastSeen').sort({ lastSeen: -1 });
-
-    // Dédupliquer par instanceName
-    const seen = new Set();
-    const unique = instances.filter(i => {
-      if (seen.has(i.instanceName)) return false;
-      seen.add(i.instanceName);
-      return true;
-    });
-
-    res.json({
-      success: true,
-      data: unique.map(i => ({
-        _id: i._id,
-        instanceName: i.instanceName,
-        customName: i.customName || i.instanceName,
-        status: i.status,
-        isConnected: ['connected', 'active'].includes(i.status)
-      }))
-    });
-  } catch (error) {
-    console.error('Erreur récupération instances WhatsApp:', error);
-    res.status(500).json({ success: false, message: 'Erreur serveur' });
-  }
-});
-
-// GET /api/ecom/orders/whatsapp-numbers - Lister tous les numéros WhatsApp configurés
-router.get('/whatsapp-numbers', requireEcomAuth, validateEcomAccess('products', 'read'), async (req, res) => {
-  try {
-    const settings = await WorkspaceSettings.findOne({ workspaceId: req.workspaceId });
-    const whatsappNumbers = settings?.whatsappNumbers || [];
-    res.json({ success: true, data: whatsappNumbers });
-  } catch (error) {
-    console.error('Erreur récupération numéros WhatsApp:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
@@ -4386,100 +4522,6 @@ router.post('/sync-clients', requireEcomAuth, async (req, res) => {
       message: 'Erreur lors de la synchronisation'
     });
     
-    res.status(500).json({ success: false, message: 'Erreur serveur' });
-  }
-});
-
-// GET /api/ecom/orders/revenue-periods - Statistiques des revenus par période
-router.get('/revenue-periods', requireEcomAuth, async (req, res) => {
-  try {
-    const { allWorkspaces } = req.query;
-    
-    // Si super_admin et allWorkspaces=true, ne pas filtrer par workspaceId
-    const isSuperAdmin = req.ecomUser.role === 'super_admin';
-    const viewAllWorkspaces = isSuperAdmin && allWorkspaces === 'true';
-    
-    const baseFilter = viewAllWorkspaces ? {} : { workspaceId: req.workspaceId };
-    const now = new Date();
-    
-    // Définir les périodes
-    const periods = [
-      {
-        key: 'today',
-        label: "Aujourd'hui",
-        start: new Date(now.getFullYear(), now.getMonth(), now.getDate()),
-        end: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
-      },
-      {
-        key: '7days',
-        label: '7 derniers jours',
-        start: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
-        end: new Date()
-      },
-      {
-        key: '30days',
-        label: '30 derniers jours',
-        start: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
-        end: new Date()
-      },
-      {
-        key: '90days',
-        label: '90 derniers jours',
-        start: new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000),
-        end: new Date()
-      }
-    ];
-    
-    // Calculer les revenus pour chaque période
-    const revenueStats = await Promise.all(
-      periods.map(async (period) => {
-        const deliveredOrders = await Order.find(
-          {
-            ...baseFilter,
-            status: 'delivered',
-            date: { $gte: period.start, $lt: period.end }
-          },
-          { price: 1, quantity: 1 }
-        ).lean();
-        
-        const revenue = deliveredOrders.reduce((sum, o) => sum + ((o.price || 0) * (o.quantity || 1)), 0);
-        const orderCount = deliveredOrders.length;
-        
-        return {
-          period: period.key,
-          label: period.label,
-          revenue,
-          orderCount,
-          avgOrderValue: orderCount > 0 ? revenue / orderCount : 0,
-          startDate: period.start,
-          endDate: period.end
-        };
-      })
-    );
-    
-    // Statistiques globales
-    const totalDeliveredOrders = await Order.find(
-      { ...baseFilter, status: 'delivered' },
-      { price: 1, quantity: 1 }
-    ).lean();
-    
-    const totalRevenue = totalDeliveredOrders.reduce((sum, o) => sum + ((o.price || 0) * (o.quantity || 1)), 0);
-    const totalOrderCount = totalDeliveredOrders.length;
-    
-    res.json({
-      success: true,
-      data: {
-        periods: revenueStats,
-        total: {
-          revenue: totalRevenue,
-          orderCount: totalOrderCount,
-          avgOrderValue: totalOrderCount > 0 ? totalRevenue / totalOrderCount : 0
-        },
-        generatedAt: new Date()
-      }
-    });
-  } catch (error) {
-    console.error('Erreur revenue periods:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });

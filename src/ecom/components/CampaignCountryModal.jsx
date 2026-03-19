@@ -60,8 +60,8 @@ const CampaignCountryModal = ({ campaign, isOpen, onClose, onSend }) => {
 
   const fetchWhatsappInstances = async () => {
     try {
-      const res = await ecomApi.get('/whatsapp-instances');
-      const instances = res.data.data.filter(i => i.status === 'connected');
+      const res = await ecomApi.get('/orders/whatsapp-instances');
+      const instances = (res.data.data || []).filter(i => i.isConnected || i.status === 'connected' || i.status === 'active');
       setWhatsappInstances(instances);
       if (instances.length > 0) {
         setSelectedInstance(instances[0]._id);
