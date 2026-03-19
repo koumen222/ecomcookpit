@@ -881,7 +881,13 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
     followUpEnabled: false,
     followUpDelay: 24,
     followUpMessage: "Bonjour ! Avez-vous eu le temps de réfléchir à notre offre ? Je suis là pour répondre à vos questions 😊",
+    followUpMaxRelances: 3,
+    followUpRelanceMessages: [],
+    followUpOffer: '',
     escalateAfterMessages: 10,
+    // Témoignages
+    testimonialsEnabled: false,
+    testimonials: [],
     businessContext: '',
     products: '',
     faq: '',
@@ -1577,13 +1583,32 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                         <Field label="Relancer après" hint="heures sans réponse">
                           <input type="number" value={config.followUpDelay} onChange={e => set('followUpDelay', parseInt(e.target.value) || 24)} min="1" className="field-input" />
                         </Field>
+                        <Field label="Nombre max de relances" hint="par prospect">
+                          <input type="number" value={config.followUpMaxRelances} onChange={e => set('followUpMaxRelances', parseInt(e.target.value) || 3)} min="1" max="10" className="field-input" />
+                        </Field>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
                         <Field label="Escalader après" hint="messages sans réponse">
                           <input type="number" value={config.escalateAfterMessages} onChange={e => set('escalateAfterMessages', parseInt(e.target.value) || 10)} min="1" className="field-input" />
                         </Field>
                       </div>
-                      <Field label="Message de relance">
-                        <textarea value={config.followUpMessage} onChange={e => set('followUpMessage', e.target.value)} rows={3}
+                      <Field label="Message de relance (1ère relance)">
+                        <textarea value={config.followUpMessage} onChange={e => set('followUpMessage', e.target.value)} rows={2}
+                          placeholder="Bonjour ! Tu as eu le temps de réfléchir ?"
                           className="field-input" style={{ resize: 'none' }} />
+                      </Field>
+                      <Field label="Messages de relance personnalisés" hint="un par ligne, dans l'ordre des relances">
+                        <textarea
+                          value={(config.followUpRelanceMessages || []).join('\n')}
+                          onChange={e => set('followUpRelanceMessages', e.target.value.split('\n').filter(m => m.trim()))}
+                          rows={4}
+                          placeholder={"Hey ! Tu as eu le temps de voir ? 😊\nUne cliente vient de commander le même, elle est ravie !\nDernière relance, je ne veux pas te déranger 🙏"}
+                          className="field-input text-xs" style={{ resize: 'vertical' }} />
+                      </Field>
+                      <Field label="Offre spéciale dernière relance" hint="optionnel — proposé en dernière chance">
+                        <input value={config.followUpOffer || ''} onChange={e => set('followUpOffer', e.target.value)}
+                          placeholder="Livraison gratuite si tu commandes aujourd'hui !"
+                          className="field-input" />
                       </Field>
                     </div>
                   )}
@@ -1917,6 +1942,47 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                     placeholder="Seule boutique certifiée bio en CI, garantie 30 jours, livraison express 4h..."
                     className="field-input" style={{ resize: 'none' }} />
                 </Field>
+
+                {/* ── Témoignages clients ── */}
+                <div className="border-t border-gray-100 pt-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[14px] font-bold text-gray-900">🗣️ Témoignages clients</p>
+                    <ToggleRow enabled={config.testimonialsEnabled} onChange={v => set('testimonialsEnabled', v)} label="Activer" desc="" />
+                  </div>
+                  <p className="text-[11px] text-gray-500">Rita utilisera ces témoignages pour rassurer les clients hésitants et augmenter les conversions.</p>
+                  {config.testimonialsEnabled && (
+                    <div className="space-y-3">
+                      {(config.testimonials || []).map((t, i) => (
+                        <div key={i} className="p-3 bg-gray-50 rounded-xl space-y-2 relative">
+                          <button onClick={() => set('testimonials', config.testimonials.filter((_, j) => j !== i))}
+                            className="absolute top-2 right-2 text-gray-400 hover:text-red-500 text-sm">×</button>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input value={t.clientName} onChange={e => {
+                              const updated = [...config.testimonials];
+                              updated[i] = { ...updated[i], clientName: e.target.value };
+                              set('testimonials', updated);
+                            }} placeholder="Nom du client" className="field-input text-xs" />
+                            <input value={t.product} onChange={e => {
+                              const updated = [...config.testimonials];
+                              updated[i] = { ...updated[i], product: e.target.value };
+                              set('testimonials', updated);
+                            }} placeholder="Produit concerné (optionnel)" className="field-input text-xs" />
+                          </div>
+                          <textarea value={t.text} onChange={e => {
+                            const updated = [...config.testimonials];
+                            updated[i] = { ...updated[i], text: e.target.value };
+                            set('testimonials', updated);
+                          }} rows={2} placeholder="Le produit est top, je suis trop contente de mon achat !"
+                            className="field-input text-xs" style={{ resize: 'none' }} />
+                        </div>
+                      ))}
+                      <button onClick={() => set('testimonials', [...(config.testimonials || []), { clientName: '', text: '', product: '' }])}
+                        className="w-full py-2 border-2 border-dashed border-gray-200 rounded-xl text-[12px] text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors">
+                        + Ajouter un témoignage
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <Field label="Liens utiles" hint="site, Instagram, catalogue PDF...">
                   <textarea value={config.usefulLinks} onChange={e => set('usefulLinks', e.target.value)} rows={2}
                     placeholder={"Site: https://monsite.ci\nInstagram: @maboutique"}

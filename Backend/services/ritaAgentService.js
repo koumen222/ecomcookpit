@@ -9,6 +9,10 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const conversationHistory = new Map();
 const MAX_HISTORY = 100;
 
+// Suivi des dernières interactions pour le système de relance
+// Map<historyKey, { lastClientMessage: Date, lastAgentMessage: Date, relanceCount: number, ordered: boolean }>
+const conversationTracker = new Map();
+
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -660,6 +664,18 @@ Voici exactement comment tu dois réagir dans ces situations :\n`;
 
   if (config.useEmojis) {
     prompt += `\nTu peux utiliser des emojis de façon naturelle (👍 ✅ 😊) mais sans en abuser.`;
+  } else {
+    prompt += `\n## ⛔ PAS D'EMOJIS\nTu ne dois JAMAIS utiliser d'emojis dans tes messages. Pas de 😊, pas de 👍, pas de ✅, rien. Écris uniquement du texte pur, sans aucun symbole emoji.`;
+  }
+
+  // ─── TÉMOIGNAGES CLIENTS ───
+  if (config.testimonialsEnabled && config.testimonials?.length) {
+    prompt += `\n\n## 🗣️ TÉMOIGNAGES CLIENTS — ARME DE PERSUASION
+Tu disposes de vrais témoignages de clients satisfaits. Utilise-les pour convaincre quand :\n- Le client hésite ou doute\n- Le client dit "c'est cher", "je ne suis pas sûr", "j'hésite"\n- Le client pose des questions sur la qualité ou l'efficacité\n- Le client ne répond plus et tu veux relancer\n\nVoici les témoignages disponibles :\n`;
+    for (const t of config.testimonials) {
+      prompt += `\n- ${t.clientName || 'Client'} : "${t.text}"${t.product ? ` (produit: ${t.product})` : ''}`;
+    }
+    prompt += `\n\nRègles :\n- Cite le témoignage naturellement, comme si tu racontais une anecdote\n- Exemple : "Une cliente m'a dit la semaine dernière : '[témoignage]' — elle était trop contente !"\n- NE copie PAS le témoignage mot pour mot comme un robot. Reformule-le naturellement.\n- Maximum 1 témoignage par message\n- Utilise le témoignage qui correspond au produit dont parle le client`;
   }
 
   // ─── INSTRUCTIONS VOCAL / TEXTE ───
@@ -717,7 +733,35 @@ Exemple TEXTE (question simple) :
 - Utilise UNE phrase d'urgence par conversation maximum (stock limité, très demandé...)
 - Le catalogue présenté = max 5 produits, liste numérotée, prix, et "Tu veux voir lequel ?"
 - Dès qu'un produit est identifié → close rapidement : "C'est X FCFA 👍 Tu veux que je te le réserve ?"
-- Tu es une vraie vendeuse, pas un robot — jamais de ton mécanique ou robotique`;
+- Tu es une vraie vendeuse, pas un robot — jamais de ton mécanique ou robotique
+- Si le client hésite et que des témoignages sont disponibles → cite un témoignage pertinent pour le rassurer
+- Si le client dit "je réfléchis", "peut-être", "je verrai" → ne le laisse pas partir ! Utilise une technique de relance douce (témoignage, urgence, ou question)
+- Si le client ne répond plus pendant un moment → prépare un message de relance naturel et chaleureux
+- Tu sais reconnaître les signaux d'achat (questions sur la livraison, le paiement, la taille) et tu accélères vers le closing
+- Tu sais reconnaître les signaux de fuite ("merci", "ok je vais voir", "bonne journée") et tu tentes une dernière accroche avant qu'il parte
+- Quand le client dit "c'est cher" → ne baisse JAMAIS le prix toi-même, mais argumente sur la valeur, cite un témoignage si dispo, ou propose un paiement à la livraison
+- Tu adaptes ton énergie : si le client est enthousiaste tu es enthousiaste, s'il est calme tu es posée
+- Tu utilises le prénom du client quand tu le connais pour créer de la proximité
+- Entre les étapes de vente, tu fais de petites remarques personnelles pour humaniser ("ah tu es de Douala ? J'adore cette ville !")`;
+
+  // ─── RELANCE AUTOMATIQUE ───
+  if (config.followUpEnabled) {
+    const maxRelances = config.followUpMaxRelances || 3;
+    const delayH = config.followUpDelay || 24;
+    const offer = config.followUpOffer || '';
+    prompt += `\n\n## 🔄 RELANCE — NE LAISSE JAMAIS UN PROSPECT PARTIR
+Si le client arrête de répondre ou dit "je réfléchis", tu dois préparer une relance.\nAjoute le tag [FOLLOW_UP:délai_en_heures] à la FIN de ton dernier message pour programmer une relance automatique.\n\nRègles de relance :\n- Maximum ${maxRelances} relances par prospect\n- Délai entre chaque relance : ${delayH}h\n- Chaque relance doit être DIFFÉRENTE (pas le même message)\n- Relance 1 : rappel doux et amical ("Hey ! Tu as eu le temps de réfléchir ?")\n- Relance 2 : argument de valeur ou témoignage ("Une cliente vient de commander le même, elle est ravie !")\n- Relance 3 : dernière chance / offre spéciale ("C'est ma dernière relance, je ne veux pas te déranger")`;
+    if (offer) {
+      prompt += `\n- Offre spéciale à proposer en dernière relance : ${offer}`;
+    }
+    if (config.followUpRelanceMessages?.length) {
+      prompt += `\n\nMessages de relance personnalisés par le boss :`;
+      config.followUpRelanceMessages.forEach((msg, i) => {
+        prompt += `\n- Relance ${i+1} : "${msg}"`;
+      });
+    }
+    prompt += `\n\nExemple : "Super, prends ton temps ! [FOLLOW_UP:${delayH}]"`;
+  }
 
   // ─── MODE ESCALADE BOSS ───
   if (config.bossEscalationEnabled) {
@@ -759,6 +803,12 @@ export async function processIncomingMessage(userId, from, text) {
   // Ajouter le message de l'utilisateur à l'historique
   history.push({ role: 'user', content: text });
 
+  // Tracker l'activité client pour le système de relance
+  const tracker = conversationTracker.get(historyKey) || { lastClientMessage: null, lastAgentMessage: null, relanceCount: 0, ordered: false };
+  tracker.lastClientMessage = new Date();
+  tracker.relanceCount = 0; // Reset relances quand le client répond
+  conversationTracker.set(historyKey, tracker);
+
   // Garder seulement les N derniers messages
   if (history.length > MAX_HISTORY) {
     history.splice(0, history.length - MAX_HISTORY);
@@ -781,6 +831,12 @@ export async function processIncomingMessage(userId, from, text) {
     if (reply) {
       // Ajouter la réponse de l'agent à l'historique
       history.push({ role: 'assistant', content: reply });
+      // Tracker l'activité agent pour la relance
+      const tracker = conversationTracker.get(historyKey);
+      if (tracker) {
+        tracker.lastAgentMessage = new Date();
+        if (/\[ORDER_DATA:/i.test(reply)) tracker.ordered = true;
+      }
     }
     return reply || null;
   } catch (error) {
@@ -825,4 +881,58 @@ export function getLastAssistantMessage(userId, from) {
     if (hist[i].role === 'assistant') return hist[i].content;
   }
   return null;
+}
+
+/**
+ * Retourne les conversations nécessitant une relance Rita
+ * @param {number} delayHours - Nombre d'heures sans réponse avant relance
+ * @param {number} maxRelances - Nombre max de relances
+ * @returns {Array<{userId, from, relanceCount, history}>}
+ */
+export function getConversationsNeedingRelance(delayHours = 24, maxRelances = 3) {
+  const now = new Date();
+  const results = [];
+
+  for (const [key, tracker] of conversationTracker.entries()) {
+    // Ne pas relancer si commande passée
+    if (tracker.ordered) continue;
+    // Ne pas relancer si max atteint
+    if (tracker.relanceCount >= maxRelances) continue;
+    // Ne pas relancer si le client a répondu après le dernier message agent
+    if (tracker.lastClientMessage && tracker.lastAgentMessage && tracker.lastClientMessage > tracker.lastAgentMessage) continue;
+    // Vérifier le délai depuis le dernier message agent
+    const lastActivity = tracker.lastAgentMessage || tracker.lastClientMessage;
+    if (!lastActivity) continue;
+    const hoursSince = (now - lastActivity) / (1000 * 60 * 60);
+    if (hoursSince < delayHours) continue;
+
+    const [userId, from] = key.split(':');
+    const history = conversationHistory.get(key) || [];
+    results.push({ userId, from, relanceCount: tracker.relanceCount, history, key });
+  }
+
+  return results;
+}
+
+/**
+ * Marque une conversation comme relancée
+ */
+export function markRelanced(userId, from) {
+  const key = `${userId}:${from}`;
+  const tracker = conversationTracker.get(key);
+  if (tracker) {
+    tracker.relanceCount++;
+    tracker.lastAgentMessage = new Date();
+  }
+}
+
+/**
+ * Ajoute un message de relance à l'historique de la conversation
+ */
+export function addRelanceToHistory(userId, from, message) {
+  const key = `${userId}:${from}`;
+  const history = conversationHistory.get(key);
+  if (history) {
+    history.push({ role: 'assistant', content: message });
+  }
 }

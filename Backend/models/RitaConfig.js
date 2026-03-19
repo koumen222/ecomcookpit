@@ -26,7 +26,18 @@ const ritaConfigSchema = new mongoose.Schema({
   followUpEnabled: { type: Boolean, default: false },
   followUpDelay: { type: Number, default: 24 },
   followUpMessage: { type: String, default: '' },
+  followUpMaxRelances: { type: Number, default: 3 },
+  followUpRelanceMessages: [{ type: String }],
+  followUpOffer: { type: String, default: '' },
   escalateAfterMessages: { type: Number, default: 10 },
+
+  // Témoignages clients
+  testimonialsEnabled: { type: Boolean, default: false },
+  testimonials: [{
+    clientName: { type: String, default: '' },
+    text: { type: String, default: '' },
+    product: { type: String, default: '' },
+  }],
 
   // Base de connaissances
   businessContext: { type: String, default: '' },

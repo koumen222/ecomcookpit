@@ -359,6 +359,14 @@ const startServer = async () => {
       console.warn('⚠️ Rita boss report cron non démarré:', err.message);
     }
 
+    // ─── Rita relance cron ───────────────────────────────────────────────
+    try {
+      const { startRitaRelanceCron } = await import('./services/ritaCronService.js');
+      startRitaRelanceCron();
+    } catch (err) {
+      console.warn('⚠️ Rita relance cron non démarré:', err.message);
+    }
+
     // ─── Auto-sync Google Sheets ─────────────────────────────────────────
     try {
       const autoSyncMod = await import('./services/googleSheetsImport.js');
