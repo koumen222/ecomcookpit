@@ -1361,25 +1361,29 @@ router.post('/incoming', async (req, res) => {
           }
 
           // Déterminer vocal vs texte pour ce tour :
-          // 1. Si tag [VOICE] → forcer vocal (Rita a décidé)
-          // 2. Si mode "voice" → toujours vocal
-          // 3. Si mode "both" → vocal très rarement (~3% des messages), uniquement si long + tirage aléatoire
-          // 4. Si mode "text" → toujours texte
+          // 1. Si mode "voice" → toujours vocal
+          // 2. Si mode "both" → vocal pour confirmation commande (ORDER_DATA) OU (explication longue + 10% de chance)
+          // 3. Si mode "text" → toujours texte
+          // 4. Tag [VOICE] respecté UNIQUEMENT en mode voice
           let useVoiceThisTurn = false;
-          if (hasVoiceTag && canDoVoice && responseMode !== 'text') {
+          if (responseMode === 'voice' && canDoVoice) {
+            // Mode full vocal : toujours vocal
             useVoiceThisTurn = true;
-          } else if (responseMode === 'both' && canDoVoice && textToSend) {
-            const charCount = textToSend.length;
-            const sentenceCount = (textToSend.match(/[.!?…]+/g) || []).length;
-            // Le message doit être suffisamment long ET passer un tirage aléatoire à 3%
-            const isLongEnough = charCount >= 400 && sentenceCount >= 4;
-            const randomChance = Math.random() < 0.03; // ~3 fois sur 100
-            useVoiceThisTurn = isLongEnough && randomChance;
-          }
-          // Si le message contient ORDER_DATA → confirmation de commande, vocal si mode voice/both (pas systématique en both)
-          if (orderTagMatch && canDoVoice && responseMode === 'voice') {
-            useVoiceThisTurn = true;
-            console.log(`🎙️ [RITA] Commande confirmée — vocal forcé (mode voice)`);
+          } else if (responseMode === 'both' && canDoVoice) {
+            // Mode mixte : vocal pour confirmation de commande
+            if (orderTagMatch) {
+              useVoiceThisTurn = true;
+              console.log(`🎙️ [RITA] Commande confirmée — vocal pour confirmation (mode both)`);
+            } else if (hasVoiceTag) {
+              // Tag [VOICE] en mode both = explication longue → 10% de chance (~1 fois sur 10)
+              const randomChance = Math.random() < 0.10;
+              if (randomChance) {
+                useVoiceThisTurn = true;
+                console.log(`🎙️ [RITA] Explication longue — vocal accordé (1/10, mode both)`);
+              } else {
+                console.log(`🔇 [RITA] Explication longue — texte cette fois (tirage 10%, mode both)`);
+              }
+            }
           }
           const sendText  = responseMode === 'text' || (!useVoiceThisTurn && responseMode !== 'voice');
           const sendVoice = responseMode === 'voice' || useVoiceThisTurn;

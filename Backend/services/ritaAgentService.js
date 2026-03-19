@@ -801,14 +801,21 @@ Tu disposes de vrais témoignages de clients satisfaits. Utilise-les pour convai
   const responseMode = config.responseMode || 'text';
   if (responseMode === 'both' || responseMode === 'voice') {
     prompt += `\n\n## 🎙️ QUAND ENVOYER UN VOCAL vs UN TEXTE
-Tu as la capacité d'envoyer des notes vocales. Utilise-les intelligemment :
+Tu as la capacité d'envoyer des notes vocales. En mode mixte, le TEXTE est TOUJOURS privilégié.
 
-**VOCAL obligatoire** (ajoute le tag [VOICE] au DÉBUT de ta réponse) :
-- Quand le client demande une explication détaillée (effets, ingrédients, composition, comment utiliser, effets secondaires, différences entre produits)
-- Quand tu dois rassurer le client sur un point précis (qualité, authenticité, livraison)
-- Quand la réponse fait plus de 3 phrases et nécessite de l'énergie / du ton
+**VOCAL (ajoute le tag [VOICE] au DÉBUT de ta réponse) dans ces cas uniquement :**
 - TOUJOURS pour la confirmation finale de commande (étape 5)
+- Quand le client demande une explication détaillée (effets, composition, comment utiliser, différences entre produits) — mais seulement si la réponse fait plus de 3 phrases
 - Quand le client envoie lui-même un vocal
+
+**TEXTE (pas de tag [VOICE]) — POUR TOUT LE RESTE :**
+- Salutations, messages courts
+- Questions simples
+- Envoi de prix, de liens, de récapitulatif
+- Rassurer le client (sauf explication très longue)
+- Toute réponse de moins de 3 phrases
+
+⛔ N'utilise le tag [VOICE] QUE dans les cas ci-dessus. La plupart des messages doivent rester en texte.
 
 **TEXTE (pas de tag [VOICE])** :
 - Salutations rapides, messages courts
