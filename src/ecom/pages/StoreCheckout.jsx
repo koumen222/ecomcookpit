@@ -1,8 +1,43 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, ShoppingCart, CheckCircle, AlertCircle, Loader2, MessageCircle, User, Phone, MapPin, FileText } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, CheckCircle, AlertCircle, Loader2, MessageCircle, User, Phone, MapPin, FileText, Truck, Package } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
+
+/**
+ * Normalize a city name for fuzzy matching.
+ * Removes accents, lowercases, trims, collapses spaces.
+ */
+const normalizeCity = (str) => {
+  if (!str) return '';
+  return str
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove accents
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '') // keep only alphanumeric + spaces
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+/**
+ * Check if customerCity matches a delivery zone (city name or aliases).
+ * Returns the matching zone or null.
+ */
+const findMatchingZone = (customerCity, zones) => {
+  if (!customerCity || !zones?.length) return null;
+  const normalized = normalizeCity(customerCity);
+  if (!normalized) return null;
+
+  for (const zone of zones) {
+    // Check main city name
+    if (normalizeCity(zone.city) === normalized) return zone;
+    // Check aliases
+    if (zone.aliases?.some(a => normalizeCity(a) === normalized)) return zone;
+    // Fuzzy: check if normalized starts with or contains zone city
+    const zoneNorm = normalizeCity(zone.city);
+    if (zoneNorm && (normalized.includes(zoneNorm) || zoneNorm.includes(normalized))) return zone;
+  }
+  return null;
+};
 
 /**
  * StoreCheckout — Public guest checkout page.
@@ -35,8 +70,78 @@ const StoreCheckout = () => {
     email: '',
     address: '',
     city: '',
+    country: '',
     notes: ''
   });
+
+  // Delivery zones data from store
+  const deliveryCountries = store?.deliveryCountries || [];
+  const deliveryZones = store?.deliveryZones || [];
+  const hasDeliveryConfig = deliveryCountries.length > 0;
+
+  // Determine delivery status based on country + city
+  const deliveryStatus = useMemo(() => {
+    if (!hasDeliveryConfig) {
+      // No config → no restrictions
+      return { type: 'none', message: '', allowed: true, cost: 0 };
+    }
+
+    const country = form.country.trim();
+    const city = form.city.trim();
+
+    // No country selected yet
+    if (!country) {
+      return { type: 'pending', message: '', allowed: false, cost: 0 };
+    }
+
+    // Country not in the list
+    if (!deliveryCountries.some(c => c.toLowerCase() === country.toLowerCase())) {
+      return {
+        type: 'blocked',
+        message: `Nous ne livrons pas au/en ${country}.`,
+        allowed: false,
+        cost: 0
+      };
+    }
+
+    // Country OK — check city
+    const countryZones = deliveryZones.filter(z => z.country.toLowerCase() === country.toLowerCase());
+
+    if (countryZones.length === 0) {
+      // Country defined but no zones → all cities in this country get expedition
+      return {
+        type: 'expedition',
+        message: 'Expédition disponible — paiement requis avant envoi.',
+        allowed: true,
+        cost: 0
+      };
+    }
+
+    if (!city) {
+      return { type: 'pending', message: 'Entrez votre ville pour voir les options de livraison.', allowed: false, cost: 0 };
+    }
+
+    // Try to match city to a zone
+    const matchedZone = findMatchingZone(city, countryZones);
+
+    if (matchedZone) {
+      return {
+        type: 'livraison',
+        message: `Livraison disponible à ${matchedZone.city} — paiement à la réception.`,
+        allowed: true,
+        cost: matchedZone.cost || 0,
+        zone: matchedZone
+      };
+    }
+
+    // City not in any zone → expedition
+    return {
+      type: 'expedition',
+      message: `${city} est hors zone de livraison — expédition avec paiement avant envoi.`,
+      allowed: true,
+      cost: 0
+    };
+  }, [form.country, form.city, hasDeliveryConfig, deliveryCountries, deliveryZones]);
 
   useEffect(() => {
     (async () => {
@@ -67,13 +172,25 @@ const StoreCheckout = () => {
   const themeColor = store?.themeColor || '#0F6B4F';
   const currency = store?.currency || 'XAF';
 
-  const total = cartProducts.reduce((sum, p) => sum + (p.price * p.quantity), 0);
+  const subtotal = cartProducts.reduce((sum, p) => sum + (p.price * p.quantity), 0);
+  const deliveryCost = deliveryStatus.cost || 0;
+  const total = subtotal + deliveryCost;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!form.customerName.trim() || !form.phone.trim()) {
       setError('Nom et numéro de téléphone requis');
+      return;
+    }
+
+    // Validate delivery zone
+    if (hasDeliveryConfig && !deliveryStatus.allowed) {
+      if (deliveryStatus.type === 'blocked') {
+        setError(deliveryStatus.message);
+      } else {
+        setError('Veuillez remplir le pays et la ville pour continuer.');
+      }
       return;
     }
 
@@ -87,7 +204,10 @@ const StoreCheckout = () => {
         email: form.email.trim(),
         address: form.address.trim(),
         city: form.city.trim(),
+        country: form.country.trim(),
         notes: form.notes.trim(),
+        deliveryType: deliveryStatus.type === 'livraison' ? 'livraison' : deliveryStatus.type === 'expedition' ? 'expedition' : '',
+        deliveryCost: deliveryCost,
         products: cartProducts.map(p => ({
           productId: p.productId,
           quantity: p.quantity
@@ -113,7 +233,7 @@ const StoreCheckout = () => {
 
   // Order confirmation screen
   if (orderResult) {
-    const whatsappMsg = `Bonjour, j'ai passé la commande *${orderResult.orderNumber}* d'un montant de ${formatPrice(orderResult.total)} ${orderResult.currency}.\n\nNom: ${form.customerName}\nTéléphone: ${form.phone}${form.city ? `\nVille: ${form.city}` : ''}${form.address ? `\nAdresse: ${form.address}` : ''}`;
+    const whatsappMsg = `Bonjour, j'ai passé la commande *${orderResult.orderNumber}* d'un montant de ${formatPrice(orderResult.total)} ${orderResult.currency}.\n\nNom: ${form.customerName}\nTéléphone: ${form.phone}${form.country ? `\nPays: ${form.country}` : ''}${form.city ? `\nVille: ${form.city}` : ''}${form.address ? `\nAdresse: ${form.address}` : ''}${deliveryStatus.type === 'livraison' ? '\nMode: Livraison (paiement à la réception)' : deliveryStatus.type === 'expedition' ? '\nMode: Expédition (paiement avant envoi)' : ''}`;
 
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -142,6 +262,18 @@ const StoreCheckout = () => {
               <span className="text-gray-500">Statut</span>
               <span className="text-amber-600 font-medium">En attente</span>
             </div>
+            {deliveryStatus.type === 'livraison' && (
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Mode</span>
+                <span className="text-emerald-600 font-medium">Livraison (paiement à la réception)</span>
+              </div>
+            )}
+            {deliveryStatus.type === 'expedition' && (
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Mode</span>
+                <span className="text-amber-600 font-medium">Expédition (paiement avant envoi)</span>
+              </div>
+            )}
           </div>
 
           <div className="space-y-3">
@@ -205,11 +337,29 @@ const StoreCheckout = () => {
               </span>
             </div>
           ))}
-          <div className="pt-2 border-t border-gray-100 flex justify-between">
-            <span className="text-sm font-semibold text-gray-900">Total</span>
-            <span className="text-base font-bold" style={{ color: themeColor }}>
-              {formatPrice(total)} {currency}
-            </span>
+          <div className="pt-2 border-t border-gray-100 space-y-1">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Sous-total</span>
+              <span className="font-medium text-gray-900">{formatPrice(subtotal)} {currency}</span>
+            </div>
+            {deliveryCost > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Livraison</span>
+                <span className="font-medium text-gray-900">{formatPrice(deliveryCost)} {currency}</span>
+              </div>
+            )}
+            {deliveryStatus.type === 'expedition' && (
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Expédition</span>
+                <span className="text-xs text-amber-600 font-medium">À calculer</span>
+              </div>
+            )}
+            <div className="flex justify-between pt-1">
+              <span className="text-sm font-semibold text-gray-900">Total</span>
+              <span className="text-base font-bold" style={{ color: themeColor }}>
+                {formatPrice(total)} {currency}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -254,16 +404,46 @@ const StoreCheckout = () => {
             />
           </div>
 
+          {/* Country selector — only if delivery countries are configured */}
+          {hasDeliveryConfig && (
+            <div>
+              <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1">
+                <MapPin className="w-3.5 h-3.5" /> Pays *
+              </label>
+              <select
+                value={form.country}
+                onChange={(e) => handleChange('country', e.target.value)}
+                required
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent bg-white"
+                style={{ '--tw-ring-color': themeColor }}
+              >
+                <option value="">Sélectionnez votre pays</option>
+                {deliveryCountries.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Country blocked message */}
+          {deliveryStatus.type === 'blocked' && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {deliveryStatus.message}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1">
-                <MapPin className="w-3.5 h-3.5" /> Ville
+                <MapPin className="w-3.5 h-3.5" /> Ville {hasDeliveryConfig ? '*' : ''}
               </label>
               <input
                 type="text"
                 value={form.city}
                 onChange={(e) => handleChange('city', e.target.value)}
                 placeholder="Douala"
+                required={hasDeliveryConfig}
                 className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent"
                 style={{ '--tw-ring-color': themeColor }}
               />
@@ -280,6 +460,28 @@ const StoreCheckout = () => {
               />
             </div>
           </div>
+
+          {/* Delivery status indicator */}
+          {hasDeliveryConfig && form.country && form.city && deliveryStatus.type !== 'blocked' && deliveryStatus.type !== 'pending' && (
+            <div className={`flex items-start gap-2 p-3 rounded-lg text-sm ${
+              deliveryStatus.type === 'livraison'
+                ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                : 'bg-amber-50 border border-amber-200 text-amber-700'
+            }`}>
+              {deliveryStatus.type === 'livraison' ? (
+                <Truck className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              ) : (
+                <Package className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              )}
+              <div>
+                <p className="font-medium">{deliveryStatus.type === 'livraison' ? 'Livraison' : 'Expédition'}</p>
+                <p className="text-xs mt-0.5 opacity-80">{deliveryStatus.message}</p>
+                {deliveryStatus.cost > 0 && (
+                  <p className="text-xs font-bold mt-1">Frais : {formatPrice(deliveryStatus.cost)} {currency}</p>
+                )}
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1">
@@ -311,7 +513,7 @@ const StoreCheckout = () => {
 
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || (hasDeliveryConfig && !deliveryStatus.allowed)}
             className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-white rounded-xl font-medium text-sm transition hover:opacity-90 disabled:opacity-50"
             style={{ backgroundColor: themeColor }}
           >

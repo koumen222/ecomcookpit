@@ -77,6 +77,11 @@ const workspaceSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     default: {}
   },
+  // Delivery zones config (countries + zones per city with costs)
+  storeDeliveryZones: {
+    type: mongoose.Schema.Types.Mixed,
+    default: { countries: [], zones: [] }
+  },
   // Unique tsoken for Ssssshopify webhook URL per workspaces
   shopifyWebhookToken: {
     type: String,
@@ -105,6 +110,22 @@ const workspaceSchema = new mongoose.Schema({
   // Template personnalisé pour le message WhatsApp de confirmation
   // Variables disponibles : {{first_name}}, {{order_number}}, {{product}}, {{quantity}}, {{city}}, {{total_price}}, {{currency}}, {{store_name}}
   whatsappOrderTemplate: {
+    type: String,
+    default: null
+  },
+  // Instance WhatsApp spécifique pour l'envoi auto (null = auto-detect)
+  whatsappAutoInstanceId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'WhatsAppInstance',
+    default: null
+  },
+  // URL d'image par défaut à envoyer avec le message auto
+  whatsappAutoImageUrl: {
+    type: String,
+    default: null
+  },
+  // URL audio/vocal par défaut à envoyer avec le message auto
+  whatsappAutoAudioUrl: {
     type: String,
     default: null
   },

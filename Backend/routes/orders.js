@@ -15,6 +15,7 @@ import { sendWhatsAppMessage, sendOrderNotification } from '../services/whatsapp
 import { sendOrderConfirmationToClient } from '../services/shopifyWhatsappService.js';
 import { formatInternationalPhone, isValidWhatsAppNumber, normalizePhone } from '../utils/phoneUtils.js';
 import EcomWorkspace from '../models/Workspace.js';
+import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import { EventEmitter } from 'events';
 
 const router = express.Router();
@@ -3879,20 +3880,27 @@ router.post('/:id/send-whatsapp', requireEcomAuth, validateEcomAccess('products'
   }
 });
 
-// PATCH /api/ecom/orders/config/whatsapp-auto - Toggle rapide WhatsApp auto-confirmation
+// PATCH /api/ecom/orders/config/whatsapp-auto - Toggle + config WhatsApp auto-confirmation
 router.patch('/config/whatsapp-auto', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
   try {
-    const { whatsappAutoConfirm } = req.body;
+    const { whatsappAutoConfirm, whatsappAutoInstanceId, whatsappAutoImageUrl, whatsappAutoAudioUrl, whatsappOrderTemplate } = req.body;
     if (typeof whatsappAutoConfirm !== 'boolean') {
       return res.status(400).json({ success: false, message: 'whatsappAutoConfirm doit être un booléen' });
     }
 
-    await EcomWorkspace.findByIdAndUpdate(req.workspaceId, { whatsappAutoConfirm });
+    const updateFields = { whatsappAutoConfirm };
+    // Mettre à jour les champs optionnels s'ils sont fournis
+    if (whatsappAutoInstanceId !== undefined) updateFields.whatsappAutoInstanceId = whatsappAutoInstanceId || null;
+    if (whatsappAutoImageUrl !== undefined) updateFields.whatsappAutoImageUrl = whatsappAutoImageUrl || null;
+    if (whatsappAutoAudioUrl !== undefined) updateFields.whatsappAutoAudioUrl = whatsappAutoAudioUrl || null;
+    if (whatsappOrderTemplate !== undefined) updateFields.whatsappOrderTemplate = whatsappOrderTemplate || null;
+
+    await EcomWorkspace.findByIdAndUpdate(req.workspaceId, updateFields);
 
     res.json({
       success: true,
       message: whatsappAutoConfirm ? 'Messages WhatsApp automatiques activés' : 'Messages WhatsApp automatiques désactivés',
-      data: { whatsappAutoConfirm }
+      data: { whatsappAutoConfirm, ...updateFields }
     });
   } catch (error) {
     console.error('Erreur toggle WhatsApp auto:', error);
@@ -3949,7 +3957,7 @@ router.get('/config/whatsapp', requireEcomAuth, validateEcomAccess('products', '
   try {
     const [settings, workspace] = await Promise.all([
       WorkspaceSettings.findOne({ workspaceId: req.workspaceId }),
-      EcomWorkspace.findById(req.workspaceId).select('whatsappAutoConfirm').lean()
+      EcomWorkspace.findById(req.workspaceId).select('whatsappAutoConfirm whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappOrderTemplate').lean()
     ]);
     
     res.json({
@@ -3958,12 +3966,49 @@ router.get('/config/whatsapp', requireEcomAuth, validateEcomAccess('products', '
         customWhatsAppNumber: settings?.customWhatsAppNumber || null,
         environmentNumber: process.env.CUSTOM_WHATSAPP_NUMBER || null,
         whatsappNumbers: settings?.whatsappNumbers || [],
-        whatsappAutoConfirm: workspace?.whatsappAutoConfirm || false
+        whatsappAutoConfirm: workspace?.whatsappAutoConfirm || false,
+        whatsappAutoInstanceId: workspace?.whatsappAutoInstanceId || null,
+        whatsappAutoImageUrl: workspace?.whatsappAutoImageUrl || null,
+        whatsappAutoAudioUrl: workspace?.whatsappAutoAudioUrl || null,
+        whatsappOrderTemplate: workspace?.whatsappOrderTemplate || null
       }
     });
 
   } catch (error) {
     console.error('Erreur récupération config WhatsApp:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// GET /api/ecom/orders/whatsapp-instances - Lister les instances WhatsApp du workspace
+router.get('/whatsapp-instances', requireEcomAuth, validateEcomAccess('products', 'read'), async (req, res) => {
+  try {
+    const instances = await WhatsAppInstance.find({
+      workspaceId: req.workspaceId,
+      isActive: true
+    }).select('_id instanceName customName status lastSeen').sort({ lastSeen: -1 });
+
+    // Fallback: chercher aussi par userId si pas d'instance par workspace
+    let allInstances = instances;
+    if (instances.length === 0 && req.ecomUser?._id) {
+      allInstances = await WhatsAppInstance.find({
+        userId: String(req.ecomUser._id),
+        isActive: true
+      }).select('_id instanceName customName status lastSeen').sort({ lastSeen: -1 });
+    }
+
+    res.json({
+      success: true,
+      data: allInstances.map(i => ({
+        _id: i._id,
+        instanceName: i.instanceName,
+        customName: i.customName || i.instanceName,
+        status: i.status,
+        isConnected: ['connected', 'active'].includes(i.status)
+      }))
+    });
+  } catch (error) {
+    console.error('Erreur récupération instances WhatsApp:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });

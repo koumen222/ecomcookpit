@@ -14,7 +14,7 @@
  *   - Workspace.whatsappAutoConfirm (toggle on/off)
  */
 
-import { sendWhatsAppMessage } from './whatsappService.js';
+import { sendWhatsAppMessage, sendWhatsAppMedia, sendWhatsAppAudio } from './whatsappService.js';
 import WhatsAppLog from '../models/WhatsAppLog.js';
 import EcomWorkspace from '../models/Workspace.js';
 import { formatInternationalPhone } from '../utils/phoneUtils.js';
@@ -156,16 +156,55 @@ export async function sendClientOrderConfirmation(order, shopifyOrder, workspace
       `📱 ${logPrefix} Envoi WhatsApp à ${whatsappNumber} — commande #${order.orderId}`
     );
 
-    // ── Envoyer via le service WhatsApp existant ─────────────────────────
-    console.log(`📩 ${logPrefix} Envoi WhatsApp à : ${whatsappNumber}`);
+    // ── Récupérer la config auto (instance spécifique, image, vocal) ─────
+    const autoInstanceId = options.instanceId || null;
+    const autoImageUrl = options.imageUrl || null;
+    const autoAudioUrl = options.audioUrl || null;
+
+    // ── Envoi progressif : texte → image → vocal ─────────────────────────
+    console.log(`📩 ${logPrefix} Envoi WhatsApp à : ${whatsappNumber} (instance: ${autoInstanceId || 'auto'})`);
     const result = await sendWhatsAppMessage({
       to:          whatsappNumber,
       message,
       workspaceId: String(workspaceId),
       userId:      'system',
       firstName:   'Shopify Webhook',
+      instanceId:  autoInstanceId,
     });
-    console.log(`✅ ${logPrefix} WhatsApp envoyé — messageId: ${result?.messageId || 'N/A'}, instance: ${result?.instanceName || 'N/A'}`);
+    console.log(`✅ ${logPrefix} Texte envoyé — messageId: ${result?.messageId || 'N/A'}, instance: ${result?.instanceName || 'N/A'}`);
+
+    // Envoi image si configurée (avec délai progressif)
+    if (autoImageUrl) {
+      try {
+        await new Promise(r => setTimeout(r, 2000));
+        const mediaResult = await sendWhatsAppMedia({
+          to: whatsappNumber,
+          mediaUrl: autoImageUrl,
+          caption: '',
+          workspaceId: String(workspaceId),
+          instanceId: autoInstanceId,
+        });
+        console.log(`✅ ${logPrefix} Image envoyée — messageId: ${mediaResult?.messageId || 'N/A'}`);
+      } catch (mediaErr) {
+        console.warn(`⚠️ ${logPrefix} Erreur envoi image auto: ${mediaErr.message}`);
+      }
+    }
+
+    // Envoi vocal si configuré (avec délai progressif)
+    if (autoAudioUrl) {
+      try {
+        await new Promise(r => setTimeout(r, 2000));
+        const audioResult = await sendWhatsAppAudio({
+          to: whatsappNumber,
+          audioUrl: autoAudioUrl,
+          workspaceId: String(workspaceId),
+          instanceId: autoInstanceId,
+        });
+        console.log(`✅ ${logPrefix} Vocal envoyé — messageId: ${audioResult?.messageId || 'N/A'}`);
+      } catch (audioErr) {
+        console.warn(`⚠️ ${logPrefix} Erreur envoi vocal auto: ${audioErr.message}`);
+      }
+    }
 
     // ── Logger dans WhatsAppLog ──────────────────────────────────────────
     await WhatsAppLog.create({
@@ -246,7 +285,7 @@ export async function sendOrderConfirmationToClient(order, workspaceId) {
   try {
     // Vérifier que whatsappAutoConfirm est activé
     const workspace = await EcomWorkspace.findById(workspaceId)
-      .select('whatsappAutoConfirm whatsappOrderTemplate storeSettings name')
+      .select('whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl storeSettings name')
       .lean();
 
     if (!workspace?.whatsappAutoConfirm) {
@@ -283,13 +322,52 @@ export async function sendOrderConfirmationToClient(order, workspaceId) {
 
     console.log(`📱 ${logPrefix} Envoi WhatsApp à ${whatsappNumber} — commande #${order.orderId}`);
 
+    const autoInstanceId = workspace.whatsappAutoInstanceId || null;
+    const autoImageUrl = workspace.whatsappAutoImageUrl || null;
+    const autoAudioUrl = workspace.whatsappAutoAudioUrl || null;
+
+    // Envoi progressif : texte → image → vocal
     const result = await sendWhatsAppMessage({
       to:          whatsappNumber,
       message,
       workspaceId: String(workspaceId),
       userId:      'system',
       firstName:   'Order Webhook',
+      instanceId:  autoInstanceId,
     });
+
+    // Envoi image si configurée (avec délai progressif)
+    if (autoImageUrl) {
+      try {
+        await new Promise(r => setTimeout(r, 2000));
+        await sendWhatsAppMedia({
+          to: whatsappNumber,
+          mediaUrl: autoImageUrl,
+          caption: '',
+          workspaceId: String(workspaceId),
+          instanceId: autoInstanceId,
+        });
+        console.log(`✅ ${logPrefix} Image auto envoyée`);
+      } catch (mediaErr) {
+        console.warn(`⚠️ ${logPrefix} Erreur envoi image auto: ${mediaErr.message}`);
+      }
+    }
+
+    // Envoi vocal si configuré (avec délai progressif)
+    if (autoAudioUrl) {
+      try {
+        await new Promise(r => setTimeout(r, 2000));
+        await sendWhatsAppAudio({
+          to: whatsappNumber,
+          audioUrl: autoAudioUrl,
+          workspaceId: String(workspaceId),
+          instanceId: autoInstanceId,
+        });
+        console.log(`✅ ${logPrefix} Vocal auto envoyé`);
+      } catch (audioErr) {
+        console.warn(`⚠️ ${logPrefix} Erreur envoi vocal auto: ${audioErr.message}`);
+      }
+    }
 
     await WhatsAppLog.create({
       workspaceId,

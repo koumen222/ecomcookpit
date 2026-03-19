@@ -105,6 +105,9 @@ export const handleOrderCreated = (req, res) => {
       const workspaceSettings = {
         whatsappAutoConfirm:    workspace.whatsappAutoConfirm || false,
         whatsappOrderTemplate:  workspace.whatsappOrderTemplate || null,
+        whatsappAutoInstanceId: workspace.whatsappAutoInstanceId || null,
+        whatsappAutoImageUrl:   workspace.whatsappAutoImageUrl || null,
+        whatsappAutoAudioUrl:   workspace.whatsappAutoAudioUrl || null,
         storeName:              workspace.storeSettings?.storeName || workspace.name || '',
       };
 

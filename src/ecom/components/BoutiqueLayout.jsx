@@ -331,6 +331,7 @@ const getBoutiquePageTitle = (pathname) => {
   if (pathname.includes('/boutique/pages')) return 'Pages';
   if (pathname.includes('/boutique/pixel')) return 'Pixel & Tracking';
   if (pathname.includes('/boutique/payments')) return 'Paiements';
+  if (pathname.includes('/boutique/delivery-zones')) return 'Zones de livraison';
   if (pathname.includes('/boutique/domains')) return 'Domaines';
   if (pathname.includes('/boutique/settings')) return 'Paramètres & Branding';
   return 'Boutique';

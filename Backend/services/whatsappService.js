@@ -9,10 +9,22 @@ import { formatInternationalPhone, isValidWhatsAppNumber } from '../utils/phoneU
 /**
  * Récupère l'instance WhatsApp active pour un workspace
  * @param {string} workspaceId - ID du workspace
+ * @param {string} [specificInstanceId] - ID d'une instance spécifique (optionnel)
  * @returns {Promise<Object|null>} Instance WhatsApp ou null
  */
-async function getActiveInstance(workspaceId) {
+async function getActiveInstance(workspaceId, specificInstanceId = null) {
   try {
+    // Si une instance spécifique est demandée
+    if (specificInstanceId) {
+      const specific = await WhatsAppInstance.findOne({
+        _id: specificInstanceId,
+        isActive: true,
+        status: { $in: ['connected', 'active'] }
+      });
+      if (specific) return specific;
+      console.warn(`⚠️ Instance spécifique ${specificInstanceId} non trouvée ou déconnectée, fallback auto-detect`);
+    }
+
     // Chercher une instance active et connectée pour ce workspace
     const instance = await WhatsAppInstance.findOne({
       workspaceId,
@@ -42,7 +54,7 @@ async function getActiveInstance(workspaceId) {
  * @param {string} params.firstName - Prénom de l'utilisateur (optionnel)
  * @returns {Promise<Object>} Résultat de l'envoi
  */
-export async function sendWhatsAppMessage({ to, message, workspaceId, userId, firstName }) {
+export async function sendWhatsAppMessage({ to, message, workspaceId, userId, firstName, instanceId }) {
   try {
     if (!to || !message) {
       throw new Error('Numéro de téléphone et message requis');
@@ -52,8 +64,8 @@ export async function sendWhatsAppMessage({ to, message, workspaceId, userId, fi
       throw new Error('workspaceId requis pour envoyer un message WhatsApp');
     }
 
-    // Récupérer l'instance active
-    const instance = await getActiveInstance(workspaceId);
+    // Récupérer l'instance active (spécifique ou auto-detect)
+    const instance = await getActiveInstance(workspaceId, instanceId);
     
     if (!instance) {
       console.error(`❌ [WhatsApp] Aucune instance connectée pour workspace ${workspaceId}`);
@@ -184,7 +196,7 @@ export async function sendOrderNotification(order, workspaceId) {
  * @param {string} params.workspaceId - ID du workspace
  * @returns {Promise<Object>} Résultat de l'envoi
  */
-export async function sendWhatsAppMedia({ to, mediaUrl, caption, workspaceId }) {
+export async function sendWhatsAppMedia({ to, mediaUrl, caption, workspaceId, instanceId }) {
   try {
     if (!to || !mediaUrl) {
       throw new Error('Numéro de téléphone et URL média requis');
@@ -194,8 +206,8 @@ export async function sendWhatsAppMedia({ to, mediaUrl, caption, workspaceId }) 
       throw new Error('workspaceId requis pour envoyer un média WhatsApp');
     }
 
-    // Récupérer l'instance active
-    const instance = await getActiveInstance(workspaceId);
+    // Récupérer l'instance active (spécifique ou auto-detect)
+    const instance = await getActiveInstance(workspaceId, instanceId);
     
     if (!instance) {
       throw new Error('Aucune instance WhatsApp connectée. Veuillez configurer WhatsApp dans les paramètres.');
@@ -249,7 +261,7 @@ export async function sendWhatsAppMedia({ to, mediaUrl, caption, workspaceId }) 
  * @param {string} params.workspaceId - ID du workspace
  * @returns {Promise<Object>} Résultat de l'envoi
  */
-export async function sendWhatsAppAudio({ to, audioUrl, workspaceId }) {
+export async function sendWhatsAppAudio({ to, audioUrl, workspaceId, instanceId }) {
   try {
     if (!to || !audioUrl) {
       throw new Error('Numéro de téléphone et URL audio requis');
@@ -259,7 +271,7 @@ export async function sendWhatsAppAudio({ to, audioUrl, workspaceId }) {
       throw new Error('workspaceId requis pour envoyer un audio WhatsApp');
     }
 
-    const instance = await getActiveInstance(workspaceId);
+    const instance = await getActiveInstance(workspaceId, instanceId);
     
     if (!instance) {
       throw new Error('Aucune instance WhatsApp connectée. Veuillez configurer WhatsApp dans les paramètres.');
