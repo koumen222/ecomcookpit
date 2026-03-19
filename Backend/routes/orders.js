@@ -3983,23 +3983,33 @@ router.get('/config/whatsapp', requireEcomAuth, validateEcomAccess('products', '
 // GET /api/ecom/orders/whatsapp-instances - Lister les instances WhatsApp du workspace
 router.get('/whatsapp-instances', requireEcomAuth, validateEcomAccess('products', 'read'), async (req, res) => {
   try {
+    const userId = req.ecomUser?._id ? String(req.ecomUser._id) : null;
+    
+    // Chercher par workspaceId OU userId pour couvrir tous les cas
+    const orConditions = [];
+    if (req.workspaceId) orConditions.push({ workspaceId: req.workspaceId });
+    if (userId) orConditions.push({ userId });
+    
+    if (orConditions.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
     const instances = await WhatsAppInstance.find({
-      workspaceId: req.workspaceId,
+      $or: orConditions,
       isActive: true
     }).select('_id instanceName customName status lastSeen').sort({ lastSeen: -1 });
 
-    // Fallback: chercher aussi par userId si pas d'instance par workspace
-    let allInstances = instances;
-    if (instances.length === 0 && req.ecomUser?._id) {
-      allInstances = await WhatsAppInstance.find({
-        userId: String(req.ecomUser._id),
-        isActive: true
-      }).select('_id instanceName customName status lastSeen').sort({ lastSeen: -1 });
-    }
+    // Dédupliquer par instanceName
+    const seen = new Set();
+    const unique = instances.filter(i => {
+      if (seen.has(i.instanceName)) return false;
+      seen.add(i.instanceName);
+      return true;
+    });
 
     res.json({
       success: true,
-      data: allInstances.map(i => ({
+      data: unique.map(i => ({
         _id: i._id,
         instanceName: i.instanceName,
         customName: i.customName || i.instanceName,
