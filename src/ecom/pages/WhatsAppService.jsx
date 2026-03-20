@@ -2947,15 +2947,10 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                         </div>
 
                         <div>
-                          <label className="text-[12px] font-medium text-gray-700 mb-1 block">Reference ID (voix clonée)</label>
-                          <input
-                            type="text"
-                            value={config.fishAudioReferenceId || ''}
-                            onChange={e => set('fishAudioReferenceId', e.target.value)}
-                            placeholder="ex: 13f7f6e260f94079b9d51c961fa6c9e2"
-                            className="w-full px-3 py-2 text-[13px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
-                          />
-                          <p className="text-[10px] text-gray-400 mt-1">L'identifiant de la voix clonée sur Fish.audio</p>
+                          <div className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                            <p className="text-[12px] font-medium text-slate-800">Sélection par cartes de voix</p>
+                            <p className="text-[10px] text-slate-600 mt-1">Le choix de la voix se fait directement dans la liste ci-dessous. Le champ technique Reference ID a été retiré.</p>
+                          </div>
                         </div>
 
                         <div>
@@ -2964,14 +2959,20 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                             {[
                               {
                                 id: '13f7f6e260f94079b9d51c961fa6c9e2',
-                                name: 'Voix Fish par défaut',
-                                desc: 'Modèle Fish.audio · FR · Voix avancée par défaut',
+                                name: 'Michelle',
+                                desc: 'Modèle Fish.audio · Femme · FR · Voix avancée par défaut',
                                 badge: '✨ Par défaut',
+                              },
+                              {
+                                id: '3846aca8ddb64a5a82ab2e097844861d',
+                                name: 'Richard',
+                                desc: 'Modèle Fish.audio · Homme · FR · Voix avancée',
+                                badge: '🆕 Intégrée',
                               },
                               {
                                 id: '14b22748e04a48a58f92fbcde088ee50',
                                 name: 'Ebilove',
-                                desc: 'Voix clonée Fish.audio · FR · Voix avancée',
+                                desc: 'Voix clonée Fish.audio · Femme · FR · Voix avancée',
                                 badge: '⭐ Intégrée',
                               },
                               ...((config.fishAudioVoices || []).map(voice => ({
