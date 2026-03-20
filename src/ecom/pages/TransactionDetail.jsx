@@ -37,9 +37,7 @@ const TransactionDetail = () => {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF' }).format(amount || 0);
-  };
+
 
   if (loading) return (
     <div className="p-4 sm:p-6">

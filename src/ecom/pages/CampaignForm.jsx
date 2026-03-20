@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import ecomApi from "../services/ecommApi.js";
+import { useMoney } from '../hooks/useMoney.js';
 
 const TEMPLATES = [
   { id: "relance_pending", label: "En attente", name: "Relance commandes en attente", orderStatus: ["pending"], message: "Bonjour {firstName},\n\nNous avons bien reçu votre commande et elle est actuellement en attente de confirmation.\n\nPour finaliser votre livraison, notre équipe a besoin de valider quelques informations.\n\nPouvez-vous confirmer que vous êtes toujours intéressé(e) ?\n\nRépondez OUI et nous nous occupons du reste.\n\nCordialement,\nL'équipe Scalor" },
@@ -72,6 +73,7 @@ const IconSpinner = () => (
 );
 
 const CampaignForm = () => {
+  const { symbol } = useMoney();
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = !!id;
@@ -525,8 +527,8 @@ const CampaignForm = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div><label className="block text-xs font-medium text-gray-600 mb-1">Date début</label><input type="date" value={formData.targetFilters.orderDateFrom} onChange={e=>{updateFilter("orderDateFrom",e.target.value);setTimeout(handlePreview,300);}} className={inp}/></div>
                   <div><label className="block text-xs font-medium text-gray-600 mb-1">Date fin</label><input type="date" value={formData.targetFilters.orderDateTo} onChange={e=>{updateFilter("orderDateTo",e.target.value);setTimeout(handlePreview,300);}} className={inp}/></div>
-                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Prix min (FCFA)</label><input type="number" min="0" value={formData.targetFilters.orderMinPrice||""} placeholder="0" onChange={e=>updateFilter("orderMinPrice",parseInt(e.target.value)||0)} className={inp}/></div>
-                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Prix max (FCFA)</label><input type="number" min="0" value={formData.targetFilters.orderMaxPrice||""} placeholder="0" onChange={e=>updateFilter("orderMaxPrice",parseInt(e.target.value)||0)} className={inp}/></div>
+                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Prix min ({symbol})</label><input type="number" min="0" value={formData.targetFilters.orderMinPrice||""} placeholder="0" onChange={e=>updateFilter("orderMinPrice",parseInt(e.target.value)||0)} className={inp}/></div>
+                  <div><label className="block text-xs font-medium text-gray-600 mb-1">Prix max ({symbol})</label><input type="number" min="0" value={formData.targetFilters.orderMaxPrice||""} placeholder="0" onChange={e=>updateFilter("orderMaxPrice",parseInt(e.target.value)||0)} className={inp}/></div>
                 </div>
 
                 {/* Audience result */}

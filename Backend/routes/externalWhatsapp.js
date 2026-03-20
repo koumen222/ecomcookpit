@@ -7,9 +7,10 @@ import EcomUser from '../models/EcomUser.js';
 import RitaConfig from '../models/RitaConfig.js';
 import WhatsAppOrder from '../models/WhatsAppOrder.js';
 import Order from '../models/Order.js';
+import RitaContact from '../models/RitaContact.js';
 import { normalizePhone } from '../utils/phoneUtils.js';
 import evolutionApiService from '../services/evolutionApiService.js';
-import { processIncomingMessage, generateTestReply, transcribeAudio, textToSpeech, getLastAssistantMessage } from '../services/ritaAgentService.js';
+import { processIncomingMessage, generateTestReply, transcribeAudio, textToSpeech, textToSpeechFishAudio, getLastAssistantMessage, getTtsVoiceSettings } from '../services/ritaAgentService.js';
 import { logRitaActivity } from '../services/ritaBossReportService.js';
 import { analyzeImage as analyzeProductImage } from '../services/agentImageService.js';
 import { uploadImage as uploadImageToR2, isConfigured as isR2Configured } from '../services/cloudflareImagesService.js';
@@ -18,6 +19,7 @@ import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const FISH_AUDIO_DIRECT_API_KEY = process.env.FISH_AUDIO_API_KEY || '203f946aa7b3454184fd28fc7eb1f33b';
 
 // ─── Multer config pour upload d'images/vidéos produit Rita ───────────────
 // On utilise memoryStorage pour envoyer directement à R2 (fallback disk si R2 indisponible)
@@ -50,6 +52,16 @@ const _uploadDisk = multer({
   },
 });
 const _upload = isR2Configured() ? _uploadMemory : _uploadDisk;
+const _uploadAudioMemory = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('audio/')) {
+      return cb(new Error('Seuls les fichiers audio sont acceptés'));
+    }
+    cb(null, true);
+  },
+});
 
 const HARD_CODED_WEBHOOK_BASE_URL = 'https://api.scalor.net';
 
@@ -872,6 +884,97 @@ router.post('/upload-image', requireEcomAuth, _upload.any(), async (req, res) =>
 });
 
 /**
+ * @route   POST /api/ecom/v1/external/whatsapp/fish-voice
+ * @desc    Crée une voix Fish.audio à partir d'un ou plusieurs échantillons audio et l'enregistre dans Rita
+ */
+router.post('/fish-voice', requireEcomAuth, _uploadAudioMemory.any(), async (req, res) => {
+  try {
+    const files = req.files || [];
+    const { userId, title, description = '', visibility = 'private' } = req.body;
+    let texts = req.body.texts || [];
+
+    if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
+    if (!title?.trim()) return res.status(400).json({ success: false, error: 'Nom de voix requis' });
+    if (!files.length) return res.status(400).json({ success: false, error: 'Au moins un fichier audio est requis' });
+
+    if (!Array.isArray(texts)) texts = texts ? [texts] : [];
+
+    const form = new FormData();
+    form.append('title', title.trim());
+    form.append('description', description.trim());
+    form.append('visibility', visibility);
+    form.append('type', 'tts');
+    form.append('train_mode', 'fast');
+    form.append('enhance_audio_quality', 'true');
+
+    files.forEach((file) => {
+      const blob = new Blob([file.buffer], { type: file.mimetype || 'audio/mpeg' });
+      form.append('voices', blob, file.originalname || `sample-${Date.now()}.mp3`);
+    });
+
+    texts.filter(Boolean).forEach((text) => {
+      form.append('texts', String(text));
+    });
+
+    const fishResponse = await fetch('https://api.fish.audio/model', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${FISH_AUDIO_DIRECT_API_KEY}`,
+      },
+      body: form,
+    });
+
+    const fishResult = await fishResponse.json();
+    if (!fishResponse.ok) {
+      return res.status(fishResponse.status).json({
+        success: false,
+        error: fishResult?.message || fishResult?.error || 'Création de voix Fish.audio échouée',
+        details: fishResult,
+      });
+    }
+
+    const voiceId = fishResult.id || fishResult._id;
+    if (!voiceId) {
+      return res.status(500).json({ success: false, error: 'Fish.audio n\'a pas retourné d\'identifiant de voix' });
+    }
+
+    const voiceEntry = {
+      id: voiceId,
+      name: fishResult.title || title.trim(),
+      description: fishResult.description || description.trim(),
+      state: fishResult.state || 'ready',
+      visibility: fishResult.visibility || visibility,
+      createdAt: fishResult.created_at || new Date(),
+      sampleCount: files.length,
+      source: 'fish.audio',
+    };
+
+    const existingConfig = await RitaConfig.findOne({ userId }).lean();
+    const existingVoices = Array.isArray(existingConfig?.fishAudioVoices) ? existingConfig.fishAudioVoices : [];
+    const dedupedVoices = [
+      voiceEntry,
+      ...existingVoices.filter((voice) => voice?.id !== voiceId),
+    ];
+
+    const updated = await RitaConfig.findOneAndUpdate(
+      { userId },
+      {
+        userId,
+        fishAudioVoices: dedupedVoices,
+        fishAudioReferenceId: voiceId,
+        ttsProvider: 'fishaudio',
+      },
+      { upsert: true, new: true, runValidators: false }
+    );
+
+    res.status(200).json({ success: true, voice: voiceEntry, config: updated, fish: fishResult });
+  } catch (error) {
+    console.error('❌ Erreur création fish-voice:', error.response?.data || error.message);
+    res.status(500).json({ success: false, error: error.message || 'Erreur création Fish.audio' });
+  }
+});
+
+/**
  * @route   GET /api/ecom/v1/external/whatsapp/incoming
  * @desc    Endpoint de diagnostic pour vérifier que l'URL webhook est bien exposée.
  */
@@ -935,6 +1038,24 @@ router.post('/incoming', async (req, res) => {
             msg.message?.listResponseMessage?.title ||
             '';
           const pushName = msg.pushName || data?.pushName || '';
+
+          // ─── Détecter message cité (reply/quote) et injecter le contexte ───
+          const contextInfo = msg.message?.extendedTextMessage?.contextInfo;
+          if (contextInfo?.quotedMessage) {
+            const quotedText =
+              contextInfo.quotedMessage.conversation ||
+              contextInfo.quotedMessage.extendedTextMessage?.text ||
+              contextInfo.quotedMessage.imageMessage?.caption ||
+              contextInfo.quotedMessage.videoMessage?.caption ||
+              '';
+            if (quotedText) {
+              const quotedFrom = contextInfo.participant || '';
+              const isQuotedFromBot = msg.key?.fromMe === false && (contextInfo.quotedMessage?.key?.fromMe || !quotedFrom || quotedFrom === from);
+              const quotedLabel = isQuotedFromBot ? 'ton propre message précédent' : 'un message précédent';
+              text = `[Le client répond à ${quotedLabel} : "${quotedText.substring(0, 300)}"] ${text}`;
+              console.log(`💬 [RITA] Message cité détecté: "${quotedText.substring(0, 100)}"`);
+            }
+          }
 
           console.log(`📩 [WH INCOMING] Message — from=${from} fromMe=${fromMe} isAudio=${isAudio} text="${(text || '').substring(0, 80)}"`);
           if (pushName) {
@@ -1061,13 +1182,89 @@ router.post('/incoming', async (req, res) => {
               if (pending) {
                 console.log(`🤝 [BOSS] Réponse boss reçue → transmission au client ${pending.clientPhone}`);
                 const clientJid = `${pending.clientPhone}@s.whatsapp.net`;
-                await evolutionApiService.sendMessage(
-                  instanceDoc.instanceName,
-                  instanceDoc.instanceToken,
-                  clientJid,
-                  text
-                );
-                logRitaActivity(userId, 'message_replied', { customerPhone: pending.clientPhone, details: `[Boss reply] ${text.substring(0, 200)}` });
+
+                // Détecter si le boss envoie un media (image, vidéo, document)
+                const bossImage = msg.message?.imageMessage;
+                const bossVideo = msg.message?.videoMessage;
+                const bossDocument = msg.message?.documentMessage;
+                const bossHasMedia = !!(bossImage || bossVideo || bossDocument);
+
+                if (bossHasMedia) {
+                  // Télécharger le media du boss et le transmettre au client
+                  try {
+                    const mediaData = await evolutionApiService.getMediaBase64(
+                      instanceDoc.instanceName,
+                      instanceDoc.instanceToken,
+                      msg.key
+                    );
+                    if (mediaData?.base64) {
+                      const mimetype = mediaData.mimetype || bossImage?.mimetype || bossVideo?.mimetype || bossDocument?.mimetype || 'application/octet-stream';
+                      const caption = bossImage?.caption || bossVideo?.caption || text || '';
+                      const isVideoMedia = !!bossVideo || /video/i.test(mimetype);
+                      const isImageMedia = !!bossImage || /image/i.test(mimetype);
+
+                      if (isVideoMedia) {
+                        const dataUri = `data:${mimetype};base64,${mediaData.base64}`;
+                        const result = await evolutionApiService.sendVideo(
+                          instanceDoc.instanceName, instanceDoc.instanceToken,
+                          clientJid, dataUri, caption, 'video.mp4'
+                        );
+                        console.log(`${result.success ? '✅' : '❌'} [BOSS] Vidéo boss transférée au client ${pending.clientPhone}`);
+                      } else if (isImageMedia) {
+                        const dataUri = `data:${mimetype};base64,${mediaData.base64}`;
+                        const result = await evolutionApiService.sendMedia(
+                          instanceDoc.instanceName, instanceDoc.instanceToken,
+                          clientJid, dataUri, caption, 'image.jpg'
+                        );
+                        console.log(`${result.success ? '✅' : '❌'} [BOSS] Image boss transférée au client ${pending.clientPhone}`);
+                      } else {
+                        // Document ou autre — envoyer en tant que media
+                        const fileName = bossDocument?.fileName || 'document';
+                        const dataUri = `data:${mimetype};base64,${mediaData.base64}`;
+                        const result = await evolutionApiService.sendMedia(
+                          instanceDoc.instanceName, instanceDoc.instanceToken,
+                          clientJid, dataUri, caption, fileName
+                        );
+                        console.log(`${result.success ? '✅' : '❌'} [BOSS] Document boss transféré au client ${pending.clientPhone}`);
+                      }
+
+                      // Si le boss a aussi du texte en plus du media, l'envoyer aussi
+                      if (text && !caption) {
+                        await evolutionApiService.sendMessage(
+                          instanceDoc.instanceName, instanceDoc.instanceToken,
+                          clientJid, text
+                        );
+                      }
+                    } else {
+                      console.error(`❌ [BOSS] Impossible de télécharger le media du boss`);
+                      // Fallback: envoyer au moins le texte s'il y en a
+                      if (text) {
+                        await evolutionApiService.sendMessage(
+                          instanceDoc.instanceName, instanceDoc.instanceToken,
+                          clientJid, text
+                        );
+                      }
+                    }
+                  } catch (mediaErr) {
+                    console.error(`❌ [BOSS] Erreur transfert media boss:`, mediaErr.message);
+                    if (text) {
+                      await evolutionApiService.sendMessage(
+                        instanceDoc.instanceName, instanceDoc.instanceToken,
+                        clientJid, text
+                      );
+                    }
+                  }
+                } else {
+                  // Le boss envoie du texte simple → transmettre tel quel
+                  await evolutionApiService.sendMessage(
+                    instanceDoc.instanceName,
+                    instanceDoc.instanceToken,
+                    clientJid,
+                    text
+                  );
+                }
+
+                logRitaActivity(userId, 'message_replied', { customerPhone: pending.clientPhone, details: `[Boss reply${bossHasMedia ? ' +media' : ''}] ${(text || '').substring(0, 200)}` });
                 console.log(`✅ [BOSS] Réponse transmise au client ${pending.clientPhone}`);
                 continue; // Ne pas traiter ce message comme une conversation client
               } else {
@@ -1078,6 +1275,35 @@ router.post('/incoming', async (req, res) => {
 
           // Log message reçu
           logRitaActivity(userId, 'message_received', { customerPhone: from.replace(/@.*$/, ''), customerName: pushName || '', details: text.substring(0, 200) });
+
+          // ─── Enregistrer / mettre à jour le contact automatiquement ───
+          try {
+            const contactPhone = from.replace(/@.*$/, '');
+            const existingContact = await RitaContact.findOne({ userId, phone: contactPhone });
+            if (existingContact) {
+              existingContact.lastMessageAt = new Date();
+              existingContact.messageCount = (existingContact.messageCount || 0) + 1;
+              if (pushName && !existingContact.pushName) existingContact.pushName = pushName;
+              await existingContact.save();
+            } else {
+              const lastContact = await RitaContact.findOne({ userId }).sort({ clientNumber: -1 }).lean();
+              const nextNumber = (lastContact?.clientNumber || 0) + 1;
+              await RitaContact.create({
+                userId,
+                phone: contactPhone,
+                pushName: pushName || '',
+                clientNumber: nextNumber,
+                firstMessageAt: new Date(),
+                lastMessageAt: new Date(),
+                messageCount: 1,
+              });
+              console.log(`📇 [RITA] Nouveau contact enregistré: Client ${nextNumber} (${contactPhone}, ${pushName || 'sans nom'})`);
+            }
+          } catch (contactErr) {
+            if (contactErr.code !== 11000) {
+              console.error('⚠️ [RITA] Erreur enregistrement contact:', contactErr.message);
+            }
+          }
 
           // ─── Vérifier si ce client est en attente d'une réponse boss (escalade) ───
           const cleanFromEarly = from.replace(/@.*$/, '');
@@ -1141,6 +1367,14 @@ router.post('/incoming', async (req, res) => {
               });
               console.log(`✅ [RITA] WhatsAppOrder enregistrée pour ${cleanFrom}`);
               logRitaActivity(userId, 'order_confirmed', { customerPhone: cleanFrom, customerName: orderData.name || '', product: orderData.product || '', price: orderData.price || '' });
+
+              // Marquer le contact comme ayant commandé
+              try {
+                await RitaContact.findOneAndUpdate(
+                  { userId, phone: cleanFrom },
+                  { hasOrdered: true }
+                );
+              } catch (_) { /* ignore */ }
 
               // ─── Créer aussi une vraie commande dans ecom_orders (source: rita) ───
               if (instanceDoc.workspaceId) {
@@ -1285,8 +1519,10 @@ router.post('/incoming', async (req, res) => {
             }
           }
 
+          // ─── Détecter tag [IMAGES_ALL:Nom du produit] pour envoi de TOUTES les photos ───
+          const imagesAllTagMatch = replyClean.match(/\[IMAGES_ALL:(.+?)\]/);
           // ─── Détecter tag [IMAGE:Nom du produit] pour envoi de photos ───
-          const imageTagMatch = replyClean.match(/\[IMAGE:(.+?)\]/);
+          const imageTagMatch = !imagesAllTagMatch ? replyClean.match(/\[IMAGE:(.+?)\]/) : null;
           // ─── Détecter tag [VIDEO:Nom du produit] pour envoi de vidéos ───
           const videoTagMatch = replyClean.match(/\[VIDEO:(.+?)\]/);
           let textToSend = replyClean;
@@ -1295,8 +1531,33 @@ router.post('/incoming', async (req, res) => {
           let videoUrl = null;
           let videoProductName = null;
           let matchedProductForMedia = null;
+          let sendAllImages = false; // flag pour envoyer toutes les images
 
-          if (imageTagMatch) {
+          if (imagesAllTagMatch) {
+            // Mode: envoyer TOUTES les images du produit
+            imageProductName = imagesAllTagMatch[1].trim();
+            textToSend = textToSend.replace(/\s*\[IMAGES_ALL:.+?\]/g, '').trim();
+            console.log(`📸📸 [RITA] Tag IMAGES_ALL détecté pour produit: "${imageProductName}"`);
+
+            const ritaCfg = await RitaConfig.findOne({ userId }).lean();
+            const catalog = ritaCfg?.productCatalog || [];
+            const product = findProductByName(catalog, imageProductName);
+            console.log(`📸📸 [RITA] Produit trouvé: ${product ? product.name : 'AUCUN'} | images: ${product?.images?.length || 0}`);
+
+            if (product?.images?.length) {
+              imageUrl = product.images[0];
+              if (imageUrl && imageUrl.startsWith('/')) {
+                imageUrl = `https://api.scalor.net${imageUrl}`;
+              }
+              matchedProductForMedia = product;
+              sendAllImages = true;
+              console.log(`📸📸 [RITA] ${product.images.length} image(s) à envoyer pour ${product.name}`);
+            } else {
+              console.log(`📸📸 [RITA] Aucune image pour "${imageProductName}"`);
+              const noImgMsg = `Désolé, on n'a pas encore de photos de ce produit 🙏 Mais je peux te donner tous les détails !`;
+              if (!textToSend) { textToSend = noImgMsg; } else { textToSend += `\n\n${noImgMsg}`; }
+            }
+          } else if (imageTagMatch) {
             imageProductName = imageTagMatch[1].trim();
             textToSend = textToSend.replace(/\s*\[IMAGE:.+?\]/g, '').trim();
             console.log(`📸 [RITA] Tag image détecté pour produit: "${imageProductName}"`);
@@ -1324,7 +1585,7 @@ router.post('/incoming', async (req, res) => {
             }
           }
 
-          if (videoTagMatch && !imageTagMatch) {
+          if (videoTagMatch && !imageTagMatch && !imagesAllTagMatch) {
             videoProductName = videoTagMatch[1].trim();
             textToSend = textToSend.replace(/\s*\[VIDEO:.+?\]/g, '').trim();
             console.log(`🎬 [RITA] Tag vidéo détecté pour produit: "${videoProductName}"`);
@@ -1342,6 +1603,12 @@ router.post('/incoming', async (req, res) => {
               console.log(`🎬 [RITA] Vidéo trouvée: ${videoUrl}`);
             } else {
               console.log(`🎬 [RITA] Aucune vidéo trouvée pour "${videoProductName}"`);
+              const noVideoMsg = `Désolé, on n'a pas encore de vidéo pour ce produit 🙏 Mais je peux te montrer les photos ou te donner plus de détails !`;
+              if (!textToSend) {
+                textToSend = noVideoMsg;
+              } else {
+                textToSend += `\n\n${noVideoMsg}`;
+              }
             }
           }
 
@@ -1349,10 +1616,12 @@ router.post('/incoming', async (req, res) => {
           const ritaCfgVoice = await RitaConfig.findOne({ userId }).lean();
           // Utiliser la clé API de la config Rita OU celle du .env en fallback
           const effectiveApiKey = ritaCfgVoice?.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY || '';
-          const ttsConfig = { ...ritaCfgVoice, elevenlabsApiKey: effectiveApiKey };
+          const effectiveFishKey = ritaCfgVoice?.fishAudioApiKey || FISH_AUDIO_DIRECT_API_KEY;
+          const ttsConfig = { ...ritaCfgVoice, elevenlabsApiKey: effectiveApiKey, fishAudioApiKey: effectiveFishKey };
           // responseMode: 'text' | 'voice' | 'both'. Legacy compat: voiceMode=true → 'voice'
           const responseMode = ritaCfgVoice?.responseMode || (ritaCfgVoice?.voiceMode ? 'voice' : 'text');
-          const canDoVoice = !!(effectiveApiKey && textToSend);
+          const isFishAudio = ritaCfgVoice?.ttsProvider === 'fishaudio';
+          const canDoVoice = !!((isFishAudio ? effectiveFishKey : effectiveApiKey) && textToSend);
 
           // Détecter le tag [VOICE] dans la réponse → Rita a décidé d'envoyer un vocal
           const hasVoiceTag = /\[VOICE\]/i.test(textToSend);
@@ -1383,13 +1652,13 @@ router.post('/incoming', async (req, res) => {
               useVoiceThisTurn = true;
               console.log(`🎙️ [RITA] Commande confirmée — vocal pour confirmation (mode both)`);
             } else if (hasVoiceTag) {
-              // Tag [VOICE] en mode both = explication longue → 10% de chance (~1 fois sur 10)
-              const randomChance = Math.random() < 0.10;
+              // Tag [VOICE] en mode both = ~35% de chance (équilibre vocal/texte)
+              const randomChance = Math.random() < 0.35;
               if (randomChance) {
                 useVoiceThisTurn = true;
-                console.log(`🎙️ [RITA] Explication longue — vocal accordé (1/10, mode both)`);
+                console.log(`🎙️ [RITA] Vocal accordé (35%, mode both)`);
               } else {
-                console.log(`🔇 [RITA] Explication longue — texte cette fois (tirage 10%, mode both)`);
+                console.log(`🔇 [RITA] Texte cette fois (tirage 35%, mode both)`);
               }
             }
           }
@@ -1459,77 +1728,119 @@ router.post('/incoming', async (req, res) => {
             }
           }
 
-          // Envoyer l'image si disponible
+          // Envoyer l'image (ou TOUTES les images) si disponible
           if (imageUrl) {
-            // Déduire l'extension réelle de l'URL pour le fileName
-            const imgExt = (imageUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
-            const imgFileName = `product.${imgExt}`;
-            console.log(`📸 [RITA] Envoi image à ${cleanFrom}... URL: ${imageUrl}`);
-            let imageSent = false;
-
-            // Essayer avec l'URL principale
-            const mediaResult = await evolutionApiService.sendMedia(
-              instanceDoc.instanceName,
-              instanceDoc.instanceToken,
-              cleanFrom,
-              imageUrl,
-              '',
-              imgFileName
-            );
-            if (mediaResult.success) {
-              imageSent = true;
-              console.log(`✅ [RITA] Image envoyée avec succès à ${cleanFrom}`);
-              logRitaActivity(userId, 'image_sent', { customerPhone: cleanFrom });
-            } else {
-              console.error(`❌ [RITA] Échec envoi image (tentative 1) à ${cleanFrom}:`, mediaResult.error);
-              // Retry avec les autres images du produit
-              if (matchedProductForMedia?.images?.length > 1) {
-                for (let imgIdx = 1; imgIdx < matchedProductForMedia.images.length; imgIdx++) {
-                  let altUrl = matchedProductForMedia.images[imgIdx];
-                  if (altUrl && altUrl.startsWith('/')) altUrl = `https://api.scalor.net${altUrl}`;
-                  if (!altUrl) continue;
-                  const altExt = (altUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
-                  console.log(`📸 [RITA] Retry avec image alternative ${imgIdx + 1}: ${altUrl}`);
-                  const retryResult = await evolutionApiService.sendMedia(
+            if (sendAllImages && matchedProductForMedia?.images?.length > 1) {
+              // ─── MODE TOUTES LES IMAGES ───
+              console.log(`📸📸 [RITA] Envoi de ${matchedProductForMedia.images.length} images à ${cleanFrom}`);
+              let imagesSentCount = 0;
+              for (let imgIdx = 0; imgIdx < matchedProductForMedia.images.length; imgIdx++) {
+                let imgUrl = matchedProductForMedia.images[imgIdx];
+                if (!imgUrl) continue;
+                if (imgUrl.startsWith('/')) imgUrl = `https://api.scalor.net${imgUrl}`;
+                const ext = (imgUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
+                try {
+                  const result = await evolutionApiService.sendMedia(
                     instanceDoc.instanceName,
                     instanceDoc.instanceToken,
                     cleanFrom,
-                    altUrl,
+                    imgUrl,
                     '',
-                    `product.${altExt}`
+                    `product_${imgIdx + 1}.${ext}`
                   );
-                  if (retryResult.success) {
-                    imageSent = true;
-                    console.log(`✅ [RITA] Image alternative ${imgIdx + 1} envoyée avec succès`);
+                  if (result.success) {
+                    imagesSentCount++;
+                    console.log(`✅ [RITA] Image ${imgIdx + 1}/${matchedProductForMedia.images.length} envoyée`);
                     logRitaActivity(userId, 'image_sent', { customerPhone: cleanFrom });
-                    break;
+                  } else {
+                    console.error(`❌ [RITA] Échec image ${imgIdx + 1}: ${result.error}`);
                   }
+                  // Petit délai entre chaque image pour éviter le flood
+                  if (imgIdx < matchedProductForMedia.images.length - 1) {
+                    await new Promise(r => setTimeout(r, 800));
+                  }
+                } catch (imgErr) {
+                  console.error(`❌ [RITA] Erreur envoi image ${imgIdx + 1}:`, imgErr.message);
                 }
               }
-            }
+              if (imagesSentCount === 0) {
+                await evolutionApiService.sendMessage(
+                  instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom,
+                  `Désolé, je n'arrive pas à envoyer les photos en ce moment 🙏 Mais le produit est bien disponible !`
+                );
+              } else {
+                console.log(`📸📸 [RITA] ${imagesSentCount}/${matchedProductForMedia.images.length} images envoyées à ${cleanFrom}`);
+              }
+            } else {
+              // ─── MODE IMAGE UNIQUE (défaut) ───
+              const imgExt = (imageUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
+              const imgFileName = `product.${imgExt}`;
+              console.log(`📸 [RITA] Envoi image à ${cleanFrom}... URL: ${imageUrl}`);
+              let imageSent = false;
 
-            if (!imageSent) {
-              console.error(`❌ [RITA] Toutes les tentatives d'envoi image ont échoué pour ${cleanFrom}`);
-              console.error(`   URL tentée: ${imageUrl}`);
-              console.error(`   Produit: ${matchedProductForMedia?.name || 'N/A'}, Images: ${JSON.stringify(matchedProductForMedia?.images || [])}`);
-              await evolutionApiService.sendMessage(
+              const mediaResult = await evolutionApiService.sendMedia(
                 instanceDoc.instanceName,
                 instanceDoc.instanceToken,
                 cleanFrom,
-                `Désolé, je n'arrive pas à envoyer la photo en ce moment 🙏 Mais le produit est bien disponible, tu veux qu'on te le réserve ?`
+                imageUrl,
+                '',
+                imgFileName
               );
+              if (mediaResult.success) {
+                imageSent = true;
+                console.log(`✅ [RITA] Image envoyée avec succès à ${cleanFrom}`);
+                logRitaActivity(userId, 'image_sent', { customerPhone: cleanFrom });
+              } else {
+                console.error(`❌ [RITA] Échec envoi image (tentative 1) à ${cleanFrom}:`, mediaResult.error);
+                if (matchedProductForMedia?.images?.length > 1) {
+                  for (let imgIdx = 1; imgIdx < matchedProductForMedia.images.length; imgIdx++) {
+                    let altUrl = matchedProductForMedia.images[imgIdx];
+                    if (altUrl && altUrl.startsWith('/')) altUrl = `https://api.scalor.net${altUrl}`;
+                    if (!altUrl) continue;
+                    const altExt = (altUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
+                    console.log(`📸 [RITA] Retry avec image alternative ${imgIdx + 1}: ${altUrl}`);
+                    const retryResult = await evolutionApiService.sendMedia(
+                      instanceDoc.instanceName,
+                      instanceDoc.instanceToken,
+                      cleanFrom,
+                      altUrl,
+                      '',
+                      `product.${altExt}`
+                    );
+                    if (retryResult.success) {
+                      imageSent = true;
+                      console.log(`✅ [RITA] Image alternative ${imgIdx + 1} envoyée avec succès`);
+                      logRitaActivity(userId, 'image_sent', { customerPhone: cleanFrom });
+                      break;
+                    }
+                  }
+                }
+              }
+
+              if (!imageSent) {
+                console.error(`❌ [RITA] Toutes les tentatives d'envoi image ont échoué pour ${cleanFrom}`);
+                console.error(`   URL tentée: ${imageUrl}`);
+                console.error(`   Produit: ${matchedProductForMedia?.name || 'N/A'}, Images: ${JSON.stringify(matchedProductForMedia?.images || [])}`);
+                await evolutionApiService.sendMessage(
+                  instanceDoc.instanceName,
+                  instanceDoc.instanceToken,
+                  cleanFrom,
+                  `Désolé, je n'arrive pas à envoyer la photo en ce moment 🙏 Mais le produit est bien disponible, tu veux qu'on te le réserve ?`
+                );
+              }
             }
 
             // ─── RELANCE après image: proposer achat avec prix ───
             // Seulement si le texte de Rita ne contient pas déjà une offre de closing
-            const textAlreadyCloses = /confirm|réserv|commande|livr|veux qu|tu veux|on fait|je te prépare/i.test(textToSend);
-            if (matchedProductForMedia && !textAlreadyCloses) {
+            // ET si le texte de Rita est vide/très court (image seule)
+            const textAlreadyCloses = /confirm|réserv|commande|livr|veux qu|tu veux|on fait|je te prépare|prix|fcfa|\d{3,}/i.test(textToSend);
+            const textAlreadySubstantial = textToSend && textToSend.length > 30;
+            if (matchedProductForMedia && !textAlreadyCloses && !textAlreadySubstantial && !sendAllImages) {
               const p = matchedProductForMedia;
               const followUp = p.price
                 ? `${p.name} à ${p.price} 👍 Tu veux qu'on te le réserve ?`
                 : `Tu veux qu'on te réserve le ${p.name} ? 👍`;
 
-              // Petit délai pour que l'image arrive avant le texte
               await new Promise(r => setTimeout(r, 1500));
               await evolutionApiService.sendMessage(
                 instanceDoc.instanceName,
@@ -1538,6 +1849,8 @@ router.post('/incoming', async (req, res) => {
                 followUp
               );
               console.log(`📤 [RITA] Relance après image envoyée à ${cleanFrom}`);
+            } else {
+              console.log(`ℹ️ [RITA] Pas de relance après image — texte Rita déjà suffisant (${textToSend.length} chars, closes=${textAlreadyCloses})`);
             }
           }
 
@@ -1745,22 +2058,67 @@ router.get('/rita-activity', async (req, res) => {
 });
 
 /**
+ * @route   GET /api/ecom/v1/external/whatsapp/rita-contacts
+ * @desc    Liste tous les contacts Rita enregistrés automatiquement
+ */
+router.get('/rita-contacts', async (req, res) => {
+  try {
+    const { userId, page, limit: lim } = req.query;
+    if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
+
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(lim) || 50));
+    const skip = (pageNum - 1) * limitNum;
+
+    const [contacts, total] = await Promise.all([
+      RitaContact.find({ userId })
+        .sort({ clientNumber: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      RitaContact.countDocuments({ userId }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      contacts: contacts.map(c => ({
+        clientNumber: c.clientNumber,
+        phone: c.phone,
+        pushName: c.pushName,
+        messageCount: c.messageCount,
+        hasOrdered: c.hasOrdered,
+        firstMessageAt: c.firstMessageAt,
+        lastMessageAt: c.lastMessageAt,
+        notes: c.notes,
+      })),
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum),
+    });
+  } catch (error) {
+    console.error('❌ Erreur chargement rita-contacts:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * @route   GET /api/ecom/v1/external/whatsapp/preview-voice
  * @desc    Génère un court échantillon audio ElevenLabs pour prévisualiser une voix
  */
 router.get('/preview-voice', async (req, res) => {
   try {
-    const { voiceId } = req.query;
+    const { voiceId, voiceStylePreset } = req.query;
     if (!voiceId) return res.status(400).json({ success: false, error: 'voiceId requis' });
 
     const apiKey = process.env.ELEVENLABS_API_KEY;
     if (!apiKey) return res.status(500).json({ success: false, error: 'Clé ElevenLabs non configurée' });
 
     const sampleText = 'Bonjour ! Je suis Rita, votre assistante commerciale. Comment puis-je vous aider aujourd\'hui ?';
+    const voiceSettings = getTtsVoiceSettings({ voiceStylePreset });
 
     const response = await (await import('axios')).default.post(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-      { text: sampleText, model_id: 'eleven_turbo_v2_5', voice_settings: { stability: 0.5, similarity_boost: 0.75 } },
+      { text: sampleText, model_id: 'eleven_turbo_v2_5', voice_settings: voiceSettings },
       { headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json', Accept: 'audio/mpeg' }, responseType: 'arraybuffer', timeout: 20000 }
     );
 
@@ -1769,6 +2127,42 @@ router.get('/preview-voice', async (req, res) => {
   } catch (error) {
     console.error('❌ Erreur preview-voice:', error.response?.data ? Buffer.from(error.response.data).toString('utf8') : error.message);
     res.status(500).json({ success: false, error: 'Génération audio échouée' });
+  }
+});
+
+/**
+ * @route   GET /api/ecom/v1/external/whatsapp/preview-voice-fish
+ * @desc    Génère un court échantillon audio Fish.audio pour prévisualiser une voix
+ */
+router.get('/preview-voice-fish', async (req, res) => {
+  try {
+    const { referenceId, model } = req.query;
+    const apiKey = FISH_AUDIO_DIRECT_API_KEY;
+    if (!apiKey) return res.status(500).json({ success: false, error: 'Clé Fish.audio non configurée' });
+
+    const sampleText = 'Bonjour ! Je suis Rita, votre assistante commerciale. Comment puis-je vous aider aujourd\'hui ?';
+    const refId = referenceId || '13f7f6e260f94079b9d51c961fa6c9e2';
+    const fishModel = model || 's2-pro';
+
+    const response = await (await import('axios')).default.post(
+      'https://api.fish.audio/v1/tts',
+      { text: sampleText, reference_id: refId, format: 'mp3' },
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'model': fishModel,
+        },
+        responseType: 'arraybuffer',
+        timeout: 20000,
+      }
+    );
+
+    const audioBase64 = Buffer.from(response.data).toString('base64');
+    res.json({ success: true, audio: audioBase64 });
+  } catch (error) {
+    console.error('❌ Erreur preview-voice-fish:', error.response?.data ? Buffer.from(error.response.data).toString('utf8') : error.message);
+    res.status(500).json({ success: false, error: 'Génération audio Fish.audio échouée' });
   }
 });
 

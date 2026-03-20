@@ -106,12 +106,18 @@ export const useUserCurrency = () => {
   const currencyContext = useCurrency?.();
   
   if (!currencyContext) {
-    // Fallback si pas dans le provider
+    // Fallback — lire la devise depuis localStorage
+    let userCode = 'XAF';
+    try {
+      const stored = JSON.parse(localStorage.getItem('ecomUser') || '{}');
+      if (stored?.currency) userCode = stored.currency;
+    } catch (_) {}
+    const info = getCurrencyInfo(userCode);
     return {
-      code: 'XAF',
-      symbol: 'FCFA',
-      format: (amount) => formatMoney(amount, 'XAF'),
-      formatNumber: (amount) => formatNumber(amount, 'XAF'),
+      code: userCode,
+      symbol: info.symbol,
+      format: (amount) => formatMoney(amount, userCode),
+      formatNumber: (amount) => formatNumber(amount, userCode),
       convert: (amount) => parseFloat(amount || 0)
     };
   }

@@ -57,7 +57,8 @@ export const CurrencyProvider = ({ children }) => {
 
   // Convertir un montant de la devise source vers la devise de l'utilisateur
   // useCallback garantit que la fonction capture toujours le bon currencyCode
-  const convert = useCallback((amount, fromCurrency = 'XAF') => {
+  const convert = useCallback((amount, fromCurrency) => {
+    if (!fromCurrency) fromCurrency = currencyCode;
     if (amount === undefined || amount === null) return null;
 
     const numAmount = parseFloat(amount);
@@ -76,7 +77,7 @@ export const CurrencyProvider = ({ children }) => {
   }, [currencyCode]);
 
   // Formater un montant dans la devise de l'utilisateur
-  const format = useCallback((amount, fromCurrency = 'XAF') => {
+  const format = useCallback((amount, fromCurrency) => {
     try {
       const converted = convert(amount, fromCurrency);
       return formatMoney(converted, currencyCode);

@@ -1,8 +1,10 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import ecomApi from '../services/ecommApi.js';
+import { useMoney } from '../hooks/useMoney.js';
 
 const CloseuseProduits = () => {
+  const { fmt } = useMoney();
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState([]);
   const [myAssignments, setMyAssignments] = useState({ productAssignments: [] });
@@ -163,7 +165,7 @@ const CloseuseProduits = () => {
                 <div className="space-y-2 mb-4">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Prix de vente:</span>
-                    <span className="font-medium text-gray-900">{product.sellingPrice} FCFA</span>
+                    <span className="font-medium text-gray-900">{fmt(product.sellingPrice)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Stock disponible:</span>

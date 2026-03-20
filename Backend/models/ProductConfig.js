@@ -36,6 +36,7 @@ const productConfigSchema = new mongoose.Schema({
     estimatedTime: { type: String, default: 'dans la journée' },
     availableSlots: [{ type: String }],
     zones: [{ type: String }],
+    enableCityRoutingForInitialMessage: { type: Boolean, default: false },
     expressAvailable: { type: Boolean, default: true },
     expressMessage: { type: String, default: 'Le livreur est déjà dans votre zone aujourd\'hui.' }
   },
@@ -117,7 +118,11 @@ const productConfigSchema = new mongoose.Schema({
   },
   initialMessage: {
     type: String,
-    default: 'Bonjour 👋\nNous avons bien reçu votre commande du {PRODUIT}.\nLe livreur est déjà dans votre zone aujourd\'hui.\nOn vous livre dans l\'après-midi ?'
+    default: 'Bonjour {{first_name}} 👋\n\nJ\'espère que vous allez bien !\n\nIci le service client Zendo.\n\nNous accusons réception de votre commande n°{{order_number}} ✅\n\nLe produit {{product}} coûte {{price}} FCFA l\'unité pour une quantité de {{quantity}}.\n\nNous pouvons vous livrer aujourd\'hui (si la commande est passée avant 16h) ou demain (si elle est passée après 16h) 🙏🏼'
+  },
+  initialMessageNonDeliverable: {
+    type: String,
+    default: 'Bonjour {{first_name}} 👋\n\nNous avons bien reçu votre commande n°{{order_number}} ✅\n\nLe produit {{product}} coûte {{price}} FCFA l\'unité pour une quantité de {{quantity}}.\n\nPour le moment, nous ne livrons pas encore dans votre ville ({{city}}). Nous pouvons vous prévenir dès que la livraison sera disponible 🙏'
   },
   confirmationMessage: {
     type: String,
@@ -144,9 +149,16 @@ productConfigSchema.index({ workspaceId: 1, isActive: 1 });
 
 productConfigSchema.methods.getInitialMessage = function(orderData) {
   let message = this.initialMessage;
-  message = message.replace('{PRODUIT}', orderData.product || this.productName);
-  message = message.replace('{PRIX}', orderData.price || this.pricing.sellingPrice);
-  message = message.replace('{CLIENT}', orderData.clientName || '');
+  message = message.replace(/\{PRODUIT\}/g, orderData.product || this.productName);
+  message = message.replace(/\{PRIX\}/g, orderData.price || this.pricing.sellingPrice);
+  message = message.replace(/\{CLIENT\}/g, orderData.clientName || '');
+  message = message.replace(/\{\{\s*product\s*\}\}/g, orderData.product || this.productName);
+  message = message.replace(/\{\{\s*price\s*\}\}/g, orderData.price || this.pricing.sellingPrice);
+  message = message.replace(/\{\{\s*client_name\s*\}\}/g, orderData.clientName || '');
+  message = message.replace(/\{\{\s*first_name\s*\}\}/g, (orderData.clientName || '').split(' ')[0] || '');
+  message = message.replace(/\{\{\s*order_number\s*\}\}/g, orderData.orderId || orderData.orderNumber || '');
+  message = message.replace(/\{\{\s*quantity\s*\}\}/g, orderData.quantity || 1);
+  message = message.replace(/\{\{\s*city\s*\}\}/g, orderData.city || '');
   return message;
 };
 

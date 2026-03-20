@@ -22,7 +22,7 @@ const PERIODS = [{v:'today',l:"Aujourd'hui"},{v:'week',l:'7 jours'},{v:'month',l
 
 const Commissions = () => {
   const { user } = useEcomAuth();
-  const { fmt } = useMoney();
+  const { fmt, symbol } = useMoney();
   const [period, setPeriod] = useState('month');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -87,7 +87,7 @@ const Commissions = () => {
               Mes Commissions
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              {data?.commissionRate ? `${data.commissionRate.toLocaleString('fr-FR')} FCFA par commande livrée` : 'Chargement...'}
+              {data?.commissionRate ? `${data.commissionRate.toLocaleString('fr-FR')} ${symbol} par commande livrée` : 'Chargement...'}
             </p>
           </div>
           {/* Sélecteur période */}
@@ -115,7 +115,7 @@ const Commissions = () => {
               <div className="relative z-10">
                 <p className="text-sm font-semibold text-amber-100 mb-1 uppercase tracking-wide">Commission totale</p>
                 <p className="text-5xl font-black tracking-tight mb-2">
-                  {data?.totalCommission > 0 ? fmt(data.totalCommission) : `0 FCFA`}
+                  {data?.totalCommission > 0 ? fmt(data.totalCommission) : `0 ${symbol}`}
                 </p>
                 <div className="flex items-center gap-4 text-amber-100 text-sm">
                   <span className="flex items-center gap-1.5">
@@ -220,10 +220,10 @@ const Commissions = () => {
                     const height = maxBar > 0 ? Math.max((m.count / maxBar) * 100, 4) : 4;
                     const isCurrentMonth = m.year === new Date().getFullYear() && m.month === new Date().getMonth() + 1;
                     return (
-                      <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative" title={`${MONTH_NAMES[m.month - 1]} ${m.year}: ${m.count} livrées — ${m.commission.toLocaleString('fr-FR')} FCFA`}>
+                      <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative" title={`${MONTH_NAMES[m.month - 1]} ${m.year}: ${m.count} livrées — ${fmt(m.commission)}`}>
                         {/* Tooltip */}
                         <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] rounded-lg px-2 py-1 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                          {m.count} livrées<br />{m.commission.toLocaleString('fr-FR')} FCFA
+                          {m.count} livrées<br />{fmt(m.commission)}
                         </div>
                         <div
                           className={`w-full rounded-t-lg transition-all duration-500 ${isCurrentMonth ? 'bg-gradient-to-t from-amber-500 to-orange-400' : 'bg-gradient-to-t from-amber-200 to-amber-300 group-hover:from-amber-400 group-hover:to-amber-300'}`}
@@ -296,7 +296,7 @@ const Commissions = () => {
                             <p className="text-xs text-gray-400 truncate">{order.product || ''} {order.city ? `· ${order.city}` : ''}</p>
                           </div>
                           <div className="text-right flex-shrink-0">
-                            <p className="text-sm font-bold text-amber-600">+{(data.commissionRate || 0).toLocaleString('fr-FR')} FCFA</p>
+                            <p className="text-sm font-bold text-amber-600">+{fmt(data.commissionRate || 0)}</p>
                             <p className="text-[10px] text-gray-400">{order.date ? new Date(order.date).toLocaleDateString('fr-FR') : ''}</p>
                           </div>
                         </div>

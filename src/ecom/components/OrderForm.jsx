@@ -1,7 +1,9 @@
 ﻿import React, { useState, useEffect } from 'react';
 import ecomApi from '../services/ecommApi.js';
+import { useMoney } from '../hooks/useMoney.js';
 
 const OrderForm = ({ productId, initialData = {}, onSubmit, onCancel }) => {
+  const { fmt, symbol } = useMoney();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -205,7 +207,7 @@ const OrderForm = ({ productId, initialData = {}, onSubmit, onCancel }) => {
       {/* Dépenses publicitaires (admin/compta seulement) */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Dépenses Publicitaires (FCFA)
+          Dépenses Publicitaires ({symbol})
         </label>
         <input
           type="number"
@@ -250,11 +252,11 @@ const OrderForm = ({ productId, initialData = {}, onSubmit, onCancel }) => {
             </div>
             <div>
               <span className="text-emerald-700">Prix vente:</span>
-              <span className="ml-2 font-medium text-emerald-900">{selectedProduct.sellingPrice} FCFA</span>
+              <span className="ml-2 font-medium text-emerald-900">{fmt(selectedProduct.sellingPrice)}</span>
             </div>
             <div>
               <span className="text-emerald-700">Coût produit:</span>
-              <span className="ml-2 font-medium text-emerald-900">{selectedProduct.productCost} FCFA</span>
+              <span className="ml-2 font-medium text-emerald-900">{fmt(selectedProduct.productCost)}</span>
             </div>
             <div>
               <span className="text-emerald-700">Statut:</span>

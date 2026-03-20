@@ -44,7 +44,7 @@ const OrderDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, workspace } = useEcomAuth();
-  const { fmt } = useMoney();
+  const { fmt, symbol } = useMoney();
   // Affiche le montant dans la devise de la commande (pas de conversion, juste le bon symbole)
   const fmtOrder = (amount, orderCurrency) => formatMoney(amount, orderCurrency || 'XAF');
   const isAdmin = user?.role === 'ecom_admin' || user?.role === 'ecom_closeuse';
@@ -168,7 +168,7 @@ const OrderDetail = () => {
     const rawProduct = order.rawData ? Object.entries(order.rawData).find(([k, v]) => v && isNaN(v) && /produit|product|article|item|désignation|designation/i.test(k))?.[1] : '';
     msg += `Article : ${productName || rawProduct || '—'}\n\n`;
     msg += `Quantité : ${String(order.quantity || 1).padStart(2, '0')}\n\n`;
-    msg += `Montant : ${total.toLocaleString('fr-FR')} ${order.currency || 'FCFA'}`;
+    msg += `Montant : ${total.toLocaleString('fr-FR')} ${order.currency || symbol}`;
     if (order.notes) msg += `\n\nNotes : ${order.notes}`;
     if (deliveryNote) msg += `\n\nInstructions : ${deliveryNote}`;
     return msg;
