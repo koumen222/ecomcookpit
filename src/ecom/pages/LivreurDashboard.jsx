@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
 import { playConfirmSound, playNewOrderSound, startOrderAlarm, stopOrderAlarm } from '../services/soundService.js';
+import { useMoney } from '../hooks/useMoney.js';
 
 const STATUS_LABELS = {
   pending: 'En attente', confirmed: 'Acceptée', shipped: 'En cours',
@@ -46,6 +47,7 @@ const Loader = () => (
 
 const LivreurDashboard = () => {
   const { user } = useEcomAuth();
+  const { fmt, symbol } = useMoney();
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [myOrders, setMyOrders] = useState([]);
@@ -237,7 +239,7 @@ const LivreurDashboard = () => {
                     <p className="text-xs text-gray-400 truncate">{order.city || order.address || '—'}{order.product ? ` · ${order.product}` : ''}</p>
                     {meta.destination && <p className="text-xs text-gray-400 truncate mt-0.5">🎯 {meta.destination}</p>}
                     {(meta.gainLabel || meta.estimatedDistanceLabel) && <p className="text-xs text-gray-400 truncate mt-0.5">💸 Montant : {meta.gainLabel || '—'} · 📏 {meta.estimatedDistanceLabel || 'À estimer'}</p>}
-                    {order.price && <p className="text-xs font-semibold text-[#0F6B4F] mt-0.5">{Number(order.price).toLocaleString('fr-FR')} FCFA</p>}
+                    {order.price && <p className="text-xs font-semibold text-[#0F6B4F] mt-0.5">{fmt(order.price)}</p>}
                     <div className="mt-2.5 flex gap-2">
                       <button onClick={() => handleAssign(order._id)} disabled={assigning[order._id]} className="text-xs px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold transition disabled:opacity-50 flex-1">
                         {assigning[order._id] ? 'En cours…' : '✓ Accepter'}
@@ -286,11 +288,11 @@ const LivreurDashboard = () => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-xs text-gray-400">Ce mois</p>
-              <p className="text-2xl font-black text-gray-900">{(stats.thisMonth?.amount || 0).toLocaleString('fr-FR')} <span className="text-sm font-medium text-gray-400">FCFA</span></p>
+              <p className="text-2xl font-black text-gray-900">{fmt(stats.thisMonth?.amount || 0)}</p>
             </div>
             <div>
               <p className="text-xs text-gray-400">Total cumulé</p>
-              <p className="text-2xl font-black text-[#0F6B4F]">{(stats.allTime?.amount || 0).toLocaleString('fr-FR')} <span className="text-sm font-medium text-gray-400">FCFA</span></p>
+              <p className="text-2xl font-black text-[#0F6B4F]">{fmt(stats.allTime?.amount || 0)}</p>
             </div>
           </div>
         </div>

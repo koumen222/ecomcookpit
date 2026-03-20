@@ -14,6 +14,11 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
+const configuredOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
 const allowedOrigins = [
   "https://ecomcookpit.site",
   "https://www.ecomcookpit.site",
@@ -24,47 +29,72 @@ const allowedOrigins = [
   "http://www.ecomcookpit.site",
   "https://ecomcookpit.pages.dev",
   "https://ecomcookpit-production.up.railway.app",
+  "https://ecomcookpit-production-0ec4.up.railway.app",
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:5175",
   "http://localhost:5176",
   "http://localhost:3000",
-  "http://localhost:8081"
-];
+  "http://localhost:8081",
+  "https://truthful-nourishment-production-217b.up.railway.app"
+].concat(configuredOrigins);
+
+const normalizedAllowedOrigins = new Set(
+  allowedOrigins.map(origin => origin.replace(/\/+$/, '').toLowerCase())
+);
+
+function normalizeOrigin(origin = '') {
+  return String(origin || '').trim().replace(/\/+$/, '').toLowerCase();
+}
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+
+  const normalizedOrigin = normalizeOrigin(origin);
+
+  if (normalizedAllowedOrigins.has(normalizedOrigin)) {
+    return true;
+  }
+
+  try {
+    const { hostname, protocol } = new URL(normalizedOrigin);
+    const isHttpOrigin = protocol === 'http:' || protocol === 'https:';
+
+    if (!isHttpOrigin) {
+      return false;
+    }
+
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return true;
+    }
+
+    return (
+      hostname.endsWith('.ecomcookpit.pages.dev') ||
+      hostname.endsWith('.scalor.net') ||
+      hostname.endsWith('.scalor.app')
+    );
+  } catch {
+    return false;
+  }
+}
 
 const corsOptions = {
   origin: function (origin, callback) {
     const debugCors = process.env.DEBUG_CORS === 'true';
+    const normalizedOrigin = normalizeOrigin(origin);
+
     if (debugCors) {
       console.log('🌐 CORS Request from origin:', origin);
     }
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
+
+    if (isAllowedOrigin(origin)) {
       if (debugCors) {
-        console.log('✅ CORS Allowed (explicit):', origin);
+        console.log('✅ CORS Allowed:', normalizedOrigin || '[no-origin]');
       }
       return callback(null, true);
     }
-    if (origin.endsWith(".ecomcookpit.pages.dev")) {
-      if (debugCors) {
-        console.log('✅ CORS Allowed (pages.dev):', origin);
-      }
-      return callback(null, true);
-    }
-    if (origin.endsWith(".scalor.net")) {
-      if (debugCors) {
-        console.log('✅ CORS Allowed (scalor.net):', origin);
-      }
-      return callback(null, true);
-    }
-    // Allow all *.scalor.app subdomains (public stores)
-    if (origin.endsWith(".scalor.app")) {
-      if (debugCors) {
-        console.log('✅ CORS Allowed (scalor.app):', origin);
-      }
-      return callback(null, true);
-    }
-    console.log('❌ CORS Blocked:', origin);
+
+    console.log('❌ CORS Blocked:', normalizedOrigin || origin);
     callback(null, false);
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],

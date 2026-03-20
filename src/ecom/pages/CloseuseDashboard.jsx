@@ -81,7 +81,7 @@ const SparkLine=({data,color='#0A5740'})=>{
 
 const CloseuseDashboard=()=>{
   const{user}=useEcomAuth();
-  const{fmt}=useMoney();
+  const{fmt,symbol}=useMoney();
   const[loading,setLoading]=useState(true);
   const[period,setPeriod]=useState('today');
   const[recentOrders,setRecentOrders]=useState([]);
@@ -174,7 +174,7 @@ const CloseuseDashboard=()=>{
       icon:<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>},
     {label:'Livrées',value:periodStats.delivered,sub:`Taux ${periodStats.total>0?Math.round((periodStats.delivered/periodStats.total)*100):0}%`,iconBg:'#ecfdf5',iconColor:'#10B981',
       icon:<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>},
-    {label:'Commissions',value:commissions?fmt(commissions.totalCommission||0):'—',sub:assignment?.commission ? `${assignment.commission}${assignment.commissionType==='percentage'?'%':' FCFA'} par livrée`:'Ce mois',iconBg:'#fffbeb',iconColor:'#F59E0B',
+    {label:'Commissions',value:commissions?fmt(commissions.totalCommission||0):'—',sub:assignment?.commission ? `${assignment.commission}${assignment.commissionType==='percentage'?'%':` ${symbol}`} par livrée`:'Ce mois',iconBg:'#fffbeb',iconColor:'#F59E0B',
       icon:<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>},
     {label:"Aujourd'hui",value:stats.todayDelivered,sub:`/ ${stats.todayTotal} reçues`,iconBg:'#faf5ff',iconColor:'#0F6B4F',
       icon:<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>},
