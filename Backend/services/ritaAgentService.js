@@ -205,6 +205,17 @@ function stripForTTS(text, lang = 'fr') {
       return isNaN(n) ? num + ' dollars' : spellNum(n) + ' dollars';
     });
 
+  // ── Transformer les listes/éléments structurés en phrases parlables ──
+  s = s
+    .replace(/\r/g, '')
+    .replace(/^\s*[-•–—●▪◦▸►▶]+\s*/gm, '')
+    .replace(/^\s*\d+[.)-]\s*/gm, '')
+    .replace(/\s+[–—-]\s+/g, ', ')
+    .replace(/\s*→\s*/g, '. ')
+    .replace(/\n{2,}/g, '. ')
+    .replace(/\n+/g, '. ')
+    .replace(/\s*[:;]\s*(?=[^\s])/g, '. ');
+
   if (isEn) {
     // ── English abbreviations ──
     s = s
@@ -248,6 +259,7 @@ function stripForTTS(text, lang = 'fr') {
   s = s
     .replace(/[\u{1F000}-\u{1FFFF}]|[\u{2600}-\u{27FF}]|\u{FE0F}/gu, '')
     .replace(/[*_~`#|>]/g, '')       // markdown
+    .replace(/\s*([,.!?])(?:\s*[,.!?])+\s*/g, '$1 ')
     .replace(/\s{2,}/g, ' ')
     .trim();
   return s;
@@ -1381,11 +1393,13 @@ Tu as la capacité d'envoyer des notes vocales. En mode mixte, l'équilibre entr
 
 **RÈGLES pour le texte envoyé en vocal** :
 - Écris comme tu PARLERAIS. Pas de listes à puces, pas de numérotation.
+- Pas de tirets, pas de puces, pas de format "titre : valeur" répété.
 - N'écris JAMAIS "FCFA" → écris "francs CFA"
 - N'écris JAMAIS un numéro de téléphone brut → dis plutôt "on va t'appeler"
 - Sois naturelle, chaleureuse, comme une vraie conversation entre amies
 - Pas de formatage markdown (* _ etc.)
 - Utilise des mots de liaison : "alors", "du coup", "en fait", "tu sais"
+- Préfère des phrases simples et fluides, comme si tu parlais dans un vocal WhatsApp.
 - Le vocal doit sonner bien quand on le lit à voix haute
 
 Exemple VOCAL (explication) :
