@@ -7,6 +7,7 @@ import EcomUser from '../models/EcomUser.js';
 import RitaConfig from '../models/RitaConfig.js';
 import WhatsAppOrder from '../models/WhatsAppOrder.js';
 import Order from '../models/Order.js';
+import RitaContact from '../models/RitaContact.js';
 import { normalizePhone } from '../utils/phoneUtils.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 import { processIncomingMessage, generateTestReply, transcribeAudio, textToSpeech, textToSpeechFishAudio, getLastAssistantMessage, getTtsVoiceSettings } from '../services/ritaAgentService.js';
@@ -1038,6 +1039,24 @@ router.post('/incoming', async (req, res) => {
             '';
           const pushName = msg.pushName || data?.pushName || '';
 
+          // ─── Détecter message cité (reply/quote) et injecter le contexte ───
+          const contextInfo = msg.message?.extendedTextMessage?.contextInfo;
+          if (contextInfo?.quotedMessage) {
+            const quotedText =
+              contextInfo.quotedMessage.conversation ||
+              contextInfo.quotedMessage.extendedTextMessage?.text ||
+              contextInfo.quotedMessage.imageMessage?.caption ||
+              contextInfo.quotedMessage.videoMessage?.caption ||
+              '';
+            if (quotedText) {
+              const quotedFrom = contextInfo.participant || '';
+              const isQuotedFromBot = msg.key?.fromMe === false && (contextInfo.quotedMessage?.key?.fromMe || !quotedFrom || quotedFrom === from);
+              const quotedLabel = isQuotedFromBot ? 'ton propre message précédent' : 'un message précédent';
+              text = `[Le client répond à ${quotedLabel} : "${quotedText.substring(0, 300)}"] ${text}`;
+              console.log(`💬 [RITA] Message cité détecté: "${quotedText.substring(0, 100)}"`);
+            }
+          }
+
           console.log(`📩 [WH INCOMING] Message — from=${from} fromMe=${fromMe} isAudio=${isAudio} text="${(text || '').substring(0, 80)}"`);
           if (pushName) {
             console.log(`📩 [WH INCOMING] pushName=${pushName}`);
@@ -1163,13 +1182,89 @@ router.post('/incoming', async (req, res) => {
               if (pending) {
                 console.log(`🤝 [BOSS] Réponse boss reçue → transmission au client ${pending.clientPhone}`);
                 const clientJid = `${pending.clientPhone}@s.whatsapp.net`;
-                await evolutionApiService.sendMessage(
-                  instanceDoc.instanceName,
-                  instanceDoc.instanceToken,
-                  clientJid,
-                  text
-                );
-                logRitaActivity(userId, 'message_replied', { customerPhone: pending.clientPhone, details: `[Boss reply] ${text.substring(0, 200)}` });
+
+                // Détecter si le boss envoie un media (image, vidéo, document)
+                const bossImage = msg.message?.imageMessage;
+                const bossVideo = msg.message?.videoMessage;
+                const bossDocument = msg.message?.documentMessage;
+                const bossHasMedia = !!(bossImage || bossVideo || bossDocument);
+
+                if (bossHasMedia) {
+                  // Télécharger le media du boss et le transmettre au client
+                  try {
+                    const mediaData = await evolutionApiService.getMediaBase64(
+                      instanceDoc.instanceName,
+                      instanceDoc.instanceToken,
+                      msg.key
+                    );
+                    if (mediaData?.base64) {
+                      const mimetype = mediaData.mimetype || bossImage?.mimetype || bossVideo?.mimetype || bossDocument?.mimetype || 'application/octet-stream';
+                      const caption = bossImage?.caption || bossVideo?.caption || text || '';
+                      const isVideoMedia = !!bossVideo || /video/i.test(mimetype);
+                      const isImageMedia = !!bossImage || /image/i.test(mimetype);
+
+                      if (isVideoMedia) {
+                        const dataUri = `data:${mimetype};base64,${mediaData.base64}`;
+                        const result = await evolutionApiService.sendVideo(
+                          instanceDoc.instanceName, instanceDoc.instanceToken,
+                          clientJid, dataUri, caption, 'video.mp4'
+                        );
+                        console.log(`${result.success ? '✅' : '❌'} [BOSS] Vidéo boss transférée au client ${pending.clientPhone}`);
+                      } else if (isImageMedia) {
+                        const dataUri = `data:${mimetype};base64,${mediaData.base64}`;
+                        const result = await evolutionApiService.sendMedia(
+                          instanceDoc.instanceName, instanceDoc.instanceToken,
+                          clientJid, dataUri, caption, 'image.jpg'
+                        );
+                        console.log(`${result.success ? '✅' : '❌'} [BOSS] Image boss transférée au client ${pending.clientPhone}`);
+                      } else {
+                        // Document ou autre — envoyer en tant que media
+                        const fileName = bossDocument?.fileName || 'document';
+                        const dataUri = `data:${mimetype};base64,${mediaData.base64}`;
+                        const result = await evolutionApiService.sendMedia(
+                          instanceDoc.instanceName, instanceDoc.instanceToken,
+                          clientJid, dataUri, caption, fileName
+                        );
+                        console.log(`${result.success ? '✅' : '❌'} [BOSS] Document boss transféré au client ${pending.clientPhone}`);
+                      }
+
+                      // Si le boss a aussi du texte en plus du media, l'envoyer aussi
+                      if (text && !caption) {
+                        await evolutionApiService.sendMessage(
+                          instanceDoc.instanceName, instanceDoc.instanceToken,
+                          clientJid, text
+                        );
+                      }
+                    } else {
+                      console.error(`❌ [BOSS] Impossible de télécharger le media du boss`);
+                      // Fallback: envoyer au moins le texte s'il y en a
+                      if (text) {
+                        await evolutionApiService.sendMessage(
+                          instanceDoc.instanceName, instanceDoc.instanceToken,
+                          clientJid, text
+                        );
+                      }
+                    }
+                  } catch (mediaErr) {
+                    console.error(`❌ [BOSS] Erreur transfert media boss:`, mediaErr.message);
+                    if (text) {
+                      await evolutionApiService.sendMessage(
+                        instanceDoc.instanceName, instanceDoc.instanceToken,
+                        clientJid, text
+                      );
+                    }
+                  }
+                } else {
+                  // Le boss envoie du texte simple → transmettre tel quel
+                  await evolutionApiService.sendMessage(
+                    instanceDoc.instanceName,
+                    instanceDoc.instanceToken,
+                    clientJid,
+                    text
+                  );
+                }
+
+                logRitaActivity(userId, 'message_replied', { customerPhone: pending.clientPhone, details: `[Boss reply${bossHasMedia ? ' +media' : ''}] ${(text || '').substring(0, 200)}` });
                 console.log(`✅ [BOSS] Réponse transmise au client ${pending.clientPhone}`);
                 continue; // Ne pas traiter ce message comme une conversation client
               } else {
@@ -1180,6 +1275,35 @@ router.post('/incoming', async (req, res) => {
 
           // Log message reçu
           logRitaActivity(userId, 'message_received', { customerPhone: from.replace(/@.*$/, ''), customerName: pushName || '', details: text.substring(0, 200) });
+
+          // ─── Enregistrer / mettre à jour le contact automatiquement ───
+          try {
+            const contactPhone = from.replace(/@.*$/, '');
+            const existingContact = await RitaContact.findOne({ userId, phone: contactPhone });
+            if (existingContact) {
+              existingContact.lastMessageAt = new Date();
+              existingContact.messageCount = (existingContact.messageCount || 0) + 1;
+              if (pushName && !existingContact.pushName) existingContact.pushName = pushName;
+              await existingContact.save();
+            } else {
+              const lastContact = await RitaContact.findOne({ userId }).sort({ clientNumber: -1 }).lean();
+              const nextNumber = (lastContact?.clientNumber || 0) + 1;
+              await RitaContact.create({
+                userId,
+                phone: contactPhone,
+                pushName: pushName || '',
+                clientNumber: nextNumber,
+                firstMessageAt: new Date(),
+                lastMessageAt: new Date(),
+                messageCount: 1,
+              });
+              console.log(`📇 [RITA] Nouveau contact enregistré: Client ${nextNumber} (${contactPhone}, ${pushName || 'sans nom'})`);
+            }
+          } catch (contactErr) {
+            if (contactErr.code !== 11000) {
+              console.error('⚠️ [RITA] Erreur enregistrement contact:', contactErr.message);
+            }
+          }
 
           // ─── Vérifier si ce client est en attente d'une réponse boss (escalade) ───
           const cleanFromEarly = from.replace(/@.*$/, '');
@@ -1243,6 +1367,14 @@ router.post('/incoming', async (req, res) => {
               });
               console.log(`✅ [RITA] WhatsAppOrder enregistrée pour ${cleanFrom}`);
               logRitaActivity(userId, 'order_confirmed', { customerPhone: cleanFrom, customerName: orderData.name || '', product: orderData.product || '', price: orderData.price || '' });
+
+              // Marquer le contact comme ayant commandé
+              try {
+                await RitaContact.findOneAndUpdate(
+                  { userId, phone: cleanFrom },
+                  { hasOrdered: true }
+                );
+              } catch (_) { /* ignore */ }
 
               // ─── Créer aussi une vraie commande dans ecom_orders (source: rita) ───
               if (instanceDoc.workspaceId) {
@@ -1453,7 +1585,7 @@ router.post('/incoming', async (req, res) => {
             }
           }
 
-          if (videoTagMatch && !imageTagMatch) {
+          if (videoTagMatch && !imageTagMatch && !imagesAllTagMatch) {
             videoProductName = videoTagMatch[1].trim();
             textToSend = textToSend.replace(/\s*\[VIDEO:.+?\]/g, '').trim();
             console.log(`🎬 [RITA] Tag vidéo détecté pour produit: "${videoProductName}"`);
@@ -1471,6 +1603,12 @@ router.post('/incoming', async (req, res) => {
               console.log(`🎬 [RITA] Vidéo trouvée: ${videoUrl}`);
             } else {
               console.log(`🎬 [RITA] Aucune vidéo trouvée pour "${videoProductName}"`);
+              const noVideoMsg = `Désolé, on n'a pas encore de vidéo pour ce produit 🙏 Mais je peux te montrer les photos ou te donner plus de détails !`;
+              if (!textToSend) {
+                textToSend = noVideoMsg;
+              } else {
+                textToSend += `\n\n${noVideoMsg}`;
+              }
             }
           }
 
@@ -1915,6 +2053,50 @@ router.get('/rita-activity', async (req, res) => {
     res.status(200).json({ success: true, stats, recent, total: activities.length });
   } catch (error) {
     console.error('❌ Erreur chargement rita-activity:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/ecom/v1/external/whatsapp/rita-contacts
+ * @desc    Liste tous les contacts Rita enregistrés automatiquement
+ */
+router.get('/rita-contacts', async (req, res) => {
+  try {
+    const { userId, page, limit: lim } = req.query;
+    if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
+
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(200, Math.max(1, parseInt(lim) || 50));
+    const skip = (pageNum - 1) * limitNum;
+
+    const [contacts, total] = await Promise.all([
+      RitaContact.find({ userId })
+        .sort({ clientNumber: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      RitaContact.countDocuments({ userId }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      contacts: contacts.map(c => ({
+        clientNumber: c.clientNumber,
+        phone: c.phone,
+        pushName: c.pushName,
+        messageCount: c.messageCount,
+        hasOrdered: c.hasOrdered,
+        firstMessageAt: c.firstMessageAt,
+        lastMessageAt: c.lastMessageAt,
+        notes: c.notes,
+      })),
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / limitNum),
+    });
+  } catch (error) {
+    console.error('❌ Erreur chargement rita-contacts:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
