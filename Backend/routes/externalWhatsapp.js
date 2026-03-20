@@ -1626,8 +1626,10 @@ router.post('/incoming', async (req, res) => {
 
             // ─── RELANCE après image: proposer achat avec prix ───
             // Seulement si le texte de Rita ne contient pas déjà une offre de closing
-            const textAlreadyCloses = /confirm|réserv|commande|livr|veux qu|tu veux|on fait|je te prépare/i.test(textToSend);
-            if (matchedProductForMedia && !textAlreadyCloses) {
+            // ET si le texte de Rita est vide/très court (image seule)
+            const textAlreadyCloses = /confirm|réserv|commande|livr|veux qu|tu veux|on fait|je te prépare|prix|fcfa|\d{3,}/i.test(textToSend);
+            const textAlreadySubstantial = textToSend && textToSend.length > 30;
+            if (matchedProductForMedia && !textAlreadyCloses && !textAlreadySubstantial) {
               const p = matchedProductForMedia;
               const followUp = p.price
                 ? `${p.name} à ${p.price} 👍 Tu veux qu'on te le réserve ?`
@@ -1642,6 +1644,8 @@ router.post('/incoming', async (req, res) => {
                 followUp
               );
               console.log(`📤 [RITA] Relance après image envoyée à ${cleanFrom}`);
+            } else {
+              console.log(`ℹ️ [RITA] Pas de relance après image — texte Rita déjà suffisant (${textToSend.length} chars, closes=${textAlreadyCloses})`);
             }
           }
 
