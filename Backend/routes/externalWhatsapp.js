@@ -1888,7 +1888,7 @@ router.get('/preview-voice-fish', async (req, res) => {
     if (!apiKey) return res.status(500).json({ success: false, error: 'Clé Fish.audio non configurée' });
 
     const sampleText = 'Bonjour ! Je suis Rita, votre assistante commerciale. Comment puis-je vous aider aujourd\'hui ?';
-    const refId = referenceId || '14b22748e04a48a58f92fbcde088ee50';
+    const refId = referenceId || '13f7f6e260f94079b9d51c961fa6c9e2';
     const fishModel = model || 's2-pro';
 
     const response = await (await import('axios')).default.post(

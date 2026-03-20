@@ -301,7 +301,7 @@ async function textToSpeechElevenLabs(text, config) {
  */
 export async function textToSpeechFishAudio(text, config) {
   const apiKey = config?.fishAudioApiKey || FISH_AUDIO_DIRECT_API_KEY;
-  const referenceId = config?.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50';
+  const referenceId = config?.fishAudioReferenceId || '13f7f6e260f94079b9d51c961fa6c9e2';
   const model = config?.fishAudioModel || 's2-pro';
   if (!apiKey) return null;
 

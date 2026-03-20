@@ -937,7 +937,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
     // Fish.audio (Voix Avancée)
     ttsProvider: 'elevenlabs',
     fishAudioApiKey: '',
-    fishAudioReferenceId: '14b22748e04a48a58f92fbcde088ee50',
+    fishAudioReferenceId: '13f7f6e260f94079b9d51c961fa6c9e2',
     fishAudioModel: 's2-pro',
     fishAudioVoices: [],
     // Notifications boss
@@ -2952,7 +2952,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                             type="text"
                             value={config.fishAudioReferenceId || ''}
                             onChange={e => set('fishAudioReferenceId', e.target.value)}
-                            placeholder="ex: 14b22748e04a48a58f92fbcde088ee50"
+                            placeholder="ex: 13f7f6e260f94079b9d51c961fa6c9e2"
                             className="w-full px-3 py-2 text-[13px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
                           />
                           <p className="text-[10px] text-gray-400 mt-1">L'identifiant de la voix clonée sur Fish.audio</p>
@@ -2962,6 +2962,12 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                           <p className="text-[12px] font-medium text-gray-700 mb-2">Voix disponibles</p>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {[
+                              {
+                                id: '13f7f6e260f94079b9d51c961fa6c9e2',
+                                name: 'Voix Fish par défaut',
+                                desc: 'Modèle Fish.audio · FR · Voix avancée par défaut',
+                                badge: '✨ Par défaut',
+                              },
                               {
                                 id: '14b22748e04a48a58f92fbcde088ee50',
                                 name: 'Ebilove',
@@ -2980,7 +2986,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                                 type="button"
                                 onClick={() => set('fishAudioReferenceId', voice.id)}
                                 className={`flex items-center gap-3 px-3.5 py-3 rounded-xl border-2 text-left transition-all duration-200 ${
-                                  (config.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50') === voice.id
+                                  (config.fishAudioReferenceId || '13f7f6e260f94079b9d51c961fa6c9e2') === voice.id
                                     ? 'border-cyan-400 bg-cyan-50 shadow-sm shadow-cyan-100'
                                     : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
                                 }`}
@@ -2989,7 +2995,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-1.5">
                                     <p className={`text-[13px] font-semibold ${
-                                      (config.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50') === voice.id
+                                      (config.fishAudioReferenceId || '13f7f6e260f94079b9d51c961fa6c9e2') === voice.id
                                         ? 'text-cyan-700'
                                         : 'text-gray-800'
                                     }`}>{voice.name}</p>
@@ -3012,7 +3018,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                                 >
                                   {previewingVoice === voice.id ? <span className="text-[10px] font-bold">▶</span> : <span className="text-[10px]">▶</span>}
                                 </button>
-                                {(config.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50') === voice.id && (
+                                {(config.fishAudioReferenceId || '13f7f6e260f94079b9d51c961fa6c9e2') === voice.id && (
                                   <CheckCircle className="w-4 h-4 text-cyan-500 flex-shrink-0" />
                                 )}
                               </button>
@@ -3037,16 +3043,16 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                           type="button"
                           onClick={async (e) => {
                             e.preventDefault();
-                            playFishPreview(config.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50');
+                            playFishPreview(config.fishAudioReferenceId || '13f7f6e260f94079b9d51c961fa6c9e2');
                           }}
                           className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold transition-all duration-200 ${
-                            previewingVoice === (config.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50')
+                            previewingVoice === (config.fishAudioReferenceId || '13f7f6e260f94079b9d51c961fa6c9e2')
                               ? 'bg-cyan-500 text-white animate-pulse'
                               : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'
                           }`}
                         >
-                          <span>{previewingVoice === (config.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50') ? '🔊' : '▶'}</span>
-                          {previewingVoice === (config.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50') ? 'Lecture en cours...' : 'Écouter la voix sélectionnée'}
+                          <span>{previewingVoice === (config.fishAudioReferenceId || '13f7f6e260f94079b9d51c961fa6c9e2') ? '🔊' : '▶'}</span>
+                          {previewingVoice === (config.fishAudioReferenceId || '13f7f6e260f94079b9d51c961fa6c9e2') ? 'Lecture en cours...' : 'Écouter la voix sélectionnée'}
                         </button>
                       </div>
 

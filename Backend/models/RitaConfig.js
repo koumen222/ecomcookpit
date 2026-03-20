@@ -129,7 +129,7 @@ const ritaConfigSchema = new mongoose.Schema({
   // 🎙️ Voix avancée — Fish.audio (S2-Pro)
   ttsProvider: { type: String, enum: ['elevenlabs', 'fishaudio'], default: 'elevenlabs' },
   fishAudioApiKey: { type: String, default: '' },
-  fishAudioReferenceId: { type: String, default: '14b22748e04a48a58f92fbcde088ee50' },
+  fishAudioReferenceId: { type: String, default: '13f7f6e260f94079b9d51c961fa6c9e2' },
   fishAudioModel: { type: String, default: 's2-pro' },
   fishAudioVoices: [{
     id: { type: String, required: true },
