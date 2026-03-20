@@ -30,6 +30,8 @@ const allowedOrigins = [
   "http://localhost:5176",
   "http://localhost:3000",
   "http://localhost:8081"
+  "https://truthful-nourishment-production-217b.up.railway.app/ecom/login"
+  
 ];
 
 const corsOptions = {
