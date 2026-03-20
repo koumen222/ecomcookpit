@@ -62,6 +62,13 @@ const ritaConfigSchema = new mongoose.Schema({
     minPrice: { type: String, default: '' },
     maxDiscountPercent: { type: Number, default: 0 },
     priceNote: { type: String, default: '' },
+    // Offres de quantité par produit
+    quantityOffers: [{
+      minQuantity: { type: Number, required: true },
+      unitPrice: { type: String, default: '' },
+      totalPrice: { type: String, default: '' },
+      label: { type: String, default: '' },
+    }],
   }],
 
   // Personnalité & ton de l'agent
@@ -90,6 +97,18 @@ const ritaConfigSchema = new mongoose.Schema({
   closingTechnique: { type: String, default: 'soft' },
   objectionsHandling: { type: String, default: '' },
 
+  // 🎁 Offres commerciales gérées par Rita
+  commercialOffersEnabled: { type: Boolean, default: false },
+  commercialOffers: [{
+    title: { type: String, default: '' },
+    appliesTo: { type: String, default: '' },
+    trigger: { type: String, default: 'hesitation' },
+    benefit: { type: String, default: '' },
+    message: { type: String, default: '' },
+    conditions: { type: String, default: '' },
+    active: { type: Boolean, default: true },
+  }],
+
   // 💰 Négociation & prix
   pricingNegotiation: {
     enabled: { type: Boolean, default: false },
@@ -112,6 +131,23 @@ const ritaConfigSchema = new mongoose.Schema({
   elevenlabsApiKey: { type: String, default: '' },
   elevenlabsVoiceId: { type: String, default: 'cgSgspJ2msm6clMCkdW9' }, // Jessica (FR multilingual)
   elevenlabsModel: { type: String, default: 'eleven_v3' }, // Eleven v3 — meilleur modèle (70+ langues)
+  voiceStylePreset: { type: String, enum: ['balanced', 'natural'], default: 'balanced' },
+
+  // 🎙️ Voix avancée — Fish.audio (S2-Pro)
+  ttsProvider: { type: String, enum: ['elevenlabs', 'fishaudio'], default: 'elevenlabs' },
+  fishAudioApiKey: { type: String, default: '' },
+  fishAudioReferenceId: { type: String, default: '13f7f6e260f94079b9d51c961fa6c9e2' },
+  fishAudioModel: { type: String, default: 's2-pro' },
+  fishAudioVoices: [{
+    id: { type: String, required: true },
+    name: { type: String, required: true },
+    description: { type: String, default: '' },
+    state: { type: String, default: 'ready' },
+    visibility: { type: String, default: 'private' },
+    createdAt: { type: Date, default: Date.now },
+    sampleCount: { type: Number, default: 1 },
+    source: { type: String, default: 'fish.audio' },
+  }],
 
   // 🔔 Notifications boss
   bossNotifications: { type: Boolean, default: false },
@@ -133,6 +169,19 @@ const ritaConfigSchema = new mongoose.Schema({
     quantity: { type: Number, default: 0, min: 0 },
     notes: { type: String, default: '' },
   }],
+
+  // ─── Messages d'accusé de réception de commande ──────────────────────────
+  // Activé uniquement pour les workspaces qui envoient le premier message via l'agent
+  orderConfirmationMessage: {
+    type: String,
+    default: 'Bonjour {{first_name}} 👋\n\nJ\'espère que vous allez bien !\n\nIci le service client Zendo.\n\nNous accusons réception de votre commande n°{{order_number}} ✅\n\nLe produit {{product}} coûte {{price}} FCFA l\'unité pour une quantité de {{quantity}}.\n\nNous pouvons vous livrer aujourd\'hui (si la commande est passée avant 16h) ou demain (si elle est passée après 16h) 🙏🏼',
+  },
+  orderConfirmationMessageNonDeliverable: {
+    type: String,
+    default: 'Bonjour {{first_name}} 👋\n\nNous avons bien reçu votre commande n°{{order_number}} ✅\n\nLe produit {{product}} coûte {{price}} FCFA l\'unité pour une quantité de {{quantity}}.\n\nMalheureusement, nous ne livrons pas encore dans votre ville ({{city}}). Nous vous contacterons dès que la livraison sera disponible dans votre zone. 🙏',
+  },
+  enableCityRouting: { type: Boolean, default: false },
+  deliverableZones: [{ type: String }],
 
   // Disponibilité
   businessHoursOnly: { type: Boolean, default: false },

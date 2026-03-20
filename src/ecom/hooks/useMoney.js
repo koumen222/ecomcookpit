@@ -1,4 +1,5 @@
 import { useCurrency } from '../contexts/CurrencyContext.jsx';
+import { getCurrencyInfo } from '../utils/currency.js';
 
 // Hook simple pour formater les montants dans la devise de l'utilisateur
 export const useMoney = () => {
@@ -12,13 +13,14 @@ export const useMoney = () => {
 
   try {
     const context = useCurrency();
+    const code = context.code;
     return {
-      // Formater un montant (conversion automatique depuis XAF par défaut)
-      fmt: (amount, fromCurrency = 'XAF') => context.format(cleanAmount(amount), fromCurrency),
+      // Formater un montant (pas de conversion par défaut — les montants sont dans la devise de l'utilisateur)
+      fmt: (amount, fromCurrency) => context.format(cleanAmount(amount), fromCurrency || code),
       
       // Formater en compact (K, M) pour mobile
-      fmtCompact: (amount, fromCurrency = 'XAF') => {
-        const converted = context.convert(cleanAmount(amount), fromCurrency);
+      fmtCompact: (amount, fromCurrency) => {
+        const converted = context.convert(cleanAmount(amount), fromCurrency || code);
         const num = Number(converted);
         if (isNaN(num)) return `0 ${context.symbol}`;
         const abs = Math.abs(num);
@@ -31,40 +33,46 @@ export const useMoney = () => {
       fmtRaw: (amount) => context.formatRaw(cleanAmount(amount)),
       
       // Convertir un montant
-      convert: (amount, fromCurrency = 'XAF') => context.convert(cleanAmount(amount), fromCurrency),
+      convert: (amount, fromCurrency) => context.convert(cleanAmount(amount), fromCurrency || code),
       
       // Infos de la devise
-      currency: context.code,
+      currency: code,
       symbol: context.symbol
     };
   } catch (error) {
     console.warn('⚠️ CurrencyContext non disponible, utilisation du fallback');
     
-    // Fallback robuste si le contexte n'est pas disponible
+    // Fallback robuste — lire la devise de l'utilisateur depuis localStorage
+    let userCurrency = 'XAF';
+    try {
+      const stored = JSON.parse(localStorage.getItem('ecomUser') || '{}');
+      if (stored?.currency) userCurrency = stored.currency;
+    } catch (_) {}
+    const info = getCurrencyInfo(userCurrency);
+
     return {
-      fmt: (amount, fromCurrency = 'XAF') => {
+      fmt: (amount) => {
         const num = cleanAmount(amount);
-        return `${num.toLocaleString('fr-FR')} FCFA`;
+        return `${num.toLocaleString('fr-FR')} ${info.symbol}`;
       },
       
-      // Formater en compact (K, M) pour mobile
       fmtCompact: (amount) => {
         const num = cleanAmount(amount);
         const abs = Math.abs(num);
-        if (abs >= 1_000_000) return (num / 1_000_000).toFixed(1).replace('.0', '') + 'M FCFA';
-        if (abs >= 1_000) return (num / 1_000).toFixed(1).replace('.0', '') + 'K FCFA';
-        return `${num.toLocaleString('fr-FR')} FCFA`;
+        if (abs >= 1_000_000) return (num / 1_000_000).toFixed(1).replace('.0', '') + `M ${info.symbol}`;
+        if (abs >= 1_000) return (num / 1_000).toFixed(1).replace('.0', '') + `K ${info.symbol}`;
+        return `${num.toLocaleString('fr-FR')} ${info.symbol}`;
       },
       
       fmtRaw: (amount) => {
         const num = cleanAmount(amount);
-        return `${num.toLocaleString('fr-FR')} FCFA`;
+        return `${num.toLocaleString('fr-FR')} ${info.symbol}`;
       },
       
       convert: (amount) => cleanAmount(amount),
       
-      currency: 'XAF',
-      symbol: 'FCFA'
+      currency: userCurrency,
+      symbol: info.symbol
     };
   }
 };

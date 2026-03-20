@@ -30,9 +30,7 @@ const ProductDetail = () => {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return `${(amount || 0).toLocaleString('fr-FR')} FCFA`;
-  };
+
 
   const getStatusColor = (status) => {
     const colors = {

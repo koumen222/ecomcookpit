@@ -31,9 +31,7 @@ const ReportDetail = () => {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return `${amount?.toLocaleString('fr-FR') || 0} FCFA`;
-  };
+
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('fr-FR', {

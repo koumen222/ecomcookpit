@@ -86,7 +86,7 @@ const OrdersList = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useEcomAuth();
-  const { fmt, currency: userCurrency } = useMoney();
+  const { fmt, symbol, currency: userCurrency } = useMoney();
   // Affiche le montant dans la devise de la commande (pas de conversion, juste le bon symbole)
   const fmtOrder = (amount, orderCurrency) => formatMoney(amount, orderCurrency || userCurrency || 'XAF');
   const isAdmin = user?.role === 'ecom_admin';
@@ -2401,7 +2401,7 @@ const OrdersList = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
         <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200 p-3">
           <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide mb-1">Revenu livré</p>
-          <p className="text-xl font-extrabold text-gray-900 mb-1">{fmt(filteredStats.deliveredRevenue || 0) || '0 FCFA'}</p>
+          <p className="text-xl font-extrabold text-gray-900 mb-1">{fmt(filteredStats.deliveredRevenue || 0) || `0 ${symbol}`}</p>
           <p className="text-[10px] text-green-600 font-semibold">{filteredStats.delivered || 0} livrés · +{Math.round((filteredStats.delivered || 0) / (filteredStats.total || 1) * 100)}%</p>
         </div>
         
