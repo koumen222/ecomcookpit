@@ -2548,7 +2548,7 @@ const OrdersList = () => {
                       {/* Price */}
                       {totalPrice > 0 && (
                         <div className="flex-shrink-0">
-                          <p className="text-sm font-bold text-gray-900">{fmtOrder(totalPrice, o.currency)}</p>
+                          <p className="text-sm font-bold text-gray-900">{fmt(totalPrice, o.currency || 'XAF')}</p>
                         </div>
                       )}
 
@@ -2644,7 +2644,7 @@ const OrdersList = () => {
                         </div>
                       </div>
                       {totalPrice > 0 && (
-                        <p className="text-sm font-bold text-gray-900 ml-2 flex-shrink-0">{fmtOrder(totalPrice, o.currency)}</p>
+                        <p className="text-sm font-bold text-gray-900 ml-2 flex-shrink-0">{fmt(totalPrice, o.currency || 'XAF')}</p>
                       )}
                     </div>
 

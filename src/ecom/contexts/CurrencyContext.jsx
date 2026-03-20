@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo } from 'react';
+import React, { createContext, useContext, useMemo, useCallback } from 'react';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
 import { getCurrencyInfo, formatMoney } from '../utils/currency.js';
 
@@ -50,50 +50,51 @@ const CurrencyContext = createContext();
 
 export const CurrencyProvider = ({ children }) => {
   const { user } = useEcomAuth();
-  
-  // 🆕 Gestion plus robuste de la devise avec fallback
+
+  // Gestion robuste de la devise avec fallback
   const currencyCode = user?.currency || 'XAF';
   const currencyInfo = getCurrencyInfo(currencyCode);
 
   // Convertir un montant de la devise source vers la devise de l'utilisateur
-  const convert = (amount, fromCurrency = 'XAF') => {
+  // useCallback garantit que la fonction capture toujours le bon currencyCode
+  const convert = useCallback((amount, fromCurrency = 'XAF') => {
     if (amount === undefined || amount === null) return null;
-    if (fromCurrency === currencyCode) return parseFloat(amount);
-    
+
     const numAmount = parseFloat(amount);
     if (isNaN(numAmount)) return null;
-    
+
+    // Si même devise, pas de conversion nécessaire
+    if (fromCurrency === currencyCode) return numAmount;
+
     // Convertir d'abord en XAF (base)
     const baseRate = conversionRates[fromCurrency] || 1;
     const amountInXAF = numAmount / baseRate;
-    
+
     // Puis convertir en devise cible
     const targetRate = conversionRates[currencyCode] || 1;
     return amountInXAF * targetRate;
-  };
+  }, [currencyCode]);
 
   // Formater un montant dans la devise de l'utilisateur
-  const format = (amount, fromCurrency = 'XAF') => {
+  const format = useCallback((amount, fromCurrency = 'XAF') => {
     try {
       const converted = convert(amount, fromCurrency);
       return formatMoney(converted, currencyCode);
     } catch (error) {
       console.warn('⚠️ Erreur de formatage de devise:', error);
-      // Fallback simple
       return `${Number(amount || 0).toLocaleString('fr-FR')} ${currencyCode}`;
     }
-  };
+  }, [currencyCode, convert]);
 
   // Formater sans conversion (montant déjà dans la devise cible)
-  const formatRaw = (amount) => {
+  const formatRaw = useCallback((amount) => {
     try {
       return formatMoney(amount, currencyCode);
     } catch (error) {
       console.warn('⚠️ Erreur de formatage raw:', error);
-      // Fallback simple
       return `${Number(amount || 0).toLocaleString('fr-FR')} ${currencyCode}`;
     }
-  };
+  }, [currencyCode]);
 
   const value = useMemo(() => ({
     code: currencyCode,
@@ -102,7 +103,7 @@ export const CurrencyProvider = ({ children }) => {
     format,
     formatRaw,
     rates: conversionRates
-  }), [currencyCode, currencyInfo]);
+  }), [currencyCode, currencyInfo, convert, format, formatRaw]);
 
   return (
     <CurrencyContext.Provider value={value}>

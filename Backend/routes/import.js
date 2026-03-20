@@ -359,7 +359,8 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
               workspaceId: req.workspaceId,
               sheetRowId,
               sheetRowIndex,
-              source: 'google_sheets'
+              source: 'google_sheets',
+              currency: req.ecomUser?.currency || 'XAF' // Devise de l'utilisateur qui importe
             }
           },
           upsert: true
