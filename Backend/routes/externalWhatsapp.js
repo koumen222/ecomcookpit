@@ -9,7 +9,7 @@ import WhatsAppOrder from '../models/WhatsAppOrder.js';
 import Order from '../models/Order.js';
 import { normalizePhone } from '../utils/phoneUtils.js';
 import evolutionApiService from '../services/evolutionApiService.js';
-import { processIncomingMessage, generateTestReply, transcribeAudio, textToSpeech, getLastAssistantMessage } from '../services/ritaAgentService.js';
+import { processIncomingMessage, generateTestReply, transcribeAudio, textToSpeech, textToSpeechFishAudio, getLastAssistantMessage, getTtsVoiceSettings } from '../services/ritaAgentService.js';
 import { logRitaActivity } from '../services/ritaBossReportService.js';
 import { analyzeImage as analyzeProductImage } from '../services/agentImageService.js';
 import { uploadImage as uploadImageToR2, isConfigured as isR2Configured } from '../services/cloudflareImagesService.js';
@@ -1349,10 +1349,12 @@ router.post('/incoming', async (req, res) => {
           const ritaCfgVoice = await RitaConfig.findOne({ userId }).lean();
           // Utiliser la clé API de la config Rita OU celle du .env en fallback
           const effectiveApiKey = ritaCfgVoice?.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY || '';
-          const ttsConfig = { ...ritaCfgVoice, elevenlabsApiKey: effectiveApiKey };
+          const effectiveFishKey = ritaCfgVoice?.fishAudioApiKey || process.env.FISH_AUDIO_API_KEY || '';
+          const ttsConfig = { ...ritaCfgVoice, elevenlabsApiKey: effectiveApiKey, fishAudioApiKey: effectiveFishKey };
           // responseMode: 'text' | 'voice' | 'both'. Legacy compat: voiceMode=true → 'voice'
           const responseMode = ritaCfgVoice?.responseMode || (ritaCfgVoice?.voiceMode ? 'voice' : 'text');
-          const canDoVoice = !!(effectiveApiKey && textToSend);
+          const isFishAudio = ritaCfgVoice?.ttsProvider === 'fishaudio';
+          const canDoVoice = !!((isFishAudio ? effectiveFishKey : effectiveApiKey) && textToSend);
 
           // Détecter le tag [VOICE] dans la réponse → Rita a décidé d'envoyer un vocal
           const hasVoiceTag = /\[VOICE\]/i.test(textToSend);
@@ -1750,17 +1752,18 @@ router.get('/rita-activity', async (req, res) => {
  */
 router.get('/preview-voice', async (req, res) => {
   try {
-    const { voiceId } = req.query;
+    const { voiceId, voiceStylePreset } = req.query;
     if (!voiceId) return res.status(400).json({ success: false, error: 'voiceId requis' });
 
     const apiKey = process.env.ELEVENLABS_API_KEY;
     if (!apiKey) return res.status(500).json({ success: false, error: 'Clé ElevenLabs non configurée' });
 
     const sampleText = 'Bonjour ! Je suis Rita, votre assistante commerciale. Comment puis-je vous aider aujourd\'hui ?';
+    const voiceSettings = getTtsVoiceSettings({ voiceStylePreset });
 
     const response = await (await import('axios')).default.post(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-      { text: sampleText, model_id: 'eleven_turbo_v2_5', voice_settings: { stability: 0.5, similarity_boost: 0.75 } },
+      { text: sampleText, model_id: 'eleven_turbo_v2_5', voice_settings: voiceSettings },
       { headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json', Accept: 'audio/mpeg' }, responseType: 'arraybuffer', timeout: 20000 }
     );
 
@@ -1769,6 +1772,42 @@ router.get('/preview-voice', async (req, res) => {
   } catch (error) {
     console.error('❌ Erreur preview-voice:', error.response?.data ? Buffer.from(error.response.data).toString('utf8') : error.message);
     res.status(500).json({ success: false, error: 'Génération audio échouée' });
+  }
+});
+
+/**
+ * @route   GET /api/ecom/v1/external/whatsapp/preview-voice-fish
+ * @desc    Génère un court échantillon audio Fish.audio pour prévisualiser une voix
+ */
+router.get('/preview-voice-fish', async (req, res) => {
+  try {
+    const { referenceId, model } = req.query;
+    const apiKey = req.query.apiKey || process.env.FISH_AUDIO_API_KEY;
+    if (!apiKey) return res.status(500).json({ success: false, error: 'Clé Fish.audio non configurée' });
+
+    const sampleText = 'Bonjour ! Je suis Rita, votre assistante commerciale. Comment puis-je vous aider aujourd\'hui ?';
+    const refId = referenceId || '14b22748e04a48a58f92fbcde088ee50';
+    const fishModel = model || 's2-pro';
+
+    const response = await (await import('axios')).default.post(
+      'https://api.fish.audio/v1/tts',
+      { text: sampleText, reference_id: refId, format: 'mp3' },
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'model': fishModel,
+        },
+        responseType: 'arraybuffer',
+        timeout: 20000,
+      }
+    );
+
+    const audioBase64 = Buffer.from(response.data).toString('base64');
+    res.json({ success: true, audio: audioBase64 });
+  } catch (error) {
+    console.error('❌ Erreur preview-voice-fish:', error.response?.data ? Buffer.from(error.response.data).toString('utf8') : error.message);
+    res.status(500).json({ success: false, error: 'Génération audio Fish.audio échouée' });
   }
 });
 

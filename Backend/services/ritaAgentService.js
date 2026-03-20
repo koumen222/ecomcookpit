@@ -237,29 +237,45 @@ function stripForTTS(text, lang = 'fr') {
 }
 
 /**
- * Convertit un texte en audio via ElevenLabs TTS
+ * Convertit un texte en audio via le provider TTS configuré (ElevenLabs ou Fish.audio)
  * @param {string} text - Texte à lire
- * @param {object} config - Config Rita (elevenlabsApiKey, elevenlabsVoiceId)
+ * @param {object} config - Config Rita
  * @returns {Promise<Buffer|null>} - Buffer MP3 ou null si erreur
  */
 export async function textToSpeech(text, config) {
+  if (!text?.trim()) return null;
+
+  const provider = config?.ttsProvider || 'elevenlabs';
+
+  if (provider === 'fishaudio') {
+    return textToSpeechFishAudio(text, config);
+  }
+
+  return textToSpeechElevenLabs(text, config);
+}
+
+/**
+ * TTS via ElevenLabs
+ */
+async function textToSpeechElevenLabs(text, config) {
   const apiKey = config?.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY || 'sk_567189791888b879d02332a0b65b58493821cd1dcb0d2dcd';
   const voiceId = config?.elevenlabsVoiceId || '9ZATEeixBigmezesCGAk';
-  if (!apiKey || !text?.trim()) return null;
+  if (!apiKey) return null;
 
   const lang = config?.language || 'fr';
   const clean = stripForTTS(text, lang);
   if (!clean) return null;
 
   try {
-    console.log(`🎙️ [TTS] Génération vocale pour: "${clean.substring(0, 80)}..."`);
+    console.log(`🎙️ [TTS-ElevenLabs] Génération vocale pour: "${clean.substring(0, 80)}..."`);
     const modelId = config?.elevenlabsModel || 'eleven_v3';
+    const voiceSettings = getTtsVoiceSettings(config);
     const response = await axios.post(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
       {
         text: clean,
         model_id: modelId,
-        voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.4, use_speaker_boost: true },
+        voice_settings: voiceSettings,
       },
       {
         headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json', Accept: 'audio/mpeg' },
@@ -267,13 +283,77 @@ export async function textToSpeech(text, config) {
         timeout: 30000,
       }
     );
-    console.log(`🎙️ [TTS] Audio généré (${response.data.byteLength} bytes)`);
+    console.log(`🎙️ [TTS-ElevenLabs] Audio généré (${response.data.byteLength} bytes)`);
     return Buffer.from(response.data);
   } catch (err) {
     const detail = err.response?.data ? Buffer.from(err.response.data).toString('utf8') : err.message;
-    console.error(`❌ [TTS] Erreur ElevenLabs:`, detail?.substring(0, 300));
+    console.error(`❌ [TTS-ElevenLabs] Erreur:`, detail?.substring(0, 300));
     return null;
   }
+}
+
+/**
+ * TTS via Fish.audio (S2-Pro)
+ * @param {string} text - Texte à lire
+ * @param {object} config - Config Rita (fishAudioApiKey, fishAudioReferenceId, fishAudioModel)
+ * @returns {Promise<Buffer|null>} - Buffer MP3 ou null si erreur
+ */
+export async function textToSpeechFishAudio(text, config) {
+  const apiKey = config?.fishAudioApiKey || process.env.FISH_AUDIO_API_KEY;
+  const referenceId = config?.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50';
+  const model = config?.fishAudioModel || 's2-pro';
+  if (!apiKey) return null;
+
+  const lang = config?.language || 'fr';
+  const clean = stripForTTS(text, lang);
+  if (!clean) return null;
+
+  try {
+    console.log(`🐟 [TTS-FishAudio] Génération vocale (${model}) pour: "${clean.substring(0, 80)}..."`);
+    const response = await axios.post(
+      'https://api.fish.audio/v1/tts',
+      {
+        text: clean,
+        reference_id: referenceId,
+        format: 'mp3',
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'model': model,
+        },
+        responseType: 'arraybuffer',
+        timeout: 30000,
+      }
+    );
+    console.log(`🐟 [TTS-FishAudio] Audio généré (${response.data.byteLength} bytes)`);
+    return Buffer.from(response.data);
+  } catch (err) {
+    const detail = err.response?.data ? Buffer.from(err.response.data).toString('utf8') : err.message;
+    console.error(`❌ [TTS-FishAudio] Erreur:`, detail?.substring(0, 300));
+    return null;
+  }
+}
+
+export function getTtsVoiceSettings(config = {}) {
+  const preset = config?.voiceStylePreset || 'balanced';
+
+  if (preset === 'natural') {
+    return {
+      stability: 0.35,
+      similarity_boost: 0.9,
+      style: 0.15,
+      use_speaker_boost: true,
+    };
+  }
+
+  return {
+    stability: 0.5,
+    similarity_boost: 0.75,
+    style: 0.4,
+    use_speaker_boost: true,
+  };
 }
 
 function sanitizeReply(reply, config) {
@@ -941,6 +1021,40 @@ Voici exactement comment tu dois réagir dans ces situations :\n`;
       consultative: 'tu poses des questions pour comprendre et adapter',
     };
     prompt += `\n\n## 🎯 Technique de closing\n${closeMap[config.closingTechnique] || config.closingTechnique}`;
+  }
+
+  const activeCommercialOffers = (config.commercialOffers || []).filter(offer => (
+    offer?.active !== false && (offer?.title || offer?.benefit || offer?.message || offer?.conditions)
+  ));
+
+  if (config.commercialOffersEnabled && activeCommercialOffers.length) {
+    const triggerMap = {
+      'first-contact': 'à utiliser au premier échange si cela aide à déclencher l\'intérêt',
+      hesitation: 'à utiliser quand le client hésite sans être encore perdu',
+      'price-objection': 'à utiliser seulement si le client bloque sur le prix',
+      'follow-up': 'à utiliser pendant une relance de prospect silencieux',
+      upsell: 'à utiliser après un intérêt confirmé pour augmenter la valeur',
+      'last-chance': 'à utiliser comme dernier levier avec urgence assumée',
+    };
+
+    prompt += `\n\n## 🎁 OFFRES COMMERCIALES PRÉ-VALIDÉES
+Tu peux proposer UNIQUEMENT les offres actives ci-dessous.
+
+Règles absolues :
+- Tu n'inventes JAMAIS une offre, un bonus ou une promo hors de cette liste
+- Tu respectes le déclencheur, la cible et les conditions de chaque offre
+- Si aucune offre ne correspond à la situation, tu n'en proposes aucune
+- Les règles de prix et de négociation restent prioritaires : une offre ne t'autorise jamais à descendre sous un dernier prix non prévu
+${config.requireHumanApproval ? '- Avant de confirmer une offre commerciale, tu expliques que tu dois d\'abord la faire valider par le responsable. Tu ne la présentes pas comme déjà acquise.' : '- Si une offre correspond exactement au contexte, tu peux la proposer directement.'}`;
+
+    activeCommercialOffers.forEach((offer, index) => {
+      prompt += `\n\n### Offre ${index + 1}${offer.title ? ` — ${offer.title}` : ''}`;
+      if (offer.appliesTo) prompt += `\n- Cible / produit : ${offer.appliesTo}`;
+      prompt += `\n- Déclencheur : ${triggerMap[offer.trigger] || offer.trigger || 'quand le contexte s\'y prête'}`;
+      if (offer.benefit) prompt += `\n- Avantage proposé : ${offer.benefit}`;
+      if (offer.conditions) prompt += `\n- Conditions : ${offer.conditions}`;
+      if (offer.message) prompt += `\n- Angle / formulation recommandée : ${offer.message}`;
+    });
   }
 
   // ─── NÉGOCIATION DES PRIX ───
