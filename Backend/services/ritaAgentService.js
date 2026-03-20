@@ -4,6 +4,7 @@ import RitaConfig from '../models/RitaConfig.js';
 import { Readable } from 'stream';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const FISH_AUDIO_DIRECT_API_KEY = process.env.FISH_AUDIO_API_KEY || '203f946aa7b3454184fd28fc7eb1f33b';
 
 // Historique in-memory par numéro de téléphone (max 100 échanges gardés)
 const conversationHistory = new Map();
@@ -299,7 +300,7 @@ async function textToSpeechElevenLabs(text, config) {
  * @returns {Promise<Buffer|null>} - Buffer MP3 ou null si erreur
  */
 export async function textToSpeechFishAudio(text, config) {
-  const apiKey = config?.fishAudioApiKey || process.env.FISH_AUDIO_API_KEY;
+  const apiKey = config?.fishAudioApiKey || FISH_AUDIO_DIRECT_API_KEY;
   const referenceId = config?.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50';
   const model = config?.fishAudioModel || 's2-pro';
   if (!apiKey) return null;

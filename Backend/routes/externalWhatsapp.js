@@ -18,6 +18,7 @@ import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const FISH_AUDIO_DIRECT_API_KEY = process.env.FISH_AUDIO_API_KEY || '203f946aa7b3454184fd28fc7eb1f33b';
 
 // ─── Multer config pour upload d'images/vidéos produit Rita ───────────────
 // On utilise memoryStorage pour envoyer directement à R2 (fallback disk si R2 indisponible)
@@ -1349,7 +1350,7 @@ router.post('/incoming', async (req, res) => {
           const ritaCfgVoice = await RitaConfig.findOne({ userId }).lean();
           // Utiliser la clé API de la config Rita OU celle du .env en fallback
           const effectiveApiKey = ritaCfgVoice?.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY || '';
-          const effectiveFishKey = ritaCfgVoice?.fishAudioApiKey || process.env.FISH_AUDIO_API_KEY || '';
+          const effectiveFishKey = ritaCfgVoice?.fishAudioApiKey || FISH_AUDIO_DIRECT_API_KEY;
           const ttsConfig = { ...ritaCfgVoice, elevenlabsApiKey: effectiveApiKey, fishAudioApiKey: effectiveFishKey };
           // responseMode: 'text' | 'voice' | 'both'. Legacy compat: voiceMode=true → 'voice'
           const responseMode = ritaCfgVoice?.responseMode || (ritaCfgVoice?.voiceMode ? 'voice' : 'text');
@@ -1782,7 +1783,7 @@ router.get('/preview-voice', async (req, res) => {
 router.get('/preview-voice-fish', async (req, res) => {
   try {
     const { referenceId, model } = req.query;
-    const apiKey = req.query.apiKey || process.env.FISH_AUDIO_API_KEY;
+    const apiKey = FISH_AUDIO_DIRECT_API_KEY;
     if (!apiKey) return res.status(500).json({ success: false, error: 'Clé Fish.audio non configurée' });
 
     const sampleText = 'Bonjour ! Je suis Rita, votre assistante commerciale. Comment puis-je vous aider aujourd\'hui ?';

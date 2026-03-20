@@ -2774,15 +2774,10 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
 
                       <div className="space-y-3">
                         <div>
-                          <label className="text-[12px] font-medium text-gray-700 mb-1 block">Clé API Fish.audio</label>
-                          <input
-                            type="password"
-                            value={config.fishAudioApiKey || ''}
-                            onChange={e => set('fishAudioApiKey', e.target.value)}
-                            placeholder="Votre clé API Fish.audio..."
-                            className="w-full px-3 py-2 text-[13px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
-                          />
-                          <p className="text-[10px] text-gray-400 mt-1">Obtenez votre clé sur <span className="text-cyan-600 font-medium">fish.audio</span></p>
+                          <div className="px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-lg">
+                            <p className="text-[12px] font-medium text-emerald-800">API Fish.audio intégrée directement</p>
+                            <p className="text-[10px] text-emerald-700 mt-1">Aucune clé à saisir ici. Rita utilise automatiquement l'API Fish.audio configurée côté serveur.</p>
+                          </div>
                         </div>
 
                         <div>
@@ -2795,6 +2790,47 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                             className="w-full px-3 py-2 text-[13px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
                           />
                           <p className="text-[10px] text-gray-400 mt-1">L'identifiant de la voix clonée sur Fish.audio</p>
+                        </div>
+
+                        <div>
+                          <p className="text-[12px] font-medium text-gray-700 mb-2">Voix disponibles</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {[
+                              {
+                                id: '14b22748e04a48a58f92fbcde088ee50',
+                                name: 'Ebilove',
+                                desc: 'Voix clonée Fish.audio · FR · Voix avancée',
+                                badge: '⭐ Intégrée',
+                              },
+                            ].map(voice => (
+                              <button
+                                key={voice.id}
+                                type="button"
+                                onClick={() => set('fishAudioReferenceId', voice.id)}
+                                className={`flex items-center gap-3 px-3.5 py-3 rounded-xl border-2 text-left transition-all duration-200 ${
+                                  (config.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50') === voice.id
+                                    ? 'border-cyan-400 bg-cyan-50 shadow-sm shadow-cyan-100'
+                                    : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+                                }`}
+                              >
+                                <span className="text-lg">🐟</span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <p className={`text-[13px] font-semibold ${
+                                      (config.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50') === voice.id
+                                        ? 'text-cyan-700'
+                                        : 'text-gray-800'
+                                    }`}>{voice.name}</p>
+                                    <span className="text-[9px] bg-cyan-100 text-cyan-700 font-bold px-1.5 py-0.5 rounded-full">{voice.badge}</span>
+                                  </div>
+                                  <p className="text-[11px] text-gray-400">{voice.desc}</p>
+                                </div>
+                                {(config.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50') === voice.id && (
+                                  <CheckCircle className="w-4 h-4 text-cyan-500 flex-shrink-0" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
                         </div>
 
                         <div>
@@ -2820,7 +2856,6 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                               const params = new URLSearchParams({
                                 referenceId: config.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50',
                                 model: config.fishAudioModel || 's2-pro',
-                                ...(config.fishAudioApiKey ? { apiKey: config.fishAudioApiKey } : {}),
                               });
                               const { data } = await ecomApi.get(`/v1/external/whatsapp/preview-voice-fish?${params}`);
                               if (data.success && data.audio) {
