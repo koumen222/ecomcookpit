@@ -56,7 +56,8 @@ export const CurrencyProvider = ({ children }) => {
   const currencyInfo = getCurrencyInfo(currencyCode);
 
   // Convertir un montant de la devise source vers la devise de l'utilisateur
-  const convert = (amount, fromCurrency = 'XAF') => {
+  const convert = (amount, fromCurrency) => {
+    if (!fromCurrency) fromCurrency = currencyCode;
     if (amount === undefined || amount === null) return null;
     if (fromCurrency === currencyCode) return parseFloat(amount);
     
@@ -73,7 +74,7 @@ export const CurrencyProvider = ({ children }) => {
   };
 
   // Formater un montant dans la devise de l'utilisateur
-  const format = (amount, fromCurrency = 'XAF') => {
+  const format = (amount, fromCurrency) => {
     try {
       const converted = convert(amount, fromCurrency);
       return formatMoney(converted, currencyCode);

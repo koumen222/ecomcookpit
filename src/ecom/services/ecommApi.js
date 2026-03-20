@@ -32,17 +32,23 @@ function resolveEcomApiBaseUrl() {
   const envBackend = import.meta.env.VITE_BACKEND_URL;
   const envApi = import.meta.env.VITE_API_URL;
 
+  // On scalor.net frontend, always target the public API domain first.
+  // This avoids production builds accidentally using a direct Railway URL,
+  // which triggers preflight failures when that hostname is not exposed.
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) {
+    const normalizedFromApi = normalizeBackendBaseUrl(envApi);
+    if (normalizedFromApi.includes('api.scalor.net')) {
+      return normalizedFromApi;
+    }
+    return 'https://api.scalor.net/api/ecom';
+  }
+
   // priorité: VITE_API_URL, puis VITE_BACKEND_URL
   const normalizedFromApi = normalizeBackendBaseUrl(envApi);
   if (normalizedFromApi) return normalizedFromApi;
 
   const normalizedFromBackend = normalizeBackendBaseUrl(envBackend);
   if (normalizedFromBackend) return normalizedFromBackend;
-
-  // En prod scalor.net, on force l'API publique pour éviter CORS/redirect.
-  if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) {
-    return 'https://api.scalor.net/api/ecom';
-  }
 
   return 'https://ecomcookpit-production-7a08.up.railway.app/api/ecom';
 }

@@ -842,6 +842,8 @@ const RITA_SECTIONS = [
   { id: 'knowledge',    label: 'Connaissances', emoji: '📚' },
   { id: 'personality',  label: 'Personnalité',  emoji: '🎭' },
   { id: 'sales',        label: 'Vente',         emoji: '💰' },
+  { id: 'offers',       label: 'Offres',        emoji: '🎁' },
+  { id: 'messages',     label: 'Messages',      emoji: '💬' },
   { id: 'availability', label: 'Dispo',         emoji: '⏰' },
   { id: 'voice',        label: 'Vocal',         emoji: '🎙️' },
 ];
@@ -852,6 +854,15 @@ const AUTONOMY_LEVELS = [
   { level: 3, label: 'Commerciale',  desc: "Gère les objections et pousse à l'achat",                   color: 'bg-emerald-100 text-emerald-700' },
   { level: 4, label: 'Négociatrice', desc: 'Conclut des ventes de façon autonome et gère les relances', color: 'bg-amber-100 text-amber-700' },
   { level: 5, label: 'Chasseuse',    desc: 'Mode offensif : qualification, closing agressif, upsell',   color: 'bg-red-100 text-red-700' },
+];
+
+const OFFER_TRIGGER_OPTIONS = [
+  { value: 'first-contact', label: 'Premier contact' },
+  { value: 'hesitation', label: 'Quand le client hésite' },
+  { value: 'price-objection', label: 'Objection sur le prix' },
+  { value: 'follow-up', label: 'Relance prospect silencieux' },
+  { value: 'upsell', label: 'Upsell après intérêt confirmé' },
+  { value: 'last-chance', label: 'Dernière chance / urgence' },
 ];
 
 const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) => {
@@ -898,6 +909,8 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
     qualificationQuestions: ['Quel est votre budget ?', 'Pour quand en avez-vous besoin ?'],
     closingTechnique: 'soft',
     objectionsHandling: '',
+    commercialOffersEnabled: false,
+    commercialOffers: [],
     // Pricing negotiation
     pricingNegotiation: { enabled: false, allowDiscount: false, maxDiscountPercent: 0, negotiationStyle: 'firm', priceIsFinal: true, discountConditions: '', refusalMessage: '', globalNote: '' },
     // Auto language detection
@@ -920,6 +933,13 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
     elevenlabsApiKey: '',
     elevenlabsVoiceId: '9ZATEeixBigmezesCGAk',
     elevenlabsModel: 'eleven_v3',
+    voiceStylePreset: 'balanced',
+    // Fish.audio (Voix Avancée)
+    ttsProvider: 'elevenlabs',
+    fishAudioApiKey: '',
+    fishAudioReferenceId: '13f7f6e260f94079b9d51c961fa6c9e2',
+    fishAudioModel: 's2-pro',
+    fishAudioVoices: [],
     // Notifications boss
     bossNotifications: false,
     bossPhone: '',
@@ -930,6 +950,11 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
     // Escalade boss
     bossEscalationEnabled: false,
     bossEscalationTimeoutMin: 30,
+    // Messages d'accusé de réception de commande
+    orderConfirmationMessage: 'Bonjour {{first_name}} 👋\n\nJ\'espère que vous allez bien !\n\nIci le service client Zendo.\n\nNous accusons réception de votre commande n°{{order_number}} ✅\n\nLe produit {{product}} coûte {{price}} FCFA l\'unité pour une quantité de {{quantity}}.\n\nNous pouvons vous livrer aujourd\'hui (si la commande est passée avant 16h) ou demain (si elle est passée après 16h) 🙏🏼',
+    orderConfirmationMessageNonDeliverable: 'Bonjour {{first_name}} 👋\n\nNous avons bien reçu votre commande n°{{order_number}} ✅\n\nLe produit {{product}} coûte {{price}} FCFA l\'unité pour une quantité de {{quantity}}.\n\nMalheureusement, nous ne livrons pas encore dans votre ville ({{city}}). Nous vous contacterons dès que la livraison sera disponible dans votre zone. 🙏',
+    enableCityRouting: false,
+    deliverableZones: [],
   });
 
   const [simMessages, setSimMessages] = useState([]);
@@ -943,9 +968,16 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
   const [bulkText, setBulkText] = useState('');
   const [bulkImportResult, setBulkImportResult] = useState(null);
   const [selectedProducts, setSelectedProducts] = useState(new Set()); // multi-select indexes
+  const [newDeliverableZone, setNewDeliverableZone] = useState('');
   const [newMannerism, setNewMannerism] = useState('');
   const [newForbidden, setNewForbidden] = useState('');
   const [previewingVoice, setPreviewingVoice] = useState(null); // voiceId en cours de preview
+  const [creatingFishVoice, setCreatingFishVoice] = useState(false);
+  const [fishVoiceName, setFishVoiceName] = useState('');
+  const [fishVoiceDescription, setFishVoiceDescription] = useState('');
+  const [fishVoiceSamples, setFishVoiceSamples] = useState([]);
+  const [fishVoiceTexts, setFishVoiceTexts] = useState(['']);
+  const [fishVoiceStatus, setFishVoiceStatus] = useState(null);
   const [testingBoss, setTestingBoss] = useState(false);
   const [testBossResult, setTestBossResult] = useState(null); // { ok, msg }
 
@@ -972,7 +1004,8 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
     if (previewingVoice === voiceId) return;
     setPreviewingVoice(voiceId);
     try {
-      const { data } = await ecomApi.get(`/v1/external/whatsapp/preview-voice?voiceId=${voiceId}`);
+      const preset = config.voiceStylePreset || 'balanced';
+      const { data } = await ecomApi.get(`/v1/external/whatsapp/preview-voice?voiceId=${voiceId}&voiceStylePreset=${preset}`);
       if (data.success && data.audio) {
         const bytes = Uint8Array.from(atob(data.audio), c => c.charCodeAt(0));
         const blob = new Blob([bytes], { type: 'audio/mpeg' });
@@ -983,6 +1016,86 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
         audio.play();
       } else { setPreviewingVoice(null); }
     } catch { setPreviewingVoice(null); }
+  };
+
+  const playFishPreview = async (referenceId) => {
+    if (!referenceId || previewingVoice === referenceId) return;
+    setPreviewingVoice(referenceId);
+    try {
+      const params = new URLSearchParams({
+        referenceId,
+        model: config.fishAudioModel || 's2-pro',
+      });
+      const { data } = await ecomApi.get(`/v1/external/whatsapp/preview-voice-fish?${params}`);
+      if (data.success && data.audio) {
+        const bytes = Uint8Array.from(atob(data.audio), c => c.charCodeAt(0));
+        const blob = new Blob([bytes], { type: 'audio/mpeg' });
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.onended = () => { setPreviewingVoice(null); URL.revokeObjectURL(url); };
+        audio.onerror = () => { setPreviewingVoice(null); URL.revokeObjectURL(url); };
+        audio.play();
+      } else {
+        setPreviewingVoice(null);
+      }
+    } catch {
+      setPreviewingVoice(null);
+    }
+  };
+
+  const handleFishSampleChange = (event) => {
+    const files = Array.from(event.target.files || []).slice(0, 3);
+    setFishVoiceSamples(files);
+    setFishVoiceTexts(prev => {
+      const next = files.map((_, index) => prev[index] || '');
+      return next.length ? next : [''];
+    });
+  };
+
+  const setFishText = (index, value) => {
+    setFishVoiceTexts(prev => prev.map((item, itemIndex) => itemIndex === index ? value : item));
+  };
+
+  const handleCreateFishVoice = async () => {
+    if (!fishVoiceName.trim()) {
+      setFishVoiceStatus({ type: 'error', msg: 'Donne un nom à ta voix.' });
+      return;
+    }
+    if (!fishVoiceSamples.length) {
+      setFishVoiceStatus({ type: 'error', msg: 'Ajoute au moins un échantillon audio.' });
+      return;
+    }
+
+    setCreatingFishVoice(true);
+    setFishVoiceStatus(null);
+    try {
+      const fd = new FormData();
+      fd.append('userId', userId);
+      fd.append('title', fishVoiceName.trim());
+      fd.append('description', fishVoiceDescription.trim());
+      fishVoiceSamples.forEach(file => fd.append('voices', file));
+      fishVoiceTexts.filter(Boolean).forEach(text => fd.append('texts', text.trim()));
+
+      const { data } = await ecomApi.post('/v1/external/whatsapp/fish-voice', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      if (!data.success) {
+        setFishVoiceStatus({ type: 'error', msg: data.error || 'Création de voix échouée.' });
+        return;
+      }
+
+      setConfig(prev => ({ ...prev, ...data.config, ttsProvider: 'fishaudio', fishAudioReferenceId: data.voice.id }));
+      setFishVoiceStatus({ type: 'success', msg: `Voix créée: ${data.voice.name}` });
+      setFishVoiceName('');
+      setFishVoiceDescription('');
+      setFishVoiceSamples([]);
+      setFishVoiceTexts(['']);
+    } catch (err) {
+      setFishVoiceStatus({ type: 'error', msg: err?.response?.data?.error || 'Erreur de création Fish.audio.' });
+    } finally {
+      setCreatingFishVoice(false);
+    }
   };
 
   const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
@@ -1047,6 +1160,37 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
   const addQuestion = () => {
     const q = newQuestion.trim();
     if (q) { set('qualificationQuestions', [...config.qualificationQuestions, q]); setNewQuestion(''); }
+  };
+
+  const addCommercialOffer = () => {
+    const nextOffer = {
+      title: '',
+      appliesTo: '',
+      trigger: 'hesitation',
+      benefit: '',
+      message: '',
+      conditions: '',
+      active: true,
+    };
+    set('commercialOffers', [...(config.commercialOffers || []), nextOffer]);
+  };
+
+  const updateCommercialOffer = (idx, field, value) => {
+    const updated = (config.commercialOffers || []).map((offer, offerIdx) => (
+      offerIdx === idx ? { ...offer, [field]: value } : offer
+    ));
+    set('commercialOffers', updated);
+  };
+
+  const removeCommercialOffer = (idx) => {
+    set('commercialOffers', (config.commercialOffers || []).filter((_, offerIdx) => offerIdx !== idx));
+  };
+
+  const buildOfferFollowUpText = (offer) => {
+    const parts = [offer?.benefit, offer?.message, offer?.conditions ? `Conditions: ${offer.conditions}` : '']
+      .map(part => (part || '').trim())
+      .filter(Boolean);
+    return parts.join(' — ');
   };
 
   // ─── Product catalog helpers ───
@@ -2497,6 +2641,147 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
             )}
 
             {/* Disponibilité */}
+            {activeSection === 'offers' && (
+              <div className="space-y-5">
+                <div className="px-4 py-3 bg-emerald-50/80 border border-emerald-100 rounded-2xl text-[12px] text-emerald-800 flex gap-2.5 items-start">
+                  <span className="flex-shrink-0 text-sm mt-0.5">🎁</span>
+                  <span>Créez ici les offres commerciales que Rita a le droit d'utiliser. Elle ne proposera que les offres actives et respectera vos conditions.</span>
+                </div>
+
+                <ToggleRow
+                  enabled={config.commercialOffersEnabled}
+                  onChange={v => set('commercialOffersEnabled', v)}
+                  label="Activer la gestion des offres"
+                  desc="Rita peut proposer des offres pré-configurées selon le contexte commercial"
+                />
+
+                {config.commercialOffersEnabled && (
+                  <div className="space-y-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 bg-white border border-gray-200 rounded-2xl">
+                      <div>
+                        <p className="text-[13px] font-semibold text-gray-900">Offres commerciales actives</p>
+                        <p className="text-[12px] text-gray-500 mt-0.5">
+                          {(config.commercialOffers || []).filter(offer => offer.active).length} active(s) sur {(config.commercialOffers || []).length}
+                          {config.requireHumanApproval ? ' · validation humaine toujours active' : ''}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={addCommercialOffer}
+                        className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-[12px] font-semibold text-white rounded-xl transition-colors"
+                        style={{ background: ACCENT }}>
+                        <Plus className="w-3.5 h-3.5" />
+                        Ajouter une offre
+                      </button>
+                    </div>
+
+                    {(config.commercialOffers || []).length === 0 && (
+                      <div className="px-4 py-5 border border-dashed border-gray-200 rounded-2xl bg-gray-50/70 text-center">
+                        <p className="text-[13px] font-semibold text-gray-700">Aucune offre configurée</p>
+                        <p className="text-[12px] text-gray-400 mt-1">Ajoutez vos promotions, bonus ou avantages pour que Rita puisse les proposer au bon moment.</p>
+                      </div>
+                    )}
+
+                    {(config.commercialOffers || []).map((offer, offerIdx) => (
+                      <div key={offerIdx} className="border border-gray-200 rounded-2xl overflow-hidden bg-white">
+                        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-gray-50 border-b border-gray-100">
+                          <div>
+                            <p className="text-[13px] font-semibold text-gray-900">{offer.title || `Offre ${offerIdx + 1}`}</p>
+                            <p className="text-[11px] text-gray-400">
+                              {OFFER_TRIGGER_OPTIONS.find(opt => opt.value === offer.trigger)?.label || 'Déclencheur non défini'}
+                              {offer.appliesTo ? ` · ${offer.appliesTo}` : ''}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${offer.active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                              {offer.active ? 'Active' : 'Inactive'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeCommercialOffer(offerIdx)}
+                              className="text-gray-300 hover:text-red-500 transition-colors">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="p-4 space-y-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <Field label="Nom de l'offre">
+                              <input
+                                value={offer.title || ''}
+                                onChange={e => updateCommercialOffer(offerIdx, 'title', e.target.value)}
+                                placeholder="Ex: Livraison offerte aujourd'hui"
+                                className="field-input" />
+                            </Field>
+                            <Field label="Produit ou audience ciblée">
+                              <input
+                                value={offer.appliesTo || ''}
+                                onChange={e => updateCommercialOffer(offerIdx, 'appliesTo', e.target.value)}
+                                placeholder="Ex: Montre connectée / prospects tièdes"
+                                className="field-input" />
+                            </Field>
+                            <Field label="Déclencheur principal">
+                              <CustomSelect
+                                value={offer.trigger || 'hesitation'}
+                                onChange={v => updateCommercialOffer(offerIdx, 'trigger', v)}
+                                options={OFFER_TRIGGER_OPTIONS}
+                              />
+                            </Field>
+                            <div className="flex items-end">
+                              <ToggleRow
+                                enabled={offer.active !== false}
+                                onChange={v => updateCommercialOffer(offerIdx, 'active', v)}
+                                label="Offre active"
+                                desc="Rita ignore automatiquement les offres inactives"
+                              />
+                            </div>
+                          </div>
+
+                          <Field label="Avantage proposé">
+                            <input
+                              value={offer.benefit || ''}
+                              onChange={e => updateCommercialOffer(offerIdx, 'benefit', e.target.value)}
+                              placeholder="Ex: -10% / Livraison gratuite / 1 accessoire offert"
+                              className="field-input" />
+                          </Field>
+
+                          <Field label="Conditions d'application" hint="quand Rita peut vraiment la proposer">
+                            <textarea
+                              value={offer.conditions || ''}
+                              onChange={e => updateCommercialOffer(offerIdx, 'conditions', e.target.value)}
+                              rows={2}
+                              placeholder="Ex: uniquement si le client bloque sur le prix ou commande avant 18h"
+                              className="field-input text-xs" style={{ resize: 'vertical' }} />
+                          </Field>
+
+                          <Field label="Message ou angle commercial" hint="comment Rita présente l'offre au client">
+                            <textarea
+                              value={offer.message || ''}
+                              onChange={e => updateCommercialOffer(offerIdx, 'message', e.target.value)}
+                              rows={3}
+                              placeholder="Ex: Si tu confirmes aujourd'hui, je peux t'ajouter la livraison gratuite 🙏"
+                              className="field-input text-xs" style={{ resize: 'vertical' }} />
+                          </Field>
+
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3.5 py-3 bg-gray-50 rounded-xl border border-gray-100">
+                            <p className="text-[11px] text-gray-500">Astuce: vous pouvez réutiliser une offre comme offre de dernière relance en un clic.</p>
+                            <button
+                              type="button"
+                              onClick={() => set('followUpOffer', buildOfferFollowUpText(offer))}
+                              className="px-3 py-1.5 text-[11px] font-semibold rounded-lg border border-gray-200 text-gray-700 hover:bg-white transition-colors">
+                              Utiliser en dernière relance
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Disponibilité */}
             {activeSection === 'voice' && (
               <div className="space-y-5">
                 {/* Mode de réponse: text / voice / both */}
@@ -2538,6 +2823,249 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
 
                 {/* ElevenLabs config — pré-configuré */}
                 <div className="space-y-4">
+
+                  {/* ── Sélection du fournisseur TTS ── */}
+                  <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-xl space-y-3">
+                    <p className="text-[14px] font-bold text-gray-900">🔊 Fournisseur vocal</p>
+                    <p className="text-[12px] text-gray-500">Choisissez le moteur de synthèse vocale pour Rita</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { value: 'elevenlabs', icon: '🎙️', label: 'ElevenLabs', desc: 'Voix standard — pré-configuré, 70+ langues' },
+                        { value: 'fishaudio', icon: '🐟', label: 'Voix Avancée', desc: 'Fish.audio S2-Pro — clonage vocal haute fidélité' },
+                      ].map(p => (
+                        <button key={p.value} type="button"
+                          onClick={() => set('ttsProvider', p.value)}
+                          className={`flex flex-col items-center gap-2 px-3 py-4 rounded-2xl border-2 transition-all duration-200 ${
+                            (config.ttsProvider || 'elevenlabs') === p.value
+                              ? 'border-indigo-500 bg-indigo-50/70 shadow-sm shadow-indigo-100 scale-[1.02]'
+                              : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+                          }`}>
+                          <span className="text-2xl">{p.icon}</span>
+                          <p className={`text-[13px] font-bold ${(config.ttsProvider || 'elevenlabs') === p.value ? 'text-indigo-700' : 'text-gray-700'}`}>{p.label}</p>
+                          <p className="text-[10px] text-gray-400 text-center leading-tight">{p.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* ── Fish.audio (Voix Avancée) config ── */}
+                  {(config.ttsProvider === 'fishaudio') && (
+                    <div className="p-4 bg-cyan-50 border border-cyan-200 rounded-xl space-y-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">🐟</span>
+                        <div>
+                          <p className="text-[14px] font-bold text-gray-900">Fish.audio — Voix Avancée</p>
+                          <p className="text-[11px] text-gray-500">Clonage vocal haute fidélité avec le modèle S2-Pro</p>
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-white border border-cyan-100 rounded-xl space-y-3">
+                        <div>
+                          <p className="text-[13px] font-semibold text-gray-900">Créer ma voix</p>
+                          <p className="text-[11px] text-gray-500">Upload 1 à 3 audios, clique sur créer, puis utilise ta voix directement dans Rita.</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3">
+                          <div>
+                            <label className="text-[12px] font-medium text-gray-700 mb-1 block">Nom de la voix</label>
+                            <input
+                              type="text"
+                              value={fishVoiceName}
+                              onChange={e => setFishVoiceName(e.target.value)}
+                              placeholder="Ex: Voix Morgan"
+                              className="w-full px-3 py-2 text-[13px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[12px] font-medium text-gray-700 mb-1 block">Description</label>
+                            <input
+                              type="text"
+                              value={fishVoiceDescription}
+                              onChange={e => setFishVoiceDescription(e.target.value)}
+                              placeholder="Ex: Voix posée et chaleureuse"
+                              className="w-full px-3 py-2 text-[13px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[12px] font-medium text-gray-700 mb-1 block">Échantillons audio</label>
+                            <input
+                              type="file"
+                              accept="audio/*"
+                              multiple
+                              onChange={handleFishSampleChange}
+                              className="w-full px-3 py-2 text-[12px] border border-dashed border-cyan-300 rounded-lg bg-cyan-50/40 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-cyan-500 file:text-white"
+                            />
+                            <p className="text-[10px] text-gray-400 mt-1">Formats: mp3, wav, m4a. 10 à 30 secondes recommandées par sample.</p>
+                          </div>
+
+                          {fishVoiceSamples.map((sample, index) => (
+                            <div key={`${sample.name}-${index}`}>
+                              <label className="text-[11px] font-medium text-gray-700 mb-1 block">Transcript optionnel — {sample.name}</label>
+                              <textarea
+                                value={fishVoiceTexts[index] || ''}
+                                onChange={e => setFishText(index, e.target.value)}
+                                rows={2}
+                                placeholder="Texte prononcé dans cet audio pour améliorer la qualité"
+                                className="w-full px-3 py-2 text-[12px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent resize-none"
+                              />
+                            </div>
+                          ))}
+
+                          <button
+                            type="button"
+                            onClick={handleCreateFishVoice}
+                            disabled={creatingFishVoice}
+                            className={`w-full px-4 py-3 rounded-xl text-[13px] font-semibold transition-all ${
+                              creatingFishVoice
+                                ? 'bg-cyan-300 text-white cursor-not-allowed'
+                                : 'bg-cyan-600 text-white hover:bg-cyan-700'
+                            }`}
+                          >
+                            {creatingFishVoice ? 'Création en cours...' : 'Créer ma voix'}
+                          </button>
+
+                          {fishVoiceStatus && (
+                            <div className={`px-3 py-2 rounded-lg text-[11px] border ${
+                              fishVoiceStatus.type === 'success'
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                : 'bg-red-50 border-red-200 text-red-700'
+                            }`}>
+                              {fishVoiceStatus.msg}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <div className="px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-lg">
+                            <p className="text-[12px] font-medium text-emerald-800">API Fish.audio intégrée directement</p>
+                            <p className="text-[10px] text-emerald-700 mt-1">Aucune clé à saisir ici. Rita utilise automatiquement l'API Fish.audio configurée côté serveur.</p>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg">
+                            <p className="text-[12px] font-medium text-slate-800">Sélection par cartes de voix</p>
+                            <p className="text-[10px] text-slate-600 mt-1">Le choix de la voix se fait directement dans la liste ci-dessous. Le champ technique Reference ID a été retiré.</p>
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-[12px] font-medium text-gray-700 mb-2">Voix disponibles</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {[
+                              {
+                                id: '13f7f6e260f94079b9d51c961fa6c9e2',
+                                name: 'Michelle',
+                                desc: 'Modèle Fish.audio · Femme · FR · Voix avancée par défaut',
+                                badge: '✨ Par défaut',
+                              },
+                              {
+                                id: '3846aca8ddb64a5a82ab2e097844861d',
+                                name: 'Richard',
+                                desc: 'Modèle Fish.audio · Homme · FR · Voix avancée',
+                                badge: '🆕 Intégrée',
+                              },
+                              {
+                                id: '14b22748e04a48a58f92fbcde088ee50',
+                                name: 'Ebilove',
+                                desc: 'Voix clonée Fish.audio · Femme · FR · Voix avancée',
+                                badge: '⭐ Intégrée',
+                              },
+                              ...((config.fishAudioVoices || []).map(voice => ({
+                                id: voice.id,
+                                name: voice.name,
+                                desc: `${voice.description || 'Voix personnalisée'}${voice.state ? ` · ${voice.state}` : ''}`,
+                                badge: 'Ma voix',
+                              }))),
+                            ].map(voice => (
+                              <button
+                                key={voice.id}
+                                type="button"
+                                onClick={() => set('fishAudioReferenceId', voice.id)}
+                                className={`flex items-center gap-3 px-3.5 py-3 rounded-xl border-2 text-left transition-all duration-200 ${
+                                  (config.fishAudioReferenceId || '13f7f6e260f94079b9d51c961fa6c9e2') === voice.id
+                                    ? 'border-cyan-400 bg-cyan-50 shadow-sm shadow-cyan-100'
+                                    : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+                                }`}
+                              >
+                                <span className="text-lg">🐟</span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <p className={`text-[13px] font-semibold ${
+                                      (config.fishAudioReferenceId || '13f7f6e260f94079b9d51c961fa6c9e2') === voice.id
+                                        ? 'text-cyan-700'
+                                        : 'text-gray-800'
+                                    }`}>{voice.name}</p>
+                                    <span className="text-[9px] bg-cyan-100 text-cyan-700 font-bold px-1.5 py-0.5 rounded-full">{voice.badge}</span>
+                                  </div>
+                                  <p className="text-[11px] text-gray-400">{voice.desc}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    playFishPreview(voice.id);
+                                  }}
+                                  className={`ml-auto flex-shrink-0 p-1.5 rounded-full transition-colors ${
+                                    previewingVoice === voice.id
+                                      ? 'bg-cyan-500 text-white animate-pulse'
+                                      : 'bg-gray-100 hover:bg-cyan-100 text-gray-500 hover:text-cyan-600'
+                                  }`}
+                                  title="Écouter cette voix"
+                                >
+                                  {previewingVoice === voice.id ? <span className="text-[10px] font-bold">▶</span> : <span className="text-[10px]">▶</span>}
+                                </button>
+                                {(config.fishAudioReferenceId || '13f7f6e260f94079b9d51c961fa6c9e2') === voice.id && (
+                                  <CheckCircle className="w-4 h-4 text-cyan-500 flex-shrink-0" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[12px] font-medium text-gray-700 mb-1 block">Modèle</label>
+                          <select
+                            value={config.fishAudioModel || 's2-pro'}
+                            onChange={e => set('fishAudioModel', e.target.value)}
+                            className="w-full px-3 py-2 text-[13px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent bg-white"
+                          >
+                            <option value="s2-pro">S2-Pro ⭐ (meilleur qualité)</option>
+                            <option value="s2">S2 (standard)</option>
+                          </select>
+                        </div>
+
+                        {/* Bouton preview Fish.audio */}
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            playFishPreview(config.fishAudioReferenceId || '13f7f6e260f94079b9d51c961fa6c9e2');
+                          }}
+                          className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold transition-all duration-200 ${
+                            previewingVoice === (config.fishAudioReferenceId || '13f7f6e260f94079b9d51c961fa6c9e2')
+                              ? 'bg-cyan-500 text-white animate-pulse'
+                              : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'
+                          }`}
+                        >
+                          <span>{previewingVoice === (config.fishAudioReferenceId || '13f7f6e260f94079b9d51c961fa6c9e2') ? '🔊' : '▶'}</span>
+                          {previewingVoice === (config.fishAudioReferenceId || '13f7f6e260f94079b9d51c961fa6c9e2') ? 'Lecture en cours...' : 'Écouter la voix sélectionnée'}
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-2 px-3 py-2 bg-cyan-100/60 border border-cyan-200 rounded-lg">
+                        <span className="text-cyan-600 text-sm">💡</span>
+                        <p className="text-[11px] text-cyan-800">Fish.audio permet de cloner n'importe quelle voix avec une fidélité exceptionnelle. Idéal pour donner une vraie identité vocale à votre agent.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── ElevenLabs config (affiché seulement si ElevenLabs sélectionné) ── */}
+                  {(config.ttsProvider || 'elevenlabs') === 'elevenlabs' && (<>
                   <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg">
                     <span className="text-emerald-500 text-sm">&#10003;</span>
                     <p className="text-xs text-emerald-700">
@@ -2556,6 +3084,39 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                       ]}
                     />
                   </Field>
+
+                  <div className="p-4 bg-white border border-purple-100 rounded-xl space-y-3">
+                    <div>
+                      <p className="text-[13px] font-semibold text-gray-900">Rendu vocal</p>
+                      <p className="text-[11px] text-gray-500">Choisissez si Rita doit avoir une voix plus neutre ou plus réelle dans l'agent WhatsApp.</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { value: 'balanced', label: 'Standard', desc: 'Stable, clair, polyvalent' },
+                        { value: 'natural', label: 'Voix plus réelle', desc: 'Plus naturel, plus humain' },
+                      ].map(option => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => set('voiceStylePreset', option.value)}
+                          className={`flex flex-col items-start gap-1 px-3 py-3 rounded-xl border-2 transition-all duration-200 ${
+                            (config.voiceStylePreset || 'balanced') === option.value
+                              ? 'border-purple-500 bg-purple-50/70 shadow-sm shadow-purple-100'
+                              : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+                          }`}
+                        >
+                          <p className={`text-[13px] font-bold ${(config.voiceStylePreset || 'balanced') === option.value ? 'text-purple-700' : 'text-gray-800'}`}>{option.label}</p>
+                          <p className="text-[11px] text-gray-500 text-left leading-tight">{option.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                    {(config.voiceStylePreset || 'balanced') === 'natural' && (
+                      <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg">
+                        <span className="text-emerald-500 text-sm">🎧</span>
+                        <p className="text-[11px] text-emerald-700">Le preset <strong>Voix plus réelle</strong> augmente le réalisme et la proximité de Rita pour les réponses vocales WhatsApp.</p>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Voix présélectionnées */}
                   <div>
@@ -2610,6 +3171,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                       ))}
                     </div>
                   </div>
+                  </>)}
 
                   <div className="px-4 py-3 bg-amber-50 border border-amber-100 rounded-lg">
                     <p className="text-[12px] text-amber-700">
@@ -2618,6 +3180,137 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                     </p>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* ─── Messages d'accusé de réception ─── */}
+            {activeSection === 'messages' && (
+              <div className="space-y-5">
+                {/* Chips variables */}
+                <div className="px-4 py-3 bg-indigo-50/70 border border-indigo-100 rounded-2xl">
+                  <p className="text-[12px] font-semibold text-indigo-700 mb-2">📌 Variables disponibles — cliquez pour copier</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      '{{first_name}}',
+                      '{{order_number}}',
+                      '{{product}}',
+                      '{{price}}',
+                      '{{quantity}}',
+                      '{{city}}',
+                      '{{client_name}}',
+                    ].map(v => (
+                      <button key={v}
+                        type="button"
+                        onClick={() => { navigator.clipboard?.writeText(v); }}
+                        className="px-2.5 py-1 bg-white border border-indigo-200 text-indigo-700 text-[11px] font-mono rounded-lg hover:bg-indigo-100 transition-colors duration-150 select-all"
+                        title="Cliquer pour copier">
+                        {v}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Message villes livrables */}
+                <div>
+                  <label className="block text-[13px] font-semibold text-gray-800 mb-1">✅ Message — villes où vous livrez</label>
+                  <p className="text-[11px] text-gray-400 mb-2">Envoyé automatiquement à la réception d'une commande dans une ville livrable</p>
+                  <textarea
+                    value={config.orderConfirmationMessage}
+                    onChange={e => set('orderConfirmationMessage', e.target.value)}
+                    rows={8}
+                    className="field-input font-mono text-[12px] leading-relaxed"
+                    style={{ resize: 'vertical' }}
+                    placeholder={'Bonjour {{first_name}} 👋\n\nNous accusons réception de votre commande n°{{order_number}} ✅\n...'}
+                  />
+                </div>
+
+                {/* Toggle routage par ville */}
+                <div className="px-4 py-3 bg-amber-50/80 border border-amber-100 rounded-2xl">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <button
+                      type="button"
+                      onClick={() => set('enableCityRouting', !config.enableCityRouting)}
+                      role="switch"
+                      aria-checked={config.enableCityRouting}
+                      className={`relative flex-shrink-0 w-[44px] h-[26px] rounded-full transition-all duration-200 ${
+                        config.enableCityRouting ? 'bg-amber-500' : 'bg-gray-200 hover:bg-gray-300'
+                      }`}>
+                      <span className={`absolute top-[3px] w-5 h-5 bg-white rounded-full shadow-md transition-all duration-200 ${
+                        config.enableCityRouting ? 'left-[21px]' : 'left-[3px]'
+                      }`} />
+                    </button>
+                    <div>
+                      <span className="text-[12px] text-gray-800 font-semibold">🗺️ Activer le routage par ville</span>
+                      <p className="text-[11px] text-gray-500 mt-0.5">Si actif : villes configurées ci-dessous → message livrable · autres villes → message non-livrable</p>
+                    </div>
+                  </label>
+
+                  {config.enableCityRouting && (
+                    <div className="mt-4 space-y-3">
+                      <p className="text-[12px] font-semibold text-gray-700">🏙️ Villes où vous livrez</p>
+                      <div className="flex flex-wrap gap-2">
+                        {(config.deliverableZones || []).map((zone, i) => (
+                          <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-amber-200 text-amber-800 text-[12px] font-medium rounded-full">
+                            {zone}
+                            <button
+                              type="button"
+                              onClick={() => set('deliverableZones', config.deliverableZones.filter((_, idx) => idx !== i))}
+                              className="text-amber-400 hover:text-red-500 transition-colors duration-150 leading-none font-bold ml-0.5">
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newDeliverableZone}
+                          onChange={e => setNewDeliverableZone(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const v = newDeliverableZone.trim();
+                              if (v && !config.deliverableZones.includes(v)) {
+                                set('deliverableZones', [...(config.deliverableZones || []), v]);
+                                setNewDeliverableZone('');
+                              }
+                            }
+                          }}
+                          placeholder="Ex : Yaoundé, Douala..."
+                          className="field-input flex-1"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const v = newDeliverableZone.trim();
+                            if (v && !config.deliverableZones.includes(v)) {
+                              set('deliverableZones', [...(config.deliverableZones || []), v]);
+                              setNewDeliverableZone('');
+                            }
+                          }}
+                          className="px-4 py-2 bg-amber-500 text-white text-[12px] font-medium rounded-xl hover:bg-amber-600 transition-colors duration-150">
+                          + Ajouter
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Message villes non livrables */}
+                {config.enableCityRouting && (
+                  <div>
+                    <label className="block text-[13px] font-semibold text-gray-800 mb-1">🚫 Message — villes hors zone de livraison</label>
+                      <p className="text-[11px] text-gray-400 mb-2">Envoyé automatiquement si la ville de la commande n'est pas dans votre liste de villes livrables. Utilisez <code className="bg-gray-100 px-1 rounded">{'{{city}}'}</code> pour afficher la ville.</p>
+                    <textarea
+                      value={config.orderConfirmationMessageNonDeliverable}
+                      onChange={e => set('orderConfirmationMessageNonDeliverable', e.target.value)}
+                      rows={7}
+                      className="field-input font-mono text-[12px] leading-relaxed"
+                      style={{ resize: 'vertical' }}
+                      placeholder={'Bonjour {{first_name}} 👋\n\nNous ne livrons pas encore dans votre ville ({{city}})...'}
+                    />
+                  </div>
+                )}
               </div>
             )}
 

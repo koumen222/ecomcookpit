@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import ecomApi from '../services/ecommApi.js';
+import { useMoney } from '../hooks/useMoney.js';
 
 const IconFillLoader = ({ backgroundClassName = 'bg-gray-50' }) => {
   const [p, setP] = useState(0);
@@ -43,6 +44,7 @@ const IconFillLoader = ({ backgroundClassName = 'bg-gray-50' }) => {
 };
 
 const AssignmentsManager = () => {
+  const { symbol } = useMoney();
   const [loading, setLoading] = useState(true);
   const [sources, setSources] = useState([]);
   const [closeuses, setCloseuses] = useState([]);
@@ -658,7 +660,7 @@ const AssignmentsManager = () => {
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium text-gray-400">Commission:</span>
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                    {assignment.commission}{assignment.commissionType === 'percentage' ? '%' : ' FCFA'}
+                    {assignment.commission}{assignment.commissionType === 'percentage' ? '%' : ` ${symbol}`}
                   </span>
                 </div>
               )}
@@ -734,7 +736,7 @@ const AssignmentsManager = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     {assignment.commission ? (
                       <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                        {assignment.commission}{assignment.commissionType === 'percentage' ? '%' : ' FCFA'}
+                        {assignment.commission}{assignment.commissionType === 'percentage' ? '%' : ` ${symbol}`}
                       </span>
                     ) : (
                       <span className="text-xs text-gray-400">-</span>
@@ -1027,7 +1029,7 @@ const AssignmentsManager = () => {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-600 focus:border-transparent bg-white"
                       >
                         <option value="percentage">% (pourcentage)</option>
-                        <option value="fixed">FCFA (montant fixe)</option>
+                        <option value="fixed">{symbol} (montant fixe)</option>
                       </select>
                     </div>
                   </div>
