@@ -1387,8 +1387,10 @@ router.post('/incoming', async (req, res) => {
             }
           }
 
+          // ─── Détecter tag [IMAGES_ALL:Nom du produit] pour envoi de TOUTES les photos ───
+          const imagesAllTagMatch = replyClean.match(/\[IMAGES_ALL:(.+?)\]/);
           // ─── Détecter tag [IMAGE:Nom du produit] pour envoi de photos ───
-          const imageTagMatch = replyClean.match(/\[IMAGE:(.+?)\]/);
+          const imageTagMatch = !imagesAllTagMatch ? replyClean.match(/\[IMAGE:(.+?)\]/) : null;
           // ─── Détecter tag [VIDEO:Nom du produit] pour envoi de vidéos ───
           const videoTagMatch = replyClean.match(/\[VIDEO:(.+?)\]/);
           let textToSend = replyClean;
@@ -1397,8 +1399,33 @@ router.post('/incoming', async (req, res) => {
           let videoUrl = null;
           let videoProductName = null;
           let matchedProductForMedia = null;
+          let sendAllImages = false; // flag pour envoyer toutes les images
 
-          if (imageTagMatch) {
+          if (imagesAllTagMatch) {
+            // Mode: envoyer TOUTES les images du produit
+            imageProductName = imagesAllTagMatch[1].trim();
+            textToSend = textToSend.replace(/\s*\[IMAGES_ALL:.+?\]/g, '').trim();
+            console.log(`📸📸 [RITA] Tag IMAGES_ALL détecté pour produit: "${imageProductName}"`);
+
+            const ritaCfg = await RitaConfig.findOne({ userId }).lean();
+            const catalog = ritaCfg?.productCatalog || [];
+            const product = findProductByName(catalog, imageProductName);
+            console.log(`📸📸 [RITA] Produit trouvé: ${product ? product.name : 'AUCUN'} | images: ${product?.images?.length || 0}`);
+
+            if (product?.images?.length) {
+              imageUrl = product.images[0];
+              if (imageUrl && imageUrl.startsWith('/')) {
+                imageUrl = `https://api.scalor.net${imageUrl}`;
+              }
+              matchedProductForMedia = product;
+              sendAllImages = true;
+              console.log(`📸📸 [RITA] ${product.images.length} image(s) à envoyer pour ${product.name}`);
+            } else {
+              console.log(`📸📸 [RITA] Aucune image pour "${imageProductName}"`);
+              const noImgMsg = `Désolé, on n'a pas encore de photos de ce produit 🙏 Mais je peux te donner tous les détails !`;
+              if (!textToSend) { textToSend = noImgMsg; } else { textToSend += `\n\n${noImgMsg}`; }
+            }
+          } else if (imageTagMatch) {
             imageProductName = imageTagMatch[1].trim();
             textToSend = textToSend.replace(/\s*\[IMAGE:.+?\]/g, '').trim();
             console.log(`📸 [RITA] Tag image détecté pour produit: "${imageProductName}"`);
@@ -1487,13 +1514,13 @@ router.post('/incoming', async (req, res) => {
               useVoiceThisTurn = true;
               console.log(`🎙️ [RITA] Commande confirmée — vocal pour confirmation (mode both)`);
             } else if (hasVoiceTag) {
-              // Tag [VOICE] en mode both = explication longue → 10% de chance (~1 fois sur 10)
-              const randomChance = Math.random() < 0.10;
+              // Tag [VOICE] en mode both = ~35% de chance (équilibre vocal/texte)
+              const randomChance = Math.random() < 0.35;
               if (randomChance) {
                 useVoiceThisTurn = true;
-                console.log(`🎙️ [RITA] Explication longue — vocal accordé (1/10, mode both)`);
+                console.log(`🎙️ [RITA] Vocal accordé (35%, mode both)`);
               } else {
-                console.log(`🔇 [RITA] Explication longue — texte cette fois (tirage 10%, mode both)`);
+                console.log(`🔇 [RITA] Texte cette fois (tirage 35%, mode both)`);
               }
             }
           }
@@ -1563,65 +1590,106 @@ router.post('/incoming', async (req, res) => {
             }
           }
 
-          // Envoyer l'image si disponible
+          // Envoyer l'image (ou TOUTES les images) si disponible
           if (imageUrl) {
-            // Déduire l'extension réelle de l'URL pour le fileName
-            const imgExt = (imageUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
-            const imgFileName = `product.${imgExt}`;
-            console.log(`📸 [RITA] Envoi image à ${cleanFrom}... URL: ${imageUrl}`);
-            let imageSent = false;
-
-            // Essayer avec l'URL principale
-            const mediaResult = await evolutionApiService.sendMedia(
-              instanceDoc.instanceName,
-              instanceDoc.instanceToken,
-              cleanFrom,
-              imageUrl,
-              '',
-              imgFileName
-            );
-            if (mediaResult.success) {
-              imageSent = true;
-              console.log(`✅ [RITA] Image envoyée avec succès à ${cleanFrom}`);
-              logRitaActivity(userId, 'image_sent', { customerPhone: cleanFrom });
-            } else {
-              console.error(`❌ [RITA] Échec envoi image (tentative 1) à ${cleanFrom}:`, mediaResult.error);
-              // Retry avec les autres images du produit
-              if (matchedProductForMedia?.images?.length > 1) {
-                for (let imgIdx = 1; imgIdx < matchedProductForMedia.images.length; imgIdx++) {
-                  let altUrl = matchedProductForMedia.images[imgIdx];
-                  if (altUrl && altUrl.startsWith('/')) altUrl = `https://api.scalor.net${altUrl}`;
-                  if (!altUrl) continue;
-                  const altExt = (altUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
-                  console.log(`📸 [RITA] Retry avec image alternative ${imgIdx + 1}: ${altUrl}`);
-                  const retryResult = await evolutionApiService.sendMedia(
+            if (sendAllImages && matchedProductForMedia?.images?.length > 1) {
+              // ─── MODE TOUTES LES IMAGES ───
+              console.log(`📸📸 [RITA] Envoi de ${matchedProductForMedia.images.length} images à ${cleanFrom}`);
+              let imagesSentCount = 0;
+              for (let imgIdx = 0; imgIdx < matchedProductForMedia.images.length; imgIdx++) {
+                let imgUrl = matchedProductForMedia.images[imgIdx];
+                if (!imgUrl) continue;
+                if (imgUrl.startsWith('/')) imgUrl = `https://api.scalor.net${imgUrl}`;
+                const ext = (imgUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
+                try {
+                  const result = await evolutionApiService.sendMedia(
                     instanceDoc.instanceName,
                     instanceDoc.instanceToken,
                     cleanFrom,
-                    altUrl,
+                    imgUrl,
                     '',
-                    `product.${altExt}`
+                    `product_${imgIdx + 1}.${ext}`
                   );
-                  if (retryResult.success) {
-                    imageSent = true;
-                    console.log(`✅ [RITA] Image alternative ${imgIdx + 1} envoyée avec succès`);
+                  if (result.success) {
+                    imagesSentCount++;
+                    console.log(`✅ [RITA] Image ${imgIdx + 1}/${matchedProductForMedia.images.length} envoyée`);
                     logRitaActivity(userId, 'image_sent', { customerPhone: cleanFrom });
-                    break;
+                  } else {
+                    console.error(`❌ [RITA] Échec image ${imgIdx + 1}: ${result.error}`);
                   }
+                  // Petit délai entre chaque image pour éviter le flood
+                  if (imgIdx < matchedProductForMedia.images.length - 1) {
+                    await new Promise(r => setTimeout(r, 800));
+                  }
+                } catch (imgErr) {
+                  console.error(`❌ [RITA] Erreur envoi image ${imgIdx + 1}:`, imgErr.message);
                 }
               }
-            }
+              if (imagesSentCount === 0) {
+                await evolutionApiService.sendMessage(
+                  instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom,
+                  `Désolé, je n'arrive pas à envoyer les photos en ce moment 🙏 Mais le produit est bien disponible !`
+                );
+              } else {
+                console.log(`📸📸 [RITA] ${imagesSentCount}/${matchedProductForMedia.images.length} images envoyées à ${cleanFrom}`);
+              }
+            } else {
+              // ─── MODE IMAGE UNIQUE (défaut) ───
+              const imgExt = (imageUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
+              const imgFileName = `product.${imgExt}`;
+              console.log(`📸 [RITA] Envoi image à ${cleanFrom}... URL: ${imageUrl}`);
+              let imageSent = false;
 
-            if (!imageSent) {
-              console.error(`❌ [RITA] Toutes les tentatives d'envoi image ont échoué pour ${cleanFrom}`);
-              console.error(`   URL tentée: ${imageUrl}`);
-              console.error(`   Produit: ${matchedProductForMedia?.name || 'N/A'}, Images: ${JSON.stringify(matchedProductForMedia?.images || [])}`);
-              await evolutionApiService.sendMessage(
+              const mediaResult = await evolutionApiService.sendMedia(
                 instanceDoc.instanceName,
                 instanceDoc.instanceToken,
                 cleanFrom,
-                `Désolé, je n'arrive pas à envoyer la photo en ce moment 🙏 Mais le produit est bien disponible, tu veux qu'on te le réserve ?`
+                imageUrl,
+                '',
+                imgFileName
               );
+              if (mediaResult.success) {
+                imageSent = true;
+                console.log(`✅ [RITA] Image envoyée avec succès à ${cleanFrom}`);
+                logRitaActivity(userId, 'image_sent', { customerPhone: cleanFrom });
+              } else {
+                console.error(`❌ [RITA] Échec envoi image (tentative 1) à ${cleanFrom}:`, mediaResult.error);
+                if (matchedProductForMedia?.images?.length > 1) {
+                  for (let imgIdx = 1; imgIdx < matchedProductForMedia.images.length; imgIdx++) {
+                    let altUrl = matchedProductForMedia.images[imgIdx];
+                    if (altUrl && altUrl.startsWith('/')) altUrl = `https://api.scalor.net${altUrl}`;
+                    if (!altUrl) continue;
+                    const altExt = (altUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
+                    console.log(`📸 [RITA] Retry avec image alternative ${imgIdx + 1}: ${altUrl}`);
+                    const retryResult = await evolutionApiService.sendMedia(
+                      instanceDoc.instanceName,
+                      instanceDoc.instanceToken,
+                      cleanFrom,
+                      altUrl,
+                      '',
+                      `product.${altExt}`
+                    );
+                    if (retryResult.success) {
+                      imageSent = true;
+                      console.log(`✅ [RITA] Image alternative ${imgIdx + 1} envoyée avec succès`);
+                      logRitaActivity(userId, 'image_sent', { customerPhone: cleanFrom });
+                      break;
+                    }
+                  }
+                }
+              }
+
+              if (!imageSent) {
+                console.error(`❌ [RITA] Toutes les tentatives d'envoi image ont échoué pour ${cleanFrom}`);
+                console.error(`   URL tentée: ${imageUrl}`);
+                console.error(`   Produit: ${matchedProductForMedia?.name || 'N/A'}, Images: ${JSON.stringify(matchedProductForMedia?.images || [])}`);
+                await evolutionApiService.sendMessage(
+                  instanceDoc.instanceName,
+                  instanceDoc.instanceToken,
+                  cleanFrom,
+                  `Désolé, je n'arrive pas à envoyer la photo en ce moment 🙏 Mais le produit est bien disponible, tu veux qu'on te le réserve ?`
+                );
+              }
             }
 
             // ─── RELANCE après image: proposer achat avec prix ───
@@ -1629,13 +1697,12 @@ router.post('/incoming', async (req, res) => {
             // ET si le texte de Rita est vide/très court (image seule)
             const textAlreadyCloses = /confirm|réserv|commande|livr|veux qu|tu veux|on fait|je te prépare|prix|fcfa|\d{3,}/i.test(textToSend);
             const textAlreadySubstantial = textToSend && textToSend.length > 30;
-            if (matchedProductForMedia && !textAlreadyCloses && !textAlreadySubstantial) {
+            if (matchedProductForMedia && !textAlreadyCloses && !textAlreadySubstantial && !sendAllImages) {
               const p = matchedProductForMedia;
               const followUp = p.price
                 ? `${p.name} à ${p.price} 👍 Tu veux qu'on te le réserve ?`
                 : `Tu veux qu'on te réserve le ${p.name} ? 👍`;
 
-              // Petit délai pour que l'image arrive avant le texte
               await new Promise(r => setTimeout(r, 1500));
               await evolutionApiService.sendMessage(
                 instanceDoc.instanceName,

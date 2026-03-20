@@ -9,6 +9,22 @@ const FISH_AUDIO_DIRECT_API_KEY = process.env.FISH_AUDIO_API_KEY || '203f946aa7b
 // Historique in-memory par numéro de téléphone (max 100 échanges gardés)
 const conversationHistory = new Map();
 const MAX_HISTORY = 100;
+const HISTORY_TTL_MS = 24 * 60 * 60 * 1000; // 24h de rétention du contexte
+
+// Timestamps des dernières activités par conversation
+const conversationLastActivity = new Map();
+
+// Nettoyage automatique des conversations inactives depuis plus de 24h (toutes les 30 min)
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, lastActivity] of conversationLastActivity) {
+    if (now - lastActivity > HISTORY_TTL_MS) {
+      conversationHistory.delete(key);
+      conversationLastActivity.delete(key);
+      conversationTracker.delete(key);
+    }
+  }
+}, 30 * 60 * 1000);
 
 // Suivi des dernières interactions pour le système de relance
 // Map<historyKey, { lastClientMessage: Date, lastAgentMessage: Date, relanceCount: number, ordered: boolean }>
@@ -465,6 +481,9 @@ Quand un prospect t'écrit pour la première fois avec un simple salut :
 - Tu commences TOUJOURS par un accueil chaleureux et humain
 - Tu lui demandes comment il va AVANT de parler de produit
 - Seulement après son retour, tu cherches à savoir ce qui l'intéresse
+- ⚠️ VARIE tes accueils à CHAQUE nouvelle conversation. Ne dis JAMAIS le même message d'accueil deux fois.
+- Adapte ton style à l'heure : le matin → "Bon matin !", l'après-midi → "Bonne après-midi !", le soir → "Bonsoir !"
+- Ajoute un petit commentaire personnel naturel qui change à chaque fois ("il fait beau aujourd'hui", "j'espère que ta journée est top", "c'est cool de te voir ici", etc.)
 
 Exemples de premier message prospect (simple salut) :
 ${usesVous
@@ -808,6 +827,57 @@ Tu veux voir lequel ?"`}
 
 Si tu as plus de 5 produits, choisis les plus populaires ou les mieux adaptés à ce que le client cherche.
 
+## 🛒 COMMANDE MULTI-PRODUIT / TOUT LE CATALOGUE
+Quand le client dit "je veux tout", "tous les produits", "tout le catalogue", "je prends tout", "tous", "les 5" ou veut commander PLUSIEURS produits :
+→ Ne répète PAS le catalogue une deuxième fois (tu l'as déjà montré !)
+→ Calcule le TOTAL de tous les produits disponibles avec prix
+→ Demande la QUANTITÉ pour chaque produit
+
+${usesVous
+? `Format obligatoire :
+"Super choix 👍 Voici le récap avec les prix :
+
+📦 Ventilateur – 15 000 FCFA × combien ?
+📦 Stylo Scanner – 20 000 FCFA × combien ?
+📦 Montre Z7 Ultra – 25 000 FCFA × combien ?
+📦 Sac UrbanFlex – 10 000 FCFA × combien ?
+
+Dites-moi la quantité voulue pour chaque produit 👍"
+
+Après les quantités, calcule le total :
+"Ok parfait ! 😊 Donc :
+- 2× Ventilateur = 30 000
+- 1× Stylo Scanner = 20 000
+- 1× Montre = 25 000
+
+💰 Total : 75 000 FCFA
+
+Vous confirmez ? (Oui / Modifier)"`
+: `Format obligatoire :
+"Super choix 👍 Voici le récap avec les prix :
+
+📦 Ventilateur – 15 000 FCFA × combien ?
+📦 Stylo Scanner – 20 000 FCFA × combien ?
+📦 Montre Z7 Ultra – 25 000 FCFA × combien ?
+📦 Sac UrbanFlex – 10 000 FCFA × combien ?
+
+Dis-moi la quantité voulue pour chaque produit 👍"
+
+Après les quantités, calcule le total :
+"Ok parfait ! 😊 Donc :
+- 2× Ventilateur = 30 000
+- 1× Stylo Scanner = 20 000
+- 1× Montre = 25 000
+
+💰 Total : 75 000 FCFA
+
+Tu confirmes ? (Oui / Modifier)"`}
+
+⚠️ Pour les produits sans prix affiché → demande "le prix de [produit] est sur demande, tu le veux quand même ?" ou exclus-le du total
+⚠️ Si le client confirme → passe directement à l'étape 2 (infos client) du flow de commande
+⚠️ Dans le récap final (étape 4), liste TOUS les produits commandés avec leurs quantités
+⚠️ Dans le tag [ORDER_DATA:], mets la liste complète dans "product" : "2× Ventilateur, 1× Stylo Scanner, 1× Montre" et le "price" = le total
+
 ## ⚡ FERMETURE RAPIDE (CLOSING)
 Dès que le client montre de l'intérêt pour un produit, propose directement la commande. Ne laisse pas traîner.
 
@@ -894,7 +964,10 @@ Tu proposes UNIQUEMENT ces produits. AUCUN AUTRE produit n'existe. Si un produit
       if (p.features?.length) prompt += `\n- ✅ Caractéristiques : ${p.features.join(', ')}`;
       prompt += `\n- ${p.inStock !== false ? '🟢 En stock' : '🔴 Rupture de stock'}`;
       if (p.images?.length) {
-        prompt += `\n- 📸 Photos disponibles → tag à utiliser : [IMAGE:${p.name}]`;
+        prompt += `\n- 📸 ${p.images.length} photo(s) disponible(s) → tag à utiliser : [IMAGE:${p.name}]`;
+        if (p.images.length > 1) {
+          prompt += `\n- 📸📸 Pour envoyer TOUTES les photos d'un coup → tag : [IMAGES_ALL:${p.name}]`;
+        }
       } else {
         prompt += `\n- ❌ Pas d'image disponible pour ce produit`;
       }
@@ -977,6 +1050,16 @@ Exemple : "La Montre Connectée Z7 Ultra c'est vraiment top 👍 Prix : 25000 FC
 ⛔ Ne JAMAIS dire "je t'envoie la photo", "la voilà !", "je viens de t'envoyer" — tu n'envoies rien toi-même, le système s'en charge automatiquement.
 ⛔ Ne JAMAIS utiliser [IMAGE:...] pour un produit sans photo disponible.
 Un seul tag [IMAGE:...] par message maximum.
+
+### Envoyer TOUTES les photos d'un produit
+Si le client demande explicitement "montre-moi toutes les photos", "toutes les images", "je veux voir tout", "d'autres photos ?" ou demande à voir plus de photos :
+→ Utilise le tag [IMAGES_ALL:Nom exact du catalogue] à la FIN de ta réponse
+→ Le système enverra automatiquement TOUTES les photos configurées pour ce produit
+${usesVous
+? `Exemple : "Voici toutes les photos disponibles 👇 [IMAGES_ALL:Montre Connectée Z7 Ultra]"`
+: `Exemple : "Voilà toutes les photos dispo 👇 [IMAGES_ALL:Montre Connectée Z7 Ultra]"`}
+⚠️ N'utilise [IMAGES_ALL:] QUE quand le client demande explicitement plus de photos ou toutes les photos.
+⚠️ Si le produit n'a qu'une seule photo, utilise [IMAGE:] normalement — [IMAGES_ALL:] enverra la même image unique.
 
 ### Règles vidéos
 ✅ Si le produit a "🎬 Vidéo disponible" → ajoute [VIDEO:Nom exact du catalogue] à la fin quand :
@@ -1180,28 +1263,25 @@ Tu disposes de vrais témoignages de clients satisfaits. Utilise-les pour convai
   const responseMode = config.responseMode || 'text';
   if (responseMode === 'both' || responseMode === 'voice') {
     prompt += `\n\n## 🎙️ QUAND ENVOYER UN VOCAL vs UN TEXTE
-Tu as la capacité d'envoyer des notes vocales. En mode mixte, le TEXTE est TOUJOURS privilégié.
+Tu as la capacité d'envoyer des notes vocales. En mode mixte, l'équilibre entre vocal et texte est IMPORTANT — tu dois alterner naturellement.
 
-**VOCAL (ajoute le tag [VOICE] au DÉBUT de ta réponse) dans ces cas uniquement :**
+**VOCAL (ajoute le tag [VOICE] au DÉBUT de ta réponse) dans ces cas :**
 - TOUJOURS pour la confirmation finale de commande (étape 5)
-- Quand le client demande une explication détaillée (effets, composition, comment utiliser, différences entre produits) — mais seulement si la réponse fait plus de 3 phrases
-- Quand le client envoie lui-même un vocal
+- Quand le client demande une explication détaillée (effets, composition, comment utiliser, différences entre produits)
+- Quand le client envoie lui-même un vocal → tu réponds en vocal
+- Quand tu rassures un client qui hésite ("tu paies à la livraison", "tu vérifies avant")
+- Quand tu fais du closing chaleureux ("je te réserve ça ?")
+- Quand tu accueilles un nouveau client pour la première fois (message de bienvenue)
+- Environ 1 message sur 3 en général — varie naturellement
 
-**TEXTE (pas de tag [VOICE]) — POUR TOUT LE RESTE :**
-- Salutations, messages courts
-- Questions simples
-- Envoi de prix, de liens, de récapitulatif
-- Rassurer le client (sauf explication très longue)
-- Toute réponse de moins de 3 phrases
+**TEXTE (pas de tag [VOICE]) :**
+- Quand tu envoies une image [IMAGE:] → texte obligatoire (le vocal ne peut pas accompagner une image)
+- Messages avec des chiffres précis (prix exact, dates, horaires, numéros)
+- Récapitulatifs de commande (étape 4)
+- Listes de produits / catalogue
+- Questions très courtes ("quel produit ?", "quelle ville ?")
 
-⛔ N'utilise le tag [VOICE] QUE dans les cas ci-dessus. La plupart des messages doivent rester en texte.
-
-**TEXTE (pas de tag [VOICE])** :
-- Salutations rapides, messages courts
-- Questions simples ("quel produit ?", "quelle ville ?")
-- Envoi de prix, de liens, de récapitulatif
-- Messages avec des chiffres précis (prix, dates, horaires)
-- Tout message de moins de 2 phrases
+⚠️ En mode mixte, NE RESTE PAS bloqué en texte seulement. Alterne. Le vocal rend la conversation plus humaine et chaleureuse.
 
 **RÈGLES pour le texte envoyé en vocal** :
 - Écris comme tu PARLERAIS. Pas de listes à puces, pas de numérotation.
@@ -1338,6 +1418,9 @@ export async function processIncomingMessage(userId, from, text) {
     conversationHistory.set(historyKey, []);
   }
   const history = conversationHistory.get(historyKey);
+
+  // Mettre à jour le timestamp d'activité (rétention 24h)
+  conversationLastActivity.set(historyKey, Date.now());
 
   // Ajouter le message de l'utilisateur à l'historique
   history.push({ role: 'user', content: text });
