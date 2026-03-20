@@ -131,6 +131,16 @@ const ritaConfigSchema = new mongoose.Schema({
   fishAudioApiKey: { type: String, default: '' },
   fishAudioReferenceId: { type: String, default: '14b22748e04a48a58f92fbcde088ee50' },
   fishAudioModel: { type: String, default: 's2-pro' },
+  fishAudioVoices: [{
+    id: { type: String, required: true },
+    name: { type: String, required: true },
+    description: { type: String, default: '' },
+    state: { type: String, default: 'ready' },
+    visibility: { type: String, default: 'private' },
+    createdAt: { type: Date, default: Date.now },
+    sampleCount: { type: Number, default: 1 },
+    source: { type: String, default: 'fish.audio' },
+  }],
 
   // 🔔 Notifications boss
   bossNotifications: { type: Boolean, default: false },

@@ -51,6 +51,16 @@ const _uploadDisk = multer({
   },
 });
 const _upload = isR2Configured() ? _uploadMemory : _uploadDisk;
+const _uploadAudioMemory = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('audio/')) {
+      return cb(new Error('Seuls les fichiers audio sont acceptés'));
+    }
+    cb(null, true);
+  },
+});
 
 const HARD_CODED_WEBHOOK_BASE_URL = 'https://api.scalor.net';
 
@@ -869,6 +879,97 @@ router.post('/upload-image', requireEcomAuth, _upload.any(), async (req, res) =>
       }
     }
     res.status(500).json({ success: false, error: 'Échec upload image' });
+  }
+});
+
+/**
+ * @route   POST /api/ecom/v1/external/whatsapp/fish-voice
+ * @desc    Crée une voix Fish.audio à partir d'un ou plusieurs échantillons audio et l'enregistre dans Rita
+ */
+router.post('/fish-voice', requireEcomAuth, _uploadAudioMemory.any(), async (req, res) => {
+  try {
+    const files = req.files || [];
+    const { userId, title, description = '', visibility = 'private' } = req.body;
+    let texts = req.body.texts || [];
+
+    if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
+    if (!title?.trim()) return res.status(400).json({ success: false, error: 'Nom de voix requis' });
+    if (!files.length) return res.status(400).json({ success: false, error: 'Au moins un fichier audio est requis' });
+
+    if (!Array.isArray(texts)) texts = texts ? [texts] : [];
+
+    const form = new FormData();
+    form.append('title', title.trim());
+    form.append('description', description.trim());
+    form.append('visibility', visibility);
+    form.append('type', 'tts');
+    form.append('train_mode', 'fast');
+    form.append('enhance_audio_quality', 'true');
+
+    files.forEach((file) => {
+      const blob = new Blob([file.buffer], { type: file.mimetype || 'audio/mpeg' });
+      form.append('voices', blob, file.originalname || `sample-${Date.now()}.mp3`);
+    });
+
+    texts.filter(Boolean).forEach((text) => {
+      form.append('texts', String(text));
+    });
+
+    const fishResponse = await fetch('https://api.fish.audio/model', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${FISH_AUDIO_DIRECT_API_KEY}`,
+      },
+      body: form,
+    });
+
+    const fishResult = await fishResponse.json();
+    if (!fishResponse.ok) {
+      return res.status(fishResponse.status).json({
+        success: false,
+        error: fishResult?.message || fishResult?.error || 'Création de voix Fish.audio échouée',
+        details: fishResult,
+      });
+    }
+
+    const voiceId = fishResult.id || fishResult._id;
+    if (!voiceId) {
+      return res.status(500).json({ success: false, error: 'Fish.audio n\'a pas retourné d\'identifiant de voix' });
+    }
+
+    const voiceEntry = {
+      id: voiceId,
+      name: fishResult.title || title.trim(),
+      description: fishResult.description || description.trim(),
+      state: fishResult.state || 'ready',
+      visibility: fishResult.visibility || visibility,
+      createdAt: fishResult.created_at || new Date(),
+      sampleCount: files.length,
+      source: 'fish.audio',
+    };
+
+    const existingConfig = await RitaConfig.findOne({ userId }).lean();
+    const existingVoices = Array.isArray(existingConfig?.fishAudioVoices) ? existingConfig.fishAudioVoices : [];
+    const dedupedVoices = [
+      voiceEntry,
+      ...existingVoices.filter((voice) => voice?.id !== voiceId),
+    ];
+
+    const updated = await RitaConfig.findOneAndUpdate(
+      { userId },
+      {
+        userId,
+        fishAudioVoices: dedupedVoices,
+        fishAudioReferenceId: voiceId,
+        ttsProvider: 'fishaudio',
+      },
+      { upsert: true, new: true, runValidators: false }
+    );
+
+    res.status(200).json({ success: true, voice: voiceEntry, config: updated, fish: fishResult });
+  } catch (error) {
+    console.error('❌ Erreur création fish-voice:', error.response?.data || error.message);
+    res.status(500).json({ success: false, error: error.message || 'Erreur création Fish.audio' });
   }
 });
 

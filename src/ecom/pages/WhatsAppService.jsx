@@ -939,6 +939,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
     fishAudioApiKey: '',
     fishAudioReferenceId: '14b22748e04a48a58f92fbcde088ee50',
     fishAudioModel: 's2-pro',
+    fishAudioVoices: [],
     // Notifications boss
     bossNotifications: false,
     bossPhone: '',
@@ -971,6 +972,12 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
   const [newMannerism, setNewMannerism] = useState('');
   const [newForbidden, setNewForbidden] = useState('');
   const [previewingVoice, setPreviewingVoice] = useState(null); // voiceId en cours de preview
+  const [creatingFishVoice, setCreatingFishVoice] = useState(false);
+  const [fishVoiceName, setFishVoiceName] = useState('');
+  const [fishVoiceDescription, setFishVoiceDescription] = useState('');
+  const [fishVoiceSamples, setFishVoiceSamples] = useState([]);
+  const [fishVoiceTexts, setFishVoiceTexts] = useState(['']);
+  const [fishVoiceStatus, setFishVoiceStatus] = useState(null);
   const [testingBoss, setTestingBoss] = useState(false);
   const [testBossResult, setTestBossResult] = useState(null); // { ok, msg }
 
@@ -1009,6 +1016,86 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
         audio.play();
       } else { setPreviewingVoice(null); }
     } catch { setPreviewingVoice(null); }
+  };
+
+  const playFishPreview = async (referenceId) => {
+    if (!referenceId || previewingVoice === referenceId) return;
+    setPreviewingVoice(referenceId);
+    try {
+      const params = new URLSearchParams({
+        referenceId,
+        model: config.fishAudioModel || 's2-pro',
+      });
+      const { data } = await ecomApi.get(`/v1/external/whatsapp/preview-voice-fish?${params}`);
+      if (data.success && data.audio) {
+        const bytes = Uint8Array.from(atob(data.audio), c => c.charCodeAt(0));
+        const blob = new Blob([bytes], { type: 'audio/mpeg' });
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.onended = () => { setPreviewingVoice(null); URL.revokeObjectURL(url); };
+        audio.onerror = () => { setPreviewingVoice(null); URL.revokeObjectURL(url); };
+        audio.play();
+      } else {
+        setPreviewingVoice(null);
+      }
+    } catch {
+      setPreviewingVoice(null);
+    }
+  };
+
+  const handleFishSampleChange = (event) => {
+    const files = Array.from(event.target.files || []).slice(0, 3);
+    setFishVoiceSamples(files);
+    setFishVoiceTexts(prev => {
+      const next = files.map((_, index) => prev[index] || '');
+      return next.length ? next : [''];
+    });
+  };
+
+  const setFishText = (index, value) => {
+    setFishVoiceTexts(prev => prev.map((item, itemIndex) => itemIndex === index ? value : item));
+  };
+
+  const handleCreateFishVoice = async () => {
+    if (!fishVoiceName.trim()) {
+      setFishVoiceStatus({ type: 'error', msg: 'Donne un nom à ta voix.' });
+      return;
+    }
+    if (!fishVoiceSamples.length) {
+      setFishVoiceStatus({ type: 'error', msg: 'Ajoute au moins un échantillon audio.' });
+      return;
+    }
+
+    setCreatingFishVoice(true);
+    setFishVoiceStatus(null);
+    try {
+      const fd = new FormData();
+      fd.append('userId', userId);
+      fd.append('title', fishVoiceName.trim());
+      fd.append('description', fishVoiceDescription.trim());
+      fishVoiceSamples.forEach(file => fd.append('voices', file));
+      fishVoiceTexts.filter(Boolean).forEach(text => fd.append('texts', text.trim()));
+
+      const { data } = await ecomApi.post('/v1/external/whatsapp/fish-voice', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      if (!data.success) {
+        setFishVoiceStatus({ type: 'error', msg: data.error || 'Création de voix échouée.' });
+        return;
+      }
+
+      setConfig(prev => ({ ...prev, ...data.config, ttsProvider: 'fishaudio', fishAudioReferenceId: data.voice.id }));
+      setFishVoiceStatus({ type: 'success', msg: `Voix créée: ${data.voice.name}` });
+      setFishVoiceName('');
+      setFishVoiceDescription('');
+      setFishVoiceSamples([]);
+      setFishVoiceTexts(['']);
+    } catch (err) {
+      setFishVoiceStatus({ type: 'error', msg: err?.response?.data?.error || 'Erreur de création Fish.audio.' });
+    } finally {
+      setCreatingFishVoice(false);
+    }
   };
 
   const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
@@ -2772,6 +2859,85 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                         </div>
                       </div>
 
+                      <div className="p-4 bg-white border border-cyan-100 rounded-xl space-y-3">
+                        <div>
+                          <p className="text-[13px] font-semibold text-gray-900">Créer ma voix</p>
+                          <p className="text-[11px] text-gray-500">Upload 1 à 3 audios, clique sur créer, puis utilise ta voix directement dans Rita.</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3">
+                          <div>
+                            <label className="text-[12px] font-medium text-gray-700 mb-1 block">Nom de la voix</label>
+                            <input
+                              type="text"
+                              value={fishVoiceName}
+                              onChange={e => setFishVoiceName(e.target.value)}
+                              placeholder="Ex: Voix Morgan"
+                              className="w-full px-3 py-2 text-[13px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[12px] font-medium text-gray-700 mb-1 block">Description</label>
+                            <input
+                              type="text"
+                              value={fishVoiceDescription}
+                              onChange={e => setFishVoiceDescription(e.target.value)}
+                              placeholder="Ex: Voix posée et chaleureuse"
+                              className="w-full px-3 py-2 text-[13px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[12px] font-medium text-gray-700 mb-1 block">Échantillons audio</label>
+                            <input
+                              type="file"
+                              accept="audio/*"
+                              multiple
+                              onChange={handleFishSampleChange}
+                              className="w-full px-3 py-2 text-[12px] border border-dashed border-cyan-300 rounded-lg bg-cyan-50/40 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-cyan-500 file:text-white"
+                            />
+                            <p className="text-[10px] text-gray-400 mt-1">Formats: mp3, wav, m4a. 10 à 30 secondes recommandées par sample.</p>
+                          </div>
+
+                          {fishVoiceSamples.map((sample, index) => (
+                            <div key={`${sample.name}-${index}`}>
+                              <label className="text-[11px] font-medium text-gray-700 mb-1 block">Transcript optionnel — {sample.name}</label>
+                              <textarea
+                                value={fishVoiceTexts[index] || ''}
+                                onChange={e => setFishText(index, e.target.value)}
+                                rows={2}
+                                placeholder="Texte prononcé dans cet audio pour améliorer la qualité"
+                                className="w-full px-3 py-2 text-[12px] border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent resize-none"
+                              />
+                            </div>
+                          ))}
+
+                          <button
+                            type="button"
+                            onClick={handleCreateFishVoice}
+                            disabled={creatingFishVoice}
+                            className={`w-full px-4 py-3 rounded-xl text-[13px] font-semibold transition-all ${
+                              creatingFishVoice
+                                ? 'bg-cyan-300 text-white cursor-not-allowed'
+                                : 'bg-cyan-600 text-white hover:bg-cyan-700'
+                            }`}
+                          >
+                            {creatingFishVoice ? 'Création en cours...' : 'Créer ma voix'}
+                          </button>
+
+                          {fishVoiceStatus && (
+                            <div className={`px-3 py-2 rounded-lg text-[11px] border ${
+                              fishVoiceStatus.type === 'success'
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                : 'bg-red-50 border-red-200 text-red-700'
+                            }`}>
+                              {fishVoiceStatus.msg}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
                       <div className="space-y-3">
                         <div>
                           <div className="px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-lg">
@@ -2802,6 +2968,12 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                                 desc: 'Voix clonée Fish.audio · FR · Voix avancée',
                                 badge: '⭐ Intégrée',
                               },
+                              ...((config.fishAudioVoices || []).map(voice => ({
+                                id: voice.id,
+                                name: voice.name,
+                                desc: `${voice.description || 'Voix personnalisée'}${voice.state ? ` · ${voice.state}` : ''}`,
+                                badge: 'Ma voix',
+                              }))),
                             ].map(voice => (
                               <button
                                 key={voice.id}
@@ -2825,6 +2997,21 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                                   </div>
                                   <p className="text-[11px] text-gray-400">{voice.desc}</p>
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    playFishPreview(voice.id);
+                                  }}
+                                  className={`ml-auto flex-shrink-0 p-1.5 rounded-full transition-colors ${
+                                    previewingVoice === voice.id
+                                      ? 'bg-cyan-500 text-white animate-pulse'
+                                      : 'bg-gray-100 hover:bg-cyan-100 text-gray-500 hover:text-cyan-600'
+                                  }`}
+                                  title="Écouter cette voix"
+                                >
+                                  {previewingVoice === voice.id ? <span className="text-[10px] font-bold">▶</span> : <span className="text-[10px]">▶</span>}
+                                </button>
                                 {(config.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50') === voice.id && (
                                   <CheckCircle className="w-4 h-4 text-cyan-500 flex-shrink-0" />
                                 )}
@@ -2850,33 +3037,16 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                           type="button"
                           onClick={async (e) => {
                             e.preventDefault();
-                            if (previewingVoice === 'fish') return;
-                            setPreviewingVoice('fish');
-                            try {
-                              const params = new URLSearchParams({
-                                referenceId: config.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50',
-                                model: config.fishAudioModel || 's2-pro',
-                              });
-                              const { data } = await ecomApi.get(`/v1/external/whatsapp/preview-voice-fish?${params}`);
-                              if (data.success && data.audio) {
-                                const bytes = Uint8Array.from(atob(data.audio), c => c.charCodeAt(0));
-                                const blob = new Blob([bytes], { type: 'audio/mpeg' });
-                                const url = URL.createObjectURL(blob);
-                                const audio = new Audio(url);
-                                audio.onended = () => { setPreviewingVoice(null); URL.revokeObjectURL(url); };
-                                audio.onerror = () => { setPreviewingVoice(null); URL.revokeObjectURL(url); };
-                                audio.play();
-                              } else { setPreviewingVoice(null); }
-                            } catch { setPreviewingVoice(null); }
+                            playFishPreview(config.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50');
                           }}
                           className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-semibold transition-all duration-200 ${
-                            previewingVoice === 'fish'
+                            previewingVoice === (config.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50')
                               ? 'bg-cyan-500 text-white animate-pulse'
                               : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'
                           }`}
                         >
-                          <span>{previewingVoice === 'fish' ? '🔊' : '▶'}</span>
-                          {previewingVoice === 'fish' ? 'Lecture en cours...' : 'Écouter la voix Fish.audio'}
+                          <span>{previewingVoice === (config.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50') ? '🔊' : '▶'}</span>
+                          {previewingVoice === (config.fishAudioReferenceId || '14b22748e04a48a58f92fbcde088ee50') ? 'Lecture en cours...' : 'Écouter la voix sélectionnée'}
                         </button>
                       </div>
 
