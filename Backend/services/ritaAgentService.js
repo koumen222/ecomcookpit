@@ -896,6 +896,30 @@ Tu confirmes ? (Oui / Modifier)"`}
 ⚠️ Dans le récap final (étape 4), liste TOUS les produits commandés avec leurs quantités
 ⚠️ Dans le tag [ORDER_DATA:], mets la liste complète dans "product" : "2× Ventilateur, 1× Stylo Scanner, 1× Montre" et le "price" = le total
 
+## 📦 OFFRES DE QUANTITÉ (TRÈS IMPORTANT)
+Si un produit a des offres de quantité configurées dans le catalogue (section "Offres de quantité") :
+→ Quand le client demande une quantité qui atteint un palier → APPLIQUE AUTOMATIQUEMENT le prix réduit
+→ Mentionne l'offre de quantité naturellement quand le client s'intéresse au produit
+→ Si le client demande 1 seul produit et qu'il existe un tarif dégressif → propose-le subtilement
+
+${usesVous
+? `Exemples :
+- Client veut 3 unités, offre à partir de 2 : "Pour 3 unités, c'est [prix unitaire réduit] chacune au lieu de [prix normal] 👍 Soit [total] au total !"
+- Client veut 1 unité, offre à partir de 2 : "C'est [prix normal] l'unité 👍 Et si vous en prenez 2, ça passe à [prix réduit] chacune !"
+- Client demande le prix : "C'est [prix normal] l'unité ! Et on a une offre : à partir de [X] unités, c'est [prix réduit] chacune 😊"`
+: `Exemples :
+- Client veut 3 unités, offre à partir de 2 : "Pour 3 unités, c'est [prix unitaire réduit] chacune au lieu de [prix normal] 👍 Soit [total] au total !"
+- Client veut 1 unité, offre à partir de 2 : "C'est [prix normal] l'unité 👍 Et si tu en prends 2, ça passe à [prix réduit] chacune !"
+- Client demande le prix : "C'est [prix normal] l'unité ! Et on a une offre : à partir de [X] unités, c'est [prix réduit] chacune 😊"`}
+
+### Règles :
+- Tu DOIS appliquer le bon palier de prix selon la quantité commandée (le palier le plus haut atteint)
+- Tu DOIS calculer le total avec le bon prix unitaire selon le palier
+- Dans le récap (étape 4), affiche le prix unitaire réduit ET le total
+- Dans le tag [ORDER_DATA:], le "price" doit refléter le prix RÉEL après offre de quantité
+- Tu peux mentionner l'offre de quantité comme argument de vente quand le client hésite
+- ⛔ Ne JAMAIS inventer un tarif de quantité qui n'est PAS dans les données du produit
+
 ## ⚡ FERMETURE RAPIDE (CLOSING)
 Dès que le client montre de l'intérêt pour un produit, propose directement la commande. Ne laisse pas traîner.
 
@@ -1046,6 +1070,18 @@ Tu proposes UNIQUEMENT ces produits. AUCUN AUTRE produit n'existe. Si un produit
         if (p.minPrice) prompt += `\n- Dernier prix (plancher absolu) : ${p.minPrice}`;
         if (p.maxDiscountPercent) prompt += `\n- Réduction max autorisée : ${p.maxDiscountPercent}%`;
         if (p.priceNote) prompt += `\n- Consigne : ${p.priceNote}`;
+      }
+
+      // Per-product quantity offers
+      if (p.quantityOffers?.length) {
+        prompt += `\n\n📦 Offres de quantité :`;
+        for (const qo of p.quantityOffers) {
+          let line = `\n- À partir de ${qo.minQuantity} unités`;
+          if (qo.unitPrice) line += ` → ${qo.unitPrice} / unité`;
+          if (qo.totalPrice) line += ` (total : ${qo.totalPrice})`;
+          if (qo.label) line += ` — ${qo.label}`;
+          prompt += line;
+        }
       }
     }
 

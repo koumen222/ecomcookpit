@@ -62,6 +62,13 @@ const ritaConfigSchema = new mongoose.Schema({
     minPrice: { type: String, default: '' },
     maxDiscountPercent: { type: Number, default: 0 },
     priceNote: { type: String, default: '' },
+    // Offres de quantité par produit
+    quantityOffers: [{
+      minQuantity: { type: Number, required: true },
+      unitPrice: { type: String, default: '' },
+      totalPrice: { type: String, default: '' },
+      label: { type: String, default: '' },
+    }],
   }],
 
   // Personnalité & ton de l'agent
