@@ -77,7 +77,7 @@ export const storeDeliveryZonesApi = {
 const API_BASE = import.meta.env.VITE_STORE_API_URL
   || (import.meta.env.PROD ? 'https://api.scalor.net' : null)
   || import.meta.env.VITE_BACKEND_URL
-  || 'https://ecomcookpit-production-7a08.up.railway.app';
+  || 'https://api.scalor.net';
 
 const publicApi = axios.create({
   baseURL: `${API_BASE}/api/store`,

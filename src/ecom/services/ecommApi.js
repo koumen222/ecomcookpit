@@ -50,7 +50,7 @@ function resolveEcomApiBaseUrl() {
   const normalizedFromBackend = normalizeBackendBaseUrl(envBackend);
   if (normalizedFromBackend) return normalizedFromBackend;
 
-  return 'https://ecomcookpit-production-7a08.up.railway.app/api/ecom';
+  return 'https://api.scalor.net/api/ecom';
 }
 
 const ECOM_API_BASE_URL = resolveEcomApiBaseUrl();
