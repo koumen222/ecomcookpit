@@ -7,7 +7,7 @@ import {
 import WhatsAppSendModal from './WhatsAppSendModal.jsx';
 // WhatsAppConfigModal supprimé
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://api.scalor.net';
 
 const STEPS = [
   { id: 1, icon: '🔍', label: 'Analyse de la page Alibaba' },
