@@ -138,6 +138,30 @@ function splitWhatsAppMessage(text, maxLen = 1500) {
 
 const router = express.Router();
 
+async function sendMessageAndTrack(instanceName, instanceToken, number, message, ...rest) {
+  const result = await evolutionApiService.sendMessage(
+    instanceName,
+    instanceToken,
+    number,
+    message,
+    ...rest
+  );
+
+  const isSuccess = result?.success !== false;
+  if (isSuccess) {
+    try {
+      const trackedInstance = await WhatsAppInstance.findOne({ instanceName, instanceToken }).select('_id').lean();
+      if (trackedInstance?._id) {
+        await incrementMessageCount(trackedInstance._id, 1);
+      }
+    } catch (quotaErr) {
+      console.error('⚠️ [QUOTA] Impossible de compter un message sortant:', quotaErr.message);
+    }
+  }
+
+  return result;
+}
+
 // Normalise une chaîne : minuscules + suppression des accents/diacritiques
 function normalizeStr(s) {
   return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -503,7 +527,7 @@ router.post('/send', async (req, res) => {
     }
 
     // Envoyer le message via ZenChat API
-    const result = await evolutionApiService.sendMessage(
+    const result = await sendMessageAndTrack(
       instanceName,
       instanceToken,
       number,
@@ -511,9 +535,6 @@ router.post('/send', async (req, res) => {
     );
 
     if (result.success) {
-      // Incrémenter les compteurs de messages
-      await incrementMessageCount(instance._id, 1);
-
       // Mettre à jour le statut de l'instance
       await WhatsAppInstance.findByIdAndUpdate(
         instance._id,
@@ -819,7 +840,7 @@ router.post('/activate', async (req, res) => {
             `Instance: ${targetInst.customName || targetInst.instanceName}\n` +
             `Envoyez un message ici pour tester la réponse automatique en temps réel.\n\n` +
             `— ${agentName} 🤖`;
-          const sendResult = await evolutionApiService.sendMessage(targetInst.instanceName, targetInst.instanceToken, ownerPhone, confirmMsg);
+          const sendResult = await sendMessageAndTrack(targetInst.instanceName, targetInst.instanceToken, ownerPhone, confirmMsg);
           console.log(`📲 [ACTIVATE] Message de confirmation envoyé à ${ownerPhone} via ${targetInst.instanceName}:`, sendResult.success ? '✅ OK' : `❌ ${sendResult.error}`);
         } else {
           console.log(`⚠️ [ACTIVATE] Pas de numéro de téléphone pour le propriétaire — message de confirmation non envoyé`);
@@ -1286,7 +1307,7 @@ router.post('/incoming', async (req, res) => {
 
                       // Si le boss a aussi du texte en plus du media, l'envoyer aussi
                       if (text && !caption) {
-                        await evolutionApiService.sendMessage(
+                        await sendMessageAndTrack(
                           instanceDoc.instanceName, instanceDoc.instanceToken,
                           clientJid, text
                         );
@@ -1295,7 +1316,7 @@ router.post('/incoming', async (req, res) => {
                       console.error(`❌ [BOSS] Impossible de télécharger le media du boss`);
                       // Fallback: envoyer au moins le texte s'il y en a
                       if (text) {
-                        await evolutionApiService.sendMessage(
+                        await sendMessageAndTrack(
                           instanceDoc.instanceName, instanceDoc.instanceToken,
                           clientJid, text
                         );
@@ -1304,7 +1325,7 @@ router.post('/incoming', async (req, res) => {
                   } catch (mediaErr) {
                     console.error(`❌ [BOSS] Erreur transfert media boss:`, mediaErr.message);
                     if (text) {
-                      await evolutionApiService.sendMessage(
+                      await sendMessageAndTrack(
                         instanceDoc.instanceName, instanceDoc.instanceToken,
                         clientJid, text
                       );
@@ -1312,7 +1333,7 @@ router.post('/incoming', async (req, res) => {
                   }
                 } else {
                   // Le boss envoie du texte simple → transmettre tel quel
-                  await evolutionApiService.sendMessage(
+                  await sendMessageAndTrack(
                     instanceDoc.instanceName,
                     instanceDoc.instanceToken,
                     clientJid,
@@ -1343,7 +1364,7 @@ router.post('/incoming', async (req, res) => {
               // Toujours en attente, timeout pas encore expiré
               console.log(`⏳ [BOSS] Client ${cleanFromEarly} en attente de réponse boss (${Math.round(elapsedEscMin)} min / ${timeoutMin} min)`);
               const waitMsg = `Je suis toujours en train de vérifier pour toi 🙏 Une petite patience, j'arrive !`;
-              await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFromEarly, waitMsg, 2, 1500);
+              await sendMessageAndTrack(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFromEarly, waitMsg, 2, 1500);
               continue;
             } else {
               // Timeout expiré → retirer l'escalade, laisser Rita improviser
@@ -1446,7 +1467,7 @@ router.post('/incoming', async (req, res) => {
                 if (ritaCfgBoss?.bossNotifications && ritaCfgBoss?.bossPhone && ritaCfgBoss?.notifyOnOrder) {
                   const bossMsg = `📦 *Nouvelle commande confirmée par Rita*\n\n👤 Client: ${orderData.name || 'N/A'}\n📱 Tél: ${cleanFrom}\n📍 Ville: ${orderData.city || 'N/A'}\n🛍️ Produit: ${orderData.product || 'N/A'}\n💰 Prix: ${orderData.price || 'N/A'}\n📅 Livraison: ${orderData.delivery_date || ''} ${orderData.delivery_time || ''}\n⏰ ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Douala' })}`;
                   const bossPhone = ritaCfgBoss.bossPhone.replace(/\D/g, '');
-                  await evolutionApiService.sendMessage(
+                  await sendMessageAndTrack(
                     instanceDoc.instanceName,
                     instanceDoc.instanceToken,
                     bossPhone,
@@ -1535,7 +1556,7 @@ router.post('/incoming', async (req, res) => {
                 });
                 // Notifier le boss
                 const bossMsg = `❓ *Question client sans réponse — Rita*\n\n📱 Client: ${currentCleanFrom}\n❓ Question: ${question}\n\nRéponds à ce message pour que Rita transmette ta réponse automatiquement au client.\n_(Si pas de réponse dans ${timeoutMin} min, Rita improvisera.)_`;
-                await evolutionApiService.sendMessage(
+                await sendMessageAndTrack(
                   instanceDoc.instanceName,
                   instanceDoc.instanceToken,
                   bossPhone,
@@ -1652,7 +1673,7 @@ router.post('/incoming', async (req, res) => {
                     instanceToken: instanceDoc.instanceToken,
                   });
                   const bossMsg = `❓ *Question client sans réponse — Rita*\n\n📱 Client: ${currentCleanFrom}\n❓ Question: ${question}\n\nRéponds à ce message pour que Rita transmette ta réponse automatiquement au client.\n_(Si pas de réponse dans ${timeoutMin} min, Rita improvisera.)_`;
-                  await evolutionApiService.sendMessage(
+                  await sendMessageAndTrack(
                     instanceDoc.instanceName,
                     instanceDoc.instanceToken,
                     bossPhone,
@@ -1752,7 +1773,7 @@ router.post('/incoming', async (req, res) => {
             console.log(`📤 [RITA] Envoi réponse texte à ${cleanFrom} (${messageParts.length} partie(s), délai: ${responseDelayMs}ms)...`);
             for (let partIdx = 0; partIdx < messageParts.length; partIdx++) {
               const part = messageParts[partIdx];
-              const sendResult = await evolutionApiService.sendMessage(
+              const sendResult = await sendMessageAndTrack(
                 instanceDoc.instanceName,
                 instanceDoc.instanceToken,
                 cleanFrom,
@@ -1791,15 +1812,15 @@ router.post('/incoming', async (req, res) => {
                   logRitaActivity(userId, 'vocal_sent', { customerPhone: cleanFrom });
                 } else {
                   console.error(`❌ [RITA] Échec vocal, fallback texte:`, audioResult.error);
-                  await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
+                  await sendMessageAndTrack(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
                 }
               } else {
                 console.warn(`⚠️ [RITA] TTS null, fallback texte`);
-                await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
+                await sendMessageAndTrack(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
               }
             } catch (ttsErr) {
               console.error(`❌ [RITA] Erreur TTS:`, ttsErr.message);
-              await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
+              await sendMessageAndTrack(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
             }
           }
 
@@ -1839,7 +1860,7 @@ router.post('/incoming', async (req, res) => {
                 }
               }
               if (imagesSentCount === 0) {
-                await evolutionApiService.sendMessage(
+                await sendMessageAndTrack(
                   instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom,
                   `Désolé, je n'arrive pas à envoyer les photos en ce moment 🙏 Mais le produit est bien disponible !`
                 );
@@ -1896,7 +1917,7 @@ router.post('/incoming', async (req, res) => {
                 console.error(`❌ [RITA] Toutes les tentatives d'envoi image ont échoué pour ${cleanFrom}`);
                 console.error(`   URL tentée: ${imageUrl}`);
                 console.error(`   Produit: ${matchedProductForMedia?.name || 'N/A'}, Images: ${JSON.stringify(matchedProductForMedia?.images || [])}`);
-                await evolutionApiService.sendMessage(
+                await sendMessageAndTrack(
                   instanceDoc.instanceName,
                   instanceDoc.instanceToken,
                   cleanFrom,
@@ -1917,7 +1938,7 @@ router.post('/incoming', async (req, res) => {
                 : `Tu veux qu'on te réserve le ${p.name} ? 👍`;
 
               await new Promise(r => setTimeout(r, 1500));
-              await evolutionApiService.sendMessage(
+              await sendMessageAndTrack(
                 instanceDoc.instanceName,
                 instanceDoc.instanceToken,
                 cleanFrom,
@@ -2034,7 +2055,7 @@ router.post('/test-boss-notification', async (req, res) => {
 
     const testMsg = `✅ *Test Rita — Notifications Boss*\n\nBonjour ! 👋 Ce message confirme que les notifications Rita sont bien configurées.\n\n📱 Instance: *${instance.instanceName}*\n⏰ ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Douala' })}\n\n🔔 Vous recevrez désormais les alertes pour:\n• 📦 Chaque commande confirmée\n• 📊 Le rapport quotidien\n\n_Généré par Rita IA_`;
 
-    await evolutionApiService.sendMessage(
+    await sendMessageAndTrack(
       instance.instanceName,
       instance.instanceToken,
       phone,
