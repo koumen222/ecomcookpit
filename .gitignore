@@ -1,5 +1,6 @@
 # Git subdirectories (ignore embedded repos)
 # backend/
+Backend/.git.embedded-backup/
 
 # Dependencies
 node_modules/
@@ -15,6 +16,7 @@ build/
 
 # Environment variables
 .env
+.env.production
 .env.local
 .env.development.local
 .env.test.local

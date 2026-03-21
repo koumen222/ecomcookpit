@@ -1,8 +1,9 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import {
   Plus, Trash2, RefreshCw, CheckCircle, AlertCircle, Loader2,
   ExternalLink, Copy, Check, Bot, Smartphone, Zap, Send,
   Eye, EyeOff, X, Globe, MessageSquare, Package,
+  QrCode, BarChart3, Wifi, WifiOff, Settings,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import ecomApi from '../services/ecommApi.js';
@@ -34,135 +35,207 @@ const WhatsAppService = () => {
   const [instances, setInstances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showAddForm, setShowAddForm] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
   const [testResults, setTestResults] = useState({});
-  const [formData, setFormData] = useState({ instanceName: '', instanceToken: '', customName: '' });
   const [submitting, setSubmitting] = useState(false);
-  const [linkResult, setLinkResult] = useState(null);
+  const [successMsg, setSuccessMsg] = useState('');
   const [showTokens, setShowTokens] = useState({});
   const [webhookPanels, setWebhookPanels] = useState({});
   const [orderCount, setOrderCount] = useState(0);
 
+  // ─── Modal création d'instance ───
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createStep, setCreateStep] = useState('form'); // 'form' | 'scanning' | 'success'
+  const [createData, setCreateData] = useState({ name: '', serviceType: 'whatsapp-baileys' });
+  const [createdInstance, setCreatedInstance] = useState(null);
+
+  // ─── QR code ───
+  const [qrCode, setQrCode] = useState(null);
+  const [pairingCode, setPairingCode] = useState(null);
+  const [qrPolling, setQrPolling] = useState(false);
+  const qrIntervalRef = useRef(null);
+
+  // ─── Stats ───
+  const [messageStats, setMessageStats] = useState({});
+  const [dashboardStats, setDashboardStats] = useState(null);
+
   const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
   const userId = user._id || user.id;
 
-  useEffect(() => { loadInstances(); loadOrderCount(); }, []);
+  useEffect(() => { loadInstances(); loadOrderCount(); loadDashboardStats(); }, []);
+  useEffect(() => { instances.forEach(inst => loadMessageStats(inst._id)); }, [instances.length]);
+  useEffect(() => { return () => { if (qrIntervalRef.current) clearInterval(qrIntervalRef.current); }; }, []);
 
+  // ═══ Data loaders ═══
   const loadOrderCount = async () => {
-    try {
-      const { data } = await ecomApi.get('/v1/external/whatsapp/orders/stats');
-      if (data.success) setOrderCount(data.stats?.pending || 0);
-    } catch {}
+    try { const { data } = await ecomApi.get('/v1/external/whatsapp/orders/stats'); if (data.success) setOrderCount(data.stats?.pending || 0); } catch {}
   };
-
   const loadInstances = async () => {
-    try {
-      setLoading(true); setError('');
-      const { data } = await ecomApi.get(`/v1/external/whatsapp/instances?userId=${userId}`);
-      setInstances(data.success ? data.instances || [] : []);
-    } catch { setInstances([]); } finally { setLoading(false); }
+    try { setLoading(true); setError(''); const { data } = await ecomApi.get(`/v1/external/whatsapp/instances?userId=${userId}`); setInstances(data.success ? data.instances || [] : []); }
+    catch { setInstances([]); } finally { setLoading(false); }
+  };
+  const loadDashboardStats = async () => {
+    try { const { data } = await ecomApi.get('/v1/external/whatsapp/dashboard-stats'); if (data.success) setDashboardStats(data.stats); } catch {}
+  };
+  const loadMessageStats = async (instanceId) => {
+    try { const { data } = await ecomApi.get(`/v1/external/whatsapp/instances/${instanceId}/message-stats`); if (data.success) setMessageStats(prev => ({ ...prev, [instanceId]: data.stats })); } catch {}
   };
 
   const refreshAllStatuses = async () => {
-    try {
-      setLoading(true); setError('');
-      const { data } = await ecomApi.post('/v1/external/whatsapp/refresh-status', { userId });
-      if (data.success) setInstances(data.instances || []);
-    } catch { setError('Erreur lors de la synchronisation'); } finally { setLoading(false); }
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    try { setLoading(true); setError(''); const { data } = await ecomApi.post('/v1/external/whatsapp/refresh-status', { userId }); if (data.success) setInstances(data.instances || []); }
+    catch { setError('Erreur lors de la synchronisation'); } finally { setLoading(false); }
   };
 
   const STATUS_MAP = {
-    connected:    { label: 'Connecté',   dot: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50' },
-    active:       { label: 'Actif',      dot: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50' },
-    configured:   { label: 'Configuré',  dot: 'bg-blue-500',    text: 'text-blue-700',    bg: 'bg-blue-50'    },
-    disconnected: { label: 'Déconnecté', dot: 'bg-red-500',     text: 'text-red-700',     bg: 'bg-red-50'     },
+    connected:    { label: 'Connecté',   dot: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50', ring: 'ring-emerald-200' },
+    active:       { label: 'Actif',      dot: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50', ring: 'ring-emerald-200' },
+    configured:   { label: 'Configuré',  dot: 'bg-blue-500',    text: 'text-blue-700',    bg: 'bg-blue-50',    ring: 'ring-blue-200'    },
+    disconnected: { label: 'Déconnecté', dot: 'bg-red-500',     text: 'text-red-700',     bg: 'bg-red-50',     ring: 'ring-red-200'     },
   };
-  const getStatus = (s) => STATUS_MAP[s] || { label: 'Non vérifié', dot: 'bg-gray-400', text: 'text-gray-600', bg: 'bg-gray-100' };
+  const getStatus = (s) => STATUS_MAP[s] || { label: 'Non vérifié', dot: 'bg-gray-400', text: 'text-gray-600', bg: 'bg-gray-100', ring: 'ring-gray-200' };
 
-  const handleLinkInstance = async (e) => {
-    e.preventDefault(); setSubmitting(true); setError(''); setLinkResult(null);
-    try {
-      const { data } = await ecomApi.post('/v1/external/whatsapp/link', { userId, ...formData });
-      if (data.success) {
-        setFormData({ instanceName: '', instanceToken: '', customName: '' });
-        setShowAddForm(false);
-        setLinkResult({ verified: data.verified, message: data.verificationMessage, status: data.data?.status });
-        loadInstances();
-      } else { setError(data.error || 'Erreur lors de la liaison'); }
-    } catch (err) { setError(err.response?.data?.error || err.message || 'Erreur serveur'); }
-    finally { setSubmitting(false); }
-  };
+  const copyToClipboard = (text, id) => { navigator.clipboard.writeText(text); setCopiedId(id); setTimeout(() => setCopiedId(null), 2000); };
 
-  const copyToClipboard = (text, id) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
+  // ═══ Instance actions ═══
   const testConnection = async (instance) => {
     setTestResults(prev => ({ ...prev, [instance._id]: { loading: true } }));
     try {
       const { data } = await ecomApi.post('/v1/external/whatsapp/verify-instance', { instanceId: instance._id });
-      setTestResults(prev => ({
-        ...prev,
-        [instance._id]: { loading: false, success: data.success, message: data.success ? 'Connectée' : (data.error || data.message) },
-      }));
+      setTestResults(prev => ({ ...prev, [instance._id]: { loading: false, success: data.success, message: data.success ? 'Connectée' : (data.error || data.message) } }));
       if (data.status) setInstances(prev => prev.map(i => i._id === instance._id ? { ...i, status: data.status } : i));
-    } catch {
-      setTestResults(prev => ({ ...prev, [instance._id]: { loading: false, success: false, message: 'Injoignable' } }));
-    }
+    } catch { setTestResults(prev => ({ ...prev, [instance._id]: { loading: false, success: false, message: 'Injoignable' } })); }
   };
 
   const deleteInstance = async (instance) => {
-    if (!confirm(`Supprimer "${instance.customName || instance.instanceName}" ?`)) return;
+    if (!confirm(`Supprimer "${instance.customName || instance.instanceName}" ?\nCette action est irréversible.`)) return;
     try {
       const { data } = await ecomApi.delete(`/v1/external/whatsapp/instances/${instance._id}?userId=${userId}`);
-      if (data.success) setInstances(prev => prev.filter(i => i._id !== instance._id));
+      if (data.success) { setInstances(prev => prev.filter(i => i._id !== instance._id)); loadDashboardStats(); }
       else setError(data.error || 'Erreur suppression');
     } catch (err) { setError(err.response?.data?.error || err.message || 'Erreur serveur'); }
   };
 
-  const connectedCount = instances.filter(i => i.status === 'connected' || i.status === 'active').length;
+  // ═══ Création d'instance ═══
+  const SERVICE_TYPES = [
+    { id: 'whatsapp-baileys', label: 'WhatsApp', desc: 'Connexion via QR code (gratuit)', icon: '📱', color: 'emerald' },
+    { id: 'business-api',     label: 'Business API', desc: 'API officielle Meta (entreprise)', icon: '🏢', color: 'blue' },
+  ];
 
-  const updateWh = (instId, patch) =>
-    setWebhookPanels(prev => ({ ...prev, [instId]: { ...prev[instId], ...patch } }));
+  const openCreateModal = () => {
+    setShowCreateModal(true);
+    setCreateStep('form');
+    setCreateData({ name: '', serviceType: 'whatsapp-baileys' });
+    setCreatedInstance(null);
+    setQrCode(null);
+    setPairingCode(null);
+    setError('');
+  };
+  const closeCreateModal = () => {
+    setShowCreateModal(false);
+    if (qrIntervalRef.current) { clearInterval(qrIntervalRef.current); qrIntervalRef.current = null; }
+    setQrPolling(false);
+  };
 
+  const handleCreateInstance = async (e) => {
+    e.preventDefault(); setSubmitting(true); setError('');
+    try {
+      const { data } = await ecomApi.post('/v1/external/whatsapp/create-instance', {
+        customName: createData.name || undefined,
+        serviceType: createData.serviceType,
+      });
+      if (data.success) {
+        setCreatedInstance(data.data);
+        if (data.qrcode) {
+          setQrCode(data.qrcode);
+          setPairingCode(data.pairingCode || null);
+          setCreateStep('scanning');
+          startQrPolling(data.data.id);
+        } else {
+          setCreateStep('scanning');
+          fetchQrCode(data.data.id);
+        }
+        loadInstances();
+        loadDashboardStats();
+      } else { setError(data.error || 'Erreur lors de la création'); }
+    } catch (err) { setError(err.response?.data?.error || err.message || 'Erreur serveur'); }
+    finally { setSubmitting(false); }
+  };
+
+  const fetchQrCode = async (instanceId) => {
+    try {
+      const { data } = await ecomApi.get(`/v1/external/whatsapp/instances/${instanceId}/qrcode`);
+      if (data.success && data.connected) {
+        onInstanceConnected();
+      } else if (data.success && data.qrcode) {
+        setQrCode(data.qrcode);
+        setPairingCode(data.pairingCode || null);
+        startQrPolling(instanceId);
+      } else {
+        setError(data.error || 'Impossible de récupérer le QR code');
+      }
+    } catch (err) { setError(err.response?.data?.error || 'Erreur QR code'); }
+  };
+
+  const startQrPolling = (instanceId) => {
+    if (qrIntervalRef.current) clearInterval(qrIntervalRef.current);
+    setQrPolling(true);
+    qrIntervalRef.current = setInterval(async () => {
+      try {
+        const { data } = await ecomApi.get(`/v1/external/whatsapp/instances/${instanceId}/connection-status`);
+        if (data.success && data.status === 'connected') onInstanceConnected();
+      } catch {}
+    }, 3000);
+    setTimeout(() => { if (qrIntervalRef.current) { clearInterval(qrIntervalRef.current); qrIntervalRef.current = null; setQrPolling(false); } }, 120000);
+  };
+
+  const onInstanceConnected = () => {
+    if (qrIntervalRef.current) { clearInterval(qrIntervalRef.current); qrIntervalRef.current = null; }
+    setQrPolling(false);
+    setCreateStep('success');
+    setSuccessMsg('WhatsApp connecté avec succès ! 🎉');
+    loadInstances();
+    loadDashboardStats();
+  };
+
+  const refreshQr = async () => {
+    if (!createdInstance?.id) return;
+    setQrCode(null);
+    fetchQrCode(createdInstance.id);
+  };
+
+  // ─── Open QR code for existing disconnected instance ───
+  const openQrForInstance = async (instance) => {
+    setCreatedInstance({ id: instance._id, instanceName: instance.instanceName, customName: instance.customName });
+    setShowCreateModal(true);
+    setCreateStep('scanning');
+    setQrCode(null);
+    setError('');
+    fetchQrCode(instance._id);
+  };
+
+  // ═══ Webhook panel logic ═══
+  const updateWh = (instId, patch) => setWebhookPanels(prev => ({ ...prev, [instId]: { ...prev[instId], ...patch } }));
   const toggleWebhookPanel = async (inst) => {
     const cur = webhookPanels[inst._id];
     if (cur?.open) { updateWh(inst._id, { open: false }); return; }
     updateWh(inst._id, { open: true, loading: true, saving: false, error: '', saved: false, config: { enabled: false, url: '', events: ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'] } });
     try {
       const { data } = await ecomApi.get(`/v1/external/whatsapp/instances/${inst._id}/webhook?userId=${userId}`);
-      if (data.success && data.data) {
-        updateWh(inst._id, { loading: false, config: { enabled: !!data.data.enabled, url: data.data.url || '', events: data.data.events || ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'] } });
-      } else {
-        updateWh(inst._id, { loading: false });
-      }
+      if (data.success && data.data) updateWh(inst._id, { loading: false, config: { enabled: !!data.data.enabled, url: data.data.url || '', events: data.data.events || ['MESSAGES_UPSERT', 'CONNECTION_UPDATE'] } });
+      else updateWh(inst._id, { loading: false });
     } catch { updateWh(inst._id, { loading: false }); }
   };
-
   const saveWebhookConfig = async (inst) => {
-    const wh = webhookPanels[inst._id];
-    if (!wh) return;
+    const wh = webhookPanels[inst._id]; if (!wh) return;
     updateWh(inst._id, { saving: true, error: '', saved: false });
     try {
       const { data } = await ecomApi.post(`/v1/external/whatsapp/instances/${inst._id}/webhook`, { userId, ...wh.config });
-      if (data.success) {
-        updateWh(inst._id, { saving: false, saved: true });
-        setTimeout(() => updateWh(inst._id, { saved: false }), 3000);
-      } else {
-        updateWh(inst._id, { saving: false, error: data.error || 'Erreur' });
-      }
-    } catch (err) {
-      updateWh(inst._id, { saving: false, error: err.response?.data?.error || err.message || 'Erreur serveur' });
-    }
+      if (data.success) { updateWh(inst._id, { saving: false, saved: true }); setTimeout(() => updateWh(inst._id, { saved: false }), 3000); }
+      else updateWh(inst._id, { saving: false, error: data.error || 'Erreur' });
+    } catch (err) { updateWh(inst._id, { saving: false, error: err.response?.data?.error || err.message || 'Erreur serveur' }); }
   };
+
+  const connectedCount = instances.filter(i => i.status === 'connected' || i.status === 'active').length;
 
   const TABS = [
     { id: 'instances', label: 'Instances', icon: Smartphone, count: instances.length },
@@ -193,11 +266,11 @@ const WhatsAppService = () => {
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">Synchroniser</span>
           </button>
-          <button onClick={() => { setTab('instances'); setShowAddForm(true); }}
-            className="inline-flex items-center gap-1.5 px-3.5 py-[7px] text-[13px] font-semibold text-white rounded-lg transition-colors"
+          <button onClick={openCreateModal}
+            className="inline-flex items-center gap-1.5 px-3.5 py-[7px] text-[13px] font-semibold text-white rounded-lg transition-colors shadow-sm"
             style={{ background: ACCENT }}>
             <Plus className="w-3.5 h-3.5" />
-            Ajouter
+            Créer une instance
           </button>
         </div>
       </div>
@@ -250,65 +323,229 @@ const WhatsAppService = () => {
 
       {/* Alerts */}
       {error && <Alert type="error" message={error} onClose={() => setError('')} />}
-      {linkResult && (
-        <Alert
-          type={linkResult.verified && linkResult.status === 'connected' ? 'success' : 'warning'}
-          message={linkResult.verified && linkResult.status === 'connected' ? 'Instance connectée avec succès' : linkResult.message || 'Instance enregistrée'}
-          onClose={() => setLinkResult(null)}
-        />
+      {successMsg && <Alert type="success" message={successMsg} onClose={() => setSuccessMsg('')} />}
+
+      {/* ═══ Modal Création d'Instance ═══ */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={closeCreateModal}>
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+
+            {/* Modal header */}
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: ACCENT_LIGHT }}>
+                  {createStep === 'success' ? <CheckCircle className="w-5 h-5 text-emerald-500" /> :
+                   createStep === 'scanning' ? <QrCode className="w-5 h-5" style={{ color: ACCENT }} /> :
+                   <Plus className="w-5 h-5" style={{ color: ACCENT }} />}
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900 text-[15px]">
+                    {createStep === 'success' ? 'Instance connectée !' : createStep === 'scanning' ? 'Scanner le QR Code' : 'Créer une instance'}
+                  </h3>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    {createStep === 'success' ? 'Votre WhatsApp est maintenant lié' : createStep === 'scanning' ? 'Ouvrez WhatsApp → Appareils connectés → Scanner' : 'Configurez votre nouvelle connexion WhatsApp'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={closeCreateModal} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Step: Form */}
+            {createStep === 'form' && (
+              <form onSubmit={handleCreateInstance} className="p-6 space-y-5">
+                {/* Nom de l'instance */}
+                <div className="space-y-1.5">
+                  <label className="block text-[13px] font-semibold text-gray-700">Nom de l'instance</label>
+                  <input
+                    type="text"
+                    value={createData.name}
+                    onChange={e => setCreateData(d => ({ ...d, name: e.target.value }))}
+                    placeholder="ex: Mon WhatsApp Business"
+                    className="field-input"
+                    autoFocus
+                  />
+                  <p className="text-[11px] text-gray-400">Un nom pour identifier cette connexion (optionnel)</p>
+                </div>
+
+                {/* Type de service */}
+                <div className="space-y-2">
+                  <label className="block text-[13px] font-semibold text-gray-700">Type de service</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {SERVICE_TYPES.map(svc => {
+                      const selected = createData.serviceType === svc.id;
+                      return (
+                        <button
+                          key={svc.id}
+                          type="button"
+                          onClick={() => setCreateData(d => ({ ...d, serviceType: svc.id }))}
+                          className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                            selected
+                              ? `border-${svc.color}-500 bg-${svc.color}-50 ring-2 ring-${svc.color}-200`
+                              : 'border-gray-200 hover:border-gray-300 bg-white'
+                          }`}
+                        >
+                          {selected && (
+                            <span className={`absolute top-2.5 right-2.5 w-5 h-5 rounded-full bg-${svc.color}-500 text-white flex items-center justify-center`}>
+                              <Check className="w-3 h-3" />
+                            </span>
+                          )}
+                          <span className="text-xl mb-2 block">{svc.icon}</span>
+                          <p className={`text-[13px] font-semibold ${selected ? `text-${svc.color}-800` : 'text-gray-900'}`}>{svc.label}</p>
+                          <p className={`text-[11px] mt-0.5 ${selected ? `text-${svc.color}-600` : 'text-gray-400'}`}>{svc.desc}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-100 rounded-lg">
+                    <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                    <p className="text-xs text-red-700">{error}</p>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                  <button type="button" onClick={closeCreateModal}
+                    className="px-4 py-2.5 text-[13px] font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                    Annuler
+                  </button>
+                  <button type="submit" disabled={submitting}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 text-[13px] font-semibold text-white rounded-lg disabled:opacity-50 transition-all shadow-sm"
+                    style={{ background: ACCENT }}>
+                    {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                    {submitting ? 'Création en cours...' : 'Créer l\'instance'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* Step: Scanning QR */}
+            {createStep === 'scanning' && (
+              <div className="p-6 space-y-5">
+                {createdInstance && (
+                  <div className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-xl">
+                    <Smartphone className="w-5 h-5 text-gray-400" />
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold text-gray-900 truncate">{createdInstance.customName || createdInstance.instanceName}</p>
+                      <p className="text-[11px] text-gray-400 font-mono truncate">{createdInstance.instanceName}</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-col items-center gap-4">
+                  {qrCode ? (
+                    <>
+                      <div className="p-4 bg-white border-2 border-gray-100 rounded-2xl shadow-sm">
+                        <img
+                          src={qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`}
+                          alt="QR Code WhatsApp"
+                          className="w-60 h-60 object-contain"
+                        />
+                      </div>
+
+                      {pairingCode && (
+                        <div className="text-center space-y-1">
+                          <p className="text-[11px] text-gray-400">Ou entrez ce code manuellement :</p>
+                          <div className="flex items-center gap-2 justify-center">
+                            <code className="text-lg font-bold tracking-[0.3em] text-gray-900 bg-gray-50 px-5 py-2.5 rounded-xl border border-gray-200">
+                              {pairingCode}
+                            </code>
+                            <button onClick={() => copyToClipboard(pairingCode, 'pairing')}
+                              className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+                              {copiedId === 'pairing' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {qrPolling && (
+                        <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-full">
+                          <span className="relative flex h-2.5 w-2.5">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+                          </span>
+                          <span className="text-[12px] font-medium text-emerald-700">En attente de la connexion...</span>
+                        </div>
+                      )}
+
+                      <button onClick={refreshQr}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-[12px] font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Rafraîchir le QR code
+                      </button>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center py-10 gap-3">
+                      <Loader2 className="w-10 h-10 animate-spin text-gray-300" />
+                      <p className="text-sm text-gray-400">Génération du QR code...</p>
+                    </div>
+                  )}
+                </div>
+
+                {error && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-100 rounded-lg">
+                    <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                    <p className="text-xs text-red-700">{error}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Step: Success */}
+            {createStep === 'success' && (
+              <div className="p-6 flex flex-col items-center text-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
+                  <CheckCircle className="w-8 h-8 text-emerald-500" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-gray-900">Connexion réussie ! 🎉</h4>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Votre instance <strong>{createdInstance?.customName || createdInstance?.instanceName}</strong> est maintenant connectée à WhatsApp.
+                  </p>
+                </div>
+                <button onClick={closeCreateModal}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 text-[13px] font-semibold text-white rounded-lg transition-all"
+                  style={{ background: ACCENT }}>
+                  <CheckCircle className="w-4 h-4" />
+                  Terminé
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Tab: Instances */}
       {activeTab === 'instances' && (
         <div className="space-y-4">
 
-          {/* Add Form */}
-          {showAddForm && (
-            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Plus className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm font-semibold text-gray-900">Nouvelle instance ZenChat</span>
-                </div>
-                <button onClick={() => setShowAddForm(false)} className="p-1 text-gray-400 hover:text-gray-600 rounded transition-colors">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <form onSubmit={handleLinkInstance} className="p-5 space-y-4">
-                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg">
-                  <ExternalLink className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
-                  <p className="text-xs text-blue-700">
-                    Pas de compte ?{' '}
-                    <a href="https://zechat.site/" target="_blank" rel="noopener noreferrer" className="font-semibold underline">Créer sur ZenChat</a>
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Field label="Nom de l'instance" required>
-                    <input type="text" name="instanceName" value={formData.instanceName} onChange={handleInputChange}
-                      placeholder="ex: ma_boutique" required className="field-input" />
-                  </Field>
-                  <Field label="Token API" required>
-                    <input type="password" name="instanceToken" value={formData.instanceToken} onChange={handleInputChange}
-                      placeholder="Votre token" required className="field-input" />
-                  </Field>
-                  <Field label="Nom d'affichage" hint="optionnel">
-                    <input type="text" name="customName" value={formData.customName} onChange={handleInputChange}
-                      placeholder="ex: Support Client" className="field-input" />
-                  </Field>
-                </div>
-                <div className="flex justify-end gap-2 pt-1">
-                  <button type="button" onClick={() => setShowAddForm(false)}
-                    className="px-3.5 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-                    Annuler
-                  </button>
-                  <button type="submit" disabled={submitting}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-50 transition-colors"
-                    style={{ background: ACCENT }}>
-                    {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
-                    {submitting ? 'Connexion...' : 'Connecter'}
-                  </button>
-                </div>
-              </form>
+          {/* Dashboard Stats */}
+          {dashboardStats && instances.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: 'Total instances', value: dashboardStats.totalInstances, icon: Smartphone, sub: `${dashboardStats.connected} connectée${dashboardStats.connected > 1 ? 's' : ''}`, accent: 'emerald' },
+                { label: "Messages aujourd'hui", value: dashboardStats.totalSentToday, icon: Send, sub: `sur ${dashboardStats.totalDailyLimit} max`, accent: 'blue' },
+                { label: 'Messages ce mois', value: dashboardStats.totalSentMonth, icon: BarChart3, sub: `sur ${dashboardStats.totalMonthlyLimit} max`, accent: 'violet' },
+                { label: 'Hors ligne', value: dashboardStats.disconnected, icon: WifiOff, sub: dashboardStats.disconnected > 0 ? 'à reconnecter' : 'tout est OK', accent: dashboardStats.disconnected > 0 ? 'red' : 'gray' },
+              ].map((stat, i) => {
+                const Icon = stat.icon;
+                return (
+                  <div key={i} className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-sm transition-shadow">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{stat.label}</p>
+                      <div className={`w-7 h-7 rounded-lg bg-${stat.accent}-50 flex items-center justify-center`}>
+                        <Icon className={`w-3.5 h-3.5 text-${stat.accent}-500`} />
+                      </div>
+                    </div>
+                    <p className={`text-2xl font-bold text-${stat.accent}-600`}>{stat.value}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">{stat.sub}</p>
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -322,16 +559,19 @@ const WhatsAppService = () => {
 
           {/* Empty */}
           {!loading && instances.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 px-4">
-              <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mb-4">
-                <Smartphone className="w-6 h-6 text-gray-300" />
+            <div className="flex flex-col items-center justify-center py-20 px-4">
+              <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-5">
+                <Smartphone className="w-8 h-8 text-gray-300" />
               </div>
-              <p className="text-sm font-medium text-gray-900 mb-1">Aucune instance</p>
-              <p className="text-xs text-gray-400 text-center max-w-xs mb-5">Liez une instance ZenChat API pour envoyer des messages WhatsApp.</p>
-              <button onClick={() => setShowAddForm(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-lg"
+              <p className="text-base font-semibold text-gray-900 mb-1">Aucune instance WhatsApp</p>
+              <p className="text-sm text-gray-400 text-center max-w-sm mb-6">
+                Créez votre première instance pour connecter votre WhatsApp et commencer à envoyer des messages.
+              </p>
+              <button onClick={openCreateModal}
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl shadow-sm transition-all hover:shadow-md"
                 style={{ background: ACCENT }}>
-                <Plus className="w-3.5 h-3.5" /> Ajouter une instance
+                <Plus className="w-4 h-4" />
+                Créer ma première instance
               </button>
             </div>
           )}
@@ -343,15 +583,18 @@ const WhatsAppService = () => {
                 const st = getStatus(inst.status);
                 const test = testResults[inst._id];
                 const wh = webhookPanels[inst._id];
+                const stats = messageStats[inst._id];
                 const isConnected = inst.status === 'connected' || inst.status === 'active';
                 return (
-                  <div key={inst._id} className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md hover:border-gray-300 transition-all">
+                  <div key={inst._id} className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md hover:border-gray-300 transition-all group">
                     <div className={`h-[3px] ${isConnected ? 'bg-emerald-500' : inst.status === 'configured' ? 'bg-blue-400' : 'bg-red-400'}`} />
                     <div className="p-5 space-y-4">
+
+                      {/* Header */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${st.bg}`}>
-                            <Smartphone className={`w-5 h-5 ${st.text}`} />
+                            {isConnected ? <Wifi className={`w-5 h-5 ${st.text}`} /> : <WifiOff className={`w-5 h-5 ${st.text}`} />}
                           </div>
                           <div className="min-w-0">
                             <p className="font-semibold text-gray-900 text-[14px] truncate leading-tight">
@@ -366,23 +609,84 @@ const WhatsAppService = () => {
                         </span>
                       </div>
 
-                      {/* Token */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                          <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Token</span>
-                          <div className="flex items-center gap-1.5">
-                            <code className="text-[12px] text-gray-600 font-mono">
-                              {showTokens[inst._id] ? inst.instanceToken : '••••••••••••'}
-                            </code>
-                            <button onClick={() => setShowTokens(p => ({ ...p, [inst._id]: !p[inst._id] }))}
-                              className="text-gray-400 hover:text-gray-600 p-0.5 rounded">
-                              {showTokens[inst._id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                            </button>
-                            <button onClick={() => copyToClipboard(inst.instanceToken, inst._id + 't')}
-                              className="text-gray-400 hover:text-gray-600 p-0.5 rounded">
-                              {copiedId === inst._id + 't' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                            </button>
+                      {/* Quotas / Message Stats */}
+                      {stats && (
+                        <div className="space-y-3 p-3.5 bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                              <BarChart3 className="w-3 h-3" />
+                              Quotas
+                            </span>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                              stats.plan === 'unlimited' ? 'bg-purple-100 text-purple-700' :
+                              stats.plan === 'premium' ? 'bg-amber-100 text-amber-700' :
+                              'bg-gray-200 text-gray-600'
+                            }`}>
+                              {stats.plan === 'free' ? 'Gratuit' : stats.plan === 'premium' ? 'Premium' : 'Illimité'}
+                            </span>
                           </div>
+
+                          {/* Daily */}
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="text-gray-500">Aujourd'hui</span>
+                              <span className="font-bold text-gray-800">{stats.messagesSentToday} <span className="text-gray-400 font-normal">/ {stats.dailyLimit}</span></span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                              <div className={`h-full rounded-full transition-all duration-500 ${
+                                stats.messagesSentToday >= stats.dailyLimit ? 'bg-red-500' :
+                                stats.messagesSentToday / stats.dailyLimit > 0.8 ? 'bg-orange-500' : 'bg-emerald-500'
+                              }`} style={{ width: `${Math.min(100, (stats.messagesSentToday / stats.dailyLimit) * 100)}%` }} />
+                            </div>
+                          </div>
+
+                          {/* Monthly */}
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="text-gray-500">Ce mois</span>
+                              <span className="font-bold text-gray-800">{stats.messagesSentThisMonth} <span className="text-gray-400 font-normal">/ {stats.monthlyLimit}</span></span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                              <div className={`h-full rounded-full transition-all duration-500 ${
+                                stats.messagesSentThisMonth >= stats.monthlyLimit ? 'bg-red-500' :
+                                stats.messagesSentThisMonth / stats.monthlyLimit > 0.8 ? 'bg-orange-500' : 'bg-emerald-500'
+                              }`} style={{ width: `${Math.min(100, (stats.messagesSentThisMonth / stats.monthlyLimit) * 100)}%` }} />
+                            </div>
+                          </div>
+
+                          {stats.limitExceeded && (
+                            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-red-50 border border-red-100 rounded-lg">
+                              <AlertCircle className="w-3 h-3 text-red-500 flex-shrink-0" />
+                              <p className="text-[10px] text-red-700 font-medium">Limite de messages atteinte</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Not connected → Scan QR button prominent */}
+                      {!isConnected && (
+                        <button onClick={() => openQrForInstance(inst)}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors">
+                          <QrCode className="w-4 h-4" />
+                          Scanner le QR code pour connecter
+                        </button>
+                      )}
+
+                      {/* Token */}
+                      <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                        <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Token</span>
+                        <div className="flex items-center gap-1.5">
+                          <code className="text-[12px] text-gray-600 font-mono">
+                            {showTokens[inst._id] ? inst.instanceToken : '••••••••••••'}
+                          </code>
+                          <button onClick={() => setShowTokens(p => ({ ...p, [inst._id]: !p[inst._id] }))}
+                            className="text-gray-400 hover:text-gray-600 p-0.5 rounded">
+                            {showTokens[inst._id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                          <button onClick={() => copyToClipboard(inst.instanceToken, inst._id + 't')}
+                            className="text-gray-400 hover:text-gray-600 p-0.5 rounded">
+                            {copiedId === inst._id + 't' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
                         </div>
                       </div>
 
@@ -398,8 +702,7 @@ const WhatsAppService = () => {
                         <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4 space-y-3">
                           <div className="flex items-center justify-between">
                             <p className="text-[12px] font-semibold text-gray-800 flex items-center gap-1.5">
-                              <Globe className="w-3.5 h-3.5 text-blue-400" />
-                              Webhook
+                              <Globe className="w-3.5 h-3.5 text-blue-400" /> Webhook
                             </p>
                             <button onClick={() => updateWh(inst._id, { open: false })} className="text-gray-400 hover:text-gray-600">
                               <X className="w-3.5 h-3.5" />
@@ -421,36 +724,26 @@ const WhatsAppService = () => {
                               </div>
                               <div>
                                 <label className="block text-[11px] font-medium text-gray-600 mb-1">URL du webhook</label>
-                                <input
-                                  value={wh.config?.url || ''}
-                                  onChange={e => updateWh(inst._id, { config: { ...wh.config, url: e.target.value } })}
-                                  placeholder="https://votre-serveur.com/webhook"
-                                  className="field-input text-[12px]"
-                                />
+                                <input value={wh.config?.url || ''} onChange={e => updateWh(inst._id, { config: { ...wh.config, url: e.target.value } })}
+                                  placeholder="https://votre-serveur.com/webhook" className="field-input text-[12px]" />
                               </div>
                               <div>
                                 <p className="text-[11px] font-medium text-gray-600 mb-1.5">Événements</p>
                                 <div className="grid grid-cols-2 gap-y-1.5 gap-x-3">
                                   {WEBHOOK_EVENTS.map(ev => (
                                     <label key={ev.id} className="flex items-center gap-1.5 text-[11px] text-gray-600 cursor-pointer select-none">
-                                      <input type="checkbox"
-                                        checked={(wh.config?.events || []).includes(ev.id)}
+                                      <input type="checkbox" checked={(wh.config?.events || []).includes(ev.id)}
                                         onChange={e => {
-                                          const evts = e.target.checked
-                                            ? [...(wh.config?.events || []), ev.id]
-                                            : (wh.config?.events || []).filter(x => x !== ev.id);
+                                          const evts = e.target.checked ? [...(wh.config?.events || []), ev.id] : (wh.config?.events || []).filter(x => x !== ev.id);
                                           updateWh(inst._id, { config: { ...wh.config, events: evts } });
-                                        }}
-                                        className="w-3 h-3 cursor-pointer accent-emerald-500"
-                                      />
+                                        }} className="w-3 h-3 cursor-pointer accent-emerald-500" />
                                       {ev.label}
                                     </label>
                                   ))}
                                 </div>
                               </div>
                               <button onClick={() => saveWebhookConfig(inst)} disabled={wh.saving}
-                                className="w-full py-1.5 text-[12px] font-semibold text-white rounded-lg disabled:opacity-50 transition-opacity"
-                                style={{ background: ACCENT }}>
+                                className="w-full py-1.5 text-[12px] font-semibold text-white rounded-lg disabled:opacity-50" style={{ background: ACCENT }}>
                                 {wh.saving ? 'Sauvegarde...' : 'Enregistrer'}
                               </button>
                               {wh.error && <p className="text-[11px] text-red-600">{wh.error}</p>}
@@ -461,9 +754,9 @@ const WhatsAppService = () => {
                       )}
 
                       {/* Footer */}
-                      <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                         <span className="text-[11px] text-gray-300">
-                          Modifié le {inst.updatedAt ? new Date(inst.updatedAt).toLocaleDateString('fr-FR') : '—'}
+                          {inst.createdAt ? `Créé le ${new Date(inst.createdAt).toLocaleDateString('fr-FR')}` : ''}
                         </span>
                         <div className="flex items-center gap-1">
                           <button onClick={() => testConnection(inst)} disabled={test?.loading}
@@ -475,10 +768,9 @@ const WhatsAppService = () => {
                             {test?.loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
                             {test?.loading ? 'Test...' : test?.success === true ? 'OK' : test?.success === false ? 'Erreur' : 'Tester'}
                           </button>
-                          <button onClick={() => toggleWebhookPanel(inst)}
-                            title="Configurer le webhook"
+                          <button onClick={() => toggleWebhookPanel(inst)} title="Webhook"
                             className={`p-1.5 rounded-lg transition-colors ${wh?.open ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50'}`}>
-                            <Globe className="w-3.5 h-3.5" />
+                            <Settings className="w-3.5 h-3.5" />
                           </button>
                           <button onClick={() => deleteInstance(inst)}
                             className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">

@@ -128,6 +128,14 @@ ecomUserSchema.pre('save', async function() {
 
 // Méthode de vérification du mot de passe
 ecomUserSchema.methods.comparePassword = async function(candidatePassword) {
+  if (typeof candidatePassword !== 'string' || !candidatePassword.length) {
+    return false;
+  }
+
+  if (typeof this.password !== 'string' || !this.password.length) {
+    return false;
+  }
+
   return bcrypt.compare(candidatePassword, this.password);
 };
 
