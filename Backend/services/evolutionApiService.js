@@ -356,6 +356,108 @@ class EvolutionApiService {
       return { success: false, error: error.response?.data?.message || error.message };
     }
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // Création d'instance via Master API Key
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Crée une nouvelle instance WhatsApp sur Evolution API
+   * Utilise la MASTER API KEY (globale) pour créer l'instance
+   * @param {string} instanceName - Nom unique pour l'instance
+   * @returns {Promise<{success: boolean, data?: object, error?: string}>}
+   */
+  async createInstance(instanceName) {
+    const masterKey = process.env.EVOLUTION_ADMIN_TOKEN || process.env.EVOLUTION_MASTER_API_KEY || this.apiKey;
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/instance/create`,
+        {
+          instanceName,
+          integration: 'WHATSAPP-BAILEYS',
+          qrcode: true,
+          rejectCall: false,
+          groupsIgnore: true,
+          alwaysOnline: false,
+          readMessages: false,
+          readStatus: false,
+          syncFullHistory: false,
+        },
+        {
+          headers: { 'Content-Type': 'application/json', 'apikey': masterKey },
+          timeout: 30000,
+        }
+      );
+      console.log(`✅ [Evolution API] Instance "${instanceName}" créée`);
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error(`❌ Erreur Evolution API (createInstance):`, error.response?.data || error.message);
+      return { success: false, error: error.response?.data?.message || error.message };
+    }
+  }
+
+  /**
+   * Récupère le QR code de connexion d'une instance
+   * @param {string} instanceName
+   * @param {string} instanceToken
+   * @returns {Promise<{success: boolean, qrcode?: string, error?: string}>}
+   */
+  async getQrCode(instanceName, instanceToken) {
+    try {
+      const response = await axios.get(
+        `${this.baseUrl}/instance/connect/${instanceName}`,
+        {
+          headers: { 'apikey': instanceToken },
+          timeout: 30000,
+        }
+      );
+      const qr = response.data?.base64 || response.data?.qrcode?.base64 || response.data?.code;
+      console.log(`📱 [Evolution API] QR code récupéré pour "${instanceName}"`);
+      return { success: true, qrcode: qr, pairingCode: response.data?.pairingCode, raw: response.data };
+    } catch (error) {
+      console.error(`❌ Erreur Evolution API (getQrCode):`, error.response?.data || error.message);
+      return { success: false, error: error.response?.data?.message || error.message };
+    }
+  }
+
+  /**
+   * Supprime une instance de Evolution API
+   * @param {string} instanceName
+   * @param {string} instanceToken
+   */
+  async deleteInstance(instanceName, instanceToken) {
+    const masterKey = process.env.EVOLUTION_ADMIN_TOKEN || process.env.EVOLUTION_MASTER_API_KEY || this.apiKey;
+    try {
+      await axios.delete(
+        `${this.baseUrl}/instance/delete/${instanceName}`,
+        { headers: { 'apikey': masterKey }, timeout: 15000 }
+      );
+      console.log(`🗑️ [Evolution API] Instance "${instanceName}" supprimée`);
+      return { success: true };
+    } catch (error) {
+      console.error(`❌ Erreur Evolution API (deleteInstance):`, error.response?.data || error.message);
+      return { success: false, error: error.response?.data?.message || error.message };
+    }
+  }
+
+  /**
+   * Déconnecte une instance (logout) sans la supprimer
+   * @param {string} instanceName
+   * @param {string} instanceToken
+   */
+  async logoutInstance(instanceName, instanceToken) {
+    try {
+      await axios.delete(
+        `${this.baseUrl}/instance/logout/${instanceName}`,
+        { headers: { 'apikey': instanceToken }, timeout: 15000 }
+      );
+      console.log(`🔌 [Evolution API] Instance "${instanceName}" déconnectée`);
+      return { success: true };
+    } catch (error) {
+      console.error(`❌ Erreur Evolution API (logoutInstance):`, error.response?.data || error.message);
+      return { success: false, error: error.response?.data?.message || error.message };
+    }
+  }
 }
 
 export default new EvolutionApiService();
