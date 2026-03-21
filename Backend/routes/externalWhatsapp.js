@@ -136,6 +136,121 @@ function splitWhatsAppMessage(text, maxLen = 1500) {
   return parts;
 }
 
+function firstNonEmptyText(...values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return '';
+}
+
+function unwrapMessageContent(message) {
+  let content = message;
+
+  while (content) {
+    if (content.ephemeralMessage?.message) {
+      content = content.ephemeralMessage.message;
+      continue;
+    }
+    if (content.viewOnceMessage?.message) {
+      content = content.viewOnceMessage.message;
+      continue;
+    }
+    if (content.viewOnceMessageV2?.message) {
+      content = content.viewOnceMessageV2.message;
+      continue;
+    }
+    if (content.viewOnceMessageV2Extension?.message) {
+      content = content.viewOnceMessageV2Extension.message;
+      continue;
+    }
+    if (content.documentWithCaptionMessage?.message) {
+      content = content.documentWithCaptionMessage.message;
+      continue;
+    }
+    if (content.editedMessage?.message) {
+      content = content.editedMessage.message;
+      continue;
+    }
+    break;
+  }
+
+  return content || {};
+}
+
+function extractInteractiveResponseText(interactiveResponseMessage) {
+  if (!interactiveResponseMessage) return '';
+
+  const nativeFlow = interactiveResponseMessage.nativeFlowResponseMessage;
+  const directText = firstNonEmptyText(
+    interactiveResponseMessage.body?.text,
+    interactiveResponseMessage.header?.title,
+    interactiveResponseMessage.nativeFlowResponseMessage?.name
+  );
+
+  if (directText) return directText;
+
+  const paramsJson = nativeFlow?.paramsJson;
+  if (!paramsJson || typeof paramsJson !== 'string') return '';
+
+  try {
+    const parsed = JSON.parse(paramsJson);
+    return firstNonEmptyText(
+      parsed.display_text,
+      parsed.title,
+      parsed.text,
+      parsed.id,
+      parsed.selected_display_text,
+      parsed.selected_row_id,
+      parsed.selected_row_title,
+      parsed.flow_token,
+      parsed.reply,
+      parsed.value
+    );
+  } catch {
+    return paramsJson.trim();
+  }
+}
+
+function extractIncomingText(message) {
+  const content = unwrapMessageContent(message);
+
+  return firstNonEmptyText(
+    content?.conversation,
+    content?.extendedTextMessage?.text,
+    content?.imageMessage?.caption,
+    content?.videoMessage?.caption,
+    content?.documentMessage?.caption,
+    content?.documentWithCaptionMessage?.message?.documentMessage?.caption,
+    content?.buttonsResponseMessage?.selectedDisplayText,
+    content?.buttonsResponseMessage?.selectedButtonId,
+    content?.templateButtonReplyMessage?.selectedDisplayText,
+    content?.templateButtonReplyMessage?.selectedId,
+    content?.listResponseMessage?.title,
+    content?.listResponseMessage?.description,
+    content?.listResponseMessage?.singleSelectReply?.selectedRowId,
+    content?.listResponseMessage?.singleSelectReply?.title,
+    content?.listResponseMessage?.singleSelectReply?.description,
+    extractInteractiveResponseText(content?.interactiveResponseMessage)
+  );
+}
+
+function extractContextInfo(message) {
+  const content = unwrapMessageContent(message);
+
+  return (
+    content?.extendedTextMessage?.contextInfo ||
+    content?.buttonsResponseMessage?.contextInfo ||
+    content?.templateButtonReplyMessage?.contextInfo ||
+    content?.listResponseMessage?.contextInfo ||
+    content?.imageMessage?.contextInfo ||
+    content?.videoMessage?.contextInfo ||
+    content?.documentMessage?.contextInfo ||
+    null
+  );
+}
+
 const router = express.Router();
 
 async function sendMessageAndTrack(instanceName, instanceToken, number, message, ...rest) {
@@ -1048,28 +1163,17 @@ router.post('/incoming', async (req, res) => {
         for (const msg of messages) {
           const fromMe = msg.key?.fromMe;
           const from = msg.key?.remoteJid;
+          const messageContent = unwrapMessageContent(msg.message);
 
           // ─── Détecter message vocal / audio ───
-          const isAudio = !!(msg.message?.audioMessage || msg.message?.pttMessage);
-          let text =
-            msg.message?.conversation ||
-            msg.message?.extendedTextMessage?.text ||
-            msg.message?.imageMessage?.caption ||
-            msg.message?.videoMessage?.caption ||
-            msg.message?.buttonsResponseMessage?.selectedButtonId ||
-            msg.message?.listResponseMessage?.title ||
-            '';
+          const isAudio = !!(messageContent?.audioMessage || messageContent?.pttMessage);
+          let text = extractIncomingText(messageContent);
           const pushName = msg.pushName || data?.pushName || '';
 
           // ─── Détecter message cité (reply/quote) et injecter le contexte ───
-          const contextInfo = msg.message?.extendedTextMessage?.contextInfo;
+          const contextInfo = extractContextInfo(messageContent);
           if (contextInfo?.quotedMessage) {
-            const quotedText =
-              contextInfo.quotedMessage.conversation ||
-              contextInfo.quotedMessage.extendedTextMessage?.text ||
-              contextInfo.quotedMessage.imageMessage?.caption ||
-              contextInfo.quotedMessage.videoMessage?.caption ||
-              '';
+            const quotedText = extractIncomingText(contextInfo.quotedMessage);
             if (quotedText) {
               const quotedFrom = contextInfo.participant || '';
               const isQuotedFromBot = msg.key?.fromMe === false && (contextInfo.quotedMessage?.key?.fromMe || !quotedFrom || quotedFrom === from);
@@ -1186,7 +1290,7 @@ router.post('/incoming', async (req, res) => {
           }
 
           // ─── Détecter message image ───
-          const isImage = !!(msg.message?.imageMessage);
+          const isImage = !!(messageContent?.imageMessage);
           let imageAnalysisResult = null;
 
           if (isImage && instanceDoc) {
@@ -1202,7 +1306,7 @@ router.post('/incoming', async (req, res) => {
                 if (workspaceId) {
                   imageAnalysisResult = await analyzeProductImage(
                     mediaData.base64,
-                    mediaData.mimetype || msg.message?.imageMessage?.mimetype || 'image/jpeg',
+                    mediaData.mimetype || messageContent?.imageMessage?.mimetype || 'image/jpeg',
                     workspaceId
                   );
                   console.log(`🖼️ [RITA] Analyse image:`, {
@@ -1212,7 +1316,7 @@ router.post('/incoming', async (req, res) => {
                     confidence: imageAnalysisResult.confidence
                   });
                   // Injecter le contexte image dans le texte pour que Rita le traite
-                  const imageCaption = msg.message?.imageMessage?.caption || '';
+                  const imageCaption = messageContent?.imageMessage?.caption || '';
                   if (imageAnalysisResult.isProductImage && imageAnalysisResult.matchedProductName) {
                     text = `[Le client a envoyé une image du produit "${imageAnalysisResult.matchedProductName}" (confiance: ${imageAnalysisResult.confidence}%). Description: ${imageAnalysisResult.description}]${imageCaption ? ' ' + imageCaption : ''}`;
                   } else if (imageAnalysisResult.isProductImage) {
@@ -1261,9 +1365,9 @@ router.post('/incoming', async (req, res) => {
                 const clientJid = `${pending.clientPhone}@s.whatsapp.net`;
 
                 // Détecter si le boss envoie un media (image, vidéo, document)
-                const bossImage = msg.message?.imageMessage;
-                const bossVideo = msg.message?.videoMessage;
-                const bossDocument = msg.message?.documentMessage;
+                const bossImage = messageContent?.imageMessage;
+                const bossVideo = messageContent?.videoMessage;
+                const bossDocument = messageContent?.documentMessage;
                 const bossHasMedia = !!(bossImage || bossVideo || bossDocument);
 
                 if (bossHasMedia) {
@@ -1758,8 +1862,14 @@ router.post('/incoming', async (req, res) => {
               }
             }
           }
-          const sendText  = responseMode === 'text' || (!useVoiceThisTurn && responseMode !== 'voice');
-          const sendVoice = responseMode === 'voice' || useVoiceThisTurn;
+          let sendText  = responseMode === 'text' || (!useVoiceThisTurn && responseMode !== 'voice');
+          let sendVoice = (responseMode === 'voice' || useVoiceThisTurn) && canDoVoice;
+
+          if ((responseMode === 'voice' || useVoiceThisTurn) && !canDoVoice) {
+            console.warn(`⚠️ [RITA] Mode vocal demandé mais aucune voix n'est disponible — fallback texte pour ${cleanFrom}`);
+            sendText = !!textToSend;
+            sendVoice = false;
+          }
 
           console.log(`🎚️ [RITA] Mode: ${responseMode} | tour: ${useVoiceThisTurn ? 'vocal' : 'texte'} | voiceTag: ${hasVoiceTag} | apiKey: ${effectiveApiKey ? 'oui' : 'non'}`);
 
