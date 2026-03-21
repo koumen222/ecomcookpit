@@ -1091,8 +1091,18 @@ router.post('/incoming', async (req, res) => {
                 if (ec) {
                   ec.lastMessageAt = new Date();
                   ec.messageCount = (ec.messageCount || 0) + 1;
+                  const needsNameSync = pushName && !ec.pushName;
                   if (pushName && !ec.pushName) ec.pushName = pushName;
                   await ec.save();
+                  // Mettre à jour le nom sur l'appareil si on vient de l'obtenir
+                  if (needsNameSync) {
+                    evolutionApiService.saveContact(
+                      instanceDoc.instanceName,
+                      instanceDoc.instanceToken,
+                      earlyPhone,
+                      pushName
+                    );
+                  }
                 } else {
                   const lc = await RitaContact.findOne({ userId: earlyUserId }).sort({ clientNumber: -1 }).lean();
                   const nn = (lc?.clientNumber || 0) + 1;
@@ -1113,14 +1123,7 @@ router.post('/incoming', async (req, res) => {
                     earlyPhone,
                     pushName || `Client ${nn}`
                   );
-                } else if (pushName && ec && !ec.pushName) {
-                  // Mettre à jour le nom sur l'appareil si on vient de l'obtenir
-                  evolutionApiService.saveContact(
-                    instanceDoc.instanceName,
-                    instanceDoc.instanceToken,
-                    earlyPhone,
-                    pushName
-                  );
+                }
               }
             } catch (earlyContactErr) {
               if (earlyContactErr.code !== 11000) {
