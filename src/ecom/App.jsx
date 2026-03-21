@@ -98,6 +98,7 @@ import Tarifs from './pages/Tarifs.jsx';
 import SourcingStats from './pages/SourcingStats.jsx';
 import WhatsAppService from './pages/WhatsAppService.jsx';
 import WhatsAppInstancesList from './pages/WhatsAppInstancesList.jsx';
+import RitaFlows from './pages/RitaFlows.jsx';
 import ConnectShopify from './pages/ConnectShopify.jsx';
 
 // Store pages
@@ -352,6 +353,7 @@ const EcomApp = () => {
             <Route path="/ecom/whatsapp/service" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppService /></LayoutRoute>} />
             <Route path="/ecom/whatsapp/connexion" element={<Navigate to="/ecom/whatsapp/service" replace />} />
             <Route path="/ecom/whatsapp/instances" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppInstancesList /></LayoutRoute>} />
+            <Route path="/ecom/rita-flows" element={<LayoutRoute requiredRole={['ecom_admin']}><RitaFlows /></LayoutRoute>} />
 
             {/* Routes Intégrations */}
             <Route path="/ecom/integrations/shopify" element={<LayoutRoute requiredRole="ecom_admin"><ConnectShopify /></LayoutRoute>} />
