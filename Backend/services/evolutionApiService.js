@@ -458,6 +458,41 @@ class EvolutionApiService {
       return { success: false, error: error.response?.data?.message || error.message };
     }
   }
+
+  /**
+   * Enregistre (ou met à jour) un contact dans le carnet d'adresses de l'instance WhatsApp
+   * Endpoint Evolution API : POST /chat/contacts/{instance}
+   * Utilise Baileys upsertContacts pour que le nom s'affiche dans les conversations.
+   * @param {string} instanceName
+   * @param {string} instanceToken
+   * @param {string} phone - numéro international sans +
+   * @param {string} name  - nom d'affichage
+   */
+  async saveContact(instanceName, instanceToken, phone, name) {
+    const cleanPhone = phone.replace(/\D/g, '');
+    const displayName = (name || '').trim() || cleanPhone;
+    try {
+      await axios.post(
+        `${this.baseUrl}/chat/contacts/${instanceName}`,
+        {
+          contacts: [{
+            fullName: displayName,
+            wuid: `${cleanPhone}@s.whatsapp.net`,
+            phoneNumber: cleanPhone,
+          }]
+        },
+        {
+          headers: { 'Content-Type': 'application/json', 'apikey': instanceToken },
+          timeout: 10000,
+        }
+      );
+      console.log(`📇 [Evolution API] Contact enregistré sur l'appareil: ${displayName} (${cleanPhone})`);
+      return { success: true };
+    } catch {
+      // Silencieux — certaines versions d'Evolution API n'exposent pas cet endpoint
+      return { success: false };
+    }
+  }
 }
 
 export default new EvolutionApiService();
