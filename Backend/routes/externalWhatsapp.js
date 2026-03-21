@@ -1820,6 +1820,7 @@ router.post('/incoming', async (req, res) => {
           const ttsConfig = { ...ritaCfgVoice, elevenlabsApiKey: effectiveApiKey, fishAudioApiKey: effectiveFishKey };
           // responseMode: 'text' | 'voice' | 'both'. Legacy compat: voiceMode=true → 'voice'
           const responseMode = ritaCfgVoice?.responseMode || (ritaCfgVoice?.voiceMode ? 'voice' : 'text');
+          const mixedVoiceReplyChance = Math.max(0, Math.min(100, Number(ritaCfgVoice?.mixedVoiceReplyChance ?? 65) || 65));
           const isFishAudio = ritaCfgVoice?.ttsProvider === 'fishaudio';
           const canDoVoice = !!((isFishAudio ? effectiveFishKey : effectiveApiKey) && textToSend);
 
@@ -1839,26 +1840,33 @@ router.post('/incoming', async (req, res) => {
 
           // Déterminer vocal vs texte pour ce tour :
           // 1. Si mode "voice" → toujours vocal
-          // 2. Si mode "both" → vocal pour confirmation commande (ORDER_DATA) OU (explication longue + 10% de chance)
+          // 2. Si mode "both" → plus de vocal sur confirmations, tags [VOICE] et réponses longues
           // 3. Si mode "text" → toujours texte
-          // 4. Tag [VOICE] respecté UNIQUEMENT en mode voice
           let useVoiceThisTurn = false;
           if (responseMode === 'voice' && canDoVoice) {
             // Mode full vocal : toujours vocal
             useVoiceThisTurn = true;
           } else if (responseMode === 'both' && canDoVoice) {
-            // Mode mixte : vocal pour confirmation de commande
+            const isLongExplanation =
+              textToSend.length >= 180 ||
+              /\n|•|▪|◦|\d+\.\s|:/.test(textToSend) ||
+              splitWhatsAppMessage(textToSend, 220).length > 1;
+            const voiceChance = hasVoiceTag
+              ? 1
+              : isLongExplanation
+                ? mixedVoiceReplyChance / 100
+                : Math.max(0.15, Math.min(0.5, mixedVoiceReplyChance / 200));
+
             if (orderTagMatch) {
               useVoiceThisTurn = true;
               console.log(`🎙️ [RITA] Commande confirmée — vocal pour confirmation (mode both)`);
-            } else if (hasVoiceTag) {
-              // Tag [VOICE] en mode both = ~35% de chance (équilibre vocal/texte)
-              const randomChance = Math.random() < 0.35;
+            } else {
+              const randomChance = Math.random() < voiceChance;
               if (randomChance) {
                 useVoiceThisTurn = true;
-                console.log(`🎙️ [RITA] Vocal accordé (35%, mode both)`);
+                console.log(`🎙️ [RITA] Vocal accordé (${Math.round(voiceChance * 100)}%, mode both${isLongExplanation ? ', réponse longue' : ''})`);
               } else {
-                console.log(`🔇 [RITA] Texte cette fois (tirage 35%, mode both)`);
+                console.log(`🔇 [RITA] Texte cette fois (tirage ${Math.round(voiceChance * 100)}%, mode both${isLongExplanation ? ', réponse longue' : ''})`);
               }
             }
           }
@@ -1871,7 +1879,7 @@ router.post('/incoming', async (req, res) => {
             sendVoice = false;
           }
 
-          console.log(`🎚️ [RITA] Mode: ${responseMode} | tour: ${useVoiceThisTurn ? 'vocal' : 'texte'} | voiceTag: ${hasVoiceTag} | apiKey: ${effectiveApiKey ? 'oui' : 'non'}`);
+          console.log(`🎚️ [RITA] Mode: ${responseMode} | tour: ${useVoiceThisTurn ? 'vocal' : 'texte'} | voiceTag: ${hasVoiceTag} | mixChance: ${mixedVoiceReplyChance}% | apiKey: ${effectiveApiKey ? 'oui' : 'non'}`);
 
 
           // ── Envoyer le texte (avec découpage [SPLIT] puis splitWhatsAppMessage) ──

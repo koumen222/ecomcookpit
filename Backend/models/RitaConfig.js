@@ -128,6 +128,7 @@ const ritaConfigSchema = new mongoose.Schema({
   // responseMode: 'text' | 'voice' | 'both'
   responseMode: { type: String, enum: ['text', 'voice', 'both'], default: 'text' },
   voiceMode: { type: Boolean, default: false }, // legacy compat
+  mixedVoiceReplyChance: { type: Number, default: 65, min: 0, max: 100 },
   elevenlabsApiKey: { type: String, default: '' },
   elevenlabsVoiceId: { type: String, default: 'cgSgspJ2msm6clMCkdW9' }, // Jessica (FR multilingual)
   elevenlabsModel: { type: String, default: 'eleven_v3' }, // Eleven v3 — meilleur modèle (70+ langues)
