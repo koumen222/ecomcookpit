@@ -97,9 +97,16 @@ import WhyScalor from './pages/WhyScalor.jsx';
 import Tarifs from './pages/Tarifs.jsx';
 import SourcingStats from './pages/SourcingStats.jsx';
 import WhatsAppService from './pages/WhatsAppService.jsx';
+import DeveloperSection from './pages/DeveloperSection.jsx';
 import WhatsAppInstancesList from './pages/WhatsAppInstancesList.jsx';
 import RitaFlows from './pages/RitaFlows.jsx';
 import ConnectShopify from './pages/ConnectShopify.jsx';
+import ProviderService from './pages/ProviderService.jsx';
+
+// Scalor SaaS API pages
+import ScalorLogin from './pages/ScalorLogin.jsx';
+import ScalorRegister from './pages/ScalorRegister.jsx';
+import ScalorDashboard from './pages/ScalorDashboard.jsx';
 
 // Store pages
 import StoreSetup from './pages/StoreSetup.jsx';
@@ -282,6 +289,8 @@ const EcomApp = () => {
 
             {/* Routes publiques */}
             <Route path="/ecom/landing" element={<EcomLandingPage />} />
+            <Route path="/provider" element={<ProviderService />} />
+            <Route path="/ecom/provider" element={<ProviderService />} />
             <Route path="/ecom/why-scalor" element={<WhyScalor />} />
             <Route path="/ecom/tarifs" element={<Tarifs />} />
             <Route path="/ecom/privacy" element={<PrivacyPolicy />} />
@@ -351,6 +360,8 @@ const EcomApp = () => {
             {/* Routes WhatsApp */}
             <Route path="/ecom/whatsapp-postulation" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppPostulation /></LayoutRoute>} />
             <Route path="/ecom/whatsapp/service" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppService /></LayoutRoute>} />
+            {/* Section Développeur — API Scalor + Provider dans le dashboard principal */}
+            <Route path="/ecom/developer" element={<LayoutRoute requiredRole={['ecom_admin']}><DeveloperSection /></LayoutRoute>} />
             <Route path="/ecom/whatsapp/connexion" element={<Navigate to="/ecom/whatsapp/service" replace />} />
             <Route path="/ecom/whatsapp/instances" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppInstancesList /></LayoutRoute>} />
             <Route path="/ecom/rita-flows" element={<LayoutRoute requiredRole={['ecom_admin']}><RitaFlows /></LayoutRoute>} />
@@ -418,6 +429,14 @@ const EcomApp = () => {
             <Route path="/ecom/livreur/earnings" element={<LayoutRoute requiredRole="ecom_livreur"><LivreurEarningsPage /></LayoutRoute>} />
             <Route path="/ecom/livreur/revenus" element={<LayoutRoute requiredRole="ecom_livreur"><LivreurEarningsPage /></LayoutRoute>} />
             <Route path="/ecom/livreur-management" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><LivreurManagement /></LayoutRoute>} />
+
+            {/* Scalor standalone routes → redirigées vers la section Développeur intégrée */}
+            <Route path="/scalor/login" element={<Navigate to="/ecom/developer" replace />} />
+            <Route path="/scalor/register" element={<Navigate to="/ecom/developer" replace />} />
+            <Route path="/scalor/dashboard" element={<Navigate to="/ecom/developer" replace />} />
+            {/* Provider → section Développeur, onglet provider */}
+            <Route path="/provider" element={<Navigate to="/ecom/developer?tab=provider" replace />} />
+            <Route path="/ecom/provider" element={<Navigate to="/ecom/developer?tab=provider" replace />} />
 
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/ecom/login" replace />} />
