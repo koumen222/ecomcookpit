@@ -9,6 +9,7 @@ const ritaContactSchema = new mongoose.Schema({
   lastMessageAt: { type: Date, default: Date.now },
   messageCount: { type: Number, default: 1 },
   hasOrdered: { type: Boolean, default: false },
+  tags: [{ type: String }],
   notes: { type: String, default: '' },
 }, {
   timestamps: true,
