@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
 import { formatMoney } from '../utils/currency.js';
+import { conversionRates } from '../contexts/CurrencyContext.jsx';
 import ecomApi from '../services/ecommApi.js';
 import { playCashRegisterSound, playConfirmSound } from '../services/soundService.js';
 import { getContextualError } from '../utils/errorMessages';
@@ -86,7 +87,7 @@ const OrdersList = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useEcomAuth();
-  const { fmt, symbol, currency: userCurrency } = useMoney();
+  const { fmt, fmtRaw, symbol, currency: userCurrency } = useMoney();
   // Affiche le montant dans la devise de la commande (pas de conversion, juste le bon symbole)
   const fmtOrder = (amount, orderCurrency) => formatMoney(amount, orderCurrency || userCurrency || 'XAF');
   const isAdmin = user?.role === 'ecom_admin';
@@ -1606,11 +1607,22 @@ const OrdersList = () => {
 
   // Calculer les statistiques filtrées en fonction de TOUS les filtres actifs
   const hasActiveFilters = filterStatus || filterCity || filterProduct || filterTag || filterStartDate || filterEndDate || search;
-  
+
   const filteredStats = useMemo(() => {
+    // Fonction de conversion locale
+    const convertAmount = (amount, fromCurrency = 'XAF') => {
+      const targetCurrency = user?.currency || 'XAF';
+      if (!amount || fromCurrency === targetCurrency) return amount;
+      const fromRate = conversionRates[fromCurrency] || 1;
+      const toRate = conversionRates[targetCurrency] || 1;
+      return (amount / fromRate) * toRate;
+    };
+
     if (!hasActiveFilters) {
-      // Aucun filtre actif: utiliser les stats globales du serveur (toutes commandes, pas paginées)
-      // stats.totalRevenue = revenu livré calculé côté serveur sur TOUTES les commandes livrées
+      // Aucun filtre actif: utiliser les stats globales du serveur
+      // MAIS il faut les convertir car le backend renvoie toujours en XAF
+      const deliveredRevenueConverted = convertAmount(stats.totalRevenue || 0, 'XAF');
+
       return {
         total: stats.total || 0,
         delivered: stats.delivered || 0,
@@ -1618,8 +1630,8 @@ const OrdersList = () => {
         pending: stats.pending || 0,
         confirmed: stats.confirmed || 0,
         shipped: stats.shipped || 0,
-        totalRevenue: stats.totalRevenue || 0,
-        deliveredRevenue: stats.totalRevenue || 0
+        totalRevenue: deliveredRevenueConverted,
+        deliveredRevenue: deliveredRevenueConverted
       };
     }
     
@@ -1677,28 +1689,32 @@ const OrdersList = () => {
                product.includes(searchLower);
       });
     }
-    
+
     // Calculer les stats pour les commandes filtrées
     const delivered = filtered.filter(o => o.status === 'delivered').length;
     const returned = filtered.filter(o => o.status === 'returned').length;
     const pending = filtered.filter(o => o.status === 'pending').length;
     const confirmed = filtered.filter(o => o.status === 'confirmed').length;
     const shipped = filtered.filter(o => o.status === 'shipped').length;
-    
-    // Revenu calculé UNIQUEMENT sur les commandes livrées
+
+    // Revenu calculé UNIQUEMENT sur les commandes livrées (avec conversion de devise)
     const deliveredRevenue = filtered
       .filter(o => o.status === 'delivered')
       .reduce((sum, o) => {
         const price = parseFloat(o.price) || 0;
         const quantity = parseInt(o.quantity) || 1;
-        return sum + (price * quantity);
+        const orderCurrency = o.currency || 'XAF';
+        const convertedPrice = convertAmount(price * quantity, orderCurrency);
+        return sum + convertedPrice;
       }, 0);
-    
-    // Revenu total (toutes commandes) pour comparaison
+
+    // Revenu total (toutes commandes) pour comparaison (avec conversion)
     const totalRevenue = filtered.reduce((sum, o) => {
       const price = parseFloat(o.price) || 0;
       const quantity = parseInt(o.quantity) || 1;
-      return sum + (price * quantity);
+      const orderCurrency = o.currency || 'XAF';
+      const convertedPrice = convertAmount(price * quantity, orderCurrency);
+      return sum + convertedPrice;
     }, 0);
     
     return {
@@ -1711,7 +1727,7 @@ const OrdersList = () => {
       totalRevenue, // Garder pour compatibilité
       deliveredRevenue // Nouveau : revenu des commandes livrées uniquement
     };
-  }, [filterStatus, filterCity, filterProduct, filterTag, filterStartDate, filterEndDate, search, orders, stats]);
+  }, [filterStatus, filterCity, filterProduct, filterTag, filterStartDate, filterEndDate, search, orders, stats, user?.currency]);
 
   const deliveryRate = filteredStats.total ? ((filteredStats.delivered || 0) / filteredStats.total * 100).toFixed(1) : 0;
   const returnRate = filteredStats.total ? ((filteredStats.returned || 0) / filteredStats.total * 100).toFixed(1) : 0;
@@ -2401,7 +2417,7 @@ const OrdersList = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
         <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200 p-3">
           <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide mb-1">Revenu livré</p>
-          <p className="text-xl font-extrabold text-gray-900 mb-1">{fmt(filteredStats.deliveredRevenue || 0) || `0 ${symbol}`}</p>
+          <p className="text-xl font-extrabold text-gray-900 mb-1">{fmtRaw(filteredStats.deliveredRevenue || 0) || `0 ${symbol}`}</p>
           <p className="text-[10px] text-green-600 font-semibold">{filteredStats.delivered || 0} livrés · +{Math.round((filteredStats.delivered || 0) / (filteredStats.total || 1) * 100)}%</p>
         </div>
         
@@ -2644,7 +2660,7 @@ const OrdersList = () => {
                         </div>
                       </div>
                       {totalPrice > 0 && (
-                        <p className="text-sm font-bold text-gray-900 ml-2 flex-shrink-0">{fmt(totalPrice, o.currency || 'XAF')}</p>
+                        <p className="text-sm font-bold text-gray-900 ml-2 flex-shrink-0">{fmtOrder(totalPrice, o.currency)}</p>
                       )}
                     </div>
 

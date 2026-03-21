@@ -408,15 +408,15 @@ export const EcomAuthProvider = ({ children }) => {
         type: 'UPDATE_USER',
         payload: { currency }
       });
-      
+
       // Update localStorage with new currency
       const storedUser = JSON.parse(localStorage.getItem('ecomUser') || '{}');
       storedUser.currency = currency;
       localStorage.setItem('ecomUser', JSON.stringify(storedUser));
-      
+
       // Reload page to force all components to update with new currency
       window.location.reload();
-      
+
       return response.data;
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Erreur lors du changement de devise';
