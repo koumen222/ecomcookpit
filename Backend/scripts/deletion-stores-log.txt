@@ -1,0 +1,55 @@
+[2026-03-04T16:17:41.400Z] [INFO] 🧪 MODE TEST activé - Aucune suppression réelle ne sera effectuée
+[2026-03-04T16:17:41.408Z] [INFO] 🔌 Connexion à MongoDB...
+[2026-03-04T16:17:45.780Z] [INFO] ✅ Connecté à MongoDB
+[2026-03-04T16:17:47.625Z] [INFO] 📊 Trouvé 13 produits et 5 commandes de stores
+[2026-03-04T16:17:47.626Z] [INFO] 🚀 Début du processus de suppression des STORES PUBLICS
+[2026-03-04T16:17:47.627Z] [INFO] [DRY RUN] Sauvegarde serait créée
+[2026-03-04T16:17:47.628Z] [INFO] 
+📦 Suppression des produits des boutiques publiques...
+[2026-03-04T16:17:47.784Z] [INFO] [DRY RUN] Produits boutiques (StoreProduct): 13 documents seraient supprimés
+[2026-03-04T16:17:47.787Z] [INFO] 
+🛒 Suppression des commandes des boutiques publiques...
+[2026-03-04T16:17:47.968Z] [INFO] [DRY RUN] Commandes boutiques (StoreOrder): 5 documents seraient supprimés
+[2026-03-04T16:17:47.969Z] [INFO] 
+🔄 Réinitialisation des configurations de pages...
+[2026-03-04T16:17:51.209Z] [INFO] 📊 Trouvé 192 workspaces à réinitialiser
+[2026-03-04T16:17:51.210Z] [INFO] [DRY RUN] 0 workspaces auraient leurs pages réinitialisées
+[2026-03-04T16:17:51.212Z] [INFO] 
+📈 RÉSUMÉ DE LA SUPPRESSION:
+[2026-03-04T16:17:51.213Z] [INFO]    📦 Produits boutiques: 13
+[2026-03-04T16:17:51.214Z] [INFO]    🛒 Commandes boutiques: 5
+[2026-03-04T16:17:51.214Z] [INFO]    🔄 Workspaces réinitialisés: 0
+[2026-03-04T16:17:51.216Z] [INFO] 
+🎯 TOTAL: 18 documents seraient supprimés
+[2026-03-04T16:17:51.217Z] [INFO] 📊 0 workspaces seraient réinitialisés
+[2026-03-04T16:17:51.218Z] [INFO] 
+💡 Ceci était un test! Aucune donnée n'a été supprimée.
+[2026-03-04T16:17:51.219Z] [INFO]    Pour exécuter réellement: node scripts/deleteOnlyStores.js --confirm
+[2026-03-04T16:17:51.233Z] [INFO] 🔌 Connexion MongoDB fermée
+[2026-03-04T16:20:20.013Z] [INFO] 🔌 Connexion à MongoDB...
+[2026-03-04T16:20:21.733Z] [INFO] ✅ Connecté à MongoDB
+[2026-03-04T16:20:22.261Z] [INFO] 📊 Trouvé 13 produits et 5 commandes de stores
+[2026-03-04T16:20:22.264Z] [INFO] 🚀 Début du processus de suppression des STORES PUBLICS
+[2026-03-04T16:20:23.372Z] [INFO] 💾 Sauvegarde des métadonnées créée: C:\Users\Morgan\Desktop\ecomcookpit-main (1)\scalor\Backend\scripts\backups\backup-stores-2026-03-04T16-20-22-265Z.json
+[2026-03-04T16:20:23.373Z] [INFO] 
+📦 Suppression des produits des boutiques publiques...
+[2026-03-04T16:20:23.493Z] [INFO] ✅ Produits boutiques (StoreProduct): 13 documents supprimés
+[2026-03-04T16:20:23.494Z] [INFO] 
+🛒 Suppression des commandes des boutiques publiques...
+[2026-03-04T16:20:23.606Z] [INFO] ✅ Commandes boutiques (StoreOrder): 5 documents supprimés
+[2026-03-04T16:20:23.608Z] [INFO] 
+🔄 Réinitialisation des configurations de pages...
+[2026-03-04T16:20:28.049Z] [INFO] 📊 Trouvé 192 workspaces à réinitialiser
+[2026-03-04T16:20:28.051Z] [INFO] ✅ 0 workspaces réinitialisés
+[2026-03-04T16:20:28.052Z] [INFO] 
+📈 RÉSUMÉ DE LA SUPPRESSION:
+[2026-03-04T16:20:28.054Z] [INFO]    📦 Produits boutiques: 13
+[2026-03-04T16:20:28.055Z] [INFO]    🛒 Commandes boutiques: 5
+[2026-03-04T16:20:28.056Z] [INFO]    🔄 Workspaces réinitialisés: 0
+[2026-03-04T16:20:28.057Z] [INFO] 
+🎯 TOTAL: 18 documents supprimés
+[2026-03-04T16:20:28.058Z] [INFO] 📊 0 workspaces réinitialisés
+[2026-03-04T16:20:28.059Z] [INFO] 
+✅ Suppression des stores terminée avec succès!
+[2026-03-04T16:20:28.060Z] [INFO] ℹ️  Les workspaces, utilisateurs et autres données sont conservés.
+[2026-03-04T16:20:28.072Z] [INFO] 🔌 Connexion MongoDB fermée

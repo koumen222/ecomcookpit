@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meta Ads Manager</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Top Navigation Bar -->
+  <div class="top-nav">
+    <div class="top-nav-left">
+      <div class="meta-logo">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="#1877F2">
+          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+        </svg>
+        <span class="meta-text">Meta</span>
+      </div>
+      <div class="nav-divider"></div>
+      <div class="nav-item active">
+        <span>Publicités</span>
+      </div>
+    </div>
+    <div class="top-nav-right">
+      <button class="nav-btn" id="advanceDayBtn" title="Avancer d'un jour">
+        <span>⏭</span>
+        <span class="btn-text">Jour</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="main-layout">
+    <!-- Left Sidebar -->
+    <div class="left-sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-item active" onclick="window.location.href='index.html'">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10 2L3 7v11h4v-6h6v6h4V7l-7-5z"/>
+          </svg>
+          <span>Vue d'ensemble</span>
+        </div>
+        <div class="sidebar-item" onclick="window.location.href='create.html'">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M11 9h4v2h-4v4H9v-4H5V9h4V5h2v4zm-1 11a10 10 0 1 1 0-20 10 10 0 0 1 0 20z"/>
+          </svg>
+          <span>Créer</span>
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-header">Campagnes</div>
+        <div class="sidebar-item">
+          <span>Toutes les campagnes</span>
+          <span class="badge" id="campaignsCount">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <h1 class="page-title">Campagnes</h1>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn-create" onclick="window.location.href='create.html'">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm.5 4.5a.5.5 0 0 0-1 0v3h-3a.5.5 0 0 0 0 1h3v3a.5.5 0 0 0 1 0v-3h3a.5.5 0 0 0 0-1h-3v-3z"/>
+            </svg>
+            Créer
+          </button>
+        </div>
+      </div>
+
+      <!-- Performance Summary -->
+      <div class="performance-summary">
+        <div class="summary-card">
+          <div class="summary-label">Dépenses</div>
+          <div class="summary-value" id="totalBudget">0 FCFA</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">Impressions</div>
+          <div class="summary-value" id="totalImpressions">0</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">Portées</div>
+          <div class="summary-value" id="totalReach">0</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">Clics</div>
+          <div class="summary-value" id="totalClicks">0</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">CTR</div>
+          <div class="summary-value" id="avgCTR">0%</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">CPC</div>
+          <div class="summary-value" id="avgCPC">0 FCFA</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">Commandes</div>
+          <div class="summary-value" id="totalOrders">0</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">Revenus</div>
+          <div class="summary-value" id="totalRevenue">0 FCFA</div>
+        </div>
+      </div>
+
+      <!-- Campaigns Table -->
+      <div class="table-wrapper">
+        <div class="table-header">
+          <div class="table-controls">
+            <input type="checkbox" id="selectAll" class="checkbox">
+            <span class="table-title">Campagnes</span>
+            <span class="table-count" id="tableCount">(0)</span>
+          </div>
+          <div class="table-actions">
+            <button class="icon-btn" title="Actualiser">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zM4.5 7.5a.5.5 0 0 0 0 1h5.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3a.5.5 0 0 0 0-.708l-3-3a.5.5 0 1 0-.708.708L10.293 7.5H4.5z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <table class="campaigns-table">
+          <thead>
+            <tr>
+              <th class="checkbox-col">
+                <input type="checkbox" class="checkbox">
+              </th>
+              <th class="name-col">Nom</th>
+              <th>Statut</th>
+              <th>Dépenses</th>
+              <th>Impressions</th>
+              <th>Portées</th>
+              <th>Clics</th>
+              <th>CTR</th>
+              <th>CPC</th>
+              <th>Commandes</th>
+              <th>Revenus</th>
+              <th class="actions-col"></th>
+            </tr>
+          </thead>
+          <tbody id="campaignsTableBody">
+            <!-- Campaigns will be inserted here -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Coach Message -->
+      <div class="coach-message" id="coachSection" style="display: none;">
+        <div class="coach-content">
+          <div class="coach-icon">💡</div>
+          <div class="coach-text" id="coachMessage"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="engine.js"></script>
+  <script src="ui.js"></script>
+</body>
+</html>

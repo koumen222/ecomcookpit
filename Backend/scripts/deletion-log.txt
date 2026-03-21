@@ -1,0 +1,243 @@
+[2026-03-04T16:01:28.090Z] [INFO] 🧪 MODE TEST activé - Aucune suppression réelle ne sera effectuée
+[2026-03-04T16:01:28.093Z] [INFO] 🔌 Connexion à MongoDB...
+[2026-03-04T16:01:58.134Z] [ERROR] 💥 Erreur fatale: connect ECONNREFUSED ::1:27017, connect ECONNREFUSED 127.0.0.1:27017
+[2026-03-04T16:02:50.673Z] [INFO] 🧪 MODE TEST activé - Aucune suppression réelle ne sera effectuée
+[2026-03-04T16:02:50.675Z] [INFO] 🔌 Connexion à MongoDB...
+[2026-03-04T16:03:20.728Z] [ERROR] 💥 Erreur fatale: connect ECONNREFUSED ::1:27017, connect ECONNREFUSED 127.0.0.1:27017
+[2026-03-04T16:13:40.251Z] [INFO] 🧪 MODE TEST activé - Aucune suppression réelle ne sera effectuée
+[2026-03-04T16:13:40.261Z] [INFO] 🔌 Connexion à MongoDB...
+[2026-03-04T16:13:41.916Z] [INFO] ✅ Connecté à MongoDB
+[2026-03-04T16:13:42.881Z] [INFO] 🚀 Début du processus de suppression
+[2026-03-04T16:13:42.883Z] [INFO] [DRY RUN] Sauvegarde serait créée
+[2026-03-04T16:13:43.602Z] [INFO] 📊 Trouvé 192 boutiques à supprimer
+[2026-03-04T16:13:43.603Z] [INFO] 🏪 Boutiques à supprimer:
+[2026-03-04T16:13:43.604Z] [INFO]    • Zedno (zedno-mlbdqa1q) - ID: 698658c49007768bc9023031
+[2026-03-04T16:13:43.605Z] [INFO]    • morgan's Workspace (morgan-s-workspace-mlbea06s) - ID: 69865c5c72912b1ca9937d70
+[2026-03-04T16:13:43.607Z] [INFO]    • Ecom (ecom-mlblf9nf) - ID: 69868b3f257ab8e60b31d6a4
+[2026-03-04T16:13:43.612Z] [INFO]    • Guiora (guiora-mlc2r17x) - ID: 6986fced31635c4e5d9d14e2
+[2026-03-04T16:13:43.614Z] [INFO]    • FAI SIMON (fai-simon-mlc2vkrw) - ID: 6986fdc131635c4e5d9d186d
+[2026-03-04T16:13:43.617Z] [INFO]    • Izitech (izitech-mlc2vxxl) - ID: 6986fdd231635c4e5d9d1910
+[2026-03-04T16:13:43.618Z] [INFO]    • Tanoh (tanoh-mlc308p9) - ID: 6986fe9b31635c4e5d9d1c90
+[2026-03-04T16:13:43.619Z] [INFO]    • Bamba yaccine (bamba-yaccine-mlc33g5s) - ID: 6986ff3131635c4e5d9d1df8
+[2026-03-04T16:13:43.620Z] [INFO]    • HAMADOU (hamadou-mlc38z5x) - ID: 6987003231635c4e5d9d1e77
+[2026-03-04T16:13:43.623Z] [INFO]    • Africa shop (africa-shop-mlc3afa0) - ID: 6987007631635c4e5d9d1e94
+[2026-03-04T16:13:43.624Z] [INFO]    • Luvany (luvany-mlc3shsb) - ID: 698703c131635c4e5d9d24f7
+[2026-03-04T16:13:43.626Z] [INFO]    • Ecom (ecom-mlc3x9it) - ID: 698704a057d88365190f7c2c
+[2026-03-04T16:13:43.628Z] [INFO]    • HAMADOU (hamadou-mlc40te1) - ID: 6987054557d88365190f7cc0
+[2026-03-04T16:13:43.630Z] [INFO]    • Cadoexpress (cadoexpress-mlc57ugt) - ID: 69870d1d6590f43912bf4c36
+[2026-03-04T16:13:43.637Z] [INFO]    • Zendospace (zendospace-mlc5aueg) - ID: 69870da96590f43912bf4ca2
+[2026-03-04T16:13:43.638Z] [INFO]    • Easy Tech (easy-tech-mlcc08ir) - ID: 698739a7eebd12a91ad095c8
+[2026-03-04T16:13:43.644Z] [INFO]    • Jupiter (jupiter-mlcs312y) - ID: 6987a323dca842e846899422
+[2026-03-04T16:13:43.645Z] [INFO]    • E com est-ce (e-com-est-ce-mlcs5rnz) - ID: 6987a3a3dca842e84689948a
+[2026-03-04T16:13:43.646Z] [INFO]    • Brionet (brionet-mlcs9bzp) - ID: 6987a449dca842e846899560
+[2026-03-04T16:13:43.647Z] [INFO]    • Legende (legende-mlcscm94) - ID: 6987a4e3dca842e8468995f6
+[2026-03-04T16:13:43.648Z] [INFO]    • SITARAM (sitaram-mlcsycmw) - ID: 6987a8d9dca842e8468997d0
+[2026-03-04T16:13:43.649Z] [INFO]    • Achat utile (achat-utile-mlcv4yx2) - ID: 6987b72dc9ec3539c1e150de
+[2026-03-04T16:13:43.651Z] [INFO]    • TNT- Dynamite (tnt-dynamite-mlcw9wvx) - ID: 6987bea392992a34ecb0b8fd
+[2026-03-04T16:13:43.652Z] [INFO]    • JOFRAS (jofras-mlcy3118) - ID: 6987ca812849fa8808110528
+[2026-03-04T16:13:43.653Z] [INFO]    • OZIMALL (ozimall-mlcyzdqh) - ID: 6987d06682464480686db0a2
+[2026-03-04T16:13:43.654Z] [INFO]    • Tans's Workspace (tans-s-workspace-mld992s5) - ID: 698813c782464480686db530
+[2026-03-04T16:13:43.655Z] [INFO]    • Ma boutique (ma-boutique-mldqix1w) - ID: 6988851c82464480686dc7ce
+[2026-03-04T16:13:43.658Z] [INFO]    • Esma (esma-mlea42sd) - ID: 698905a082464480686dda17
+[2026-03-04T16:13:43.660Z] [INFO]    • Afriexpress (afriexpress-mlf3yiow) - ID: 6989c971ccde4679fc229f42
+[2026-03-04T16:13:43.662Z] [INFO]    • Chez Carlos (chez-carlos-mlf59lxr) - ID: 6989d206ccde4679fc22aa2e
+[2026-03-04T16:13:43.664Z] [INFO]    • Le petit commissionnaire (le-petit-commissionnaire-mlfbhwrn) - ID: 6989fae7f301be1a526c5640
+[2026-03-04T16:13:43.665Z] [INFO]    • Ma boutique (ma-boutique-mlffb7fm) - ID: 698a13ecf301be1a526c5e2d
+[2026-03-04T16:13:43.666Z] [INFO]    • Afriexpress (afriexpress-mlfo1en9) - ID: 698a4d306ad92522d1a54e01
+[2026-03-04T16:13:43.668Z] [INFO]    • zandora (zandora-mlh1lr9u) - ID: 698b926226ecfdb8abf3238d
+[2026-03-04T16:13:43.669Z] [INFO]    • Business (business-mlh3o42u) - ID: 698b9ff026ecfdb8abf333b5
+[2026-03-04T16:13:43.670Z] [INFO]    • Alyna (alyna-mlh6do2s) - ID: 698bb1b726ecfdb8abf3352c
+[2026-03-04T16:13:43.671Z] [INFO]    • 7MAJOR (7major-mlh6nyw5) - ID: 698bb39826ecfdb8abf335f1
+[2026-03-04T16:13:43.672Z] [INFO]    • NMS-SHOP (nms-shop-mlh6otzk) - ID: 698bb3c026ecfdb8abf33609
+[2026-03-04T16:13:43.675Z] [INFO]    • JN E-business (jn-e-business-mlhchb97) - ID: 698bd9bf26ecfdb8abf338f5
+[2026-03-04T16:13:43.677Z] [INFO]    • KB store (kb-store-mlhlq3yt) - ID: 698c166626ecfdb8abf33b9d
+[2026-03-04T16:13:43.679Z] [INFO]    • Okshop (okshop-mlhwf8ut) - ID: 698c5c9726ecfdb8abf515c4
+[2026-03-04T16:13:43.680Z] [INFO]    • Bullgattshop 2 (bullgattshop-2-mlhwwcd7) - ID: 698c5fb426ecfdb8abf576a0
+[2026-03-04T16:13:43.681Z] [INFO]    • ZoneMarket (zonemarket-mlhx0sq3) - ID: 698c608426ecfdb8abf57c5c
+[2026-03-04T16:13:43.682Z] [INFO]    • Makari (makari-mlhx1vqi) - ID: 698c60b726ecfdb8abf57cd3
+[2026-03-04T16:13:43.683Z] [INFO]    • Ma boutique (ma-boutique-mlhx4nrz) - ID: 698c613826ecfdb8abf580cd
+[2026-03-04T16:13:43.684Z] [INFO]    • MM (mm-mlhxqnrd) - ID: 698c653b26ecfdb8abf60949
+[2026-03-04T16:13:43.685Z] [INFO]    • smart shop (smart-shop-mlhxwk2z) - ID: 698c664e26ecfdb8abf62f7d
+[2026-03-04T16:13:43.686Z] [INFO]    • Sérénités santé (s-r-nit-s-sant-mlhypvs6) - ID: 698c6ba626ecfdb8abf6f7be
+[2026-03-04T16:13:43.687Z] [INFO]    • Santé & bien-être plus (sant-bien-tre-plus-mli1j951) - ID: 698c7e2026ecfdb8abf989e5
+[2026-03-04T16:13:43.688Z] [INFO]    • Deku225 (deku225-mli2o6ae) - ID: 698c859526ecfdb8abfa8b92
+[2026-03-04T16:13:43.690Z] [INFO]    • VL (vl-mli4sq3w) - ID: 698c938926ecfdb8abfc5d41
+[2026-03-04T16:13:43.691Z] [INFO]    • AFRICTOP (africtop-mli7nbtd) - ID: 698ca63c04aabb7ab26b756a
+[2026-03-04T16:13:43.692Z] [INFO]    • morgan's Workspace (morgan-s-workspace-mli8spdd) - ID: 698cadc6f948daeeb6be8eac
+[2026-03-04T16:13:43.694Z] [INFO]    • AUREO (aureo-mlidoqva) - ID: 698ccddb7347e9712efa33c7
+[2026-03-04T16:13:43.695Z] [INFO]    • Shopsam (shopsam-mlieniod) - ID: 698cd4327347e9712efa35ae
+[2026-03-04T16:13:43.696Z] [INFO]    • The Box (the-box-mlif6331) - ID: 698cd7947347e9712efa3703
+[2026-03-04T16:13:43.697Z] [INFO]    • DENTIFY (dentify-mlik8w3i) - ID: 698cf8e57347e9712efa3cc0
+[2026-03-04T16:13:43.698Z] [INFO]    • Mon business (mon-business-mlikqncr) - ID: 698cfc217347e9712efa3f63
+[2026-03-04T16:13:43.700Z] [INFO]    • 111111 (111111-mlikyq1x) - ID: 698cfd9a81fcbc78b84fd772
+[2026-03-04T16:13:43.701Z] [INFO]    • ecomm (ecomm-mlimfudq) - ID: 698d07498282844d9faac79e
+[2026-03-04T16:13:43.703Z] [INFO]    • Ma Boutique Shopify : JAMAA (ma-boutique-shopify-jamaa-mlimsyar) - ID: 698d09ac8282844d9faaca05
+[2026-03-04T16:13:43.705Z] [INFO]    • Vital Energy (vital-energy-mlineqwr) - ID: 698d0da58282844d9faad232
+[2026-03-04T16:13:43.709Z] [INFO]    • pharesagbanlinkpe@gmail.com (pharesagbanlinkpe-gmail-com-mlipxkx6) - ID: 698d1e338282844d9faae4c2
+[2026-03-04T16:13:43.711Z] [INFO]    • magic land (magic-land-mliqfygv) - ID: 698d218c8282844d9faae629
+[2026-03-04T16:13:43.713Z] [INFO]    • JOFRAS (jofras-mlitiq3o) - ID: 698d35bc8282844d9faae950
+[2026-03-04T16:13:43.716Z] [INFO]    • Djetashop (djetashop-mlitqzyu) - ID: 698d373e8282844d9faae9e2
+[2026-03-04T16:13:43.717Z] [INFO]    • Mansaluxe (mansaluxe-mliutmyw) - ID: 698d3e498282844d9faaec03
+[2026-03-04T16:13:43.719Z] [INFO]    • OPTIMA CAMEROUN (optima-cameroun-mlj59y4a) - ID: 698d82de8282844d9faaf9b2
+[2026-03-04T16:13:43.720Z] [INFO]    • Sawamind (sawamind-mlj71odq) - ID: 698d8e7c8282844d9faafd83
+[2026-03-04T16:13:43.722Z] [INFO]    • Africamood (africamood-mlj9u6q5) - ID: 698da0cd63a8ecc1568ae4c6
+[2026-03-04T16:13:43.725Z] [INFO]    • Afriexpress (afriexpress-mljv2wv3) - ID: 698e2c2cf6e4c4000df71ffd
+[2026-03-04T16:13:43.727Z] [INFO]    • Lyxera (lyxera-mljya2bi) - ID: 698e4129f6e4c4000df73044
+[2026-03-04T16:13:43.728Z] [INFO]    • morgan's Workspaces (morgan-s-workspaces-mlk0jlyw) - ID: 698e50054e459d1042f81519
+[2026-03-04T16:13:43.729Z] [INFO]    • Afriexpress22 (afriexpress22-mlk0m7a3) - ID: 698e507e4e459d1042f815a8
+[2026-03-04T16:13:43.730Z] [INFO]    • KC ESSENTIALS (kc-essentials-mlk20qm4) - ID: 698e59b44e459d1042f828d6
+[2026-03-04T16:13:43.731Z] [INFO]    • OPOLUXE (opoluxe-mlk2vd3z) - ID: 698e5f494e459d1042f82a0a
+[2026-03-04T16:13:43.733Z] [INFO]    • morgan's Workspace (morgan-s-workspace-mlk3p1op) - ID: 698e64b2a19e466e5bcafe82
+[2026-03-04T16:13:43.734Z] [INFO]    • KC ESSENTIALS (kc-essentials-mlk4p70b) - ID: 698e6b484e459d1042f82c3d
+[2026-03-04T16:13:43.735Z] [INFO]    • Diallo (diallo-mlk84cun) - ID: 698e81ba4e459d1042f85400
+[2026-03-04T16:13:43.736Z] [INFO]    • KRAME (krame-mlkb1fdb) - ID: 698e94e169638db5b3c20459
+[2026-03-04T16:13:43.737Z] [INFO]    • Laura shop (laura-shop-mlke9hqf) - ID: 698eaa0869638db5b3c20542
+[2026-03-04T16:13:43.741Z] [INFO]    • Boutique (boutique-mlkj0ejv) - ID: 698ec92e69638db5b3c20983
+[2026-03-04T16:13:43.742Z] [INFO]    • Omodo (omodo-mlktg645) - ID: 698f0da969638db5b3c22f83
+[2026-03-04T16:13:43.743Z] [INFO]    • Allshop (allshop-mlkwptq0) - ID: 698f231b69638db5b3c2378c
+[2026-03-04T16:13:43.744Z] [INFO]    • WORK3 (work3-mlkysm8v) - ID: 698f30bc69638db5b3c23cc3
+[2026-03-04T16:13:43.745Z] [INFO]    • Besty (besty-mlla5euv) - ID: 698f7b3d69638db5b3c255bb
+[2026-03-04T16:13:43.746Z] [INFO]    • Klh-ecom (klh-ecom-mllh9faf) - ID: 698fa9e669638db5b3c25f25
+[2026-03-04T16:13:43.749Z] [INFO]    • BINGO MARKET (bingo-market-mllmebxo) - ID: 698fcb9969638db5b3c264ff
+[2026-03-04T16:13:43.750Z] [INFO]    • faf (faf-mlowmtia) - ID: 6992d3577601fcb98cce738a
+[2026-03-04T16:13:43.752Z] [INFO]    • Youcan (youcan-mlp3e95m) - ID: 6992ffb57be72c8190bace97
+[2026-03-04T16:13:43.753Z] [INFO]    • Vanille ECOM (vanille-ecom-mlp5e13a) - ID: 69930cca482962a0290e376a
+[2026-03-04T16:13:43.755Z] [INFO]    • Shop (shop-mlp9h2qs) - ID: 69932796482962a0290e5b9c
+[2026-03-04T16:13:43.758Z] [INFO]    • EDDYECOM ESPACE (eddyecom-espace-mlpa5f2h) - ID: 69932c06482962a0290e5df2
+[2026-03-04T16:13:43.762Z] [INFO]    • Whatscantyoudo (whatscantyoudo-mlpa9geb) - ID: 69932cc2482962a0290e5eb4
+[2026-03-04T16:13:43.764Z] [INFO]    • Hopeshop (hopeshop-mlpbqgjp) - ID: 6993366b482962a0290e6af0
+[2026-03-04T16:13:43.765Z] [INFO]    • Ma boutique (ma-boutique-mlpbybh6) - ID: 699337da482962a0290e6dd2
+[2026-03-04T16:13:43.766Z] [INFO]    • LFA Empire (lfa-empire-mlpd7km6) - ID: 69934019482962a0290e823f
+[2026-03-04T16:13:43.767Z] [INFO]    • Top Afric (top-afric-mlpf8oui) - ID: 69934d6de245a611bc30c812
+[2026-03-04T16:13:43.768Z] [INFO]    • Ma boutique 1 (ma-boutique-1-mlpfy6mt) - ID: 69935212e245a611bc30d5dc
+[2026-03-04T16:13:43.769Z] [INFO]    • REEVA STORE BUSINESS (reeva-store-business-mlpuikd3) - ID: 6993b1a4050f9cba52da1df5
+[2026-03-04T16:13:43.770Z] [INFO]    • Le petit commissionnaire (le-petit-commissionnaire-mlpw3pj4) - ID: 6993bc0e050f9cba52da20af
+[2026-03-04T16:13:43.771Z] [INFO]    • Weazy store (weazy-store-mlqbd45p) - ID: 6994202f050f9cba52da38b3
+[2026-03-04T16:13:43.772Z] [INFO]    • EROS SHOP (eros-shop-mlqk0v2e) - ID: 69945900cd9f5738d7b421cd
+[2026-03-04T16:13:43.775Z] [INFO]    • Ecom (ecom-mlqol34g) - ID: 699476ee359a242d8ea8bba5
+[2026-03-04T16:13:43.777Z] [INFO]    • AMIN STORE (amin-store-mlqrbxor) - ID: 699488f220af7a6010f779af
+[2026-03-04T16:13:43.778Z] [INFO]    • Degret Franck's Workspace (degret-franck-s-workspace-mlr0k14u) - ID: 6994c578c62d32abe6e1fb2f
+[2026-03-04T16:13:43.779Z] [INFO]    • Test (test-mlrn61ux) - ID: 699559d3d37d2f098556d4ef
+[2026-03-04T16:13:43.780Z] [INFO]    • Super Shop (super-shop-mlrqogij) - ID: 699570ddd37d2f098556de33
+[2026-03-04T16:13:43.781Z] [INFO]    • Bigshop (bigshop-mls1kwdb) - ID: 6995b862fbde4ff2c8dc5488
+[2026-03-04T16:13:43.782Z] [INFO]    • shop 3 (shop-3-mls2z3r1) - ID: 6995c189fbde4ff2c8dc5915
+[2026-03-04T16:13:43.783Z] [INFO]    • GLOW AFRIK (glow-afrik-mls73lou) - ID: 6995dc99fbde4ff2c8dc60b0
+[2026-03-04T16:13:43.784Z] [INFO]    • Techsyntia (techsyntia-mlsi9k01) - ID: 699625dbfbde4ff2c8dc77d5
+[2026-03-04T16:13:43.785Z] [INFO]    • AFRIQLUMÉA (afriqlum-a-mlt5xyo6) - ID: 6996c1346d5ee665d408bb4e
+[2026-03-04T16:13:43.786Z] [INFO]    • Afriexpress (afriexpress-mltpmw4n) - ID: 69974268cd4c0c1d40d20644
+[2026-03-04T16:13:43.788Z] [INFO]    • morgan's Workspace (morgan-s-workspace-mltppfkk) - ID: 699742dff7dfc9306c297405
+[2026-03-04T16:13:43.791Z] [INFO]    • Noxus (noxus-mlungucq) - ID: 69982061f7dfc9306c29c1f0
+[2026-03-04T16:13:43.792Z] [INFO]    • milor (milor-mlur2ubk) - ID: 69983812fce7e3736c7b8bb8
+[2026-03-04T16:13:43.794Z] [INFO]    • Ma nouvelle boutique (ma-nouvelle-boutique-mluuqsoy) - ID: 6998501ff7dfc9306c29f0e9
+[2026-03-04T16:13:43.796Z] [INFO]    • Giacoani39 (giacoani39-mlv0m1u9) - ID: 6998769ff7dfc9306c29fbe6
+[2026-03-04T16:13:43.797Z] [INFO]    • Valence (valence-mlwljw6n) - ID: 6999ec348086ad7185bb2316
+[2026-03-04T16:13:43.798Z] [INFO]    • Phoenix (phoenix-mlwygbvy) - ID: 699a40d925b1ec52bbf9763d
+[2026-03-04T16:13:43.799Z] [INFO]    • Pixel academie (pixel-academie-mlxm1ek1) - ID: 699adb98d39c7a73b09dee04
+[2026-03-04T16:13:43.800Z] [INFO]    • Morgan22 (morgan22-mlxve01y) - ID: 699b18f0d08706c8b76dc40f
+[2026-03-04T16:13:43.802Z] [INFO]    • Dedji (dedji-mlxw6lvw) - ID: 699b1e268f33a25831916452
+[2026-03-04T16:13:43.803Z] [INFO]    • PolyMarket (polymarket-mlxy8edo) - ID: 699b2b99d39c7a73b09e01b7
+[2026-03-04T16:13:43.804Z] [INFO]    • Sellza (sellza-mlxznr2a) - ID: 699b34f56764c8d730911b98
+[2026-03-04T16:13:43.806Z] [INFO]    • Peryal (peryal-mly8pp58) - ID: 699b705de042cc079ec9dea2
+[2026-03-04T16:13:43.809Z] [INFO]    • LM business (lm-business-mlyuc2iu) - ID: 699bfe3829951555a5fe4107
+[2026-03-04T16:13:43.811Z] [INFO]    • Boutikool (boutikool-mlyuiqqc) - ID: 699bff7029951555a5fe44bc
+[2026-03-04T16:13:43.812Z] [INFO]    • Queici (queici-mlyuul78) - ID: 699c019829951555a5fe4a1d
+[2026-03-04T16:13:43.813Z] [INFO]    • MelchiEcom (melchiecom-mlyvr801) - ID: 699c078b29951555a5fe4e3a
+[2026-03-04T16:13:43.814Z] [INFO]    • M_allthings (m-allthings-mlyxubj3) - ID: 699c153b29951555a5fe5c12
+[2026-03-04T16:13:43.815Z] [INFO]    • DANATZEN (danatzen-mlyzdzv5) - ID: 699c1f6029951555a5fe6d78
+[2026-03-04T16:13:43.816Z] [INFO]    • Mena (mena-mlz2nfxg) - ID: 699c34c829951555a5fe9b1b
+[2026-03-04T16:13:43.818Z] [INFO]    • BOUTIQUE KINSHASA (boutique-kinshasa-mlz3qcze) - ID: 699c3be029951555a5fea69a
+[2026-03-04T16:13:43.819Z] [INFO]    • Cyndi (cyndi-mlz4pmhr) - ID: 699c424d29951555a5feae54
+[2026-03-04T16:13:43.820Z] [INFO]    • dynaxe (dynaxe-mlznp545) - ID: 699cbedf6d91774f5b9b3b28
+[2026-03-04T16:13:43.821Z] [INFO]    • FESTORYA (festorya-mlzo7yzx) - ID: 699cc24e6d91774f5b9b3d33
+[2026-03-04T16:13:43.822Z] [INFO]    • Ipavox (ipavox-mlzoda1c) - ID: 699cc3456d91774f5b9b3df7
+[2026-03-04T16:13:43.824Z] [INFO]    • TongTongShop (tongtongshop-mlzodh30) - ID: 699cc34e6d91774f5b9b3e26
+[2026-03-04T16:13:43.826Z] [INFO]    • Amadou225@gmail.com (amadou225-gmail-com-mlzpi6b8) - ID: 699ccab96d91774f5b9b47b8
+[2026-03-04T16:13:43.827Z] [INFO]    • Yandi shop (yandi-shop-mlzqw1ho) - ID: 699cd3d06d91774f5b9b5172
+[2026-03-04T16:13:43.828Z] [INFO]    • Ecom (ecom-mlzry9ky) - ID: 699cdac76d91774f5b9b568c
+[2026-03-04T16:13:43.829Z] [INFO]    • Chapshop (chapshop-mm06ri1h) - ID: 699d3bf66d91774f5b9b79c7
+[2026-03-04T16:13:43.830Z] [INFO]    • Tata Market (tata-market-mm0axk9n) - ID: 699d574f6d91774f5b9b7e57
+[2026-03-04T16:13:43.831Z] [INFO]    • Ma boutique (ma-boutique-mm0dh5lx) - ID: 699d68006d91774f5b9b8258
+[2026-03-04T16:13:43.832Z] [INFO]    • Velina (velina-mm0tkjtr) - ID: 699dd1996d91774f5b9ba0db
+[2026-03-04T16:13:43.833Z] [INFO]    • Galsen vaisselle (galsen-vaisselle-mm0y4fhe) - ID: 699def776d91774f5b9ba3ec
+[2026-03-04T16:13:43.834Z] [INFO]    • Lumen (lumen-mm0yzqqw) - ID: 699df52c6d91774f5b9ba547
+[2026-03-04T16:13:43.835Z] [INFO]    • Tester (tester-mm11avvi) - ID: 699e04536d91774f5b9ba89d
+[2026-03-04T16:13:43.837Z] [INFO]    • MacCy Store (maccy-store-mm196siq) - ID: 699e38116d91774f5b9bc912
+[2026-03-04T16:13:43.839Z] [INFO]    • MacCy Store (maccy-store-mm197nt4) - ID: 699e38396d91774f5b9bc92c
+[2026-03-04T16:13:43.840Z] [INFO]    • Cleanboost (cleanboost-mm1srfrl) - ID: 699eb87d6d91774f5b9bdbe3
+[2026-03-04T16:13:43.842Z] [INFO]    • Thinos.shop (thinos-shop-mm2g1upv) - ID: 699f514a11f40c871a5c6252
+[2026-03-04T16:13:43.843Z] [INFO]    • Mon business (mon-business-mm3y6s5e) - ID: 69a0b47bdf93f2ca75100eaf
+[2026-03-04T16:13:43.844Z] [INFO]    • Ma boutique (ma-boutique-mm4saick) - ID: 69a179fd6a6a6a57b9768b09
+[2026-03-04T16:13:43.846Z] [INFO]    • ok (ok-mm51qe7f) - ID: 69a1b7ef47cec2a4fdfca57b
+[2026-03-04T16:13:43.847Z] [INFO]    • sss (sss-mm55sogn) - ID: 69a1d2980d8479862f60de4f
+[2026-03-04T16:13:43.848Z] [INFO]    • Satisfied Health (satisfied-health-mm5e6k14) - ID: 69a2099c66cef0973aba8093
+[2026-03-04T16:13:43.849Z] [INFO]    • Morgan (morgan-mm6akrl3) - ID: 69a2de27761e46534c7e0248
+[2026-03-04T16:13:43.850Z] [INFO]    • NumericEcom (numericecom-mm6eehk9) - ID: 69a2f741761e46534c7e0d98
+[2026-03-04T16:13:43.851Z] [INFO]    • ABKshop (abkshop-mm6enyxy) - ID: 69a2f8fb761e46534c7e0eaa
+[2026-03-04T16:13:43.853Z] [INFO]    • ABKstore (abkstore-mm6eo7ye) - ID: 69a2f907761e46534c7e0eb0
+[2026-03-04T16:13:43.858Z] [INFO]    • Abk (abk-mm6eok4g) - ID: 69a2f917761e46534c7e0eb9
+[2026-03-04T16:13:43.859Z] [INFO]    • Mon business (mon-business-mm6eoxrk) - ID: 69a2f928761e46534c7e0ebf
+[2026-03-04T16:13:43.861Z] [INFO]    • Mon business1 (mon-business1-mm6ep2n3) - ID: 69a2f92f761e46534c7e0ec3
+[2026-03-04T16:13:43.862Z] [INFO]    • ABK Store (abk-store-mm6eq0kk) - ID: 69a2f95a761e46534c7e0ede
+[2026-03-04T16:13:43.863Z] [INFO]    • Joke (joke-mm6etg3z) - ID: 69a2f9fb761e46534c7e0f44
+[2026-03-04T16:13:43.864Z] [INFO]    • Dobre (dobre-mm6ip5tz) - ID: 69a31371761e46534c7e13ff
+[2026-03-04T16:13:43.866Z] [INFO]    • 763102621 (763102621-mm6tqz5l) - ID: 69a35bf2d39c7a73b09f43a0
+[2026-03-04T16:13:43.867Z] [INFO]    • Santé & Bien être plus (sant-bien-tre-plus-mm881dwz) - ID: 69a4a5e441fbd8786172f838
+[2026-03-04T16:13:43.868Z] [INFO]    • Santé & Bien être plus (sant-bien-tre-plus-mm881uju) - ID: 69a4a5fa41fbd8786172f842
+[2026-03-04T16:13:43.869Z] [INFO]    • Plantes Ancestrales (plantes-ancestrales-mm8f85jl) - ID: 69a4d50dd39c7a73b09f62c9
+[2026-03-04T16:13:43.870Z] [INFO]    • Cyndi m (cyndi-m-mm95xr6j) - ID: 69a5844ea1ff9d7d6a0e4b87
+[2026-03-04T16:13:43.873Z] [INFO]    • Bihozart shop (bihozart-shop-mm9cpypc) - ID: 69a5b0cfa1ff9d7d6a0e58e9
+[2026-03-04T16:13:43.874Z] [INFO]    • Nachbarschatshife (nachbarschatshife-mm9d1ann) - ID: 69a5b2e0a1ff9d7d6a0e5a37
+[2026-03-04T16:13:43.875Z] [INFO]    • NS (ns-mm9ev78p) - ID: 69a5bee3a1ff9d7d6a0e5e85
+[2026-03-04T16:13:43.876Z] [INFO]    • LAZARUS BUSINESS EXPRESS (lazarus-business-express-mm9jm1z1) - ID: 69a5de068258337f94ce4d5d
+[2026-03-04T16:13:43.878Z] [INFO]    • Santé 225 (sant-225-mm9nup3w) - ID: 69a5f9d8bad961aba99d8720
+[2026-03-04T16:13:43.879Z] [INFO]    • Plantes Ancestrales (plantes-ancestrales-mm9o7yh1) - ID: 69a5fc43bad961aba99d88b3
+[2026-03-04T16:13:43.880Z] [INFO]    • Biola (biola-mm9ouh9b) - ID: 69a6005d6e6eddde21dc469e
+[2026-03-04T16:13:43.881Z] [INFO]    • sedekshop (sedekshop-mm9sscyv) - ID: 69a61a39788c231e91cff527
+[2026-03-04T16:13:43.882Z] [INFO]    • Sedek Ecom (sedek-ecom-mm9thd9g) - ID: 69a61ec8788c231e91cff61e
+[2026-03-04T16:13:43.883Z] [INFO]    • Cameroun 237 (cameroun-237-mma6hs6f) - ID: 69a67426788c231e91d007aa
+[2026-03-04T16:13:43.884Z] [INFO]    • Mon Busness (mon-busness-mmafcgbj) - ID: 69a6ae3a788c231e91d01515
+[2026-03-04T16:13:43.885Z] [INFO]    • FLORINDA (florinda-mmal2c50) - ID: 69a6d3c0788c231e91d01f22
+[2026-03-04T16:13:43.886Z] [INFO]    • Galsentrade (galsentrade-mmbue4lf) - ID: 69a7fd25dd7b58f21204ee69
+[2026-03-04T16:13:43.889Z] [INFO]    • LongrichBetterLifeBetterFuture (longrichbetterlifebetterfuture-mmc057v5) - ID: 69a822e3d44ef480f4522362
+[2026-03-04T16:13:43.891Z] [INFO]    • Martial Pet (martial-pet-mmc3rm72) - ID: 69a83aa691ac19f995b38113
+[2026-03-04T16:13:43.892Z] [INFO]    • Yazet (yazet-mmc61b3f) - ID: 69a8498a00c3d655b044238c
+[2026-03-04T16:13:43.893Z] [INFO]    • DEDJI (dedji-mmc6b1ne) - ID: 69a84b5000c3d655b0442434
+[2026-03-04T16:13:43.894Z] [INFO]    • Wino (wino-mmc8c9jw) - ID: 69a858a8777c4ddffca89e87
+[2026-03-04T16:13:43.895Z] [INFO] 
+📦 Suppression des données associées...
+[2026-03-04T16:13:44.040Z] [INFO] [DRY RUN] Produits boutique: 13 documents seraient supprimés
+[2026-03-04T16:13:44.244Z] [INFO] [DRY RUN] Commandes boutique: 5 documents seraient supprimés
+[2026-03-04T16:13:44.443Z] [INFO] [DRY RUN] Clients: 8628 documents seraient supprimés
+[2026-03-04T16:13:44.626Z] [INFO] [DRY RUN] Commandes: 24084 documents seraient supprimés
+[2026-03-04T16:13:44.738Z] [INFO] [DRY RUN] Campagnes: 40 documents seraient supprimés
+[2026-03-04T16:13:44.922Z] [INFO] [DRY RUN] Événements analytics: 19128 documents seraient supprimés
+[2026-03-04T16:13:45.023Z] [INFO] [DRY RUN] Sessions analytics: 0 documents seraient supprimés
+[2026-03-04T16:13:45.147Z] [INFO] [DRY RUN] Transactions: 100 documents seraient supprimés
+[2026-03-04T16:13:45.255Z] [INFO] [DRY RUN] Notifications: 1305 documents seraient supprimés
+[2026-03-04T16:13:45.383Z] [INFO] [DRY RUN] Logs WhatsApp: 14 documents seraient supprimés
+[2026-03-04T16:13:45.510Z] [INFO] ✅ Produits internes: 63 documents seraient supprimés
+[2026-03-04T16:13:45.646Z] [INFO] ✅ Campagnes email: 0 documents seraient supprimés
+[2026-03-04T16:13:45.648Z] [INFO] 
+👥 Suppression des utilisateurs...
+[2026-03-04T16:13:45.766Z] [INFO] ✅ Utilisateurs: 179 seraient supprimés
+[2026-03-04T16:13:45.767Z] [INFO] 
+🏪 Suppression des boutiques...
+[2026-03-04T16:13:45.870Z] [INFO] [DRY RUN] Boutiques (Workspaces): 192 documents seraient supprimés
+[2026-03-04T16:13:45.872Z] [INFO] 
+📈 RÉSUMÉ DE LA SUPPRESSION:
+[2026-03-04T16:13:45.873Z] [INFO]    🏪 Boutiques: 192
+[2026-03-04T16:13:45.874Z] [INFO]    👥 Utilisateurs: 179
+[2026-03-04T16:13:45.876Z] [INFO]    📦 Produits: 76
+[2026-03-04T16:13:45.877Z] [INFO]    🛒 Commandes: 24089
+[2026-03-04T16:13:45.878Z] [INFO]    👤 Clients: 8628
+[2026-03-04T16:13:45.879Z] [INFO]    📧 Campagnes: 40
+[2026-03-04T16:13:45.880Z] [INFO]    📊 Analytics: 19128
+[2026-03-04T16:13:45.881Z] [INFO]    💰 Transactions: 100
+[2026-03-04T16:13:45.882Z] [INFO]    🔔 Notifications: 1305
+[2026-03-04T16:13:45.883Z] [INFO]    💬 Logs WhatsApp: 14
+[2026-03-04T16:13:45.884Z] [INFO] 
+🎯 TOTAL: 53751 documents seraient supprimés
+[2026-03-04T16:13:45.885Z] [INFO] 
+💡 Ceci était un test! Aucune donnée n'a été supprimée.
+[2026-03-04T16:13:45.886Z] [INFO]    Pour exécuter réellement: node scripts/deleteAllStores.js --confirm
+[2026-03-04T16:13:45.901Z] [INFO] 🔌 Connexion MongoDB fermée

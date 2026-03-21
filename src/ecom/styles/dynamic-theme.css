@@ -1,0 +1,224 @@
+/* Dynamic Theme Variables */
+:root {
+  /* Default theme values - will be overridden by ThemeProvider */
+  --theme-primary: #0F6B4F;
+  --theme-cta: #059669;
+  --theme-background: #FFFFFF;
+  --theme-text: #111827;
+  --theme-secondary: #6B7280;
+  --theme-accent: #F59E0B;
+  --theme-success: #10B981;
+  --theme-error: #EF4444;
+  --theme-warning: #F59E0B;
+  --theme-font-family: 'Inter', system-ui, sans-serif;
+  --theme-border-radius: 1rem;
+  --theme-border-radius-sm: 0.5rem;
+  --theme-border-radius-lg: 1.5rem;
+}
+
+/* Theme-aware component styles */
+.theme-button {
+  background-color: var(--theme-primary);
+  color: white;
+  border-radius: var(--theme-border-radius);
+  font-family: var(--theme-font-family);
+  transition: all 0.2s ease;
+}
+
+.theme-button:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.theme-button--cta {
+  background-color: var(--theme-cta);
+}
+
+.theme-button--secondary {
+  background-color: var(--theme-secondary);
+}
+
+.theme-button--outline {
+  background-color: transparent;
+  color: var(--theme-primary);
+  border: 2px solid var(--theme-primary);
+}
+
+.theme-card {
+  background-color: var(--theme-background);
+  color: var(--theme-text);
+  border-radius: var(--theme-border-radius);
+  font-family: var(--theme-font-family);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.theme-input {
+  background-color: var(--theme-background);
+  color: var(--theme-text);
+  border: 2px solid var(--theme-secondary);
+  border-radius: var(--theme-border-radius-sm);
+  font-family: var(--theme-font-family);
+  padding: 0.75rem 1rem;
+  transition: border-color 0.2s ease;
+}
+
+.theme-input:focus {
+  outline: none;
+  border-color: var(--theme-primary);
+  box-shadow: 0 0 0 3px rgba(var(--theme-primary-rgb, 15, 107, 79), 0.1);
+}
+
+.theme-text {
+  color: var(--theme-text);
+  font-family: var(--theme-font-family);
+}
+
+.theme-text--secondary {
+  color: var(--theme-secondary);
+}
+
+.theme-text--accent {
+  color: var(--theme-accent);
+}
+
+.theme-bg {
+  background-color: var(--theme-background);
+}
+
+.theme-bg--primary {
+  background-color: var(--theme-primary);
+  color: white;
+}
+
+.theme-bg--cta {
+  background-color: var(--theme-cta);
+  color: white;
+}
+
+/* Store-specific theme styles */
+.store-hero {
+  background-color: var(--theme-primary);
+  color: white;
+  font-family: var(--theme-font-family);
+  border-radius: var(--theme-border-radius-lg);
+}
+
+.store-product-card {
+  background-color: var(--theme-background);
+  color: var(--theme-text);
+  border-radius: var(--theme-border-radius);
+  font-family: var(--theme-font-family);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.store-product-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.store-product-price {
+  color: var(--theme-primary);
+  font-weight: 600;
+}
+
+.store-add-to-cart {
+  background-color: var(--theme-cta);
+  color: white;
+  border-radius: var(--theme-border-radius);
+  font-family: var(--theme-font-family);
+  border: none;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.store-add-to-cart:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* Responsive theme utilities */
+@media (max-width: 768px) {
+  .theme-button {
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+  }
+  
+  .theme-card {
+    padding: 1rem;
+  }
+}
+
+/* Animation classes for theme transitions */
+.theme-transition {
+  transition: 
+    background-color 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+/* Theme-aware scrollbar */
+.theme-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.theme-scrollbar::-webkit-scrollbar-track {
+  background: var(--theme-background);
+}
+
+.theme-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--theme-secondary);
+  border-radius: var(--theme-border-radius);
+}
+
+.theme-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-primary);
+}
+
+/* Loading states with theme colors */
+.theme-loading {
+  background: linear-gradient(90deg, 
+    transparent, 
+    var(--theme-primary)20, 
+    transparent
+  );
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Theme-aware shadows */
+.theme-shadow {
+  box-shadow: 
+    0 1px 3px rgba(0, 0, 0, 0.1),
+    0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.theme-shadow--lg {
+  box-shadow: 
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Success, warning, error states */
+.theme-status--success {
+  background-color: var(--theme-success);
+  color: white;
+}
+
+.theme-status--warning {
+  background-color: var(--theme-warning);
+  color: white;
+}
+
+.theme-status--error {
+  background-color: var(--theme-error);
+  color: white;
+}

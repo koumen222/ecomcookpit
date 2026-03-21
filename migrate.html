@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Migration Rapports</title>
+  <style>
+    body { font-family: Arial; padding: 40px; }
+    button { padding: 15px 30px; font-size: 16px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer; }
+    button:hover { background: #2563eb; }
+    #result { margin-top: 20px; padding: 15px; border-radius: 8px; }
+    .success { background: #d1fae5; color: #065f46; }
+    .error { background: #fee2e2; color: #991b1b; }
+  </style>
+</head>
+<body>
+  <h1>Migration des rapports financiers</h1>
+  <p>Cette migration recalcule les champs revenue, profit, cost pour tous les rapports existants.</p>
+  <button onclick="migrate()">Lancer la migration</button>
+  <div id="result"></div>
+
+  <script>
+    async function migrate() {
+      const btn = document.querySelector('button');
+      const result = document.getElementById('result');
+      
+      btn.disabled = true;
+      btn.textContent = 'Migration en cours...';
+      result.textContent = '';
+      result.className = '';
+
+      try {
+        const token = localStorage.getItem('ecomToken');
+        if (!token) {
+          throw new Error('Token manquant - connectez-vous d\'abord sur http://localhost:5173');
+        }
+
+        const response = await fetch('http://localhost:8080/api/ecom/reports/migrate-financials', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+          result.className = 'success';
+          result.textContent = `✅ Migration réussie ! ${data.data.updated} rapports mis à jour, ${data.data.errors} erreurs sur ${data.data.total} total.`;
+        } else {
+          throw new Error(data.message || 'Erreur inconnue');
+        }
+      } catch (error) {
+        result.className = 'error';
+        result.textContent = `❌ Erreur : ${error.message}`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Lancer la migration';
+      }
+    }
+  </script>
+</body>
+</html>

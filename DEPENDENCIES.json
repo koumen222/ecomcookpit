@@ -1,0 +1,25 @@
+{
+  "description": "Optimization packages to add to your Backend/package.json",
+  "note": "Most dependencies are already included. Only add if missing:",
+  
+  "new_dependencies": {
+    "ioredis": "^5.3.0 - Redis client with cluster support",
+    "worker_threads": "Built-in Node.js module - No install needed"
+  },
+
+  "frontend_dependencies": {
+    "vite-plugin-compression": "^0.5.1 - Gzip/brotli compression for Vite"
+  },
+
+  "optional_for_monitoring": {
+    "@datadog/browser-rum": "^4.0.0 - APM monitoring",
+    "@newrelic/browser-agent": "^1.200.0 - New Relic monitoring",
+    "web-vitals": "^3.0.0 - Web performance metrics"
+  },
+
+  "install_commands": {
+    "Backend": "cd Backend && npm install ioredis",
+    "Frontend": "npm install vite-plugin-compression",
+    "Optional": "npm install web-vitals (for performance monitoring)"
+  }
+}
