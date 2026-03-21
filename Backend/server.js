@@ -331,6 +331,7 @@ const startServer = async () => {
       ['./routes/sourcingStats.js',           '/api/ecom/sourcing/stats'],
       // ─── WhatsApp External Integration (NAND/NK) ───────────────────────────
       ['./routes/externalWhatsapp.js',        '/api/ecom/v1/external/whatsapp'],
+      ['./routes/ritaFlows.js',                 '/api/ecom/v1/rita-flows'],
       ['./routes/upload.js',                  '/api/ecom/upload'],
       // ─── WhatsApp Configuration ────────────────────────────────────────
       ['./routes/whatsappConfig.js',           '/api/ecom/integrations/whatsapp'],
@@ -394,6 +395,15 @@ const startServer = async () => {
       startRitaRelanceCron();
     } catch (err) {
       console.warn('⚠️ Rita relance cron non démarré:', err.message);
+    }
+
+    // ─── Rita group animator (animation des groupes WhatsApp) ──────
+    try {
+      const { tickGroupAnimator } = await import('./services/ritaGroupAnimatorService.js');
+      setInterval(tickGroupAnimator, 60_000); // Vérifie chaque minute
+      console.log('✅ Rita group animator démarré (check chaque minute)');
+    } catch (err) {
+      console.warn('⚠️ Rita group animator non démarré:', err.message);
     }
 
     // ─── Rita webhook auto-sync (reconnect + health check) ──────────────
