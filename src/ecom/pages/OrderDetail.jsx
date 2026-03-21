@@ -45,8 +45,8 @@ const OrderDetail = () => {
   const navigate = useNavigate();
   const { user, workspace } = useEcomAuth();
   const { fmt, symbol } = useMoney();
-  // Affiche le montant dans la devise de la commande (pas de conversion, juste le bon symbole)
-  const fmtOrder = (amount, orderCurrency) => formatMoney(amount, orderCurrency || 'XAF');
+  // Affiche le montant avec conversion vers la devise de l'utilisateur
+  const fmtOrder = (amount, orderCurrency) => fmt(amount, orderCurrency || 'XAF');
   const isAdmin = user?.role === 'ecom_admin' || user?.role === 'ecom_closeuse';
   const invoiceRef = useRef(null);
 
