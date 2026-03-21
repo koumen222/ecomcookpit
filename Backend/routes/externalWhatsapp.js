@@ -136,7 +136,146 @@ function splitWhatsAppMessage(text, maxLen = 1500) {
   return parts;
 }
 
+function firstNonEmptyText(...values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return '';
+}
+
+function unwrapMessageContent(message) {
+  let content = message;
+
+  while (content) {
+    if (content.ephemeralMessage?.message) {
+      content = content.ephemeralMessage.message;
+      continue;
+    }
+    if (content.viewOnceMessage?.message) {
+      content = content.viewOnceMessage.message;
+      continue;
+    }
+    if (content.viewOnceMessageV2?.message) {
+      content = content.viewOnceMessageV2.message;
+      continue;
+    }
+    if (content.viewOnceMessageV2Extension?.message) {
+      content = content.viewOnceMessageV2Extension.message;
+      continue;
+    }
+    if (content.documentWithCaptionMessage?.message) {
+      content = content.documentWithCaptionMessage.message;
+      continue;
+    }
+    if (content.editedMessage?.message) {
+      content = content.editedMessage.message;
+      continue;
+    }
+    break;
+  }
+
+  return content || {};
+}
+
+function extractInteractiveResponseText(interactiveResponseMessage) {
+  if (!interactiveResponseMessage) return '';
+
+  const nativeFlow = interactiveResponseMessage.nativeFlowResponseMessage;
+  const directText = firstNonEmptyText(
+    interactiveResponseMessage.body?.text,
+    interactiveResponseMessage.header?.title,
+    interactiveResponseMessage.nativeFlowResponseMessage?.name
+  );
+
+  if (directText) return directText;
+
+  const paramsJson = nativeFlow?.paramsJson;
+  if (!paramsJson || typeof paramsJson !== 'string') return '';
+
+  try {
+    const parsed = JSON.parse(paramsJson);
+    return firstNonEmptyText(
+      parsed.display_text,
+      parsed.title,
+      parsed.text,
+      parsed.id,
+      parsed.selected_display_text,
+      parsed.selected_row_id,
+      parsed.selected_row_title,
+      parsed.flow_token,
+      parsed.reply,
+      parsed.value
+    );
+  } catch {
+    return paramsJson.trim();
+  }
+}
+
+function extractIncomingText(message) {
+  const content = unwrapMessageContent(message);
+
+  return firstNonEmptyText(
+    content?.conversation,
+    content?.extendedTextMessage?.text,
+    content?.imageMessage?.caption,
+    content?.videoMessage?.caption,
+    content?.documentMessage?.caption,
+    content?.documentWithCaptionMessage?.message?.documentMessage?.caption,
+    content?.buttonsResponseMessage?.selectedDisplayText,
+    content?.buttonsResponseMessage?.selectedButtonId,
+    content?.templateButtonReplyMessage?.selectedDisplayText,
+    content?.templateButtonReplyMessage?.selectedId,
+    content?.listResponseMessage?.title,
+    content?.listResponseMessage?.description,
+    content?.listResponseMessage?.singleSelectReply?.selectedRowId,
+    content?.listResponseMessage?.singleSelectReply?.title,
+    content?.listResponseMessage?.singleSelectReply?.description,
+    extractInteractiveResponseText(content?.interactiveResponseMessage)
+  );
+}
+
+function extractContextInfo(message) {
+  const content = unwrapMessageContent(message);
+
+  return (
+    content?.extendedTextMessage?.contextInfo ||
+    content?.buttonsResponseMessage?.contextInfo ||
+    content?.templateButtonReplyMessage?.contextInfo ||
+    content?.listResponseMessage?.contextInfo ||
+    content?.imageMessage?.contextInfo ||
+    content?.videoMessage?.contextInfo ||
+    content?.documentMessage?.contextInfo ||
+    null
+  );
+}
+
 const router = express.Router();
+
+async function sendMessageAndTrack(instanceName, instanceToken, number, message, ...rest) {
+  const result = await evolutionApiService.sendMessage(
+    instanceName,
+    instanceToken,
+    number,
+    message,
+    ...rest
+  );
+
+  const isSuccess = result?.success !== false;
+  if (isSuccess) {
+    try {
+      const trackedInstance = await WhatsAppInstance.findOne({ instanceName, instanceToken }).select('_id').lean();
+      if (trackedInstance?._id) {
+        await incrementMessageCount(trackedInstance._id, 1);
+      }
+    } catch (quotaErr) {
+      console.error('⚠️ [QUOTA] Impossible de compter un message sortant:', quotaErr.message);
+    }
+  }
+
+  return result;
+}
 
 // Normalise une chaîne : minuscules + suppression des accents/diacritiques
 function normalizeStr(s) {
@@ -503,7 +642,7 @@ router.post('/send', async (req, res) => {
     }
 
     // Envoyer le message via ZenChat API
-    const result = await evolutionApiService.sendMessage(
+    const result = await sendMessageAndTrack(
       instanceName,
       instanceToken,
       number,
@@ -511,9 +650,6 @@ router.post('/send', async (req, res) => {
     );
 
     if (result.success) {
-      // Incrémenter les compteurs de messages
-      await incrementMessageCount(instance._id, 1);
-
       // Mettre à jour le statut de l'instance
       await WhatsAppInstance.findByIdAndUpdate(
         instance._id,
@@ -819,7 +955,7 @@ router.post('/activate', async (req, res) => {
             `Instance: ${targetInst.customName || targetInst.instanceName}\n` +
             `Envoyez un message ici pour tester la réponse automatique en temps réel.\n\n` +
             `— ${agentName} 🤖`;
-          const sendResult = await evolutionApiService.sendMessage(targetInst.instanceName, targetInst.instanceToken, ownerPhone, confirmMsg);
+          const sendResult = await sendMessageAndTrack(targetInst.instanceName, targetInst.instanceToken, ownerPhone, confirmMsg);
           console.log(`📲 [ACTIVATE] Message de confirmation envoyé à ${ownerPhone} via ${targetInst.instanceName}:`, sendResult.success ? '✅ OK' : `❌ ${sendResult.error}`);
         } else {
           console.log(`⚠️ [ACTIVATE] Pas de numéro de téléphone pour le propriétaire — message de confirmation non envoyé`);
@@ -1027,28 +1163,17 @@ router.post('/incoming', async (req, res) => {
         for (const msg of messages) {
           const fromMe = msg.key?.fromMe;
           const from = msg.key?.remoteJid;
+          const messageContent = unwrapMessageContent(msg.message);
 
           // ─── Détecter message vocal / audio ───
-          const isAudio = !!(msg.message?.audioMessage || msg.message?.pttMessage);
-          let text =
-            msg.message?.conversation ||
-            msg.message?.extendedTextMessage?.text ||
-            msg.message?.imageMessage?.caption ||
-            msg.message?.videoMessage?.caption ||
-            msg.message?.buttonsResponseMessage?.selectedButtonId ||
-            msg.message?.listResponseMessage?.title ||
-            '';
+          const isAudio = !!(messageContent?.audioMessage || messageContent?.pttMessage);
+          let text = extractIncomingText(messageContent);
           const pushName = msg.pushName || data?.pushName || '';
 
           // ─── Détecter message cité (reply/quote) et injecter le contexte ───
-          const contextInfo = msg.message?.extendedTextMessage?.contextInfo;
+          const contextInfo = extractContextInfo(messageContent);
           if (contextInfo?.quotedMessage) {
-            const quotedText =
-              contextInfo.quotedMessage.conversation ||
-              contextInfo.quotedMessage.extendedTextMessage?.text ||
-              contextInfo.quotedMessage.imageMessage?.caption ||
-              contextInfo.quotedMessage.videoMessage?.caption ||
-              '';
+            const quotedText = extractIncomingText(contextInfo.quotedMessage);
             if (quotedText) {
               const quotedFrom = contextInfo.participant || '';
               const isQuotedFromBot = msg.key?.fromMe === false && (contextInfo.quotedMessage?.key?.fromMe || !quotedFrom || quotedFrom === from);
@@ -1091,8 +1216,18 @@ router.post('/incoming', async (req, res) => {
                 if (ec) {
                   ec.lastMessageAt = new Date();
                   ec.messageCount = (ec.messageCount || 0) + 1;
+                  const needsNameSync = pushName && !ec.pushName;
                   if (pushName && !ec.pushName) ec.pushName = pushName;
                   await ec.save();
+                  // Mettre à jour le nom sur l'appareil si on vient de l'obtenir
+                  if (needsNameSync) {
+                    evolutionApiService.saveContact(
+                      instanceDoc.instanceName,
+                      instanceDoc.instanceToken,
+                      earlyPhone,
+                      pushName
+                    );
+                  }
                 } else {
                   const lc = await RitaContact.findOne({ userId: earlyUserId }).sort({ clientNumber: -1 }).lean();
                   const nn = (lc?.clientNumber || 0) + 1;
@@ -1113,14 +1248,7 @@ router.post('/incoming', async (req, res) => {
                     earlyPhone,
                     pushName || `Client ${nn}`
                   );
-                } else if (pushName && ec && !ec.pushName) {
-                  // Mettre à jour le nom sur l'appareil si on vient de l'obtenir
-                  evolutionApiService.saveContact(
-                    instanceDoc.instanceName,
-                    instanceDoc.instanceToken,
-                    earlyPhone,
-                    pushName
-                  );
+                }
               }
             } catch (earlyContactErr) {
               if (earlyContactErr.code !== 11000) {
@@ -1162,7 +1290,7 @@ router.post('/incoming', async (req, res) => {
           }
 
           // ─── Détecter message image ───
-          const isImage = !!(msg.message?.imageMessage);
+          const isImage = !!(messageContent?.imageMessage);
           let imageAnalysisResult = null;
 
           if (isImage && instanceDoc) {
@@ -1178,7 +1306,7 @@ router.post('/incoming', async (req, res) => {
                 if (workspaceId) {
                   imageAnalysisResult = await analyzeProductImage(
                     mediaData.base64,
-                    mediaData.mimetype || msg.message?.imageMessage?.mimetype || 'image/jpeg',
+                    mediaData.mimetype || messageContent?.imageMessage?.mimetype || 'image/jpeg',
                     workspaceId
                   );
                   console.log(`🖼️ [RITA] Analyse image:`, {
@@ -1188,7 +1316,7 @@ router.post('/incoming', async (req, res) => {
                     confidence: imageAnalysisResult.confidence
                   });
                   // Injecter le contexte image dans le texte pour que Rita le traite
-                  const imageCaption = msg.message?.imageMessage?.caption || '';
+                  const imageCaption = messageContent?.imageMessage?.caption || '';
                   if (imageAnalysisResult.isProductImage && imageAnalysisResult.matchedProductName) {
                     text = `[Le client a envoyé une image du produit "${imageAnalysisResult.matchedProductName}" (confiance: ${imageAnalysisResult.confidence}%). Description: ${imageAnalysisResult.description}]${imageCaption ? ' ' + imageCaption : ''}`;
                   } else if (imageAnalysisResult.isProductImage) {
@@ -1237,9 +1365,9 @@ router.post('/incoming', async (req, res) => {
                 const clientJid = `${pending.clientPhone}@s.whatsapp.net`;
 
                 // Détecter si le boss envoie un media (image, vidéo, document)
-                const bossImage = msg.message?.imageMessage;
-                const bossVideo = msg.message?.videoMessage;
-                const bossDocument = msg.message?.documentMessage;
+                const bossImage = messageContent?.imageMessage;
+                const bossVideo = messageContent?.videoMessage;
+                const bossDocument = messageContent?.documentMessage;
                 const bossHasMedia = !!(bossImage || bossVideo || bossDocument);
 
                 if (bossHasMedia) {
@@ -1283,7 +1411,7 @@ router.post('/incoming', async (req, res) => {
 
                       // Si le boss a aussi du texte en plus du media, l'envoyer aussi
                       if (text && !caption) {
-                        await evolutionApiService.sendMessage(
+                        await sendMessageAndTrack(
                           instanceDoc.instanceName, instanceDoc.instanceToken,
                           clientJid, text
                         );
@@ -1292,7 +1420,7 @@ router.post('/incoming', async (req, res) => {
                       console.error(`❌ [BOSS] Impossible de télécharger le media du boss`);
                       // Fallback: envoyer au moins le texte s'il y en a
                       if (text) {
-                        await evolutionApiService.sendMessage(
+                        await sendMessageAndTrack(
                           instanceDoc.instanceName, instanceDoc.instanceToken,
                           clientJid, text
                         );
@@ -1301,7 +1429,7 @@ router.post('/incoming', async (req, res) => {
                   } catch (mediaErr) {
                     console.error(`❌ [BOSS] Erreur transfert media boss:`, mediaErr.message);
                     if (text) {
-                      await evolutionApiService.sendMessage(
+                      await sendMessageAndTrack(
                         instanceDoc.instanceName, instanceDoc.instanceToken,
                         clientJid, text
                       );
@@ -1309,7 +1437,7 @@ router.post('/incoming', async (req, res) => {
                   }
                 } else {
                   // Le boss envoie du texte simple → transmettre tel quel
-                  await evolutionApiService.sendMessage(
+                  await sendMessageAndTrack(
                     instanceDoc.instanceName,
                     instanceDoc.instanceToken,
                     clientJid,
@@ -1340,7 +1468,7 @@ router.post('/incoming', async (req, res) => {
               // Toujours en attente, timeout pas encore expiré
               console.log(`⏳ [BOSS] Client ${cleanFromEarly} en attente de réponse boss (${Math.round(elapsedEscMin)} min / ${timeoutMin} min)`);
               const waitMsg = `Je suis toujours en train de vérifier pour toi 🙏 Une petite patience, j'arrive !`;
-              await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFromEarly, waitMsg, 2, 1500);
+              await sendMessageAndTrack(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFromEarly, waitMsg, 2, 1500);
               continue;
             } else {
               // Timeout expiré → retirer l'escalade, laisser Rita improviser
@@ -1443,7 +1571,7 @@ router.post('/incoming', async (req, res) => {
                 if (ritaCfgBoss?.bossNotifications && ritaCfgBoss?.bossPhone && ritaCfgBoss?.notifyOnOrder) {
                   const bossMsg = `📦 *Nouvelle commande confirmée par Rita*\n\n👤 Client: ${orderData.name || 'N/A'}\n📱 Tél: ${cleanFrom}\n📍 Ville: ${orderData.city || 'N/A'}\n🛍️ Produit: ${orderData.product || 'N/A'}\n💰 Prix: ${orderData.price || 'N/A'}\n📅 Livraison: ${orderData.delivery_date || ''} ${orderData.delivery_time || ''}\n⏰ ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Douala' })}`;
                   const bossPhone = ritaCfgBoss.bossPhone.replace(/\D/g, '');
-                  await evolutionApiService.sendMessage(
+                  await sendMessageAndTrack(
                     instanceDoc.instanceName,
                     instanceDoc.instanceToken,
                     bossPhone,
@@ -1532,7 +1660,7 @@ router.post('/incoming', async (req, res) => {
                 });
                 // Notifier le boss
                 const bossMsg = `❓ *Question client sans réponse — Rita*\n\n📱 Client: ${currentCleanFrom}\n❓ Question: ${question}\n\nRéponds à ce message pour que Rita transmette ta réponse automatiquement au client.\n_(Si pas de réponse dans ${timeoutMin} min, Rita improvisera.)_`;
-                await evolutionApiService.sendMessage(
+                await sendMessageAndTrack(
                   instanceDoc.instanceName,
                   instanceDoc.instanceToken,
                   bossPhone,
@@ -1649,7 +1777,7 @@ router.post('/incoming', async (req, res) => {
                     instanceToken: instanceDoc.instanceToken,
                   });
                   const bossMsg = `❓ *Question client sans réponse — Rita*\n\n📱 Client: ${currentCleanFrom}\n❓ Question: ${question}\n\nRéponds à ce message pour que Rita transmette ta réponse automatiquement au client.\n_(Si pas de réponse dans ${timeoutMin} min, Rita improvisera.)_`;
-                  await evolutionApiService.sendMessage(
+                  await sendMessageAndTrack(
                     instanceDoc.instanceName,
                     instanceDoc.instanceToken,
                     bossPhone,
@@ -1692,6 +1820,7 @@ router.post('/incoming', async (req, res) => {
           const ttsConfig = { ...ritaCfgVoice, elevenlabsApiKey: effectiveApiKey, fishAudioApiKey: effectiveFishKey };
           // responseMode: 'text' | 'voice' | 'both'. Legacy compat: voiceMode=true → 'voice'
           const responseMode = ritaCfgVoice?.responseMode || (ritaCfgVoice?.voiceMode ? 'voice' : 'text');
+          const mixedVoiceReplyChance = Math.max(0, Math.min(100, Number(ritaCfgVoice?.mixedVoiceReplyChance ?? 65) || 65));
           const isFishAudio = ritaCfgVoice?.ttsProvider === 'fishaudio';
           const canDoVoice = !!((isFishAudio ? effectiveFishKey : effectiveApiKey) && textToSend);
 
@@ -1711,33 +1840,46 @@ router.post('/incoming', async (req, res) => {
 
           // Déterminer vocal vs texte pour ce tour :
           // 1. Si mode "voice" → toujours vocal
-          // 2. Si mode "both" → vocal pour confirmation commande (ORDER_DATA) OU (explication longue + 10% de chance)
+          // 2. Si mode "both" → plus de vocal sur confirmations, tags [VOICE] et réponses longues
           // 3. Si mode "text" → toujours texte
-          // 4. Tag [VOICE] respecté UNIQUEMENT en mode voice
           let useVoiceThisTurn = false;
           if (responseMode === 'voice' && canDoVoice) {
             // Mode full vocal : toujours vocal
             useVoiceThisTurn = true;
           } else if (responseMode === 'both' && canDoVoice) {
-            // Mode mixte : vocal pour confirmation de commande
+            const isLongExplanation =
+              textToSend.length >= 180 ||
+              /\n|•|▪|◦|\d+\.\s|:/.test(textToSend) ||
+              splitWhatsAppMessage(textToSend, 220).length > 1;
+            const voiceChance = hasVoiceTag
+              ? 1
+              : isLongExplanation
+                ? mixedVoiceReplyChance / 100
+                : Math.max(0.15, Math.min(0.5, mixedVoiceReplyChance / 200));
+
             if (orderTagMatch) {
               useVoiceThisTurn = true;
               console.log(`🎙️ [RITA] Commande confirmée — vocal pour confirmation (mode both)`);
-            } else if (hasVoiceTag) {
-              // Tag [VOICE] en mode both = ~35% de chance (équilibre vocal/texte)
-              const randomChance = Math.random() < 0.35;
+            } else {
+              const randomChance = Math.random() < voiceChance;
               if (randomChance) {
                 useVoiceThisTurn = true;
-                console.log(`🎙️ [RITA] Vocal accordé (35%, mode both)`);
+                console.log(`🎙️ [RITA] Vocal accordé (${Math.round(voiceChance * 100)}%, mode both${isLongExplanation ? ', réponse longue' : ''})`);
               } else {
-                console.log(`🔇 [RITA] Texte cette fois (tirage 35%, mode both)`);
+                console.log(`🔇 [RITA] Texte cette fois (tirage ${Math.round(voiceChance * 100)}%, mode both${isLongExplanation ? ', réponse longue' : ''})`);
               }
             }
           }
-          const sendText  = responseMode === 'text' || (!useVoiceThisTurn && responseMode !== 'voice');
-          const sendVoice = responseMode === 'voice' || useVoiceThisTurn;
+          let sendText  = responseMode === 'text' || (!useVoiceThisTurn && responseMode !== 'voice');
+          let sendVoice = (responseMode === 'voice' || useVoiceThisTurn) && canDoVoice;
 
-          console.log(`🎚️ [RITA] Mode: ${responseMode} | tour: ${useVoiceThisTurn ? 'vocal' : 'texte'} | voiceTag: ${hasVoiceTag} | apiKey: ${effectiveApiKey ? 'oui' : 'non'}`);
+          if ((responseMode === 'voice' || useVoiceThisTurn) && !canDoVoice) {
+            console.warn(`⚠️ [RITA] Mode vocal demandé mais aucune voix n'est disponible — fallback texte pour ${cleanFrom}`);
+            sendText = !!textToSend;
+            sendVoice = false;
+          }
+
+          console.log(`🎚️ [RITA] Mode: ${responseMode} | tour: ${useVoiceThisTurn ? 'vocal' : 'texte'} | voiceTag: ${hasVoiceTag} | mixChance: ${mixedVoiceReplyChance}% | apiKey: ${effectiveApiKey ? 'oui' : 'non'}`);
 
 
           // ── Envoyer le texte (avec découpage [SPLIT] puis splitWhatsAppMessage) ──
@@ -1749,7 +1891,7 @@ router.post('/incoming', async (req, res) => {
             console.log(`📤 [RITA] Envoi réponse texte à ${cleanFrom} (${messageParts.length} partie(s), délai: ${responseDelayMs}ms)...`);
             for (let partIdx = 0; partIdx < messageParts.length; partIdx++) {
               const part = messageParts[partIdx];
-              const sendResult = await evolutionApiService.sendMessage(
+              const sendResult = await sendMessageAndTrack(
                 instanceDoc.instanceName,
                 instanceDoc.instanceToken,
                 cleanFrom,
@@ -1788,15 +1930,15 @@ router.post('/incoming', async (req, res) => {
                   logRitaActivity(userId, 'vocal_sent', { customerPhone: cleanFrom });
                 } else {
                   console.error(`❌ [RITA] Échec vocal, fallback texte:`, audioResult.error);
-                  await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
+                  await sendMessageAndTrack(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
                 }
               } else {
                 console.warn(`⚠️ [RITA] TTS null, fallback texte`);
-                await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
+                await sendMessageAndTrack(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
               }
             } catch (ttsErr) {
               console.error(`❌ [RITA] Erreur TTS:`, ttsErr.message);
-              await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
+              await sendMessageAndTrack(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
             }
           }
 
@@ -1836,7 +1978,7 @@ router.post('/incoming', async (req, res) => {
                 }
               }
               if (imagesSentCount === 0) {
-                await evolutionApiService.sendMessage(
+                await sendMessageAndTrack(
                   instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom,
                   `Désolé, je n'arrive pas à envoyer les photos en ce moment 🙏 Mais le produit est bien disponible !`
                 );
@@ -1893,7 +2035,7 @@ router.post('/incoming', async (req, res) => {
                 console.error(`❌ [RITA] Toutes les tentatives d'envoi image ont échoué pour ${cleanFrom}`);
                 console.error(`   URL tentée: ${imageUrl}`);
                 console.error(`   Produit: ${matchedProductForMedia?.name || 'N/A'}, Images: ${JSON.stringify(matchedProductForMedia?.images || [])}`);
-                await evolutionApiService.sendMessage(
+                await sendMessageAndTrack(
                   instanceDoc.instanceName,
                   instanceDoc.instanceToken,
                   cleanFrom,
@@ -1914,7 +2056,7 @@ router.post('/incoming', async (req, res) => {
                 : `Tu veux qu'on te réserve le ${p.name} ? 👍`;
 
               await new Promise(r => setTimeout(r, 1500));
-              await evolutionApiService.sendMessage(
+              await sendMessageAndTrack(
                 instanceDoc.instanceName,
                 instanceDoc.instanceToken,
                 cleanFrom,
@@ -2031,7 +2173,7 @@ router.post('/test-boss-notification', async (req, res) => {
 
     const testMsg = `✅ *Test Rita — Notifications Boss*\n\nBonjour ! 👋 Ce message confirme que les notifications Rita sont bien configurées.\n\n📱 Instance: *${instance.instanceName}*\n⏰ ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Douala' })}\n\n🔔 Vous recevrez désormais les alertes pour:\n• 📦 Chaque commande confirmée\n• 📊 Le rapport quotidien\n\n_Généré par Rita IA_`;
 
-    await evolutionApiService.sendMessage(
+    await sendMessageAndTrack(
       instance.instanceName,
       instance.instanceToken,
       phone,

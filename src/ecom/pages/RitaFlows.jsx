@@ -285,24 +285,27 @@ export default function RitaFlows() {
   const [newGroupName, setNewGroupName] = useState('');
 
   // ── Chargement initial ──
+  const defaultConfig = { enabled: false, flows: [], groups: [], settings: {} };
+
   const load = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) { setLoading(false); return; }
     setLoading(true);
     try {
       const [cfgRes, grpRes, ritaRes] = await Promise.all([
-        ecomApi.get('/v1/rita-flows/config', { params: { userId } }),
+        ecomApi.get('/v1/rita-flows/config', { params: { userId } }).catch(() => ({ data: { config: null } })),
         ecomApi.get('/v1/rita-flows/groups/list', { params: { userId } }).catch(() => ({ data: { groups: [] } })),
         ecomApi.get('/v1/external/whatsapp/rita-config', { params: { userId } }).catch(() => ({ data: { config: null } })),
       ]);
-      setConfig(cfgRes.data.config);
+      setConfig(cfgRes.data.config || defaultConfig);
       setWhatsappGroups(grpRes.data.groups || []);
       setProducts((ritaRes.data.config?.productCatalog || []).map(p => p.name));
     } catch (err) {
       console.error('Erreur chargement:', err);
+      setConfig(defaultConfig);
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load(); }, [load]);
 

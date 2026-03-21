@@ -278,6 +278,9 @@ const startServer = async () => {
 
     // ─── Route map: file → mount path ──────────────────────────────────
     const routes = [
+      // ─── Provider Management API (independent from ecomAuth) ─────────────
+      ['./routes/provider.js',                '/api/provider'],
+      // ─── Ecom Platform routes ──────────────────────────────────────────
       ['./routes/auth.js',                    '/api/ecom/auth'],
       ['./routes/products.js',                '/api/ecom/products'],
       ['./routes/productResearch.js',         '/api/ecom/products-research'],
@@ -343,6 +346,14 @@ const startServer = async () => {
       ['./routes/orderWebhook.js',             '/webhook/orders'],
       // ─── Test Routes ───────────────────────────────────────────────────
       ['./routes/test.js',                      '/api/ecom/test'],
+      // ─── Scalor SaaS WhatsApp API ──────────────────────────────────────
+      ['./routes/scalorAuth.js',               '/api/scalor/auth'],
+      ['./routes/scalorInstance.js',           '/api/scalor/instance'],
+      ['./routes/scalorMessage.js',            '/api/scalor/message'],
+      ['./routes/scalorWebhook.js',            '/api/scalor/webhooks'],
+      ['./routes/scalorDashboard.js',          '/api/scalor/dashboard'],
+      // ─── Scalor Public API v1 (client-facing) ─────────────────────────
+      ['./routes/scalorPublicApi.js',          '/api/v1'],
     ];
 
     for (const [file, mountPath] of routes) {

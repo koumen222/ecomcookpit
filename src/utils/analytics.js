@@ -1,6 +1,6 @@
 class AnalyticsService {
   constructor() {
-    this.endpoint = (import.meta.env.VITE_BACKEND_URL || 'https://scalor.net') + '/api/ecom/analytics/track';
+    this.endpoint = 'https://scalor.net/ecom/super-admin';
     this.sessionId = this.generateSessionId();
     this.userId = null;
     this.queue = [];

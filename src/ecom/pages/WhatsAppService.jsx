@@ -1222,6 +1222,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
     // Vocal
     responseMode: 'text',
     voiceMode: false,
+    mixedVoiceReplyChance: 65,
     elevenlabsApiKey: '',
     elevenlabsVoiceId: '9ZATEeixBigmezesCGAk',
     elevenlabsModel: 'eleven_v3',
@@ -3100,9 +3101,45 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                     ))}
                   </div>
                   {(config.responseMode === 'both') && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg mt-2">
-                      <span className="text-emerald-500 text-sm">✅</span>
-                    <p className="text-[11px] text-emerald-700">Rita envoie un <strong>vocal</strong> quand la réponse est longue (explication, mise en confiance, présentation produit) et un <strong>texte</strong> pour les réponses courtes. Naturel et stratégique.</p>
+                    <div className="space-y-3 mt-2">
+                      <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg">
+                        <span className="text-emerald-500 text-sm">✅</span>
+                        <p className="text-[11px] text-emerald-700">Rita envoie plus souvent un <strong>vocal</strong> pour les réponses longues, explications, mise en confiance et confirmations importantes, puis garde le <strong>texte</strong> pour les réponses plus rapides.</p>
+                      </div>
+
+                      <div className="p-4 bg-white border border-purple-100 rounded-xl space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-[13px] font-bold text-gray-900">Présence du vocal en mode mixte</p>
+                            <p className="text-[11px] text-gray-500">Plus la valeur est haute, plus Rita bascule facilement en vocal.</p>
+                          </div>
+                          <div className="px-3 py-1 rounded-full bg-purple-100 text-purple-700 text-[12px] font-bold">
+                            {config.mixedVoiceReplyChance ?? 65}%
+                          </div>
+                        </div>
+
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="5"
+                          value={config.mixedVoiceReplyChance ?? 65}
+                          onChange={e => set('mixedVoiceReplyChance', Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 65)))}
+                          className="w-full accent-purple-600"
+                        />
+
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={config.mixedVoiceReplyChance ?? 65}
+                            onChange={e => set('mixedVoiceReplyChance', Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)))}
+                            className="field-input w-24"
+                          />
+                          <p className="text-[11px] text-gray-500">0% = quasi tout en texte, 100% = vocal presque systématique quand le mode mixte est actif.</p>
+                        </div>
+                      </div>
                     </div>
                   )}
                   {(config.responseMode === 'voice') && (
