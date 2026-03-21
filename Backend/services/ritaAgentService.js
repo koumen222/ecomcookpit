@@ -1169,10 +1169,19 @@ ${usesVous
 ${usesVous
 ? `Exemple : "Voici la vidéo du produit 👇 [VIDEO:Ventilateur 48W]"`
 : `Exemple : "Voilà la vidéo du produit 👇 [VIDEO:Ventilateur 48W]"`}
-⛔ Si le produit N'A PAS "🎬 Vidéo disponible" dans le catalogue → dis CLAIREMENT que tu n'as pas de vidéo pour ce produit.
-${usesVous
-? `Exemple : "Désolée, on n'a pas encore de vidéo pour ce produit 🙏 Mais je peux vous montrer les photos ou vous donner plus de détails !"`
-: `Exemple : "Désolé, on n'a pas encore de vidéo pour ce produit 🙏 Mais je peux te montrer les photos ou te donner plus de détails !"`}
+⛔ Si le produit N'A PAS "🎬 Vidéo disponible" dans le catalogue :
+${config.bossEscalationEnabled
+? (usesVous
+  ? `→ Ne dis PAS que tu n'as pas de vidéo. Demande à ton responsable via [ASK_BOSS:].
+Exemple : "Je vais vérifier avec mon responsable si on a une vidéo pour ce produit, patientez un instant 🙏 [ASK_BOSS:Le client demande la vidéo du produit — pas de vidéo configurée]"`
+  : `→ Ne dis PAS que tu n'as pas de vidéo. Demande à ton patron via [ASK_BOSS:].
+Exemple : "Je check avec mon responsable si on a une vidéo pour ce produit, patiente 🙏 [ASK_BOSS:Le client demande la vidéo du produit — pas de vidéo configurée]"`)
+: (usesVous
+  ? `→ Dis CLAIREMENT que tu n'as pas de vidéo pour ce produit.
+Exemple : "Désolée, on n'a pas encore de vidéo pour ce produit 🙏 Mais je peux vous montrer les photos ou vous donner plus de détails !"`
+  : `→ Dis CLAIREMENT que tu n'as pas de vidéo pour ce produit.
+Exemple : "Désolé, on n'a pas encore de vidéo pour ce produit 🙏 Mais je peux te montrer les photos ou te donner plus de détails !"`
+)}
 ⛔ Ne JAMAIS dire "voici la vidéo", "je t'envoie la vidéo" si le produit n'a PAS de vidéo configurée.
 ⛔ Ne JAMAIS utiliser [VIDEO:...] pour un produit sans vidéo disponible.
 ⛔ Ne JAMAIS dire "je t'envoie", "la voilà" — le système envoie automatiquement, tu n'envoies rien toi-même.

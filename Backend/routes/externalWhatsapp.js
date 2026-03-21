@@ -1076,6 +1076,58 @@ router.post('/incoming', async (req, res) => {
             continue;
           }
 
+          // ─── Enregistrer le contact dès qu'il écrit (avant tout traitement) ───
+          if (instanceDoc) {
+            try {
+              const earlyUserId = instanceDoc.userId;
+              const earlyPhone = from.replace(/@.*$/, '');
+              // Exclure le numéro du boss
+              const earlyCfg = await RitaConfig.findOne({ userId: earlyUserId }).lean();
+              const bossPhoneEarly = (earlyCfg?.bossPhone || '').replace(/\D/g, '');
+              const fromPhoneEarly = earlyPhone.replace(/\D/g, '');
+              if (!bossPhoneEarly || fromPhoneEarly !== bossPhoneEarly) {
+                const ec = await RitaContact.findOne({ userId: earlyUserId, phone: earlyPhone });
+                if (ec) {
+                  ec.lastMessageAt = new Date();
+                  ec.messageCount = (ec.messageCount || 0) + 1;
+                  if (pushName && !ec.pushName) ec.pushName = pushName;
+                  await ec.save();
+                } else {
+                  const lc = await RitaContact.findOne({ userId: earlyUserId }).sort({ clientNumber: -1 }).lean();
+                  const nn = (lc?.clientNumber || 0) + 1;
+                  await RitaContact.create({
+                    userId: earlyUserId,
+                    phone: earlyPhone,
+                    pushName: pushName || '',
+                    clientNumber: nn,
+                    firstMessageAt: new Date(),
+                    lastMessageAt: new Date(),
+                    messageCount: 1,
+                  });
+                  console.log(`📇 [RITA] Nouveau contact: Client ${nn} (${earlyPhone}, ${pushName || 'sans nom'})`);
+                  // Enregistrer également sur l'appareil WhatsApp (Evolution API)
+                  evolutionApiService.saveContact(
+                    instanceDoc.instanceName,
+                    instanceDoc.instanceToken,
+                    earlyPhone,
+                    pushName || `Client ${nn}`
+                  );
+                } else if (pushName && ec && !ec.pushName) {
+                  // Mettre à jour le nom sur l'appareil si on vient de l'obtenir
+                  evolutionApiService.saveContact(
+                    instanceDoc.instanceName,
+                    instanceDoc.instanceToken,
+                    earlyPhone,
+                    pushName
+                  );
+              }
+            } catch (earlyContactErr) {
+              if (earlyContactErr.code !== 11000) {
+                console.error('⚠️ [RITA] Erreur enregistrement contact (early):', earlyContactErr.message);
+              }
+            }
+          }
+
           // ─── Transcription vocale si c'est un audio ───
           if (isAudio && instanceDoc) {
             console.log(`🎤 [RITA] Message vocal détecté — téléchargement en cours...`);
@@ -1275,35 +1327,6 @@ router.post('/incoming', async (req, res) => {
 
           // Log message reçu
           logRitaActivity(userId, 'message_received', { customerPhone: from.replace(/@.*$/, ''), customerName: pushName || '', details: text.substring(0, 200) });
-
-          // ─── Enregistrer / mettre à jour le contact automatiquement ───
-          try {
-            const contactPhone = from.replace(/@.*$/, '');
-            const existingContact = await RitaContact.findOne({ userId, phone: contactPhone });
-            if (existingContact) {
-              existingContact.lastMessageAt = new Date();
-              existingContact.messageCount = (existingContact.messageCount || 0) + 1;
-              if (pushName && !existingContact.pushName) existingContact.pushName = pushName;
-              await existingContact.save();
-            } else {
-              const lastContact = await RitaContact.findOne({ userId }).sort({ clientNumber: -1 }).lean();
-              const nextNumber = (lastContact?.clientNumber || 0) + 1;
-              await RitaContact.create({
-                userId,
-                phone: contactPhone,
-                pushName: pushName || '',
-                clientNumber: nextNumber,
-                firstMessageAt: new Date(),
-                lastMessageAt: new Date(),
-                messageCount: 1,
-              });
-              console.log(`📇 [RITA] Nouveau contact enregistré: Client ${nextNumber} (${contactPhone}, ${pushName || 'sans nom'})`);
-            }
-          } catch (contactErr) {
-            if (contactErr.code !== 11000) {
-              console.error('⚠️ [RITA] Erreur enregistrement contact:', contactErr.message);
-            }
-          }
 
           // ─── Vérifier si ce client est en attente d'une réponse boss (escalade) ───
           const cleanFromEarly = from.replace(/@.*$/, '');
@@ -1603,11 +1626,54 @@ router.post('/incoming', async (req, res) => {
               console.log(`🎬 [RITA] Vidéo trouvée: ${videoUrl}`);
             } else {
               console.log(`🎬 [RITA] Aucune vidéo trouvée pour "${videoProductName}"`);
-              const noVideoMsg = `Désolé, on n'a pas encore de vidéo pour ce produit 🙏 Mais je peux te montrer les photos ou te donner plus de détails !`;
-              if (!textToSend) {
-                textToSend = noVideoMsg;
-              } else {
-                textToSend += `\n\n${noVideoMsg}`;
+              // Essayer d'escalader vers le boss si activé
+              try {
+                const ritaCfgNoVid = await RitaConfig.findOne({ userId }).lean();
+                if (ritaCfgNoVid?.bossEscalationEnabled && ritaCfgNoVid?.bossPhone) {
+                  const bossPhone = ritaCfgNoVid.bossPhone.replace(/\D/g, '');
+                  const currentCleanFrom = from.replace(/@.*$/, '');
+                  const timeoutMin = ritaCfgNoVid.bossEscalationTimeoutMin || 30;
+                  const question = `Le client demande la vidéo du produit "${videoProductName}" — aucune vidéo configurée`;
+                  addPendingEscalation(userId, {
+                    clientPhone: currentCleanFrom,
+                    question,
+                    askedAt: Date.now(),
+                    timeoutMin,
+                    instanceName: instanceDoc.instanceName,
+                    instanceToken: instanceDoc.instanceToken,
+                  });
+                  const bossMsg = `❓ *Question client sans réponse — Rita*\n\n📱 Client: ${currentCleanFrom}\n❓ Question: ${question}\n\nRéponds à ce message pour que Rita transmette ta réponse automatiquement au client.\n_(Si pas de réponse dans ${timeoutMin} min, Rita improvisera.)_`;
+                  await evolutionApiService.sendMessage(
+                    instanceDoc.instanceName,
+                    instanceDoc.instanceToken,
+                    bossPhone,
+                    bossMsg
+                  );
+                  console.log(`🤝 [BOSS] Escalade vidéo envoyée au boss pour client ${currentCleanFrom}`);
+                  logRitaActivity(userId, 'escalation', { customerPhone: currentCleanFrom, details: question });
+                  // Message rassurant pour le client
+                  const reassureMsg = `Je vérifie avec mon responsable si on a une vidéo pour ce produit, patiente 🙏`;
+                  if (!textToSend) {
+                    textToSend = reassureMsg;
+                  } else if (!textToSend.includes('responsable') && !textToSend.includes('vérif')) {
+                    textToSend += `\n\n${reassureMsg}`;
+                  }
+                } else {
+                  const noVideoMsg = `Désolé, on n'a pas encore de vidéo pour ce produit 🙏 Mais je peux te montrer les photos ou te donner plus de détails !`;
+                  if (!textToSend) {
+                    textToSend = noVideoMsg;
+                  } else {
+                    textToSend += `\n\n${noVideoMsg}`;
+                  }
+                }
+              } catch (noVidErr) {
+                console.error(`❌ [RITA] Erreur escalade vidéo manquante:`, noVidErr.message);
+                const noVideoMsg = `Désolé, on n'a pas encore de vidéo pour ce produit 🙏 Mais je peux te montrer les photos ou te donner plus de détails !`;
+                if (!textToSend) {
+                  textToSend = noVideoMsg;
+                } else {
+                  textToSend += `\n\n${noVideoMsg}`;
+                }
               }
             }
           }

@@ -396,6 +396,14 @@ const startServer = async () => {
       console.warn('⚠️ Rita relance cron non démarré:', err.message);
     }
 
+    // ─── Rita webhook auto-sync (reconnect + health check) ──────────────
+    try {
+      const { initRitaWebhookSync } = await import('./services/ritaWebhookSyncService.js');
+      initRitaWebhookSync(); // async, runs in background after 5s delay
+    } catch (err) {
+      console.warn('⚠️ Rita webhook sync non démarré:', err.message);
+    }
+
     // ─── Auto-sync Google Sheets ─────────────────────────────────────────
     try {
       const autoSyncMod = await import('./services/googleSheetsImport.js');
