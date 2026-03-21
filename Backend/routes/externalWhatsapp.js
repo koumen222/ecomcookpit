@@ -13,6 +13,7 @@ import evolutionApiService from '../services/evolutionApiService.js';
 import { processIncomingMessage, generateTestReply, transcribeAudio, textToSpeech, textToSpeechFishAudio, getLastAssistantMessage, getTtsVoiceSettings } from '../services/ritaAgentService.js';
 import { logRitaActivity } from '../services/ritaBossReportService.js';
 import { analyzeImage as analyzeProductImage } from '../services/agentImageService.js';
+import { processFlows } from '../services/ritaFlowEngine.js';
 import { uploadImage as uploadImageToR2, isConfigured as isR2Configured } from '../services/cloudflareImagesService.js';
 import mongoose from 'mongoose';
 import fs from 'fs';
@@ -1391,6 +1392,11 @@ router.post('/incoming', async (req, res) => {
               console.log(`✅ [RITA] WhatsAppOrder enregistrée pour ${cleanFrom}`);
               logRitaActivity(userId, 'order_confirmed', { customerPhone: cleanFrom, customerName: orderData.name || '', product: orderData.product || '', price: orderData.price || '' });
 
+              // ─── Déclencher les flows sur order_confirmed ───
+              try {
+                await processFlows(userId, 'order_confirmed', { text: text || '', phone: cleanFrom, pushName });
+              } catch (flowErr) { console.error('⚠️ [FlowEngine] order_confirmed:', flowErr.message); }
+
               // Marquer le contact comme ayant commandé
               try {
                 await RitaContact.findOneAndUpdate(
@@ -1939,6 +1945,11 @@ router.post('/incoming', async (req, res) => {
               console.error(`❌ [RITA] Échec envoi vidéo à ${cleanFrom}:`, videoResult.error);
             }
           }
+          // ─── Déclencher les flows sur message_received ───
+          try {
+            await processFlows(userId, 'message_received', { text: text || '', phone: cleanFrom, pushName });
+          } catch (flowErr) { console.error('⚠️ [FlowEngine] message_received:', flowErr.message); }
+
           console.log(`💬 [RITA] ══════════════════════════════════════`);
         }
       } else if (normalizedEvent === 'MESSAGES_UPDATE') {
