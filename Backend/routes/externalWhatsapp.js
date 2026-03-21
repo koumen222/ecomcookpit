@@ -2255,4 +2255,220 @@ router.get('/orders/stats', requireEcomAuth, async (req, res) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════
+// Création directe d'instance via Scalot (sans passer par ZenChat)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * @route   POST /api/ecom/v1/external/whatsapp/create-instance
+ * @desc    Crée une instance WhatsApp directement depuis Scalot via Evolution Master API Key
+ */
+router.post('/create-instance', requireEcomAuth, async (req, res) => {
+  try {
+    const userId = req.ecomUser._id.toString();
+    const workspaceId = req.workspaceId;
+    const { customName } = req.body;
+
+    // Générer un nom d'instance unique basé sur le userId
+    const slug = (customName || 'scalot').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 20).toLowerCase();
+    const instanceName = `${slug}_${userId.slice(-6)}_${Date.now().toString(36)}`;
+
+    console.log(`🚀 [CREATE] Création instance "${instanceName}" pour user ${userId}`);
+
+    // 1. Créer l'instance sur Evolution API
+    const result = await evolutionApiService.createInstance(instanceName);
+    if (!result.success) {
+      return res.status(400).json({ success: false, error: result.error || "Impossible de créer l'instance sur Evolution API" });
+    }
+
+    // Extraire le token de l'instance créée
+    const instanceToken = result.data?.hash || result.data?.instance?.apikey || result.data?.apikey || result.data?.token;
+    if (!instanceToken) {
+      console.error('❌ [CREATE] Pas de token dans la réponse:', JSON.stringify(result.data));
+      return res.status(500).json({ success: false, error: "Instance créée mais pas de token retourné" });
+    }
+
+    // 2. Sauvegarder en base de données
+    const instance = await WhatsAppInstance.create({
+      userId,
+      workspaceId,
+      instanceName,
+      instanceToken,
+      customName: customName || instanceName,
+      status: 'disconnected',
+      isActive: true,
+      plan: 'free',
+    });
+
+    console.log(`✅ [CREATE] Instance "${instanceName}" créée et sauvegardée (ID: ${instance._id})`);
+
+    // 3. Récupérer le QR code immédiatement
+    const qrResult = await evolutionApiService.getQrCode(instanceName, instanceToken);
+
+    res.status(201).json({
+      success: true,
+      message: 'Instance créée avec succès',
+      data: {
+        id: instance._id,
+        instanceName,
+        customName: instance.customName,
+        instanceToken,
+        status: 'disconnected',
+      },
+      qrcode: qrResult.success ? qrResult.qrcode : null,
+      pairingCode: qrResult.success ? qrResult.pairingCode : null,
+    });
+  } catch (error) {
+    console.error('❌ [CREATE] Erreur création instance:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/ecom/v1/external/whatsapp/instances/:id/qrcode
+ * @desc    Récupère le QR code pour connecter l'instance WhatsApp
+ */
+router.get('/instances/:id/qrcode', requireEcomAuth, async (req, res) => {
+  try {
+    const userId = req.ecomUser._id.toString();
+    const instance = await WhatsAppInstance.findOne({ _id: req.params.id, userId });
+    if (!instance) return res.status(404).json({ success: false, error: 'Instance introuvable' });
+
+    // Vérifier si déjà connectée
+    const statusResult = await evolutionApiService.getInstanceStatus(instance.instanceName, instance.instanceToken);
+    if (statusResult?.instance?.state === 'open') {
+      instance.status = 'connected';
+      instance.lastSeen = new Date();
+      await instance.save();
+      return res.json({ success: true, connected: true, status: 'connected', message: 'Déjà connectée' });
+    }
+
+    // Récupérer le QR code
+    const qrResult = await evolutionApiService.getQrCode(instance.instanceName, instance.instanceToken);
+    if (!qrResult.success) {
+      return res.status(400).json({ success: false, error: qrResult.error || 'Impossible de récupérer le QR code' });
+    }
+
+    res.json({
+      success: true,
+      connected: false,
+      qrcode: qrResult.qrcode,
+      pairingCode: qrResult.pairingCode,
+    });
+  } catch (error) {
+    console.error('❌ Erreur récupération QR code:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/ecom/v1/external/whatsapp/instances/:id/connection-status
+ * @desc    Vérifie le statut de connexion en temps réel (polling pendant scan QR)
+ */
+router.get('/instances/:id/connection-status', requireEcomAuth, async (req, res) => {
+  try {
+    const userId = req.ecomUser._id.toString();
+    const instance = await WhatsAppInstance.findOne({ _id: req.params.id, userId });
+    if (!instance) return res.status(404).json({ success: false, error: 'Instance introuvable' });
+
+    const statusResult = await evolutionApiService.getInstanceStatus(instance.instanceName, instance.instanceToken);
+    const state = statusResult?.instance?.state;
+    let status = instance.status;
+
+    if (state === 'open') {
+      status = 'connected';
+      instance.status = 'connected';
+      instance.lastSeen = new Date();
+      await instance.save();
+    } else if (state === 'close' || state === 'connecting') {
+      status = 'disconnected';
+    }
+
+    res.json({ success: true, status, state: state || 'unknown' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/ecom/v1/external/whatsapp/instances/:id/message-stats
+ * @desc    Récupère les statistiques détaillées de messages pour une instance
+ */
+router.get('/instances/:id/message-stats', requireEcomAuth, async (req, res) => {
+  try {
+    const userId = req.ecomUser._id.toString();
+    const instance = await WhatsAppInstance.findOne({ _id: req.params.id, userId });
+    if (!instance) return res.status(404).json({ success: false, error: 'Instance introuvable' });
+
+    const usage = await getInstanceUsage(instance._id);
+
+    // Récupérer le statut Evolution API
+    const statusResult = await evolutionApiService.getInstanceStatus(instance.instanceName, instance.instanceToken);
+    const state = statusResult?.instance?.state || 'unknown';
+
+    res.json({
+      success: true,
+      instanceName: instance.customName || instance.instanceName,
+      status: instance.status,
+      connectionState: state,
+      usage,
+      stats: {
+        messagesSentToday: instance.messagesSentToday || 0,
+        messagesSentThisMonth: instance.messagesSentThisMonth || 0,
+        dailyLimit: instance.dailyLimit || 50,
+        monthlyLimit: instance.monthlyLimit || 100,
+        plan: instance.plan || 'free',
+        limitExceeded: instance.limitExceeded || false,
+        lastSeen: instance.lastSeen,
+        createdAt: instance.createdAt,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Erreur message-stats:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/ecom/v1/external/whatsapp/dashboard-stats
+ * @desc    Stats globales de toutes les instances (résumé dashboard)
+ */
+router.get('/dashboard-stats', requireEcomAuth, async (req, res) => {
+  try {
+    const userId = req.ecomUser._id.toString();
+    const allInstances = await WhatsAppInstance.find({ userId, isActive: true });
+
+    let totalSentToday = 0;
+    let totalSentMonth = 0;
+    let totalDailyLimit = 0;
+    let totalMonthlyLimit = 0;
+    let connected = 0;
+    let disconnected = 0;
+
+    for (const inst of allInstances) {
+      totalSentToday += inst.messagesSentToday || 0;
+      totalSentMonth += inst.messagesSentThisMonth || 0;
+      totalDailyLimit += inst.dailyLimit || 50;
+      totalMonthlyLimit += inst.monthlyLimit || 100;
+      if (inst.status === 'connected' || inst.status === 'active') connected++;
+      else disconnected++;
+    }
+
+    res.json({
+      success: true,
+      stats: {
+        totalInstances: allInstances.length,
+        connected,
+        disconnected,
+        totalSentToday,
+        totalSentMonth,
+        totalDailyLimit,
+        totalMonthlyLimit,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;
