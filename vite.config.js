@@ -46,8 +46,8 @@ export default defineConfig({
     middlewareMode: false,
     hmr: {
       protocol: 'ws',
-      host: 'localhost'
-      // port: 5173  // Remove hardcoded port to use the server port
+      host: 'localhost',
+      port: 5173
     }
   },
   build: {
