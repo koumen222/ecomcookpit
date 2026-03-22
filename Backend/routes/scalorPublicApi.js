@@ -248,8 +248,9 @@ router.get('/instance/:id', scalorRequirePermission('instance:read'), async (req
 router.get('/instance/:id/qrcode', scalorRequirePermission('instance:read'), async (req, res) => {
   const instance = await findUserInstance(req.scalorUser, req.params.id, res);
   if (!instance) return;
+  const forceRefresh = ['1', 'true', 'yes'].includes(String(req.query.refresh || '').toLowerCase());
 
-  const result = await scalorEvolutionService.getQrCode(instance.instanceName, instance.instanceToken);
+  const result = await scalorEvolutionService.getQrCode(instance.instanceName, instance.instanceToken, forceRefresh);
   if (!result.success) {
     return res.status(502).json({ error: 'qr_failed', message: result.error });
   }

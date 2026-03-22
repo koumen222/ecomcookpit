@@ -73,10 +73,11 @@ class ScalorEvolutionService {
     }
   }
 
-  async getQrCode(instanceName, instanceToken) {
+  async getQrCode(instanceName, instanceToken, forceRefresh = false) {
     try {
+      const endpoint = `${this.baseUrl}/instance/connect/${instanceName}${forceRefresh ? `?refresh=true&t=${Date.now()}` : ''}`;
       const response = await axios.get(
-        `${this.baseUrl}/instance/connect/${instanceName}`,
+        endpoint,
         { headers: this._headers(instanceToken), timeout: 30000 }
       );
       const qr = response.data?.base64 || response.data?.qrcode?.base64 || response.data?.code;

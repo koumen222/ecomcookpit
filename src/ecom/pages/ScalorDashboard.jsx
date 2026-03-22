@@ -268,11 +268,11 @@ export default function ScalorDashboard() {
     }
   };
 
-  const handleGetQr = async (instance) => {
+  const handleGetQr = async (instance, forceRefresh = false) => {
     setShowQrCode(instance);
     setQrData(null);
     try {
-      const data = await scalorGetQrCode(instance._id);
+      const data = await scalorGetQrCode(instance._id, forceRefresh);
       setQrData(data);
     } catch (err) {
       setError(err.response?.data?.message || 'QR code failed');
@@ -1034,6 +1034,14 @@ Authorization: Bearer sk_live_xxx
       {showQrCode && (
         <Modal onClose={() => setShowQrCode(null)} title={`QR Code — ${showQrCode.displayName}`}>
           <div className="text-center">
+            <div className="mb-3 flex justify-end">
+              <button
+                onClick={() => handleGetQr(showQrCode, true)}
+                className="px-3 py-1.5 bg-yellow-600/20 text-yellow-300 hover:bg-yellow-600/30 rounded-lg text-xs font-medium"
+              >
+                Actualiser QR
+              </button>
+            </div>
             {qrData?.qrcode ? (
               <>
                 <img src={qrData.qrcode.startsWith('data:') ? qrData.qrcode : `data:image/png;base64,${qrData.qrcode}`} alt="QR Code" className="mx-auto w-64 h-64 rounded-lg" />

@@ -154,6 +154,7 @@ router.get('/:id', scalorRequirePermission('instance:read'), async (req, res) =>
 // ═══════════════════════════════════════════════
 router.get('/:id/qrcode', scalorRequirePermission('instance:read'), async (req, res) => {
   try {
+    const forceRefresh = ['1', 'true', 'yes'].includes(String(req.query.refresh || '').toLowerCase());
     const instance = await ScalorInstance.findOne({
       _id: req.params.id,
       userId: req.scalorUser._id,
@@ -164,7 +165,7 @@ router.get('/:id/qrcode', scalorRequirePermission('instance:read'), async (req, 
       return res.status(404).json({ error: 'instance_not_found' });
     }
 
-    const result = await scalorEvolutionService.getQrCode(instance.instanceName, instance.instanceToken);
+    const result = await scalorEvolutionService.getQrCode(instance.instanceName, instance.instanceToken, forceRefresh);
 
     if (!result.success) {
       return res.status(502).json({ error: 'qr_fetch_failed', message: result.error });
