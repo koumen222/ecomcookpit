@@ -3,15 +3,23 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
 import ecomApi from '../services/ecommApi.js';
 
-const BACKEND_BASE = (() => {
-  const env = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL;
-  if (env) {
-    try { return new URL(env).origin; } catch { return env.replace(/\/+$/, ''); }
-  }
-  if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) {
+const WEBHOOK_API_BASE = (() => {
+  const apiBase = ecomApi?.defaults?.baseURL || '';
+
+  try {
+    // Handles absolute URLs like https://api.scalor.net/api/ecom
+    return new URL(apiBase).origin;
+  } catch {
+    // Handles relative URLs like /api/ecom
+    if (typeof window !== 'undefined') {
+      try {
+        return new URL(apiBase || '/', window.location.origin).origin;
+      } catch {
+        return window.location.origin;
+      }
+    }
     return 'https://api.scalor.net';
   }
-  return 'https://api.scalor.net';
 })();
 
 export default function ConnectShopify() {
@@ -57,14 +65,33 @@ export default function ConnectShopify() {
     setWebhookTesting(true);
     setWebhookStatus(null);
     try {
-      const res = await fetch(`${BACKEND_BASE}/api/webhooks/shopify/test`);
-      const data = await res.json();
-      if (data.success) {
-        setWebhookStatus({ ok: true, message: 'Endpoint webhook actif et fonctionnel', hmac: data.hmacConfigured });
-      } else {
-        setWebhookStatus({ ok: false, message: 'Endpoint inaccessible' });
+      // Test: Vérifier que l'endpoint de base répond
+      const res = await fetch(`${WEBHOOK_API_BASE}/api/webhooks/shopify/test`);
+      if (!res.ok) {
+        setWebhookStatus({ ok: false, message: `Endpoint inaccessible (${res.status})` });
+        return;
       }
-    } catch {
+      const data = await res.json();
+      
+      if (!data.success) {
+        setWebhookStatus({ ok: false, message: 'Endpoint inaccessible' });
+        return;
+      }
+
+      // Vérifier que le webhook URL avec token a été généré
+      if (!webhookUrl) {
+        setWebhookStatus({ ok: false, message: 'Webhook URL non generée' });
+        return;
+      }
+
+      setWebhookStatus({ 
+        ok: true, 
+        message: 'Endpoint webhook actif et fonctionnel',
+        hmac: data.hmacConfigured,
+        tokenValid: true 
+      });
+    } catch (err) {
+      console.error('Erreur test webhook:', err);
       setWebhookStatus({ ok: false, message: 'Impossible de joindre le serveur' });
     } finally {
       setWebhookTesting(false);

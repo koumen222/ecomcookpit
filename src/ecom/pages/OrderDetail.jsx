@@ -44,9 +44,9 @@ const OrderDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, workspace } = useEcomAuth();
-  const { fmt } = useMoney();
-  // Convertit et formate le montant dans la devise choisie par l'utilisateur
-  const fmtOrder = fmt;
+  const { fmtRaw } = useMoney();
+  // Garde le même montant brut et change uniquement l'affichage de devise
+  const fmtOrder = fmtRaw;
   const isAdmin = user?.role === 'ecom_admin' || user?.role === 'ecom_closeuse';
   const invoiceRef = useRef(null);
 
