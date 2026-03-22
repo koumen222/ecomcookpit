@@ -29,7 +29,7 @@ const allowedOrigins = [
   "http://www.ecomcookpit.site",
   "https://ecomcookpit.pages.dev",
   "https://ecomcookpit-production.up.railway.app",
-  "https://ecomcookpit-production-0ec4.up.railway.app",
+  "https://ecomcookpit-production-7a08.up.railway.app",
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:5175",
@@ -70,7 +70,8 @@ function isAllowedOrigin(origin) {
     return (
       hostname.endsWith('.ecomcookpit.pages.dev') ||
       hostname.endsWith('.scalor.net') ||
-      hostname.endsWith('.scalor.app')
+      hostname.endsWith('.scalor.app') ||
+      hostname.endsWith('.up.railway.app')
     );
   } catch {
     return false;
