@@ -192,6 +192,7 @@ const OrdersList = () => {
   const [debouncedCity, setDebouncedCity] = useState('');
   const [debouncedProduct, setDebouncedProduct] = useState('');
   const [debouncedTag, setDebouncedTag] = useState('');
+  const [filterOptions, setFilterOptions] = useState({ cities: [], products: [], tags: [] });
 
   // Fonction pour générer les champs à afficher selon les colonnes détectées
   const getDisplayFields = (sourceId) => {
@@ -381,6 +382,15 @@ const OrdersList = () => {
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const fetchFilterOptions = async (srcId) => {
+    try {
+      const params = {};
+      if (srcId) params.sourceId = srcId;
+      const res = await ecomApi.get('/orders/filter-options', { params });
+      if (res.data?.data) setFilterOptions(res.data.data);
+    } catch { /* silently ignore */ }
   };
 
   const fetchCloseuseSources = async () => {
@@ -770,6 +780,7 @@ const OrdersList = () => {
       }
       await fetchOrders();
       setLoading(false);
+      fetchFilterOptions(selectedSourceId);
     };
     init();
   }, []);
@@ -787,6 +798,7 @@ const OrdersList = () => {
   }, [search, filterCity, filterProduct, filterTag]);
 
   useEffect(() => { if (!loading) fetchOrders(false); }, [debouncedSearch, filterStatus, debouncedCity, debouncedProduct, debouncedTag, filterStartDate, filterEndDate, selectedSourceId, page, viewAllWorkspaces, itemsPerPage, sortOrder]);
+  useEffect(() => { if (!loading) fetchFilterOptions(selectedSourceId); }, [selectedSourceId]);
   useEffect(() => { if (success) { const t = setTimeout(() => setSuccess(''), 10000); return () => clearTimeout(t); } }, [success]);
   useEffect(() => { if (error) { const t = setTimeout(() => setError(''), 5000); return () => clearTimeout(t); } }, [error]);
 
@@ -1531,9 +1543,20 @@ const OrdersList = () => {
     return hasRaw ? [...new Set(orders.flatMap(o => Object.keys(o.rawData || {})))] : [];
   }, [orders]);
 
-  const uniqueCities = useMemo(() => [...new Set(orders.map(o => getCity(o)).filter(Boolean))].sort(), [orders]);
-  const uniqueProducts = useMemo(() => [...new Set(orders.map(o => getProductName(o)).filter(p => p && p !== 'Non spécifié'))].sort(), [orders]);
-  const uniqueTags = useMemo(() => [...new Set(orders.flatMap(o => o.tags || []))].filter(Boolean).sort(), [orders]);
+  // Use server-provided filter options (all distinct values for the workspace/source)
+  // Merge with current page values to ensure any visible item is selectable
+  const uniqueCities = useMemo(() => {
+    const fromOrders = orders.map(o => getCity(o)).filter(Boolean);
+    return [...new Set([...filterOptions.cities, ...fromOrders])].sort();
+  }, [orders, filterOptions.cities]);
+  const uniqueProducts = useMemo(() => {
+    const fromOrders = orders.map(o => getProductName(o)).filter(p => p && p !== 'Non spécifié');
+    return [...new Set([...filterOptions.products, ...fromOrders])].sort();
+  }, [orders, filterOptions.products]);
+  const uniqueTags = useMemo(() => {
+    const fromOrders = orders.flatMap(o => o.tags || []).filter(Boolean);
+    return [...new Set([...filterOptions.tags, ...fromOrders])].sort();
+  }, [orders, filterOptions.tags]);
 
   const statusFilters = useMemo(() => {
     const metaByKey = new Map(STATUS_FILTER_META.map(s => [s.key, s]));
