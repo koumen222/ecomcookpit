@@ -29,7 +29,7 @@ const allowedOrigins = [
   "http://www.ecomcookpit.site",
   "https://ecomcookpit.pages.dev",
   "https://ecomcookpit-production.up.railway.app",
-  "https://ecomcookpit-production-7a08.up.railway.app",
+  "https://ecomcookpit-production-0ec4.up.railway.app",
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:5175",
