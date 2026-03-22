@@ -842,16 +842,26 @@ const OrdersList = () => {
   const lastPollRef = useRef(new Date().toISOString());
   const pollingRef = useRef(false);
 
+  // Stable refs so silentPoll never needs to be recreated
+  const isLoadingRef = useRef(loading);
+  const pollFiltersRef = useRef({ debouncedSearch, filterStatus, debouncedCity, debouncedProduct, debouncedTag, filterStartDate, filterEndDate, selectedSourceId });
+  useEffect(() => { isLoadingRef.current = loading; }, [loading]);
+  useEffect(() => {
+    pollFiltersRef.current = { debouncedSearch, filterStatus, debouncedCity, debouncedProduct, debouncedTag, filterStartDate, filterEndDate, selectedSourceId };
+  }, [debouncedSearch, filterStatus, debouncedCity, debouncedProduct, debouncedTag, filterStartDate, filterEndDate, selectedSourceId]);
+
   const silentPoll = useCallback(async () => {
+    // Lire les valeurs actuelles depuis les refs (pas de dépendances state → fonction stable)
+    const { debouncedSearch: s, filterStatus: fs, debouncedCity: c, debouncedProduct: p, debouncedTag: t, filterStartDate: sd, filterEndDate: ed, selectedSourceId: srcId } = pollFiltersRef.current;
     // Ne pas faire de polling si des filtres sont actifs (pour éviter d'écraser les résultats filtrés)
-    const hasActiveFilters = debouncedSearch || filterStatus || debouncedCity || debouncedProduct || debouncedTag || filterStartDate || filterEndDate;
+    const hasActiveFilters = s || fs || c || p || t || sd || ed;
     if (hasActiveFilters) return;
-    
-    if (pollingRef.current || loading) return;
+
+    if (pollingRef.current || isLoadingRef.current) return;
     pollingRef.current = true;
     try {
       const params = {};
-      if (selectedSourceId) params.sourceId = selectedSourceId;
+      if (srcId) params.sourceId = srcId;
       const res = await ecomApi.get('/orders/new-since', { params });
       const { orders: newOrders, count, serverTime } = res.data?.data || {};
       if (serverTime) lastPollRef.current = serverTime;
@@ -882,18 +892,17 @@ const OrdersList = () => {
           return Array.from(map.values()).sort((a, b) => (a.sheetRowIndex || 0) - (b.sheetRowIndex || 0));
         });
       }
-    } catch (err) { 
+    } catch (err) {
       console.error('❌ [Frontend Poll] Erreur polling:', err.message);
-      /* silent — never show errors from polling */ 
+      /* silent — never show errors from polling */
     }
     pollingRef.current = false;
-  }, [loading, selectedSourceId, debouncedSearch, filterStatus, debouncedCity, debouncedProduct, debouncedTag, filterStartDate, filterEndDate]);
+  }, []); // Deps vides: la fonction ne change jamais → intervalle créé une seule fois
 
   useEffect(() => {
-    if (loading) return;
     const id = setInterval(silentPoll, 10000);
     return () => clearInterval(id);
-  }, [silentPoll, loading]);
+  }, []); // Intervalle créé une seule fois au montage
 
   // ••• WebSocket: Écouter les nouvelles commandes en temps réel •••••••••••••••
   useEffect(() => {

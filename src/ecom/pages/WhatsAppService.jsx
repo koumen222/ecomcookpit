@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Plus, Trash2, RefreshCw, CheckCircle, AlertCircle, Loader2,
   ExternalLink, Copy, Check, Bot, Smartphone, Zap, Send,
@@ -3867,23 +3867,25 @@ const FILTER_TABS = [
   { id: 'pending',  label: 'En attente' },
   { id: 'accepted', label: 'Acceptées' },
   { id: 'refused',  label: 'Refusées' },
+  { id: 'delivered', label: 'Livrées' },
+  { id: 'cancelled', label: 'Annulées' },
 ];
 
 const OrdersTab = ({ onCountChange }) => {
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState({ pending: 0, accepted: 0, refused: 0, total: 0 });
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [productFilter, setProductFilter] = useState('');
   const [updatingId, setUpdatingId] = useState(null);
 
-  useEffect(() => { fetchAll(); }, [filter]);
+  useEffect(() => { fetchAll(); }, []);
 
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const qs = filter ? `?status=${filter}` : '';
       const [ordRes, stRes] = await Promise.all([
-        ecomApi.get(`/v1/external/whatsapp/orders${qs}`),
+        ecomApi.get('/v1/external/whatsapp/orders'),
         ecomApi.get('/v1/external/whatsapp/orders/stats'),
       ]);
       if (ordRes.data.success) setOrders(ordRes.data.orders || []);
@@ -3898,12 +3900,42 @@ const OrdersTab = ({ onCountChange }) => {
     setUpdatingId(id);
     try {
       const { data } = await ecomApi.patch(`/v1/external/whatsapp/orders/${id}`, { status });
-      if (data.success) await fetchAll();
+      if (data.success) {
+        setOrders(prev => prev.map(o => o._id === id ? { ...o, status } : o));
+        // refresh stats counts in background
+        ecomApi.get('/v1/external/whatsapp/orders/stats').then(r => {
+          if (r.data.success) { setStats(r.data.stats || {}); onCountChange?.(r.data.stats?.pending || 0); }
+        }).catch(() => {});
+      }
     } catch {} finally { setUpdatingId(null); }
   };
 
   const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
   const fmtTime = (d) => d ? new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+
+  const normalizeValue = (value) => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+  const productOptions = useMemo(() => {
+    const unique = new Set();
+    for (const order of orders) {
+      const label = String(order?.productName || '').trim();
+      if (label) unique.add(label);
+    }
+    return Array.from(unique).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+  }, [orders]);
+
+  const filteredOrders = useMemo(() => {
+    const normalizedStatus = normalizeValue(statusFilter);
+    const normalizedProduct = normalizeValue(productFilter);
+
+    return orders.filter((order) => {
+      const orderStatus = normalizeValue(order?.status);
+      const orderProduct = normalizeValue(order?.productName);
+      const statusOk = !normalizedStatus || orderStatus === normalizedStatus;
+      const productOk = !normalizedProduct || orderProduct === normalizedProduct;
+      return statusOk && productOk;
+    });
+  }, [orders, statusFilter, productFilter]);
 
   return (
     <div className="space-y-5">
@@ -3924,16 +3956,30 @@ const OrdersTab = ({ onCountChange }) => {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-2">
-        {FILTER_TABS.map(f => (
-          <button key={f.id} onClick={() => setFilter(f.id)}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-2 flex-wrap">
+          {FILTER_TABS.map(f => (
+            <button key={f.id} onClick={() => setStatusFilter(f.id)}
             className={`px-3.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${
-              filter === f.id ? 'text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              statusFilter === f.id ? 'text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
             }`}
-            style={filter === f.id ? { background: ACCENT } : undefined}>
+            style={statusFilter === f.id ? { background: ACCENT } : undefined}>
             {f.label}
           </button>
-        ))}
+          ))}
+        </div>
+        <div className="sm:w-72">
+          <select
+            value={productFilter}
+            onChange={(e) => setProductFilter(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0F6B4F]/20 focus:border-[#0F6B4F]"
+          >
+            <option value="">Tous les produits</option>
+            {productOptions.map((productName) => (
+              <option key={productName} value={productName}>{productName}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Loading */}
@@ -3945,22 +3991,24 @@ const OrdersTab = ({ onCountChange }) => {
       )}
 
       {/* Empty state */}
-      {!loading && orders.length === 0 && (
+      {!loading && filteredOrders.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 px-4">
           <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mb-4">
             <Package className="w-6 h-6 text-gray-300" />
           </div>
           <p className="text-sm font-medium text-gray-900 mb-1">Aucune commande</p>
           <p className="text-xs text-gray-400 text-center max-w-xs">
-            Les commandes collectées par Rita apparaîtront ici.
+            {orders.length === 0
+              ? 'Les commandes collectées par Rita apparaîtront ici.'
+              : 'Aucun résultat pour les filtres sélectionnés.'}
           </p>
         </div>
       )}
 
       {/* Order cards */}
-      {!loading && orders.length > 0 && (
+      {!loading && filteredOrders.length > 0 && (
         <div className="space-y-3">
-          {orders.map(order => {
+          {filteredOrders.map(order => {
             const st = STATUS_LABELS[order.status] || STATUS_LABELS.pending;
             const isPending = order.status === 'pending';
             const isUpdating = updatingId === order._id;
@@ -3973,7 +4021,14 @@ const OrdersTab = ({ onCountChange }) => {
                       <p className="font-semibold text-[15px] text-gray-900 leading-tight truncate">
                         {order.customerName || order.pushName || 'Client'}
                       </p>
-                      <p className="text-[12px] text-gray-400 mt-0.5">{order.customerPhone}</p>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-gray-400 mt-0.5">
+                        <span>{order.customerPhone}</span>
+                        <span className="text-gray-300">•</span>
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {fmtDate(order.createdAt)} a {fmtTime(order.createdAt)}
+                        </span>
+                      </div>
                     </div>
                     <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${st.bg} ${st.text}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
@@ -4004,8 +4059,8 @@ const OrdersTab = ({ onCountChange }) => {
                       <span className="text-gray-700">{order.quantity || 1}</span>
                     </div>
                     <div>
-                      <span className="text-gray-400 text-[11px] block">Date</span>
-                      <span className="text-gray-500 text-[12px]">{fmtDate(order.createdAt)} {fmtTime(order.createdAt)}</span>
+                      <span className="text-gray-400 text-[11px] block">Entrée</span>
+                      <span className="text-gray-500 text-[12px]">{fmtDate(order.createdAt)} a {fmtTime(order.createdAt)}</span>
                     </div>
                   </div>
 

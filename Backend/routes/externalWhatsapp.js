@@ -307,6 +307,34 @@ function findProductByName(catalog, query) {
   return null;
 }
 
+function normalizeFilterValue(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+function resolveStatusVariants(rawStatus) {
+  const normalized = normalizeFilterValue(rawStatus);
+  const aliases = {
+    pending: ['pending'],
+    accepted: ['accepted', 'confirmed'],
+    refused: ['refused', 'rejected'],
+    delivered: ['delivered'],
+    cancelled: ['cancelled', 'canceled'],
+    all: [],
+  };
+
+  if (aliases[normalized]) return aliases[normalized];
+  if (normalized === 'en attente') return aliases.pending;
+  if (normalized === 'acceptee' || normalized === 'acceptees' || normalized === 'acceptee(s)') return aliases.accepted;
+  if (normalized === 'refusee' || normalized === 'refusees' || normalized === 'refusee(s)') return aliases.refused;
+  if (normalized === 'livree' || normalized === 'livrees' || normalized === 'livree(s)') return aliases.delivered;
+  if (normalized === 'annulee' || normalized === 'annulees' || normalized === 'annulee(s)') return aliases.cancelled;
+  return [normalized];
+}
+
 // ─── Escalades boss en attente: userId → [{ clientPhone, question, askedAt, instanceName, instanceToken }]
 // Queue FIFO : chaque réponse du boss est transmise au prochain client en attente.
 const pendingBossEscalations = new Map();
@@ -2416,11 +2444,21 @@ router.post('/test-chat', async (req, res) => {
 router.get('/orders', requireEcomAuth, async (req, res) => {
   try {
     const userId = req.ecomUser._id.toString();
-    const { status } = req.query;
+    const { status, product } = req.query;
     const filter = { userId };
-    if (status && status !== 'all') filter.status = status;
 
-    const orders = await WhatsAppOrder.find(filter).sort({ createdAt: -1 }).limit(200).lean();
+    const statusVariants = resolveStatusVariants(status);
+    if (Array.isArray(statusVariants) && statusVariants.length > 0) {
+      filter.status = statusVariants.length === 1 ? statusVariants[0] : { $in: statusVariants };
+    }
+
+    let orders = await WhatsAppOrder.find(filter).sort({ createdAt: -1 }).limit(200).lean();
+
+    const productQuery = normalizeFilterValue(product);
+    if (productQuery) {
+      orders = orders.filter(order => normalizeFilterValue(order.productName).includes(productQuery));
+    }
+
     res.json({ success: true, orders });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

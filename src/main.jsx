@@ -7,11 +7,9 @@ import './ecom/index.css';
 
 // Render first, analytics later (non-blocking)
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </React.StrictMode>
+  <BrowserRouter>
+    <App />
+  </BrowserRouter>
 );
 
 // Defer analytics to idle time — never blocks first paint
