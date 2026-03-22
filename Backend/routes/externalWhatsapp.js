@@ -2552,6 +2552,7 @@ router.get('/instances/:id/qrcode', requireEcomAuth, async (req, res) => {
     const userId = req.ecomUser._id.toString();
     const instance = await WhatsAppInstance.findOne({ _id: req.params.id, userId });
     if (!instance) return res.status(404).json({ success: false, error: 'Instance introuvable' });
+    const forceRefresh = ['1', 'true', 'yes'].includes(String(req.query.refresh || '').toLowerCase());
 
     // Vérifier si déjà connectée
     const statusResult = await evolutionApiService.getInstanceStatus(instance.instanceName, instance.instanceToken);
@@ -2563,7 +2564,7 @@ router.get('/instances/:id/qrcode', requireEcomAuth, async (req, res) => {
     }
 
     // Récupérer le QR code
-    const qrResult = await evolutionApiService.getQrCode(instance.instanceName, instance.instanceToken);
+    const qrResult = await evolutionApiService.getQrCode(instance.instanceName, instance.instanceToken, forceRefresh);
     if (!qrResult.success) {
       return res.status(400).json({ success: false, error: qrResult.error || 'Impossible de récupérer le QR code' });
     }

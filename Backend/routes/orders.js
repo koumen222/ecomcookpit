@@ -353,6 +353,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('orders', 'write'), async (
     });
     await order.save();
     memCache.delByPrefix(`stats:${req.workspaceId}`);
+    memCache.delByPrefix(`filterOpts:${req.workspaceId}`);
     
     // Envoyer la notification WhatsApp automatiquement (au livreur)
     await sendOrderNotification(order, req.workspaceId);
@@ -427,6 +428,82 @@ router.get('/available-statuses', requireEcomAuth, async (req, res) => {
     res.json({ success: true, data: { statuses: allStatuses.sort() } });
   } catch (error) {
     console.error('Erreur fetch available-statuses:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// GET /api/ecom/orders/filter-options - Valeurs distinctes pour les dropdowns de filtres
+router.get('/filter-options', requireEcomAuth, async (req, res) => {
+  try {
+    const { sourceId } = req.query;
+    const cacheKey = `filterOpts:${req.workspaceId}:${sourceId || 'all'}`;
+    const cached = memCache.get(cacheKey);
+    if (cached) return res.json({ success: true, data: cached });
+
+    const filter = { workspaceId: req.workspaceId };
+
+    if (sourceId) {
+      if (sourceId === 'legacy') {
+        filter.sheetRowId = { $not: /^source_/ };
+      } else if (sourceId === 'webhook') {
+        filter.source = 'webhook';
+      } else {
+        filter.sheetRowId = { $regex: `^source_${sourceId}_` };
+      }
+    }
+
+    // Closeuse: restrict to assigned sources/products/cities
+    if (req.ecomUser.role === 'ecom_closeuse') {
+      const allAssignments = await CloseuseAssignment.find({
+        closeuseId: req.ecomUser._id, workspaceId: req.workspaceId, isActive: true
+      }).populate('productAssignments.productIds', 'name');
+
+      if (allAssignments.length > 0) {
+        const allConditions = [];
+        const sheetProductNames = allAssignments.flatMap(a => (a.productAssignments || []).flatMap(pa => pa.sheetProductNames || []));
+        const assignedProductIds = allAssignments.flatMap(a => (a.productAssignments || []).flatMap(pa => pa.productIds || []));
+        const assignedCityNames = allAssignments.flatMap(a => (a.cityAssignments || []).flatMap(ca => ca.cityNames || []));
+        const assignedSourceIds = [...new Set(allAssignments.flatMap(a => (a.orderSources || []).map(os => String(os.sourceId)).filter(Boolean)))];
+        const dbProductNames = assignedProductIds.filter(pid => pid && typeof pid === 'object' && pid.name).map(pid => pid.name);
+
+        assignedSourceIds.forEach(sid => {
+          if (sid === 'legacy') allConditions.push({ sheetRowId: { $not: /^source_/ } });
+          else allConditions.push({ sheetRowId: { $regex: `^source_${sid}_` } });
+        });
+        if (sheetProductNames.length > 0 || dbProductNames.length > 0) {
+          [...sheetProductNames, ...dbProductNames].forEach(name => allConditions.push({
+            product: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' }
+          }));
+        }
+        if (assignedCityNames.length > 0) {
+          assignedCityNames.forEach(name => allConditions.push({
+            city: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' }
+          }));
+        }
+
+        if (allConditions.length > 0) filter.$or = allConditions;
+        else return res.json({ success: true, data: { cities: [], products: [], tags: [] } });
+      } else {
+        return res.json({ success: true, data: { cities: [], products: [], tags: [] } });
+      }
+    }
+
+    const [cities, products, tags] = await Promise.all([
+      Order.distinct('city', filter),
+      Order.distinct('product', filter),
+      Order.distinct('tags', filter)
+    ]);
+
+    const data = {
+      cities: cities.filter(c => c && c.trim()).sort(),
+      products: products.filter(p => p && p.trim()).sort(),
+      tags: tags.filter(t => t && t.trim()).sort()
+    };
+
+    memCache.set(cacheKey, data, 30000);
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('Erreur fetch filter-options:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });

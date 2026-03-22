@@ -400,12 +400,14 @@ class EvolutionApiService {
    * Récupère le QR code de connexion d'une instance
    * @param {string} instanceName
    * @param {string} instanceToken
+   * @param {boolean} forceRefresh - Force la regeneration d'un nouveau QR code
    * @returns {Promise<{success: boolean, qrcode?: string, error?: string}>}
    */
-  async getQrCode(instanceName, instanceToken) {
+  async getQrCode(instanceName, instanceToken, forceRefresh = false) {
     try {
+      const endpoint = `${this.baseUrl}/instance/connect/${instanceName}${forceRefresh ? `?refresh=true&t=${Date.now()}` : ''}`;
       const response = await axios.get(
-        `${this.baseUrl}/instance/connect/${instanceName}`,
+        endpoint,
         {
           headers: { 'apikey': instanceToken },
           timeout: 30000,

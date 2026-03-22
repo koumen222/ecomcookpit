@@ -161,9 +161,10 @@ const WhatsAppService = () => {
     finally { setSubmitting(false); }
   };
 
-  const fetchQrCode = async (instanceId) => {
+  const fetchQrCode = async (instanceId, forceRefresh = false) => {
     try {
-      const { data } = await ecomApi.get(`/v1/external/whatsapp/instances/${instanceId}/qrcode`);
+      const suffix = forceRefresh ? '?refresh=1' : '';
+      const { data } = await ecomApi.get(`/v1/external/whatsapp/instances/${instanceId}/qrcode${suffix}`);
       if (data.success && data.connected) {
         onInstanceConnected();
       } else if (data.success && data.qrcode) {
@@ -200,7 +201,7 @@ const WhatsAppService = () => {
   const refreshQr = async () => {
     if (!createdInstance?.id) return;
     setQrCode(null);
-    fetchQrCode(createdInstance.id);
+    fetchQrCode(createdInstance.id, true);
   };
 
   // ─── Open QR code for existing disconnected instance ───
