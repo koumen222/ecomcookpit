@@ -4151,7 +4151,17 @@ router.post('/:id/send-whatsapp', requireEcomAuth, validateEcomAccess('products'
 // PATCH /api/ecom/orders/config/whatsapp-auto - Toggle + config WhatsApp auto-confirmation
 router.patch('/config/whatsapp-auto', requireEcomAuth, validateEcomAccess('products', 'write'), async (req, res) => {
   try {
-    const { whatsappAutoConfirm, whatsappAutoInstanceId, whatsappAutoImageUrl, whatsappAutoAudioUrl, whatsappOrderTemplate } = req.body;
+    const {
+      whatsappAutoConfirm,
+      whatsappAutoInstanceId,
+      whatsappAutoImageUrl,
+      whatsappAutoAudioUrl,
+      whatsappAutoVideoUrl,
+      whatsappAutoDocumentUrl,
+      whatsappAutoSendOrder,
+      whatsappAutoProductMediaRules,
+      whatsappOrderTemplate
+    } = req.body;
     if (typeof whatsappAutoConfirm !== 'boolean') {
       return res.status(400).json({ success: false, message: 'whatsappAutoConfirm doit être un booléen' });
     }
@@ -4161,6 +4171,27 @@ router.patch('/config/whatsapp-auto', requireEcomAuth, validateEcomAccess('produ
     if (whatsappAutoInstanceId !== undefined) updateFields.whatsappAutoInstanceId = whatsappAutoInstanceId || null;
     if (whatsappAutoImageUrl !== undefined) updateFields.whatsappAutoImageUrl = whatsappAutoImageUrl || null;
     if (whatsappAutoAudioUrl !== undefined) updateFields.whatsappAutoAudioUrl = whatsappAutoAudioUrl || null;
+    if (whatsappAutoVideoUrl !== undefined) updateFields.whatsappAutoVideoUrl = whatsappAutoVideoUrl || null;
+    if (whatsappAutoDocumentUrl !== undefined) updateFields.whatsappAutoDocumentUrl = whatsappAutoDocumentUrl || null;
+    if (whatsappAutoSendOrder !== undefined && Array.isArray(whatsappAutoSendOrder)) {
+      updateFields.whatsappAutoSendOrder = whatsappAutoSendOrder.filter(step =>
+        ['text', 'image', 'video', 'document', 'audio'].includes(step)
+      );
+    }
+    if (whatsappAutoProductMediaRules !== undefined && Array.isArray(whatsappAutoProductMediaRules)) {
+      updateFields.whatsappAutoProductMediaRules = whatsappAutoProductMediaRules
+        .map(rule => ({
+          productKeyword: String(rule?.productKeyword || '').trim(),
+          imageUrl: rule?.imageUrl || null,
+          videoUrl: rule?.videoUrl || null,
+          documentUrl: rule?.documentUrl || null,
+          audioUrl: rule?.audioUrl || null,
+          sendOrder: Array.isArray(rule?.sendOrder)
+            ? rule.sendOrder.filter(step => ['text', 'image', 'video', 'document', 'audio'].includes(step))
+            : []
+        }))
+        .filter(rule => rule.productKeyword);
+    }
     if (whatsappOrderTemplate !== undefined) updateFields.whatsappOrderTemplate = whatsappOrderTemplate || null;
 
     await EcomWorkspace.findByIdAndUpdate(req.workspaceId, updateFields);
@@ -4225,7 +4256,9 @@ router.get('/config/whatsapp', requireEcomAuth, validateEcomAccess('products', '
   try {
     const [settings, workspace] = await Promise.all([
       WorkspaceSettings.findOne({ workspaceId: req.workspaceId }),
-      EcomWorkspace.findById(req.workspaceId).select('whatsappAutoConfirm whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappOrderTemplate').lean()
+      EcomWorkspace.findById(req.workspaceId)
+        .select('whatsappAutoConfirm whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules whatsappOrderTemplate')
+        .lean()
     ]);
     
     res.json({
@@ -4238,6 +4271,10 @@ router.get('/config/whatsapp', requireEcomAuth, validateEcomAccess('products', '
         whatsappAutoInstanceId: workspace?.whatsappAutoInstanceId || null,
         whatsappAutoImageUrl: workspace?.whatsappAutoImageUrl || null,
         whatsappAutoAudioUrl: workspace?.whatsappAutoAudioUrl || null,
+        whatsappAutoVideoUrl: workspace?.whatsappAutoVideoUrl || null,
+        whatsappAutoDocumentUrl: workspace?.whatsappAutoDocumentUrl || null,
+        whatsappAutoSendOrder: workspace?.whatsappAutoSendOrder || ['text', 'image', 'audio'],
+        whatsappAutoProductMediaRules: workspace?.whatsappAutoProductMediaRules || [],
         whatsappOrderTemplate: workspace?.whatsappOrderTemplate || null
       }
     });

@@ -86,9 +86,9 @@ const OrdersList = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useEcomAuth();
-  const { fmt, currency: userCurrency } = useMoney();
-  // Convertit et formate le montant dans la devise choisie par l'utilisateur
-  const fmtOrder = fmt;
+  const { fmtRaw } = useMoney();
+  // Garde le même montant brut et change uniquement l'affichage de devise
+  const fmtOrder = fmtRaw;
   const isAdmin = user?.role === 'ecom_admin';
   const isSuperAdmin = user?.role === 'super_admin';
   const isCloseuse = user?.role === 'ecom_closeuse';
@@ -162,12 +162,19 @@ const OrdersList = () => {
   const [autoConfig, setAutoConfig] = useState({
     instanceId: '',
     imageUrl: '',
+    videoUrl: '',
+    documentUrl: '',
     audioUrl: '',
-    template: ''
+    template: '',
+    sendOrder: ['text', 'image', 'audio'],
+    productMediaRules: []
   });
   const [savingAutoConfig, setSavingAutoConfig] = useState(false);
   const [uploadingAutoImage, setUploadingAutoImage] = useState(false);
+  const [uploadingAutoVideo, setUploadingAutoVideo] = useState(false);
+  const [uploadingAutoDocument, setUploadingAutoDocument] = useState(false);
   const [uploadingAutoAudio, setUploadingAutoAudio] = useState(false);
+  const [uploadingProductRuleMedia, setUploadingProductRuleMedia] = useState('');
   const [showAddSheetModal, setShowAddSheetModal] = useState(false);
   const [newSheetData, setNewSheetData] = useState({ name: '', spreadsheetId: '', sheetName: 'Sheet1' });
   const [savingSheet, setSavingSheet] = useState(false);
@@ -476,8 +483,16 @@ const OrdersList = () => {
       setAutoConfig({
         instanceId: res.data.data.whatsappAutoInstanceId || '',
         imageUrl: res.data.data.whatsappAutoImageUrl || '',
+        videoUrl: res.data.data.whatsappAutoVideoUrl || '',
+        documentUrl: res.data.data.whatsappAutoDocumentUrl || '',
         audioUrl: res.data.data.whatsappAutoAudioUrl || '',
-        template: res.data.data.whatsappOrderTemplate || ''
+        template: res.data.data.whatsappOrderTemplate || '',
+        sendOrder: Array.isArray(res.data.data.whatsappAutoSendOrder) && res.data.data.whatsappAutoSendOrder.length
+          ? res.data.data.whatsappAutoSendOrder
+          : ['text', 'image', 'audio'],
+        productMediaRules: Array.isArray(res.data.data.whatsappAutoProductMediaRules)
+          ? res.data.data.whatsappAutoProductMediaRules
+          : []
       });
     } catch (err) {
       console.error('Erreur récupération config WhatsApp:', err);
@@ -630,6 +645,120 @@ const OrdersList = () => {
     }
   };
 
+  const handleAutoVideoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingAutoVideo(true);
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const { data } = await ecomApi.post('/v1/external/whatsapp/upload-image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      if (data.url) {
+        setAutoConfig(prev => ({ ...prev, videoUrl: data.url }));
+        setSuccess('Vidéo uploadée');
+      }
+    } catch (err) {
+      setError('Erreur upload vidéo');
+    } finally {
+      setUploadingAutoVideo(false);
+    }
+  };
+
+  const handleAutoDocumentUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingAutoDocument(true);
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const { data } = await ecomApi.post('/v1/external/whatsapp/upload-image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      if (data.url) {
+        setAutoConfig(prev => ({ ...prev, documentUrl: data.url }));
+        setSuccess('Document uploadé');
+      }
+    } catch (err) {
+      setError('Erreur upload document');
+    } finally {
+      setUploadingAutoDocument(false);
+    }
+  };
+
+  const toggleSendOrderStep = (step) => {
+    setAutoConfig(prev => {
+      const hasStep = prev.sendOrder.includes(step);
+      const next = hasStep
+        ? prev.sendOrder.filter(s => s !== step)
+        : [...prev.sendOrder, step];
+      if (!next.includes('text')) {
+        next.unshift('text');
+      }
+      return { ...prev, sendOrder: next };
+    });
+  };
+
+  const moveSendStep = (index, direction) => {
+    setAutoConfig(prev => {
+      const arr = [...prev.sendOrder];
+      const target = index + direction;
+      if (target < 0 || target >= arr.length) return prev;
+      const [item] = arr.splice(index, 1);
+      arr.splice(target, 0, item);
+      return { ...prev, sendOrder: arr };
+    });
+  };
+
+  const addProductMediaRule = () => {
+    setAutoConfig(prev => ({
+      ...prev,
+      productMediaRules: [
+        ...(prev.productMediaRules || []),
+        {
+          productKeyword: '',
+          imageUrl: '',
+          videoUrl: '',
+          documentUrl: '',
+          audioUrl: '',
+          sendOrder: [...(prev.sendOrder || ['text', 'image', 'audio'])]
+        }
+      ]
+    }));
+  };
+
+  const updateProductMediaRule = (index, patch) => {
+    setAutoConfig(prev => ({
+      ...prev,
+      productMediaRules: (prev.productMediaRules || []).map((rule, i) => i === index ? { ...rule, ...patch } : rule)
+    }));
+  };
+
+  const removeProductMediaRule = (index) => {
+    setAutoConfig(prev => ({
+      ...prev,
+      productMediaRules: (prev.productMediaRules || []).filter((_, i) => i !== index)
+    }));
+  };
+
+  const uploadProductRuleMedia = async (index, field, file) => {
+    if (!file) return;
+    const uploadKey = `${index}-${field}`;
+    setUploadingProductRuleMedia(uploadKey);
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const { data } = await ecomApi.post('/v1/external/whatsapp/upload-image', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      if (data.url) {
+        updateProductMediaRule(index, { [field]: data.url });
+        setSuccess(field === 'imageUrl' ? 'Image produit uploadée' : 'Vidéo produit uploadée');
+      }
+    } catch (err) {
+      setError(field === 'imageUrl' ? 'Erreur upload image produit' : 'Erreur upload vidéo produit');
+    } finally {
+      setUploadingProductRuleMedia('');
+    }
+  };
+
   const saveAutoConfig = async () => {
     setSavingAutoConfig(true);
     try {
@@ -637,7 +766,11 @@ const OrdersList = () => {
         whatsappAutoConfirm: true,
         whatsappAutoInstanceId: autoConfig.instanceId || null,
         whatsappAutoImageUrl: autoConfig.imageUrl || null,
+        whatsappAutoVideoUrl: autoConfig.videoUrl || null,
+        whatsappAutoDocumentUrl: autoConfig.documentUrl || null,
         whatsappAutoAudioUrl: autoConfig.audioUrl || null,
+        whatsappAutoSendOrder: autoConfig.sendOrder || ['text', 'image', 'audio'],
+        whatsappAutoProductMediaRules: autoConfig.productMediaRules || [],
         whatsappOrderTemplate: autoConfig.template || null
       });
       if (res.data.success) {
@@ -2433,7 +2566,7 @@ const OrdersList = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
         <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200 p-3">
           <p className="text-[10px] font-bold text-green-700 uppercase tracking-wide mb-1">Revenu livré</p>
-          <p className="text-xl font-extrabold text-gray-900 mb-1">{fmt(filteredStats.deliveredRevenue || 0) || '0 FCFA'}</p>
+          <p className="text-xl font-extrabold text-gray-900 mb-1">{fmtRaw(filteredStats.deliveredRevenue || 0) || '0 FCFA'}</p>
           <p className="text-[10px] text-green-600 font-semibold">{filteredStats.delivered || 0} livrés · +{Math.round((filteredStats.delivered || 0) / (filteredStats.total || 1) * 100)}%</p>
         </div>
         
@@ -2554,6 +2687,11 @@ const OrdersList = () => {
                               <span className="text-gray-500">• {city}</span>
                             )}
                           </div>
+                          {o.createdAt && (
+                            <p className="text-[10px] text-gray-400 mt-0.5">
+                              {new Date(o.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -2709,6 +2847,12 @@ const OrdersList = () => {
                           <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                           <span className="text-xs text-gray-600 truncate">{productName}</span>
                           {o.quantity > 1 && <span className="text-[10px] text-gray-500">×{o.quantity}</span>}
+                        </div>
+                      )}
+                      {o.createdAt && (
+                        <div className="flex items-center gap-1.5">
+                          <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                          <span className="text-xs text-gray-400">{new Date(o.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       )}
                     </div>
@@ -2919,6 +3063,77 @@ const OrdersList = () => {
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   <span className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    Vidéo jointe (optionnel)
+                  </span>
+                </label>
+                {autoConfig.videoUrl ? (
+                  <div className="flex items-center gap-3 p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
+                    <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-indigo-700 truncate">{autoConfig.videoUrl}</p>
+                    </div>
+                    <button
+                      onClick={() => setAutoConfig(prev => ({ ...prev, videoUrl: '' }))}
+                      className="text-red-400 hover:text-red-600 p-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                  </div>
+                ) : (
+                  <label className={`flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:border-indigo-300 hover:bg-indigo-50 transition ${uploadingAutoVideo ? 'opacity-50 pointer-events-none' : ''}`}>
+                    {uploadingAutoVideo ? (
+                      <svg className="animate-spin w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    ) : (
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+                    )}
+                    <span className="text-sm text-gray-500">{uploadingAutoVideo ? 'Upload en cours...' : 'Ajouter une vidéo'}</span>
+                    <input type="file" accept="video/*,.mp4,.mov,.webm" className="hidden" onChange={handleAutoVideoUpload} />
+                  </label>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <span className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h10M7 11h10M7 15h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
+                    PDF / Document (optionnel)
+                  </span>
+                </label>
+                {autoConfig.documentUrl ? (
+                  <div className="flex items-center gap-3 p-3 bg-rose-50 border border-rose-200 rounded-xl">
+                    <div className="w-10 h-10 bg-rose-100 rounded-lg flex items-center justify-center">
+                      <svg className="w-5 h-5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h10M7 11h10M7 15h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-rose-700 truncate">{autoConfig.documentUrl}</p>
+                    </div>
+                    <button
+                      onClick={() => setAutoConfig(prev => ({ ...prev, documentUrl: '' }))}
+                      className="text-red-400 hover:text-red-600 p-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                  </div>
+                ) : (
+                  <label className={`flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:border-rose-300 hover:bg-rose-50 transition ${uploadingAutoDocument ? 'opacity-50 pointer-events-none' : ''}`}>
+                    {uploadingAutoDocument ? (
+                      <svg className="animate-spin w-5 h-5 text-rose-600" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    ) : (
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
+                    )}
+                    <span className="text-sm text-gray-500">{uploadingAutoDocument ? 'Upload en cours...' : 'Ajouter un document'}</span>
+                    <input type="file" accept="application/pdf,.pdf,.doc,.docx" className="hidden" onChange={handleAutoDocumentUpload} />
+                  </label>
+                )}
+              </div>
+
+              {/* Vocal par défaut */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <span className="flex items-center gap-2">
                     <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
                     Vocal joint (optionnel)
                   </span>
@@ -2952,33 +3167,161 @@ const OrdersList = () => {
                 )}
               </div>
 
-              {/* Info envoi progressif */}
-              {(autoConfig.template || autoConfig.imageUrl || autoConfig.audioUrl) && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-                  <p className="text-xs font-medium text-blue-700 mb-1">Ordre d'envoi progressif :</p>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 rounded-lg text-[10px] font-medium">
-                      1. Texte
-                    </span>
-                    {autoConfig.imageUrl && (
-                      <>
-                        <svg className="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 rounded-lg text-[10px] font-medium">
-                          2. Image
-                        </span>
-                      </>
-                    )}
-                    {autoConfig.audioUrl && (
-                      <>
-                        <svg className="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 rounded-lg text-[10px] font-medium">
-                          {autoConfig.imageUrl ? '3' : '2'}. Vocal
-                        </span>
-                      </>
-                    )}
-                  </div>
+              {/* Ordre d'envoi configurable */}
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                <p className="text-xs font-semibold text-blue-700 mb-2">Ordre d'envoi progressif</p>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  {[
+                    { key: 'text', label: 'Texte' },
+                    { key: 'image', label: 'Image' },
+                    { key: 'video', label: 'Vidéo' },
+                    { key: 'document', label: 'PDF/Document' },
+                    { key: 'audio', label: 'Vocal' }
+                  ].map(item => (
+                    <label key={item.key} className="inline-flex items-center gap-2 text-xs text-blue-800">
+                      <input
+                        type="checkbox"
+                        checked={autoConfig.sendOrder.includes(item.key)}
+                        onChange={() => toggleSendOrderStep(item.key)}
+                        className="rounded border-blue-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      {item.label}
+                    </label>
+                  ))}
                 </div>
-              )}
+                <div className="space-y-1">
+                  {(autoConfig.sendOrder || []).map((step, idx) => (
+                    <div key={`${step}-${idx}`} className="flex items-center justify-between bg-white border border-blue-100 rounded-lg px-2 py-1.5">
+                      <span className="text-[11px] text-blue-800 font-medium">{idx + 1}. {step}</span>
+                      <div className="flex items-center gap-1">
+                        <button type="button" onClick={() => moveSendStep(idx, -1)} disabled={idx === 0} className="px-1.5 py-0.5 text-[10px] rounded border border-blue-200 disabled:opacity-40">↑</button>
+                        <button type="button" onClick={() => moveSendStep(idx, 1)} disabled={idx === autoConfig.sendOrder.length - 1} className="px-1.5 py-0.5 text-[10px] rounded border border-blue-200 disabled:opacity-40">↓</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Règles par produit */}
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-emerald-800">Association produit → médias</p>
+                    <p className="text-[10px] text-emerald-700">Matching intelligent: accents ignorés, variantes acceptées, plusieurs termes possibles séparés par virgule.</p>
+                  </div>
+                  <button type="button" onClick={addProductMediaRule} className="px-2 py-1 text-[11px] font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">+ Ajouter</button>
+                </div>
+
+                {(autoConfig.productMediaRules || []).length === 0 && (
+                  <p className="text-[11px] text-emerald-700">Aucune règle spécifique. Le scénario global sera utilisé.</p>
+                )}
+
+                {(autoConfig.productMediaRules || []).map((rule, idx) => (
+                  <div key={idx} className="bg-white border border-emerald-100 rounded-xl p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <input
+                        value={rule.productKeyword || ''}
+                        onChange={e => updateProductMediaRule(idx, { productKeyword: e.target.value })}
+                        placeholder="Mots-clés produit (ex: gummies anti odeur, zendo, gummies femme)"
+                        className="flex-1 px-2 py-1.5 text-xs border border-gray-200 rounded-lg"
+                      />
+                      <button type="button" onClick={() => removeProductMediaRule(idx)} className="px-2 py-1 text-[11px] rounded-lg border border-red-200 text-red-600">Supprimer</button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <div className="space-y-2">
+                        <p className="text-[11px] font-medium text-gray-700">Image du produit</p>
+                        {rule.imageUrl ? (
+                          <div className="flex items-center gap-2 p-2 bg-purple-50 border border-purple-200 rounded-lg">
+                            <img src={rule.imageUrl} alt="Produit" className="w-12 h-12 rounded-lg object-cover" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] text-purple-700 truncate">Image uploadée</p>
+                            </div>
+                            <button type="button" onClick={() => updateProductMediaRule(idx, { imageUrl: '' })} className="text-red-500 text-[11px]">Retirer</button>
+                          </div>
+                        ) : (
+                          <label className={`flex items-center justify-center gap-2 px-3 py-2 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-purple-300 hover:bg-purple-50 transition ${(uploadingProductRuleMedia === `${idx}-imageUrl`) ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <span className="text-[11px] text-gray-500">
+                              {uploadingProductRuleMedia === `${idx}-imageUrl` ? 'Upload image...' : 'Uploader image'}
+                            </span>
+                            <input type="file" accept="image/*" className="hidden" onChange={e => uploadProductRuleMedia(idx, 'imageUrl', e.target.files?.[0])} />
+                          </label>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-[11px] font-medium text-gray-700">Vidéo du produit</p>
+                        {rule.videoUrl ? (
+                          <div className="flex items-center gap-2 p-2 bg-indigo-50 border border-indigo-200 rounded-lg">
+                            <div className="w-12 h-12 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 text-xs font-bold">VID</div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] text-indigo-700 truncate">Vidéo uploadée</p>
+                            </div>
+                            <button type="button" onClick={() => updateProductMediaRule(idx, { videoUrl: '' })} className="text-red-500 text-[11px]">Retirer</button>
+                          </div>
+                        ) : (
+                          <label className={`flex items-center justify-center gap-2 px-3 py-2 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-indigo-300 hover:bg-indigo-50 transition ${(uploadingProductRuleMedia === `${idx}-videoUrl`) ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <span className="text-[11px] text-gray-500">
+                              {uploadingProductRuleMedia === `${idx}-videoUrl` ? 'Upload vidéo...' : 'Uploader vidéo'}
+                            </span>
+                            <input type="file" accept="video/*,.mp4,.mov,.webm" className="hidden" onChange={e => uploadProductRuleMedia(idx, 'videoUrl', e.target.files?.[0])} />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <div className="space-y-2">
+                        <p className="text-[11px] font-medium text-gray-700">PDF / document du produit</p>
+                        {rule.documentUrl ? (
+                          <div className="flex items-center gap-2 p-2 bg-rose-50 border border-rose-200 rounded-lg">
+                            <div className="w-12 h-12 rounded-lg bg-rose-100 flex items-center justify-center text-rose-600 text-xs font-bold">PDF</div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] text-rose-700 truncate">Document uploadé</p>
+                            </div>
+                            <button type="button" onClick={() => updateProductMediaRule(idx, { documentUrl: '' })} className="text-red-500 text-[11px]">Retirer</button>
+                          </div>
+                        ) : (
+                          <label className={`flex items-center justify-center gap-2 px-3 py-2 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-rose-300 hover:bg-rose-50 transition ${(uploadingProductRuleMedia === `${idx}-documentUrl`) ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <span className="text-[11px] text-gray-500">
+                              {uploadingProductRuleMedia === `${idx}-documentUrl` ? 'Upload document...' : 'Uploader document'}
+                            </span>
+                            <input type="file" accept="application/pdf,.pdf,.doc,.docx" className="hidden" onChange={e => uploadProductRuleMedia(idx, 'documentUrl', e.target.files?.[0])} />
+                          </label>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-[11px] font-medium text-gray-700">Vocal du produit</p>
+                        {rule.audioUrl ? (
+                          <div className="flex items-center gap-2 p-2 bg-orange-50 border border-orange-200 rounded-lg">
+                            <div className="w-12 h-12 rounded-lg bg-orange-100 flex items-center justify-center text-orange-600 text-xs font-bold">AUD</div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] text-orange-700 truncate">Vocal uploadé</p>
+                            </div>
+                            <button type="button" onClick={() => updateProductMediaRule(idx, { audioUrl: '' })} className="text-red-500 text-[11px]">Retirer</button>
+                          </div>
+                        ) : (
+                          <label className={`flex items-center justify-center gap-2 px-3 py-2 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-orange-300 hover:bg-orange-50 transition ${(uploadingProductRuleMedia === `${idx}-audioUrl`) ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <span className="text-[11px] text-gray-500">
+                              {uploadingProductRuleMedia === `${idx}-audioUrl` ? 'Upload vocal...' : 'Uploader vocal'}
+                            </span>
+                            <input type="file" accept="audio/*,.ogg,.mp3,.wav,.m4a" className="hidden" onChange={e => uploadProductRuleMedia(idx, 'audioUrl', e.target.files?.[0])} />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+                    <input
+                      value={Array.isArray(rule.sendOrder) ? rule.sendOrder.join(',') : ''}
+                      onChange={e => updateProductMediaRule(idx, {
+                        sendOrder: e.target.value.split(',').map(v => v.trim()).filter(Boolean)
+                      })}
+                      placeholder="Ordre (ex: text,image,video,document,audio)"
+                      className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg"
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Footer boutons */}

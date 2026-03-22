@@ -115,9 +115,17 @@ class EvolutionApiService {
     const mimetypes = {
       'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
       'png': 'image/png', 'gif': 'image/gif',
-      'webp': 'image/webp', 'mp4': 'video/mp4', 'pdf': 'application/pdf'
+      'webp': 'image/webp', 'mp4': 'video/mp4', 'webm': 'video/webm', 'mov': 'video/quicktime',
+      'pdf': 'application/pdf', 'doc': 'application/msword', 'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     };
     let mimetype = mimetypes[ext] || 'image/jpeg';
+    const videoExt = ['mp4', 'webm', 'mov', 'avi'];
+    const documentExt = ['pdf', 'doc', 'docx'];
+    const mediatype = videoExt.includes(ext)
+      ? 'video'
+      : documentExt.includes(ext)
+        ? 'document'
+        : 'image';
 
     // ── Résoudre le média : fichier local → base64, URL externe → envoi direct ──
     let mediaPayload = mediaUrl;
@@ -159,7 +167,7 @@ class EvolutionApiService {
         `${this.baseUrl}/message/sendMedia/${instanceName}`,
         {
           number: cleanNumber,
-          mediatype: 'image',
+          mediatype,
           mimetype: mimetype,
           caption: caption,
           media: mediaPayload,
