@@ -113,25 +113,17 @@ const enableVerboseLogging = process.env.ENABLE_VERBOSE_LOGGING === 'true' || pr
 if (enableVerboseLogging) {
   app.use((req, res, next) => {
     const start = Date.now();
-    const originalSend = res.send;
     
     // Log request details
     console.log(`🚀 ${req.method} ${req.path}`);
     console.log(`   Headers: Authorization=${req.headers.authorization ? '[Bearer]' : 'NONE'}, X-Workspace-Id=${req.headers['x-workspace-id'] || 'NONE'}`);
     console.log(`   Origin: ${req.headers.origin || 'NONE'}, User-Agent: ${req.headers['user-agent']?.substring(0, 50) || 'NONE'}...`);
     
-    // Override res.send to log response
-    res.send = function(data) {
+    // Use 'finish' event instead of overriding res.send — avoids breaking CORS headers
+    res.on('finish', () => {
       const duration = Date.now() - start;
       console.log(`✅ Response ${res.statusCode} in ${duration}ms`);
-      
-      // Log error responses in detail
-      if (res.statusCode >= 400) {
-        console.log(`❌ ERROR RESPONSE:`, typeof data === 'string' ? data.substring(0, 200) : JSON.stringify(data, null, 2).substring(0, 300));
-      }
-      
-      originalSend.call(this, data);
-    };
+    });
     
     next();
   });
@@ -165,7 +157,9 @@ app.use(compression({
 app.use(
   helmet({
     contentSecurityPolicy: false,
-    xFrameOptions: { action: 'sameorigin' }
+    xFrameOptions: { action: 'sameorigin' },
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginEmbedderPolicy: false
   })
 );
 
@@ -470,6 +464,14 @@ const startServer = async () => {
       console.error('   Body:', JSON.stringify(req.body, null, 2));
       console.error('   Error:', err);
       console.error('   Stack:', err.stack);
+
+      // Re-apply CORS headers — the cors() middleware may not have run for this error path
+      const origin = req.headers.origin;
+      if (origin && isAllowedOrigin(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Vary', 'Origin');
+      }
       
       res.status(err.status || 500).json({
         success: false,
@@ -492,6 +494,14 @@ const startServer = async () => {
       // If it's a store domain and somehow got here, redirect to store root
       if (req.isStoreDomain && !req.path.startsWith('/api')) {
         return res.redirect('/');
+      }
+
+      // Re-apply CORS headers for 404 responses
+      const origin = req.headers.origin;
+      if (origin && isAllowedOrigin(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Vary', 'Origin');
       }
       
       res.status(404).json({
