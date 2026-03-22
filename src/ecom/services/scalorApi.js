@@ -129,8 +129,9 @@ export async function scalorGetInstance(id) {
   return data;
 }
 
-export async function scalorGetQrCode(id) {
-  const { data } = await scalorApi.get(`/instance/${id}/qrcode`);
+export async function scalorGetQrCode(id, forceRefresh = false) {
+  const suffix = forceRefresh ? '?refresh=1' : '';
+  const { data } = await scalorApi.get(`/instance/${id}/qrcode${suffix}`);
   return data;
 }
 

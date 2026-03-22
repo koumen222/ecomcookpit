@@ -274,11 +274,11 @@ export default function DeveloperSection() {
     } finally { setDataLoading(false); }
   };
 
-  const handleGetQr = async (id) => {
+  const handleGetQr = async (id, forceRefresh = false) => {
     setDataError('');
     try {
-      const res = await scalorGetQrCode(id);
-      setQrData({ instanceId: id, qr: res?.qrCode || res?.data?.qrCode || res?.qr });
+      const res = await scalorGetQrCode(id, forceRefresh);
+      setQrData({ instanceId: id, qr: res?.qrcode || res?.qrCode || res?.data?.qrcode || res?.data?.qrCode || res?.qr });
     } catch (err) {
       setDataError(err.response?.data?.error || err.message);
     }
@@ -490,7 +490,10 @@ export default function DeveloperSection() {
             <Card className="p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-gray-900">Scanner le QR code</h3>
-                <Btn variant="secondary" size="sm" onClick={() => setQrData(null)}>Fermer</Btn>
+                <div className="flex items-center gap-2">
+                  <Btn variant="secondary" size="sm" onClick={() => handleGetQr(qrData.instanceId, true)}>Actualiser QR</Btn>
+                  <Btn variant="secondary" size="sm" onClick={() => setQrData(null)}>Fermer</Btn>
+                </div>
               </div>
               {qrData.qr ? (
                 <img src={qrData.qr} alt="QR Code WhatsApp" className="w-48 h-48 mx-auto" />
