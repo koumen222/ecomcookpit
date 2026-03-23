@@ -50,7 +50,8 @@ function resolveEcomApiBaseUrl() {
   const normalizedFromBackend = normalizeBackendBaseUrl(envBackend);
   if (normalizedFromBackend) return normalizedFromBackend;
 
-  return 'https://ecomcookpit-production-7a08.up.railway.app/api/ecom';
+  // Safe default: use same-origin API so Vite proxy handles local dev without CORS.
+  return '/api/ecom';
 }
 
 const ECOM_API_BASE_URL = resolveEcomApiBaseUrl();

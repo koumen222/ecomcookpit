@@ -1,6 +1,7 @@
 class AnalyticsService {
   constructor() {
-    this.endpoint = 'https://scalor.net/ecom/super-admin';
+    this.endpoint = this.resolveEndpoint();
+    this.enabled = Boolean(this.endpoint);
     this.sessionId = this.generateSessionId();
     this.userId = null;
     this.queue = [];
@@ -17,6 +18,14 @@ class AnalyticsService {
     });
   }
 
+  resolveEndpoint() {
+    const configured = String(import.meta.env.VITE_CUSTOM_ANALYTICS_ENDPOINT || '').trim();
+    if (configured) return configured;
+
+    // Default to same-origin backend route to avoid cross-origin/CORS issues.
+    return '/api/ecom/analytics/track';
+  }
+
   generateSessionId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
   }
@@ -26,15 +35,36 @@ class AnalyticsService {
   }
 
   async sendEvent(eventName, eventData = {}) {
+    if (!this.enabled) return;
+
+    let workspaceId = null;
+    let userRole = null;
+    try {
+      const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+      const user = JSON.parse(localStorage.getItem('ecomUser') || 'null');
+      workspaceId = workspace?._id || workspace?.id || null;
+      userRole = user?.role || null;
+      if (!this.userId) {
+        this.userId = user?._id || user?.id || null;
+      }
+    } catch {
+      // Ignore localStorage parsing errors for non-critical analytics.
+    }
+
     const payload = {
-      event: eventName,
-      timestamp: new Date().toISOString(),
       sessionId: this.sessionId,
+      eventType: eventName,
+      page: window.location.pathname,
+      referrer: document.referrer || null,
       userId: this.userId,
-      url: window.location.href,
-      userAgent: navigator.userAgent,
-      referrer: document.referrer,
-      ...eventData
+      workspaceId,
+      userRole,
+      meta: {
+        url: window.location.href,
+        userAgent: navigator.userAgent,
+        timestamp: new Date().toISOString(),
+        ...eventData
+      }
     };
 
     // Send to GA4 via GTM
@@ -72,26 +102,32 @@ class AnalyticsService {
     const events = [...this.queue];
     this.queue = [];
 
-    try {
-      const response = await fetch(this.endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          batch: true,
-          events
+    const results = await Promise.allSettled(
+      events.map(payload =>
+        fetch(this.endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload)
         })
-      });
+      )
+    );
 
-      if (!response.ok) {
-        // Re-queue events if failed
-        this.queue.unshift(...events);
+    const failedEvents = [];
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        failedEvents.push(events[index]);
+        return;
       }
-    } catch (error) {
-      console.warn('Analytics: Failed to flush queue', error);
-      // Re-queue events if failed
-      this.queue.unshift(...events);
+
+      if (!result.value.ok) {
+        failedEvents.push(events[index]);
+      }
+    });
+
+    if (failedEvents.length > 0) {
+      this.queue.unshift(...failedEvents);
     }
   }
 

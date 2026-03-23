@@ -19,8 +19,10 @@ const TABS = [
 ];
 
 const TONE_OPTIONS = [
-  { value: 'warm', label: '🤗 Chaleureuse', desc: 'Naturelle, humaine, amicale' },
-  { value: 'professional', label: '💼 Professionnelle', desc: 'Sérieuse mais accessible' },
+  { value: 'warm', label: '🤗 Tutoiement chaleureux', desc: 'Naturelle, humaine, proche du client' },
+  { value: 'professional', label: '💼 Tutoiement professionnel', desc: 'Sérieuse, crédible, claire' },
+  { value: 'formal', label: '🤝 Vouvoiement respectueux', desc: 'Polie, courtoise, relation premium' },
+  { value: 'humorous', label: '😄 Humoristique légère', desc: 'Ajoute des blagues courtes sans perdre le sérieux' },
   { value: 'persuasive', label: '🔥 Persuasive', desc: 'Orientée closing, enthousiaste' },
 ];
 
@@ -145,14 +147,14 @@ const SelectDropdown = ({ value, onChange, options, placeholder = 'Sélectionner
   }, []);
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className={open ? 'relative z-[120]' : 'relative z-10'}>
       <button type="button" onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-[13px] font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-xl hover:border-gray-300 hover:bg-white transition-all">
         <span className="truncate">{selected ? selected.label : <span className="text-gray-400">{placeholder}</span>}</span>
         <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="absolute z-50 top-full mt-1 left-0 right-0 bg-white border border-gray-100 rounded-xl shadow-xl py-1 max-h-[220px] overflow-y-auto animate-in fade-in slide-in-from-top-1">
+        <div className="absolute z-[130] top-full mt-1 left-0 right-0 bg-white border border-gray-100 rounded-xl shadow-xl py-1 max-h-[220px] overflow-y-auto animate-in fade-in slide-in-from-top-1">
           {options.map(opt => (
             <button key={opt.value} type="button"
               onClick={() => { onChange(opt.value); setOpen(false); }}
@@ -252,7 +254,7 @@ export default function AgentConfig() {
     useEmojis: true,
     signMessages: false,
     responseDelay: 3,
-    welcomeMessage: "Bonjour ! 😊 Bienvenue chez nous. Comment puis-je vous aider aujourd'hui ?",
+    welcomeMessage: "Bonjour 👌 quel produit vous intéresse ?",
     fallbackMessage: "Je transmets votre demande à mon responsable. Un instant s'il vous plaît 🙏",
     autoLanguageDetection: true,
     autonomyLevel: 3,
@@ -896,7 +898,7 @@ export default function AgentConfig() {
               </div>
 
               {/* Gestion des langues */}
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="relative z-20 bg-white rounded-2xl border border-gray-200 overflow-visible">
                 <div className="px-6 py-4 border-b border-gray-100">
                   <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
                     <span className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
@@ -1081,13 +1083,34 @@ export default function AgentConfig() {
                   </h2>
                 </div>
                 <div className="p-5 space-y-4">
-                  <Field label="Mode de réponse">
-                    <SelectDropdown
-                      value={config.responseMode}
-                      onChange={v => set('responseMode', v)}
-                      options={RESPONSE_MODE_OPTIONS}
-                    />
-                  </Field>
+                  <div>
+                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Mode de réponse</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { value: 'text',  icon: '💬',    label: 'Texte',  desc: 'Messages écrits uniquement' },
+                        { value: 'voice', icon: '🎙️',   label: 'Vocal',  desc: 'Notes audio uniquement' },
+                        { value: 'both',  icon: '💬🎙️', label: 'Mixte',  desc: 'Vocal pour les longues réponses' },
+                      ].map(m => {
+                        const isActive = (config.responseMode || 'text') === m.value;
+                        return (
+                          <button
+                            key={m.value}
+                            type="button"
+                            onClick={() => set('responseMode', m.value)}
+                            className={`flex flex-col items-center gap-1 rounded-xl border px-2 py-3 text-center transition-all ${
+                              isActive
+                                ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300'
+                                : 'border-gray-200 bg-gray-50 hover:border-emerald-200 hover:bg-emerald-50/40'
+                            }`}
+                          >
+                            <span className="text-xl">{m.icon}</span>
+                            <span className={`text-[12px] font-bold ${isActive ? 'text-emerald-700' : 'text-gray-700'}`}>{m.label}</span>
+                            <span className="text-[10px] text-gray-400 leading-tight">{m.desc}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
                   {config.responseMode !== 'text' && (
                     <>
