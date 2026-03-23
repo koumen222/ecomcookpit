@@ -602,7 +602,14 @@ export default function AgentConfig() {
               Une fois activé, vous pourrez configurer votre agent IA, personnaliser son identité, ses règles de vente et ses produits.
             </div>
 
-            <div className="flex justify-center">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => navigate('/ecom/whatsapp/service?tab=instances')}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-[13px] font-semibold hover:bg-emerald-700 transition-colors"
+              >
+                Voir et connecter mes instances
+              </button>
               <button
                 type="button"
                 onClick={() => navigate('/ecom/whatsapp/service')}
