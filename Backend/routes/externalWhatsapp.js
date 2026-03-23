@@ -65,9 +65,18 @@ const _uploadAudioMemory = multer({
   },
 });
 
-const HARD_CODED_WEBHOOK_BASE_URL = 'https://api.scalor.net';
+const ENV_WEBHOOK_BASE_URL = (
+  process.env.WEBHOOK_BASE_URL ||
+  process.env.PUBLIC_API_URL ||
+  process.env.BACKEND_PUBLIC_URL ||
+  (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '')
+).replace(/\/$/, '');
 
 function resolveWebhookBaseUrl(req) {
+  if (ENV_WEBHOOK_BASE_URL) {
+    return ENV_WEBHOOK_BASE_URL;
+  }
+
   const forwardedProto = req.headers['x-forwarded-proto'];
   const proto = (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto) || req.protocol || 'http';
   const host = req.get('host');
@@ -77,7 +86,7 @@ function resolveWebhookBaseUrl(req) {
     return `${proto}://${host}`.replace(/\/$/, '');
   }
 
-  return HARD_CODED_WEBHOOK_BASE_URL;
+  return `${proto}://${host}`.replace(/\/$/, '');
 }
 import { checkMessageLimit, incrementMessageCount, getInstanceUsage } from '../services/messageLimitService.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
@@ -250,6 +259,69 @@ function extractContextInfo(message) {
     content?.documentMessage?.contextInfo ||
     null
   );
+}
+
+function extractPhoneFromJid(jid) {
+  if (!jid || typeof jid !== 'string') return null;
+
+  // Ex: 2376...@s.whatsapp.net, 2376...:12@s.whatsapp.net, +2376...@lid
+  const localPart = jid.split('@')[0] || '';
+  const noDeviceSuffix = localPart.split(':')[0] || '';
+
+  const normalized = normalizePhone(noDeviceSuffix);
+  if (normalized) return normalized;
+
+  const digitsOnly = noDeviceSuffix.replace(/\D/g, '');
+  return digitsOnly.length >= 8 && digitsOnly.length <= 15 ? digitsOnly : null;
+}
+
+async function resolveIncomingInstanceDoc(instance, data) {
+  const fromPayload = [
+    instance,
+    data?.instance,
+    data?.instanceName,
+    data?.instance?.instanceName,
+    data?.instance?.name,
+  ].filter(Boolean);
+
+  const candidateNames = [];
+  for (const item of fromPayload) {
+    if (typeof item === 'string' && item.trim()) {
+      candidateNames.push(item.trim());
+    } else if (typeof item === 'object') {
+      if (typeof item.instanceName === 'string' && item.instanceName.trim()) {
+        candidateNames.push(item.instanceName.trim());
+      }
+      if (typeof item.name === 'string' && item.name.trim()) {
+        candidateNames.push(item.name.trim());
+      }
+    }
+  }
+
+  if (!candidateNames.length) return null;
+
+  // 1) Match exact sur instanceName/customName
+  let instanceDoc = await WhatsAppInstance.findOne({
+    isActive: true,
+    $or: [
+      { instanceName: { $in: candidateNames } },
+      { customName: { $in: candidateNames } },
+    ],
+  }).lean();
+
+  if (instanceDoc) return instanceDoc;
+
+  // 2) Fallback insensible à la casse
+  const escaped = candidateNames.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  instanceDoc = await WhatsAppInstance.findOne({
+    isActive: true,
+    $or: [
+      { instanceName: { $in: escaped.map((name) => new RegExp(`^${name}$`, 'i')) } },
+      { customName: { $in: escaped.map((name) => new RegExp(`^${name}$`, 'i')) } },
+    ],
+  }).lean();
+
+  return instanceDoc;
 }
 
 const router = express.Router();
@@ -1189,9 +1261,7 @@ router.post('/incoming', async (req, res) => {
         console.log(`📩 [WH INCOMING] ${messages.length} message(s) reçu(s)`);
 
         // Trouver l'instance WhatsApp correspondante pour récupérer le userId
-        const instanceDoc = instance
-          ? await WhatsAppInstance.findOne({ instanceName: instance, isActive: true }).lean()
-          : null;
+        const instanceDoc = await resolveIncomingInstanceDoc(instance, data);
 
         if (instanceDoc) {
           console.log(`📩 [WH INCOMING] Instance trouvée: ${instanceDoc.instanceName} (userId=${instanceDoc.userId})`);
@@ -1199,7 +1269,7 @@ router.post('/incoming', async (req, res) => {
 
         for (const msg of messages) {
           const fromMe = msg.key?.fromMe;
-          const from = msg.key?.remoteJid;
+          const from = msg.key?.remoteJid || msg.key?.participant || msg.participant || '';
           const messageContent = unwrapMessageContent(msg.message);
 
           // ─── Détecter message vocal / audio ───
@@ -1239,11 +1309,18 @@ router.post('/incoming', async (req, res) => {
             continue;
           }
 
+          const senderPhone = extractPhoneFromJid(from);
+          if (!senderPhone) {
+            console.log(`⏩ [RITA] Numéro expéditeur non exploitable (${from}), message ignoré.`);
+            continue;
+          }
+          const senderJid = `${senderPhone}@s.whatsapp.net`;
+
           // ─── Enregistrer le contact dès qu'il écrit (avant tout traitement) ───
           if (instanceDoc) {
             try {
               const earlyUserId = instanceDoc.userId;
-              const earlyPhone = from.replace(/@.*$/, '');
+              const earlyPhone = senderPhone;
               // Exclure le numéro du boss
               const earlyCfg = await RitaConfig.findOne({ userId: earlyUserId }).lean();
               const bossPhoneEarly = (earlyCfg?.bossPhone || '').replace(/\D/g, '');
@@ -1398,7 +1475,7 @@ router.post('/incoming', async (req, res) => {
           {
             const ritaCfgEsc = await RitaConfig.findOne({ userId }).lean();
             const bossRaw = (ritaCfgEsc?.bossPhone || '').replace(/\D/g, '');
-            const fromRaw  = from.replace(/@.*$/, '').replace(/\D/g, '');
+              const fromRaw  = senderPhone;
             if (bossRaw && fromRaw === bossRaw) {
               // D'abord vérifier s'il y a une escalade en attente
               const pending = ritaCfgEsc?.bossEscalationEnabled ? shiftPendingEscalation(userId) : null;
@@ -1562,10 +1639,10 @@ router.post('/incoming', async (req, res) => {
           }
 
           // Log message reçu
-          logRitaActivity(userId, 'message_received', { customerPhone: from.replace(/@.*$/, ''), customerName: pushName || '', details: text.substring(0, 200) });
+          logRitaActivity(userId, 'message_received', { customerPhone: senderPhone, customerName: pushName || '', details: text.substring(0, 200) });
 
           // ─── Vérifier si ce client est en attente d'une réponse boss (escalade) ───
-          const cleanFromEarly = from.replace(/@.*$/, '');
+          const cleanFromEarly = senderPhone;
           if (hasPendingEscalation(userId, cleanFromEarly)) {
             const escQueue = pendingBossEscalations.get(userId) || [];
             const clientEsc = escQueue.find(e => e.clientPhone === cleanFromEarly);
@@ -1587,7 +1664,7 @@ router.post('/incoming', async (req, res) => {
 
           // Générer la réponse IA
           const startTime = Date.now();
-          const reply = await processIncomingMessage(userId, from, text);
+          const reply = await processIncomingMessage(userId, senderJid, text);
           const elapsed = Date.now() - startTime;
 
           if (!reply) {
@@ -1599,7 +1676,7 @@ router.post('/incoming', async (req, res) => {
           console.log(`🤖 [RITA] "${reply.substring(0, 300)}"`);
           console.log(`🤖 [RITA] Tags détectés: IMAGE=${/\[IMAGE:/.test(reply)} VIDEO=${/\[VIDEO:/.test(reply)} ORDER=${/\[ORDER_DATA:/.test(reply)} ASK_BOSS=${/\[ASK_BOSS:/.test(reply)}`);
           // Extraire le numéro propre depuis le JID WhatsApp (ex: 33612345678@s.whatsapp.net)
-          const cleanFrom = from.replace(/@.*$/, '');
+          const cleanFrom = senderPhone;
 
           // ─── Détecter tag [ORDER_DATA:{...}] pour enregistrer la commande ───
           // Extraction robuste supportant le JSON imbriqué (ex: objets adresse)
