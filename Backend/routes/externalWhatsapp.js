@@ -2132,7 +2132,7 @@ router.post('/incoming', async (req, res) => {
                 ? mixedVoiceReplyChance / 100
                 : Math.max(0.15, Math.min(0.5, mixedVoiceReplyChance / 200));
 
-            if (orderTagMatch) {
+            if (orderTagExtracted) {
               useVoiceThisTurn = true;
               console.log(`🎙️ [RITA] Commande confirmée — vocal pour confirmation (mode both)`);
             } else {
