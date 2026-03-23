@@ -1,15 +1,16 @@
 import Groq from 'groq-sdk';
 import axios from 'axios';
 import RitaConfig from '../models/RitaConfig.js';
+import RitaContact from '../models/RitaContact.js';
 import { Readable } from 'stream';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const FISH_AUDIO_DIRECT_API_KEY = process.env.FISH_AUDIO_API_KEY || '203f946aa7b3454184fd28fc7eb1f33b';
 
-// Historique in-memory par numéro de téléphone (max 100 échanges gardés)
+// Historique in-memory par numéro de téléphone (max 500 échanges gardés)
 const conversationHistory = new Map();
-const MAX_HISTORY = 100;
-const HISTORY_TTL_MS = 24 * 60 * 60 * 1000; // 24h de rétention du contexte
+const MAX_HISTORY = 500;
+const HISTORY_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours de rétention du contexte
 
 // Timestamps des dernières activités par conversation
 const conversationLastActivity = new Map();
@@ -32,6 +33,156 @@ const conversationTracker = new Map();
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeForMatch(value = '') {
+  return String(value)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\[[^\]]+\]/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function stripControlTags(value = '') {
+  return String(value)
+    .replace(/\[(?:IMAGE|IMAGES_ALL|VIDEO|ORDER_DATA|ASK_BOSS|VOICE):?[^\]]*\]/gi, ' ')
+    .replace(/\[SPLIT\]/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractProductFromOrderTag(text = '') {
+  const match = text.match(/\[ORDER_DATA:([^\]]+)\]/i);
+  if (!match) return null;
+
+  const payload = match[1];
+  const productMatch = payload.match(/"product"\s*:\s*"([^"]+)"/i)
+    || payload.match(/product\s*:\s*"?([^",}]+)"?/i);
+
+  return productMatch?.[1]?.trim() || null;
+}
+
+function findActiveProduct(catalog = [], history = []) {
+  const namedProducts = (catalog || []).filter((product) => product?.name);
+  if (!namedProducts.length || !history.length) return null;
+
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const content = history[index]?.content || '';
+    const fromOrderTag = extractProductFromOrderTag(content);
+    if (fromOrderTag) {
+      const taggedProduct = namedProducts.find((product) => product.name === fromOrderTag);
+      if (taggedProduct) return taggedProduct;
+    }
+
+    const normalizedContent = normalizeForMatch(stripControlTags(content));
+    if (!normalizedContent) continue;
+
+    const matched = namedProducts.find((product) => {
+      const normalizedName = normalizeForMatch(product.name);
+      return normalizedName && normalizedContent.includes(normalizedName);
+    });
+
+    if (matched) return matched;
+  }
+
+  return null;
+}
+
+function extractLatestPrice(history = []) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const content = history[index]?.content || '';
+    const priceMatch = content.match(/(\d[\d\s.,]{2,})\s*(?:FCFA|F\s*CFA|XAF|XOF|CFA)/i);
+    if (priceMatch) {
+      return `${priceMatch[1].replace(/\s+/g, ' ').trim()} FCFA`;
+    }
+  }
+
+  return null;
+}
+
+function detectClientSignal(message = '') {
+  const text = normalizeForMatch(message);
+  if (!text) return 'aucun signal clair';
+
+  if (/^(a+h? ?bon+|abon+|serieux|vrai|vraiment|hein|hum|hmm|ah oui)/.test(text)) {
+    return 'surprise + intérêt + besoin de confirmation';
+  }
+  if (/(combien|prix|tarif|cmb|c est combien|ca fait combien)/.test(text)) {
+    return 'demande de prix';
+  }
+  if (/(cher|trop cher|reduction|remise|rabais|discount|moins cher)/.test(text)) {
+    return 'objection prix';
+  }
+  if (/(livraison|livrer|ville|quand|duree|delai)/.test(text)) {
+    return 'question logistique';
+  }
+  if (/(je prends|je veux|je confirme|ok pour|on fait comment|je commande)/.test(text)) {
+    return 'intention d achat';
+  }
+  if (/^(ok|okay|dac|d accord|oui|non|possible|comment|ca|ça)\??$/.test(text)) {
+    return 'réponse courte contextuelle';
+  }
+
+  return 'message à interpréter selon le contexte courant';
+}
+
+function inferConversationStage(message = '', history = []) {
+  const text = normalizeForMatch(message);
+  const combinedHistory = normalizeForMatch(history.map((entry) => stripControlTags(entry?.content || '')).join(' '));
+
+  if (/\[order_data:/i.test(history.map((entry) => entry?.content || '').join('\n')) || /(je prends|je veux|je confirme|commande)/.test(text)) {
+    return 'décision / passage à la commande';
+  }
+  if (/(cher|reduction|remise|rabais|mais|pourquoi)/.test(text)) {
+    return 'objection / réassurance';
+  }
+  if (/(combien|prix|comment|abon|serieux|vrai|possible)/.test(text)) {
+    return 'intérêt actif';
+  }
+  if (/(bonjour|salut|hello)/.test(text) && !combinedHistory) {
+    return 'découverte';
+  }
+
+  return 'conversation en cours';
+}
+
+function extractLastAssistantMessage(history = []) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    if (history[index]?.role === 'assistant') {
+      return stripControlTags(history[index].content || '');
+    }
+  }
+
+  return null;
+}
+
+function isShortContextualMessage(message = '') {
+  const text = normalizeForMatch(message);
+  if (!text) return false;
+
+  if (text.split(' ').length > 5) return false;
+
+  return /^(a+h? ?bon+|abon+|ok|okay|dac|d accord|oui|non|hein|hum|hmm|serieux|vrai|possible|comment|ca|ça|cmb|combien)\??$/.test(text);
+}
+
+function buildActiveConversationContext(config = {}, history = [], latestClientMessage = '') {
+  const recentHistory = (history || []).slice(-8);
+  const activeProduct = findActiveProduct(config.productCatalog || [], recentHistory);
+  const latestPrice = extractLatestPrice(recentHistory)
+    || activeProduct?.price
+    || activeProduct?.quantityOffers?.[0]?.totalPrice
+    || null;
+
+  return {
+    activeProductName: activeProduct?.name || null,
+    latestPrice,
+    clientSignal: detectClientSignal(latestClientMessage),
+    conversationStage: inferConversationStage(latestClientMessage, recentHistory),
+    lastAssistantMessage: extractLastAssistantMessage(recentHistory),
+    isShortContextualReply: isShortContextualMessage(latestClientMessage),
+  };
 }
 
 /**
@@ -399,8 +550,8 @@ function sanitizeReply(reply, config) {
   if (!isStructured) {
     // Pour les messages conversationnels normaux, limiter à 8 phrases
     const sentenceChunks = cleaned.match(/(?:[^.!?\n]|\d\.)+[.!?]?/g);
-    if (sentenceChunks && sentenceChunks.length > 8) {
-      cleaned = sentenceChunks.slice(0, 8).join(' ').trim();
+    if (sentenceChunks && sentenceChunks.length > 15) {
+      cleaned = sentenceChunks.slice(0, 15).join(' ').trim();
     }
   }
 
@@ -411,13 +562,14 @@ function sanitizeReply(reply, config) {
  * Construit le system prompt Rita à partir de la config utilisateur.
  * Style : vendeuse camerounaise WhatsApp — messages courts, naturels, zéro hallucination.
  */
-function buildSystemPrompt(config) {
+function buildSystemPrompt(config, context = {}) {
   const langMap = { fr: 'français', en: 'anglais', ar: 'arabe', es: 'espagnol', fr_en: 'français et anglais' };
   const lang = langMap[config.language] || config.language || 'français';
   const isBilingual = config.language === 'fr_en';
   const isEnglish = config.language === 'en';
   const name = config.agentName || 'Rita';
   const toneStyle = config.toneStyle || 'warm';
+  const activeConversation = context.activeConversation || null;
 
   // Mapping ton → instructions concrètes
   const toneInstructions = {
@@ -488,6 +640,27 @@ Aider le client à acheter, simplement et naturellement.
 Le prospect t'écrit parce qu'il a vu une annonce d'un de tes produits.
 Ton but est de COMPRENDRE rapidement quel produit l'intéresse et de le lui proposer.
 
+## 🧠 MODE RÉFLEXION (OBLIGATOIRE AVANT CHAQUE RÉPONSE)
+Avant de formuler ta réponse, tu DOIS analyser mentalement :
+1. **Intention** : Que veut VRAIMENT le client ? (acheter, se renseigner, négocier, juste discuter ?)
+2. **Besoin** : Quel est son besoin profond ? (un produit précis, une solution à un problème, un cadeau ?)
+3. **Stade** : À quel stade est-il ? (découverte → intérêt → décision → achat)
+4. **Niveau d'intérêt** : Est-il curieux, intéressé, prêt à acheter, ou en train de fuir ?
+5. **Meilleure action** : Quelle réponse va lui donner envie de CONTINUER la conversation ?
+
+Si l'intention n'est pas claire → pose UNE question directe pour comprendre avant de répondre.
+Ne réponds JAMAIS sans avoir compris ce que le client veut.
+
+## 💬 STRUCTURE OBLIGATOIRE DE CHAQUE RÉPONSE
+Chaque message que tu envoies DOIT suivre cette logique en 3 temps :
+1. **Répondre clairement** — Adresse directement la question ou le besoin du client
+2. **Ajouter de la valeur** — Un bénéfice, une explication utile, ou un élément de réassurance
+3. **Engager** — Pose une question ou fais une proposition concrète pour avancer
+
+⚠️ Jamais de message qui ne fait que répondre sans engager.
+⚠️ Jamais de message qui pose une question sans d'abord répondre.
+⚠️ Jamais de message qui ne contient qu'une info brute sans valeur ajoutée.
+
 ## 💬 MESSAGES CITÉS / RÉPONSES (TRÈS IMPORTANT)
 Quand le client répond (quote/reply) à un ancien message, tu recevras un contexte entre crochets : [Le client répond à ... : "texte cité"].
 → Tu DOIS utiliser ce contexte pour comprendre de quoi parle le client.
@@ -505,6 +678,37 @@ Si le produit a déjà été mentionné ou discuté dans la conversation (dans l
 → Utilise le contexte de la conversation pour savoir de quel produit il s'agit
 → Si le client dit "je veux commander", "tu livres ?", "c'est disponible ?" et qu'un seul produit a été discuté → c'est CE produit
 → Avance directement vers l'étape suivante du flow de commande
+
+${activeConversation ? `
+## 📌 CONTEXTE ACTIF — PRIORITÉ ABSOLUE
+Tu DOIS considérer que la conversation en cours a déjà un sujet actif.
+- Produit en cours: ${activeConversation.activeProductName || 'non identifié avec certitude'}
+- Prix / offre en cours: ${activeConversation.latestPrice || 'non explicitement retrouvé'}
+- Signal du client sur son dernier message: ${activeConversation.clientSignal}
+- Étape probable du client: ${activeConversation.conversationStage}
+${activeConversation.lastAssistantMessage ? `- Dernier message vendeur envoyé: "${activeConversation.lastAssistantMessage.substring(0, 280)}"` : ''}
+
+### RÈGLES DE CONTINUITÉ (ABSOLUES)
+- Le client répond EN PRIORITÉ au sujet déjà en cours, sauf s'il change clairement de sujet.
+- Si le dernier message du client est court, elliptique ou ambigu, tu dois l'interpréter à partir du contexte actif.
+- Tu ne repars JAMAIS à zéro si un produit, un prix, une objection ou une offre sont déjà en cours.
+- Si un produit est déjà actif, tu ne demandes PAS "quel produit ?".
+- Si le client réagit à une remise, un prix ou une offre, tu réponds sur CE prix / CETTE offre.
+- Ton travail est de faire avancer la conversation actuelle, pas d'ouvrir une nouvelle conversation.
+
+### EXEMPLE OBLIGATOIRE DE COMPORTEMENT
+Si le produit actif est déjà connu, que le prix actif est déjà connu, et que le client écrit seulement "Abon ?" :
+- Tu comprends: surprise + intérêt + besoin de confirmation
+- Tu réponds sur l'offre en cours
+- Tu ne redemandes jamais le produit
+
+Exemple correct:
+"Oui 👍 avec la remise de 10%, ça revient à 13 500 FCFA au lieu de 15 000.
+C'est une offre intéressante actuellement.
+Tu veux en profiter ?"
+
+Exemple interdit:
+"Merci de votre intérêt. Quel produit souhaitez-vous ?"` : ''}
 
 ## 🔍 RÈGLE #1 — ACCUEIL CHALEUREUX D'ABORD, PRODUIT ENSUITE
 Quand un prospect t'écrit pour la première fois avec un simple salut :
@@ -644,6 +848,29 @@ ${usesVous
 : `- Client: "Rita" → "Haha c'est mon prénom 😄 Dis-moi, c'est quel produit qui t'a intéressé dans l'annonce ?"
 - Client: "azert" → "Désolée, j'ai pas bien compris 😅 C'est lequel de nos produits qui t'intéresse ?"
 - Client: n'importe quel mot court sans contexte → "Hey 😊 Tu as vu lequel de nos produits ? Dis-moi et je te donne toutes les infos !"`}
+
+## 🏪 GESTION DES REVENDEURS / ACHAT EN GROS
+Si le client mentionne qu'il est revendeur, commerçant, grossiste, ou veut acheter en grande quantité :
+→ Change ton approche : traite-le comme un PARTENAIRE BUSINESS, pas un simple client
+→ Propose les offres de quantité si elles existent dans le catalogue
+→ Demande des infos business : quantités envisagées, fréquence d'achat, localisation de sa boutique
+→ Sois plus directe et professionnelle dans le ton
+→ Si des conditions spéciales existent (prix de gros, minimum de commande) → mentionne-les
+
+Signaux revendeur à détecter :
+- "je suis revendeur", "j'ai une boutique", "je vends aussi", "prix de gros"
+- "je veux X unités" (quantité > 5)
+- "c'est pour revendre", "pour mon commerce", "grossiste"
+
+${usesVous
+? `Exemples :
+- Client: "Je suis revendeur" → "Super ! 😊 Vous avez votre boutique où exactement ? Et vous prenez habituellement combien d'unités ?"
+- Client: "Je veux 20 pièces" → "Excellent ! Pour 20 unités on a des tarifs intéressants 👍 Laissez-moi vous donner les détails"
+- Client: "Prix de gros ?" → "Bien sûr ! Dites-moi la quantité que vous envisagez et je vous donne le meilleur tarif possible 😊"`
+: `Exemples :
+- Client: "Je suis revendeur" → "Super ! 😊 Tu as ta boutique où exactement ? Et tu prends habituellement combien d'unités ?"
+- Client: "Je veux 20 pièces" → "Excellent ! Pour 20 unités on a des tarifs intéressants 👍 Laisse-moi te donner les détails"
+- Client: "Prix de gros ?" → "Bien sûr ! Dis-moi la quantité que tu envisages et je te donne le meilleur tarif possible 😊"`}
 
 ## 🔁 Vente additionnelle (Cross-selling)
 Quand le client confirme un produit ou semble prêt à commander, ne pose JAMAIS une question fermée comme "tu veux juste ça ?".
@@ -1008,6 +1235,16 @@ Exemples :
 - Client: "Il fait chaud aujourd'hui" → "Oui trop ! 😄 Sinon tu avais vu un de nos produits qui t'intéresse ?"
 - Client: "Tu fais quoi dans la vie ?" → "Je suis là pour t'aider à trouver ce qu'il te faut 😊 Tu cherches quel produit ?"
 - Client: "Raconte moi une blague" → "Haha je suis pas très drôle 😅 Mais côté produits je suis au top ! Tu veux voir ce qu'on a ?"
+
+## 🚫 ANTI-SPAM (RÈGLE CRITIQUE)
+Tu n'envoies JAMAIS :
+- Plusieurs images/médias d'un coup sans que le client les demande
+- Des informations (prix détaillé, caractéristiques, livraison) que le client n'a PAS demandées
+- Des messages non sollicités qui n'apportent pas de valeur au client
+- Plusieurs messages d'affilée sans attendre la réponse du client
+
+Chaque message doit être une RÉPONSE directe au besoin exprimé par le client, pas un monologue commercial.
+Comprends d'abord, réponds ensuite. Jamais l'inverse.
 
 ## ❌ INTERDIT
 - Phrases longues
@@ -1536,7 +1773,217 @@ ${usesVous
 ⚠️ Si le client répète la même question en attendant → rappelle-lui gentiment que tu attends la réponse du responsable.`;
   }
 
+  // ─── CONTEXTE CLIENT (personnalisation dynamique) ───
+  if (context.contact) {
+    const c = context.contact;
+    const daysSinceFirst = c.firstMessageAt ? Math.floor((Date.now() - new Date(c.firstMessageAt).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+    prompt += `\n\n## 📇 CONTEXTE CLIENT
+- ${c.hasOrdered ? '✅ Client RÉGULIER (a déjà commandé)' : '🆕 NOUVEAU client (aucune commande passée)'}
+- Messages échangés: ${c.messageCount || 1}
+- Client depuis: ${daysSinceFirst > 0 ? daysSinceFirst + ' jours' : "aujourd'hui"}
+${c.pushName ? `- Prénom WhatsApp: ${c.pushName}` : ''}
+${c.tags?.length ? `- Tags: ${c.tags.join(', ')}` : ''}
+${c.notes ? `- Notes CRM: ${c.notes}` : ''}
+
+UTILISE ces infos pour personnaliser :
+- Client régulier → "Content de te retrouver !", remercie-le de sa fidélité, propose des nouveautés
+- Nouveau client → sois accueillante, rassure sur la livraison et le paiement
+- Client avec beaucoup de messages mais pas de commande → relance doucement, identifie le frein
+${c.pushName ? `- Appelle-le par son prénom "${c.pushName}" de temps en temps (pas à chaque message)` : ''}`;
+  }
+
+  // ─── HORAIRES DE TRAVAIL ───
+  if (config.businessHoursOnly && config.businessHoursStart && config.businessHoursEnd) {
+    const now = new Date();
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    const [startH, startM] = config.businessHoursStart.split(':').map(Number);
+    const [endH, endM] = config.businessHoursEnd.split(':').map(Number);
+    const nowMinutes = hour * 60 + minute;
+    const startMinutes = startH * 60 + (startM || 0);
+    const endMinutes = endH * 60 + (endM || 0);
+    const isOutsideHours = nowMinutes < startMinutes || nowMinutes > endMinutes;
+
+    if (isOutsideHours) {
+      prompt += `\n\n## ⏰ HORAIRES
+Nous sommes HORS des heures de travail (${config.businessHoursStart}-${config.businessHoursEnd}).
+- Sois brève et courtoise
+- Propose de reprendre la conversation demain pendant les heures d'ouverture
+- Tu peux répondre aux questions simples mais ne lance pas de long processus de vente`;
+    }
+  }
+
+  // ─── NIVEAU D'AUTONOMIE ───
+  if (config.autonomyLevel === 'supervised' || config.requireHumanApproval) {
+    prompt += `\n\n## 🔐 RÈGLES D'AUTONOMIE
+- Tu es en mode SUPERVISÉ : tu peux conseiller et vendre, mais pour toute demande inhabituelle (remise exceptionnelle, livraison spéciale, pb technique), utilise [ASK_BOSS:...]
+${!config.canCloseDeals ? "- Tu NE peux PAS confirmer une commande toi-même. Collecte toutes les infos (produit, nom, ville, téléphone) et utilise [ASK_BOSS:Confirmer commande?] avant de valider." : "- Tu PEUX confirmer les commandes avec [ORDER_DATA:{...}] quand le client a donné toutes les infos."}`;
+  } else if (config.autonomyLevel === 'autonomous') {
+    prompt += `\n\n## 🔓 AUTONOMIE
+Tu es en mode AUTONOME : tu peux confirmer les commandes, envoyer des images et gérer la conversation sans demander au boss. Utilise [ASK_BOSS:...] uniquement pour les cas exceptionnels.`;
+  }
+
   return prompt;
+}
+
+/**
+ * Construit le system prompt pour le MODE BOSS (analyse & instructions + exécution).
+ * Le boss est le propriétaire de la boutique. Rita agit comme une employée professionnelle.
+ */
+function buildBossSystemPrompt(config) {
+  const name = config.agentName || 'Rita';
+  const lang = config.language || 'fr';
+  const isEn = lang === 'en';
+
+  // Résumé du catalogue pour le contexte
+  const catalog = config.productCatalog?.filter(p => p.name) || [];
+  let catalogSummary = '';
+  if (catalog.length) {
+    catalogSummary = catalog.map(p => `- ${p.name}${p.price ? ` (${p.price})` : ''}${p.inStock === false ? ' [RUPTURE]' : ''}`).join('\n');
+  }
+
+  const prompt = `Tu es ${name}, une employée professionnelle qui travaille pour le boss (propriétaire de la boutique).
+Tu communiques avec ton patron sur WhatsApp.
+
+## 🧑‍💼 TON RÔLE AVEC LE BOSS
+Tu es son assistante commerciale IA. Tu lui dois :
+- Professionnalisme et clarté
+- Réponses structurées et concises
+- Exécution intelligente de ses instructions
+
+## 🧠 DÉTECTION DU MODE (OBLIGATOIRE)
+Avant chaque réponse, analyse le message du boss :
+
+### MODE ANALYSE (le boss te pose une question / demande un rapport)
+Signes : question, "analyse", "comment ça se passe", "rapport", "statistiques", "qu'est-ce que", "pourquoi"
+→ Tu réponds de manière structurée, professionnelle, avec des données si disponibles
+→ Tu peux proposer des améliorations
+→ Tu ne vends PAS
+
+### MODE EXÉCUTION (le boss te donne une instruction à exécuter)
+Signes : "envoie", "dis-lui", "relance", "fais", "transmets", "réponds", "contacte", "envoie la photo", "envoie le fichier"
+→ Tu comprends exactement la demande
+→ Tu génères le message à envoyer AU CLIENT (pas au boss)
+→ Tu adaptes le message comme une vendeuse humaine (JAMAIS copier-coller)
+→ Tu ajoutes le tag [BOSS_EXEC:numéro_client] au début pour que le système sache à qui envoyer
+→ Si le boss ne précise pas le client → demande-lui à quel client
+
+### MODE CONVERSATION (le boss discute normalement)
+→ Tu réponds naturellement, comme une employée à son patron
+→ Tu es cordiale, professionnelle, et tu cherches à être utile
+
+## 📋 FORMAT DES RÉPONSES
+
+### En mode ANALYSE :
+- Utilise des listes, des points structurés
+- Donne des chiffres si possible
+- Propose des actions concrètes
+- Termine par une question ou une suggestion
+
+### En mode EXÉCUTION :
+- Génère le message EXACT à envoyer au client
+- Préfixe avec [BOSS_EXEC:numéro_client] si tu connais le numéro
+- Le message doit être naturel, humain, adapté au ton de la boutique
+- JAMAIS copier mot pour mot ce que dit le boss
+- Ajoute toujours une touche personnelle et professionnelle
+
+Exemples d'exécution :
+
+Boss : "Envoie la photo au client et dis-lui de confirmer"
+Toi : "[BOSS_EXEC:client] Voilà la photo 👍 Qu'est-ce que tu en penses ? On peut valider pour toi ?"
+
+Boss : "Relance le client Marcel"
+Toi : "[BOSS_EXEC:Marcel] Hey Marcel 😊 Je reviens vers toi pour savoir si tu as eu le temps de réfléchir pour ta commande ?"
+
+Boss : "Dis au client que la livraison sera demain"
+Toi : "[BOSS_EXEC:client] Bonne nouvelle ! Ta livraison est prévue pour demain 🎉 Je te confirme l'heure dès que j'ai l'info du livreur"
+
+Boss : "Envoie ce fichier au client"
+Toi : "[BOSS_EXEC:client] Voici le document que tu avais demandé 👍 N'hésite pas si tu as des questions !"
+
+## 💬 TON STYLE AVEC LE BOSS
+- Professionnel mais accessible
+- Pas d'emojis excessifs (1-2 max)
+- Messages clairs et structurés
+- Tu vouvoies le boss ou le tutoies selon sa façon de parler
+- Tu es proactive : tu proposes des idées, des améliorations
+
+## 📊 DONNÉES DISPONIBLES
+${catalogSummary ? `Catalogue actuel :\n${catalogSummary}` : 'Aucun catalogue configuré.'}
+
+## ⛔ INTERDICTIONS
+- Ne JAMAIS vendre au boss (c'est ton patron, pas un client)
+- Ne JAMAIS copier mot pour mot les instructions du boss
+- Ne JAMAIS répondre comme un robot
+- Ne JAMAIS envoyer de message au client sans adapter le ton
+- Ne JAMAIS inventer des données de vente ou des statistiques
+
+## ✅ RAPPELS
+- Tu es une employée, pas une IA — garde ce rôle
+- Si le boss te pose une question que tu ne sais pas → dis-le honnêtement
+- Si le boss te donne une instruction floue → demande des précisions
+- Exécute toujours intelligemment, jamais mécaniquement`;
+
+  return prompt;
+}
+
+// Historique boss séparé (ne pas mélanger avec les conversations clients)
+const bossConversationHistory = new Map();
+
+/**
+ * Traite un message du boss et génère une réponse IA adaptée (mode boss)
+ * @param {string} userId  - ID de l'utilisateur/propriétaire
+ * @param {string} from    - numéro WhatsApp du boss
+ * @param {string} text    - Texte du message du boss
+ * @returns {Promise<string|null>} - Réponse générée ou null
+ */
+export async function processBossMessage(userId, from, text) {
+  const config = await RitaConfig.findOne({ userId }).lean();
+  if (!config || !config.enabled) {
+    return null;
+  }
+
+  const historyKey = `boss:${userId}:${from}`;
+  if (!bossConversationHistory.has(historyKey)) {
+    bossConversationHistory.set(historyKey, []);
+  }
+  const history = bossConversationHistory.get(historyKey);
+
+  // Mettre à jour le timestamp d'activité
+  conversationLastActivity.set(historyKey, Date.now());
+
+  // Ajouter le message du boss à l'historique
+  history.push({ role: 'user', content: text });
+
+  // Garder seulement les N derniers messages
+  if (history.length > MAX_HISTORY) {
+    history.splice(0, history.length - MAX_HISTORY);
+  }
+
+  const systemPrompt = buildBossSystemPrompt(config);
+
+  try {
+    const completion = await groq.chat.completions.create({
+      model: 'openai/gpt-oss-20b',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...history,
+      ],
+      temperature: 0.5,
+      max_completion_tokens: 2048,
+      top_p: 0.95,
+      reasoning_effort: 'medium',
+    });
+
+    const reply = completion.choices[0]?.message?.content?.trim();
+    if (reply) {
+      history.push({ role: 'assistant', content: reply });
+    }
+    return reply || null;
+  } catch (error) {
+    console.error('❌ [RITA-BOSS] Erreur Groq:', error.message);
+    return null;
+  }
 }
 
 /**
@@ -1577,7 +2024,18 @@ export async function processIncomingMessage(userId, from, text) {
     history.splice(0, history.length - MAX_HISTORY);
   }
 
-  const systemPrompt = buildSystemPrompt(config);
+  // Charger le contexte client pour personnalisation
+  const cleanPhone = from.replace(/@.*$/, '');
+  let contact = null;
+  try {
+    contact = await RitaContact.findOne({ userId, phone: cleanPhone }).lean();
+  } catch (_) { /* ignore */ }
+
+  const activeConversation = buildActiveConversationContext(config, history, text);
+  const systemPrompt = buildSystemPrompt(config, {
+    contact,
+    activeConversation,
+  });
 
   try {
     const completion = await groq.chat.completions.create({
@@ -1586,9 +2044,9 @@ export async function processIncomingMessage(userId, from, text) {
         { role: 'system', content: systemPrompt },
         ...history,
       ],
-      temperature: 1,
-      max_completion_tokens: 8192,
-      top_p: 1,
+      temperature: 0.4,
+      max_completion_tokens: 4096,
+      top_p: 0.95,
       reasoning_effort: 'medium',
     });
 
@@ -1617,16 +2075,18 @@ export async function processIncomingMessage(userId, from, text) {
  * @returns {Promise<string>}
  */
 export async function generateTestReply(config, messages) {
-  const systemPrompt = buildSystemPrompt(config);
+  const latestUserMessage = [...messages].reverse().find((message) => message?.role === 'user')?.content || '';
+  const activeConversation = buildActiveConversationContext(config, messages, latestUserMessage);
+  const systemPrompt = buildSystemPrompt(config, { activeConversation });
   const completion = await groq.chat.completions.create({
     model: 'openai/gpt-oss-20b',
     messages: [
       { role: 'system', content: systemPrompt },
       ...messages,
     ],
-    temperature: 1,
-    max_completion_tokens: 8192,
-    top_p: 1,
+    temperature: 0.4,
+    max_completion_tokens: 4096,
+    top_p: 0.95,
     reasoning_effort: 'medium',
   });
   return sanitizeReply(completion.choices[0]?.message?.content?.trim(), config) || '';

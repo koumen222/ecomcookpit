@@ -10,7 +10,7 @@ import Order from '../models/Order.js';
 import RitaContact from '../models/RitaContact.js';
 import { normalizePhone } from '../utils/phoneUtils.js';
 import evolutionApiService from '../services/evolutionApiService.js';
-import { processIncomingMessage, generateTestReply, transcribeAudio, textToSpeech, textToSpeechFishAudio, getLastAssistantMessage, getTtsVoiceSettings } from '../services/ritaAgentService.js';
+import { processIncomingMessage, processBossMessage, generateTestReply, transcribeAudio, textToSpeech, textToSpeechFishAudio, getLastAssistantMessage, getTtsVoiceSettings } from '../services/ritaAgentService.js';
 import { logRitaActivity } from '../services/ritaBossReportService.js';
 import { analyzeImage as analyzeProductImage } from '../services/agentImageService.js';
 import { processFlows } from '../services/ritaFlowEngine.js';
@@ -1206,7 +1206,7 @@ router.post('/incoming', async (req, res) => {
               const quotedFrom = contextInfo.participant || '';
               const isQuotedFromBot = msg.key?.fromMe === false && (contextInfo.quotedMessage?.key?.fromMe || !quotedFrom || quotedFrom === from);
               const quotedLabel = isQuotedFromBot ? 'ton propre message précédent' : 'un message précédent';
-              text = `[Le client répond à ${quotedLabel} : "${quotedText.substring(0, 300)}"] ${text}`;
+              text = `[Le client répond à ${quotedLabel} : "${quotedText.substring(0, 800)}"] ${text}`;
               console.log(`💬 [RITA] Message cité détecté: "${quotedText.substring(0, 100)}"`);
             }
           }
@@ -1346,7 +1346,11 @@ router.post('/incoming', async (req, res) => {
                   // Injecter le contexte image dans le texte pour que Rita le traite
                   const imageCaption = messageContent?.imageMessage?.caption || '';
                   if (imageAnalysisResult.isProductImage && imageAnalysisResult.matchedProductName) {
-                    text = `[Le client a envoyé une image du produit "${imageAnalysisResult.matchedProductName}" (confiance: ${imageAnalysisResult.confidence}%). Description: ${imageAnalysisResult.description}]${imageCaption ? ' ' + imageCaption : ''}`;
+                    const confLevel = imageAnalysisResult.confidence >= 80 ? 'forte' : imageAnalysisResult.confidence >= 50 ? 'moyenne' : 'faible';
+                    text = `[Le client a envoyé une image du produit "${imageAnalysisResult.matchedProductName}" (confiance: ${confLevel}, ${imageAnalysisResult.confidence}%). Description: ${imageAnalysisResult.description}]${imageCaption ? ' ' + imageCaption : ''}`;
+                    if (imageAnalysisResult.confidence < 50) {
+                      text += '\n[Note système: confiance faible — demande au client de confirmer le produit avant de poursuivre]';
+                    }
                   } else if (imageAnalysisResult.isProductImage) {
                     text = `[Le client a envoyé une image d'un produit non identifié dans notre catalogue. Description: ${imageAnalysisResult.description}]${imageCaption ? ' ' + imageCaption : ''}`;
                   } else {
@@ -1381,13 +1385,14 @@ router.post('/incoming', async (req, res) => {
           const userId = instanceDoc.userId;
           console.log(`💬 [RITA] Traitement pour userId=${userId}...`);
 
-          // ─── Détecter si c'est le boss qui répond à une escalade ───
+          // ─── Détecter si c'est le boss (escalade OU mode boss) ───
           {
             const ritaCfgEsc = await RitaConfig.findOne({ userId }).lean();
             const bossRaw = (ritaCfgEsc?.bossPhone || '').replace(/\D/g, '');
             const fromRaw  = from.replace(/@.*$/, '').replace(/\D/g, '');
-            if (bossRaw && fromRaw === bossRaw && ritaCfgEsc?.bossEscalationEnabled) {
-              const pending = shiftPendingEscalation(userId);
+            if (bossRaw && fromRaw === bossRaw) {
+              // D'abord vérifier s'il y a une escalade en attente
+              const pending = ritaCfgEsc?.bossEscalationEnabled ? shiftPendingEscalation(userId) : null;
               if (pending) {
                 console.log(`🤝 [BOSS] Réponse boss reçue → transmission au client ${pending.clientPhone}`);
                 const clientJid = `${pending.clientPhone}@s.whatsapp.net`;
@@ -1477,7 +1482,72 @@ router.post('/incoming', async (req, res) => {
                 console.log(`✅ [BOSS] Réponse transmise au client ${pending.clientPhone}`);
                 continue; // Ne pas traiter ce message comme une conversation client
               } else {
-                console.log(`ℹ️ [BOSS] Message du boss sans escalade en attente — traitement normal.`);
+                // ─── MODE BOSS : le boss envoie un message sans escalade en attente ───
+                console.log(`🧑‍💼 [BOSS-MODE] Message du boss détecté — activation mode boss`);
+                try {
+                  const bossReply = await processBossMessage(userId, from, text);
+                  if (bossReply) {
+                    console.log(`🧑‍💼 [BOSS-MODE] Réponse générée: "${bossReply.substring(0, 300)}"`);
+
+                    // Détecter si c'est une instruction d'exécution [BOSS_EXEC:...]
+                    const execMatch = bossReply.match(/\[BOSS_EXEC:([^\]]*)\]\s*/);
+                    if (execMatch) {
+                      // Mode Exécution : envoyer le message au client ciblé
+                      const execTarget = execMatch[1].trim();
+                      const messageForClient = bossReply.replace(/\[BOSS_EXEC:[^\]]*\]\s*/g, '').trim();
+                      console.log(`⚙️ [BOSS-EXEC] Instruction d'exécution détectée → cible: "${execTarget}"`);
+
+                      // Chercher le dernier client actif pour ce userId en cas de cible générique
+                      let targetPhone = null;
+                      if (/^\d{8,15}$/.test(execTarget.replace(/\D/g, ''))) {
+                        targetPhone = execTarget.replace(/\D/g, '');
+                      }
+
+                      if (targetPhone && messageForClient) {
+                        await sendMessageAndTrack(
+                          instanceDoc.instanceName,
+                          instanceDoc.instanceToken,
+                          targetPhone,
+                          messageForClient,
+                          2,
+                          1500
+                        );
+                        // Confirmer au boss
+                        const confirmMsg = `✅ Message envoyé au client ${targetPhone}`;
+                        await sendMessageAndTrack(
+                          instanceDoc.instanceName,
+                          instanceDoc.instanceToken,
+                          fromRaw,
+                          confirmMsg
+                        );
+                        logRitaActivity(userId, 'boss_exec', { customerPhone: targetPhone, details: `${messageForClient.substring(0, 200)}` });
+                      } else {
+                        // Pas de numéro clair — renvoyer la réponse au boss
+                        await sendMessageAndTrack(
+                          instanceDoc.instanceName,
+                          instanceDoc.instanceToken,
+                          fromRaw,
+                          bossReply
+                        );
+                        logRitaActivity(userId, 'boss_message', { customerPhone: fromRaw, details: `[Exec sans cible] ${bossReply.substring(0, 200)}` });
+                      }
+                    } else {
+                      // Mode Analyse / Conversation : renvoyer la réponse au boss
+                      await sendMessageAndTrack(
+                        instanceDoc.instanceName,
+                        instanceDoc.instanceToken,
+                        fromRaw,
+                        bossReply
+                      );
+                      logRitaActivity(userId, 'boss_message', { customerPhone: fromRaw, details: bossReply.substring(0, 200) });
+                    }
+                  } else {
+                    console.log(`ℹ️ [BOSS-MODE] Pas de réponse générée pour le boss`);
+                  }
+                } catch (bossErr) {
+                  console.error(`❌ [BOSS-MODE] Erreur traitement message boss:`, bossErr.message);
+                }
+                continue; // Ne pas traiter comme un message client
               }
             }
           }
@@ -1523,13 +1593,34 @@ router.post('/incoming', async (req, res) => {
           const cleanFrom = from.replace(/@.*$/, '');
 
           // ─── Détecter tag [ORDER_DATA:{...}] pour enregistrer la commande ───
-          const orderTagMatch = reply.match(/\[ORDER_DATA:(\{.+?\})\]/);
+          // Extraction robuste supportant le JSON imbriqué (ex: objets adresse)
+          function extractOrderDataTag(text) {
+            const startIdx = text.indexOf('[ORDER_DATA:');
+            if (startIdx === -1) return null;
+            let depth = 0;
+            let jsonStart = startIdx + 12; // longueur de '[ORDER_DATA:'
+            let jsonEnd = -1;
+            for (let i = jsonStart; i < text.length; i++) {
+              if (text[i] === '{') depth++;
+              if (text[i] === '}') {
+                depth--;
+                if (depth === 0) { jsonEnd = i + 1; break; }
+              }
+            }
+            if (jsonEnd === -1) return null;
+            const tagEnd = text[jsonEnd] === ']' ? jsonEnd + 1 : jsonEnd;
+            return {
+              json: text.substring(jsonStart, jsonEnd),
+              fullTag: text.substring(startIdx, tagEnd),
+            };
+          }
+          const orderTagExtracted = extractOrderDataTag(reply);
           let replyClean = reply;
 
-          if (orderTagMatch) {
-            replyClean = reply.replace(/\s*\[ORDER_DATA:\{.+?\}\]/, '').trim();
+          if (orderTagExtracted) {
+            replyClean = reply.replace(orderTagExtracted.fullTag, '').trim();
             try {
-              const orderData = JSON.parse(orderTagMatch[1]);
+              const orderData = JSON.parse(orderTagExtracted.json);
               console.log(`📦 [RITA] Commande détectée:`, JSON.stringify(orderData));
               await WhatsAppOrder.create({
                 userId,
@@ -1925,16 +2016,16 @@ router.post('/incoming', async (req, res) => {
                 cleanFrom,
                 part,
                 2,
-                partIdx === 0 ? responseDelayMs : 800
+                partIdx === 0 ? responseDelayMs : 1500
               );
               if (sendResult.success) {
                 console.log(`✅ [RITA] Réponse texte partie ${partIdx + 1}/${messageParts.length} envoyée`);
               } else {
                 console.error(`❌ [RITA] Échec envoi texte partie ${partIdx + 1}:`, sendResult.error);
               }
-              // Petit délai entre les parties pour garder l'ordre
+              // Délai entre les parties pour lisibilité sur WhatsApp
               if (partIdx < messageParts.length - 1) {
-                await new Promise(r => setTimeout(r, 600));
+                await new Promise(r => setTimeout(r, 1200));
               }
             }
             logRitaActivity(userId, 'message_replied', { customerPhone: cleanFrom, details: textToSend.substring(0, 200) });

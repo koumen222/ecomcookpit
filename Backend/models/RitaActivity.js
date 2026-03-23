@@ -4,7 +4,7 @@ const ritaActivitySchema = new mongoose.Schema({
   userId: { type: String, required: true, index: true },
   type: {
     type: String,
-    enum: ['message_received', 'message_replied', 'order_confirmed', 'vocal_transcribed', 'vocal_sent', 'image_sent', 'escalation'],
+    enum: ['message_received', 'message_replied', 'order_confirmed', 'vocal_transcribed', 'vocal_sent', 'image_sent', 'escalation', 'boss_message', 'boss_exec'],
     required: true
   },
   customerPhone: { type: String, default: '' },
