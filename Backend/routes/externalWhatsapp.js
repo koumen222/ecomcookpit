@@ -261,6 +261,27 @@ function extractContextInfo(message) {
   );
 }
 
+const INSTANCE_PLAN_LIMITS = {
+  free: { daily: 100, monthly: 5000 },
+  pro: { daily: 1000, monthly: 50000 },
+  plus: { daily: 5000, monthly: 200000 },
+};
+
+function normalizeInstancePlan(plan) {
+  const raw = String(plan || 'free').toLowerCase();
+  if (raw === 'premium') return 'pro';
+  if (raw === 'unlimited') return 'plus';
+  return INSTANCE_PLAN_LIMITS[raw] ? raw : 'free';
+}
+
+function resolveInstanceLimits(instance) {
+  const normalizedPlan = normalizeInstancePlan(instance.plan);
+  const defaults = INSTANCE_PLAN_LIMITS[normalizedPlan] || INSTANCE_PLAN_LIMITS.free;
+  const dailyLimit = Number.isFinite(instance.dailyLimit) && instance.dailyLimit > 0 ? instance.dailyLimit : defaults.daily;
+  const monthlyLimit = Number.isFinite(instance.monthlyLimit) && instance.monthlyLimit > 0 ? instance.monthlyLimit : defaults.monthly;
+  return { normalizedPlan, dailyLimit, monthlyLimit };
+}
+
 function extractPhoneFromJid(jid) {
   if (!jid || typeof jid !== 'string') return null;
 
@@ -2353,6 +2374,59 @@ router.get('/instances/:id/usage', async (req, res) => {
 });
 
 /**
+ * @route   PATCH /api/ecom/v1/external/whatsapp/instances/:id/plan
+ * @desc    Active un plan (free/pro/plus) pour une instance et applique les quotas associés
+ * @access  Private (ecom_admin / super_admin)
+ */
+router.patch('/instances/:id/plan', requireEcomAuth, async (req, res) => {
+  try {
+    const userId = req.ecomUser._id.toString();
+    const role = req.ecomUser?.role;
+    if (!['ecom_admin', 'super_admin'].includes(role)) {
+      return res.status(403).json({ success: false, error: 'Action non autorisée' });
+    }
+
+    const { plan } = req.body || {};
+    const normalizedPlan = normalizeInstancePlan(plan);
+    if (!INSTANCE_PLAN_LIMITS[normalizedPlan]) {
+      return res.status(400).json({ success: false, error: 'Plan invalide. Utilisez free, pro ou plus.' });
+    }
+
+    const instance = await WhatsAppInstance.findOne({ _id: req.params.id, userId, isActive: true });
+    if (!instance) {
+      return res.status(404).json({ success: false, error: 'Instance introuvable ou non autorisée' });
+    }
+
+    const limits = INSTANCE_PLAN_LIMITS[normalizedPlan];
+    instance.plan = normalizedPlan;
+    instance.dailyLimit = limits.daily;
+    instance.monthlyLimit = limits.monthly;
+
+    const limitExceeded = (instance.messagesSentToday || 0) >= limits.daily || (instance.messagesSentThisMonth || 0) >= limits.monthly;
+    instance.limitExceeded = limitExceeded;
+    instance.limitExceededAt = limitExceeded ? (instance.limitExceededAt || new Date()) : null;
+
+    await instance.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Plan ${normalizedPlan.toUpperCase()} activé`,
+      stats: {
+        plan: normalizedPlan,
+        messagesSentToday: instance.messagesSentToday || 0,
+        messagesSentThisMonth: instance.messagesSentThisMonth || 0,
+        dailyLimit: limits.daily,
+        monthlyLimit: limits.monthly,
+        limitExceeded: instance.limitExceeded || false,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Erreur changement plan instance:', error.message);
+    res.status(500).json({ success: false, error: error.message || 'Erreur serveur' });
+  }
+});
+
+/**
  * @route   POST /api/ecom/v1/external/whatsapp/test-boss-notification
  * @desc    Envoyer un message de test au numéro WhatsApp du boss
  */
@@ -2838,6 +2912,7 @@ router.get('/instances/:id/message-stats', requireEcomAuth, async (req, res) => 
     if (!instance) return res.status(404).json({ success: false, error: 'Instance introuvable' });
 
     const usage = await getInstanceUsage(instance._id);
+    const limits = resolveInstanceLimits(instance);
 
     // Récupérer le statut Evolution API
     const statusResult = await evolutionApiService.getInstanceStatus(instance.instanceName, instance.instanceToken);
@@ -2852,9 +2927,9 @@ router.get('/instances/:id/message-stats', requireEcomAuth, async (req, res) => 
       stats: {
         messagesSentToday: instance.messagesSentToday || 0,
         messagesSentThisMonth: instance.messagesSentThisMonth || 0,
-        dailyLimit: instance.dailyLimit || 50,
-        monthlyLimit: instance.monthlyLimit || 100,
-        plan: instance.plan || 'free',
+        dailyLimit: limits.dailyLimit,
+        monthlyLimit: limits.monthlyLimit,
+        plan: limits.normalizedPlan,
         limitExceeded: instance.limitExceeded || false,
         lastSeen: instance.lastSeen,
         createdAt: instance.createdAt,
@@ -2883,10 +2958,11 @@ router.get('/dashboard-stats', requireEcomAuth, async (req, res) => {
     let disconnected = 0;
 
     for (const inst of allInstances) {
+      const limits = resolveInstanceLimits(inst);
       totalSentToday += inst.messagesSentToday || 0;
       totalSentMonth += inst.messagesSentThisMonth || 0;
-      totalDailyLimit += inst.dailyLimit || 50;
-      totalMonthlyLimit += inst.monthlyLimit || 100;
+      totalDailyLimit += limits.dailyLimit;
+      totalMonthlyLimit += limits.monthlyLimit;
       if (inst.status === 'connected' || inst.status === 'active') connected++;
       else disconnected++;
     }
