@@ -332,6 +332,14 @@ export default function AgentConfig() {
   const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
   const userId = user._id || user.id;
   const canAccessRitaAgent = user?.role === 'super_admin' || (user?.role === 'ecom_admin' && user?.canAccessRitaAgent !== false);
+  const [ritaRequestForm, setRitaRequestForm] = useState({
+    contactName: user?.name || '',
+    phoneNumber: '',
+    businessName: '',
+    reason: ''
+  });
+  const [ritaRequestSubmitting, setRitaRequestSubmitting] = useState(false);
+  const [ritaRequestStatus, setRitaRequestStatus] = useState(null);
   const instanceOptions = instances.map((instance) => ({
     value: instance._id,
     label: `${instance.customName || instance.instanceName || 'Instance WhatsApp'} · ${getInstanceStatusLabel(instance.status)}`,
@@ -419,6 +427,25 @@ export default function AgentConfig() {
     if (savedConfig) {
       setConfig(prev => ({ ...prev, ...savedConfig }));
       setHasChanges(false);
+    }
+  };
+
+  const handleRitaAccessRequest = async (e) => {
+    e.preventDefault();
+    setRitaRequestSubmitting(true);
+    setRitaRequestStatus(null);
+    try {
+      const { data } = await ecomApi.post('/workspaces/rita-access-request', ritaRequestForm);
+      if (!data.success) {
+        setRitaRequestStatus({ type: 'error', message: data.message || 'Impossible d\'envoyer la demande.' });
+        return;
+      }
+      setRitaRequestStatus({ type: 'success', message: data.message || 'Demande envoyee avec succes.' });
+      setRitaRequestForm((prev) => ({ ...prev, reason: '' }));
+    } catch (err) {
+      setRitaRequestStatus({ type: 'error', message: err.response?.data?.message || 'Erreur serveur, reessayez.' });
+    } finally {
+      setRitaRequestSubmitting(false);
     }
   };
 
@@ -595,12 +622,59 @@ export default function AgentConfig() {
 
           <div className="p-6 space-y-5">
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
-              Contactez votre <span className="font-bold">Super Admin</span> pour activer Rita IA sur votre compte.
+              Rita n'est pas accessible a tous pour le moment. Pour une configuration, contactez le dev.
             </div>
 
-            <div className="text-center text-[12px] text-gray-400">
-              Une fois activé, vous pourrez configurer votre agent IA, personnaliser son identité, ses règles de vente et ses produits.
-            </div>
+            <form onSubmit={handleRitaAccessRequest} className="space-y-3 rounded-2xl border border-gray-200 p-4 bg-gray-50/70">
+              <p className="text-[12px] font-semibold text-gray-700">Formulaire de postulation</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <input
+                  type="text"
+                  value={ritaRequestForm.contactName}
+                  onChange={(e) => setRitaRequestForm((prev) => ({ ...prev, contactName: e.target.value }))}
+                  placeholder="Nom du contact"
+                  className="px-3 py-2 rounded-lg border border-gray-300 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  required
+                />
+                <input
+                  type="text"
+                  value={ritaRequestForm.phoneNumber}
+                  onChange={(e) => setRitaRequestForm((prev) => ({ ...prev, phoneNumber: e.target.value }))}
+                  placeholder="Numero WhatsApp"
+                  className="px-3 py-2 rounded-lg border border-gray-300 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  required
+                />
+              </div>
+              <input
+                type="text"
+                value={ritaRequestForm.businessName}
+                onChange={(e) => setRitaRequestForm((prev) => ({ ...prev, businessName: e.target.value }))}
+                placeholder="Nom de la boutique"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <textarea
+                value={ritaRequestForm.reason}
+                onChange={(e) => setRitaRequestForm((prev) => ({ ...prev, reason: e.target.value }))}
+                placeholder="Votre besoin de configuration Rita IA"
+                rows={3}
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                required
+              />
+
+              {ritaRequestStatus && (
+                <div className={`text-[12px] px-3 py-2 rounded-lg ${ritaRequestStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                  {ritaRequestStatus.message}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={ritaRequestSubmitting}
+                className="w-full sm:w-auto px-4 py-2 rounded-lg bg-emerald-600 text-white text-[13px] font-semibold hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {ritaRequestSubmitting ? 'Envoi en cours...' : 'Envoyer ma postulation'}
+              </button>
+            </form>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               <button
