@@ -226,6 +226,34 @@ router.put('/users/:id/toggle',
   }
 );
 
+// PUT /api/ecom/super-admin/users/:id/rita-toggle - Activer/désactiver Rita IA pour un utilisateur
+router.put('/users/:id/rita-toggle',
+  requireEcomAuth,
+  requireSuperAdmin,
+  async (req, res) => {
+    try {
+      const user = await EcomUser.findById(req.params.id);
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
+      }
+      if (user.role !== 'ecom_admin') {
+        return res.status(400).json({ success: false, message: 'Rita IA ne peut être activé que pour les admins' });
+      }
+      user.canAccessRitaAgent = !user.canAccessRitaAgent;
+      await user.save();
+      await logAudit(req, 'TOGGLE_RITA', `Rita IA ${user.canAccessRitaAgent ? 'activé' : 'désactivé'} pour ${user.email}`, 'user', user._id);
+      res.json({
+        success: true,
+        message: user.canAccessRitaAgent ? 'Rita IA activé' : 'Rita IA désactivé',
+        data: { id: user._id, email: user.email, canAccessRitaAgent: user.canAccessRitaAgent }
+      });
+    } catch (error) {
+      console.error('Erreur super-admin toggle rita:', error);
+      res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+  }
+);
+
 // DELETE /api/ecom/super-admin/users/:id - Supprimer un utilisateur
 router.delete('/users/:id',
   requireEcomAuth,
