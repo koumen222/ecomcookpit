@@ -133,7 +133,14 @@ import BoutiqueDeliveryZones from './pages/BoutiqueDeliveryZones.jsx';
 // PROTECTION DES ROUTES
 // ═══════════════════════════════════════════════════════════════
 
-const ProtectedRoute = ({ children, requiredRole }) => {
+const hasRitaAgentAccess = (user) => {
+  if (!user) return false;
+  if (user.role === 'super_admin') return true;
+  if (user.role !== 'ecom_admin') return false;
+  return user.canAccessRitaAgent !== false;
+};
+
+const ProtectedRoute = ({ children, requiredRole, requireRitaAgentAccess = false }) => {
   const { user, isAuthenticated } = useEcomAuth();
 
   const hasLocalSession = !!localStorage.getItem('ecomToken') && !!localStorage.getItem('ecomUser');
@@ -160,6 +167,10 @@ const ProtectedRoute = ({ children, requiredRole }) => {
       };
       return <Navigate to={roleDashboardMap[effectiveUser?.role] || '/ecom/login'} replace />;
     }
+  }
+
+  if (requireRitaAgentAccess && !hasRitaAgentAccess(effectiveUser)) {
+    return <Navigate to="/ecom/whatsapp/service" replace />;
   }
 
   return children;
@@ -211,8 +222,8 @@ const RootRedirect = () => {
   return <Navigate to={roleDashboardMap[effectiveUser?.role] || '/ecom/dashboard'} replace />;
 };
 
-const LayoutRoute = ({ children, requiredRole }) => (
-  <ProtectedRoute requiredRole={requiredRole}>
+const LayoutRoute = ({ children, requiredRole, requireRitaAgentAccess = false }) => (
+  <ProtectedRoute requiredRole={requiredRole} requireRitaAgentAccess={requireRitaAgentAccess}>
     <EcomLayout>
       {children}
     </EcomLayout>
@@ -365,8 +376,8 @@ const EcomApp = () => {
             <Route path="/ecom/developer" element={<LayoutRoute requiredRole={['ecom_admin']}><DeveloperSection /></LayoutRoute>} />
             <Route path="/ecom/whatsapp/connexion" element={<Navigate to="/ecom/whatsapp/service" replace />} />
             <Route path="/ecom/whatsapp/instances" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppInstancesList /></LayoutRoute>} />
-            <Route path="/ecom/rita-flows" element={<LayoutRoute requiredRole={['ecom_admin']}><RitaFlows /></LayoutRoute>} />
-            <Route path="/ecom/whatsapp/agent-config" element={<LayoutRoute requiredRole={['ecom_admin']}><AgentConfig /></LayoutRoute>} />
+            <Route path="/ecom/rita-flows" element={<LayoutRoute requiredRole={['ecom_admin']} requireRitaAgentAccess><RitaFlows /></LayoutRoute>} />
+            <Route path="/ecom/whatsapp/agent-config" element={<LayoutRoute requiredRole={['ecom_admin']} requireRitaAgentAccess><AgentConfig /></LayoutRoute>} />
 
             {/* Routes Intégrations */}
             <Route path="/ecom/integrations/shopify" element={<LayoutRoute requiredRole="ecom_admin"><ConnectShopify /></LayoutRoute>} />

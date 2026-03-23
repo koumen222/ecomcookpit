@@ -15,6 +15,7 @@ import { logRitaActivity } from '../services/ritaBossReportService.js';
 import { analyzeImage as analyzeProductImage } from '../services/agentImageService.js';
 import { processFlows } from '../services/ritaFlowEngine.js';
 import { uploadImage as uploadImageToR2, isConfigured as isR2Configured } from '../services/cloudflareImagesService.js';
+import { requireEcomAuth, requireRitaAgentAccess } from '../middleware/ecomAuth.js';
 import mongoose from 'mongoose';
 import fs from 'fs';
 
@@ -252,6 +253,14 @@ function extractContextInfo(message) {
 }
 
 const router = express.Router();
+
+function resolveRitaTargetUserId(req) {
+  if (req.ecomUser?.role === 'super_admin') {
+    return req.body?.userId || req.query?.userId || String(req.ecomUser._id);
+  }
+
+  return String(req.ecomUser?._id || '');
+}
 
 async function sendMessageAndTrack(instanceName, instanceToken, number, message, ...rest) {
   const result = await evolutionApiService.sendMessage(
@@ -2311,9 +2320,10 @@ router.post('/test-boss-notification', async (req, res) => {
  * @route   POST /api/ecom/v1/external/whatsapp/rita-config
  * @desc    Sauvegarder la configuration Rita IA d'un utilisateur
  */
-router.post('/rita-config', async (req, res) => {
+router.post('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
-    const { userId, config } = req.body;
+    const { config } = req.body;
+    const userId = resolveRitaTargetUserId(req);
     if (!userId || !config) return res.status(400).json({ success: false, error: 'userId et config requis' });
 
     const updated = await RitaConfig.findOneAndUpdate(
@@ -2333,9 +2343,9 @@ router.post('/rita-config', async (req, res) => {
  * @route   GET /api/ecom/v1/external/whatsapp/rita-config
  * @desc    Charger la configuration Rita IA d'un utilisateur
  */
-router.get('/rita-config', async (req, res) => {
+router.get('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
-    const { userId } = req.query;
+    const userId = resolveRitaTargetUserId(req);
     if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
 
     const config = await RitaConfig.findOne({ userId }).lean();
@@ -2350,9 +2360,10 @@ router.get('/rita-config', async (req, res) => {
  * @route   GET /api/ecom/v1/external/whatsapp/rita-activity
  * @desc    Récupérer l'activité Rita pour le dashboard (aujourd'hui + stats)
  */
-router.get('/rita-activity', async (req, res) => {
+router.get('/rita-activity', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
-    const { userId, days } = req.query;
+    const { days } = req.query;
+    const userId = resolveRitaTargetUserId(req);
     if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
 
     const RitaActivity = (await import('../models/RitaActivity.js')).default;
