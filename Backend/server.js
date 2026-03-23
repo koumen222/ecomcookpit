@@ -183,8 +183,8 @@ app.use((req, res, next) => {
 app.use(express.json({
   limit: '10mb',
   verify: (req, _res, buf) => {
-    // Capture raw body for webhook HMAC verification (Shopify, etc.)
-    if (req.url && req.url.startsWith('/api/webhooks/')) {
+    // Capture raw body for webhook HMAC verification (Shopify + generic orders)
+    if (req.url && (req.url.startsWith('/api/webhooks/') || req.url.startsWith('/webhook/orders/'))) {
       req.rawBody = buf;
     }
   }
