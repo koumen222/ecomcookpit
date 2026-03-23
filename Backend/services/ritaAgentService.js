@@ -545,8 +545,31 @@ function sanitizeReply(reply, config) {
 
   cleaned = cleaned.replace(signatureRegex, '').trim();
 
+  // ─── ANTI-MARKDOWN : Nettoyer le formatage WhatsApp-incompatible ───
+  // Supprimer les tableaux markdown (lignes avec |...|)
+  cleaned = cleaned.replace(/^\|.*\|$/gm, '').replace(/^\s*[-|:]+\s*$/gm, '');
+  // Supprimer les headers markdown (# ## ### etc.)
+  cleaned = cleaned.replace(/^#{1,6}\s+/gm, '');
+  // Convertir **bold** et __bold__ en texte simple (WhatsApp utilise *bold*)
+  cleaned = cleaned.replace(/\*\*(.+?)\*\*/g, '*$1*');
+  cleaned = cleaned.replace(/__(.+?)__/g, '$1');
+  // Supprimer les liens markdown [text](url) → garder le texte
+  cleaned = cleaned.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+  // Supprimer les code blocks ```...```
+  cleaned = cleaned.replace(/```[\s\S]*?```/g, '');
+  // Supprimer inline code `...`
+  cleaned = cleaned.replace(/`([^`]+)`/g, '$1');
+  // Convertir les "⁠  ⁠" (puces invisibles Unicode) en tirets simples
+  cleaned = cleaned.replace(/[⁠]+\s*/g, '');
+  // Remplacer €/EUR par FCFA (filet anti-EUR)
+  cleaned = cleaned.replace(/(\d[\d\s.,]*)\s*€/g, '$1 FCFA');
+  cleaned = cleaned.replace(/(\d[\d\s.,]*)\s*EUR\b/gi, '$1 FCFA');
+  // Supprimer les lignes vides multiples
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+  cleaned = cleaned.trim();
+
   // Ne PAS tronquer les messages structurés (récap commande, flow de vente, tags image, listes produits, tirets/puces)
-  const isStructured = /\[ORDER_DATA:|\[IMAGE:|\[VIDEO:|\[ASK_BOSS:|RÉCAP|récap|Confirmer|confirmer|📦|✅.*COMMANDE|\d+\.\s+\S|^\s*[-•–]\s/im.test(cleaned);
+  const isStructured = /\[ORDER_DATA:|\[IMAGE:|\[VIDEO:|\[ASK_BOSS:|\[TESTIMONIAL:|RÉCAP|récap|Confirmer|confirmer|📦|✅.*COMMANDE|\d+\.\s+\S|^\s*[-•–]\s/im.test(cleaned);
   if (!isStructured) {
     // Pour les messages conversationnels normaux, limiter à 8 phrases
     const sentenceChunks = cleaned.match(/(?:[^.!?\n]|\d\.)+[.!?]?/g);
@@ -588,6 +611,23 @@ Tu ne dois JAMAIS parler comme une IA.
 Tu dois sonner comme une vraie vendeuse au Cameroun: ${tone.desc}.
 ${tone.extra}
 ${usesVous ? '⚠️ RÈGLE ABSOLUE : Tu utilises TOUJOURS le VOUVOIEMENT ("vous", "votre", "vos"). JAMAIS de "tu", "ton", "ta", "tes". Chaque message doit respecter cette règle sans exception.' : '⚠️ Tu TUTOIES le client ("tu", "ton", "ta"). Style naturel et proche.'}
+
+## 🚨🚨🚨 RÈGLES ABSOLUES DE FORMATAGE (PRIORITÉ MAXIMALE) 🚨🚨🚨
+Tu écris sur WhatsApp — PAS dans un document. RESPECTE CES RÈGLES SANS EXCEPTION :
+
+1. ⛔ JAMAIS de tableaux (pas de |---|---|, pas de colonnes)
+2. ⛔ JAMAIS de markdown (pas de **, pas de ##, pas de [texte](lien), pas de \`code\`)
+3. ⛔ JAMAIS de listes à puces complexes (pas de •⁠, pas de tirets longs)
+4. ⛔ JAMAIS d'euros (€) ni "EUR" — la SEULE monnaie est FCFA
+5. ⛔ JAMAIS demander "mode de paiement" — c'est TOUJOURS paiement à la livraison
+6. ⛔ JAMAIS de "carte bancaire", "PayPal", "virement" — ça n'existe PAS ici
+7. ⛔ JAMAIS de messages de plus de 3-4 phrases (sauf récap commande)
+8. ⛔ JAMAIS de "frais de port" ou "livraison gratuite si..." — donne juste le prix de livraison si configuré
+9. ✅ Tu écris comme sur WhatsApp : court, direct, naturel, humain
+10. ✅ Les prix sont TOUJOURS en FCFA (ex: "15000 FCFA", "25000 FCFA")
+11. ✅ Le paiement est TOUJOURS à la livraison : "tu paies au livreur quand tu reçois"
+
+SI TU VIOLES CES RÈGLES = RÉPONSE REJETÉE. Respecte-les à 100%.
 ${isBilingual ? `
 ## 🌍 LANGUES — RÈGLE ABSOLUE
 Tu parles FRANÇAIS et ANGLAIS. Tu détectes automatiquement la langue du client :
@@ -1247,12 +1287,16 @@ Chaque message doit être une RÉPONSE directe au besoin exprimé par le client,
 Comprends d'abord, réponds ensuite. Jamais l'inverse.
 
 ## ❌ INTERDIT
-- Phrases longues
+- Phrases longues (max 3-4 phrases par message)
 - Ton robot / IA
 - Inventer des infos ou des produits qui ne sont pas dans ton catalogue
 - Mentionner des produits qui n'existent PAS dans ta liste
 - Faire des promesses fausses
 - Générer du code, HTML ou markdown
+- TABLEAUX MARKDOWN (|---|) = INTERDIT ABSOLU
+- EUROS (€) = INTERDIT → utilise FCFA
+- "carte bancaire", "PayPal", "virement" = INTERDIT → paiement à la livraison uniquement
+- "frais de port" = INTERDIT → dis juste le prix livraison si configuré
 - Dire que tu es une IA (sauf si le client le demande directement)
 - Signer les messages avec ton nom
 - Parler comme une publicité ou une fiche produit
@@ -1606,11 +1650,33 @@ Exemples :
   // ─── TÉMOIGNAGES CLIENTS ───
   if (config.testimonialsEnabled && config.testimonials?.length) {
     prompt += `\n\n## 🗣️ TÉMOIGNAGES CLIENTS — ARME DE PERSUASION
-Tu disposes de vrais témoignages de clients satisfaits. Utilise-les pour convaincre quand :\n- Le client hésite ou doute\n- Le client dit "c'est cher", "je ne suis pas sûr", "j'hésite"\n- Le client pose des questions sur la qualité ou l'efficacité\n- Le client ne répond plus et tu veux relancer\n\nVoici les témoignages disponibles :\n`;
-    for (const t of config.testimonials) {
-      prompt += `\n- ${t.clientName || 'Client'} : "${t.text}"${t.product ? ` (produit: ${t.product})` : ''}`;
+Tu disposes de vrais témoignages de clients satisfaits. Utilise-les pour convaincre quand :\n- Le client hésite ou doute\n- Le client dit "c'est cher", "je ne suis pas sûr", "j'hésite"\n- Le client pose des questions sur la qualité ou l'efficacité\n- Le client ne répond plus et tu veux relancer\n- Après avoir envoyé le prix et que le client ne répond plus\n\nVoici les témoignages disponibles :\n`;
+    for (let i = 0; i < config.testimonials.length; i++) {
+      const t = config.testimonials[i];
+      const hasMedia = (t.images?.length > 0) || (t.videos?.length > 0);
+      // Afficher les étoiles de rating
+      const stars = t.rating ? '⭐'.repeat(t.rating) : '⭐⭐⭐⭐⭐';
+      prompt += `\n- [Témoignage #${i}] ${t.clientName || 'Client'} ${stars}${t.text ? `: "${t.text}"` : ''}${t.productName ? ` (produit: ${t.productName})` : ''}${hasMedia ? ' 📸' : ''}`;
     }
-    prompt += `\n\nRègles :\n- Cite le témoignage naturellement, comme si tu racontais une anecdote\n- Exemple : "Une cliente m'a dit la semaine dernière : '[témoignage]' — elle était trop contente !"\n- NE copie PAS le témoignage mot pour mot comme un robot. Reformule-le naturellement.\n- Maximum 1 témoignage par message\n- Utilise le témoignage qui correspond au produit dont parle le client`;
+    prompt += `\n\nRègles :\n- Cite le témoignage naturellement, comme si tu racontais une anecdote\n- Exemple : "Une cliente m'a dit la semaine dernière : '[témoignage]' — elle était trop contente !"\n- NE copie PAS le témoignage mot pour mot comme un robot. Reformule-le naturellement.\n- Maximum 1 témoignage par message\n- Utilise le témoignage qui correspond au produit dont parle le client
+- Les témoignages peuvent être : texte seul, photos seules, ou combinés — adapte-toi au format disponible
+- Si pas de texte, utilise juste la photo/vidéo avec un bon hook (ex: "Regarde le résultat que notre cliente a eu 📸")`;
+    
+    // Instructions pour envoyer les médias de témoignage
+    const hasAnyMedia = config.testimonials.some(t => t.images?.length > 0 || t.videos?.length > 0);
+    if (hasAnyMedia) {
+      prompt += `\n\n📸 ENVOI DE PREUVES VISUELLES (TÉMOIGNAGES):
+Certains témoignages ont des photos ou vidéos de vrais clients satisfaits. Tu peux les envoyer pour convaincre !
+
+Pour envoyer la photo/vidéo d'un témoignage, ajoute le tag [TESTIMONIAL:numéro] à la FIN de ton message.
+Exemple : "Regarde ce que cette cliente nous a dit 😊 [TESTIMONIAL:0]"
+- Le numéro correspond au # du témoignage ci-dessus (commence à 0)
+- Utilise ça quand le client hésite, doute, ou ne répond plus après le prix
+- Maximum 1 témoignage média par message
+- Le tag envoie automatiquement l'image ou la vidéo du témoignage
+- NE combine PAS [TESTIMONIAL:] avec [IMAGE:] dans le même message
+- Si un témoignage a PLUSIEURS photos, seule la première s'envoie`;
+    }
   }
 
   // ─── INSTRUCTIONS VOCAL / TEXTE ───
@@ -1822,6 +1888,15 @@ ${!config.canCloseDeals ? "- Tu NE peux PAS confirmer une commande toi-même. Co
     prompt += `\n\n## 🔓 AUTONOMIE
 Tu es en mode AUTONOME : tu peux confirmer les commandes, envoyer des images et gérer la conversation sans demander au boss. Utilise [ASK_BOSS:...] uniquement pour les cas exceptionnels.`;
   }
+
+  // ─── RAPPEL FINAL (le modèle retient mieux les instructions en fin de prompt) ───
+  prompt += `\n\n## 🚨 RAPPEL FINAL — AVANT CHAQUE RÉPONSE
+VÉRIFIE que ton message respecte ces 5 règles :
+1. PAS de tableau markdown (|...|) — JAMAIS
+2. PAS d'euros (€) — FCFA uniquement  
+3. PAS de "carte bancaire"/"PayPal"/"virement" — paiement à la livraison
+4. MAX 3-4 phrases (sauf récap commande)
+5. Style WhatsApp naturel — comme une vraie personne, pas un document`;
 
   return prompt;
 }
