@@ -91,7 +91,9 @@ ecomApi.interceptors.request.use(
     const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
     const wsId = workspace?._id || workspace?.id;
 
-    if (wsId) {
+    const isSuperAdminEndpoint = typeof config.url === 'string' && config.url.includes('/super-admin');
+
+    if (wsId && !isSuperAdminEndpoint) {
       // Ajouter workspaceId aux params si c'est une requête GET
       if (config.method === 'get' && config.params) {
         config.params.workspaceId = wsId;

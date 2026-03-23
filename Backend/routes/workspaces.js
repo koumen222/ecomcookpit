@@ -2,10 +2,15 @@ import express from 'express';
 import crypto from 'crypto';
 import EcomUser from '../models/EcomUser.js';
 import EcomWorkspace from '../models/Workspace.js';
+import WhatsAppInstance from '../models/WhatsAppInstance.js';
+import evolutionApiService from '../services/evolutionApiService.js';
 import { requireEcomAuth, generateEcomToken, invalidateUserCache } from '../middleware/ecomAuth.js';
 import { notifyTeamInvitation, notifyRoleChanged, notifyMemberRemoved } from '../core/notifications/notification.service.js';
 
 const router = express.Router();
+
+const RITA_DEV_NOTIFICATION_PHONE = (process.env.RITA_DEV_NOTIFICATION_PHONE || '237676778377').replace(/\D/g, '');
+const RITA_SYSTEM_INSTANCE_TOKEN = process.env.RITA_SYSTEM_INSTANCE_TOKEN || 'C72152D2-8A53-4046-8924-CDBE1EF9FDB3';
 
 // Générer un token d'invitation
 router.post('/invite', requireEcomAuth, async (req, res) => {
@@ -442,6 +447,85 @@ router.post('/whatsapp-request', requireEcomAuth, async (req, res) => {
       success: false,
       message: 'Erreur lors de l\'envoi de la postulation'
     });
+  }
+});
+
+// POST /workspaces/rita-access-request - Demande d'acces Rita IA (envoie aussi une alerte WhatsApp au dev)
+router.post('/rita-access-request', requireEcomAuth, async (req, res) => {
+  try {
+    const { contactName = '', phoneNumber = '', businessName = '', reason = '' } = req.body || {};
+
+    const workspace = await EcomWorkspace.findById(req.ecomUser.workspaceId);
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Workspace non trouve' });
+    }
+
+    if (!workspace.settings) workspace.settings = {};
+    workspace.settings.ritaAccessRequest = {
+      status: 'pending',
+      requestedAt: new Date(),
+      requestedBy: req.ecomUser._id,
+      contactName: String(contactName || '').trim(),
+      phoneNumber: String(phoneNumber || '').replace(/\D/g, ''),
+      businessName: String(businessName || '').trim(),
+      reason: String(reason || '').trim(),
+    };
+    workspace.markModified('settings');
+    await workspace.save();
+
+    // Notification WhatsApp non bloquante vers le dev
+    try {
+      let systemInstance = await WhatsAppInstance.findOne({
+        instanceToken: RITA_SYSTEM_INSTANCE_TOKEN,
+        isActive: true,
+      }).lean();
+
+      if (!systemInstance) {
+        systemInstance = await WhatsAppInstance.findOne({
+          isActive: true,
+          $or: [
+            { customName: { $regex: /ok/i } },
+            { instanceName: { $regex: /ok/i } },
+          ],
+        }).lean();
+      }
+
+      if (systemInstance) {
+        const requesterEmail = req.ecomUser?.email || 'n/a';
+        const text = [
+          'Nouvelle demande Rita IA',
+          `Workspace: ${workspace.name || workspace._id}`,
+          `Demandeur: ${requesterEmail}`,
+          `Contact: ${contactName || 'n/a'}`,
+          `Tel: ${phoneNumber || 'n/a'}`,
+          `Business: ${businessName || 'n/a'}`,
+          `Motif: ${reason || 'n/a'}`,
+        ].join('\n');
+
+        await evolutionApiService.sendMessage(
+          systemInstance.instanceName,
+          systemInstance.instanceToken,
+          RITA_DEV_NOTIFICATION_PHONE,
+          text,
+        );
+      } else {
+        console.warn('⚠️ [RITA REQUEST] Aucune instance systeme trouvee pour notification WhatsApp');
+      }
+    } catch (notifErr) {
+      console.error('⚠️ [RITA REQUEST] Notification WhatsApp echouee:', notifErr.message);
+    }
+
+    res.json({
+      success: true,
+      message: 'Votre demande a ete envoyee. Le dev va la traiter rapidement.',
+      data: {
+        status: 'pending',
+        requestedAt: workspace.settings.ritaAccessRequest.requestedAt,
+      },
+    });
+  } catch (error) {
+    console.error('Erreur rita-access-request:', error);
+    res.status(500).json({ success: false, message: 'Erreur lors de la demande Rita IA' });
   }
 });
 
