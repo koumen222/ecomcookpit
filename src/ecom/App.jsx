@@ -377,7 +377,7 @@ const EcomApp = () => {
             <Route path="/ecom/whatsapp/connexion" element={<Navigate to="/ecom/whatsapp/service" replace />} />
             <Route path="/ecom/whatsapp/instances" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppInstancesList /></LayoutRoute>} />
             <Route path="/ecom/rita-flows" element={<LayoutRoute requiredRole={['ecom_admin']} requireRitaAgentAccess><RitaFlows /></LayoutRoute>} />
-            <Route path="/ecom/whatsapp/agent-config" element={<LayoutRoute requiredRole={['ecom_admin']} requireRitaAgentAccess><AgentConfig /></LayoutRoute>} />
+            <Route path="/ecom/whatsapp/agent-config" element={<LayoutRoute requiredRole={['ecom_admin']}><AgentConfig /></LayoutRoute>} />
 
             {/* Routes Intégrations */}
             <Route path="/ecom/integrations/shopify" element={<LayoutRoute requiredRole="ecom_admin"><ConnectShopify /></LayoutRoute>} />

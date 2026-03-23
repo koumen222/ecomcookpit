@@ -59,6 +59,7 @@ const WhatsAppService = () => {
   // ─── Stats ───
   const [messageStats, setMessageStats] = useState({});
   const [dashboardStats, setDashboardStats] = useState(null);
+  const [planUpdatingByInstance, setPlanUpdatingByInstance] = useState({});
 
   const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
   const userId = user._id || user.id;
@@ -85,6 +86,23 @@ const WhatsAppService = () => {
   };
   const loadMessageStats = async (instanceId) => {
     try { const { data } = await ecomApi.get(`/v1/external/whatsapp/instances/${instanceId}/message-stats`); if (data.success) setMessageStats(prev => ({ ...prev, [instanceId]: data.stats })); } catch {}
+  };
+
+  const changeInstancePlan = async (instanceId, plan) => {
+    setPlanUpdatingByInstance(prev => ({ ...prev, [instanceId]: true }));
+    try {
+      const { data } = await ecomApi.patch(`/v1/external/whatsapp/instances/${instanceId}/plan`, { plan });
+      if (data.success) {
+        setMessageStats(prev => ({ ...prev, [instanceId]: { ...(prev[instanceId] || {}), ...(data.stats || {}) } }));
+        await loadDashboardStats();
+      } else {
+        setError(data.error || 'Erreur changement de plan');
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || 'Erreur serveur');
+    } finally {
+      setPlanUpdatingByInstance(prev => ({ ...prev, [instanceId]: false }));
+    }
   };
 
   const refreshAllStatuses = async () => {
@@ -618,12 +636,38 @@ const WhatsAppService = () => {
                               Quotas
                             </span>
                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                              stats.plan === 'unlimited' ? 'bg-purple-100 text-purple-700' :
-                              stats.plan === 'premium' ? 'bg-amber-100 text-amber-700' :
+                              stats.plan === 'plus' ? 'bg-purple-100 text-purple-700' :
+                              stats.plan === 'pro' ? 'bg-amber-100 text-amber-700' :
                               'bg-gray-200 text-gray-600'
                             }`}>
-                              {stats.plan === 'free' ? 'Gratuit' : stats.plan === 'premium' ? 'Premium' : 'Illimité'}
+                              {stats.plan === 'free' ? 'Gratuit' : stats.plan === 'pro' ? 'Pro' : 'Plus'}
                             </span>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {[
+                              { id: 'free', label: 'Free' },
+                              { id: 'pro', label: 'Pro' },
+                              { id: 'plus', label: 'Plus' },
+                            ].map((p) => {
+                              const isCurrent = stats.plan === p.id;
+                              const isLoadingPlan = !!planUpdatingByInstance[inst._id];
+                              return (
+                                <button
+                                  key={p.id}
+                                  type="button"
+                                  disabled={isLoadingPlan || isCurrent}
+                                  onClick={() => changeInstancePlan(inst._id, p.id)}
+                                  className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase transition-colors ${
+                                    isCurrent
+                                      ? 'bg-emerald-600 text-white'
+                                      : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                                  } disabled:opacity-60`}
+                                >
+                                  {isLoadingPlan && !isCurrent ? '...' : p.label}
+                                </button>
+                              );
+                            })}
                           </div>
 
                           {/* Daily */}

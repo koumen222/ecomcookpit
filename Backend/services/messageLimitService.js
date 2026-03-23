@@ -2,8 +2,52 @@ import WhatsAppInstance from '../models/WhatsAppInstance.js';
 
 /**
  * Service de gestion des limites de messages WhatsApp
- * Plan gratuit: 50 messages/jour, 100 messages/mois
+ * Plan gratuit: 100 messages/jour, 5000 messages/mois
  */
+
+const PLAN_LIMITS = {
+  free: { daily: 100, monthly: 5000 },
+  pro: { daily: 1000, monthly: 50000 },
+  plus: { daily: 5000, monthly: 200000 },
+};
+
+const LEGACY_PLAN_MAP = {
+  premium: 'pro',
+  unlimited: 'plus',
+};
+
+function normalizePlan(plan) {
+  const rawPlan = String(plan || 'free').toLowerCase();
+  return LEGACY_PLAN_MAP[rawPlan] || (PLAN_LIMITS[rawPlan] ? rawPlan : 'free');
+}
+
+function getPlanLimits(plan) {
+  const normalized = normalizePlan(plan);
+  return PLAN_LIMITS[normalized] || PLAN_LIMITS.free;
+}
+
+function ensureInstancePlanAndLimits(instance) {
+  const normalizedPlan = normalizePlan(instance.plan);
+  const expected = getPlanLimits(normalizedPlan);
+
+  const invalidLimits = !Number.isFinite(instance.dailyLimit) || instance.dailyLimit <= 0 || !Number.isFinite(instance.monthlyLimit) || instance.monthlyLimit <= 0;
+  const legacyFreeLimits = normalizedPlan === 'free' && (instance.dailyLimit === 50 || instance.monthlyLimit === 100);
+
+  if (instance.plan !== normalizedPlan) {
+    instance.plan = normalizedPlan;
+  }
+
+  if (invalidLimits || legacyFreeLimits) {
+    instance.dailyLimit = expected.daily;
+    instance.monthlyLimit = expected.monthly;
+  }
+
+  return {
+    plan: normalizedPlan,
+    dailyLimit: instance.dailyLimit,
+    monthlyLimit: instance.monthlyLimit,
+  };
+}
 
 /**
  * Réinitialise les compteurs quotidiens si nécessaire
@@ -53,36 +97,33 @@ export async function checkMessageLimit(instance) {
   // Réinitialiser les compteurs si nécessaire
   await resetDailyCountersIfNeeded(instance);
   await resetMonthlyCountersIfNeeded(instance);
+
+  const normalized = ensureInstancePlanAndLimits(instance);
   
   const usage = {
-    plan: instance.plan || 'free',
+    plan: normalized.plan,
     dailyUsed: instance.messagesSentToday || 0,
-    dailyLimit: instance.dailyLimit || 50,
+    dailyLimit: normalized.dailyLimit,
     monthlyUsed: instance.messagesSentThisMonth || 0,
-    monthlyLimit: instance.monthlyLimit || 100,
-    dailyRemaining: Math.max(0, (instance.dailyLimit || 50) - (instance.messagesSentToday || 0)),
-    monthlyRemaining: Math.max(0, (instance.monthlyLimit || 100) - (instance.messagesSentThisMonth || 0))
+    monthlyLimit: normalized.monthlyLimit,
+    dailyRemaining: Math.max(0, normalized.dailyLimit - (instance.messagesSentToday || 0)),
+    monthlyRemaining: Math.max(0, normalized.monthlyLimit - (instance.messagesSentThisMonth || 0))
   };
   
-  // Plan illimité
-  if (instance.plan === 'unlimited') {
-    return { allowed: true, reason: 'Plan illimité', usage };
-  }
-  
   // Vérifier limite quotidienne
-  if (instance.messagesSentToday >= instance.dailyLimit) {
+  if (instance.messagesSentToday >= normalized.dailyLimit) {
     return {
       allowed: false,
-      reason: `Limite quotidienne atteinte (${instance.dailyLimit} messages/jour). Passez au plan Premium pour continuer.`,
+      reason: `Limite quotidienne atteinte (${normalized.dailyLimit} messages/jour). Passez au plan Pro ou Plus pour continuer.`,
       usage
     };
   }
   
   // Vérifier limite mensuelle
-  if (instance.messagesSentThisMonth >= instance.monthlyLimit) {
+  if (instance.messagesSentThisMonth >= normalized.monthlyLimit) {
     return {
       allowed: false,
-      reason: `Limite mensuelle atteinte (${instance.monthlyLimit} messages/mois). Passez au plan Premium pour continuer.`,
+      reason: `Limite mensuelle atteinte (${normalized.monthlyLimit} messages/mois). Passez au plan Pro ou Plus pour continuer.`,
       usage
     };
   }
@@ -106,24 +147,26 @@ export async function incrementMessageCount(instanceId, count = 1) {
     // Réinitialiser les compteurs si nécessaire
     await resetDailyCountersIfNeeded(instance);
     await resetMonthlyCountersIfNeeded(instance);
+    const normalized = ensureInstancePlanAndLimits(instance);
     
     // Incrémenter les compteurs
     instance.messagesSentToday = (instance.messagesSentToday || 0) + count;
     instance.messagesSentThisMonth = (instance.messagesSentThisMonth || 0) + count;
     
     // Vérifier si les limites sont dépassées
-    if (instance.plan === 'free') {
-      if (instance.messagesSentToday >= instance.dailyLimit || 
-          instance.messagesSentThisMonth >= instance.monthlyLimit) {
-        instance.limitExceeded = true;
-        instance.limitExceededAt = new Date();
-        console.warn(`⚠️ [LIMIT] Instance "${instance.customName || instance.instanceName}" a atteint sa limite`);
-      }
+    if (instance.messagesSentToday >= normalized.dailyLimit || 
+        instance.messagesSentThisMonth >= normalized.monthlyLimit) {
+      instance.limitExceeded = true;
+      instance.limitExceededAt = new Date();
+      console.warn(`⚠️ [LIMIT] Instance "${instance.customName || instance.instanceName}" a atteint sa limite`);
+    } else {
+      instance.limitExceeded = false;
+      instance.limitExceededAt = null;
     }
     
     await instance.save();
     
-    console.log(`📊 [LIMIT] Instance "${instance.customName || instance.instanceName}": ${instance.messagesSentToday}/${instance.dailyLimit} aujourd'hui, ${instance.messagesSentThisMonth}/${instance.monthlyLimit} ce mois`);
+    console.log(`📊 [LIMIT] Instance "${instance.customName || instance.instanceName}": ${instance.messagesSentToday}/${normalized.dailyLimit} aujourd'hui, ${instance.messagesSentThisMonth}/${normalized.monthlyLimit} ce mois`);
   } catch (error) {
     console.error(`❌ [LIMIT] Erreur lors de l'incrémentation:`, error.message);
   }
@@ -144,16 +187,17 @@ export async function getInstanceUsage(instanceId) {
     // Réinitialiser les compteurs si nécessaire
     await resetDailyCountersIfNeeded(instance);
     await resetMonthlyCountersIfNeeded(instance);
+    const normalized = ensureInstancePlanAndLimits(instance);
     await instance.save();
     
     return {
-      plan: instance.plan || 'free',
+      plan: normalized.plan,
       dailyUsed: instance.messagesSentToday || 0,
-      dailyLimit: instance.dailyLimit || 50,
-      dailyRemaining: Math.max(0, (instance.dailyLimit || 50) - (instance.messagesSentToday || 0)),
+      dailyLimit: normalized.dailyLimit,
+      dailyRemaining: Math.max(0, normalized.dailyLimit - (instance.messagesSentToday || 0)),
       monthlyUsed: instance.messagesSentThisMonth || 0,
-      monthlyLimit: instance.monthlyLimit || 100,
-      monthlyRemaining: Math.max(0, (instance.monthlyLimit || 100) - (instance.messagesSentThisMonth || 0)),
+      monthlyLimit: normalized.monthlyLimit,
+      monthlyRemaining: Math.max(0, normalized.monthlyLimit - (instance.messagesSentThisMonth || 0)),
       limitExceeded: instance.limitExceeded || false,
       limitExceededAt: instance.limitExceededAt,
       lastDailyReset: instance.lastDailyReset,
