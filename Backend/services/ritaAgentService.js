@@ -2071,8 +2071,13 @@ export async function processBossMessage(userId, from, text) {
 export async function processIncomingMessage(userId, from, text) {
   // Charger la config Rita
   const config = await RitaConfig.findOne({ userId }).lean();
-  if (!config || !config.enabled) {
-    return null; // Rita désactivée pour cet utilisateur
+  if (!config) {
+    console.warn(`⚠️ [RITA] Aucune config trouvée pour userId=${userId}`);
+    return null;
+  }
+  if (!config.enabled) {
+    console.warn(`⚠️ [RITA] Rita désactivée (enabled=false) pour userId=${userId}`);
+    return null;
   }
 
   // Clé unique par (userId, numéro expéditeur)
@@ -2107,10 +2112,17 @@ export async function processIncomingMessage(userId, from, text) {
   } catch (_) { /* ignore */ }
 
   const activeConversation = buildActiveConversationContext(config, history, text);
-  const systemPrompt = buildSystemPrompt(config, {
-    contact,
-    activeConversation,
-  });
+  let systemPrompt;
+  try {
+    systemPrompt = buildSystemPrompt(config, { contact, activeConversation });
+  } catch (promptErr) {
+    console.error(`❌ [RITA] Erreur buildSystemPrompt pour userId=${userId}:`, promptErr.message);
+    return config.fallbackMessage || null;
+  }
+
+  const promptLen = systemPrompt.length;
+  const approxTokens = Math.round(promptLen / 4);
+  console.log(`🤖 [RITA] Appel Groq — userId=${userId} from=${from} promptLen=${promptLen} (~${approxTokens} tokens) historyLen=${history.length}`);
 
   try {
     const completion = await groq.chat.completions.create({
@@ -2125,7 +2137,10 @@ export async function processIncomingMessage(userId, from, text) {
       reasoning_effort: 'medium',
     });
 
-    const reply = sanitizeReply(completion.choices[0]?.message?.content?.trim(), config);
+    const rawContent = completion.choices[0]?.message?.content?.trim();
+    console.log(`🤖 [RITA] Réponse brute Groq (${rawContent?.length || 0} chars): "${(rawContent || '').substring(0, 200)}"`);
+    const reply = sanitizeReply(rawContent, config);
+    console.log(`🤖 [RITA] Réponse sanitizée (${reply?.length || 0} chars): "${(reply || '').substring(0, 200)}"`);
     if (reply) {
       // Ajouter la réponse de l'agent à l'historique
       history.push({ role: 'assistant', content: reply });
@@ -2138,7 +2153,8 @@ export async function processIncomingMessage(userId, from, text) {
     }
     return reply || null;
   } catch (error) {
-    console.error('❌ [RITA] Erreur Groq:', error.message);
+    console.error(`❌ [RITA] Erreur Groq client — userId=${userId}:`, error.message);
+    console.error(`❌ [RITA] Status: ${error.status} | Code: ${error.error?.code} | Type: ${error.error?.type}`);
     return config.fallbackMessage || null;
   }
 }
