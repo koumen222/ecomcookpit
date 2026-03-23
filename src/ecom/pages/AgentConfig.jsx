@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye } from 'lucide-react';
+import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye, Star, Trash2, Plus, Image, Video, X } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 
 const ACCENT = '#0F6B4F';
@@ -13,6 +13,7 @@ const TABS = [
   { id: 'products', label: 'Produits', icon: Package },
   { id: 'stock', label: 'Stock', icon: Warehouse },
   { id: 'admin-profile', label: 'Profil Admin', icon: UserCog },
+  { id: 'testimonials', label: 'Témoignages', icon: Star },
   { id: 'admin-pilotage', label: 'Pilotage', icon: Headphones },
   { id: 'analytics', label: 'Analytiques', icon: BarChart3 },
 ];
@@ -325,6 +326,9 @@ export default function AgentConfig() {
     executionNeverCopy: true,
     // Auto-amélioration
     autoImproveEnabled: true,
+    // Témoignages
+    testimonialsEnabled: false,
+    testimonials: [],
   });
 
   const [savedConfig, setSavedConfig] = useState(null);
@@ -360,11 +364,23 @@ export default function AgentConfig() {
           ecomApi.get(`/v1/external/whatsapp/instances?userId=${userId}`),
         ]);
         if (configRes.data.success && configRes.data.config) {
-          setConfig(prev => ({ ...prev, ...configRes.data.config }));
-          setSavedConfig(configRes.data.config);
+          let loadedConfig = configRes.data.config;
+          
+          // Migration: Converter 'product' -> 'productName' et ajouter 'rating' par défaut
+          if (loadedConfig.testimonials?.length) {
+            loadedConfig.testimonials = loadedConfig.testimonials.map(t => ({
+              ...t,
+              productName: t.productName || t.product || '', // Migration
+              rating: t.rating || 5, // Ajouter rating par défaut
+              // Supprimer l'ancien champ après migration
+            }));
+          }
+          
+          setConfig(prev => ({ ...prev, ...loadedConfig }));
+          setSavedConfig(loadedConfig);
           setSimMessages([{
             role: 'agent',
-            text: configRes.data.config.welcomeMessage || "Bonjour ! Comment puis-je vous aider ?",
+            text: loadedConfig.welcomeMessage || "Bonjour ! Comment puis-je vous aider ?",
             time: '14:30',
           }]);
         }
@@ -531,6 +547,56 @@ export default function AgentConfig() {
 
   const removeProductMedia = (productIndex, field, mediaIndex) => {
     updateProductMediaList(productIndex, field, existing => existing.filter((_, index) => index !== mediaIndex));
+  };
+
+  // ─── Testimonial management ───
+  const [testimonialUploading, setTestimonialUploading] = useState({});
+
+  const addTestimonial = () => {
+    set('testimonials', [...(config.testimonials || []), { clientName: '', text: '', productName: '', images: [], videos: [], rating: 5 }]);
+  };
+
+  const updateTestimonial = (idx, field, value) => {
+    const updated = [...(config.testimonials || [])];
+    updated[idx] = { ...updated[idx], [field]: value };
+    set('testimonials', updated);
+  };
+
+  const removeTestimonial = (idx) => {
+    set('testimonials', (config.testimonials || []).filter((_, i) => i !== idx));
+  };
+
+  const handleTestimonialMediaUpload = async (idx, field, files) => {
+    const selectedFiles = Array.from(files || []);
+    if (!selectedFiles.length) return;
+    setTestimonialUploading(prev => ({ ...prev, [`${idx}:${field}`]: true }));
+    try {
+      const uploadedUrls = [];
+      for (const file of selectedFiles) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const { data } = await ecomApi.post('/media/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        const mediaUrl = data?.mediaUrl || data?.url;
+        if (data?.success && mediaUrl) uploadedUrls.push(mediaUrl);
+      }
+      if (uploadedUrls.length) {
+        const updated = [...(config.testimonials || [])];
+        updated[idx] = { ...updated[idx], [field]: [...(updated[idx]?.[field] || []), ...uploadedUrls] };
+        set('testimonials', updated);
+      }
+    } catch (error) {
+      alert(`Erreur upload: ${error.response?.data?.message || error.message}`);
+    } finally {
+      setTestimonialUploading(prev => ({ ...prev, [`${idx}:${field}`]: false }));
+    }
+  };
+
+  const removeTestimonialMedia = (idx, field, mediaIdx) => {
+    const updated = [...(config.testimonials || [])];
+    updated[idx] = { ...updated[idx], [field]: (updated[idx]?.[field] || []).filter((_, i) => i !== mediaIdx) };
+    set('testimonials', updated);
   };
 
   const addProductQuantityOffer = (productIndex) => {
@@ -2112,6 +2178,166 @@ export default function AgentConfig() {
                   Les infos business enrichissent ses réponses clients et renforcent la crédibilité.
                 </p>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── TAB: TÉMOIGNAGES ─── */}
+        {activeTab === 'testimonials' && (
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+                      <Star className="w-4 h-4 text-amber-600" />
+                    </span>
+                    Témoignages Clients
+                  </h2>
+                  <p className="text-[12px] text-gray-400 mt-1">
+                    Rita utilisera ces témoignages pour convaincre les clients hésitants. 
+                    Ajoutez des photos/vidéos pour plus d'impact.
+                  </p>
+                </div>
+                <Toggle enabled={config.testimonialsEnabled} onChange={v => set('testimonialsEnabled', v)} label="Activer" />
+              </div>
+
+              {config.testimonialsEnabled && (
+                <div className="p-6 space-y-4">
+                  <p className="text-[12px] text-gray-500 bg-amber-50 border border-amber-100 rounded-xl p-3">
+                    💡 Quand un client hésite ou ne répond plus après le prix, Rita enverra automatiquement un témoignage pertinent avec sa photo/vidéo pour rassurer et convaincre.
+                  </p>
+
+                  {(config.testimonials || []).map((t, idx) => {
+                    const selectedProduct = (config.productCatalog || []).find(p => p.name === t.productName);
+                    return (
+                      <div key={idx} className="bg-gray-50 rounded-xl border border-gray-200 p-4 space-y-3">
+                        <div className="flex items-start justify-between">
+                          <span className="text-[12px] font-bold text-gray-500">Témoignage #{idx + 1}</span>
+                          <button onClick={() => removeTestimonial(idx)}
+                            className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Product Selection */}
+                        <div>
+                          <label className="text-[12px] font-semibold text-gray-600 mb-2 block">
+                            🎯 Produit (sélection directe du catalogue)
+                          </label>
+                          <select value={t.productName || ''} onChange={e => updateTestimonial(idx, 'productName', e.target.value)}
+                            className="w-full ac-input">
+                            <option value="">-- Choisir un produit --</option>
+                            {(config.productCatalog || []).map(p => (
+                              <option key={p.name} value={p.name}>
+                                {p.name} {p.price ? `• ${p.price}` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Product Preview */}
+                        {selectedProduct && (
+                          <div className="bg-white rounded-lg border border-emerald-200 p-3 flex gap-3">
+                            {selectedProduct.images?.[0] && (
+                              <img src={selectedProduct.images[0]} alt="" className="w-20 h-20 rounded-lg object-cover" />
+                            )}
+                            <div className="flex-1 text-[11px]">
+                              <p className="font-bold text-gray-900">{selectedProduct.name}</p>
+                              {selectedProduct.price && <p className="text-emerald-600 font-semibold">{selectedProduct.price}</p>}
+                              {selectedProduct.description && <p className="text-gray-500 line-clamp-2 mt-1">{selectedProduct.description}</p>}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Client & Rating */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <Field label="Nom du client">
+                            <input value={t.clientName || ''} onChange={e => updateTestimonial(idx, 'clientName', e.target.value)}
+                              placeholder="ex: Marie D." className="ac-input" />
+                          </Field>
+                          <Field label="Note (1-5 étoiles)">
+                            <select value={t.rating || 5} onChange={e => updateTestimonial(idx, 'rating', parseInt(e.target.value))}
+                              className="ac-input">
+                              {[1, 2, 3, 4, 5].map(n => (
+                                <option key={n} value={n}>{n} {'⭐'.repeat(n)}</option>
+                              ))}
+                            </select>
+                          </Field>
+                        </div>
+
+                        {/* Flexible Content */}
+                        <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-[11px] text-amber-700">
+                          💡 <strong>Flexible:</strong> Vous pouvez avoir du texte seul, des images seules, ou une combinaison. 
+                          Tous les champs sont optionnels.
+                        </div>
+
+                        {/* Text */}
+                        <Field label="Texte du témoignage (optionnel)">
+                          <textarea value={t.text || ''} onChange={e => updateTestimonial(idx, 'text', e.target.value)}
+                            placeholder="ex: J'ai essayé ce produit et en 2 semaines ma peau a vraiment changé ! Je recommande fortement..."
+                            rows={2} className="ac-input text-[13px]" />
+                        </Field>
+
+                        {/* Images */}
+                        <div>
+                          <label className="text-[12px] font-semibold text-gray-600 mb-1 block flex items-center gap-1">
+                            <Image className="w-3.5 h-3.5" /> Photos du témoignage (optionnel)
+                          </label>
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {(t.images || []).map((url, imgIdx) => (
+                              <div key={imgIdx} className="relative group w-16 h-16 rounded-lg overflow-hidden border border-gray-200">
+                                <img src={url} alt="" className="w-full h-full object-cover" />
+                                <button onClick={() => removeTestimonialMedia(idx, 'images', imgIdx)}
+                                  className="absolute top-0 right-0 bg-red-500 text-white p-0.5 rounded-bl-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg cursor-pointer hover:bg-emerald-100 transition-colors">
+                            <input type="file" accept="image/*" multiple className="hidden"
+                              onChange={async (e) => { await handleTestimonialMediaUpload(idx, 'images', e.target.files); e.target.value = ''; }} />
+                            <Plus className="w-3 h-3" /> Ajouter photos
+                          </label>
+                          {testimonialUploading[`${idx}:images`] && <span className="text-[11px] text-emerald-600 ml-2">Upload en cours...</span>}
+                        </div>
+
+                        {/* Videos */}
+                        <div>
+                          <label className="text-[12px] font-semibold text-gray-600 mb-1 block flex items-center gap-1">
+                            <Video className="w-3.5 h-3.5" /> Vidéos du témoignage (optionnel)
+                          </label>
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {(t.videos || []).map((url, vidIdx) => (
+                              <div key={vidIdx} className="relative group flex items-center gap-2 px-2 py-1.5 bg-gray-100 border border-gray-200 rounded-lg text-[11px]">
+                                <Video className="w-3.5 h-3.5 text-gray-500" />
+                                <span className="text-gray-600 max-w-[120px] truncate">{url.split('/').pop()}</span>
+                                <button onClick={() => removeTestimonialMedia(idx, 'videos', vidIdx)}
+                                  className="text-red-400 hover:text-red-600 transition-colors">
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors">
+                            <input type="file" accept="video/*" multiple className="hidden"
+                              onChange={async (e) => { await handleTestimonialMediaUpload(idx, 'videos', e.target.files); e.target.value = ''; }} />
+                            <Plus className="w-3 h-3" /> Ajouter vidéos
+                          </label>
+                          {testimonialUploading[`${idx}:videos`] && <span className="text-[11px] text-blue-600 ml-2">Upload en cours...</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <button onClick={addTestimonial}
+                    className="w-full py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-[13px] font-semibold text-gray-500 hover:border-emerald-400 hover:text-emerald-600 hover:bg-emerald-50/30 transition-all flex items-center justify-center gap-2">
+                    <Plus className="w-4 h-4" /> Ajouter un témoignage
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

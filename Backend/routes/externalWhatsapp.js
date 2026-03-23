@@ -2059,6 +2059,34 @@ router.post('/incoming', async (req, res) => {
             }
           }
 
+          // ─── Détecter tag [TESTIMONIAL:index] pour envoi de médias témoignage ───
+          const testimonialTagMatch = replyClean.match(/\[TESTIMONIAL:(\d+)\]/);
+          let testimonialMediaUrl = null;
+          let testimonialMediaType = null; // 'image' ou 'video'
+          if (testimonialTagMatch && !imageTagMatch && !imagesAllTagMatch && !videoTagMatch) {
+            const tIdx = parseInt(testimonialTagMatch[1], 10);
+            textToSend = textToSend.replace(/\s*\[TESTIMONIAL:\d+\]/g, '').trim();
+            console.log(`🗣️ [RITA] Tag TESTIMONIAL détecté, index: ${tIdx}`);
+
+            const ritaCfgT = await RitaConfig.findOne({ userId }).lean();
+            const testimonial = ritaCfgT?.testimonials?.[tIdx];
+            if (testimonial) {
+              if (testimonial.videos?.length) {
+                testimonialMediaUrl = testimonial.videos[0];
+                testimonialMediaType = 'video';
+              } else if (testimonial.images?.length) {
+                testimonialMediaUrl = testimonial.images[0];
+                testimonialMediaType = 'image';
+              }
+              if (testimonialMediaUrl && testimonialMediaUrl.startsWith('/')) {
+                testimonialMediaUrl = `https://api.scalor.net${testimonialMediaUrl}`;
+              }
+              console.log(`🗣️ [RITA] Témoignage #${tIdx} média: ${testimonialMediaType || 'aucun'} → ${testimonialMediaUrl || 'N/A'}`);
+            } else {
+              console.log(`🗣️ [RITA] Témoignage #${tIdx} non trouvé`);
+            }
+          }
+
           // ─── Déterminer le mode de réponse ───
           const ritaCfgVoice = await RitaConfig.findOne({ userId }).lean();
           // Utiliser la clé API de la config Rita OU celle du .env en fallback
@@ -2334,6 +2362,45 @@ router.post('/incoming', async (req, res) => {
               console.error(`❌ [RITA] Échec envoi vidéo à ${cleanFrom}:`, videoResult.error);
             }
           }
+
+          // ─── Envoi média de témoignage si détecté ───
+          if (testimonialMediaUrl) {
+            console.log(`🗣️ [RITA] Envoi média témoignage (${testimonialMediaType}) à ${cleanFrom}...`);
+            await new Promise(r => setTimeout(r, 1000));
+            if (testimonialMediaType === 'video') {
+              const tResult = await evolutionApiService.sendVideo(
+                instanceDoc.instanceName,
+                instanceDoc.instanceToken,
+                cleanFrom,
+                testimonialMediaUrl,
+                '',
+                'testimonial.mp4'
+              );
+              if (tResult.success) {
+                console.log(`✅ [RITA] Vidéo témoignage envoyée à ${cleanFrom}`);
+                logRitaActivity(userId, 'testimonial_video_sent', { customerPhone: cleanFrom });
+              } else {
+                console.error(`❌ [RITA] Échec envoi vidéo témoignage:`, tResult.error);
+              }
+            } else {
+              const tExt = (testimonialMediaUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
+              const tResult = await evolutionApiService.sendMedia(
+                instanceDoc.instanceName,
+                instanceDoc.instanceToken,
+                cleanFrom,
+                testimonialMediaUrl,
+                '',
+                `testimonial.${tExt}`
+              );
+              if (tResult.success) {
+                console.log(`✅ [RITA] Image témoignage envoyée à ${cleanFrom}`);
+                logRitaActivity(userId, 'testimonial_image_sent', { customerPhone: cleanFrom });
+              } else {
+                console.error(`❌ [RITA] Échec envoi image témoignage:`, tResult.error);
+              }
+            }
+          }
+
           // ─── Déclencher les flows sur message_received ───
           try {
             await processFlows(userId, 'message_received', { text: text || '', phone: cleanFrom, pushName });

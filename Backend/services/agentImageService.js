@@ -1,14 +1,14 @@
-import OpenAI from 'openai';
+import Groq from 'groq-sdk';
 import StoreProduct from '../models/StoreProduct.js';
 import ProductConfig from '../models/ProductConfig.js';
 
-let openai = null;
+let groq = null;
 
-const initOpenAI = () => {
-  if (!openai && process.env.OPENAI_API_KEY) {
-    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const initGroq = () => {
+  if (!groq && process.env.GROQ_API_KEY) {
+    groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
   }
-  return openai;
+  return groq;
 };
 
 /**
@@ -21,8 +21,8 @@ const initOpenAI = () => {
  * @returns {Promise<Object>}  - { description, matchedProduct, confidence, isProductImage }
  */
 const analyzeImage = async (base64Image, mimetype, workspaceId) => {
-  initOpenAI();
-  if (!openai) throw new Error('OpenAI non configuré – OPENAI_API_KEY manquante');
+  initGroq();
+  if (!groq) throw new Error('Groq non configuré – GROQ_API_KEY manquante');
 
   // 1. Récupérer le catalogue produits du workspace
   const [storeProducts, productConfigs] = await Promise.all([
@@ -39,8 +39,8 @@ const analyzeImage = async (base64Image, mimetype, workspaceId) => {
   // 2. Appeler GPT-4o Vision pour analyser l'image
   const startTime = Date.now();
 
-  const completion = await openai.chat.completions.create({
-    model: process.env.AGENT_VISION_MODEL || 'gpt-4o',
+  const completion = await groq.chat.completions.create({
+    model: process.env.AGENT_VISION_MODEL || 'llama-4-scout-17b-16e-instruct',
     messages: [
       {
         role: 'system',

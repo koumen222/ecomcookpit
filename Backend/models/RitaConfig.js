@@ -35,8 +35,11 @@ const ritaConfigSchema = new mongoose.Schema({
   testimonialsEnabled: { type: Boolean, default: false },
   testimonials: [{
     clientName: { type: String, default: '' },
-    text: { type: String, default: '' },
-    product: { type: String, default: '' },
+    text: { type: String, default: '' }, // Optionnel
+    productName: { type: String, default: '' }, // Nom du produit du catalogue sélectionné
+    images: [String], // Optionnel
+    videos: [String], // Optionnel
+    rating: { type: Number, default: 5, min: 1, max: 5 }, // Note du témoignage (1-5 étoiles)
   }],
 
   // Base de connaissances
