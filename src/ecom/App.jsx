@@ -100,6 +100,7 @@ import WhatsAppService from './pages/WhatsAppService.jsx';
 import DeveloperSection from './pages/DeveloperSection.jsx';
 import WhatsAppInstancesList from './pages/WhatsAppInstancesList.jsx';
 import RitaFlows from './pages/RitaFlows.jsx';
+import AgentConfig from './pages/AgentConfig.jsx';
 import ConnectShopify from './pages/ConnectShopify.jsx';
 import ProviderService from './pages/ProviderService.jsx';
 
@@ -365,6 +366,7 @@ const EcomApp = () => {
             <Route path="/ecom/whatsapp/connexion" element={<Navigate to="/ecom/whatsapp/service" replace />} />
             <Route path="/ecom/whatsapp/instances" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppInstancesList /></LayoutRoute>} />
             <Route path="/ecom/rita-flows" element={<LayoutRoute requiredRole={['ecom_admin']}><RitaFlows /></LayoutRoute>} />
+            <Route path="/ecom/whatsapp/agent-config" element={<LayoutRoute requiredRole={['ecom_admin']}><AgentConfig /></LayoutRoute>} />
 
             {/* Routes Intégrations */}
             <Route path="/ecom/integrations/shopify" element={<LayoutRoute requiredRole="ecom_admin"><ConnectShopify /></LayoutRoute>} />

@@ -45,6 +45,7 @@ const agentMessageSchema = new mongoose.Schema({
       'question',           // Client pose une question
       'objection',          // Client a une objection
       'cancellation',       // Client veut annuler
+      'reseller',           // Client est revendeur / achat en gros
       'greeting',           // Salutation
       'thanks',             // Remerciement
       'unclear',            // Intention pas claire

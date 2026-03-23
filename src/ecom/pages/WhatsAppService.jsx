@@ -5,7 +5,7 @@ import {
   Eye, EyeOff, X, Globe, MessageSquare, Package,
   QrCode, BarChart3, Wifi, WifiOff, Settings,
 } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import ecomApi from '../services/ecommApi.js';
 
 const ACCENT = '#0F6B4F';
@@ -21,6 +21,7 @@ const WEBHOOK_EVENTS = [
 ];
 
 const WhatsAppService = () => {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'instances';
   const ritaPanel = searchParams.get('ritaPanel') || '';
@@ -65,6 +66,10 @@ const WhatsAppService = () => {
   useEffect(() => { loadInstances(); loadOrderCount(); loadDashboardStats(); }, []);
   useEffect(() => { instances.forEach(inst => loadMessageStats(inst._id)); }, [instances.length]);
   useEffect(() => { return () => { if (qrIntervalRef.current) clearInterval(qrIntervalRef.current); }; }, []);
+  useEffect(() => {
+    // Legacy links with ?tab=rita now point to the dedicated IA page.
+    if (activeTab === 'rita') navigate('/ecom/whatsapp/agent-config', { replace: true });
+  }, [activeTab, navigate]);
 
   // ═══ Data loaders ═══
   const loadOrderCount = async () => {
@@ -240,7 +245,6 @@ const WhatsAppService = () => {
 
   const TABS = [
     { id: 'instances', label: 'Instances', icon: Smartphone, count: instances.length },
-    { id: 'rita',      label: 'Rita IA',   icon: Bot },
     { id: 'orders',   label: 'Commandes',  icon: Package, count: orderCount || undefined },
   ];
 
@@ -299,26 +303,13 @@ const WhatsAppService = () => {
         </nav>
 
         <div className="flex items-center gap-2 pb-2 sm:pb-2">
-          {[
-            { id: 'notifications', label: 'Notifications', emoji: '🔔' },
-            { id: 'rapport', label: 'Rapport', emoji: '📊' },
-          ].map(item => {
-            const active = activeTab === 'rita' && ritaPanel === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setTab('rita', { ritaPanel: item.id })}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all whitespace-nowrap ${
-                  active
-                    ? 'bg-gray-900 text-white shadow-sm'
-                    : 'text-gray-500 bg-gray-50 hover:bg-gray-100 hover:text-gray-700'
-                }`}
-              >
-                <span className="text-[13px] leading-none">{item.emoji}</span>
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
+          <button
+            onClick={() => navigate('/ecom/whatsapp/agent-config')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all whitespace-nowrap text-gray-500 bg-gray-50 hover:bg-gray-100 hover:text-gray-700"
+          >
+            <Bot className="w-3.5 h-3.5" />
+            <span>Configurer Rita IA</span>
+          </button>
         </div>
       </div>
 
@@ -786,15 +777,6 @@ const WhatsAppService = () => {
             </div>
           )}
         </div>
-      )}
-
-      {/* Tab: Rita IA */}
-      {activeTab === 'rita' && (
-        <RitaIATab
-          instances={instances}
-          externalPanel={ritaPanel || null}
-          onExternalPanelChange={(panel) => setTab('rita', { ritaPanel: panel || '' })}
-        />
       )}
 
       {/* Tab: Commandes */}

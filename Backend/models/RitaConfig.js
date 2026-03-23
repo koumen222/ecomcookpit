@@ -162,6 +162,49 @@ const ritaConfigSchema = new mongoose.Schema({
   dailySummary: { type: Boolean, default: true },
   dailySummaryTime: { type: String, default: '20:00' },
 
+  // 👤 Profil Administrateur
+  adminName: { type: String, default: '' },
+  adminEmail: { type: String, default: '' },
+  businessName: { type: String, default: '' },
+  businessCity: { type: String, default: '' },
+  businessDescription: { type: String, default: '' },
+
+  // 🎭 3 Modes de fonctionnement
+  modeClientEnabled: { type: Boolean, default: true },
+  modeBossEnabled: { type: Boolean, default: true },
+  modeExecutionEnabled: { type: Boolean, default: true },
+
+  // 📌 Règles de vente intelligente
+  salesLogic: { type: String, default: 'understand_respond_value_question' },
+  neverForceSale: { type: Boolean, default: true },
+  alwaysAnswerFirst: { type: Boolean, default: true },
+  noSpam: { type: Boolean, default: true },
+  naturalConversation: { type: Boolean, default: true },
+
+  // 🔍 Détection & Analyse Client
+  detectClientType: { type: Boolean, default: true },
+  detectInterestLevel: { type: Boolean, default: true },
+
+  // 🔥 Cas spéciaux
+  specialCases: [{
+    trigger: { type: String, required: true },
+    label: { type: String, default: '' },
+    reaction: { type: String, default: '' },
+    enabled: { type: Boolean, default: true },
+  }],
+
+  // 🧑‍💼 Mode Boss (Analyse)
+  bossAnalyzeConversations: { type: Boolean, default: true },
+  bossExplainErrors: { type: Boolean, default: true },
+  bossSuggestImprovements: { type: Boolean, default: true },
+
+  // ⚙️ Mode Exécution Boss
+  executionAdaptMessage: { type: Boolean, default: true },
+  executionNeverCopy: { type: Boolean, default: true },
+
+  // 🔁 Auto-amélioration
+  autoImproveEnabled: { type: Boolean, default: true },
+
   // 📦 Gestion de stock par ville
   stockManagementEnabled: { type: Boolean, default: false },
   stockEntries: [{
