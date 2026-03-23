@@ -876,11 +876,11 @@ const WhatsAppService = () => {
         }
         .rita-select-dropdown {
           position: absolute;
-          z-index: 50;
+          z-index: 130;
           top: calc(100% + 4px);
           left: 0;
           right: 0;
-          max-height: 260px;
+          max-height: 300px;
           overflow-y: auto;
           background: white;
           border: 1px solid rgba(0,0,0,0.06);
@@ -889,8 +889,15 @@ const WhatsAppService = () => {
           padding: 4px;
           animation: ritaDropIn .18s cubic-bezier(.2,0,0,1);
         }
+        .rita-select-dropdown-up {
+          animation: ritaDropInUp .18s cubic-bezier(.2,0,0,1);
+        }
         @keyframes ritaDropIn {
           from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes ritaDropInUp {
+          from { opacity: 0; transform: translateY(6px) scale(0.97); }
           to   { opacity: 1; transform: translateY(0) scale(1); }
         }
         .rita-select-option {
@@ -972,9 +979,25 @@ const ToggleRow = ({ enabled, onChange, label, desc }) => (
 const CustomSelect = ({ value, onChange, options, placeholder = 'Sélectionner...' }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [focused, setFocused] = useState(-1);
+  const [openUpward, setOpenUpward] = useState(false);
+  const [menuMaxHeight, setMenuMaxHeight] = useState(300);
   const ref = React.useRef(null);
   const listRef = React.useRef(null);
   const selected = options.find(o => o.value === value);
+
+  const updateMenuPlacement = () => {
+    if (!ref.current || typeof window === 'undefined') return;
+
+    const rect = ref.current.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.bottom - 16;
+    const spaceAbove = rect.top - 16;
+    const shouldOpenUpward = spaceBelow < 220 && spaceAbove > spaceBelow;
+    const availableSpace = shouldOpenUpward ? spaceAbove : spaceBelow;
+
+    setOpenUpward(shouldOpenUpward);
+    setMenuMaxHeight(Math.max(160, Math.min(340, availableSpace)));
+  };
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -1004,9 +1027,27 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Sélectionner..
     }
   }, [focused, isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    updateMenuPlacement();
+    const handleViewportChange = () => updateMenuPlacement();
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('scroll', handleViewportChange, true);
+
+    return () => {
+      window.removeEventListener('resize', handleViewportChange);
+      window.removeEventListener('scroll', handleViewportChange, true);
+    };
+  }, [isOpen]);
+
   return (
-    <div ref={ref} className="relative" onKeyDown={handleKeyDown}>
-      <button type="button" onClick={() => { setIsOpen(!isOpen); setFocused(options.findIndex(o => o.value === value)); }}
+    <div ref={ref} className={isOpen ? 'relative z-[120]' : 'relative z-10'} onKeyDown={handleKeyDown}>
+      <button type="button" onClick={() => {
+        if (!isOpen) updateMenuPlacement();
+        setIsOpen(!isOpen);
+        setFocused(options.findIndex(o => o.value === value));
+      }}
         className={`rita-select-trigger ${isOpen ? 'rita-select-open' : ''}`}
         role="combobox" aria-expanded={isOpen} aria-haspopup="listbox">
         <span className="flex items-center gap-2 flex-1 min-w-0 truncate">
@@ -1017,7 +1058,16 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Sélectionner..
         </svg>
       </button>
       {isOpen && (
-        <div className="rita-select-dropdown" role="listbox" ref={listRef}>
+        <div
+          className={`rita-select-dropdown ${openUpward ? 'rita-select-dropdown-up' : ''}`}
+          role="listbox"
+          ref={listRef}
+          style={{
+            maxHeight: `${menuMaxHeight}px`,
+            top: openUpward ? 'auto' : 'calc(100% + 4px)',
+            bottom: openUpward ? 'calc(100% + 4px)' : 'auto',
+          }}
+        >
           {options.map((opt, i) => (
             <div key={opt.value} role="option" aria-selected={opt.value === value}
               className={`rita-select-option ${opt.value === value ? 'rita-select-option-active' : ''} ${focused === i ? 'rita-select-option-focused' : ''}`}
@@ -1191,7 +1241,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
     useEmojis: true,
     signMessages: false,
     responseDelay: 2,
-    welcomeMessage: "Bonjour ma chérie 👋 Tu cherches quel produit exactement ?",
+    welcomeMessage: "Bonjour 👌 quel produit vous intéresse ?",
     fallbackMessage: 'Je transfère votre demande à un de nos conseillers. Il vous contactera dans les plus brefs délais.',
     autonomyLevel: 3,
     canCloseDeals: false,
@@ -1911,7 +1961,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
       )}
 
       {/* ═══════════ MAIN LAYOUT: NAV + CONTENT (ALWAYS VISIBLE) ═══════════ */}
-      <div className="bg-white border border-gray-200/80 rounded-2xl overflow-hidden shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)]">
+      <div className="bg-white border border-gray-200/80 rounded-2xl overflow-visible shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)]">
 
         {/* ── Section Navigation (pill tabs, always visible) ── */}
         <div className="px-3 py-2.5 border-b border-gray-100 bg-gray-50/30">
@@ -1973,12 +2023,13 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                       value={config.toneStyle}
                       onChange={v => set('toneStyle', v)}
                       options={[
-                        { value: 'warm', label: '😊 Chaleureux et Proche (tutoiement)' },
-                        { value: 'professional', label: '💼 Professionnel et Sérieux (tutoiement)' },
-                        { value: 'casual', label: '😎 Décontracté et Moderne (tutoiement)' },
-                        { value: 'persuasive', label: '🎯 Persuasif et Direct (tutoiement)' },
-                        { value: 'formal', label: '🤝 Formel et Respectueux (vouvoiement)' },
-                        { value: 'luxury', label: '✨ Premium et Exclusif (vouvoiement)' },
+                        { value: 'warm', label: '🤗 Tutoiement chaleureux' },
+                        { value: 'professional', label: '💼 Tutoiement professionnel' },
+                        { value: 'casual', label: '😎 Tutoiement décontracté' },
+                        { value: 'formal', label: '🤝 Vouvoiement respectueux' },
+                        { value: 'luxury', label: '✨ Vouvoiement premium' },
+                        { value: 'humorous', label: '😄 Humoristique légère' },
+                        { value: 'persuasive', label: '🎯 Persuasif et direct' },
                       ]}
                     />
                   </Field>

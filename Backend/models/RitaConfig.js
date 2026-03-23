@@ -15,7 +15,7 @@ const ritaConfigSchema = new mongoose.Schema({
   useEmojis: { type: Boolean, default: true },
   signMessages: { type: Boolean, default: false },
   responseDelay: { type: Number, default: 2 },
-  welcomeMessage: { type: String, default: '' },
+  welcomeMessage: { type: String, default: 'Bonjour 👌 quel produit vous intéresse ?' },
   fallbackMessage: { type: String, default: '' },
 
   // Intelligence & Autonomie
