@@ -89,7 +89,6 @@ function resolveWebhookBaseUrl(req) {
   return `${proto}://${host}`.replace(/\/$/, '');
 }
 import { checkMessageLimit, incrementMessageCount, getInstanceUsage } from '../services/messageLimitService.js';
-import { requireEcomAuth } from '../middleware/ecomAuth.js';
 
 /**
  * Découpe un message long en plusieurs parties pour WhatsApp.
@@ -828,20 +827,32 @@ router.post('/send', async (req, res) => {
  * @desc    Lister les instances WhatsApp d'un utilisateur
  * @access  Public (Sécurisé par userId)
  */
-router.get('/instances', async (req, res) => {
+router.get('/instances', requireEcomAuth, async (req, res) => {
   try {
-    const { userId } = req.query;
+    const requester = req.ecomUser;
+    const requestedUserId = req.query.userId ? String(req.query.userId) : String(requester._id);
+    const isSuperAdmin = requester.role === 'super_admin';
 
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        error: "userId est requis"
-      });
+    // Non super-admin users must stay in their own workspace scope.
+    const effectiveUserId = isSuperAdmin ? requestedUserId : String(requester._id);
+
+    let query = { userId: effectiveUserId, isActive: true };
+
+    if (!isSuperAdmin && requester.workspaceId) {
+      const workspaceMembers = await EcomUser.find({ workspaceId: requester.workspaceId }).select('_id').lean();
+      const workspaceUserIds = workspaceMembers.map((u) => String(u._id));
+      query = {
+        isActive: true,
+        $or: [
+          { workspaceId: requester.workspaceId },
+          { userId: { $in: workspaceUserIds } },
+        ],
+      };
     }
 
-    const instances = await WhatsAppInstance.find({ userId, isActive: true });
-    
-    console.log(`📋 [INSTANCES] Trouvé ${instances.length} instance(s) pour userId: ${userId}`);
+    const instances = await WhatsAppInstance.find(query);
+
+    console.log(`📋 [INSTANCES] Trouvé ${instances.length} instance(s) pour scope: ${isSuperAdmin ? `userId=${effectiveUserId}` : `workspaceId=${requester.workspaceId || 'N/A'}`}`);
     instances.forEach(inst => {
       console.log(`   - ${inst.instanceName} | status: ${inst.status} | workspaceId: ${inst.workspaceId || 'N/A'}`);
     });
@@ -899,18 +910,28 @@ router.get('/instances/all', async (req, res) => {
  * @desc    Rafraîchir le statut des instances via Evolution API
  * @access  Public (Sécurisé par userId)
  */
-router.post('/refresh-status', async (req, res) => {
+router.post('/refresh-status', requireEcomAuth, async (req, res) => {
   try {
-    const { userId } = req.body;
+    const requester = req.ecomUser;
+    const requestedUserId = req.body?.userId ? String(req.body.userId) : String(requester._id);
+    const isSuperAdmin = requester.role === 'super_admin';
+    const effectiveUserId = isSuperAdmin ? requestedUserId : String(requester._id);
 
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        error: "userId est requis"
-      });
+    let query = { userId: effectiveUserId, isActive: true };
+
+    if (!isSuperAdmin && requester.workspaceId) {
+      const workspaceMembers = await EcomUser.find({ workspaceId: requester.workspaceId }).select('_id').lean();
+      const workspaceUserIds = workspaceMembers.map((u) => String(u._id));
+      query = {
+        isActive: true,
+        $or: [
+          { workspaceId: requester.workspaceId },
+          { userId: { $in: workspaceUserIds } },
+        ],
+      };
     }
 
-    const instances = await WhatsAppInstance.find({ userId, isActive: true });
+    const instances = await WhatsAppInstance.find(query);
 
     const updated = await Promise.all(instances.map(async (inst) => {
       try {

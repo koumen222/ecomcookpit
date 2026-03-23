@@ -59,7 +59,6 @@ const WhatsAppService = () => {
   // ─── Stats ───
   const [messageStats, setMessageStats] = useState({});
   const [dashboardStats, setDashboardStats] = useState(null);
-  const [planUpdatingByInstance, setPlanUpdatingByInstance] = useState({});
 
   const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
   const userId = user._id || user.id;
@@ -79,30 +78,13 @@ const WhatsAppService = () => {
   };
   const loadInstances = async () => {
     try { setLoading(true); setError(''); const { data } = await ecomApi.get(`/v1/external/whatsapp/instances?userId=${userId}`); setInstances(data.success ? data.instances || [] : []); }
-    catch { setInstances([]); } finally { setLoading(false); }
+    catch (err) { setInstances([]); setError(err.response?.data?.error || 'Impossible de charger les instances'); } finally { setLoading(false); }
   };
   const loadDashboardStats = async () => {
     try { const { data } = await ecomApi.get('/v1/external/whatsapp/dashboard-stats'); if (data.success) setDashboardStats(data.stats); } catch {}
   };
   const loadMessageStats = async (instanceId) => {
     try { const { data } = await ecomApi.get(`/v1/external/whatsapp/instances/${instanceId}/message-stats`); if (data.success) setMessageStats(prev => ({ ...prev, [instanceId]: data.stats })); } catch {}
-  };
-
-  const changeInstancePlan = async (instanceId, plan) => {
-    setPlanUpdatingByInstance(prev => ({ ...prev, [instanceId]: true }));
-    try {
-      const { data } = await ecomApi.patch(`/v1/external/whatsapp/instances/${instanceId}/plan`, { plan });
-      if (data.success) {
-        setMessageStats(prev => ({ ...prev, [instanceId]: { ...(prev[instanceId] || {}), ...(data.stats || {}) } }));
-        await loadDashboardStats();
-      } else {
-        setError(data.error || 'Erreur changement de plan');
-      }
-    } catch (err) {
-      setError(err.response?.data?.error || err.message || 'Erreur serveur');
-    } finally {
-      setPlanUpdatingByInstance(prev => ({ ...prev, [instanceId]: false }));
-    }
   };
 
   const refreshAllStatuses = async () => {
@@ -644,32 +626,6 @@ const WhatsAppService = () => {
                             </span>
                           </div>
 
-                          <div className="grid grid-cols-3 gap-1.5">
-                            {[
-                              { id: 'free', label: 'Free' },
-                              { id: 'pro', label: 'Pro' },
-                              { id: 'plus', label: 'Plus' },
-                            ].map((p) => {
-                              const isCurrent = stats.plan === p.id;
-                              const isLoadingPlan = !!planUpdatingByInstance[inst._id];
-                              return (
-                                <button
-                                  key={p.id}
-                                  type="button"
-                                  disabled={isLoadingPlan || isCurrent}
-                                  onClick={() => changeInstancePlan(inst._id, p.id)}
-                                  className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase transition-colors ${
-                                    isCurrent
-                                      ? 'bg-emerald-600 text-white'
-                                      : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-                                  } disabled:opacity-60`}
-                                >
-                                  {isLoadingPlan && !isCurrent ? '...' : p.label}
-                                </button>
-                              );
-                            })}
-                          </div>
-
                           {/* Daily */}
                           <div className="space-y-1">
                             <div className="flex items-center justify-between text-[11px]">
@@ -699,9 +655,33 @@ const WhatsAppService = () => {
                           </div>
 
                           {stats.limitExceeded && (
-                            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-red-50 border border-red-100 rounded-lg">
-                              <AlertCircle className="w-3 h-3 text-red-500 flex-shrink-0" />
-                              <p className="text-[10px] text-red-700 font-medium">Limite de messages atteinte</p>
+                            <div className="space-y-2 px-2.5 py-2 bg-red-50 border border-red-100 rounded-lg">
+                              <div className="flex items-center gap-1.5">
+                                <AlertCircle className="w-3 h-3 text-red-500 flex-shrink-0" />
+                                <p className="text-[10px] text-red-700 font-medium">Limite de messages atteinte</p>
+                              </div>
+                              <p className="text-[10px] text-red-700">Ce quota est lié au compte Rita. Passez à une offre supérieure pour continuer.</p>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5">
+                                  <p className="text-[9px] font-bold uppercase text-amber-700">Pro</p>
+                                  <p className="text-[10px] text-amber-700">1 000/jour · 50 000/mois</p>
+                                </div>
+                                <div className="rounded-md border border-violet-200 bg-violet-50 px-2 py-1.5">
+                                  <p className="text-[9px] font-bold uppercase text-violet-700">Plus</p>
+                                  <p className="text-[10px] text-violet-700">5 000/jour · 200 000/mois</p>
+                                </div>
+                              </div>
+                              {canAccessRitaAgent ? (
+                                <button
+                                  type="button"
+                                  onClick={() => navigate('/ecom/whatsapp/agent-config')}
+                                  className="w-full text-[10px] font-semibold px-2 py-1.5 rounded-md bg-white border border-red-200 text-red-700 hover:bg-red-100 transition-colors"
+                                >
+                                  Voir les offres Rita
+                                </button>
+                              ) : (
+                                <p className="text-[10px] text-red-700">Demandez au Super Admin d'activer une offre Pro ou Plus.</p>
+                              )}
                             </div>
                           )}
                         </div>
