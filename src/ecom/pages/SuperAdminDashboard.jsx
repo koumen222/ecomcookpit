@@ -340,7 +340,6 @@ const SuperAdminDashboard = () => {
             { to: '/ecom/super-admin/activity', label: 'Activite', icon: Clock },
             { to: '/ecom/super-admin/push', label: 'Push', icon: Bell },
             { to: '/ecom/super-admin/whatsapp-postulations', label: 'WhatsApp', icon: MessageSquare },
-            { to: '/ecom/whatsapp/instances', label: 'Instances', icon: Smartphone },
             { to: '/ecom/super-admin/whatsapp-logs', label: 'WA Logs', icon: FileText },
             { to: '/ecom/super-admin/settings', label: 'Config', icon: Settings },
           ].map(({ to, label, icon: NavIcon }) => {

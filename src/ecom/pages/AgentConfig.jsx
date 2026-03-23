@@ -585,51 +585,30 @@ export default function AgentConfig() {
   if (!canAccessRitaAgent) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center px-4">
-        <div className="w-full max-w-3xl bg-white border border-gray-200 rounded-3xl shadow-sm overflow-hidden">
+        <div className="w-full max-w-xl bg-white border border-gray-200 rounded-3xl shadow-sm overflow-hidden">
           <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-emerald-50 to-teal-50">
             <h1 className="text-[20px] font-extrabold text-gray-900">Rita IA</h1>
             <p className="text-[13px] text-gray-600 mt-1">
-              Votre accès Rita IA n'est pas encore activé pour ce compte admin.
+              Votre accès Rita IA n'est pas encore activé sur ce compte.
             </p>
           </div>
 
           <div className="p-6 space-y-5">
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
-              Pour utiliser Rita IA, cliquez sur <span className="font-bold">Activer mon accès</span> puis choisissez un plan.
+              Contactez votre <span className="font-bold">Super Admin</span> pour activer Rita IA sur votre compte.
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="rounded-2xl border border-gray-200 p-4 bg-gray-50">
-                <p className="text-[12px] font-bold uppercase tracking-wider text-gray-500">Gratuit</p>
-                <p className="text-[14px] font-semibold text-gray-800 mt-1">100 / jour</p>
-                <p className="text-[12px] text-gray-500">5 000 / mois</p>
-              </div>
-              <div className="rounded-2xl border border-emerald-200 p-4 bg-emerald-50/70">
-                <p className="text-[12px] font-bold uppercase tracking-wider text-emerald-600">Pro</p>
-                <p className="text-[14px] font-semibold text-emerald-800 mt-1">1 000 / jour</p>
-                <p className="text-[12px] text-emerald-700">50 000 / mois</p>
-              </div>
-              <div className="rounded-2xl border border-violet-200 p-4 bg-violet-50/70">
-                <p className="text-[12px] font-bold uppercase tracking-wider text-violet-600">Plus</p>
-                <p className="text-[14px] font-semibold text-violet-800 mt-1">5 000 / jour</p>
-                <p className="text-[12px] text-violet-700">200 000 / mois</p>
-              </div>
+            <div className="text-center text-[12px] text-gray-400">
+              Une fois activé, vous pourrez configurer votre agent IA, personnaliser son identité, ses règles de vente et ses produits.
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                type="button"
-                onClick={() => navigate('/ecom/whatsapp/service?tab=instances')}
-                className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-[13px] font-semibold hover:bg-emerald-700 transition-colors"
-              >
-                Activer mon accès
-              </button>
+            <div className="flex justify-center">
               <button
                 type="button"
                 onClick={() => navigate('/ecom/whatsapp/service')}
                 className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-[13px] font-semibold hover:bg-gray-50 transition-colors"
               >
-                Voir le service WhatsApp
+                Retour au service WhatsApp
               </button>
             </div>
           </div>

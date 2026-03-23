@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Users, Search, Filter, Shield, Crown, Briefcase, Package,
   Calculator, Truck, CheckCircle2, XCircle, Trash2, Edit3,
-  Clock, Building2, AlertCircle, Loader2, TrendingUp, UserX, ChevronRight
+  Clock, Building2, AlertCircle, Loader2, TrendingUp, UserX, ChevronRight, Bot
 } from 'lucide-react';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
@@ -101,6 +101,11 @@ const SuperAdminUsers = () => {
 
   const handleChangeRole = async (userId, newRole) => {
     try { const res = await ecomApi.put(`/super-admin/users/${userId}/role`, { role: newRole }); setSuccess(res.data.message); fetchUsers(); }
+    catch (err) { setError(getContextualError(err, 'save_user')); }
+  };
+
+  const handleToggleRita = async (userId) => {
+    try { const res = await ecomApi.put(`/super-admin/users/${userId}/rita-toggle`); setSuccess(res.data.message); fetchUsers(); }
     catch (err) { setError(getContextualError(err, 'save_user')); }
   };
 
@@ -261,6 +266,12 @@ const SuperAdminUsers = () => {
                           {u.workspaceId.name}
                         </span>
                       )}
+                      {u.role === 'ecom_admin' && (
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${u.canAccessRitaAgent ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                          <Bot className="w-3 h-3" />
+                          Rita {u.canAccessRitaAgent ? 'ON' : 'OFF'}
+                        </span>
+                      )}
                       <span className="text-slate-300 hidden sm:inline">·</span>
                       <span className="inline-flex items-center gap-1 text-xs text-slate-400 font-medium hidden sm:flex">
                         <Clock className="w-3 h-3" />
@@ -290,6 +301,16 @@ const SuperAdminUsers = () => {
                       <option value="ecom_compta">Comptable</option>
                       <option value="ecom_livreur">Livreur</option>
                     </select>
+                    {u.role === 'ecom_admin' && (
+                      <button
+                        onClick={() => handleToggleRita(u._id)}
+                        disabled={u._id === currentUser?.id}
+                        className={`inline-flex items-center gap-1.5 px-3 py-2.5 text-xs rounded-xl font-bold transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed ring-2 ring-inset ${u.canAccessRitaAgent ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:shadow-md ring-emerald-600/20' : 'text-slate-600 bg-slate-50 hover:bg-slate-100 hover:shadow-md ring-slate-300'}`}
+                      >
+                        <Bot className="w-3.5 h-3.5" />
+                        {u.canAccessRitaAgent ? 'Rita ON' : 'Rita OFF'}
+                      </button>
+                    )}
                     <button
                       onClick={() => handleToggleUser(u._id)}
                       disabled={u._id === currentUser?.id}
