@@ -64,6 +64,49 @@ const MODES_CONFIG = [
   { id: 'execution', label: '⚙️ Mode Exécution', subtitle: 'Actions Boss', desc: 'Le boss donne une instruction, Rita comprend, adapte et exécute intelligemment. Elle ne copie jamais le message du boss.', color: 'border-amber-400 bg-amber-50/60', iconBg: 'bg-amber-100', iconColor: 'text-amber-700' },
 ];
 
+const RESPONSE_MODE_OPTIONS = [
+  { value: 'text', label: 'Texte uniquement' },
+  { value: 'voice', label: 'Voix uniquement' },
+  { value: 'both', label: 'Texte + voix' },
+];
+
+const TTS_PROVIDER_OPTIONS = [
+  { value: 'elevenlabs', label: 'Voix réaliste' },
+  { value: 'fishaudio', label: 'Voix ultra réaliste' },
+];
+
+const ELEVENLABS_VOICES = [
+  { id: 'cgSgspJ2msm6clMCkdW9', name: 'Michelle', gender: '♀', lang: 'FR/EN', desc: 'Chaleureuse, naturelle, commerciale' },
+  { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Rita', gender: '♀', lang: 'FR', desc: 'Douce, persuasive, élégante' },
+];
+
+const FISH_AUDIO_VOICES = [
+  { id: '13f7f6e260f94079b9d51c961fa6c9e2', name: 'Michelle', gender: '♀', lang: 'FR/EN', desc: 'Voix féminine chaleureuse, naturelle' },
+  { id: '14b22748e04a48a58f92fbcde088ee50', name: 'Rita', gender: '♀', lang: 'FR', desc: 'Séduisante, persuasive' },
+];
+
+const OFFER_TRIGGER_OPTIONS = [
+  { value: 'hesitation', label: 'Client hésitant' },
+  { value: 'price_objection', label: 'Objection prix' },
+  { value: 'bulk_interest', label: 'Demande de quantité' },
+  { value: 'follow_up', label: 'Relance' },
+  { value: 'closing', label: 'Avant closing' },
+];
+
+const getInstanceStatusLabel = (status) => {
+  switch (status) {
+    case 'connected':
+    case 'active':
+      return 'Connectée';
+    case 'configured':
+      return 'Configurée';
+    case 'disconnected':
+      return 'Déconnectée';
+    default:
+      return 'Non vérifiée';
+  }
+};
+
 // ─── Reusable UI Components ───
 
 const Field = ({ label, hint, required, children }) => (
@@ -131,6 +174,8 @@ export default function AgentConfig() {
   const [hasChanges, setHasChanges] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
   const [instances, setInstances] = useState([]);
+  const [instanceSwitching, setInstanceSwitching] = useState(false);
+  const [instanceSwitchStatus, setInstanceSwitchStatus] = useState(null);
 
   // Chat simulator
   const [simMessages, setSimMessages] = useState([]);
@@ -138,9 +183,58 @@ export default function AgentConfig() {
   const [simTyping, setSimTyping] = useState(false);
   const simEndRef = useRef(null);
 
+  // Voice preview
+  const [playingVoiceId, setPlayingVoiceId] = useState(null);
+  const currentAudioRef = useRef(null);
+
+  const previewVoice = async (voiceId) => {
+    if (playingVoiceId === voiceId) {
+      // Stop current playback
+      if (currentAudioRef.current) { currentAudioRef.current.pause(); currentAudioRef.current = null; }
+      setPlayingVoiceId(null);
+      return;
+    }
+    if (currentAudioRef.current) { currentAudioRef.current.pause(); currentAudioRef.current = null; }
+    setPlayingVoiceId(voiceId);
+    try {
+      const model = config.fishAudioModel || 's2-pro';
+      const res = await ecomApi.get(`/v1/external/whatsapp/preview-voice-fish?referenceId=${voiceId}&model=${model}`);
+      if (!res.data.success) throw new Error('Preview failed');
+      const audio = new Audio(`data:audio/mp3;base64,${res.data.audio}`);
+      currentAudioRef.current = audio;
+      audio.onended = () => { setPlayingVoiceId(null); currentAudioRef.current = null; };
+      audio.onerror = () => { setPlayingVoiceId(null); currentAudioRef.current = null; };
+      audio.play();
+    } catch {
+      setPlayingVoiceId(null);
+    }
+  };
+
+  const previewElevenLabsVoice = async (voiceId) => {
+    if (playingVoiceId === voiceId) {
+      if (currentAudioRef.current) { currentAudioRef.current.pause(); currentAudioRef.current = null; }
+      setPlayingVoiceId(null);
+      return;
+    }
+    if (currentAudioRef.current) { currentAudioRef.current.pause(); currentAudioRef.current = null; }
+    setPlayingVoiceId(voiceId);
+    try {
+      const res = await ecomApi.get(`/v1/external/whatsapp/preview-voice?voiceId=${voiceId}`);
+      if (!res.data.success) throw new Error('Preview failed');
+      const audio = new Audio(`data:audio/mp3;base64,${res.data.audio}`);
+      currentAudioRef.current = audio;
+      audio.onended = () => { setPlayingVoiceId(null); currentAudioRef.current = null; };
+      audio.onerror = () => { setPlayingVoiceId(null); currentAudioRef.current = null; };
+      audio.play();
+    } catch {
+      setPlayingVoiceId(null);
+    }
+  };
+
   // Product editing
   const [editingProduct, setEditingProduct] = useState(null);
   const [selectedProducts, setSelectedProducts] = useState(new Set());
+  const [mediaUploadingByProduct, setMediaUploadingByProduct] = useState({});
 
   // Analytics
   const [activityData, setActivityData] = useState(null);
@@ -182,6 +276,18 @@ export default function AgentConfig() {
     behaviorRules: [],
     pricingNegotiation: { enabled: false, allowDiscount: false, maxDiscountPercent: 0, negotiationStyle: 'firm', priceIsFinal: true },
     responseMode: 'text',
+    ttsProvider: 'elevenlabs',
+    voiceMode: false,
+    mixedVoiceReplyChance: 65,
+    elevenlabsApiKey: '',
+    elevenlabsVoiceId: 'cgSgspJ2msm6clMCkdW9',
+    elevenlabsModel: 'eleven_v3',
+    voiceStylePreset: 'balanced',
+    fishAudioApiKey: '',
+    fishAudioReferenceId: '13f7f6e260f94079b9d51c961fa6c9e2',
+    fishAudioModel: 's2-pro',
+    commercialOffersEnabled: false,
+    commercialOffers: [],
     bossNotifications: false,
     bossPhone: '',
     bossEscalationEnabled: false,
@@ -225,6 +331,11 @@ export default function AgentConfig() {
 
   const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
   const userId = user._id || user.id;
+  const instanceOptions = instances.map((instance) => ({
+    value: instance._id,
+    label: `${instance.customName || instance.instanceName || 'Instance WhatsApp'} · ${getInstanceStatusLabel(instance.status)}`,
+  }));
+  const selectedInstance = instances.find((instance) => instance._id === config.instanceId);
 
   const set = useCallback((field, value) => {
     setConfig(prev => ({ ...prev, [field]: value }));
@@ -259,6 +370,12 @@ export default function AgentConfig() {
 
   // ─── Save ───
   const handleSave = async () => {
+    if (config.enabled && !config.instanceId) {
+      setSaveStatus('error');
+      alert('Sélectionnez une instance WhatsApp précise avant d\'activer Rita.');
+      return;
+    }
+
     setSaving(true);
     setSaveStatus(null);
     try {
@@ -273,6 +390,28 @@ export default function AgentConfig() {
       setTimeout(() => setSaveStatus(null), 3000);
     } catch { setSaveStatus('error'); }
     finally { setSaving(false); }
+  };
+
+  const handleInstanceChange = async (instanceId) => {
+    set('instanceId', instanceId);
+    setInstanceSwitchStatus(null);
+
+    // If Rita is active, apply the instance switch immediately.
+    if (!config.enabled) return;
+
+    setInstanceSwitching(true);
+    try {
+      await ecomApi.post('/v1/external/whatsapp/activate', {
+        userId,
+        enabled: true,
+        instanceId,
+      });
+      setInstanceSwitchStatus('success');
+    } catch {
+      setInstanceSwitchStatus('error');
+    } finally {
+      setInstanceSwitching(false);
+    }
   };
 
   const handleReset = () => {
@@ -310,7 +449,7 @@ export default function AgentConfig() {
 
   // ─── Product helpers ───
   const addProduct = () => {
-    const newP = { name: '', price: '', description: '', category: '', images: [], videos: [], features: [], faq: [], objections: [], inStock: true };
+    const newP = { name: '', price: '', description: '', category: '', images: [], videos: [], features: [], faq: [], objections: [], inStock: true, quantityOffers: [] };
     set('productCatalog', [...config.productCatalog, newP]);
     setEditingProduct(config.productCatalog.length);
   };
@@ -323,6 +462,72 @@ export default function AgentConfig() {
     if (editingProduct === idx) setEditingProduct(null);
   };
 
+  const updateProductMediaList = (productIndex, field, updater) => {
+    const currentList = config.productCatalog?.[productIndex]?.[field] || [];
+    const nextList = typeof updater === 'function' ? updater(currentList) : updater;
+    updateProduct(productIndex, field, nextList);
+  };
+
+  const handleProductMediaUpload = async (productIndex, field, files) => {
+    const selectedFiles = Array.from(files || []);
+    if (!selectedFiles.length) return;
+
+    setMediaUploadingByProduct(prev => ({ ...prev, [`${productIndex}:${field}`]: true }));
+
+    try {
+      const uploadedUrls = [];
+
+      for (const file of selectedFiles) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const { data } = await ecomApi.post('/media/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+
+        const mediaUrl = data?.mediaUrl || data?.url;
+        if (data?.success && mediaUrl) {
+          uploadedUrls.push(mediaUrl);
+        }
+      }
+
+      if (uploadedUrls.length) {
+        updateProductMediaList(productIndex, field, existing => [...existing, ...uploadedUrls]);
+      }
+    } catch (error) {
+      alert(`Erreur upload ${field === 'images' ? 'image' : 'vidéo'}: ${error.response?.data?.message || error.response?.data?.error || error.message}`);
+    } finally {
+      setMediaUploadingByProduct(prev => ({ ...prev, [`${productIndex}:${field}`]: false }));
+    }
+  };
+
+  const removeProductMedia = (productIndex, field, mediaIndex) => {
+    updateProductMediaList(productIndex, field, existing => existing.filter((_, index) => index !== mediaIndex));
+  };
+
+  const addProductQuantityOffer = (productIndex) => {
+    const offers = config.productCatalog?.[productIndex]?.quantityOffers || [];
+    updateProduct(productIndex, 'quantityOffers', [
+      ...offers,
+      { minQuantity: offers.length + 1, unitPrice: '', totalPrice: '', label: '' },
+    ]);
+  };
+
+  const updateProductQuantityOffer = (productIndex, offerIndex, field, value) => {
+    const offers = config.productCatalog?.[productIndex]?.quantityOffers || [];
+    const updatedOffers = offers.map((offer, idx) => {
+      if (idx !== offerIndex) return offer;
+      if (field === 'minQuantity') return { ...offer, minQuantity: Math.max(1, parseInt(value, 10) || 1) };
+      return { ...offer, [field]: value };
+    });
+    updateProduct(productIndex, 'quantityOffers', updatedOffers);
+  };
+
+  const removeProductQuantityOffer = (productIndex, offerIndex) => {
+    const offers = config.productCatalog?.[productIndex]?.quantityOffers || [];
+    updateProduct(productIndex, 'quantityOffers', offers.filter((_, idx) => idx !== offerIndex));
+  };
+
   // ─── Stock helpers ───
   const addStockEntry = () => {
     set('stockEntries', [...(config.stockEntries || []), { productName: '', quantity: 0, alertThreshold: 5 }]);
@@ -333,6 +538,22 @@ export default function AgentConfig() {
   };
   const removeStockEntry = (idx) => {
     set('stockEntries', (config.stockEntries || []).filter((_, i) => i !== idx));
+  };
+
+  const addCommercialOffer = () => {
+    set('commercialOffers', [
+      ...(config.commercialOffers || []),
+      { title: '', appliesTo: '', trigger: 'hesitation', benefit: '', message: '', conditions: '', active: true },
+    ]);
+  };
+
+  const updateCommercialOffer = (idx, field, value) => {
+    const updated = (config.commercialOffers || []).map((offer, index) => index === idx ? { ...offer, [field]: value } : offer);
+    set('commercialOffers', updated);
+  };
+
+  const removeCommercialOffer = (idx) => {
+    set('commercialOffers', (config.commercialOffers || []).filter((_, index) => index !== idx));
   };
 
   // ─── Analytics ───
@@ -426,7 +647,7 @@ export default function AgentConfig() {
             {/* Left column */}
             <div className="lg:col-span-2 space-y-6">
               {/* Identity card */}
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-visible">
                 <div className="px-6 py-4 border-b border-gray-100">
                   <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
                     <span className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
@@ -436,6 +657,14 @@ export default function AgentConfig() {
                   </h2>
                 </div>
                 <div className="p-6 space-y-4">
+                  <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
+                    <Toggle
+                      enabled={config.enabled}
+                      onChange={v => set('enabled', v)}
+                      label="Activer Rita sur cette instance"
+                      description="Active l'agent Rita et l'attache à l'instance WhatsApp choisie ci-dessous"
+                    />
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Field label="Nom de l'agent" required>
                       <input value={config.agentName} onChange={e => set('agentName', e.target.value)}
@@ -449,6 +678,37 @@ export default function AgentConfig() {
                   <Field label="Langue principale">
                     <SelectDropdown value={config.language} onChange={v => set('language', v)} options={LANGUAGE_OPTIONS} />
                   </Field>
+                  <Field label="Instance WhatsApp Rita" hint="obligatoire pour l'activation">
+                    {instanceOptions.length > 0 ? (
+                      <SelectDropdown
+                        value={config.instanceId}
+                        onChange={handleInstanceChange}
+                        options={instanceOptions}
+                        placeholder="Choisir l'instance utilisée par Rita"
+                      />
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-[12px] text-gray-500">
+                        Aucune instance WhatsApp disponible. Créez ou connectez une instance avant d'activer Rita.
+                      </div>
+                    )}
+                  </Field>
+                  {config.instanceId && (
+                    <div className="flex items-center gap-2 text-[12px] text-gray-500">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                      <span>
+                        Instance sélectionnée pour Rita : {selectedInstance?.customName || selectedInstance?.instanceName || 'Instance WhatsApp'}
+                      </span>
+                    </div>
+                  )}
+                  {config.enabled && instanceSwitching && (
+                    <div className="text-[12px] text-blue-600">Changement d'instance Rita en cours...</div>
+                  )}
+                  {config.enabled && instanceSwitchStatus === 'success' && (
+                    <div className="text-[12px] text-emerald-600">Instance Rita changée avec succès.</div>
+                  )}
+                  {config.enabled && instanceSwitchStatus === 'error' && (
+                    <div className="text-[12px] text-red-600">Impossible de changer l'instance Rita maintenant.</div>
+                  )}
                 </div>
               </div>
 
@@ -515,6 +775,65 @@ export default function AgentConfig() {
                   </div>
                 </div>
               </div>
+
+              {/* Personnalité */}
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
+                      <MessageCircle className="w-4 h-4 text-purple-600" />
+                    </span>
+                    Personnalité de Rita
+                  </h2>
+                  <p className="text-[12px] text-gray-400 mt-1">Définissez sa présence, sa façon de parler et ce qu'elle doit éviter.</p>
+                </div>
+                <div className="p-6 space-y-4">
+                  <Field label="Description de personnalité">
+                    <textarea
+                      value={config.personality?.description || ''}
+                      onChange={e => set('personality', { ...(config.personality || {}), description: e.target.value })}
+                      rows={3}
+                      placeholder="Ex: vendeuse professionnelle, chaleureuse, rapide, très humaine, basée au Cameroun"
+                      className="ac-textarea"
+                    />
+                  </Field>
+                  <Field label="Lignes de ton">
+                    <textarea
+                      value={config.personality?.tonalGuidelines || ''}
+                      onChange={e => set('personality', { ...(config.personality || {}), tonalGuidelines: e.target.value })}
+                      rows={3}
+                      placeholder="Ex: phrases courtes, ton rassurant, orientée résultat, jamais robotique"
+                      className="ac-textarea"
+                    />
+                  </Field>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Field label="Expressions à utiliser" hint="une par ligne">
+                      <textarea
+                        value={(config.personality?.mannerisms || []).join('\n')}
+                        onChange={e => set('personality', {
+                          ...(config.personality || {}),
+                          mannerisms: e.target.value.split('\n').map(v => v.trim()).filter(Boolean),
+                        })}
+                        rows={4}
+                        placeholder="Ex: D'accord\nJe vous explique\nOn peut faire comme ceci"
+                        className="ac-textarea"
+                      />
+                    </Field>
+                    <Field label="Phrases interdites" hint="une par ligne">
+                      <textarea
+                        value={(config.personality?.forbiddenPhrases || []).join('\n')}
+                        onChange={e => set('personality', {
+                          ...(config.personality || {}),
+                          forbiddenPhrases: e.target.value.split('\n').map(v => v.trim()).filter(Boolean),
+                        })}
+                        rows={4}
+                        placeholder="Ex: Veuillez patienter\nQuel produit ?\nJe suis une IA"
+                        className="ac-textarea"
+                      />
+                    </Field>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Right column */}
@@ -567,6 +886,187 @@ export default function AgentConfig() {
                   <Toggle enabled={config.signMessages} onChange={v => set('signMessages', v)}
                     label="Signature IA"
                     description="Mentionner qu'il s'agit d'une IA" />
+                </div>
+              </div>
+
+              {/* Voix */}
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-100">
+                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+                    <span className="text-base">🎙️</span>
+                    Voix
+                  </h2>
+                </div>
+                <div className="p-5 space-y-4">
+                  <Field label="Mode de réponse">
+                    <SelectDropdown
+                      value={config.responseMode}
+                      onChange={v => set('responseMode', v)}
+                      options={RESPONSE_MODE_OPTIONS}
+                    />
+                  </Field>
+
+                  {config.responseMode !== 'text' && (
+                    <>
+                      <Field label="Fournisseur voix">
+                        <SelectDropdown
+                          value={config.ttsProvider || 'elevenlabs'}
+                          onChange={v => set('ttsProvider', v)}
+                          options={TTS_PROVIDER_OPTIONS}
+                        />
+                      </Field>
+
+                      {config.responseMode === 'both' && (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Chance de réponse vocale</label>
+                            <span className="text-[13px] font-bold text-gray-700">{config.mixedVoiceReplyChance || 0}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={config.mixedVoiceReplyChance || 0}
+                            onChange={e => set('mixedVoiceReplyChance', parseInt(e.target.value) || 0)}
+                            className="w-full h-2 bg-gray-200 rounded-full appearance-none cursor-pointer accent-emerald-600"
+                            style={{ accentColor: ACCENT }}
+                          />
+                        </div>
+                      )}
+
+                      {config.ttsProvider === 'elevenlabs' ? (
+                        <>
+                          <Field label="Voix réaliste">
+                            <div className="grid grid-cols-2 gap-2 mb-2">
+                              {ELEVENLABS_VOICES.map(voice => {
+                                const isSelected = config.elevenlabsVoiceId === voice.id;
+                                const isPlaying = playingVoiceId === voice.id;
+                                const isLoadingPreview = isPlaying && !currentAudioRef.current;
+                                return (
+                                  <div
+                                    key={voice.id}
+                                    onClick={() => set('elevenlabsVoiceId', voice.id)}
+                                    className={`relative flex items-start gap-2 rounded-xl border px-3 py-2 cursor-pointer transition-all ${
+                                      isSelected
+                                        ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300'
+                                        : 'border-gray-200 bg-gray-50 hover:border-emerald-200 hover:bg-emerald-50/40'
+                                    }`}
+                                  >
+                                    <span className="text-base mt-0.5">🎙️</span>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-[12px] font-semibold text-gray-800 leading-tight">{voice.name} <span className="font-normal text-gray-400">{voice.gender}</span></p>
+                                      <p className="text-[10px] text-gray-500 truncate">{voice.desc}</p>
+                                      <p className="text-[10px] font-mono text-gray-400">{voice.lang}</p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={e => { e.stopPropagation(); previewElevenLabsVoice(voice.id); }}
+                                      title={isPlaying ? 'Arrêter' : 'Écouter un extrait'}
+                                      className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                                        isPlaying
+                                          ? 'bg-emerald-500 text-white animate-pulse'
+                                          : 'bg-gray-200 text-gray-500 hover:bg-emerald-100 hover:text-emerald-600'
+                                      }`}
+                                    >
+                                      {isLoadingPreview ? (
+                                        <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                                      ) : isPlaying ? (
+                                        <span className="text-[8px] font-bold">■</span>
+                                      ) : (
+                                        <span className="text-[8px] font-bold ml-0.5">▶</span>
+                                      )}
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <div className="mt-1">
+                              <p className="text-[10px] text-gray-400 mb-1">Ou saisissez un Voice ID custom :</p>
+                              <input
+                                value={config.elevenlabsVoiceId || ''}
+                                onChange={e => set('elevenlabsVoiceId', e.target.value)}
+                                placeholder="cgSgspJ2msm6clMCkdW9"
+                                className="ac-input font-mono text-[11px]"
+                              />
+                            </div>
+                          </Field>
+                          <Field label="Modèle ElevenLabs">
+                            <input
+                              value={config.elevenlabsModel || ''}
+                              onChange={e => set('elevenlabsModel', e.target.value)}
+                              placeholder="eleven_v3"
+                              className="ac-input"
+                            />
+                          </Field>
+                        </>
+                      ) : (
+                        <>
+                          <Field label="Voix ultra réaliste">
+                            <div className="grid grid-cols-2 gap-2 mb-2">
+                              {FISH_AUDIO_VOICES.map(voice => {
+                                const isSelected = config.fishAudioReferenceId === voice.id;
+                                const isPlaying = playingVoiceId === voice.id;
+                                const isLoadingPreview = isPlaying && !currentAudioRef.current;
+                                return (
+                                  <div
+                                    key={voice.id}
+                                    onClick={() => set('fishAudioReferenceId', voice.id)}
+                                    className={`relative flex items-start gap-2 rounded-xl border px-3 py-2 cursor-pointer transition-all ${
+                                      isSelected
+                                        ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300'
+                                        : 'border-gray-200 bg-gray-50 hover:border-emerald-200 hover:bg-emerald-50/40'
+                                    }`}
+                                  >
+                                    <span className="text-base mt-0.5">🎙️</span>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-[12px] font-semibold text-gray-800 leading-tight">{voice.name} <span className="font-normal text-gray-400">{voice.gender}</span></p>
+                                      <p className="text-[10px] text-gray-500 truncate">{voice.desc}</p>
+                                      <p className="text-[10px] font-mono text-gray-400">{voice.lang}</p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={e => { e.stopPropagation(); previewVoice(voice.id); }}
+                                      title={isPlaying ? 'Arrêter' : 'Écouter un extrait'}
+                                      className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                                        isPlaying
+                                          ? 'bg-emerald-500 text-white animate-pulse'
+                                          : 'bg-gray-200 text-gray-500 hover:bg-emerald-100 hover:text-emerald-600'
+                                      }`}
+                                    >
+                                      {isLoadingPreview ? (
+                                        <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                                      ) : isPlaying ? (
+                                        <span className="text-[8px] font-bold">■</span>
+                                      ) : (
+                                        <span className="text-[8px] font-bold ml-0.5">▶</span>
+                                      )}
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <div className="mt-1">
+                              <p className="text-[10px] text-gray-400 mb-1">Ou saisissez un ID custom :</p>
+                              <input
+                                value={config.fishAudioReferenceId || ''}
+                                onChange={e => set('fishAudioReferenceId', e.target.value)}
+                                placeholder="Reference voice id"
+                                className="ac-input font-mono text-[11px]"
+                              />
+                            </div>
+                          </Field>
+                          <Field label="Modèle Fish Audio">
+                            <input
+                              value={config.fishAudioModel || ''}
+                              onChange={e => set('fishAudioModel', e.target.value)}
+                              placeholder="s2-pro"
+                              className="ac-input"
+                            />
+                          </Field>
+                        </>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -892,6 +1392,92 @@ export default function AgentConfig() {
                 </div>
               </div>
 
+              {/* Offres commerciales */}
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+                      <span className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+                        <Bell className="w-4 h-4 text-amber-600" />
+                      </span>
+                      Offres Commerciales
+                    </h2>
+                    <p className="text-[12px] text-gray-400 mt-1">Promotions, bonus et arguments que Rita peut proposer au bon moment.</p>
+                  </div>
+                  <Toggle enabled={config.commercialOffersEnabled} onChange={v => set('commercialOffersEnabled', v)} label="" />
+                </div>
+                {config.commercialOffersEnabled && (
+                  <div className="p-6 space-y-4">
+                    <Field label="Offre de relance globale">
+                      <textarea
+                        value={config.followUpOffer || ''}
+                        onChange={e => set('followUpOffer', e.target.value)}
+                        rows={2}
+                        placeholder="Ex: pour aujourd'hui seulement, livraison offerte ou bonus inclus"
+                        className="ac-textarea"
+                      />
+                    </Field>
+
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={addCommercialOffer}
+                        className="text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                        style={{ color: ACCENT, background: 'rgba(15,107,79,0.08)' }}
+                      >
+                        + Ajouter une offre
+                      </button>
+                    </div>
+
+                    {(config.commercialOffers || []).length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-gray-200 p-4 text-center text-[12px] text-gray-400">
+                        Aucune offre configurée.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {(config.commercialOffers || []).map((offer, idx) => (
+                          <div key={idx} className="rounded-xl border border-gray-200 p-4 space-y-3 bg-gray-50/60">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-[13px] font-bold text-gray-800">Offre {idx + 1}</p>
+                              <div className="flex items-center gap-2">
+                                <Toggle enabled={offer.active !== false} onChange={v => updateCommercialOffer(idx, 'active', v)} label="" />
+                                <button type="button" onClick={() => removeCommercialOffer(idx)} className="text-[12px] text-red-500 hover:text-red-700">
+                                  Supprimer
+                                </button>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <Field label="Titre">
+                                <input value={offer.title || ''} onChange={e => updateCommercialOffer(idx, 'title', e.target.value)} className="ac-input" />
+                              </Field>
+                              <Field label="Déclencheur">
+                                <SelectDropdown
+                                  value={offer.trigger || 'hesitation'}
+                                  onChange={v => updateCommercialOffer(idx, 'trigger', v)}
+                                  options={OFFER_TRIGGER_OPTIONS}
+                                />
+                              </Field>
+                            </div>
+                            <Field label="S'applique à">
+                              <input value={offer.appliesTo || ''} onChange={e => updateCommercialOffer(idx, 'appliesTo', e.target.value)} placeholder="Tous les produits / produit spécifique / clients revendeurs" className="ac-input" />
+                            </Field>
+                            <Field label="Bénéfice client">
+                              <input value={offer.benefit || ''} onChange={e => updateCommercialOffer(idx, 'benefit', e.target.value)} placeholder="Réduction, bonus, livraison, cadeau" className="ac-input" />
+                            </Field>
+                            <Field label="Message à utiliser">
+                              <textarea value={offer.message || ''} onChange={e => updateCommercialOffer(idx, 'message', e.target.value)} rows={2} className="ac-textarea" />
+                            </Field>
+                            <Field label="Conditions">
+                              <textarea value={offer.conditions || ''} onChange={e => updateCommercialOffer(idx, 'conditions', e.target.value)} rows={2} className="ac-textarea" />
+                            </Field>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Cas spéciaux */}
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100">
@@ -955,6 +1541,37 @@ export default function AgentConfig() {
                   Rita est une vendeuse intelligente, autonome et performante.
                   Son objectif : vendre efficacement, créer une bonne expérience client et s'améliorer chaque jour.
                 </p>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-100">
+                  <h2 className="text-[15px] font-bold text-gray-900">Prix & Négociation</h2>
+                </div>
+                <div className="p-5 space-y-3">
+                  <Toggle enabled={config.pricingNegotiation?.enabled} onChange={v => set('pricingNegotiation', { ...(config.pricingNegotiation || {}), enabled: v })}
+                    label="Activer la négociation"
+                    description="Permet à Rita de gérer les discussions prix selon vos règles" />
+                  {config.pricingNegotiation?.enabled && (
+                    <>
+                      <Toggle enabled={config.pricingNegotiation?.allowDiscount} onChange={v => set('pricingNegotiation', { ...(config.pricingNegotiation || {}), allowDiscount: v })}
+                        label="Autoriser des remises"
+                        description="Rita peut proposer une remise dans la limite fixée" />
+                      <Field label="Remise maximum" hint="%">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={config.pricingNegotiation?.maxDiscountPercent || 0}
+                          onChange={e => set('pricingNegotiation', { ...(config.pricingNegotiation || {}), maxDiscountPercent: parseInt(e.target.value) || 0 })}
+                          className="ac-input"
+                        />
+                      </Field>
+                      <Toggle enabled={config.pricingNegotiation?.priceIsFinal} onChange={v => set('pricingNegotiation', { ...(config.pricingNegotiation || {}), priceIsFinal: v })}
+                        label="Prix final"
+                        description="Rita rappelle que le prix reste ferme hors cas prévus" />
+                    </>
+                  )}
+                </div>
               </div>
 
               <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
@@ -1030,12 +1647,177 @@ export default function AgentConfig() {
                         <Field label="Description">
                           <textarea value={product.description || ''} onChange={e => updateProduct(idx, 'description', e.target.value)} rows={3} className="ac-textarea" />
                         </Field>
-                        <Field label="URLs images" hint="une par ligne">
-                          <textarea
-                            value={(product.images || []).join('\n')}
-                            onChange={e => updateProduct(idx, 'images', e.target.value.split('\n').filter(u => u.trim()))}
-                            rows={2} className="ac-textarea text-[12px]" placeholder="https://..." />
-                        </Field>
+                        <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 space-y-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-[13px] font-bold text-amber-800">Offres de quantité</p>
+                              <p className="text-[11px] text-amber-700">Exemple: 1 = 10 000 FCFA, 2 = 15 000 FCFA</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => addProductQuantityOffer(idx)}
+                              className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-[11px] font-semibold hover:bg-amber-700 transition-colors"
+                            >
+                              + Ajouter palier
+                            </button>
+                          </div>
+
+                          {(product.quantityOffers || []).length === 0 ? (
+                            <p className="text-[11px] text-amber-700">Aucun palier configuré.</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {(product.quantityOffers || []).map((offer, offerIdx) => (
+                                <div key={offerIdx} className="grid grid-cols-1 md:grid-cols-4 gap-2 rounded-xl border border-amber-100 bg-white p-3">
+                                  <Field label="Qté min">
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={offer.minQuantity || 1}
+                                      onChange={e => updateProductQuantityOffer(idx, offerIdx, 'minQuantity', e.target.value)}
+                                      className="ac-input"
+                                    />
+                                  </Field>
+                                  <Field label="Prix total">
+                                    <input
+                                      value={offer.totalPrice || ''}
+                                      onChange={e => updateProductQuantityOffer(idx, offerIdx, 'totalPrice', e.target.value)}
+                                      placeholder="15000 FCFA"
+                                      className="ac-input"
+                                    />
+                                  </Field>
+                                  <Field label="Prix unitaire (optionnel)">
+                                    <input
+                                      value={offer.unitPrice || ''}
+                                      onChange={e => updateProductQuantityOffer(idx, offerIdx, 'unitPrice', e.target.value)}
+                                      placeholder="7500 FCFA"
+                                      className="ac-input"
+                                    />
+                                  </Field>
+                                  <div className="flex items-end">
+                                    <button
+                                      type="button"
+                                      onClick={() => removeProductQuantityOffer(idx, offerIdx)}
+                                      className="w-full px-3 py-2 rounded-lg border border-red-200 text-red-600 text-[11px] font-semibold hover:bg-red-50 transition-colors"
+                                    >
+                                      Retirer
+                                    </button>
+                                  </div>
+                                  <div className="md:col-span-4">
+                                    <Field label="Libellé (optionnel)">
+                                      <input
+                                        value={offer.label || ''}
+                                        onChange={e => updateProductQuantityOffer(idx, offerIdx, 'label', e.target.value)}
+                                        placeholder="Pack découverte"
+                                        className="ac-input"
+                                      />
+                                    </Field>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          <div className="rounded-2xl border border-gray-200 p-4 space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-[13px] font-bold text-gray-800">Images du produit</p>
+                                <p className="text-[11px] text-gray-400">Upload direct ou ajout par URL.</p>
+                              </div>
+                              <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 cursor-pointer transition-colors">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  className="hidden"
+                                  onChange={async (e) => {
+                                    await handleProductMediaUpload(idx, 'images', e.target.files);
+                                    e.target.value = '';
+                                  }}
+                                />
+                                Upload images
+                              </label>
+                            </div>
+                            {mediaUploadingByProduct[`${idx}:images`] && (
+                              <div className="text-[11px] text-emerald-600">Upload des images en cours...</div>
+                            )}
+                            {(product.images || []).length > 0 && (
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                {(product.images || []).map((url, imageIndex) => (
+                                  <div key={imageIndex} className="relative group rounded-xl overflow-hidden border border-gray-200 bg-gray-50 aspect-square">
+                                    <img src={url} alt={`Produit ${imageIndex + 1}`} className="w-full h-full object-cover" />
+                                    <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/60 to-transparent flex justify-between items-end opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <a href={url} target="_blank" rel="noreferrer" className="text-[10px] text-white underline">Voir</a>
+                                      <button type="button" onClick={() => removeProductMedia(idx, 'images', imageIndex)} className="text-[10px] text-white bg-black/30 px-2 py-1 rounded-md">
+                                        Retirer
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <Field label="URLs images" hint="une par ligne">
+                              <textarea
+                                value={(product.images || []).join('\n')}
+                                onChange={e => updateProduct(idx, 'images', e.target.value.split('\n').filter(u => u.trim()))}
+                                rows={3}
+                                className="ac-textarea text-[12px]"
+                                placeholder="https://..."
+                              />
+                            </Field>
+                          </div>
+
+                          <div className="rounded-2xl border border-gray-200 p-4 space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-[13px] font-bold text-gray-800">Vidéos du produit</p>
+                                <p className="text-[11px] text-gray-400">Ajoutez les vidéos de démonstration ou de preuve.</p>
+                              </div>
+                              <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 cursor-pointer transition-colors">
+                                <input
+                                  type="file"
+                                  accept="video/*"
+                                  multiple
+                                  className="hidden"
+                                  onChange={async (e) => {
+                                    await handleProductMediaUpload(idx, 'videos', e.target.files);
+                                    e.target.value = '';
+                                  }}
+                                />
+                                Upload vidéos
+                              </label>
+                            </div>
+                            {mediaUploadingByProduct[`${idx}:videos`] && (
+                              <div className="text-[11px] text-blue-600">Upload des vidéos en cours...</div>
+                            )}
+                            {(product.videos || []).length > 0 && (
+                              <div className="space-y-2">
+                                {(product.videos || []).map((url, videoIndex) => (
+                                  <div key={videoIndex} className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-[12px] font-medium text-gray-700 truncate">Vidéo {videoIndex + 1}</p>
+                                      <a href={url} target="_blank" rel="noreferrer" className="text-[11px] text-blue-600 truncate block hover:underline">
+                                        {url}
+                                      </a>
+                                    </div>
+                                    <button type="button" onClick={() => removeProductMedia(idx, 'videos', videoIndex)} className="text-[11px] text-red-500 hover:text-red-700">
+                                      Retirer
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <Field label="URLs vidéos" hint="une par ligne">
+                              <textarea
+                                value={(product.videos || []).join('\n')}
+                                onChange={e => updateProduct(idx, 'videos', e.target.value.split('\n').filter(u => u.trim()))}
+                                rows={3}
+                                className="ac-textarea text-[12px]"
+                                placeholder="https://..."
+                              />
+                            </Field>
+                          </div>
+                        </div>
                         <div className="flex justify-end pt-2">
                           <button onClick={() => removeProduct(idx)}
                             className="text-[12px] font-medium text-red-500 hover:text-red-700 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors">

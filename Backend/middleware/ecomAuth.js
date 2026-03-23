@@ -26,6 +26,16 @@ function setCachedUser(userId, user) {
   userCache.set(userId, { user, expiresAt: Date.now() + USER_CACHE_TTL });
 }
 
+export function hasRitaAgentAccess(user, roleOverride = null) {
+  if (!user) return false;
+
+  const effectiveRole = roleOverride || user.role;
+  if (effectiveRole === 'super_admin') return true;
+  if (effectiveRole !== 'ecom_admin') return false;
+
+  return user.canAccessRitaAgent !== false;
+}
+
 // Periodic cleanup to prevent memory leak (every 5 minutes)
 setInterval(() => {
   const now = Date.now();
@@ -195,6 +205,25 @@ export const requireEcomPermission = (permission) => {
 
     next();
   };
+};
+
+export const requireRitaAgentAccess = (req, res, next) => {
+  if (!req.ecomUser) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentification e-commerce requise'
+    });
+  }
+
+  const effectiveRole = req.ecomUserRole || req.ecomUser.role;
+  if (!hasRitaAgentAccess(req.ecomUser, effectiveRole)) {
+    return res.status(403).json({
+      success: false,
+      message: 'Accès Rita IA non autorisé pour ce compte'
+    });
+  }
+
+  next();
 };
 
 // Middleware pour valider l'accès selon le rôle et la ressource

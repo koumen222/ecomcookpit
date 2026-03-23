@@ -258,7 +258,7 @@ router.post('/',
   validateEcomAccess('admin', 'write'),
   async (req, res) => {
     try {
-      const { email, password, role } = req.body;
+      const { email, password, role, canAccessRitaAgent } = req.body;
 
       if (!email || !password) {
         return res.status(400).json({ success: false, message: 'Email et mot de passe requis' });
@@ -274,7 +274,15 @@ router.post('/',
       }
 
       const { name, phone } = req.body;
-      const user = new EcomUser({ email, password, role, workspaceId: req.workspaceId, name: name || '', phone: phone || '' });
+      const user = new EcomUser({
+        email,
+        password,
+        role,
+        workspaceId: req.workspaceId,
+        name: name || '',
+        phone: phone || '',
+        canAccessRitaAgent: role === 'ecom_admin' ? !!canAccessRitaAgent : false,
+      });
       await user.save();
 
       // Log audit
@@ -287,6 +295,7 @@ router.post('/',
           id: user._id,
           email: user.email,
           role: user.role,
+          canAccessRitaAgent: user.canAccessRitaAgent,
           isActive: user.isActive,
           createdAt: user.createdAt
         }
@@ -304,7 +313,7 @@ router.put('/:id',
   validateEcomAccess('admin', 'write'),
   async (req, res) => {
     try {
-      const { role, isActive } = req.body;
+      const { role, isActive, canAccessRitaAgent } = req.body;
       const user = await EcomUser.findOne({ _id: req.params.id, workspaceId: req.workspaceId });
 
       if (!user) {
@@ -318,9 +327,15 @@ router.put('/:id',
 
       if (role && ['ecom_admin', 'ecom_closeuse', 'ecom_compta', 'ecom_livreur'].includes(role)) {
         user.role = role;
+        if (role !== 'ecom_admin') {
+          user.canAccessRitaAgent = false;
+        }
       }
       if (req.body.name !== undefined) user.name = req.body.name;
       if (req.body.phone !== undefined) user.phone = req.body.phone;
+      if (canAccessRitaAgent !== undefined) {
+        user.canAccessRitaAgent = user.role === 'ecom_admin' ? !!canAccessRitaAgent : false;
+      }
       if (isActive !== undefined) {
         user.isActive = isActive;
       }
@@ -332,6 +347,7 @@ router.put('/:id',
       if (role) changes.push(`rôle: ${role}`);
       if (req.body.name !== undefined) changes.push(`nom: ${req.body.name}`);
       if (req.body.phone !== undefined) changes.push(`téléphone: ${req.body.phone}`);
+      if (canAccessRitaAgent !== undefined) changes.push(`accès Rita IA: ${canAccessRitaAgent ? 'autorisé' : 'bloqué'}`);
       if (isActive !== undefined) changes.push(`statut: ${isActive ? 'actif' : 'inactif'}`);
       await logAudit(req, 'UPDATE_USER', `Modification de ${user.email} - ${changes.join(', ')}`, 'user', user._id);
 
@@ -342,6 +358,7 @@ router.put('/:id',
           id: user._id,
           email: user.email,
           role: user.role,
+          canAccessRitaAgent: user.canAccessRitaAgent,
           isActive: user.isActive
         }
       });

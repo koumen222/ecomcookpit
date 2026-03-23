@@ -69,6 +69,22 @@ const auditActionColors = {
   SETTINGS_CHANGE: 'bg-orange-100 text-orange-700',
 };
 
+const emptyCreateForm = {
+  email: '',
+  password: '',
+  role: 'ecom_closeuse',
+  name: '',
+  phone: '',
+  canAccessRitaAgent: false,
+};
+
+const hasRitaAgentAccess = (user) => {
+  if (!user) return false;
+  if (user.role === 'super_admin') return true;
+  if (user.role !== 'ecom_admin') return false;
+  return user.canAccessRitaAgent !== false;
+};
+
 function timeAgo(date) {
   const diff = Date.now() - new Date(date).getTime();
   const m = Math.floor(diff / 60000);
@@ -117,8 +133,8 @@ const UserManagement = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showResetPwModal, setShowResetPwModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [createForm, setCreateForm] = useState({ email: '', password: '', role: 'ecom_closeuse', name: '', phone: '' });
-  const [editForm, setEditForm] = useState({ role: '', isActive: true });
+  const [createForm, setCreateForm] = useState(emptyCreateForm);
+  const [editForm, setEditForm] = useState({ role: '', isActive: true, canAccessRitaAgent: false });
   const [newPassword, setNewPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -182,7 +198,7 @@ const UserManagement = () => {
       await ecomApi.post('/users', createForm);
       setSuccess('Utilisateur créé avec succès');
       setShowCreateModal(false);
-      setCreateForm({ email: '', password: '', role: 'ecom_closeuse', name: '', phone: '' });
+      setCreateForm(emptyCreateForm);
       loadUsers();
     } catch (err) {
       setError(getContextualError(err, 'save_user'));
@@ -249,7 +265,15 @@ const UserManagement = () => {
     }
   };
 
-  const openEdit = (u) => { setSelectedUser(u); setEditForm({ role: u.role, isActive: u.isActive }); setShowEditModal(true); };
+  const openEdit = (u) => {
+    setSelectedUser(u);
+    setEditForm({
+      role: u.role,
+      isActive: u.isActive,
+      canAccessRitaAgent: hasRitaAgentAccess(u),
+    });
+    setShowEditModal(true);
+  };
   const openResetPw = (u) => { setSelectedUser(u); setNewPassword(''); setShowResetPwModal(true); };
 
   // Invite actions
@@ -385,6 +409,11 @@ const UserManagement = () => {
                       <p className="text-sm font-semibold text-gray-900 truncate">{u.name || u.email}</p>
                       {u.name && <p className="text-xs text-gray-400 truncate hidden sm:block">{u.email}</p>}
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${roleColors[u.role]}`}>{roleLabels[u.role]}</span>
+                      {u.role === 'ecom_admin' && (
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${hasRitaAgentAccess(u) ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {hasRitaAgentAccess(u) ? 'Rita autorise' : 'Rita bloque'}
+                        </span>
+                      )}
                       {!u.isActive && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">Inactif</span>}
                     </div>
                     {u.lastLogin && <p className="text-[10px] text-gray-400 mt-0.5">Connexion {timeAgo(u.lastLogin)}</p>}
@@ -544,13 +573,28 @@ const UserManagement = () => {
                 <input type="password" required minLength={6} value={createForm.password} onChange={(e) => setCreateForm(p => ({ ...p, password: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-sm" placeholder="Min. 6 caractères" /></div>
               <div><label className="block text-xs font-medium text-gray-600 mb-1">Rôle *</label>
-                <select value={createForm.role} onChange={(e) => setCreateForm(p => ({ ...p, role: e.target.value }))}
+                <select value={createForm.role} onChange={(e) => setCreateForm(p => ({ ...p, role: e.target.value, canAccessRitaAgent: e.target.value === 'ecom_admin' ? p.canAccessRitaAgent : false }))}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-600 focus:border-transparent text-sm">
                   <option value="ecom_closeuse">Closeuse</option>
                   <option value="ecom_compta">Comptable</option>
                   <option value="ecom_livreur">Livreur</option>
                   <option value="ecom_admin">Admin</option>
                 </select></div>
+              {createForm.role === 'ecom_admin' && (
+                <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Acces Rita IA</p>
+                    <p className="text-xs text-gray-500">Autorise la creation et la configuration de l'agent Rita.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCreateForm(p => ({ ...p, canAccessRitaAgent: !p.canAccessRitaAgent }))}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${createForm.canAccessRitaAgent ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${createForm.canAccessRitaAgent ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+              )}
               {createForm.role === 'ecom_livreur' && (<>
                 <div><label className="block text-xs font-medium text-gray-600 mb-1">Nom</label>
                   <input type="text" value={createForm.name} onChange={(e) => setCreateForm(p => ({ ...p, name: e.target.value }))}
@@ -576,13 +620,28 @@ const UserManagement = () => {
             <p className="text-sm text-gray-500 mb-4">{selectedUser.email}</p>
             <form onSubmit={handleEdit} className="space-y-4">
               <div><label className="block text-xs font-medium text-gray-600 mb-1">Rôle</label>
-                <select value={editForm.role} onChange={(e) => setEditForm(p => ({ ...p, role: e.target.value }))}
+                <select value={editForm.role} onChange={(e) => setEditForm(p => ({ ...p, role: e.target.value, canAccessRitaAgent: e.target.value === 'ecom_admin' ? p.canAccessRitaAgent : false }))}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-600 text-sm">
                   <option value="ecom_closeuse">Closeuse</option>
                   <option value="ecom_compta">Comptable</option>
                   <option value="ecom_livreur">Livreur</option>
                   <option value="ecom_admin">Admin</option>
                 </select></div>
+              {editForm.role === 'ecom_admin' && (
+                <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Acces Rita IA</p>
+                    <p className="text-xs text-gray-500">Bloque ou autorise l'acces direct a Rita pour ce compte.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditForm(p => ({ ...p, canAccessRitaAgent: !p.canAccessRitaAgent }))}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${editForm.canAccessRitaAgent ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${editForm.canAccessRitaAgent ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+              )}
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
                 <div>
                   <p className="text-sm font-medium text-gray-800">Accès actif</p>

@@ -157,6 +157,7 @@ const EcomLayoutComponent = ({ children }) => {
   };
 
   const isSuperAdmin = user?.role === 'super_admin';
+  const canAccessRitaAgent = user?.role === 'super_admin' || (user?.role === 'ecom_admin' && user?.canAccessRitaAgent !== false);
 
   // --- Navigation items grouped by section (mémorisés pour éviter re-création) ---
   const mainNav = useMemo(() => [
@@ -259,11 +260,13 @@ const EcomLayoutComponent = ({ children }) => {
     {
       name: 'Rita IA', shortName: 'Rita IA', href: '/ecom/whatsapp/agent-config', primary: false,
       roles: ['ecom_admin'],
+      requiresRitaAccess: true,
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 00.659 1.591L19 14.5M14.25 3.104c.251.023.501.05.75.082M19 14.5l-2.47 2.47a2.25 2.25 0 01-1.59.659H9.06a2.25 2.25 0 01-1.591-.659L5 14.5m14 0V17a2 2 0 01-2 2H7a2 2 0 01-2-2v-2.5" /></svg>
     },
     {
       name: 'Automation Flows', shortName: 'Flows', href: '/ecom/rita-flows', primary: false,
       roles: ['ecom_admin'],
+      requiresRitaAccess: true,
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
     },
         {
@@ -360,11 +363,16 @@ const EcomLayoutComponent = ({ children }) => {
   ], []);
 
   const allNav = useMemo(() => [...mainNav, ...secondaryNav, ...bottomNav, ...superAdminNav], [mainNav, secondaryNav, bottomNav, superAdminNav]);
-  const filteredMain = useMemo(() => mainNav.filter(i => i.roles.includes(user?.role)), [mainNav, user?.role]);
-  const filteredSecondary = useMemo(() => secondaryNav.filter(i => i.roles.includes(user?.role)), [secondaryNav, user?.role]);
-  const filteredBottom = useMemo(() => bottomNav.filter(i => i.roles.includes(user?.role)), [bottomNav, user?.role]);
-  const filteredSuperAdmin = useMemo(() => superAdminNav.filter(i => i.roles.includes(user?.role)), [superAdminNav, user?.role]);
-  const filteredAll = useMemo(() => allNav.filter(i => i.roles.includes(user?.role)), [allNav, user?.role]);
+  const canAccessNavItem = useCallback((item) => {
+    if (!item.roles.includes(user?.role)) return false;
+    if (!item.requiresRitaAccess) return true;
+    return canAccessRitaAgent;
+  }, [canAccessRitaAgent, user?.role]);
+  const filteredMain = useMemo(() => mainNav.filter(canAccessNavItem), [mainNav, canAccessNavItem]);
+  const filteredSecondary = useMemo(() => secondaryNav.filter(canAccessNavItem), [secondaryNav, canAccessNavItem]);
+  const filteredBottom = useMemo(() => bottomNav.filter(canAccessNavItem), [bottomNav, canAccessNavItem]);
+  const filteredSuperAdmin = useMemo(() => superAdminNav.filter(canAccessNavItem), [superAdminNav, canAccessNavItem]);
+  const filteredAll = useMemo(() => allNav.filter(canAccessNavItem), [allNav, canAccessNavItem]);
 
   const mobileMainTabs = useMemo(() => filteredAll.filter(i => i.primary).slice(0, 5), [filteredAll]);
   // Icônes mobile agrandies (w-7 h-7 au lieu de w-8 h-8)

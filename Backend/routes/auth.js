@@ -115,6 +115,7 @@ router.post('/login', validateEmail, async (req, res) => {
           id: user._id,
           email: user.email,
           role: user.role,
+          canAccessRitaAgent: user.canAccessRitaAgent,
           currency: user.currency,
           lastLogin: user.lastLogin,
           workspaceId: user.workspaceId,
@@ -189,6 +190,7 @@ router.post('/refresh', async (req, res) => {
           id: user._id,
           email: user.email,
           role: user.role,
+          canAccessRitaAgent: user.canAccessRitaAgent,
           currency: user.currency,
           workspaceId: user.workspaceId
         },
@@ -948,6 +950,7 @@ router.get('/me', async (req, res) => {
           phone: user.phone,
           avatar: user.avatar,
           role: user.role,
+          canAccessRitaAgent: user.canAccessRitaAgent,
           isActive: user.isActive,
           lastLogin: user.lastLogin,
           createdAt: user.createdAt,
