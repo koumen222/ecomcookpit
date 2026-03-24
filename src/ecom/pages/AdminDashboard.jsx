@@ -443,9 +443,9 @@ const AdminDashboard = () => {
 
     // ── PHASE 2 : reste en arrière-plan ───────────────────────────
     try {
-      const [topProductsRes, stockLocationsRes, decisionsRes, dashStatsRes, goalsRes] = await Promise.all([
+      const [topProductsRes, stockAlertsRes, decisionsRes, dashStatsRes, goalsRes] = await Promise.all([
         ecomApi.get(`/reports/stats/products-ranking?startDate=${startStr}&endDate=${endStr}`).catch(() => ({ data: { data: [] } })),
-        ecomApi.get('/stock-locations').catch(() => ({ data: { data: [] } })),
+        ecomApi.get('/stock/alerts').catch(() => ({ data: { data: { lowStockProducts: [], summary: { lowStockCount: 0 } } } })),
         ecomApi.get('/decisions/dashboard/overview').catch(() => ({ data: { data: {} } })),
         ecomApi.get(`/reports/dashboard/stats?period=${daysCount}`).catch(() => ({ data: { data: {} } })),
         ecomApi.get('/goals', { params: { periodType: 'monthly', year: new Date().getFullYear(), month: new Date().getMonth() + 1 } }).catch(() => ({ data: { data: [] } }))
@@ -455,22 +455,20 @@ const AdminDashboard = () => {
         .sort((a, b) => (b.ordersDelivered || 0) - (a.ordersDelivered || 0))
         .slice(0, 5);
 
-      const stockEntries = stockLocationsRes.data?.data || [];
-      const LOW_THRESHOLD = 5;
-      const lowStockProducts = stockEntries
-        .map(entry => ({
-          name: entry.productName || entry.name || 'Produit inconnu',
-          stock: Math.max(0, (entry.quantity || 0) - (entry.sales || 0)),
-          reorderThreshold: entry.reorderThreshold || LOW_THRESHOLD,
-          urgency: Math.max(0, (entry.quantity || 0) - (entry.sales || 0)) === 0 ? 'critical'
-            : Math.max(0, (entry.quantity || 0) - (entry.sales || 0)) <= 2 ? 'high' : 'medium',
-          _id: entry._id,
-          productId: entry.productId
-        }))
-        .filter(e => e.stock <= e.reorderThreshold)
-        .sort((a, b) => a.stock - b.stock);
+      const alertsData = stockAlertsRes.data?.data || {};
+      const lowStockProducts = (alertsData.lowStockProducts || []).map(p => ({
+        name: p.name || 'Produit sans nom',
+        stock: p.actualStock ?? p.stock ?? 0,
+        reorderThreshold: p.reorderThreshold || 5,
+        urgency: p.urgency || (p.stock === 0 ? 'critical' : 'medium'),
+        _id: p._id,
+        productId: p._id
+      }));
 
-      const stockAlerts = { lowStockProducts, summary: { lowStockCount: lowStockProducts.length } };
+      const stockAlerts = {
+        lowStockProducts,
+        summary: alertsData.summary || { lowStockCount: lowStockProducts.length }
+      };
 
       const goalsResponse = goalsRes.data?.data || {};
       const allGoals = goalsResponse.goals || [];
@@ -730,13 +728,19 @@ const AdminDashboard = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
 
         {/* Message de bienvenue */}
-        <div className="mb-4">
-          <h1 className="text-xl font-bold text-gray-900">
-            Bonjour, {user?.name?.split(' ')[0] || 'Admin'} ! 👋
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Voici un aperçu de votre activité aujourd'hui.
-          </p>
+        <div className="mb-4 flex justify-between items-end">
+          <div>
+            <p className="text-sm text-emerald-700 font-semibold">{getGreeting()}, {user?.name?.split(' ')[0] || 'Admin'} !</p>
+            <h1 className="text-2xl font-bold text-gray-900">Vue d'ensemble</h1>
+          </div>
+          <div className="md:hidden bg-white px-3 py-1.5 rounded-xl shadow-sm border border-gray-100 flex items-center gap-1.5 cursor-pointer" onClick={() => setShowDatePicker(true)}>
+            <span className="text-sm font-semibold text-emerald-700">
+              {timeRange === 'today' ? "Aujourd'hui" : timeRange === '7d' ? '7 jours' : timeRange === '30d' ? '30 jours' : timeRange === 'custom' && customStartDate ? `${new Date(customStartDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}` : '30 jours'}
+            </span>
+            <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
         </div>
 
         {/* Période selector - Style Shopify */}
@@ -915,35 +919,145 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Bloc Shopify : KPI + Courbe dans un seul bloc blanc */}
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm mb-6">
+        {/* ══ MOBILE ONLY : Bento KPI Grid ══ */}
+        <div className="md:hidden mb-5 space-y-3">
+          {/* Revenue — full width */}
+          <div
+            onClick={() => setSelectedMetric('revenue')}
+            className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 relative overflow-hidden active:scale-[0.98] transition-transform cursor-pointer"
+          >
+            <div className="absolute top-0 right-0 p-4 opacity-[0.07]">
+              <svg className="w-20 h-20 text-emerald-800" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>
+              </svg>
+            </div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Chiffre d'affaires</p>
+            {loadingKpi ? (
+              <div className="mt-2 h-8 w-40 bg-gray-200 rounded-lg animate-pulse" />
+            ) : (
+              <div className="mt-1 flex items-baseline gap-2">
+                <h2 className="text-3xl font-bold text-emerald-700">{fmt(periodStats.totalRevenue)}</h2>
+              </div>
+            )}
+            <div className={`mt-3 flex items-center gap-1.5 ${periodStats.revenueTrend >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+              {periodStats.revenueTrend >= 0 ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" /></svg>
+              )}
+              <span className="text-xs font-bold">{formatTrend(periodStats.revenueTrend)} vs période préc.</span>
+            </div>
+          </div>
 
-          {/* KPI Row - style Shopify */}
-          <div className="grid grid-cols-2 md:grid-cols-4 divide-x-0 md:divide-x divide-gray-200 border-b border-gray-200">
-            {kpiCards.map((card, i) => {
+          {/* Net Profit + Delivery Rate — 2 cols */}
+          <div className="grid grid-cols-2 gap-3">
+            <div onClick={() => setSelectedMetric('profit')} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 active:scale-[0.98] transition-transform cursor-pointer">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Bénéfice Net</p>
+              {loadingKpi ? (
+                <div className="mt-2 h-6 w-24 bg-gray-200 rounded animate-pulse" />
+              ) : (
+                <div className="mt-2">
+                  <h3 className={`text-lg font-bold ${periodStats.totalProfit >= 0 ? 'text-gray-900' : 'text-red-600'}`}>{fmt(periodStats.totalProfit)}</h3>
+                  <p className={`text-[10px] font-semibold mt-0.5 ${periodStats.profitTrend >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{formatTrend(periodStats.profitTrend)}</p>
+                </div>
+              )}
+            </div>
+            <div onClick={() => setSelectedMetric('deliveryRate')} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 active:scale-[0.98] transition-transform cursor-pointer">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Taux Livraison</p>
+              {loadingKpi ? (
+                <div className="mt-2 h-6 w-20 bg-gray-200 rounded animate-pulse" />
+              ) : (
+                <div className="mt-2 flex items-center justify-between">
+                  <div>
+                    <h3 className={`text-lg font-bold ${periodStats.deliveryRate >= 75 ? 'text-gray-900' : periodStats.deliveryRate >= 50 ? 'text-orange-600' : 'text-red-600'}`}>{periodStats.deliveryRate.toFixed(1)}%</h3>
+                    <p className={`text-[10px] font-semibold mt-0.5 ${periodStats.deliveryRateTrend >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{formatTrend(periodStats.deliveryRateTrend)}</p>
+                  </div>
+                  <div className="w-8 h-8 rounded-full border-2 border-emerald-200 flex items-center justify-center">
+                    <div className={`w-2 h-2 rounded-full ${periodStats.deliveryRate >= 75 ? 'bg-emerald-500' : periodStats.deliveryRate >= 50 ? 'bg-orange-400' : 'bg-red-400'}`}></div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Total Orders — full width dark */}
+          <div onClick={() => setSelectedMetric('orders')} className="bg-emerald-800 rounded-2xl p-5 flex justify-between items-center active:scale-[0.98] transition-transform cursor-pointer">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-300">Commandes Livrées</p>
+              {loadingKpi ? (
+                <div className="mt-1 h-10 w-20 bg-emerald-700 rounded animate-pulse" />
+              ) : (
+                <h3 className="text-4xl font-extrabold mt-1 text-white">{periodStats.totalOrders}</h3>
+              )}
+              <p className={`text-xs font-bold mt-1 ${periodStats.ordersTrend >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                {periodStats.ordersTrend >= 0 ? '+' : ''}{periodStats.ordersTrend} vs période préc.
+              </p>
+            </div>
+            <div className="bg-emerald-700/50 p-3 rounded-full">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Mini chart on mobile (collapsible) */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+            <p className="text-xs font-semibold text-gray-500 mb-2">
+              Évolution — {kpiCards.find(k => k.id === selectedMetric)?.title}
+            </p>
+            {loadingKpi ? (
+              <div className="h-36 bg-gray-100 rounded-xl animate-pulse" />
+            ) : <ChartContent data={stats.dailyFinancial || []} selectedMetric={selectedMetric} fmt={fmt} />}
+          </div>
+        </div>
+
+        {/* Desktop: 4-col KPI cards + performance chart */}
+        <div className="hidden md:block mb-6 space-y-6">
+          <div className="grid grid-cols-4 gap-6">
+            {kpiCards.map((card) => {
+              const cardConfig = {
+                revenue:      { iconBg: 'bg-emerald-50', iconColor: 'text-emerald-700', trendBg: 'bg-emerald-50', trendColor: 'text-emerald-700', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+                profit:       { iconBg: 'bg-blue-50',    iconColor: 'text-blue-700',    trendBg: 'bg-blue-50',    trendColor: 'text-blue-700',    icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg> },
+                deliveryRate: { iconBg: 'bg-orange-50',  iconColor: 'text-orange-600',  trendBg: 'bg-orange-50',  trendColor: 'text-orange-600',  icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8H3a2 2 0 00-2 2v8a2 2 0 002 2h2m14 0h2a2 2 0 002-2v-8a2 2 0 00-2-2h-2M5 8V5a2 2 0 012-2h10a2 2 0 012 2v3M5 8h14" /></svg> },
+                orders:       { iconBg: 'bg-purple-50',  iconColor: 'text-purple-700',  trendBg: 'bg-purple-50',  trendColor: 'text-purple-700',  icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
+              };
+              const s = cardConfig[card.id] || cardConfig.revenue;
               const isSelected = selectedMetric === card.id;
-              const isLastInRowMobile = (i + 1) % 2 === 0;
-              const isLastInRowDesktop = (i + 1) % 4 === 0;
               return (
-                <KPICard
+                <div
                   key={card.id}
-                  card={card}
-                  isSelected={isSelected}
                   onClick={() => setSelectedMetric(card.id)}
-                  loadingKpi={loadingKpi}
-                  isLastInRowMobile={isLastInRowMobile}
-                  isLastInRowDesktop={isLastInRowDesktop}
-                  index={i}
-                />
+                  className={`bg-white p-6 rounded-xl cursor-pointer transition-all duration-200 hover:-translate-y-1 border ${
+                    isSelected ? 'border-emerald-400 shadow-md' : 'border-gray-100 shadow-sm hover:shadow-md'
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div className={`p-2 rounded-lg ${s.iconBg} ${s.iconColor}`}>{s.icon}</div>
+                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                      card.trendUp ? `${s.trendBg} ${s.trendColor}` : 'bg-red-50 text-red-600'
+                    }`}>
+                      {card.trend}
+                    </span>
+                  </div>
+                  <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">{card.title}</p>
+                  {loadingKpi ? (
+                    <div className="h-8 w-24 bg-gray-200 rounded-lg animate-pulse" />
+                  ) : (
+                    <p className="text-2xl font-bold text-gray-900">{card.value}</p>
+                  )}
+                </div>
               );
             })}
           </div>
 
-          {/* Séparateur */}
-          <div className="border-t border-gray-200"></div>
-
-          {/* Courbe - pleine largeur */}
-          <div className="p-4">
+          {/* Performance Chart */}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Performance des revenus</h3>
+                <p className="text-slate-400 text-sm mt-0.5">Évolution — {kpiCards.find(k => k.id === selectedMetric)?.title}</p>
+              </div>
+            </div>
             {loadingKpi ? (
               <div className="h-56 bg-gray-100 rounded-xl animate-pulse" />
             ) : <ChartContent data={stats.dailyFinancial || []} selectedMetric={selectedMetric} fmt={fmt} />}
@@ -952,42 +1066,62 @@ const AdminDashboard = () => {
 
         {/* Quick Actions */}
         <div className="mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Mobile: horizontal scroll style */}
+          <div className="md:hidden">
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 px-0.5">Actions Rapides</h2>
+            <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none' }}>
+              {quickActions.map((action, i) => (
+                <Link
+                  key={i}
+                  to={action.link}
+                  className="flex-shrink-0 bg-white px-5 py-4 rounded-2xl flex flex-col items-center gap-2 shadow-sm border border-gray-100 active:scale-95 transition-transform"
+                >
+                  <div className={`w-12 h-12 rounded-full ${action.iconBg} flex items-center justify-center`}>
+                    <span className={action.iconColor}>{action.icon}</span>
+                  </div>
+                  <span className="text-[11px] font-bold text-gray-800 whitespace-nowrap">{action.name}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+          {/* Desktop: button row */}
+          <div className="hidden md:flex flex-wrap gap-4">
             {quickActions.map((action, i) => (
               <Link
                 key={i}
                 to={action.link}
-                className="group bg-white border border-gray-200 rounded-xl p-4 hover:shadow-sm transition-all duration-200"
+                className={`py-3 px-6 rounded-xl font-semibold flex items-center gap-3 transition-all hover:shadow-md ${
+                  i === 0
+                    ? 'bg-emerald-700 text-white shadow-sm shadow-emerald-200 hover:bg-emerald-800'
+                    : 'bg-white border-2 border-slate-100 text-gray-900 hover:bg-slate-50'
+                }`}
               >
-                <div className="flex items-start gap-3">
-                  <div className={`${action.iconBg} ${action.iconColor} w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0`}>
-                    {action.icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-semibold text-gray-900 mb-0.5">{action.name}</h3>
-                    <p className="text-xs text-gray-500">{action.description}</p>
-                  </div>
-                  <svg className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
+                <span className={i === 0 ? 'text-white' : action.iconColor}>{action.icon}</span>
+                <span>{action.name}</span>
               </Link>
             ))}
           </div>
         </div>
 
         {/* Top Products & Stock Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Top Products */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 overflow-hidden">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 lg:p-8 overflow-hidden lg:col-span-2">
             <div className="flex items-center justify-between mb-4 sm:mb-6 gap-2">
               <div className="min-w-0">
                 <h3 className="text-base sm:text-lg font-bold text-gray-900">� Top produits</h3>
                 <p className="text-xs sm:text-sm text-gray-500 hidden sm:block">Par nombre de ventes livrées</p>
               </div>
-              <Link to="/ecom/stats/rapports" className="text-xs sm:text-sm text-emerald-600 hover:text-emerald-700 font-medium whitespace-nowrap flex-shrink-0">
-                Voir tout →
+              <Link to="/ecom/stats/rapports" className="text-xs sm:text-sm text-emerald-600 hover:text-emerald-700 font-medium whitespace-nowrap flex-shrink-0 flex items-center gap-1">
+                <span>Voir tout</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </Link>
+            </div>
+            {/* Desktop: table column headers */}
+            <div className="hidden md:flex items-center gap-4 px-3 pb-3 border-b border-slate-100 mt-1">
+              <div className="w-10 flex-shrink-0" />
+              <div className="flex-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Produit</div>
+              <div className="text-right flex-shrink-0 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-44">CA &nbsp;/&nbsp; Bénéfice</div>
             </div>
             <div className="space-y-2 sm:space-y-3">
               {loadingSecondary ? (
@@ -1042,18 +1176,21 @@ const AdminDashboard = () => {
           </div>
 
           {/* Stock Alerts */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 overflow-hidden">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 lg:p-8 overflow-hidden">
             <div className="flex items-center justify-between mb-4 sm:mb-6 gap-2">
               <div className="min-w-0">
-                <h3 className="text-base sm:text-lg font-bold text-gray-900">Alertes stock</h3>
+                <h3 className="text-base sm:text-xl font-bold text-gray-900">Alertes stock</h3>
                 <p className="text-xs sm:text-sm text-gray-500 hidden sm:block">Produits nécessitant réapprovisionnement</p>
               </div>
               {stats.stockAlerts.summary?.lowStockCount > 0 && (
-                <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-[10px] sm:text-xs font-bold whitespace-nowrap flex-shrink-0">
-                  {stats.stockAlerts.summary.lowStockCount} alertes
+                <span className="p-1.5 bg-red-100 text-red-600 rounded-lg flex-shrink-0">
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M1 21L12 2l11 19H1zm11-3h2v-2h-2v2zm0-4h2v-4h-2v4z"/></svg>
                 </span>
               )}
             </div>
+            {stats.stockAlerts.summary?.lowStockCount > 0 && (
+              <p className="hidden md:block text-xs font-bold text-red-600 mb-4">{stats.stockAlerts.summary.lowStockCount} alerte{stats.stockAlerts.summary.lowStockCount > 1 ? 's' : ''} active{stats.stockAlerts.summary.lowStockCount > 1 ? 's' : ''}</p>
+            )}
 
             {loadingSecondary ? (
               <div className="space-y-2.5">
@@ -1071,30 +1208,34 @@ const AdminDashboard = () => {
             ) : stats.stockAlerts.lowStockProducts?.length > 0 ? (
               <div className="space-y-2.5 sm:space-y-3">
                 {stats.stockAlerts.lowStockProducts.slice(0, 5).map((alert, i) => (
-                  <div key={i} className={`flex flex-wrap sm:flex-nowrap items-center gap-2.5 sm:gap-4 p-3 sm:p-4 rounded-xl border ${alert.urgency === 'critical' ? 'bg-red-50 border-red-200' :
-                      alert.urgency === 'high' ? 'bg-orange-50 border-orange-200' :
-                        'bg-yellow-50 border-yellow-200'
+                  <div key={i} className={`flex items-start gap-4 p-4 rounded-xl group transition-all ${
+                    alert.urgency === 'critical' ? 'bg-red-50/60 hover:bg-red-50' :
+                    alert.urgency === 'high'     ? 'bg-orange-50/60 hover:bg-orange-50' :
+                                                   'bg-yellow-50/60 hover:bg-yellow-50'
+                  }`}>
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm ${
+                      alert.urgency === 'critical' ? 'bg-white border border-red-200' :
+                      alert.urgency === 'high'     ? 'bg-white border border-orange-200' :
+                                                     'bg-white border border-yellow-200'
                     }`}>
-                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${alert.urgency === 'critical' ? 'bg-red-500 text-white' :
-                        alert.urgency === 'high' ? 'bg-orange-500 text-white' :
-                          'bg-yellow-500 text-white'
-                      }`}>
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      <svg className={`w-5 h-5 ${alert.urgency === 'critical' ? 'text-red-500' : alert.urgency === 'high' ? 'text-orange-500' : 'text-yellow-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                       </svg>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{alert.name}</p>
-                      <p className="text-xs text-gray-500">
-                        Stock: <span className="font-bold text-red-600">{alert.stock}</span> / Seuil: {alert.reorderThreshold}
+                      <p className="text-sm font-bold text-gray-900 truncate">{alert.name}</p>
+                      <p className={`text-xs font-bold mt-0.5 ${alert.urgency === 'critical' ? 'text-red-600' : alert.urgency === 'high' ? 'text-orange-600' : 'text-yellow-600'}`}>
+                        {alert.stock === 0 ? 'Rupture de stock' : `Seulement ${alert.stock} unité${alert.stock > 1 ? 's' : ''} restante${alert.stock > 1 ? 's' : ''}`}
                       </p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">Seuil : {alert.reorderThreshold} unités</p>
+                      <Link
+                        to="/ecom/stock/orders/new"
+                        state={{ productId: alert.productId || alert._id, productName: alert.name }}
+                        className="mt-2 inline-block text-[11px] font-extrabold uppercase tracking-widest text-gray-500 hover:text-emerald-700 transition-colors"
+                      >
+                        Réapprovisionner →
+                      </Link>
                     </div>
-                    <Link
-                      to="/ecom/stock/orders/new"
-                      className="w-full sm:w-auto text-center px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm font-medium text-gray-700 hover:bg-gray-50 transition flex-shrink-0"
-                    >
-                      Réapprovisionner
-                    </Link>
                   </div>
                 ))}
               </div>
@@ -1110,13 +1251,13 @@ const AdminDashboard = () => {
               </div>
             )}
 
-            <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-100">
-              <Link to="/ecom/stock" className="flex items-center justify-center gap-2 text-xs sm:text-sm text-emerald-600 hover:text-emerald-700 font-medium py-2 rounded-lg hover:bg-emerald-50 transition">
-                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Voir le rapport de stock
-              </Link>
+            <div className="mt-6 pt-6 border-t border-slate-50">
+              <p className="text-xs text-slate-400 text-center font-medium">
+                Prochain inventaire —{' '}
+                <Link to="/ecom/stock" className="text-gray-700 hover:text-emerald-700 font-semibold transition-colors">
+                  Voir le stock complet
+                </Link>
+              </p>
             </div>
           </div>
         </div>
@@ -1124,11 +1265,11 @@ const AdminDashboard = () => {
         {/* Objectifs */}
         <div className="mt-8 bg-white rounded-xl border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">🎯 Objectifs du mois</h3>
+            <h3 className="text-xl font-bold text-gray-900">Objectifs du mois</h3>
             <Link to="/ecom/goals" className="text-sm text-emerald-600 hover:text-emerald-700 font-medium">
-              Gérer →
-            </Link>
-          </div>
+              <Link to="/ecom/goals" className="text-sm text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1">
+                <span>Gérer</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           {loadingSecondary ? (
             <div className="space-y-3">
               {[...Array(3)].map((_, i) => (
