@@ -340,8 +340,8 @@ const startServer = async () => {
       // ─── Shopify Webhooks (orders/create) ─────────────────────────────
       ['./routes/shopifyWebhooks.js',          '/api/webhooks/shopify'],
       // ─── Generic Order Webhook (external systems → /webhook/orders/:token) ─
-      ['./routes/orderWebhook.js',             '/webhook/orders'],
-      // ─── Test Routes ───────────────────────────────────────────────────
+      ['./routes/orderWebhook.js',             '/webhook/orders'],      // ─── Billing / Plan upgrade (MoneyFusion) ─────────────────────────────
+      ['./routes/billing.js',                   '/api/ecom/billing'],      // ─── Test Routes ───────────────────────────────────────────────────
       ['./routes/test.js',                      '/api/ecom/test'],
     ];
 
