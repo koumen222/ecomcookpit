@@ -29,12 +29,23 @@ const ritaConfigSchema = new mongoose.Schema({
     }],
   }],
 
+  // ─── Business Profile ───
+  country: { type: String, default: '' },
+  niche: { type: String, default: '' },
+  productType: { type: String, default: '' },
+
+  // ─── Communication Style ───
+  communicationStyle: { type: String, enum: ['professional', 'friendly', 'casual', 'formal'], default: 'friendly' },
+  tone: { type: String, default: '' },
+  personality: { type: String, default: '' },
+
   // ─── Boss settings ───
   bossPhone: { type: String, default: '' },
   bossNotifications: { type: Boolean, default: false },
   notifyOnOrder: { type: Boolean, default: true },
 
   // ─── Métadonnées ───
+  onboardingCompleted: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },
 }, {
