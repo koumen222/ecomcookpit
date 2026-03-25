@@ -71,18 +71,24 @@ router.post('/', requireEcomAuth, async (req, res) => {
     console.log(`🆕 [AGENTS] POST / - Création agent pour userId=${userId}`);
     console.log(`   name: ${name}, type: ${type}`);
 
-    // Créer une RitaConfig vide pour ce nouvel agent
-    const ritaConfig = await RitaConfig.create({
-      userId,
-      enabled: false,
-      instanceId: '',
-      agentName: name,
-      welcomeMessage: `Bonjour 👋 Bienvenue chez ${name} !`,
-      productCatalog: [],
-      bossPhone: '',
-      bossNotifications: false,
-      notifyOnOrder: true,
-    });
+    // Créer ou récupérer la RitaConfig (une seule par userId)
+    let ritaConfig = await RitaConfig.findOne({ userId });
+    if (!ritaConfig) {
+      ritaConfig = await RitaConfig.create({
+        userId,
+        enabled: false,
+        instanceId: '',
+        agentName: name,
+        welcomeMessage: `Bonjour 👋 Bienvenue chez ${name} !`,
+        productCatalog: [],
+        bossPhone: '',
+        bossNotifications: false,
+        notifyOnOrder: true,
+      });
+      console.log(`   RitaConfig créée: ${ritaConfig._id}`);
+    } else {
+      console.log(`   RitaConfig existante: ${ritaConfig._id}`);
+    }
 
     // Créer l'agent
     const agent = await Agent.create({
@@ -195,11 +201,7 @@ router.delete('/:id', requireEcomAuth, async (req, res) => {
       });
     }
 
-    // Supprimer aussi la config Rita
-    if (agent.configId) {
-      await RitaConfig.findByIdAndDelete(agent.configId);
-    }
-
+    // Supprimer l'agent (la RitaConfig est partagée, ne pas la supprimer)
     await Agent.findByIdAndDelete(agent._id);
 
     console.log(`✅ [AGENTS] Agent supprimé: ${agent._id}`);
