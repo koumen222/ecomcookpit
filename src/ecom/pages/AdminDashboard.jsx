@@ -1268,10 +1268,11 @@ const AdminDashboard = () => {
         <div className="mt-8 bg-white rounded-xl border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold text-gray-900">Objectifs du mois</h3>
-            <Link to="/ecom/goals" className="text-sm text-emerald-600 hover:text-emerald-700 font-medium">
-              <Link to="/ecom/goals" className="text-sm text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1">
-                <span>Gérer</span>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            <Link to="/ecom/goals" className="text-sm text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1">
+              <span>Gérer</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            </Link>
+          </div>
           {loadingSecondary ? (
             <div className="space-y-3">
               {[...Array(3)].map((_, i) => (
