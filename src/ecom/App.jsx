@@ -101,6 +101,7 @@ import DeveloperSection from './pages/DeveloperSection.jsx';
 import WhatsAppInstancesList from './pages/WhatsAppInstancesList.jsx';
 import RitaFlows from './pages/RitaFlows.jsx';
 import AgentConfig from './pages/AgentConfig.jsx';
+import AgentIAList from './pages/AgentIAList.jsx';
 import ConnectShopify from './pages/ConnectShopify.jsx';
 import BillingPage from './pages/BillingPage.jsx';
 import BillingSuccess from './pages/BillingSuccess.jsx';
@@ -435,6 +436,7 @@ const EcomApp = () => {
 
             {/* Routes Developer & Rita - Accessibles à tous */}
             <Route path="/ecom/developer" element={<LayoutRoute><DeveloperSection /></LayoutRoute>} />
+            <Route path="/ecom/agent-ia" element={<LayoutRoute><AgentIAList /></LayoutRoute>} />
             <Route path="/ecom/rita-flows" element={<LayoutRoute><RitaFlows /></LayoutRoute>} />
             <Route path="/ecom/whatsapp/agent-config" element={<LayoutRoute><AgentConfig /></LayoutRoute>} />
 

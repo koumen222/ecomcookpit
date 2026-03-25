@@ -311,6 +311,7 @@ const startServer = async () => {
       ['./routes/autoSync.js',                '/api/ecom/auto-sync'],
       ['./routes/agent.js',                   '/api/ecom/agent'],
       ['./routes/agentCommands.js',           '/api/ecom/agent/commands'],
+      ['./routes/agents.js',                  '/api/ecom/agents'],
       ['./routes/ritaConfig.js',              '/api/ecom/rita'],
       // ─── Store / Storefront routes ──────────────────────────────────
       ['./routes/storeProducts.js',           '/api/ecom/store-products'],
