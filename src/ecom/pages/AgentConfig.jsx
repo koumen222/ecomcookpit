@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye, Star, Trash2, Plus, Image, Video, X, Download } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
+import { useEcomAuth } from '../hooks/useEcomAuth';
 
 const ACCENT = '#0F6B4F';
 
@@ -342,11 +343,11 @@ export default function AgentConfig() {
 
   const [savedConfig, setSavedConfig] = useState(null);
 
-  const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
-  const userId = user._id || user.id;
+  const { user: authUser } = useEcomAuth();
+  const userId = authUser?._id || authUser?.id;
   const [instanceError, setInstanceError] = useState(null);
   const [ritaRequestForm, setRitaRequestForm] = useState({
-    contactName: user?.name || '',
+    contactName: authUser?.name || '',
     phoneNumber: '',
     businessName: '',
     reason: ''
@@ -387,6 +388,9 @@ export default function AgentConfig() {
           ecomApi.get(`/v1/external/whatsapp/rita-config?userId=${userId}`),
           loadInstances(),
         ]);
+        if (!configRes.data.success || !configRes.data.config) {
+          console.warn('[AgentConfig] Aucune config Rita trouvée pour userId:', userId, '| response:', configRes.data);
+        }
         if (configRes.data.success && configRes.data.config) {
           let loadedConfig = configRes.data.config;
           console.log("FRONT PRODUCTS:", (loadedConfig.productCatalog || []).map(p => ({ name: p.name, price: p.price })));
