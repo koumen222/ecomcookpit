@@ -521,7 +521,7 @@ const startServer = async () => {
     console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🔍 Debug mode: ENABLED (all requests logged)`);
     
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`🌐 Server ready on port ${PORT}`);
       console.log(`📡 API: http://localhost:${PORT}/api`);
       console.log(`🏪 Stores: http://localhost:${PORT}/store/:subdomain`);

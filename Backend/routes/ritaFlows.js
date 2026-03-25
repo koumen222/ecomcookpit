@@ -9,12 +9,24 @@ import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 import { autoCreateGroupForProduct } from '../services/ritaFlowEngine.js';
 import { requireEcomAuth, requireRitaAgentAccess } from '../middleware/ecomAuth.js';
+import Workspace from '../models/Workspace.js';
 
 const router = express.Router();
 
-function resolveRitaFlowUserId(req) {
+async function resolveRitaFlowUserId(req) {
   if (req.ecomUser?.role === 'super_admin') {
     return req.body?.userId || req.query?.userId || String(req.ecomUser._id);
+  }
+
+  // Résoudre via le owner du workspace
+  const wsId = req.workspaceId || req.ecomUser?.workspaceId;
+  if (wsId) {
+    try {
+      const ws = await Workspace.findById(wsId).select('owner').lean();
+      if (ws?.owner) return String(ws.owner);
+    } catch (e) {
+      console.warn('⚠️ resolveRitaFlowUserId: workspace owner lookup failed:', e.message);
+    }
   }
 
   return String(req.ecomUser?._id || '');
@@ -30,7 +42,7 @@ function resolveRitaFlowUserId(req) {
  */
 router.get('/config', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
-    const userId = resolveRitaFlowUserId(req);
+    const userId = await resolveRitaFlowUserId(req);
     if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
 
     let config = await RitaFlow.findOne({ userId }).lean();
@@ -62,7 +74,7 @@ router.get('/config', requireEcomAuth, requireRitaAgentAccess, async (req, res) 
 router.post('/config', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
     const { config } = req.body;
-    const userId = resolveRitaFlowUserId(req);
+    const userId = await resolveRitaFlowUserId(req);
     if (!userId || !config) return res.status(400).json({ success: false, error: 'userId et config requis' });
 
     const updated = await RitaFlow.findOneAndUpdate(
@@ -94,7 +106,7 @@ router.post('/config', requireEcomAuth, requireRitaAgentAccess, async (req, res)
  */
 router.get('/groups/list', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
-    const userId = resolveRitaFlowUserId(req);
+    const userId = await resolveRitaFlowUserId(req);
     if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
 
     const inst = await WhatsAppInstance.findOne({ userId, isActive: true }).lean();
@@ -122,7 +134,7 @@ router.get('/groups/list', requireEcomAuth, requireRitaAgentAccess, async (req, 
 router.post('/groups/create', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
     const { name, description } = req.body;
-    const userId = resolveRitaFlowUserId(req);
+    const userId = await resolveRitaFlowUserId(req);
     if (!userId || !name) return res.status(400).json({ success: false, error: 'userId et name requis' });
 
     const inst = await WhatsAppInstance.findOne({ userId, isActive: true }).lean();
@@ -165,7 +177,7 @@ router.post('/groups/create', requireEcomAuth, requireRitaAgentAccess, async (re
 router.post('/groups/invite-link', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
     const { groupJid } = req.body;
-    const userId = resolveRitaFlowUserId(req);
+    const userId = await resolveRitaFlowUserId(req);
     if (!userId || !groupJid) return res.status(400).json({ success: false, error: 'userId et groupJid requis' });
 
     const inst = await WhatsAppInstance.findOne({ userId, isActive: true }).lean();
@@ -194,7 +206,7 @@ router.post('/groups/invite-link', requireEcomAuth, requireRitaAgentAccess, asyn
 router.post('/groups/auto-create-product', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
     const { productName } = req.body;
-    const userId = resolveRitaFlowUserId(req);
+    const userId = await resolveRitaFlowUserId(req);
     if (!userId || !productName) return res.status(400).json({ success: false, error: 'userId et productName requis' });
 
     const group = await autoCreateGroupForProduct(userId, productName);
@@ -218,7 +230,7 @@ router.post('/groups/auto-create-product', requireEcomAuth, requireRitaAgentAcce
 router.post('/groups/scheduled-post', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
     const { groupJid, post } = req.body;
-    const userId = resolveRitaFlowUserId(req);
+    const userId = await resolveRitaFlowUserId(req);
     if (!userId || !groupJid || !post) return res.status(400).json({ success: false, error: 'userId, groupJid et post requis' });
 
     const result = await RitaFlow.findOneAndUpdate(
@@ -245,7 +257,7 @@ router.post('/groups/scheduled-post', requireEcomAuth, requireRitaAgentAccess, a
 router.delete('/groups/scheduled-post', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
     const { groupJid, postIndex } = req.body;
-    const userId = resolveRitaFlowUserId(req);
+    const userId = await resolveRitaFlowUserId(req);
     if (!userId || !groupJid || postIndex === undefined) {
       return res.status(400).json({ success: false, error: 'userId, groupJid et postIndex requis' });
     }
