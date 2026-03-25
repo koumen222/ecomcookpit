@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye, Star, Trash2, Plus, Image, Video, X, Download } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 import { useEcomAuth } from '../hooks/useEcomAuth';
@@ -173,6 +173,9 @@ const SelectDropdown = ({ value, onChange, options, placeholder = 'Sélectionner
 // ─── Main Component ───
 export default function AgentConfig() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const agent = location.state?.agent; // Agent depuis la page liste
+
   const [activeTab, setActiveTab] = useState('identity');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -754,19 +757,17 @@ export default function AgentConfig() {
           {/* Breadcrumb */}
           <div className="py-3">
             <nav className="flex items-center gap-1.5 text-[12px] text-gray-400">
-              <button onClick={() => navigate('/ecom/dashboard')} className="hover:text-gray-600 transition-colors">Dashboard</button>
+              <button onClick={() => navigate('/ecom/agent-ia')} className="hover:text-gray-600 transition-colors">Agent IA</button>
               <span>›</span>
-              <button onClick={() => navigate('/ecom/whatsapp/service')} className="hover:text-gray-600 transition-colors">WhatsApp Service</button>
-              <span>›</span>
-              <span className="text-gray-600 font-medium">IA Management</span>
+              <span className="text-gray-600 font-medium">{agent?.name || 'Configuration'}</span>
             </nav>
           </div>
 
           {/* Title bar */}
           <div className="flex items-center justify-between pb-4">
             <div>
-              <h1 className="text-[22px] font-bold text-gray-900">Paramètres de l'IA</h1>
-              <p className="text-[13px] text-gray-400 mt-0.5">Personnalisez l'identité et le comportement de votre agent intelligent.</p>
+              <h1 className="text-[22px] font-bold text-gray-900">{agent?.name || 'Configuration Agent IA'}</h1>
+              <p className="text-[13px] text-gray-400 mt-0.5">Configurez les produits, messages et paramètres de votre agent.</p>
             </div>
             <div className="flex items-center gap-3">
               <button onClick={handleReset} disabled={!hasChanges}
