@@ -110,13 +110,23 @@ function extractEntities(text = '') {
   }
 
   // ── Adresse (quartier / rue) ──
-  // Patterns : "quartier X", "à X", "zone X", "côté de X", "près de X", "adresse : X"
+  // Patterns explicites : "quartier X", "zone X", "côté de X", "près de X", "adresse : X"
   const adresseRe = /(?:adresse\s*[:=]\s*|quartier\s+|zone\s+|côté de\s+|sector\s+|derrière\s+|près de\s+|livr(?:ez|er) (?:à|au)\s+|je suis (?:à|au|en)\s+)([A-ZÀ-Üa-zà-ü][a-zA-ZÀ-Üà-ü0-9\s\-',]{2,40})(?:\s*[,.\n]|$)/i;
   const aMatch = text.match(adresseRe);
   if (aMatch) {
     const candidate = aMatch[1].trim();
     if (!CAMEROUN_CITIES.some(c => c === candidate.toLowerCase())) {
       found.adresse = candidate;
+    }
+  }
+
+  // ── Adresse implicite : ce qui reste après la ville dans le même message ──
+  // Ex: "douala akwa" → ville=Douala, adresse=akwa
+  if (!found.adresse && found.ville) {
+    const cityNorm = found.ville.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const afterCity = lowerText.replace(new RegExp('\\b' + cityNorm + '\\b'), '').replace(/[,./\-]+/g, ' ').trim();
+    if (afterCity.length >= 2 && !CAMEROUN_CITIES.some(c => c === afterCity)) {
+      found.adresse = afterCity;
     }
   }
 
@@ -147,6 +157,24 @@ function updateClientState(historyKey, message) {
   if (entities.nom && !state.nom) state.nom = entities.nom;
   if (entities.ville && !state.ville) state.ville = entities.ville;
   if (entities.adresse && !state.adresse) state.adresse = entities.adresse;
+
+  // ── Fallback contextuel : si la ville est connue mais l'adresse manque encore,
+  //    traiter le message brut comme adresse (ex: client répond juste "akwa")
+  if (state.ville && !state.adresse && !entities.adresse) {
+    const norm = normalizeForMatch(message);
+    const msgTrim = message.trim();
+    // Exclure les confirmations, négations et messages trop courts/longs
+    const isNonAddress = /^(oui|non|ok|ouais|nope|merci|voila|c est tout|pas encore|rien|bonne|parfait|super|d accord|dacc)$/.test(norm);
+    if (!isNonAddress && msgTrim.length >= 2 && msgTrim.length <= 80) {
+      // Retirer la ville si le client la répète (ex: "douala akwa" après avoir déjà donné douala)
+      const cityNorm = state.ville.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const cleaned = norm.replace(new RegExp('\\b' + cityNorm + '\\b'), '').trim();
+      const adresseCandidate = cleaned.length >= 2 ? cleaned : norm;
+      if (!CAMEROUN_CITIES.some(c => c === adresseCandidate)) {
+        state.adresse = adresseCandidate;
+      }
+    }
+  }
 
   // Numéro d'appel livraison
   if (!state.telephoneAppel) {
