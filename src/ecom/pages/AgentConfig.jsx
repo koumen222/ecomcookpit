@@ -389,6 +389,7 @@ export default function AgentConfig() {
         ]);
         if (configRes.data.success && configRes.data.config) {
           let loadedConfig = configRes.data.config;
+          console.log("FRONT PRODUCTS:", (loadedConfig.productCatalog || []).map(p => ({ name: p.name, price: p.price })));
           
           // Migration: Converter 'product' -> 'productName' et ajouter 'rating' par défaut
           if (loadedConfig.testimonials?.length) {
@@ -436,7 +437,9 @@ export default function AgentConfig() {
         userId, enabled: config.enabled, instanceId: config.instanceId || undefined,
       });
       setSaveStatus('success');
-      setSavedConfig({ ...config });
+      const savedFromServer = data.config || config;
+      setConfig(prev => ({ ...prev, ...savedFromServer }));
+      setSavedConfig(savedFromServer);
       setHasChanges(false);
       setTimeout(() => setSaveStatus(null), 3000);
     } catch { setSaveStatus('error'); }
