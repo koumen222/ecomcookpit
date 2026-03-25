@@ -23,6 +23,8 @@ setInterval(() => {
       conversationHistory.delete(key);
       conversationLastActivity.delete(key);
       conversationTracker.delete(key);
+      clientStates.delete(key);
+      askedQuestions.delete(key);
     }
   }
 }, 30 * 60 * 1000);
@@ -30,6 +32,191 @@ setInterval(() => {
 // Suivi des dernières interactions pour le système de relance
 // Map<historyKey, { lastClientMessage: Date, lastAgentMessage: Date, relanceCount: number, ordered: boolean }>
 const conversationTracker = new Map();
+
+// ═══════════════════════════════════════════════════════════════
+// STATE MANAGEMENT — état per-conversation (nom, tel, ville, etc.)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * État client par conversation.
+ * Map<historyKey, { nom, telephone, ville, quartier, produit, prix, statut }>
+ */
+const clientStates = new Map();
+
+/**
+ * Questions déjà posées par Rita dans cette conversation.
+ * Map<historyKey, Set<string>>
+ */
+const askedQuestions = new Map();
+
+/**
+ * Retourne (ou crée) l'état client d'une conversation.
+ * Le téléphone est auto-déduit du JID WhatsApp dès le départ.
+ */
+function getOrCreateState(historyKey, fromJid = '') {
+  if (!clientStates.has(historyKey)) {
+    // Extraire le numéro brut depuis le JID (ex: 237699887766@s.whatsapp.net)
+    const rawPhone = fromJid.replace(/@.*$/, '').replace(/^\+/, '');
+    // Numéro Cameroun : retirer le préfixe 237 si présent pour avoir 9 chiffres
+    const localPhone = rawPhone.startsWith('237') ? rawPhone.slice(3) : rawPhone;
+
+    clientStates.set(historyKey, {
+      nom: null,            // facultatif — pris en compte si fourni, sinon on ne demande pas
+      telephone: localPhone || rawPhone || null, // auto via webhook JID — JAMAIS demandé
+      telephoneAppel: null, // numéro pour appels livraison (peut différer du WhatsApp)
+      ville: null,          // à demander lors de la commande
+      adresse: null,        // adresse précise — à demander lors de la commande
+      produit: null,
+      prix: null,
+      statut: 'nouveau',    // nouveau | interesse | negociation | commande
+    });
+    askedQuestions.set(historyKey, new Set());
+  }
+  return clientStates.get(historyKey);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ENTITY EXTRACTION — parsing automatique des messages client
+// ═══════════════════════════════════════════════════════════════
+
+const CAMEROUN_CITIES = [
+  'douala', 'yaoundé', 'yaounde', 'bafoussam', 'bamenda', 'garoua',
+  'maroua', 'ngaoundéré', 'ngaoundere', 'bertoua', 'kumba', 'buea',
+  'limbe', 'nkongsamba', 'edea', 'kribi', 'ebolowa', 'sangmelima',
+  'mbouda', 'dschang', 'foumban', 'tibati', 'meiganga',
+];
+
+/**
+ * Extrait les entités (nom, ville, adresse) d'un message client.
+ * Le téléphone N'EST PAS extrait ici — il vient toujours du webhook JID.
+ * Retourne un objet partiel des entités trouvées.
+ */
+function extractEntities(text = '') {
+  const found = {};
+
+  // ── Nom (optionnel — seulement si le client le mentionne explicitement) ──
+  const nameRe = /(?:je m['']appelle|mon nom(?: est| c['']est)?|nom\s*[:=]\s*|c['']est moi\s+|appelle.moi|prénom\s*[:=]\s*)\s*([A-ZÀ-Üa-zà-ü][a-zà-ü]+(?:\s+[A-ZÀ-Üa-zà-ü][a-zà-ü]+)?)/i;
+  const nameMatch = text.match(nameRe);
+  if (nameMatch) found.nom = nameMatch[1].trim();
+
+  // ── Ville ──
+  const lowerText = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  for (const city of CAMEROUN_CITIES) {
+    const cityNorm = city.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (lowerText.includes(cityNorm)) {
+      found.ville = city.charAt(0).toUpperCase() + city.slice(1);
+      break;
+    }
+  }
+
+  // ── Adresse (quartier / rue) ──
+  // Patterns : "quartier X", "à X", "zone X", "côté de X", "près de X", "adresse : X"
+  const adresseRe = /(?:adresse\s*[:=]\s*|quartier\s+|zone\s+|côté de\s+|sector\s+|derrière\s+|près de\s+|livr(?:ez|er) (?:à|au)\s+|je suis (?:à|au|en)\s+)([A-ZÀ-Üa-zà-ü][a-zA-ZÀ-Üà-ü0-9\s\-',]{2,40})(?:\s*[,.\n]|$)/i;
+  const aMatch = text.match(adresseRe);
+  if (aMatch) {
+    const candidate = aMatch[1].trim();
+    if (!CAMEROUN_CITIES.some(c => c === candidate.toLowerCase())) {
+      found.adresse = candidate;
+    }
+  }
+
+  // ── Numéro d'appel alternatif ──
+  // Détecté quand le client donne explicitement un numéro pour la livraison
+  // (différent du "oui même numéro" → géré par logique d'état)
+  const phoneRe = /(?:\+?237)?([67]\d{8})\b/g;
+  const phoneMatch = text.match(phoneRe);
+  if (phoneMatch) {
+    const raw = phoneMatch[0].replace(/\+?237/, '').trim();
+    if (/^[67]\d{8}$/.test(raw)) found.telephoneAppel = raw;
+  }
+
+  return found;
+}
+
+/**
+ * Met à jour l'état client avec les entités trouvées dans le message
+ * et fait évoluer le statut selon l'intention.
+ */
+function updateClientState(historyKey, message) {
+  const state = clientStates.get(historyKey);
+  if (!state) return;
+
+  const entities = extractEntities(message);
+  // N'écraser que les valeurs null (ne pas réécrire si déjà connu)
+  // NB: telephone principal n'est jamais modifié ici — uniquement via webhook JID
+  if (entities.nom && !state.nom) state.nom = entities.nom;
+  if (entities.ville && !state.ville) state.ville = entities.ville;
+  if (entities.adresse && !state.adresse) state.adresse = entities.adresse;
+
+  // Numéro d'appel livraison
+  if (!state.telephoneAppel) {
+    const norm = normalizeForMatch(message);
+    // Client dit "oui même numéro" / "ce numéro" / "oui" en réponse à la question téléphone
+    if (/(oui|ok|meme numero|ce numero|c est bon|mon numero|whatsapp)/.test(norm) && !entities.telephoneAppel) {
+      state.telephoneAppel = state.telephone; // confirme le numéro WhatsApp
+    } else if (entities.telephoneAppel) {
+      state.telephoneAppel = entities.telephoneAppel; // numéro alternatif fourni
+    }
+  }
+
+  // Auto-détection du statut selon l'intention
+  const norm = normalizeForMatch(message);
+  if (/(je prends|je veux|je confirme|on commande|c est bon|ok pour|go|validé|je commande)/.test(norm)) {
+    state.statut = 'commande';
+  } else if (/(cher|trop cher|reduction|remise|peut.?etre|je vais voir|je reflechis|hm|jsp|cava)/.test(norm)) {
+    if (state.statut === 'nouveau' || state.statut === 'interesse') state.statut = 'negociation';
+  } else if (/(combien|prix|livraison|disponible|c est quoi|comment|marche|fonctionne|description)/.test(norm)) {
+    if (state.statut === 'nouveau') state.statut = 'interesse';
+  }
+}
+
+/**
+ * Construit la section "ÉTAT CLIENT" à injecter dans le system prompt.
+ */
+function buildClientStateSection(state, askedQs) {
+  if (!state) return '';
+
+  const lines = [];
+  lines.push(`- Nom          : ${state.nom ? `✅ ${state.nom} (utiliser si connu)` : '— non fourni (NE PAS demander)'}`);
+  lines.push(`- Tél WhatsApp : ✅ ${state.telephone || 'auto'} (JAMAIS demander)`);
+  lines.push(`- Tél livraison: ${state.telephoneAppel ? `✅ ${state.telephoneAppel}` : '❓ à confirmer'}`);
+  lines.push(`- Ville        : ${state.ville ? `✅ ${state.ville}` : '❓ à demander'}`);
+  lines.push(`- Adresse      : ${state.adresse ? `✅ ${state.adresse}` : '❓ à demander'}`);
+  lines.push(`- Produit      : ${state.produit || '❓ non identifié'}`);
+  lines.push(`- Statut       : ${state.statut}`);
+
+  const askedList = askedQs && askedQs.size > 0 ? [...askedQs].join(' / ') : null;
+
+  // Étapes de collecte dans l'ordre — une seule question à la fois
+  let deliveryRule;
+  if (!state.ville || !state.adresse) {
+    if (!state.ville && !state.adresse) {
+      deliveryRule = `👉 PROCHAINE QUESTION (une seule) : "C'est pour quelle ville et quelle adresse de livraison ? 👍"`;
+    } else if (!state.ville) {
+      deliveryRule = `👉 PROCHAINE QUESTION : "C'est pour quelle ville ? 👍"`;
+    } else {
+      deliveryRule = `👉 PROCHAINE QUESTION : "Quelle est ton adresse précise pour la livraison ? 👍"`;
+    }
+  } else if (!state.telephoneAppel) {
+    deliveryRule = `👉 PROCHAINE QUESTION : "On te rappelle sur ce numéro WhatsApp pour la livraison, ou tu préfères qu'on appelle un autre numéro ? 👍"`;
+  } else {
+    deliveryRule = '✅ Toutes les infos sont collectées. Génère le récap de commande immédiatement.';
+  }
+
+  return `
+
+## 🧠 ÉTAT CLIENT — MÉMOIRE ACTIVE (RÈGLES ABSOLUES)
+${lines.join('\n')}
+
+### 📦 RÈGLES COLLECTE INFOS (PRIORITÉ MAXIMALE)
+1. ⛔ JAMAIS demander le téléphone WhatsApp — auto-détecté
+2. ⛔ JAMAIS demander le nom — s'il est null c'est OK, utilise-le seulement s'il est connu
+3. ✅ Si le client donne son nom → l'utiliser dans la conversation et le récap
+4. ✅ Ordre de collecte : ville → adresse → confirmation numéro d'appel
+
+${deliveryRule}
+${askedList ? `\n### ⛔ QUESTIONS DÉJÀ POSÉES — NE PAS RÉPÉTER\n${askedList}` : ''}`;
+}
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -183,6 +370,56 @@ function buildActiveConversationContext(config = {}, history = [], latestClientM
     lastAssistantMessage: extractLastAssistantMessage(recentHistory),
     isShortContextualReply: isShortContextualMessage(latestClientMessage),
   };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// VISION — Analyse des images envoyées par le client
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Analyse une image envoyée par le client via Groq (vision).
+ * Retourne une description courte utilisable comme contexte pour la réponse.
+ * @param {string} imageBase64 - Image encodée en base64
+ * @param {string} mimeType    - ex: 'image/jpeg', 'image/png'
+ * @param {string} catalogContext - Résumé des produits du catalogue
+ * @returns {Promise<string|null>}
+ */
+export async function analyzeClientImage(imageBase64, mimeType = 'image/jpeg', catalogContext = '') {
+  try {
+    const completion = await groq.chat.completions.create({
+      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: { url: `data:${mimeType};base64,${imageBase64}` },
+            },
+            {
+              type: 'text',
+              text: `Tu es Rita, une vendeuse WhatsApp au Cameroun. Un client vient de t'envoyer cette image.
+${catalogContext ? `Tes produits : ${catalogContext}` : ''}
+En 2-3 phrases max, décris ce que tu vois et comment tu peux l'utiliser dans une conversation de vente :
+- Si c'est un produit concurrent → compare brièvement avec le tien
+- Si c'est une photo personnelle / selfie → identifie le besoin potentiel (soin, beauté, santé, etc.)
+- Si c'est une capture d'écran / bon de commande → extrais les infos clés
+- Si c'est autre chose → donne une piste de transition vers tes produits
+Réponds en français, de façon courte et naturelle.`,
+            },
+          ],
+        },
+      ],
+      temperature: 0.3,
+      max_completion_tokens: 200,
+    });
+    const result = completion.choices[0]?.message?.content?.trim();
+    console.log(`👁️ [VISION] Analyse image: "${result?.substring(0, 150)}"`);
+    return result || null;
+  } catch (err) {
+    console.error('❌ [VISION] Erreur analyse image:', err.message);
+    return null;
+  }
 }
 
 /**
@@ -1870,6 +2107,18 @@ UTILISE ces infos pour personnaliser :
 ${c.pushName ? `- Appelle-le par son prénom "${c.pushName}" de temps en temps (pas à chaque message)` : ''}`;
   }
 
+  // ─── ÉTAT CLIENT (state machine + entités extraites) ───
+  if (context.clientState) {
+    prompt += buildClientStateSection(context.clientState, context.askedQs);
+  }
+
+  // ─── VISION — résultat d'analyse image ───
+  if (context.imageAnalysis) {
+    prompt += `\n\n## 👁️ IMAGE ENVOYÉE PAR LE CLIENT — ANALYSE
+${context.imageAnalysis}
+→ Utilise ce contexte pour ta réponse. Fais le lien avec ton catalogue si possible.`;
+  }
+
   // ─── HORAIRES DE TRAVAIL ───
   if (config.businessHoursOnly && config.businessHoursStart && config.businessHoursEnd) {
     const now = new Date();
@@ -2075,12 +2324,15 @@ export async function processBossMessage(userId, from, text) {
 
 /**
  * Traite un message entrant et génère une réponse IA via Groq
- * @param {string} userId  - ID de l'utilisateur/propriétaire
- * @param {string} from    - numéro WhatsApp expéditeur (JID: 33612...@s.whatsapp.net)
- * @param {string} text    - Texte du message reçu
+ * @param {string} userId         - ID de l'utilisateur/propriétaire
+ * @param {string} from           - numéro WhatsApp expéditeur (JID: 33612...@s.whatsapp.net)
+ * @param {string} text           - Texte du message reçu
+ * @param {object} [opts]         - Options avancées
+ * @param {string} [opts.imageBase64]    - Image client encodée base64 (si message image)
+ * @param {string} [opts.imageMimeType]  - Type MIME de l'image (ex: 'image/jpeg')
  * @returns {Promise<string|null>} - Réponse générée ou null si Rita désactivée
  */
-export async function processIncomingMessage(userId, from, text) {
+export async function processIncomingMessage(userId, from, text, opts = {}) {
   // Charger la config Rita
   const config = await RitaConfig.findOne({ userId }).lean();
   if (!config) {
@@ -2101,6 +2353,11 @@ export async function processIncomingMessage(userId, from, text) {
 
   // Mettre à jour le timestamp d'activité (rétention 24h)
   conversationLastActivity.set(historyKey, Date.now());
+
+  // ── State management : créer/récupérer état + extraire entités du message ──
+  const clientState = getOrCreateState(historyKey, from);
+  updateClientState(historyKey, text);
+  const askedQs = askedQuestions.get(historyKey);
 
   // Ajouter le message de l'utilisateur à l'historique
   history.push({ role: 'user', content: text });
@@ -2123,10 +2380,24 @@ export async function processIncomingMessage(userId, from, text) {
     contact = await RitaContact.findOne({ userId, phone: cleanPhone }).lean();
   } catch (_) { /* ignore */ }
 
+  // ── Vision : analyser l'image si présente ──
+  let imageAnalysis = null;
+  if (opts.imageBase64) {
+    const catalogCtx = (config.productCatalog || [])
+      .filter(p => p.name)
+      .map(p => `${p.name}${p.price ? ` (${p.price})` : ''}`)
+      .join(', ');
+    imageAnalysis = await analyzeClientImage(opts.imageBase64, opts.imageMimeType || 'image/jpeg', catalogCtx);
+    // Enrichir le message avec le résultat de la vision
+    if (imageAnalysis) {
+      history[history.length - 1].content += `\n[IMAGE_ANALYSIS: ${imageAnalysis}]`;
+    }
+  }
+
   const activeConversation = buildActiveConversationContext(config, history, text);
   let systemPrompt;
   try {
-    systemPrompt = buildSystemPrompt(config, { contact, activeConversation });
+    systemPrompt = buildSystemPrompt(config, { contact, activeConversation, clientState, askedQs, imageAnalysis });
   } catch (promptErr) {
     console.error(`❌ [RITA] Erreur buildSystemPrompt pour userId=${userId}:`, promptErr.message);
     return config.fallbackMessage || null;
@@ -2134,7 +2405,7 @@ export async function processIncomingMessage(userId, from, text) {
 
   const promptLen = systemPrompt.length;
   const approxTokens = Math.round(promptLen / 4);
-  console.log(`🤖 [RITA] Appel Groq — userId=${userId} from=${from} promptLen=${promptLen} (~${approxTokens} tokens) historyLen=${history.length}`);
+  console.log(`🤖 [RITA] Appel Groq — userId=${userId} from=${from} state=${clientState.statut} promptLen=${promptLen} (~${approxTokens} tokens) historyLen=${history.length}`);
 
   try {
     const completion = await groq.chat.completions.create({
@@ -2157,10 +2428,27 @@ export async function processIncomingMessage(userId, from, text) {
       // Ajouter la réponse de l'agent à l'historique
       history.push({ role: 'assistant', content: reply });
       // Tracker l'activité agent pour la relance
-      const tracker = conversationTracker.get(historyKey);
-      if (tracker) {
-        tracker.lastAgentMessage = new Date();
-        if (/\[ORDER_DATA:/i.test(reply)) tracker.ordered = true;
+      const t2 = conversationTracker.get(historyKey);
+      if (t2) {
+        t2.lastAgentMessage = new Date();
+        if (/\[ORDER_DATA:/i.test(reply)) {
+          t2.ordered = true;
+          clientState.statut = 'commande';
+        }
+      }
+      // Tracker les questions posées pour l'anti-répétition
+      if (askedQs) {
+        if (/quelle ville|tu es.* où|vous êtes.* où/i.test(reply)) askedQs.add('ville');
+        if (/adresse|livraison|zone|quartier|secteur/i.test(reply)) askedQs.add('adresse');
+        if (/rappelle.* numéro|autre numéro|numéro.* livraison|whatsapp.* livraison/i.test(reply)) askedQs.add('telephone_appel');
+        if (/quel produit|c['']est pour|lequel/i.test(reply)) askedQs.add('produit');
+        // Mise à jour produit dans le state si Rita l'a identifié dans la réponse
+        if (!clientState.produit) {
+          const catalog = config?.productCatalog?.filter(p => p.name) || [];
+          for (const p of catalog) {
+            if (reply.includes(p.name)) { clientState.produit = p.name; break; }
+          }
+        }
       }
     }
     return reply || null;
@@ -2199,7 +2487,11 @@ export async function generateTestReply(config, messages) {
  * Réinitialise l'historique de conversation pour un numéro donné
  */
 export function clearConversationHistory(userId, from) {
-  conversationHistory.delete(`${userId}:${from}`);
+  const key = `${userId}:${from}`;
+  conversationHistory.delete(key);
+  clientStates.delete(key);
+  askedQuestions.delete(key);
+  conversationTracker.delete(key);
 }
 
 /**

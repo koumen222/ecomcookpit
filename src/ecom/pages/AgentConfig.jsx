@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye, Star, Trash2, Plus, Image, Video, X } from 'lucide-react';
+import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye, Star, Trash2, Plus, Image, Video, X, Download } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 
 const ACCENT = '#0F6B4F';
@@ -16,6 +16,7 @@ const TABS = [
   { id: 'testimonials', label: 'Témoignages', icon: Star },
   { id: 'admin-pilotage', label: 'Pilotage', icon: Headphones },
   { id: 'analytics', label: 'Analytiques', icon: BarChart3 },
+  { id: 'contacts', label: 'Contacts', icon: Users },
 ];
 
 const TONE_OPTIONS = [
@@ -243,6 +244,12 @@ export default function AgentConfig() {
   const [activityData, setActivityData] = useState(null);
   const [analyticsDays, setAnalyticsDays] = useState(7);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // Contacts
+  const [contactsList, setContactsList] = useState([]);
+  const [contactsTotal, setContactsTotal] = useState(0);
+  const [contactsPage, setContactsPage] = useState(1);
+  const [contactsLoading, setContactsLoading] = useState(false);
 
   const [config, setConfig] = useState({
     enabled: false,
@@ -682,6 +689,32 @@ export default function AgentConfig() {
   useEffect(() => {
     if (activeTab === 'analytics') fetchAnalytics(analyticsDays);
   }, [activeTab, analyticsDays, fetchAnalytics]);
+
+  const fetchContacts = useCallback(async (page = 1) => {
+    setContactsLoading(true);
+    try {
+      const { data } = await ecomApi.get(`/v1/external/whatsapp/rita-contacts?userId=${userId}&page=${page}&limit=50`);
+      if (data.success) {
+        setContactsList(data.contacts || []);
+        setContactsTotal(data.total || 0);
+        setContactsPage(page);
+      }
+    } catch { /* ignore */ }
+    finally { setContactsLoading(false); }
+  }, [userId]);
+
+  useEffect(() => {
+    if (activeTab === 'contacts') fetchContacts(1);
+  }, [activeTab, fetchContacts]);
+
+  const exportContactsCSV = () => {
+    const base = (ecomApi.defaults.baseURL || '').replace(/\/$/, '');
+    const url = `${base}/v1/external/whatsapp/rita-contacts/export?userId=${userId}`;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'rita-contacts.csv';
+    a.click();
+  };
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-[60vh]">
@@ -2601,6 +2634,99 @@ export default function AgentConfig() {
                   </div>
                 </div>
               </>
+            )}
+          </div>
+        )}
+
+        {/* ─── TAB: CONTACTS ─── */}
+        {activeTab === 'contacts' && (
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-[15px] font-bold text-gray-900">Liste des contacts Rita</h2>
+                <p className="text-[12px] text-gray-400 mt-0.5">{contactsTotal} contact{contactsTotal !== 1 ? 's' : ''} enregistré{contactsTotal !== 1 ? 's' : ''}</p>
+              </div>
+              <button
+                onClick={exportContactsCSV}
+                className="inline-flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-xl shadow-sm hover:opacity-90 transition-all"
+                style={{ background: ACCENT }}>
+                <Download className="w-4 h-4" />
+                Exporter CSV
+              </button>
+            </div>
+
+            {/* Table */}
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              {contactsLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                </div>
+              ) : contactsList.length === 0 ? (
+                <div className="text-center py-16">
+                  <Users className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                  <p className="text-[14px] text-gray-500">Aucun contact enregistré</p>
+                  <p className="text-[12px] text-gray-400 mt-1">Les contacts s'enregistrent automatiquement dès le premier message reçu</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[12px]">
+                    <thead>
+                      <tr className="border-b border-gray-100 bg-gray-50/60">
+                        <th className="px-4 py-3 text-left font-semibold text-gray-500">N°</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-500">Téléphone</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-500">Nom</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-500">Ville</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-500">Messages</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-500">Commandé</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-500">Premier contact</th>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-500">Dernier message</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {contactsList.map((c, i) => (
+                        <tr key={c.clientNumber} className={`border-b border-gray-50 hover:bg-gray-50/40 transition-colors ${i % 2 === 0 ? '' : 'bg-gray-50/20'}`}>
+                          <td className="px-4 py-3 font-mono text-gray-400">#{c.clientNumber}</td>
+                          <td className="px-4 py-3 font-medium text-gray-800">{c.phone}</td>
+                          <td className="px-4 py-3 text-gray-600">{c.nom || c.pushName || <span className="text-gray-300 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-gray-600">{c.ville || <span className="text-gray-300 italic">—</span>}</td>
+                          <td className="px-4 py-3 text-gray-600">{c.messageCount}</td>
+                          <td className="px-4 py-3">
+                            {c.hasOrdered
+                              ? <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-semibold text-[11px]">✓ Oui</span>
+                              : <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 text-[11px]">Non</span>}
+                          </td>
+                          <td className="px-4 py-3 text-gray-400">
+                            {c.firstMessageAt ? new Date(c.firstMessageAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-gray-400">
+                            {c.lastMessageAt ? new Date(c.lastMessageAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Pagination */}
+            {contactsTotal > 50 && (
+              <div className="flex items-center justify-center gap-2">
+                <button
+                  disabled={contactsPage === 1}
+                  onClick={() => fetchContacts(contactsPage - 1)}
+                  className="px-3 py-1.5 text-[12px] font-medium rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50 transition-colors">
+                  ← Précédent
+                </button>
+                <span className="text-[12px] text-gray-500">Page {contactsPage} / {Math.ceil(contactsTotal / 50)}</span>
+                <button
+                  disabled={contactsPage >= Math.ceil(contactsTotal / 50)}
+                  onClick={() => fetchContacts(contactsPage + 1)}
+                  className="px-3 py-1.5 text-[12px] font-medium rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50 transition-colors">
+                  Suivant →
+                </button>
+              </div>
             )}
           </div>
         )}

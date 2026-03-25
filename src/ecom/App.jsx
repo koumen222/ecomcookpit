@@ -452,9 +452,6 @@ const EcomApp = () => {
             <Route path="/scalor/login" element={<Navigate to="/ecom/developer" replace />} />
             <Route path="/scalor/register" element={<Navigate to="/ecom/developer" replace />} />
             <Route path="/scalor/dashboard" element={<Navigate to="/ecom/developer" replace />} />
-            {/* Provider Service - routes publiques */}
-            <Route path="/provider" element={<ProviderService />} />
-            <Route path="/ecom/provider" element={<ProviderService />} />
 
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/ecom/login" replace />} />
