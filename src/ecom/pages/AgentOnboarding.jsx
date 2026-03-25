@@ -1,7 +1,44 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ecomApi from '../services/ecommApi.js';
-import { ArrowLeft, ArrowRight, CheckCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, AlertCircle, Plus } from 'lucide-react';
+
+// Listes prédéfinies
+const COUNTRIES = [
+  'Cameroun', 'Sénégal', 'Côte d\'Ivoire', 'Mali', 'Burkina Faso',
+  'Bénin', 'Togo', 'Niger', 'Guinea', 'Nigeria', 'Ghana', 'Liberia',
+  'France', 'Belgique', 'Suisse', 'Canada', 'États-Unis', 'Autres'
+];
+
+const NICHES = [
+  'Mode & Vêtements', 'Électronique & Informatique', 'Alimentation & Restauration',
+  'Beauté & Cosmétiques', 'Santé & Bien-être', 'Maison & Décoration',
+  'Automobile & Accessoires', 'Sports & Loisirs', 'Éducation',
+  'Services professionnels', 'Immobilier', 'Autres'
+];
+
+const PRODUCT_TYPES = [
+  'Produits physiques', 'Services', 'Abonnements', 'Formations',
+  'Biens numériques', 'Mix (produits + services)', 'Autres'
+];
+
+const COMMUNICATION_STYLES = [
+  { value: 'professional', label: 'Professionnel', desc: 'Sérieux et efficace' },
+  { value: 'friendly', label: 'Amical', desc: 'Chaleureux et accessible' },
+  { value: 'casual', label: 'Décontracté', desc: 'Amusant et moderne' },
+  { value: 'formal', label: 'Formel', desc: 'Respectueux et académique' },
+];
+
+const TONES = [
+  'Enthousiaste', 'Patient', 'Assertif', 'Humoristique', 'Neutre',
+  'Bienveillant', 'Confiant', 'Analytique', 'Créatif', 'Pragmatique'
+];
+
+const PERSONALITIES = [
+  'Experte en son domaine', 'Conseillère amicale', 'Spécialiste technique',
+  'Coach motivant', 'Assistant discret', 'Reine du shopping', 'Expert en tendances',
+  'Mécanicienne passionnée', 'Professeure patiente', 'Entrepreneur visionnaire'
+];
 
 export default function AgentOnboarding() {
   const navigate = useNavigate();
@@ -11,6 +48,7 @@ export default function AgentOnboarding() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
   const [formData, setFormData] = useState({
     name: agent?.name || '',
     description: agent?.description || '',
@@ -47,26 +85,26 @@ export default function AgentOnboarding() {
     }
 
     if (step === 2) {
-      if (!formData.country.trim()) {
+      if (!formData.country) {
         setError('Le pays est requis');
         return false;
       }
-      if (!formData.niche.trim()) {
+      if (!formData.niche) {
         setError('La niche est requise');
         return false;
       }
-      if (!formData.productType.trim()) {
+      if (!formData.productType) {
         setError('Le type de produit est requis');
         return false;
       }
     }
 
     if (step === 3) {
-      if (!formData.tone.trim()) {
+      if (!formData.tone) {
         setError('Le ton est requis');
         return false;
       }
-      if (!formData.personality.trim()) {
+      if (!formData.personality) {
         setError('La personnalité est requise');
         return false;
       }
@@ -119,16 +157,33 @@ export default function AgentOnboarding() {
 
       // Si c'est un nouvel agent, créer avec les données
       if (!agent) {
-        const res = await ecomApi.post('/agents', {
+        await ecomApi.post('/agents', {
           ...updateData,
           ...configData,
         });
 
-        if (res.data.success) {
+        setSuccess(true);
+        setFormData({
+          name: '',
+          description: '',
+          country: '',
+          niche: '',
+          productType: '',
+          communicationStyle: 'friendly',
+          tone: '',
+          personality: '',
+          bossPhone: '',
+          bossNotifications: false,
+          notifyOnOrder: true,
+        });
+        setStep(1);
+
+        // Après 2 secondes, retourner à la liste
+        setTimeout(() => {
           navigate('/ecom/agent-ia', {
             state: { success: 'Agent créé avec succès !' },
           });
-        }
+        }, 2000);
       } else {
         // Si c'est un agent existant, mettre à jour
         await ecomApi.put(`/agents/${agent._id}`, updateData);
@@ -141,10 +196,64 @@ export default function AgentOnboarding() {
     } catch (err) {
       console.error('Erreur:', err);
       setError(err.response?.data?.error || 'Une erreur est survenue');
+      setSuccess(false);
     } finally {
       setLoading(false);
     }
   };
+
+  const handleCreateAnother = () => {
+    setFormData({
+      name: '',
+      description: '',
+      country: '',
+      niche: '',
+      productType: '',
+      communicationStyle: 'friendly',
+      tone: '',
+      personality: '',
+      bossPhone: '',
+      bossNotifications: false,
+      notifyOnOrder: true,
+    });
+    setStep(1);
+    setSuccess(false);
+    setError(null);
+  };
+
+  // Écran de succès
+  if (success) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-6">
+        <div className="max-w-md w-full text-center">
+          <div className="mb-6 flex justify-center">
+            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center">
+              <CheckCircle className="w-10 h-10 text-emerald-600" />
+            </div>
+          </div>
+          <h2 className="text-3xl font-bold text-gray-900 mb-3">Agent créé !</h2>
+          <p className="text-gray-600 mb-8">
+            Ton agent a été configuré avec succès. Tu vas être redirigé vers la liste des agents...
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={handleCreateAnother}
+              className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              Créer un autre
+            </button>
+            <button
+              onClick={() => navigate('/ecom/agent-ia')}
+              className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Voir mes agents
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
@@ -235,42 +344,57 @@ export default function AgentOnboarding() {
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Pays *
                 </label>
-                <input
-                  type="text"
+                <select
                   name="country"
                   value={formData.country}
                   onChange={handleInputChange}
-                  placeholder="Ex: Cameroun, Sénégal, France..."
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
+                >
+                  <option value="">Sélectionne un pays</option>
+                  {COUNTRIES.map((country) => (
+                    <option key={country} value={country}>
+                      {country}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Niche / Secteur d'activité *
                 </label>
-                <input
-                  type="text"
+                <select
                   name="niche"
                   value={formData.niche}
                   onChange={handleInputChange}
-                  placeholder="Ex: Mode, Électronique, Alimentation..."
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
+                >
+                  <option value="">Sélectionne une niche</option>
+                  {NICHES.map((niche) => (
+                    <option key={niche} value={niche}>
+                      {niche}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Type de produits *
                 </label>
-                <input
-                  type="text"
+                <select
                   name="productType"
                   value={formData.productType}
                   onChange={handleInputChange}
-                  placeholder="Ex: Vêtements, Téléphones, Produits cosmétiques..."
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
+                >
+                  <option value="">Sélectionne un type</option>
+                  {PRODUCT_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           )}
@@ -287,11 +411,11 @@ export default function AgentOnboarding() {
                   Style de communication *
                 </label>
                 <div className="grid grid-cols-2 gap-3">
-                  {['professional', 'friendly', 'casual', 'formal'].map((style) => (
+                  {COMMUNICATION_STYLES.map((style) => (
                     <label
-                      key={style}
+                      key={style.value}
                       className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                        formData.communicationStyle === style
+                        formData.communicationStyle === style.value
                           ? 'border-emerald-600 bg-emerald-50'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
@@ -299,18 +423,13 @@ export default function AgentOnboarding() {
                       <input
                         type="radio"
                         name="communicationStyle"
-                        value={style}
-                        checked={formData.communicationStyle === style}
+                        value={style.value}
+                        checked={formData.communicationStyle === style.value}
                         onChange={handleInputChange}
                         className="hidden"
                       />
-                      <span className="font-semibold text-gray-900 capitalize">{style}</span>
-                      <p className="text-xs text-gray-600 mt-1">
-                        {style === 'professional' && 'Sérieux et efficace'}
-                        {style === 'friendly' && 'Chaleureux et accessible'}
-                        {style === 'casual' && 'Décontracté et amusant'}
-                        {style === 'formal' && 'Respectueux et académique'}
-                      </p>
+                      <span className="font-semibold text-gray-900">{style.label}</span>
+                      <p className="text-xs text-gray-600 mt-1">{style.desc}</p>
                     </label>
                   ))}
                 </div>
@@ -320,28 +439,38 @@ export default function AgentOnboarding() {
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Ton de voix *
                 </label>
-                <textarea
+                <select
                   name="tone"
                   value={formData.tone}
                   onChange={handleInputChange}
-                  placeholder="Ex: Enthousiaste, patient, assertif..."
-                  rows={3}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
+                >
+                  <option value="">Sélectionne un ton</option>
+                  {TONES.map((tone) => (
+                    <option key={tone} value={tone}>
+                      {tone}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Personnalité *
                 </label>
-                <textarea
+                <select
                   name="personality"
                   value={formData.personality}
                   onChange={handleInputChange}
-                  placeholder="Ex: Experte en mode, conseillère amicale, spécialiste tech..."
-                  rows={3}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
+                >
+                  <option value="">Sélectionne une personnalité</option>
+                  {PERSONALITIES.map((personality) => (
+                    <option key={personality} value={personality}>
+                      {personality}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           )}
