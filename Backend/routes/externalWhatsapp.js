@@ -1772,11 +1772,15 @@ router.post('/incoming', async (req, res) => {
                 await processFlows(userId, 'order_confirmed', { text: text || '', phone: cleanFrom, pushName });
               } catch (flowErr) { console.error('⚠️ [FlowEngine] order_confirmed:', flowErr.message); }
 
-              // Marquer le contact comme ayant commandé
+              // Marquer le contact comme ayant commandé + enrichir avec nom/ville
               try {
+                const contactUpdate = { hasOrdered: true };
+                if (orderData.name) contactUpdate.nom = orderData.name;
+                if (orderData.city) contactUpdate.ville = orderData.city;
+                if (orderData.address) contactUpdate.adresse = orderData.address;
                 await RitaContact.findOneAndUpdate(
                   { userId, phone: cleanFrom },
-                  { hasOrdered: true }
+                  contactUpdate
                 );
               } catch (_) { /* ignore */ }
 
@@ -2685,6 +2689,42 @@ router.get('/rita-contacts', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Erreur chargement rita-contacts:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/ecom/v1/external/whatsapp/rita-contacts/export
+ * @desc    Exporte tous les contacts Rita en CSV
+ */
+router.get('/rita-contacts/export', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
+
+    const contacts = await RitaContact.find({ userId }).sort({ clientNumber: 1 }).lean();
+
+    const header = ['N°', 'Téléphone', 'Nom', 'Ville', 'Adresse', 'Nb Messages', 'A commandé', 'Premier contact', 'Dernier contact', 'Notes'];
+    const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows = contacts.map(c => [
+      c.clientNumber,
+      c.phone,
+      c.nom || c.pushName || '',
+      c.ville || '',
+      c.adresse || '',
+      c.messageCount,
+      c.hasOrdered ? 'Oui' : 'Non',
+      c.firstMessageAt ? new Date(c.firstMessageAt).toLocaleString('fr-FR') : '',
+      c.lastMessageAt ? new Date(c.lastMessageAt).toLocaleString('fr-FR') : '',
+      c.notes || '',
+    ].map(escape).join(','));
+
+    const csv = '\uFEFF' + [header.map(escape).join(','), ...rows].join('\r\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="rita-contacts.csv"');
+    res.send(csv);
+  } catch (error) {
+    console.error('❌ Erreur export rita-contacts CSV:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
