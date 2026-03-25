@@ -16,6 +16,7 @@ import { analyzeImage as analyzeProductImage } from '../services/agentImageServi
 import { processFlows } from '../services/ritaFlowEngine.js';
 import { uploadImage as uploadImageToR2, isConfigured as isR2Configured } from '../services/cloudflareImagesService.js';
 import { requireEcomAuth, requireRitaAgentAccess } from '../middleware/ecomAuth.js';
+import Workspace from '../models/Workspace.js';
 import mongoose from 'mongoose';
 import fs from 'fs';
 
@@ -346,9 +347,21 @@ async function resolveIncomingInstanceDoc(instance, data) {
 
 const router = express.Router();
 
-function resolveRitaTargetUserId(req) {
+async function resolveRitaTargetUserId(req) {
   if (req.ecomUser?.role === 'super_admin') {
     return req.body?.userId || req.query?.userId || String(req.ecomUser._id);
+  }
+
+  // Résoudre via le owner du workspace pour que tous les membres
+  // lisent/écrivent la MÊME RitaConfig (celle que le webhook utilise)
+  const wsId = req.workspaceId || req.ecomUser?.workspaceId;
+  if (wsId) {
+    try {
+      const ws = await Workspace.findById(wsId).select('owner').lean();
+      if (ws?.owner) return String(ws.owner);
+    } catch (e) {
+      console.warn('⚠️ resolveRitaTargetUserId: workspace owner lookup failed:', e.message);
+    }
   }
 
   return String(req.ecomUser?._id || '');
@@ -2566,7 +2579,7 @@ router.post('/test-boss-notification', async (req, res) => {
 router.post('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
     const { config } = req.body;
-    const userId = resolveRitaTargetUserId(req);
+    const userId = await resolveRitaTargetUserId(req);
     if (!userId || !config) return res.status(400).json({ success: false, error: 'userId et config requis' });
 
     const updated = await RitaConfig.findOneAndUpdate(
@@ -2588,7 +2601,7 @@ router.post('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req,
  */
 router.get('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
-    const userId = resolveRitaTargetUserId(req);
+    const userId = await resolveRitaTargetUserId(req);
     if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
 
     const config = await RitaConfig.findOne({ userId }).lean();
@@ -2606,7 +2619,7 @@ router.get('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req, 
 router.get('/rita-activity', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
     const { days } = req.query;
-    const userId = resolveRitaTargetUserId(req);
+    const userId = await resolveRitaTargetUserId(req);
     if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
 
     const RitaActivity = (await import('../models/RitaActivity.js')).default;
