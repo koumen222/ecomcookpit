@@ -451,14 +451,46 @@ const STATUS_MAP = {
   'doublon': 'cancelled', 'duplicate': 'cancelled', 'faux numero': 'cancelled'
 };
 
+// Currency detection from price text
+const CURRENCY_PATTERNS = [
+  { pattern: /\b(fcfa|xaf)\b/i, code: 'XAF' },
+  { pattern: /\b(cfa|xof)\b/i, code: 'XOF' },
+  { pattern: /\b(dh|mad|dirham)\b/i, code: 'MAD' },
+  { pattern: /\b(da|dzd|dinar)\b/i, code: 'DZD' },
+  { pattern: /\b(dt|tnd)\b/i, code: 'TND' },
+  { pattern: /\b(gnf|fg)\b/i, code: 'GNF' },
+  { pattern: /\b(eur|euro|euros)\b/i, code: 'EUR' },
+  { pattern: /\b(usd|dollar|dollars)\b/i, code: 'USD' },
+  { pattern: /\b(gbp|livre|livres)\b/i, code: 'GBP' },
+  { pattern: /\b(ngn|naira)\b/i, code: 'NGN' },
+  { pattern: /\b(ghs|cedi)\b/i, code: 'GHS' },
+  { pattern: /\b(kes|ksh)\b/i, code: 'KES' },
+  { pattern: /\b(zar|rand)\b/i, code: 'ZAR' },
+  { pattern: /\b(ariary|ar|mga)\b/i, code: 'MGA' },
+  { pattern: /€/, code: 'EUR' },
+  { pattern: /\$/, code: 'USD' },
+  { pattern: /£/, code: 'GBP' },
+];
+
+function detectCurrencyFromText(val) {
+  if (!val) return null;
+  const s = String(val).trim();
+  for (const { pattern, code } of CURRENCY_PATTERNS) {
+    if (pattern.test(s)) {
+      return code;
+    }
+  }
+  return null;
+}
+
 function cleanNumericString(val) {
   if (!val) return '0';
   let s = String(val).trim();
   // Remove Google Sheets apostrophe prefix first
   s = s.replace(/^'+/, '');
-  
+
   // Remove currency text (FCFA, CFA, DH, MAD, €, $, etc.)
-  s = s.replace(/\b(fcfa|cfa|xof|xaf|dh|mad|da|dzd|dt|tnd|gnf|eur|usd|ariary|ar)\b/gi, '');
+  s = s.replace(/\b(fcfa|cfa|xof|xaf|dh|mad|da|dzd|dt|tnd|gnf|eur|usd|ariary|ar|mga|ngn|naira|ghs|cedi|kes|ksh|zar|rand|euro|euros|dollar|dollars|livre|livres|dirham|dinar|fg)\b/gi, '');
   s = s.replace(/[€$£¥]/g, '');
   
   // Handle French format: "12 000,00" or "12 000"
@@ -496,8 +528,11 @@ function cleanNumericString(val) {
     // Only dots, no commas
     const parts = cleaned.split('.');
     const afterDot = parts[parts.length - 1];
-    if (parts.length > 1 && afterDot.length === 3 && parts[0].length <= 3) {
-      // Likely thousands separator: "15.000", "1.000.000"
+    // If all parts after dots have exactly 3 digits, it's thousands separator
+    // Examples: "15.000" → 15000, "1.500.000" → 1500000, "1500.000" → 1500000
+    const allPartsAfterFirstAreThreeDigits = parts.slice(1).every(p => p.length === 3);
+    if (parts.length > 1 && allPartsAfterFirstAreThreeDigits) {
+      // Thousands separator format
       cleaned = cleaned.replace(/\./g, '');
     }
     // Otherwise keep as-is (decimal: "25.99")
@@ -649,6 +684,15 @@ export function parseOrderRow(row, rowIndex, columnMap, headers, sourceName) {
     const resolvedName = clientName || (row.c[0] ? String(row.c[0].v ?? '').trim() : '') || `Ligne ${rowIndex}`;
     const resolvedPhone = clientPhone || '';
 
+    // Extract currency from price cell text
+    const priceIdx = columnMap['price'];
+    let detectedCurrency = null;
+    if (priceIdx !== undefined && row.c[priceIdx]) {
+      const cell = row.c[priceIdx];
+      const rawPriceText = cell.f || (cell.v != null ? String(cell.v) : '');
+      detectedCurrency = detectCurrencyFromText(rawPriceText);
+    }
+
     const data = {
       orderId: getVal('orderId') || `#${sourceName}_${rowIndex + 1}`,
       date: getDateVal('date'),
@@ -659,6 +703,7 @@ export function parseOrderRow(row, rowIndex, columnMap, headers, sourceName) {
       product: getVal('product'),
       quantity: Math.max(1, parseInt(getNumVal('quantity')) || 1),
       price: Math.max(0, getNumVal('price')),
+      currency: detectedCurrency, // Devise détectée du texte (null si non trouvée)
       status: mappedStatus,
       tags: [sourceName],
       notes: getVal('notes'),

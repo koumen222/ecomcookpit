@@ -102,12 +102,8 @@ import WhatsAppInstancesList from './pages/WhatsAppInstancesList.jsx';
 import RitaFlows from './pages/RitaFlows.jsx';
 import AgentConfig from './pages/AgentConfig.jsx';
 import ConnectShopify from './pages/ConnectShopify.jsx';
-import ProviderService from './pages/ProviderService.jsx';
-
-// Scalor SaaS API pages
-import ScalorLogin from './pages/ScalorLogin.jsx';
-import ScalorRegister from './pages/ScalorRegister.jsx';
-import ScalorDashboard from './pages/ScalorDashboard.jsx';
+import BillingPage from './pages/BillingPage.jsx';
+import BillingSuccess from './pages/BillingSuccess.jsx';
 
 // Store pages
 import StoreSetup from './pages/StoreSetup.jsx';
@@ -373,17 +369,17 @@ const EcomApp = () => {
             <Route path="/ecom/stats" element={<LayoutRoute requiredRole="ecom_admin"><StatsPage /></LayoutRoute>} />
 
             {/* Routes WhatsApp */}
-            <Route path="/ecom/whatsapp-postulation" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppPostulation /></LayoutRoute>} />
-            <Route path="/ecom/whatsapp/service" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppService /></LayoutRoute>} />
-            {/* Section Développeur — API Scalor + Provider dans le dashboard principal */}
-            <Route path="/ecom/developer" element={<LayoutRoute requiredRole={['ecom_admin']}><DeveloperSection /></LayoutRoute>} />
+            <Route path="/ecom/whatsapp-postulation" element={<LayoutRoute><WhatsAppPostulation /></LayoutRoute>} />
+            <Route path="/ecom/whatsapp/service" element={<LayoutRoute><WhatsAppService /></LayoutRoute>} />
             <Route path="/ecom/whatsapp/connexion" element={<Navigate to="/ecom/whatsapp/service" replace />} />
-            <Route path="/ecom/whatsapp/instances" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppInstancesList /></LayoutRoute>} />
-            <Route path="/ecom/rita-flows" element={<LayoutRoute requiredRole={['ecom_admin']} requireRitaAgentAccess><RitaFlows /></LayoutRoute>} />
-            <Route path="/ecom/whatsapp/agent-config" element={<LayoutRoute requiredRole={['ecom_admin']}><AgentConfig /></LayoutRoute>} />
+            <Route path="/ecom/whatsapp/instances" element={<LayoutRoute><WhatsAppInstancesList /></LayoutRoute>} />
 
             {/* Routes Intégrations */}
             <Route path="/ecom/integrations/shopify" element={<LayoutRoute requiredRole="ecom_admin"><ConnectShopify /></LayoutRoute>} />
+
+            {/* Routes Billing / Abonnement */}
+            <Route path="/ecom/billing" element={<LayoutRoute requiredRole="ecom_admin"><BillingPage /></LayoutRoute>} />
+            <Route path="/ecom/billing/success" element={<BillingSuccess />} />
 
             {/* Routes affectations */}
             <Route path="/ecom/assignments" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><AssignmentsManager /></LayoutRoute>} />

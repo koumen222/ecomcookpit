@@ -347,6 +347,7 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
     // Build bulk operations
     const bulkOps = parsedRows.map(({ doc, sheetRowId, sheetRowIndex }) => {
       const updateDoc = { ...doc };
+      delete updateDoc.currency; // Ne pas utiliser la devise détectée
       if (manuallyModifiedOrders.has(sheetRowId)) {
         delete updateDoc.status;
       }
@@ -359,7 +360,8 @@ router.post('/run', requireEcomAuth, validateEcomAccess('products', 'write'), as
               workspaceId: req.workspaceId,
               sheetRowId,
               sheetRowIndex,
-              source: 'google_sheets'
+              source: 'google_sheets',
+              currency: req.ecomUser?.currency || 'XAF'
             }
           },
           upsert: true

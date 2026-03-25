@@ -40,7 +40,7 @@ export function trackEvent(eventType, extra = {}) {
       // Note: api client can't use keepalive, so we use direct fetch here
       // but with UTF-8 headers for consistency
       const token = localStorage.getItem('ecomToken');
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://api.scalor.net';
       fetch(`${backendUrl}/api/ecom/analytics/track`, {
         method: 'POST',
         headers: {

@@ -4,7 +4,7 @@ import {
   AlertCircle, Loader2, Settings, RotateCcw, Eye
 } from 'lucide-react';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://api.scalor.net';
 
 const WhatsAppSendModal = ({ 
   onClose, 

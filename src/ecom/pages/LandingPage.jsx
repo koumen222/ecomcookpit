@@ -72,7 +72,7 @@ const SupportChat = () => {
       return norm.endsWith('/api/ecom') ? norm : norm + '/api/ecom';
     }
     if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) return 'https://api.scalor.net/api/ecom';
-    return 'https://ecomcookpit-production-7a08.up.railway.app/api/ecom';
+    return 'https://api.scalor.net/api/ecom';
   })();
 
   // Track which agent message IDs we've already displayed (to avoid duplicates on poll)

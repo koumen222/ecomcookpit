@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { storeDeliveryZonesApi } from '../services/storeApi.js';
+import { useMoney } from '../hooks/useMoney.js';
 
 const IcoTruck = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -42,6 +43,7 @@ const SUGGESTED_COUNTRIES = [
 
 const BoutiqueDeliveryZones = () => {
   const { workspace } = useEcomAuth();
+  const { symbol } = useMoney();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -293,7 +295,7 @@ const BoutiqueDeliveryZones = () => {
                         min="0"
                         className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent"
                       />
-                      <span className="text-xs text-gray-500 font-medium">FCFA</span>
+                      <span className="text-xs text-gray-500 font-medium">{symbol}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-2">

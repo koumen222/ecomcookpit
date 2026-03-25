@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import api from '../../lib/api.js';
 
-const API_BASE = `${import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app'}/api/ecom`;
+const API_BASE = `${import.meta.env.VITE_BACKEND_URL || 'https://api.scalor.net'}/api/ecom`;
 
 /**
  * Custom hook for media upload with progress tracking
