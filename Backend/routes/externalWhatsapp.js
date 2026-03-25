@@ -2582,9 +2582,12 @@ router.post('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req,
     const userId = await resolveRitaTargetUserId(req);
     if (!userId || !config) return res.status(400).json({ success: false, error: 'userId et config requis' });
 
+    // Retirer les champs Mongoose pour éviter un conflit _id lors de l'upsert
+    const { _id, __v, createdAt, updatedAt, userId: _u, ...cleanConfig } = config;
+
     const updated = await RitaConfig.findOneAndUpdate(
       { userId },
-      { userId, ...config },
+      { userId, ...cleanConfig },
       { upsert: true, new: true, runValidators: false }
     );
 
