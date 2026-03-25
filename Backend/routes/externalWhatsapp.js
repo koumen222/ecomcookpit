@@ -1371,10 +1371,24 @@ router.post('/incoming', async (req, res) => {
           }
           const senderJid = `${senderPhone}@s.whatsapp.net`;
 
+          // ─── Résoudre le userId via le workspace owner ───
+          // La RitaConfig est toujours sauvegardée avec userId = workspace.owner
+          // (cohérence avec resolveRitaTargetUserId dans l'API)
+          let userId = instanceDoc ? instanceDoc.userId : null;
+          if (instanceDoc?.workspaceId) {
+            try {
+              const ws = await Workspace.findById(instanceDoc.workspaceId).select('owner').lean();
+              if (ws?.owner) userId = String(ws.owner);
+            } catch (e) {
+              console.warn('⚠️ [RITA] Impossible de résoudre le workspace owner, fallback sur instanceDoc.userId:', e.message);
+            }
+          }
+          console.log(`💬 [RITA] userId résolu: ${userId} (instance.userId=${instanceDoc?.userId}, workspaceId=${instanceDoc?.workspaceId})`);
+
           // ─── Enregistrer le contact dès qu'il écrit (avant tout traitement) ───
           if (instanceDoc) {
             try {
-              const earlyUserId = instanceDoc.userId;
+              const earlyUserId = userId;
               const earlyPhone = senderPhone;
               // Exclure le numéro du boss
               const earlyCfg = await RitaConfig.findOne({ userId: earlyUserId }).lean();
@@ -1437,13 +1451,13 @@ router.post('/incoming', async (req, res) => {
               );
               if (mediaData?.base64) {
                 // Déterminer la langue pour Whisper
-                const ritaCfgLang = await RitaConfig.findOne({ userId: instanceDoc.userId }).lean();
+                const ritaCfgLang = await RitaConfig.findOne({ userId }).lean();
                 const langHint = ritaCfgLang?.language || 'fr';
                 const transcribed = await transcribeAudio(mediaData.base64, mediaData.mimetype, langHint);
                 if (transcribed) {
                   text = transcribed;
                   console.log(`🎤 [RITA] Vocal transcrit: "${transcribed.substring(0, 200)}"`);
-                  if (instanceDoc?.userId) logRitaActivity(instanceDoc.userId, 'vocal_transcribed', { customerPhone: from.replace(/@.*$/, ''), details: transcribed.substring(0, 200) });
+                  if (userId) logRitaActivity(userId, 'vocal_transcribed', { customerPhone: from.replace(/@.*$/, ''), details: transcribed.substring(0, 200) });
                 } else {
                   console.log(`🎤 [RITA] Transcription échouée, message ignoré.`);
                   continue;
@@ -1497,7 +1511,7 @@ router.post('/incoming', async (req, res) => {
                   } else {
                     text = `[Le client a envoyé une image. Description: ${imageAnalysisResult.description}]${imageCaption ? ' ' + imageCaption : ''}`;
                   }
-                  if (instanceDoc?.userId) logRitaActivity(instanceDoc.userId, 'image_analyzed', { customerPhone: from.replace(/@.*$/, ''), details: imageAnalysisResult.description?.substring(0, 200) });
+                  if (userId) logRitaActivity(userId, 'image_analyzed', { customerPhone: from.replace(/@.*$/, ''), details: imageAnalysisResult.description?.substring(0, 200) });
                 } else {
                   console.log(`⚠️ [RITA] Pas de workspaceId, analyse image impossible.`);
                 }
@@ -1523,7 +1537,6 @@ router.post('/incoming', async (req, res) => {
             continue;
           }
 
-          const userId = instanceDoc.userId;
           console.log(`💬 [RITA] Traitement pour userId=${userId}...`);
 
           // ─── Détecter si c'est le boss (escalade OU mode boss) ───

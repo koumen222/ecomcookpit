@@ -1,0 +1,134 @@
+import express from 'express';
+import RitaConfig from '../models/RitaConfig.js';
+import Workspace from '../models/Workspace.js';
+import { requireEcomAuth, requireRitaAgentAccess } from '../middleware/ecomAuth.js';
+
+const router = express.Router();
+
+/**
+ * Résoudre le userId via le workspace owner
+ * (La RitaConfig est toujours liée à l'owner du workspace, pas au membre qui la gère)
+ */
+async function resolveRitaUserId(req) {
+  if (req.ecomUser?.role === 'super_admin') {
+    return req.body?.userId || req.query?.userId || String(req.ecomUser._id);
+  }
+
+  // Résoudre via le workspace owner
+  const wsId = req.workspaceId || req.ecomUser?.workspaceId;
+  if (wsId) {
+    try {
+      const ws = await Workspace.findById(wsId).select('owner').lean();
+      if (ws?.owner) return String(ws.owner);
+    } catch (e) {
+      console.warn('⚠️ resolveRitaUserId: workspace owner lookup failed:', e.message);
+    }
+  }
+
+  return String(req.ecomUser?._id || '');
+}
+
+/**
+ * GET /api/ecom/rita/config
+ * Récupérer la configuration Rita de l'utilisateur
+ */
+router.get('/config', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
+  try {
+    const userId = await resolveRitaUserId(req);
+    console.log(`📋 [RITA] GET /config pour userId=${userId}`);
+
+    const config = await RitaConfig.findOne({ userId }).lean();
+
+    if (!config) {
+      console.log(`ℹ️ [RITA] Aucune config trouvée pour userId=${userId} - retour config vide`);
+      return res.json({
+        success: true,
+        config: null, // Frontend créera une config par défaut
+      });
+    }
+
+    console.log(`✅ [RITA] Config chargée - ${config.productCatalog?.length || 0} produits`);
+    res.json({
+      success: true,
+      config: {
+        enabled: config.enabled || false,
+        instanceId: config.instanceId || '',
+        agentName: config.agentName || 'Rita',
+        welcomeMessage: config.welcomeMessage || 'Bonjour 👋 Comment puis-je vous aider ?',
+        productCatalog: config.productCatalog || [],
+        bossPhone: config.bossPhone || '',
+        bossNotifications: config.bossNotifications || false,
+        notifyOnOrder: config.notifyOnOrder !== false,
+      },
+    });
+  } catch (error) {
+    console.error('❌ [RITA] Erreur GET config:', error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Erreur serveur',
+    });
+  }
+});
+
+/**
+ * POST /api/ecom/rita/config
+ * Sauvegarder la configuration Rita
+ */
+router.post('/config', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
+  try {
+    const userId = await resolveRitaUserId(req);
+    const { config } = req.body;
+
+    if (!config) {
+      return res.status(400).json({
+        success: false,
+        error: 'Configuration requise',
+      });
+    }
+
+    console.log(`💾 [RITA] POST /config pour userId=${userId}`);
+    console.log(`   - Produits: ${config.productCatalog?.length || 0}`);
+
+    // Nettoyer les champs MongoDB (ex: _id, __v)
+    const cleanConfig = {
+      enabled: config.enabled || false,
+      instanceId: config.instanceId || '',
+      agentName: config.agentName || 'Rita',
+      welcomeMessage: config.welcomeMessage || 'Bonjour 👋 Comment puis-je vous aider ?',
+      productCatalog: config.productCatalog || [],
+      bossPhone: config.bossPhone || '',
+      bossNotifications: config.bossNotifications || false,
+      notifyOnOrder: config.notifyOnOrder !== false,
+    };
+
+    const updated = await RitaConfig.findOneAndUpdate(
+      { userId },
+      { userId, ...cleanConfig },
+      { upsert: true, new: true, runValidators: false }
+    );
+
+    console.log(`✅ [RITA] Config sauvegardée pour userId=${userId}`);
+
+    res.json({
+      success: true,
+      config: {
+        enabled: updated.enabled,
+        instanceId: updated.instanceId,
+        agentName: updated.agentName,
+        welcomeMessage: updated.welcomeMessage,
+        productCatalog: updated.productCatalog,
+        bossPhone: updated.bossPhone,
+        bossNotifications: updated.bossNotifications,
+        notifyOnOrder: updated.notifyOnOrder,
+      },
+    });
+  } catch (error) {
+    console.error('❌ [RITA] Erreur POST config:', error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Erreur serveur',
+    });
+  }
+});
+
+export default router;

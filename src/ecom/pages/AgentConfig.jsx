@@ -381,46 +381,53 @@ export default function AgentConfig() {
   };
 
   // ─── Load ───
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [configRes] = await Promise.all([
-          ecomApi.get(`/v1/external/whatsapp/rita-config?userId=${userId}`),
-          loadInstances(),
-        ]);
-        if (!configRes.data.success || !configRes.data.config) {
-          console.warn('[AgentConfig] Aucune config Rita trouvée pour userId:', userId, '| response:', configRes.data);
-        }
-        if (configRes.data.success && configRes.data.config) {
-          let loadedConfig = configRes.data.config;
-          console.log("FRONT PRODUCTS:", (loadedConfig.productCatalog || []).map(p => ({ name: p.name, price: p.price })));
-          
-          // Migration: Converter 'product' -> 'productName' et ajouter 'rating' par défaut
-          if (loadedConfig.testimonials?.length) {
-            loadedConfig.testimonials = loadedConfig.testimonials.map(t => ({
-              ...t,
-              productName: t.productName || t.product || '', // Migration
-              rating: t.rating || 5, // Ajouter rating par défaut
-              // Supprimer l'ancien champ après migration
-            }));
-          }
-          
-          setConfig(prev => ({ ...prev, ...loadedConfig }));
-          setSavedConfig(loadedConfig);
-          setSimMessages([{
-            role: 'agent',
-            text: loadedConfig.welcomeMessage || "Bonjour ! Comment puis-je vous aider ?",
-            time: '14:30',
-          }]);
-        }
-      } catch (error) {
-        console.error('[AgentConfig] Erreur chargement:', error);
+  const loadConfig = useCallback(async () => {
+    try {
+      const configRes = await ecomApi.get(`/v1/external/whatsapp/rita-config`);
+      if (!configRes.data.success || !configRes.data.config) {
+        console.warn('[AgentConfig] Aucune config Rita trouvée pour userId:', userId, '| response:', configRes.data);
       }
-      finally { setLoading(false); }
-    };
-    if (userId) load();
-    else setLoading(false);
+      if (configRes.data.success && configRes.data.config) {
+        let loadedConfig = configRes.data.config;
+        console.log("FRONT PRODUCTS:", (loadedConfig.productCatalog || []).map(p => ({ name: p.name, price: p.price })));
+
+        // Migration: Converter 'product' -> 'productName' et ajouter 'rating' par défaut
+        if (loadedConfig.testimonials?.length) {
+          loadedConfig.testimonials = loadedConfig.testimonials.map(t => ({
+            ...t,
+            productName: t.productName || t.product || '', // Migration
+            rating: t.rating || 5, // Ajouter rating par défaut
+          }));
+        }
+
+        setConfig(prev => ({ ...prev, ...loadedConfig }));
+        setSavedConfig(loadedConfig);
+        setSimMessages([{
+          role: 'agent',
+          text: loadedConfig.welcomeMessage || "Bonjour ! Comment puis-je vous aider ?",
+          time: '14:30',
+        }]);
+      }
+    } catch (error) {
+      console.error('[AgentConfig] Erreur chargement:', error);
+    }
   }, [userId]);
+
+  useEffect(() => {
+    setLoading(true);
+    if (userId) {
+      Promise.all([loadConfig(), loadInstances()]).finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, [userId, loadConfig]);
+
+  // Polling : re-fetch la config chaque 30s pour détecter les changements en DB
+  useEffect(() => {
+    if (!userId) return;
+    const interval = setInterval(() => loadConfig(), 30000);
+    return () => clearInterval(interval);
+  }, [userId, loadConfig]);
 
   useEffect(() => { simEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [simMessages, simTyping]);
 
@@ -445,7 +452,11 @@ export default function AgentConfig() {
       setConfig(prev => ({ ...prev, ...savedFromServer }));
       setSavedConfig(savedFromServer);
       setHasChanges(false);
-      setTimeout(() => setSaveStatus(null), 3000);
+      // Refresh après save (certains champs peuvent avoir été modifiés côté serveur)
+      setTimeout(() => {
+        loadConfig();
+        setSaveStatus(null);
+      }, 500);
     } catch { setSaveStatus('error'); }
     finally { setSaving(false); }
   };
