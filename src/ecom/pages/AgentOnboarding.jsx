@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ecomApi from '../services/ecommApi.js';
-import { ArrowLeft, ArrowRight, CheckCircle, AlertCircle, Plus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, AlertCircle, Plus, Eye } from 'lucide-react';
 
 // Listes prédéfinies
 const COUNTRIES = [
@@ -63,7 +63,42 @@ export default function AgentOnboarding() {
     notifyOnOrder: true,
   });
 
-  const totalSteps = 4;
+  const totalSteps = 5;
+
+  // Générer un message de bienvenue personnalisé
+  const generateWelcomeMessage = () => {
+    const nicheGreetings = {
+      'Mode & Vêtements': 'Bienvenue dans mon univers fashion !',
+      'Électronique & Informatique': 'Bienvenue chez ton expert tech !',
+      'Alimentation & Restauration': 'Bienvenue à ta table !',
+      'Beauté & Cosmétiques': 'Bienvenue dans mon salon beauté !',
+      'Santé & Bien-être': 'Bienvenue chez ton conseiller bien-être !',
+      'Maison & Décoration': 'Bienvenue chez toi !',
+      'Automobile & Accessoires': 'Bienvenue dans mon garage !',
+      'Sports & Loisirs': 'Bienvenue chez ton coach sportif !',
+      'Éducation': 'Bienvenue dans mon école !',
+      'Services professionnels': 'Bienvenue chez moi !',
+      'Immobilier': 'Bienvenue chez ton agent immobilier !',
+    };
+
+    const personalityMessages = {
+      'Experte en son domaine': 'Je suis là pour te conseiller avec expertise.',
+      'Conseillère amicale': 'Je suis là comme une amie qui t\'aide.',
+      'Spécialiste technique': 'Je suis prête à répondre à tous tes questions tech.',
+      'Coach motivant': 'Ensemble, on va atteindre tes objectifs !',
+      'Assistant discret': 'Je suis là quand tu en as besoin.',
+      'Reine du shopping': 'Prépare-toi pour l\'expérience shopping ultime !',
+      'Expert en tendances': 'Je suis au courant des dernières tendances !',
+      'Mécanicienne passionnée': 'Je suis passionnée par ce que je fais.',
+      'Professeure patiente': 'On apprend ensemble à ton rythme.',
+      'Entrepreneur visionnaire': 'Ensemble, créons quelque chose d\'extraordinaire.',
+    };
+
+    const greeting = nicheGreetings[formData.niche] || `Bonjour 👋 Bienvenue chez ${formData.name} !`;
+    const personalityLine = personalityMessages[formData.personality] || 'Comment puis-je t\'aider ?';
+
+    return `${greeting}\n${personalityLine}`;
+  };
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -475,7 +510,7 @@ export default function AgentOnboarding() {
             </div>
           )}
 
-          {/* Step 4: Contact & Notifications */}
+          {/* Step 4b: Contact & Notifications */}
           {step === 4 && (
             <div className="space-y-6">
               <div>
@@ -524,6 +559,77 @@ export default function AgentOnboarding() {
                     <p className="text-sm text-gray-600">Être notifié des nouvelles commandes</p>
                   </div>
                 </label>
+              </div>
+            </div>
+          )}
+
+          {/* Step 5: Preview */}
+          {step === 5 && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Aperçu de ton agent</h2>
+                <p className="text-gray-600 mb-6">Voici comment ton agent sera configuré :</p>
+              </div>
+
+              {/* Agent Card Preview */}
+              <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl p-8 border-2 border-emerald-200">
+                {/* Agent Header */}
+                <div className="flex items-start justify-between mb-6">
+                  <div>
+                    <h3 className="text-3xl font-bold text-gray-900">{formData.name}</h3>
+                    <p className="text-sm text-gray-600 mt-1">{formData.description || 'Agent IA WhatsApp'}</p>
+                  </div>
+                  <div className="px-4 py-2 bg-emerald-600 text-white rounded-full font-semibold text-sm">
+                    {formData.country}
+                  </div>
+                </div>
+
+                {/* Welcome Message */}
+                <div className="bg-white rounded-lg p-6 mb-6 border border-emerald-200">
+                  <p className="text-sm font-semibold text-gray-600 mb-3">💬 Message de bienvenue</p>
+                  <div className="text-gray-900 whitespace-pre-line font-medium">
+                    {generateWelcomeMessage()}
+                  </div>
+                </div>
+
+                {/* Configuration Summary */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white rounded-lg p-4 border border-emerald-200">
+                    <p className="text-xs font-semibold text-gray-600 mb-2">Niche</p>
+                    <p className="text-gray-900 font-semibold">{formData.niche}</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 border border-emerald-200">
+                    <p className="text-xs font-semibold text-gray-600 mb-2">Type de produits</p>
+                    <p className="text-gray-900 font-semibold">{formData.productType}</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 border border-emerald-200">
+                    <p className="text-xs font-semibold text-gray-600 mb-2">Style de communication</p>
+                    <p className="text-gray-900 font-semibold capitalize">{formData.communicationStyle}</p>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 border border-emerald-200">
+                    <p className="text-xs font-semibold text-gray-600 mb-2">Ton de voix</p>
+                    <p className="text-gray-900 font-semibold">{formData.tone}</p>
+                  </div>
+                  <div className="col-span-2 bg-white rounded-lg p-4 border border-emerald-200">
+                    <p className="text-xs font-semibold text-gray-600 mb-2">Personnalité</p>
+                    <p className="text-gray-900 font-semibold">{formData.personality}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Settings Summary */}
+              <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
+                <p className="text-sm font-semibold text-blue-900 mb-4">⚙️ Paramètres</p>
+                <div className="space-y-2 text-sm text-blue-900">
+                  <p>📱 Numéro du boss: <span className="font-semibold">{formData.bossPhone}</span></p>
+                  <p>🔔 Notifications au boss: <span className="font-semibold">{formData.bossNotifications ? '✅ Activées' : '❌ Désactivées'}</span></p>
+                  <p>📦 Notifications de commandes: <span className="font-semibold">{formData.notifyOnOrder ? '✅ Activées' : '❌ Désactivées'}</span></p>
+                </div>
+              </div>
+
+              {/* Info */}
+              <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-200 text-sm text-emerald-900">
+                <p>✨ Cet agent est maintenant prêt ! Tu pourras ajouter tes produits et activer l'instance dans la configuration.</p>
               </div>
             </div>
           )}
