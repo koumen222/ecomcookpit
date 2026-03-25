@@ -27,11 +27,11 @@ const API_ORIGIN = (() => {
     // Relative path env like /api/ecom should NOT be reused as base here.
     if (raw.startsWith('/')) {
       if (typeof window !== 'undefined') return window.location.origin;
-      return 'https://ecomcookpit-production-7a08.up.railway.app';
+      return 'https://api.scalor.net';
     }
   }
 
-  return 'https://ecomcookpit-production-7a08.up.railway.app';
+  return 'https://api.scalor.net';
 })();
 
 

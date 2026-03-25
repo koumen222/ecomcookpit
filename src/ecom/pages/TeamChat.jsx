@@ -12,11 +12,11 @@ const resolveSocketUrl = () => {
   if (typeof window !== 'undefined' && window.location.hostname.endsWith('scalor.net')) {
     return 'https://api.scalor.net';
   }
-  return 'https://ecomcookpit-production-7a08.up.railway.app';
+  return 'https://api.scalor.net';
 };
 
 const SOCKET_URL = resolveSocketUrl();
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://api.scalor.net';
 
 const ROLE_COLORS = { 
   ecom_admin: 'bg-emerald-600', 

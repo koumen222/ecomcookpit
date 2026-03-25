@@ -81,12 +81,7 @@ const ComptaDashboard = () => {
     }));
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF'
-    }).format(amount || 0);
-  };
+
 
   const formatPercent = (value) => {
     return `${(value * 100).toFixed(1)}%`;
@@ -435,7 +430,7 @@ const ComptaDashboard = () => {
                au {new Date(dateRange.endDate).toLocaleDateString('fr-FR')}</p>
             <p>• <strong>Méthode de calcul:</strong> Comptabilité d'engagement sur commandes livrées</p>
             <p>• <strong>Coûts inclus:</strong> Coûts produits + frais de livraison + dépenses publicitaires</p>
-            <p>• <strong>ROAS idéal:</strong> Supérieur à 3.0 (3 FCFA de CA pour 1 FCFA dépensé en pub)</p>
+            <p>• <strong>ROAS idéal:</strong> Supérieur à 3.0 (3x le CA par rapport aux dépenses pub)</p>
             <p>• <strong>Taux de livraison minimum:</strong> 70% pour maintenir la rentabilité</p>
           </div>
         </div>

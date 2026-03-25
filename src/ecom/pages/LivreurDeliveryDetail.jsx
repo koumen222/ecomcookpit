@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
+import { useMoney } from '../hooks/useMoney.js';
 
-const COST_PER_KM = 200; // FCFA
+const COST_PER_KM = 200;
 
 const STATUS_LABELS = {
   pending: 'En attente', confirmed: 'Confirmée', shipped: 'En transit',
@@ -403,7 +404,7 @@ const LivreurDeliveryDetail = () => {
                       </div>
                       <div className="bg-white rounded-xl p-3 text-center shadow-sm">
                         <p className="text-2xl font-black text-emerald-600">{deliveryCost != null ? deliveryCost.toLocaleString('fr-FR') : '—'}</p>
-                        <p className="text-[10px] text-gray-400 font-medium">FCFA</p>
+                        <p className="text-[10px] text-gray-400 font-medium">{symbol}</p>
                       </div>
                     </div>
 
@@ -444,7 +445,7 @@ const LivreurDeliveryDetail = () => {
                       )}
                     </div>
 
-                    <p className="text-[10px] text-indigo-400 text-center">Coût calculé à {COST_PER_KM} FCFA / km</p>
+                    <p className="text-[10px] text-indigo-400 text-center">Coût calculé à {COST_PER_KM} {symbol} / km</p>
                   </div>
                 )}
 
@@ -458,7 +459,7 @@ const LivreurDeliveryDetail = () => {
                     <p className="text-[10px] text-gray-400">DISTANCE</p>
                   </div>
                   <div className="bg-white rounded-xl p-3 text-center shadow-sm">
-                    <p className="text-xl font-black text-emerald-700">{(deliveryCost || 0).toLocaleString('fr-FR')} FCFA</p>
+                    <p className="text-xl font-black text-emerald-700">{fmt(deliveryCost || 0)}</p>
                     <p className="text-[10px] text-gray-400">COÛT LIVRAISON</p>
                   </div>
                 </div>
@@ -512,7 +513,7 @@ const LivreurDeliveryDetail = () => {
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-400">Prix</span>
-            <span className="text-sm font-bold text-[#0F6B4F]">{order.price ? Number(order.price).toLocaleString('fr-FR') + ' FCFA' : '—'}</span>
+            <span className="text-sm font-bold text-[#0F6B4F]">{order.price ? fmt(order.price) : '—'}</span>
           </div>
         </div>
       </div>

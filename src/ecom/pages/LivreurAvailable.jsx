@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
 import { playConfirmSound } from '../services/soundService.js';
+import { useMoney } from '../hooks/useMoney.js';
 
 const formatRemaining = (deadline) => {
   if (!deadline) return null;
@@ -14,6 +15,7 @@ const getOfferMeta = (order) => order.livreurView || {};
 
 const LivreurAvailable = () => {
   const { user } = useEcomAuth();
+  const { fmt } = useMoney();
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -156,7 +158,7 @@ const LivreurAvailable = () => {
                     {(meta.gainLabel || meta.estimatedDistanceLabel) && <p>💸 Montant : {meta.gainLabel || '—'} · 📏 {meta.estimatedDistanceLabel || 'À estimer'}</p>}
                   </div>
                   {order.price && (
-                    <p className="text-sm font-bold text-[#0F6B4F] mt-2">{Number(order.price).toLocaleString('fr-FR')} FCFA</p>
+                    <p className="text-sm font-bold text-[#0F6B4F] mt-2">{fmt(order.price)}</p>
                   )}
                 </div>
                 <div className="flex flex-col gap-2 shrink-0">

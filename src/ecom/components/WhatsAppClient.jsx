@@ -28,7 +28,7 @@ export default function WhatsAppClient() {
     console.log("instanceSecret:", instanceSecret ? "***" : "VIDE")
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app'}/api/ecom/integrations/whatsapp/test-connection`, {
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'https://api.scalor.net'}/api/ecom/integrations/whatsapp/test-connection`, {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify({ instanceName, instanceSecret })
@@ -58,7 +58,7 @@ export default function WhatsAppClient() {
     console.log("message:", message)
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'https://ecomcookpit-production-7a08.up.railway.app'}/api/ecom/integrations/whatsapp/send-message`, {
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'https://api.scalor.net'}/api/ecom/integrations/whatsapp/send-message`, {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify({ instanceName, instanceSecret, phoneNumber, message })

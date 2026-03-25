@@ -35,7 +35,8 @@ const allowedOrigins = [
   "http://localhost:5175",
   "http://localhost:5176",
   "http://localhost:3000",
-  "http://localhost:8081"
+  "http://localhost:8081",
+  "https://truthful-nourishment-production-217b.up.railway.app"
 ].concat(configuredOrigins);
 
 const normalizedAllowedOrigins = new Set(
@@ -338,8 +339,8 @@ const startServer = async () => {
       // ─── Shopify Webhooks (orders/create) ─────────────────────────────
       ['./routes/shopifyWebhooks.js',          '/api/webhooks/shopify'],
       // ─── Generic Order Webhook (external systems → /webhook/orders/:token) ─
-      ['./routes/orderWebhook.js',             '/webhook/orders'],
-      // ─── Test Routes ───────────────────────────────────────────────────
+      ['./routes/orderWebhook.js',             '/webhook/orders'],      // ─── Billing / Plan upgrade (MoneyFusion) ─────────────────────────────
+      ['./routes/billing.js',                   '/api/ecom/billing'],      // ─── Test Routes ───────────────────────────────────────────────────
       ['./routes/test.js',                      '/api/ecom/test'],
       // ─── Scalor SaaS WhatsApp API ──────────────────────────────────────
       ['./routes/scalorAuth.js',               '/api/scalor/auth'],

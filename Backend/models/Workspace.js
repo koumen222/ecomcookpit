@@ -160,6 +160,24 @@ const workspaceSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  // ─── Billing / Plan ──────────────────────────────────────────────────────
+  plan: {
+    type: String,
+    enum: ['free', 'pro'],
+    default: 'free',
+    index: true
+  },
+  // Date when the pro plan expires; null = no active subscription
+  planExpiresAt: {
+    type: Date,
+    default: null
+  },
+  // Last confirmed MoneyFusion tokenPay for traceability
+  planPaymentToken: {
+    type: String,
+    default: null
+  },
+
   invites: [{
     token: {
       type: String,

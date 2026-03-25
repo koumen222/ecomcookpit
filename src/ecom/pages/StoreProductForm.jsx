@@ -356,9 +356,9 @@ const StoreProductForm = () => {
             try { return new URL(raw).origin; } catch { /* noop */ }
           }
           if (raw.startsWith('/')) {
-            return typeof window !== 'undefined' ? window.location.origin : 'https://ecomcookpit-production-7a08.up.railway.app';
+            return typeof window !== 'undefined' ? window.location.origin : 'https://api.scalor.net';
           }
-          return 'https://ecomcookpit-production-7a08.up.railway.app';
+          return 'https://api.scalor.net';
         })();
         
         try {

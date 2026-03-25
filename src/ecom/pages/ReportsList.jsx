@@ -139,9 +139,7 @@ const ReportsList = () => {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return `${(amount || 0).toLocaleString('fr-FR')} FCFA`;
-  };
+
 
   // Stats calculées depuis les rapports chargés
   const totalReceived = reports.reduce((sum, r) => sum + (r.ordersReceived || 0), 0);

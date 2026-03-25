@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
+import { useMoney } from '../hooks/useMoney.js';
 
 const COST_PER_KM = 200;
 
@@ -106,6 +107,7 @@ const TABS = [
 
 const LivreurDeliveries = () => {
   const { user } = useEcomAuth();
+  const { symbol } = useMoney();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState({});
@@ -358,7 +360,7 @@ const LivreurDeliveries = () => {
                 </div>
                 <div className="bg-emerald-50 rounded-xl p-3 text-center">
                   <p className="text-xl font-black text-emerald-600">{cost.toLocaleString('fr-FR')}</p>
-                  <p className="text-[9px] text-emerald-400 font-semibold uppercase">FCFA</p>
+                  <p className="text-[9px] text-emerald-400 font-semibold uppercase">{symbol}</p>
                 </div>
               </div>
               <div>
@@ -578,7 +580,7 @@ const LivreurDeliveries = () => {
                     <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Calcul en cours…</>
                   ) : !courseGps ? <>⏳ En attente du GPS</> : <>🚀 Lancer la course</>}
                 </button>
-                <p className="text-center text-[10px] text-gray-400">Coût calculé à {COST_PER_KM} FCFA / km</p>
+                <p className="text-center text-[10px] text-gray-400">Coût calculé à {COST_PER_KM} {symbol} / km</p>
               </div>
             )}
           </div>
@@ -706,7 +708,7 @@ const LivreurDeliveries = () => {
                         </div>
                         <div className="bg-emerald-50 rounded-xl p-2.5 text-center">
                           <p className="text-base font-black text-emerald-600">{cost.toLocaleString('fr-FR')}</p>
-                          <p className="text-[9px] text-emerald-400 font-semibold uppercase">FCFA</p>
+                          <p className="text-[9px] text-emerald-400 font-semibold uppercase">{symbol}</p>
                         </div>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
