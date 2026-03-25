@@ -64,6 +64,7 @@ function getOrCreateState(historyKey, fromJid = '') {
       nom: null,            // facultatif — pris en compte si fourni, sinon on ne demande pas
       telephone: localPhone || rawPhone || null, // auto via webhook JID — JAMAIS demandé
       telephoneAppel: null, // numéro pour appels livraison (peut différer du WhatsApp)
+      quantite: null,       // quantité du produit — à demander lors de la commande
       ville: null,          // à demander lors de la commande
       adresse: null,        // adresse précise — à demander lors de la commande
       produit: null,
@@ -98,6 +99,16 @@ function extractEntities(text = '') {
   const nameRe = /(?:je m['']appelle|mon nom(?: est| c['']est)?|nom\s*[:=]\s*|c['']est moi\s+|appelle.moi|prénom\s*[:=]\s*)\s*([A-ZÀ-Üa-zà-ü][a-zà-ü]+(?:\s+[A-ZÀ-Üa-zà-ü][a-zà-ü]+)?)/i;
   const nameMatch = text.match(nameRe);
   if (nameMatch) found.nom = nameMatch[1].trim();
+
+  // ── Quantité ──
+  // Détecte : "1", "2", "3", "une", "deux", "trois", "10 pièces", "5 boîtes", etc.
+  const quantityRe = /\b(?:je (?:veux|prends|cherche)|commander|pour|x|quantité|qt|qte|pieces?|boites?|paquet?|carton?|dose?)\s*[:=]?\s*([0-9]{1,3}|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix)/i;
+  const quantityMatch = text.match(quantityRe);
+  if (quantityMatch) {
+    const raw = quantityMatch[1].toLowerCase();
+    const wordToNum = { 'une': 1, 'deux': 2, 'trois': 3, 'quatre': 4, 'cinq': 5, 'six': 6, 'sept': 7, 'huit': 8, 'neuf': 9, 'dix': 10 };
+    found.quantite = wordToNum[raw] || parseInt(raw, 10);
+  }
 
   // ── Ville ──
   const lowerText = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -155,6 +166,7 @@ function updateClientState(historyKey, message) {
   // N'écraser que les valeurs null (ne pas réécrire si déjà connu)
   // NB: telephone principal n'est jamais modifié ici — uniquement via webhook JID
   if (entities.nom && !state.nom) state.nom = entities.nom;
+  if (entities.quantite && !state.quantite) state.quantite = entities.quantite;
   if (entities.ville && !state.ville) state.ville = entities.ville;
   if (entities.adresse && !state.adresse) state.adresse = entities.adresse;
 
@@ -207,17 +219,22 @@ function buildClientStateSection(state, askedQs) {
   const lines = [];
   lines.push(`- Nom          : ${state.nom ? `✅ ${state.nom} (utiliser si connu)` : '— non fourni (NE PAS demander)'}`);
   lines.push(`- Tél WhatsApp : ✅ ${state.telephone || 'auto'} (JAMAIS demander)`);
-  lines.push(`- Tél livraison: ${state.telephoneAppel ? `✅ ${state.telephoneAppel}` : '❓ à confirmer'}`);
+  lines.push(`- Quantité     : ${state.quantite ? `✅ ${state.quantite}` : '❓ à demander'}`);
   lines.push(`- Ville        : ${state.ville ? `✅ ${state.ville}` : '❓ à demander'}`);
   lines.push(`- Adresse      : ${state.adresse ? `✅ ${state.adresse}` : '❓ à demander'}`);
-  lines.push(`- Produit      : ${state.produit || '❓ non identifié'}`);
+  lines.push(`- Tél livraison: ${state.telephoneAppel ? `✅ ${state.telephoneAppel}` : '❓ à confirmer'}`);
+  lines.push(`- Produit      : ${state.produit ? `✅ ${state.produit}` : '❓ non identifié'}`);
+  lines.push(`- Prix         : ${state.prix ? `✅ ${state.prix}` : '— à déterminer selon quantité'}`);
   lines.push(`- Statut       : ${state.statut}`);
 
   const askedList = askedQs && askedQs.size > 0 ? [...askedQs].join(' / ') : null;
 
   // Étapes de collecte dans l'ordre — une seule question à la fois
+  // CRUCIAL : demander quantité AVANT de demander la livraison
   let deliveryRule;
-  if (!state.ville || !state.adresse) {
+  if (!state.quantite) {
+    deliveryRule = `👉 PROCHAINE QUESTION (une seule) : "Vous en voulez combien ? (ex: 1, 2, 5, 10...) 👍"`;
+  } else if (!state.ville || !state.adresse) {
     if (!state.ville && !state.adresse) {
       deliveryRule = `👉 PROCHAINE QUESTION (une seule) : "C'est pour quelle ville et quelle adresse de livraison ? 👍"`;
     } else if (!state.ville) {
@@ -240,7 +257,7 @@ ${lines.join('\n')}
 1. ⛔ JAMAIS demander le téléphone WhatsApp — auto-détecté
 2. ⛔ JAMAIS demander le nom — s'il est null c'est OK, utilise-le seulement s'il est connu
 3. ✅ Si le client donne son nom → l'utiliser dans la conversation et le récap
-4. ✅ Ordre de collecte : ville → adresse → confirmation numéro d'appel
+4. ✅ Ordre de collecte : quantité → ville → adresse → confirmation numéro d'appel
 
 ${deliveryRule}
 ${askedList ? `\n### ⛔ QUESTIONS DÉJÀ POSÉES — NE PAS RÉPÉTER\n${askedList}` : ''}`;
@@ -281,7 +298,18 @@ function extractProductFromOrderTag(text = '') {
 
 function findActiveProduct(catalog = [], history = []) {
   const namedProducts = (catalog || []).filter((product) => product?.name);
-  if (!namedProducts.length || !history.length) return null;
+  if (!history.length) {
+    // ✅ Fallback : si pas d'historique, prendre le premier produit valide du catalogue
+    // (utile pour une première conversation ou si le nom est vide)
+    if (catalog.length > 0) {
+      // Chercher le premier produit avec un nom non-vide
+      const firstValid = catalog.find(p => p?.name && p.name.trim() !== '');
+      if (firstValid) return firstValid;
+      // Sinon retourner le premier produit même s'il a un nom vide (fallback ultime)
+      return catalog[0];
+    }
+    return null;
+  }
 
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const content = history[index]?.content || '';
@@ -300,6 +328,18 @@ function findActiveProduct(catalog = [], history = []) {
     });
 
     if (matched) return matched;
+  }
+
+  // ✅ Fallback : si aucun produit trouvé dans l'historique mais le catalogue a un seul produit
+  // → utiliser ce produit (cohérence garantie)
+  if (catalog.length === 1) {
+    return catalog[0];
+  }
+
+  // ✅ Fallback : si plusieurs produits mais aucun trouvé, prendre le premier avec un nom valide
+  if (namedProducts.length > 0) {
+    const firstValid = namedProducts.find(p => p.name && p.name.trim() !== '');
+    return firstValid || namedProducts[0];
   }
 
   return null;
@@ -390,8 +430,20 @@ function buildActiveConversationContext(config = {}, history = [], latestClientM
     || activeProduct?.quantityOffers?.[0]?.totalPrice
     || null;
 
+  // ✅ Cohérence produit : si le produit n'a pas de nom, utiliser un fallback
+  let productName = activeProduct?.name || null;
+  if (!productName || productName.trim() === '') {
+    productName = activeProduct ? '📦 Notre produit' : null;
+  }
+
+  // ✅ Inclure la description et les features pour plus de cohérence
+  const productDescription = activeProduct?.description || '';
+  const productFeatures = (activeProduct?.features || []).slice(0, 3).join(', ') || '';
+
   return {
-    activeProductName: activeProduct?.name || null,
+    activeProductName: productName,
+    activeProductDescription: productDescription,
+    activeProductFeatures: productFeatures,
     latestPrice,
     clientSignal: detectClientSignal(latestClientMessage),
     conversationStage: inferConversationStage(latestClientMessage, recentHistory),
@@ -1002,6 +1054,8 @@ ${activeConversation ? `
 ## 📌 CONTEXTE ACTIF — PRIORITÉ ABSOLUE
 Tu DOIS considérer que la conversation en cours a déjà un sujet actif.
 - Produit en cours: ${activeConversation.activeProductName || 'non identifié avec certitude'}
+${activeConversation.activeProductDescription ? `- Description: ${activeConversation.activeProductDescription}` : ''}
+${activeConversation.activeProductFeatures ? `- Caractéristiques: ${activeConversation.activeProductFeatures}` : ''}
 - Prix / offre en cours: ${activeConversation.latestPrice || 'non explicitement retrouvé'}
 - Signal du client sur son dernier message: ${activeConversation.clientSignal}
 - Étape probable du client: ${activeConversation.conversationStage}
@@ -2396,6 +2450,17 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
   updateClientState(historyKey, text);
   const askedQs = askedQuestions.get(historyKey);
 
+  // ✅ Stocker automatiquement le produit dès que possible (cohérence)
+  if (!clientState.produit && config.productCatalog?.length > 0) {
+    const identifiedProduct = findActiveProduct(config.productCatalog, [{ content: text }]);
+    if (identifiedProduct) {
+      clientState.produit = identifiedProduct.name || '📦 Notre produit';
+      if (!clientState.prix && identifiedProduct.price) {
+        clientState.prix = identifiedProduct.price;
+      }
+    }
+  }
+
   // Ajouter le message de l'utilisateur à l'historique
   history.push({ role: 'user', content: text });
 
@@ -2475,6 +2540,7 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
       }
       // Tracker les questions posées pour l'anti-répétition
       if (askedQs) {
+        if (/combien|quantité|vous en voulez|en vouloir|combien de/i.test(reply)) askedQs.add('quantite');
         if (/quelle ville|tu es.* où|vous êtes.* où/i.test(reply)) askedQs.add('ville');
         if (/adresse|livraison|zone|quartier|secteur/i.test(reply)) askedQs.add('adresse');
         if (/rappelle.* numéro|autre numéro|numéro.* livraison|whatsapp.* livraison/i.test(reply)) askedQs.add('telephone_appel');
