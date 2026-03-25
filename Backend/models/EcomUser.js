@@ -76,7 +76,7 @@ const ecomUserSchema = new mongoose.Schema({
   },
   canAccessRitaAgent: {
     type: Boolean,
-    default: false
+    default: true
   },
   lastLogin: {
     type: Date
