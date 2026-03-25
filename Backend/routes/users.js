@@ -281,7 +281,7 @@ router.post('/',
         workspaceId: req.workspaceId,
         name: name || '',
         phone: phone || '',
-        canAccessRitaAgent: role === 'ecom_admin' ? !!canAccessRitaAgent : false,
+        canAccessRitaAgent: role === 'ecom_admin' ? (canAccessRitaAgent !== false) : false,
       });
       await user.save();
 
