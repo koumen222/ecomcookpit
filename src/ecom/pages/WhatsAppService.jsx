@@ -1395,6 +1395,14 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
 
   useEffect(() => { loadConfig(); }, []);
   useEffect(() => { simEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [simMessages, simTyping]);
+  
+  // Auto-sélectionner la première instance si aucune n'est sélectionnée
+  useEffect(() => {
+    if (instances.length > 0 && !config.instanceId) {
+      const firstInstance = instances[0];
+      set('instanceId', firstInstance._id);
+    }
+  }, [instances.length, config.instanceId]);
 
   const loadConfig = async () => {
     try {
@@ -1414,10 +1422,25 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
 
   const handleSave = async (overrideEnabled) => {
     const effectiveConfig = overrideEnabled !== undefined ? { ...config, enabled: overrideEnabled } : config;
+    
+    // Validation: si Rita est activé, une instance doit être sélectionnée
+    if (effectiveConfig.enabled && !effectiveConfig.instanceId) {
+      setSaveStatus({ type: 'error', message: 'Veuillez sélectionner une instance WhatsApp avant d\'activer Rita IA.' });
+      setTimeout(() => setSaveStatus(null), 5000);
+      return;
+    }
+    
+    // Validation: vérifier que l'instance sélectionnée existe toujours
+    if (effectiveConfig.instanceId && !instances.find(i => i._id === effectiveConfig.instanceId)) {
+      setSaveStatus({ type: 'error', message: 'L\'instance sélectionnée n\'existe plus. Veuillez en sélectionner une autre.' });
+      setTimeout(() => setSaveStatus(null), 5000);
+      return;
+    }
+    
     setSaving(true); setSaveStatus(null);
     try {
       const { data } = await ecomApi.post('/v1/external/whatsapp/rita-config', { userId, config: effectiveConfig });
-      if (!data.success) { setSaveStatus({ type: 'error' }); return; }
+      if (!data.success) { setSaveStatus({ type: 'error', message: 'Erreur lors de la sauvegarde de la configuration.' }); return; }
 
       const { data: whData } = await ecomApi.post('/v1/external/whatsapp/activate', {
         userId,
@@ -1429,7 +1452,9 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
       setConfigSaved(true);
       setShowConfig(false);
       setTimeout(() => setSaveStatus(null), 4000);
-    } catch { setSaveStatus({ type: 'error' }); }
+    } catch (err) { 
+      setSaveStatus({ type: 'error', message: err?.response?.data?.error || 'Erreur lors de la sauvegarde.' }); 
+    }
     finally { setSaving(false); }
   };
 
@@ -1772,7 +1797,12 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                     <CheckCircle className="w-3 h-3" /> Enregistré
                   </span>
                 )}
-                {saveStatus?.type === 'error' && <span className="text-[11px] font-semibold text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />Erreur</span>}
+                {saveStatus?.type === 'error' && (
+                  <span className="text-[11px] font-semibold text-red-600 flex items-center gap-1" title={saveStatus?.message}>
+                    <AlertCircle className="w-3 h-3" />
+                    {saveStatus?.message || 'Erreur'}
+                  </span>
+                )}
                 <button onClick={() => handleSave()} disabled={saving}
                   className="inline-flex items-center gap-1.5 px-4 py-2 text-[12px] font-bold text-white rounded-xl disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
                   style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
@@ -1969,14 +1999,16 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                   <Field label="Délai avant de répondre" hint="secondes">
                     <input type="number" value={config.responseDelay} onChange={e => set('responseDelay', parseInt(e.target.value) || 0)} min="0" max="30" className="field-input" />
                   </Field>
-                  <Field label="Instance WhatsApp">
+                  <Field label="Instance WhatsApp" required>
                     <CustomSelect
                       value={config.instanceId}
                       onChange={v => set('instanceId', v)}
                       placeholder="Sélectionner une instance..."
                       options={instances.map(inst => ({ value: inst._id, label: inst.customName || inst.instanceName }))}
                     />
-                    {instances.length === 0 && <p className="text-[11px] text-amber-600 mt-1.5">Ajoutez une instance dans l'onglet Instances d'abord.</p>}
+                    {instances.length === 0 && <p className="text-[11px] text-amber-600 mt-1.5">⚠️ Ajoutez une instance dans l'onglet Instances d'abord.</p>}
+                    {instances.length > 0 && !config.instanceId && <p className="text-[11px] text-amber-600 mt-1.5">⚠️ Sélectionnez une instance pour activer Rita IA.</p>}
+                    {config.instanceId && !instances.find(i => i._id === config.instanceId) && <p className="text-[11px] text-red-600 mt-1.5">⚠️ L'instance sélectionnée n'existe plus. Veuillez en sélectionner une autre.</p>}
                   </Field>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-6 pt-1">
