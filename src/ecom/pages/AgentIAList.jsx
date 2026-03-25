@@ -8,10 +8,6 @@ export default function AgentIAList() {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newAgentName, setNewAgentName] = useState('');
-  const [newAgentDescription, setNewAgentDescription] = useState('');
-  const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(null);
 
   useEffect(() => {
@@ -34,33 +30,8 @@ export default function AgentIAList() {
     }
   };
 
-  const handleCreateAgent = async () => {
-    if (!newAgentName.trim()) {
-      setError('Le nom de l\'agent est requis');
-      return;
-    }
-
-    try {
-      setCreating(true);
-      const res = await ecomApi.post('/agents', {
-        name: newAgentName,
-        type: 'whatsapp',
-        description: newAgentDescription,
-      });
-
-      if (res.data.success) {
-        setAgents([...agents, res.data.agent]);
-        setShowCreateModal(false);
-        setNewAgentName('');
-        setNewAgentDescription('');
-        setError(null);
-      }
-    } catch (err) {
-      console.error('Erreur création agent:', err);
-      setError('Impossible de créer l\'agent');
-    } finally {
-      setCreating(false);
-    }
+  const handleCreateAgent = () => {
+    navigate('/ecom/agent-onboarding');
   };
 
   const handleDeleteAgent = async (agentId) => {
@@ -135,7 +106,7 @@ export default function AgentIAList() {
           <Bot className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500 text-lg mb-6">Aucun agent créé</p>
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={handleCreateAgent}
             className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors inline-flex items-center gap-2"
           >
             <Plus className="w-5 h-5" />
@@ -227,69 +198,6 @@ export default function AgentIAList() {
         </div>
       )}
 
-      {/* Modal Création */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Créer un nouvel agent</h2>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Nom de l'agent *
-                </label>
-                <input
-                  type="text"
-                  value={newAgentName}
-                  onChange={(e) => setNewAgentName(e.target.value)}
-                  placeholder="Ex: Rita, Maya, Assistant..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  disabled={creating}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Description (optionnel)
-                </label>
-                <textarea
-                  value={newAgentDescription}
-                  onChange={(e) => setNewAgentDescription(e.target.value)}
-                  placeholder="Brève description du rôle de cet agent..."
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  disabled={creating}
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                disabled={creating}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={handleCreateAgent}
-                disabled={creating || !newAgentName.trim()}
-                className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {creating ? '⏳ Création...' : 'Créer'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Footer info */}
       {agents.length > 0 && (

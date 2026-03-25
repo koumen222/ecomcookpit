@@ -131,4 +131,43 @@ router.post('/config', requireEcomAuth, requireRitaAgentAccess, async (req, res)
   }
 });
 
+/**
+ * PUT /api/ecom/rita/config
+ * Mettre à jour les champs du onboarding
+ */
+router.put('/config', requireEcomAuth, async (req, res) => {
+  try {
+    const userId = await resolveRitaUserId(req);
+    const updateData = req.body;
+
+    console.log(`📝 [RITA] PUT /config pour userId=${userId}`);
+
+    const updated = await RitaConfig.findOneAndUpdate(
+      { userId },
+      { $set: updateData },
+      { new: true, runValidators: false }
+    );
+
+    if (!updated) {
+      return res.status(404).json({
+        success: false,
+        error: 'Configuration non trouvée',
+      });
+    }
+
+    console.log(`✅ [RITA] Config mise à jour pour userId=${userId}`);
+
+    res.json({
+      success: true,
+      config: updated,
+    });
+  } catch (error) {
+    console.error('❌ [RITA] Erreur PUT config:', error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Erreur serveur',
+    });
+  }
+});
+
 export default router;

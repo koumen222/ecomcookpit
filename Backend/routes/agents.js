@@ -59,7 +59,21 @@ router.get('/', requireEcomAuth, async (req, res) => {
 router.post('/', requireEcomAuth, async (req, res) => {
   try {
     const userId = await resolveUserId(req);
-    const { name, type = 'whatsapp', description = '' } = req.body;
+    const {
+      name,
+      type = 'whatsapp',
+      description = '',
+      country = '',
+      niche = '',
+      productType = '',
+      communicationStyle = 'friendly',
+      tone = '',
+      personality = '',
+      bossPhone = '',
+      bossNotifications = false,
+      notifyOnOrder = true,
+      onboardingCompleted = false,
+    } = req.body;
 
     if (!name) {
       return res.status(400).json({
@@ -81,13 +95,32 @@ router.post('/', requireEcomAuth, async (req, res) => {
         agentName: name,
         welcomeMessage: `Bonjour 👋 Bienvenue chez ${name} !`,
         productCatalog: [],
-        bossPhone: '',
-        bossNotifications: false,
-        notifyOnOrder: true,
+        country,
+        niche,
+        productType,
+        communicationStyle,
+        tone,
+        personality,
+        bossPhone,
+        bossNotifications,
+        notifyOnOrder,
+        onboardingCompleted,
       });
       console.log(`   RitaConfig créée: ${ritaConfig._id}`);
     } else {
-      console.log(`   RitaConfig existante: ${ritaConfig._id}`);
+      // Mettre à jour les champs du onboarding si RitaConfig existe
+      if (country) ritaConfig.country = country;
+      if (niche) ritaConfig.niche = niche;
+      if (productType) ritaConfig.productType = productType;
+      if (communicationStyle) ritaConfig.communicationStyle = communicationStyle;
+      if (tone) ritaConfig.tone = tone;
+      if (personality) ritaConfig.personality = personality;
+      if (bossPhone) ritaConfig.bossPhone = bossPhone;
+      ritaConfig.bossNotifications = bossNotifications;
+      ritaConfig.notifyOnOrder = notifyOnOrder;
+      ritaConfig.onboardingCompleted = onboardingCompleted;
+      await ritaConfig.save();
+      console.log(`   RitaConfig mise à jour: ${ritaConfig._id}`);
     }
 
     // Créer l'agent
