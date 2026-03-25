@@ -2434,6 +2434,7 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
     console.warn(`⚠️ [RITA] Rita désactivée (enabled=false) pour userId=${userId}`);
     return null;
   }
+  console.log("BACK PRODUCTS:", JSON.stringify(config.productCatalog?.map(p => ({ name: p.name, price: p.price })) || []));
 
   // Clé unique par (userId, numéro expéditeur)
   const historyKey = `${userId}:${from}`;
