@@ -337,7 +337,7 @@ export default function AgentConfig() {
 
   const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
   const userId = user._id || user.id;
-  const canAccessRitaAgent = user?.role === 'super_admin' || (user?.role === 'ecom_admin' && user?.canAccessRitaAgent !== false);
+  const [instanceError, setInstanceError] = useState(null);
   const [ritaRequestForm, setRitaRequestForm] = useState({
     contactName: user?.name || '',
     phoneNumber: '',
@@ -357,13 +357,28 @@ export default function AgentConfig() {
     setHasChanges(true);
   }, []);
 
+  const loadInstances = async () => {
+    try {
+      setInstanceError(null);
+      const { data } = await ecomApi.get(`/v1/external/whatsapp/instances?userId=${userId}`);
+      if (data.success) {
+        setInstances(data.instances || []);
+      } else {
+        setInstanceError(data.error || 'Échec du chargement des instances');
+      }
+    } catch (err) {
+      console.error('[AgentConfig] Erreur chargement instances:', err);
+      setInstanceError(err.response?.data?.error || err.message || 'Erreur réseau');
+    }
+  };
+
   // ─── Load ───
   useEffect(() => {
     const load = async () => {
       try {
-        const [configRes, instRes] = await Promise.all([
+        const [configRes] = await Promise.all([
           ecomApi.get(`/v1/external/whatsapp/rita-config?userId=${userId}`),
-          ecomApi.get(`/v1/external/whatsapp/instances?userId=${userId}`),
+          loadInstances(),
         ]);
         if (configRes.data.success && configRes.data.config) {
           let loadedConfig = configRes.data.config;
@@ -386,11 +401,13 @@ export default function AgentConfig() {
             time: '14:30',
           }]);
         }
-        if (instRes.data.success) setInstances(instRes.data.instances || []);
-      } catch { /* ignore */ }
+      } catch (error) {
+        console.error('[AgentConfig] Erreur chargement:', error);
+      }
       finally { setLoading(false); }
     };
-    load();
+    if (userId) load();
+    else setLoading(false);
   }, [userId]);
 
   useEffect(() => { simEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [simMessages, simTyping]);
@@ -677,95 +694,6 @@ export default function AgentConfig() {
     </div>
   );
 
-  if (!canAccessRitaAgent) {
-    return (
-      <div className="min-h-[70vh] flex items-center justify-center px-4">
-        <div className="w-full max-w-xl bg-white border border-gray-200 rounded-3xl shadow-sm overflow-hidden">
-          <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-emerald-50 to-teal-50">
-            <h1 className="text-[20px] font-extrabold text-gray-900">Rita IA</h1>
-            <p className="text-[13px] text-gray-600 mt-1">
-              Votre accès Rita IA n'est pas encore activé sur ce compte.
-            </p>
-          </div>
-
-          <div className="p-6 space-y-5">
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-800">
-              Rita n'est pas accessible a tous pour le moment. Pour une configuration, contactez le dev.
-            </div>
-
-            <form onSubmit={handleRitaAccessRequest} className="space-y-3 rounded-2xl border border-gray-200 p-4 bg-gray-50/70">
-              <p className="text-[12px] font-semibold text-gray-700">Formulaire de postulation</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <input
-                  type="text"
-                  value={ritaRequestForm.contactName}
-                  onChange={(e) => setRitaRequestForm((prev) => ({ ...prev, contactName: e.target.value }))}
-                  placeholder="Nom du contact"
-                  className="px-3 py-2 rounded-lg border border-gray-300 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  required
-                />
-                <input
-                  type="text"
-                  value={ritaRequestForm.phoneNumber}
-                  onChange={(e) => setRitaRequestForm((prev) => ({ ...prev, phoneNumber: e.target.value }))}
-                  placeholder="Numero WhatsApp"
-                  className="px-3 py-2 rounded-lg border border-gray-300 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  required
-                />
-              </div>
-              <input
-                type="text"
-                value={ritaRequestForm.businessName}
-                onChange={(e) => setRitaRequestForm((prev) => ({ ...prev, businessName: e.target.value }))}
-                placeholder="Nom de la boutique"
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-              <textarea
-                value={ritaRequestForm.reason}
-                onChange={(e) => setRitaRequestForm((prev) => ({ ...prev, reason: e.target.value }))}
-                placeholder="Votre besoin de configuration Rita IA"
-                rows={3}
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-[13px] focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-                required
-              />
-
-              {ritaRequestStatus && (
-                <div className={`text-[12px] px-3 py-2 rounded-lg ${ritaRequestStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                  {ritaRequestStatus.message}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={ritaRequestSubmitting}
-                className="w-full sm:w-auto px-4 py-2 rounded-lg bg-emerald-600 text-white text-[13px] font-semibold hover:bg-emerald-700 disabled:opacity-60"
-              >
-                {ritaRequestSubmitting ? 'Envoi en cours...' : 'Envoyer ma postulation'}
-              </button>
-            </form>
-
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => navigate('/ecom/whatsapp/service?tab=instances')}
-                className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-[13px] font-semibold hover:bg-emerald-700 transition-colors"
-              >
-                Voir et connecter mes instances
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/ecom/whatsapp/service')}
-                className="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-700 text-[13px] font-semibold hover:bg-gray-50 transition-colors"
-              >
-                Retour au service WhatsApp
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-full bg-gray-50/50 pb-20">
 
@@ -872,8 +800,11 @@ export default function AgentConfig() {
                         placeholder="Choisir l'instance utilisée par Rita"
                       />
                     ) : (
-                      <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-[12px] text-gray-500">
-                        Aucune instance WhatsApp disponible. Créez ou connectez une instance avant d'activer Rita.
+                      <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-[12px] text-gray-500 space-y-2">
+                        <p>{instanceError ? `Erreur: ${instanceError}` : 'Aucune instance WhatsApp disponible. Créez ou connectez une instance avant d\'activer Rita.'}</p>
+                        <button type="button" onClick={loadInstances} className="text-emerald-600 hover:text-emerald-700 font-semibold underline">
+                          Recharger les instances
+                        </button>
                       </div>
                     )}
                   </Field>

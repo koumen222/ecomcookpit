@@ -157,7 +157,6 @@ const EcomLayoutComponent = ({ children }) => {
   };
 
   const isSuperAdmin = user?.role === 'super_admin';
-  const canAccessRitaAgent = user?.role === 'super_admin' || (user?.role === 'ecom_admin' && user?.canAccessRitaAgent !== false);
 
   // --- Navigation items grouped by section (mémorisés pour éviter re-création) ---
   const mainNav = useMemo(() => [
@@ -369,9 +368,8 @@ const EcomLayoutComponent = ({ children }) => {
   const allNav = useMemo(() => [...mainNav, ...secondaryNav, ...bottomNav, ...superAdminNav], [mainNav, secondaryNav, bottomNav, superAdminNav]);
   const canAccessNavItem = useCallback((item) => {
     if (!item.roles.includes(user?.role)) return false;
-    if (!item.requiresRitaAccess) return true;
-    return canAccessRitaAgent;
-  }, [canAccessRitaAgent, user?.role]);
+    return true;
+  }, [user?.role]);
   const filteredMain = useMemo(() => mainNav.filter(canAccessNavItem), [mainNav, canAccessNavItem]);
   const filteredSecondary = useMemo(() => secondaryNav.filter(canAccessNavItem), [secondaryNav, canAccessNavItem]);
   const filteredBottom = useMemo(() => bottomNav.filter(canAccessNavItem), [bottomNav, canAccessNavItem]);

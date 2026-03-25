@@ -304,20 +304,13 @@ const WhatsAppService = () => {
         </nav>
 
         <div className="flex items-center gap-2 pb-2 sm:pb-2">
-          {canAccessRitaAgent ? (
-            <button
-              onClick={() => navigate('/ecom/whatsapp/agent-config')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all whitespace-nowrap text-gray-500 bg-gray-50 hover:bg-gray-100 hover:text-gray-700"
-            >
-              <Bot className="w-3.5 h-3.5" />
-              <span>Configurer Rita IA</span>
-            </button>
-          ) : (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap text-amber-700 bg-amber-50 border border-amber-200">
-              <Bot className="w-3.5 h-3.5" />
-              <span>Acces Rita gere par un admin</span>
-            </div>
-          )}
+          <button
+            onClick={() => navigate('/ecom/whatsapp/agent-config')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all whitespace-nowrap text-gray-500 bg-gray-50 hover:bg-gray-100 hover:text-gray-700"
+          >
+            <Bot className="w-3.5 h-3.5" />
+            <span>Configurer Rita IA</span>
+          </button>
         </div>
       </div>
 

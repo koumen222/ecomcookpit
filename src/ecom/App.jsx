@@ -104,6 +104,7 @@ import AgentConfig from './pages/AgentConfig.jsx';
 import ConnectShopify from './pages/ConnectShopify.jsx';
 import BillingPage from './pages/BillingPage.jsx';
 import BillingSuccess from './pages/BillingSuccess.jsx';
+import ProviderService from './pages/ProviderService.jsx';
 
 // Store pages
 import StoreSetup from './pages/StoreSetup.jsx';
@@ -330,22 +331,22 @@ const EcomApp = () => {
             <Route path="/ecom/import" element={<LayoutRoute requiredRole="ecom_admin"><ImportOrders /></LayoutRoute>} />
 
             {/* Routes clients */}
-            <Route path="/ecom/clients" element={<LayoutRoute><ClientsList /></LayoutRoute>} />
-            <Route path="/ecom/clients/new" element={<LayoutRoute><ClientForm /></LayoutRoute>} />
-            <Route path="/ecom/clients/:id/edit" element={<LayoutRoute><ClientForm /></LayoutRoute>} />
+            <Route path="/ecom/clients" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ClientsList /></LayoutRoute>} />
+            <Route path="/ecom/clients/new" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ClientForm /></LayoutRoute>} />
+            <Route path="/ecom/clients/:id/edit" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ClientForm /></LayoutRoute>} />
 
             {/* Routes rapports */}
-            <Route path="/ecom/reports" element={<LayoutRoute><ReportsList /></LayoutRoute>} />
-            <Route path="/ecom/reports/new" element={<LayoutRoute><ReportForm /></LayoutRoute>} />
-            <Route path="/ecom/reports/insights" element={<LayoutRoute><ReportsInsightsPage /></LayoutRoute>} />
-            <Route path="/ecom/reports/product/:productId" element={<LayoutRoute><ProductReportDetail /></LayoutRoute>} />
-            <Route path="/ecom/reports/:id" element={<LayoutRoute><ReportDetail /></LayoutRoute>} />
-            <Route path="/ecom/reports/:id/edit" element={<LayoutRoute><ReportForm /></LayoutRoute>} />
+            <Route path="/ecom/reports" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ReportsList /></LayoutRoute>} />
+            <Route path="/ecom/reports/new" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ReportForm /></LayoutRoute>} />
+            <Route path="/ecom/reports/insights" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ReportsInsightsPage /></LayoutRoute>} />
+            <Route path="/ecom/reports/product/:productId" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ProductReportDetail /></LayoutRoute>} />
+            <Route path="/ecom/reports/:id" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ReportDetail /></LayoutRoute>} />
+            <Route path="/ecom/reports/:id/edit" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ReportForm /></LayoutRoute>} />
 
             {/* Routes sourcing */}
-            <Route path="/ecom/sourcing" element={<LayoutRoute><SourcingList /></LayoutRoute>} />
-            <Route path="/ecom/sourcing/stats" element={<LayoutRoute><SourcingStats /></LayoutRoute>} />
-            <Route path="/ecom/sourcing/:id" element={<LayoutRoute><SupplierDetail /></LayoutRoute>} />
+            <Route path="/ecom/sourcing" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_compta']}><SourcingList /></LayoutRoute>} />
+            <Route path="/ecom/sourcing/stats" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_compta']}><SourcingStats /></LayoutRoute>} />
+            <Route path="/ecom/sourcing/:id" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_compta']}><SupplierDetail /></LayoutRoute>} />
 
             {/* Routes stock */}
             <Route path="/ecom/stock" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><StockOrdersList /></LayoutRoute>} />
@@ -355,9 +356,9 @@ const EcomApp = () => {
             <Route path="/ecom/stock-locations" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><StockManagement /></LayoutRoute>} />
 
             {/* Routes transactions */}
-            <Route path="/ecom/transactions" element={<LayoutRoute><TransactionsList /></LayoutRoute>} />
-            <Route path="/ecom/transactions/new" element={<LayoutRoute><TransactionForm /></LayoutRoute>} />
-            <Route path="/ecom/transactions/:id" element={<LayoutRoute><TransactionDetail /></LayoutRoute>} />
+            <Route path="/ecom/transactions" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_compta']}><TransactionsList /></LayoutRoute>} />
+            <Route path="/ecom/transactions/new" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_compta']}><TransactionForm /></LayoutRoute>} />
+            <Route path="/ecom/transactions/:id" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_compta']}><TransactionDetail /></LayoutRoute>} />
 
             {/* Routes campagnes */}
             <Route path="/ecom/campaigns" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><CampaignsList /></LayoutRoute>} />
@@ -432,6 +433,11 @@ const EcomApp = () => {
               <Route path="/ecom/boutique/settings" element={<BoutiqueSettings />} />
             </Route>
 
+            {/* Routes Developer & Rita - Accessibles à tous */}
+            <Route path="/ecom/developer" element={<LayoutRoute><DeveloperSection /></LayoutRoute>} />
+            <Route path="/ecom/rita-flows" element={<LayoutRoute><RitaFlows /></LayoutRoute>} />
+            <Route path="/ecom/whatsapp/agent-config" element={<LayoutRoute><AgentConfig /></LayoutRoute>} />
+
             {/* Routes Livreur */}
             <Route path="/ecom/livreur" element={<LayoutRoute requiredRole="ecom_livreur"><LivreurDashboard /></LayoutRoute>} />
             <Route path="/ecom/livreur/available" element={<LayoutRoute requiredRole="ecom_livreur"><LivreurAvailable /></LayoutRoute>} />
@@ -446,9 +452,9 @@ const EcomApp = () => {
             <Route path="/scalor/login" element={<Navigate to="/ecom/developer" replace />} />
             <Route path="/scalor/register" element={<Navigate to="/ecom/developer" replace />} />
             <Route path="/scalor/dashboard" element={<Navigate to="/ecom/developer" replace />} />
-            {/* Provider → section Développeur, onglet provider */}
-            <Route path="/provider" element={<Navigate to="/ecom/developer?tab=provider" replace />} />
-            <Route path="/ecom/provider" element={<Navigate to="/ecom/developer?tab=provider" replace />} />
+            {/* Provider Service - routes publiques */}
+            <Route path="/provider" element={<ProviderService />} />
+            <Route path="/ecom/provider" element={<ProviderService />} />
 
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/ecom/login" replace />} />
