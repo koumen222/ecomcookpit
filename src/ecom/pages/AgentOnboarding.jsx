@@ -1,25 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ecomApi from '../services/ecommApi.js';
-import { ArrowLeft, ArrowRight, CheckCircle, AlertCircle, Plus, Eye } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, AlertCircle, Plus, Bot } from 'lucide-react';
 
-// Listes prédéfinies
+// ─── Predefined lists ────────────────────────────────────────────────────────
+
 const COUNTRIES = [
   'Cameroun', 'Sénégal', 'Côte d\'Ivoire', 'Mali', 'Burkina Faso',
   'Bénin', 'Togo', 'Niger', 'Guinea', 'Nigeria', 'Ghana', 'Liberia',
-  'France', 'Belgique', 'Suisse', 'Canada', 'États-Unis', 'Autres'
+  'France', 'Belgique', 'Suisse', 'Canada', 'États-Unis', 'Autres',
 ];
 
 const NICHES = [
   'Mode & Vêtements', 'Électronique & Informatique', 'Alimentation & Restauration',
   'Beauté & Cosmétiques', 'Santé & Bien-être', 'Maison & Décoration',
   'Automobile & Accessoires', 'Sports & Loisirs', 'Éducation',
-  'Services professionnels', 'Immobilier', 'Autres'
+  'Services professionnels', 'Immobilier', 'Autres',
 ];
 
 const PRODUCT_TYPES = [
   'Produits physiques', 'Services', 'Abonnements', 'Formations',
-  'Biens numériques', 'Mix (produits + services)', 'Autres'
+  'Biens numériques', 'Mix (produits + services)', 'Autres',
 ];
 
 const COMMUNICATION_STYLES = [
@@ -31,153 +32,121 @@ const COMMUNICATION_STYLES = [
 
 const TONES = [
   'Enthousiaste', 'Patient', 'Assertif', 'Humoristique', 'Neutre',
-  'Bienveillant', 'Confiant', 'Analytique', 'Créatif', 'Pragmatique'
+  'Bienveillant', 'Confiant', 'Analytique', 'Créatif', 'Pragmatique',
 ];
 
 const PERSONALITIES = [
   'Experte en son domaine', 'Conseillère amicale', 'Spécialiste technique',
   'Coach motivant', 'Assistant discret', 'Reine du shopping', 'Expert en tendances',
-  'Mécanicienne passionnée', 'Professeure patiente', 'Entrepreneur visionnaire'
+  'Mécanicienne passionnée', 'Professeure patiente', 'Entrepreneur visionnaire',
 ];
+
+const TOTAL_STEPS = 5;
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+function generateWelcomeMessage(name, niche, personality) {
+  const nicheGreetings = {
+    'Mode & Vêtements': 'Bienvenue dans mon univers fashion !',
+    'Électronique & Informatique': 'Bienvenue chez ton expert tech !',
+    'Alimentation & Restauration': 'Bienvenue à ta table !',
+    'Beauté & Cosmétiques': 'Bienvenue dans mon salon beauté !',
+    'Santé & Bien-être': 'Bienvenue chez ton conseiller bien-être !',
+    'Maison & Décoration': 'Bienvenue chez toi !',
+    'Automobile & Accessoires': 'Bienvenue dans mon garage !',
+    'Sports & Loisirs': 'Bienvenue chez ton coach sportif !',
+    'Éducation': 'Bienvenue dans mon école !',
+    'Services professionnels': 'Bienvenue chez moi !',
+    'Immobilier': 'Bienvenue chez ton agent immobilier !',
+  };
+  const personalityMessages = {
+    'Experte en son domaine': 'Je suis là pour te conseiller avec expertise.',
+    'Conseillère amicale': 'Je suis là comme une amie qui t\'aide.',
+    'Spécialiste technique': 'Je suis prête à répondre à toutes tes questions.',
+    'Coach motivant': 'Ensemble, on va atteindre tes objectifs !',
+    'Assistant discret': 'Je suis là quand tu en as besoin.',
+    'Reine du shopping': 'Prépare-toi pour l\'expérience shopping ultime !',
+    'Expert en tendances': 'Je suis au courant des dernières tendances !',
+    'Mécanicienne passionnée': 'Je suis passionnée par ce que je fais.',
+    'Professeure patiente': 'On apprend ensemble à ton rythme.',
+    'Entrepreneur visionnaire': 'Ensemble, créons quelque chose d\'extraordinaire.',
+  };
+  const greeting = nicheGreetings[niche] || `Bonjour 👋 Bienvenue chez ${name} !`;
+  const personalityLine = personalityMessages[personality] || 'Comment puis-je t\'aider ?';
+  return `${greeting}\n${personalityLine}`;
+}
+
+const EMPTY_FORM = {
+  name: '',
+  description: '',
+  country: '',
+  niche: '',
+  productType: '',
+  communicationStyle: 'friendly',
+  tone: '',
+  personality: '',
+  bossPhone: '',
+  bossNotifications: false,
+  notifyOnOrder: true,
+};
+
+// ─── component ───────────────────────────────────────────────────────────────
 
 export default function AgentOnboarding() {
   const navigate = useNavigate();
   const location = useLocation();
-  const agent = location.state?.agent;
+  const existingAgent = location.state?.agent;
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [formData, setFormData] = useState({
-    name: agent?.name || '',
-    description: agent?.description || '',
-    country: '',
-    niche: '',
-    productType: '',
-    communicationStyle: 'friendly',
-    tone: '',
-    personality: '',
-    bossPhone: '',
-    bossNotifications: false,
-    notifyOnOrder: true,
+    ...EMPTY_FORM,
+    name: existingAgent?.name || '',
+    description: existingAgent?.description || '',
   });
-
-  const totalSteps = 5;
-
-  // Générer un message de bienvenue personnalisé
-  const generateWelcomeMessage = () => {
-    const nicheGreetings = {
-      'Mode & Vêtements': 'Bienvenue dans mon univers fashion !',
-      'Électronique & Informatique': 'Bienvenue chez ton expert tech !',
-      'Alimentation & Restauration': 'Bienvenue à ta table !',
-      'Beauté & Cosmétiques': 'Bienvenue dans mon salon beauté !',
-      'Santé & Bien-être': 'Bienvenue chez ton conseiller bien-être !',
-      'Maison & Décoration': 'Bienvenue chez toi !',
-      'Automobile & Accessoires': 'Bienvenue dans mon garage !',
-      'Sports & Loisirs': 'Bienvenue chez ton coach sportif !',
-      'Éducation': 'Bienvenue dans mon école !',
-      'Services professionnels': 'Bienvenue chez moi !',
-      'Immobilier': 'Bienvenue chez ton agent immobilier !',
-    };
-
-    const personalityMessages = {
-      'Experte en son domaine': 'Je suis là pour te conseiller avec expertise.',
-      'Conseillère amicale': 'Je suis là comme une amie qui t\'aide.',
-      'Spécialiste technique': 'Je suis prête à répondre à tous tes questions tech.',
-      'Coach motivant': 'Ensemble, on va atteindre tes objectifs !',
-      'Assistant discret': 'Je suis là quand tu en as besoin.',
-      'Reine du shopping': 'Prépare-toi pour l\'expérience shopping ultime !',
-      'Expert en tendances': 'Je suis au courant des dernières tendances !',
-      'Mécanicienne passionnée': 'Je suis passionnée par ce que je fais.',
-      'Professeure patiente': 'On apprend ensemble à ton rythme.',
-      'Entrepreneur visionnaire': 'Ensemble, créons quelque chose d\'extraordinaire.',
-    };
-
-    const greeting = nicheGreetings[formData.niche] || `Bonjour 👋 Bienvenue chez ${formData.name} !`;
-    const personalityLine = personalityMessages[formData.personality] || 'Comment puis-je t\'aider ?';
-
-    return `${greeting}\n${personalityLine}`;
-  };
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === 'checkbox' ? checked : value,
-    });
+    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
     setError(null);
   };
 
   const validateStep = () => {
     setError(null);
-
-    if (step === 1) {
-      if (!formData.name.trim()) {
-        setError('Le nom de l\'agent est requis');
-        return false;
-      }
+    if (step === 1 && !formData.name.trim()) {
+      setError('Le nom de l\'agent est requis');
+      return false;
     }
-
     if (step === 2) {
-      if (!formData.country) {
-        setError('Le pays est requis');
-        return false;
-      }
-      if (!formData.niche) {
-        setError('La niche est requise');
-        return false;
-      }
-      if (!formData.productType) {
-        setError('Le type de produit est requis');
-        return false;
-      }
+      if (!formData.country) { setError('Le pays est requis'); return false; }
+      if (!formData.niche) { setError('La niche est requise'); return false; }
+      if (!formData.productType) { setError('Le type de produit est requis'); return false; }
     }
-
     if (step === 3) {
-      if (!formData.tone) {
-        setError('Le ton est requis');
-        return false;
-      }
-      if (!formData.personality) {
-        setError('La personnalité est requise');
-        return false;
-      }
+      if (!formData.tone) { setError('Le ton est requis'); return false; }
+      if (!formData.personality) { setError('La personnalité est requise'); return false; }
     }
-
-    if (step === 4) {
-      if (!formData.bossPhone.trim()) {
-        setError('Le numéro du boss est requis');
-        return false;
-      }
+    if (step === 4 && !formData.bossPhone.trim()) {
+      setError('Le numéro de contact est requis');
+      return false;
     }
-
     return true;
   };
 
-  const handleNext = () => {
-    if (validateStep()) {
-      setStep(step + 1);
-    }
-  };
-
-  const handlePrev = () => {
-    if (step > 1) setStep(step - 1);
-  };
+  const handleNext = () => { if (validateStep()) setStep(s => s + 1); };
+  const handlePrev = () => { if (step > 1) setStep(s => s - 1); };
 
   const handleFinish = async () => {
     if (!validateStep()) return;
-
     try {
       setLoading(true);
       setError(null);
 
-      const updateData = {
+      const payload = {
         name: formData.name,
         description: formData.description,
-      };
-
-      const configData = {
         country: formData.country,
         niche: formData.niche,
         productType: formData.productType,
@@ -190,98 +159,62 @@ export default function AgentOnboarding() {
         onboardingCompleted: true,
       };
 
-      // Si c'est un nouvel agent, créer avec les données
-      if (!agent) {
-        await ecomApi.post('/agents', {
-          ...updateData,
-          ...configData,
-        });
-
+      if (!existingAgent) {
+        await ecomApi.post('/agents', payload);
         setSuccess(true);
-        setFormData({
-          name: '',
-          description: '',
-          country: '',
-          niche: '',
-          productType: '',
-          communicationStyle: 'friendly',
-          tone: '',
-          personality: '',
-          bossPhone: '',
-          bossNotifications: false,
-          notifyOnOrder: true,
-        });
-        setStep(1);
-
-        // Après 2 secondes, retourner à la liste
-        setTimeout(() => {
-          navigate('/ecom/agent-ia', {
-            state: { success: 'Agent créé avec succès !' },
-          });
-        }, 2000);
       } else {
-        // Si c'est un agent existant, mettre à jour
-        await ecomApi.put(`/agents/${agent._id}`, updateData);
-        await ecomApi.put(`/rita/config`, configData);
-
-        navigate('/ecom/agent-ia', {
-          state: { success: 'Agent configuré avec succès !' },
+        await ecomApi.put(`/agents/${existingAgent._id}`, { name: formData.name, description: formData.description });
+        await ecomApi.put('/rita/config', {
+          country: formData.country,
+          niche: formData.niche,
+          productType: formData.productType,
+          communicationStyle: formData.communicationStyle,
+          tone: formData.tone,
+          personality: formData.personality,
+          bossPhone: formData.bossPhone,
+          bossNotifications: formData.bossNotifications,
+          notifyOnOrder: formData.notifyOnOrder,
+          onboardingCompleted: true,
         });
+        navigate('/ecom/agent-ia', { state: { success: 'Agent IA mis à jour avec succès !' } });
       }
     } catch (err) {
       console.error('Erreur:', err);
-      setError(err.response?.data?.error || 'Une erreur est survenue');
-      setSuccess(false);
+      setError(err.response?.data?.error || 'Une erreur est survenue. Réessayez.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreateAnother = () => {
-    setFormData({
-      name: '',
-      description: '',
-      country: '',
-      niche: '',
-      productType: '',
-      communicationStyle: 'friendly',
-      tone: '',
-      personality: '',
-      bossPhone: '',
-      bossNotifications: false,
-      notifyOnOrder: true,
-    });
-    setStep(1);
-    setSuccess(false);
-    setError(null);
-  };
-
-  // Écran de succès
+  // ── Success screen ──
   if (success) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-6">
         <div className="max-w-md w-full text-center">
-          <div className="mb-6 flex justify-center">
-            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center">
-              <CheckCircle className="w-10 h-10 text-emerald-600" />
-            </div>
+          <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle className="w-10 h-10 text-emerald-600" />
           </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-3">Agent créé !</h2>
-          <p className="text-gray-600 mb-8">
-            Ton agent a été configuré avec succès. Tu vas être redirigé vers la liste des agents...
+          <h2 className="text-3xl font-bold text-gray-900 mb-3">Agent IA créé !</h2>
+          <p className="text-gray-500 mb-8 leading-relaxed">
+            Votre agent a été configuré avec succès. Connectez WhatsApp et ajoutez vos produits pour commencer à vendre.
           </p>
           <div className="flex gap-3">
             <button
-              onClick={handleCreateAnother}
-              className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition-colors"
+              onClick={() => {
+                setFormData(EMPTY_FORM);
+                setStep(1);
+                setSuccess(false);
+              }}
+              className="flex-1 flex items-center justify-center gap-2 px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors"
             >
               <Plus className="w-5 h-5" />
               Créer un autre
             </button>
             <button
               onClick={() => navigate('/ecom/agent-ia')}
-              className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-colors"
             >
+              <Bot className="w-5 h-5" />
               Voir mes agents
             </button>
           </div>
@@ -290,236 +223,219 @@ export default function AgentOnboarding() {
     );
   }
 
+  const stepMeta = [
+    { label: 'Identité' },
+    { label: 'Business' },
+    { label: 'Communication' },
+    { label: 'Contact' },
+    { label: 'Aperçu' },
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
       <div className="max-w-2xl mx-auto">
+
         {/* Header */}
         <div className="mb-8">
           <button
             onClick={() => navigate('/ecom/agent-ia')}
-            className="flex items-center gap-2 text-emerald-600 hover:text-emerald-700 font-semibold mb-4"
+            className="flex items-center gap-2 text-emerald-600 hover:text-emerald-700 font-semibold mb-4 transition-colors"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4" />
             Retour
           </button>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Configuration d'agent IA</h1>
-          <p className="text-gray-600">
-            Étape {step} sur {totalSteps}
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">
+            {existingAgent ? 'Modifier l\'agent IA' : 'Créer un agent IA'}
+          </h1>
+          <p className="text-gray-500 text-sm">
+            Étape {step} sur {TOTAL_STEPS} — {stepMeta[step - 1].label}
           </p>
         </div>
 
-        {/* Progress bar */}
-        <div className="mb-8">
-          <div className="flex gap-2">
-            {[1, 2, 3, 4].map((s) => (
-              <div
-                key={s}
-                className={`flex-1 h-2 rounded-full transition-colors ${
-                  s <= step ? 'bg-emerald-600' : 'bg-gray-300'
-                }`}
-              />
-            ))}
-          </div>
+        {/* Progress bar — 5 segments for 5 steps */}
+        <div className="flex gap-1.5 mb-8">
+          {stepMeta.map((_, i) => (
+            <div
+              key={i}
+              className={`flex-1 h-1.5 rounded-full transition-all duration-300 ${
+                i < step ? 'bg-emerald-500' : 'bg-gray-200'
+              }`}
+            />
+          ))}
         </div>
 
-        {/* Form */}
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
+        {/* Form card */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8 mb-6">
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-center gap-3 text-red-800">
-              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-start gap-3 text-red-800 text-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
 
-          {/* Step 1: Basic Info */}
+          {/* ── Step 1: Identity ── */}
           {step === 1 && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Informations basiques</h2>
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Identité de l'agent</h2>
+                <p className="text-sm text-gray-500">Donnez un nom à votre agent IA (ex: Rita, Maya...)</p>
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Nom de l'agent *
+                  Nom de l'agent <span className="text-red-400">*</span>
                 </label>
                 <input
                   type="text"
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  placeholder="Ex: Rita, Maya, Assistant..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="Ex: Rita, Maya, Sophie..."
+                  autoFocus
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Description (optionnel)
+                  Description <span className="text-gray-400 font-normal">(optionnel)</span>
                 </label>
                 <textarea
                   name="description"
                   value={formData.description}
                   onChange={handleInputChange}
                   placeholder="Brève description du rôle de cet agent..."
-                  rows={4}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  rows={3}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition resize-none"
                 />
               </div>
             </div>
           )}
 
-          {/* Step 2: Business Profile */}
+          {/* ── Step 2: Business profile ── */}
           {step === 2 && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Profil business</h2>
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Profil business</h2>
+                <p className="text-sm text-gray-500">Définissez votre marché pour personnaliser l'agent</p>
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Pays *
+                  Pays <span className="text-red-400">*</span>
                 </label>
                 <select
                   name="country"
                   value={formData.country}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-white"
                 >
-                  <option value="">Sélectionne un pays</option>
-                  {COUNTRIES.map((country) => (
-                    <option key={country} value={country}>
-                      {country}
-                    </option>
-                  ))}
+                  <option value="">Sélectionner un pays</option>
+                  {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Niche / Secteur d'activité *
+                  Secteur d'activité <span className="text-red-400">*</span>
                 </label>
                 <select
                   name="niche"
                   value={formData.niche}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-white"
                 >
-                  <option value="">Sélectionne une niche</option>
-                  {NICHES.map((niche) => (
-                    <option key={niche} value={niche}>
-                      {niche}
-                    </option>
-                  ))}
+                  <option value="">Sélectionner un secteur</option>
+                  {NICHES.map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Type de produits *
+                  Type de produits <span className="text-red-400">*</span>
                 </label>
                 <select
                   name="productType"
                   value={formData.productType}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-white"
                 >
-                  <option value="">Sélectionne un type</option>
-                  {PRODUCT_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
+                  <option value="">Sélectionner un type</option>
+                  {PRODUCT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
             </div>
           )}
 
-          {/* Step 3: Communication Style */}
+          {/* ── Step 3: Communication style ── */}
           {step === 3 && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Style de communication</h2>
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Style de communication</h2>
+                <p className="text-sm text-gray-500">Comment votre agent parlera à vos clients</p>
               </div>
-
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3">
-                  Style de communication *
-                </label>
+                <label className="block text-sm font-semibold text-gray-700 mb-3">Style</label>
                 <div className="grid grid-cols-2 gap-3">
-                  {COMMUNICATION_STYLES.map((style) => (
+                  {COMMUNICATION_STYLES.map(s => (
                     <label
-                      key={style.value}
-                      className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                        formData.communicationStyle === style.value
-                          ? 'border-emerald-600 bg-emerald-50'
-                          : 'border-gray-200 hover:border-gray-300'
+                      key={s.value}
+                      className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                        formData.communicationStyle === s.value
+                          ? 'border-emerald-500 bg-emerald-50'
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
                       }`}
                     >
                       <input
                         type="radio"
                         name="communicationStyle"
-                        value={style.value}
-                        checked={formData.communicationStyle === style.value}
+                        value={s.value}
+                        checked={formData.communicationStyle === s.value}
                         onChange={handleInputChange}
                         className="hidden"
                       />
-                      <span className="font-semibold text-gray-900">{style.label}</span>
-                      <p className="text-xs text-gray-600 mt-1">{style.desc}</p>
+                      <span className="font-semibold text-gray-900 text-sm">{s.label}</span>
+                      <p className="text-xs text-gray-500 mt-0.5">{s.desc}</p>
                     </label>
                   ))}
                 </div>
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Ton de voix *
+                  Ton de voix <span className="text-red-400">*</span>
                 </label>
                 <select
                   name="tone"
                   value={formData.tone}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-white"
                 >
-                  <option value="">Sélectionne un ton</option>
-                  {TONES.map((tone) => (
-                    <option key={tone} value={tone}>
-                      {tone}
-                    </option>
-                  ))}
+                  <option value="">Sélectionner un ton</option>
+                  {TONES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Personnalité *
+                  Personnalité <span className="text-red-400">*</span>
                 </label>
                 <select
                   name="personality"
                   value={formData.personality}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-white"
                 >
-                  <option value="">Sélectionne une personnalité</option>
-                  {PERSONALITIES.map((personality) => (
-                    <option key={personality} value={personality}>
-                      {personality}
-                    </option>
-                  ))}
+                  <option value="">Sélectionner une personnalité</option>
+                  {PERSONALITIES.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
             </div>
           )}
 
-          {/* Step 4b: Contact & Notifications */}
+          {/* ── Step 4: Contact & notifications ── */}
           {step === 4 && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Contact et notifications</h2>
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Contact et notifications</h2>
+                <p className="text-sm text-gray-500">Recevez des alertes pour chaque nouvelle commande</p>
               </div>
-
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Numéro de téléphone du boss *
+                  Votre numéro WhatsApp <span className="text-red-400">*</span>
                 </label>
                 <input
                   type="tel"
@@ -527,149 +443,138 @@ export default function AgentOnboarding() {
                   value={formData.bossPhone}
                   onChange={handleInputChange}
                   placeholder="Ex: +237 6 XX XX XX XX"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
                 />
+                <p className="text-xs text-gray-400 mt-1">Numéro sur lequel vous recevrez les alertes</p>
               </div>
-
-              <div className="space-y-4">
-                <label className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                  <input
-                    type="checkbox"
-                    name="bossNotifications"
-                    checked={formData.bossNotifications}
-                    onChange={handleInputChange}
-                    className="w-5 h-5 text-emerald-600 rounded"
-                  />
-                  <div>
-                    <span className="font-semibold text-gray-900">Notifications au boss</span>
-                    <p className="text-sm text-gray-600">Envoyer des alertes WhatsApp au numéro du boss</p>
-                  </div>
-                </label>
-
-                <label className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                  <input
-                    type="checkbox"
-                    name="notifyOnOrder"
-                    checked={formData.notifyOnOrder}
-                    onChange={handleInputChange}
-                    className="w-5 h-5 text-emerald-600 rounded"
-                  />
-                  <div>
-                    <span className="font-semibold text-gray-900">Notifications de commandes</span>
-                    <p className="text-sm text-gray-600">Être notifié des nouvelles commandes</p>
-                  </div>
-                </label>
+              <div className="space-y-3">
+                {[
+                  { name: 'notifyOnOrder', label: 'Alertes commandes', desc: 'Être notifié à chaque nouvelle commande' },
+                  { name: 'bossNotifications', label: 'Alertes WhatsApp', desc: 'Recevoir les alertes sur ce numéro WhatsApp' },
+                ].map(opt => (
+                  <label
+                    key={opt.name}
+                    className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                      formData[opt.name] ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${
+                      formData[opt.name] ? 'bg-emerald-500 border-emerald-500' : 'border-gray-300'
+                    }`}>
+                      {formData[opt.name] && <CheckCircle className="w-3 h-3 text-white" />}
+                    </div>
+                    <input
+                      type="checkbox"
+                      name={opt.name}
+                      checked={formData[opt.name]}
+                      onChange={handleInputChange}
+                      className="hidden"
+                    />
+                    <div>
+                      <span className="font-semibold text-gray-900 text-sm">{opt.label}</span>
+                      <p className="text-xs text-gray-500 mt-0.5">{opt.desc}</p>
+                    </div>
+                  </label>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Step 5: Preview */}
+          {/* ── Step 5: Preview ── */}
           {step === 5 && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Aperçu de ton agent</h2>
-                <p className="text-gray-600 mb-6">Voici comment ton agent sera configuré :</p>
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Aperçu de votre agent IA</h2>
+                <p className="text-sm text-gray-500">Vérifiez la configuration avant de créer l'agent</p>
               </div>
 
-              {/* Agent Card Preview */}
-              <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl p-8 border-2 border-emerald-200">
-                {/* Agent Header */}
-                <div className="flex items-start justify-between mb-6">
+              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-6 border border-emerald-100">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
+                    <Bot className="w-7 h-7 text-emerald-600" />
+                  </div>
                   <div>
-                    <h3 className="text-3xl font-bold text-gray-900">{formData.name}</h3>
-                    <p className="text-sm text-gray-600 mt-1">{formData.description || 'Agent IA WhatsApp'}</p>
-                  </div>
-                  <div className="px-4 py-2 bg-emerald-600 text-white rounded-full font-semibold text-sm">
-                    {formData.country}
+                    <h3 className="text-xl font-bold text-gray-900">{formData.name}</h3>
+                    <p className="text-sm text-gray-500">{formData.country} · {formData.niche}</p>
                   </div>
                 </div>
 
-                {/* Welcome Message */}
-                <div className="bg-white rounded-lg p-6 mb-6 border border-emerald-200">
-                  <p className="text-sm font-semibold text-gray-600 mb-3">💬 Message de bienvenue</p>
-                  <div className="text-gray-900 whitespace-pre-line font-medium">
-                    {generateWelcomeMessage()}
-                  </div>
+                <div className="bg-white rounded-xl p-4 mb-4 border border-emerald-100">
+                  <p className="text-xs font-semibold text-gray-500 mb-2">💬 Message de bienvenue</p>
+                  <p className="text-gray-800 text-sm whitespace-pre-line font-medium leading-relaxed">
+                    {generateWelcomeMessage(formData.name, formData.niche, formData.personality)}
+                  </p>
                 </div>
 
-                {/* Configuration Summary */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-white rounded-lg p-4 border border-emerald-200">
-                    <p className="text-xs font-semibold text-gray-600 mb-2">Niche</p>
-                    <p className="text-gray-900 font-semibold">{formData.niche}</p>
-                  </div>
-                  <div className="bg-white rounded-lg p-4 border border-emerald-200">
-                    <p className="text-xs font-semibold text-gray-600 mb-2">Type de produits</p>
-                    <p className="text-gray-900 font-semibold">{formData.productType}</p>
-                  </div>
-                  <div className="bg-white rounded-lg p-4 border border-emerald-200">
-                    <p className="text-xs font-semibold text-gray-600 mb-2">Style de communication</p>
-                    <p className="text-gray-900 font-semibold capitalize">{formData.communicationStyle}</p>
-                  </div>
-                  <div className="bg-white rounded-lg p-4 border border-emerald-200">
-                    <p className="text-xs font-semibold text-gray-600 mb-2">Ton de voix</p>
-                    <p className="text-gray-900 font-semibold">{formData.tone}</p>
-                  </div>
-                  <div className="col-span-2 bg-white rounded-lg p-4 border border-emerald-200">
-                    <p className="text-xs font-semibold text-gray-600 mb-2">Personnalité</p>
-                    <p className="text-gray-900 font-semibold">{formData.personality}</p>
-                  </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: 'Type de produits', value: formData.productType },
+                    { label: 'Style', value: formData.communicationStyle },
+                    { label: 'Ton', value: formData.tone },
+                    { label: 'Personnalité', value: formData.personality },
+                  ].map(item => (
+                    <div key={item.label} className="bg-white rounded-xl p-3 border border-emerald-100">
+                      <p className="text-xs text-gray-400 mb-0.5">{item.label}</p>
+                      <p className="text-sm font-semibold text-gray-800">{item.value}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {/* Settings Summary */}
-              <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
-                <p className="text-sm font-semibold text-blue-900 mb-4">⚙️ Paramètres</p>
-                <div className="space-y-2 text-sm text-blue-900">
-                  <p>📱 Numéro du boss: <span className="font-semibold">{formData.bossPhone}</span></p>
-                  <p>🔔 Notifications au boss: <span className="font-semibold">{formData.bossNotifications ? '✅ Activées' : '❌ Désactivées'}</span></p>
-                  <p>📦 Notifications de commandes: <span className="font-semibold">{formData.notifyOnOrder ? '✅ Activées' : '❌ Désactivées'}</span></p>
-                </div>
+              <div className="bg-blue-50 rounded-xl p-4 border border-blue-100 text-sm text-blue-900 space-y-1">
+                <p>📱 Contact : <strong>{formData.bossPhone}</strong></p>
+                <p>🔔 Alertes commandes : <strong>{formData.notifyOnOrder ? 'Activées' : 'Désactivées'}</strong></p>
+                <p>💬 Alertes WhatsApp : <strong>{formData.bossNotifications ? 'Activées' : 'Désactivées'}</strong></p>
               </div>
 
-              {/* Info */}
-              <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-200 text-sm text-emerald-900">
-                <p>✨ Cet agent est maintenant prêt ! Tu pourras ajouter tes produits et activer l'instance dans la configuration.</p>
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 text-sm text-emerald-800">
+                ✅ Après création, connectez WhatsApp et ajoutez vos produits pour activer l'agent.
               </div>
             </div>
           )}
         </div>
 
         {/* Navigation */}
-        <div className="flex gap-4">
+        <div className="flex gap-3">
           <button
             onClick={handlePrev}
             disabled={step === 1 || loading}
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 border border-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4" />
             Précédent
           </button>
 
-          {step < totalSteps ? (
+          {step < TOTAL_STEPS ? (
             <button
               onClick={handleNext}
               disabled={loading}
-              className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
             >
               Suivant
-              <ArrowRight className="w-5 h-5" />
+              <ArrowRight className="w-4 h-4" />
             </button>
           ) : (
             <button
               onClick={handleFinish}
               disabled={loading}
-              className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
             >
-              {loading ? '⏳ Création...' : (
+              {loading ? (
                 <>
-                  <CheckCircle className="w-5 h-5" />
-                  Terminer
+                  <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  Création...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4" />
+                  {existingAgent ? 'Mettre à jour' : 'Créer l\'agent'}
                 </>
               )}
             </button>
           )}
         </div>
+
       </div>
     </div>
   );

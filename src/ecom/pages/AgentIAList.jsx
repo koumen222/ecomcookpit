@@ -1,212 +1,383 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ecomApi from '../services/ecommApi.js';
-import { Bot, Settings, Package, CheckCircle, AlertCircle, ArrowRight, Plus, Trash2, X } from 'lucide-react';
+import {
+  Settings, Package, AlertCircle, ArrowRight,
+  Plus, Trash2, X, Zap,
+  Smartphone, ChevronRight, Sparkles, Circle, DollarSign, BarChart3, Activity, User
+} from 'lucide-react';
+
+// ─── helpers ────────────────────────────────────────────────────────────────
+
+function getConfigProgress(commercial) {
+  let score = 0;
+  if (commercial.name) score += 34;
+  if (commercial.instanceId) score += 33;
+  if ((commercial.productsCount || 0) > 0) score += 33;
+  return score;
+}
+
+function getStatusMeta(commercial) {
+  const progress = getConfigProgress(commercial);
+  if ((commercial.status === 'active' || commercial.ritaEnabled) && progress === 100)
+    return { label: 'Actif', color: 'emerald', dot: 'bg-emerald-500' };
+  if (progress < 67)
+    return { label: 'À configurer', color: 'orange', dot: 'bg-orange-400' };
+  return { label: 'Inactif', color: 'gray', dot: 'bg-gray-400' };
+}
+
+// ─── HERO SECTION ──────────────────────────────────────────────────────────
+
+function HeroSection({ onCreateClick }) {
+  return (
+    <div className="mb-12">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-scalor-green-dark via-scalor-green to-scalor-green-light p-8 sm:p-12">
+        {/* Subtle background pattern */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl" />
+        </div>
+
+        <div className="relative z-10">
+          <h1 className="text-4xl sm:text-5xl font-extrabold text-white mb-3 leading-tight">
+            Vendez automatiquement sur WhatsApp 🚀
+          </h1>
+          <p className="text-lg text-white/90 mb-8 max-w-2xl leading-relaxed">
+            Configurez votre commercial IA en 2 minutes et commencez à générer des ventes automatiquement.
+            Les clients demandent → Rita répond → Les ventes arrivent.
+          </p>
+
+          <button
+            onClick={onCreateClick}
+            className="group inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-scalor-copper to-scalor-copper-light hover:from-scalor-copper-dark hover:to-scalor-copper text-white font-bold rounded-xl transition-all duration-300 shadow-lg shadow-scalor-copper/30 hover:shadow-scalor-copper/50 hover:scale-105"
+          >
+            <Zap className="w-5 h-5" />
+            Créer et activer mon commercial
+            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── KPI CARDS ─────────────────────────────────────────────────────────────
+
+function KpiCard({ icon: Icon, label, value, color, loading }) {
+  const colors = {
+    primary: 'bg-white border-primary-500/20 text-ecom-primary',
+    secondary: 'bg-white border-scalor-copper/20 text-scalor-copper',
+    accent: 'bg-white border-scalor-sand/20 text-scalor-sand-dark',
+  };
+  const bgColors = {
+    primary: 'bg-primary-50',
+    secondary: 'bg-scalor-copper/5',
+    accent: 'bg-scalor-sand-light/20',
+  };
+  return (
+    <div className={`flex-1 rounded-2xl border-2 p-6 flex flex-col gap-3 transition-all hover:shadow-lg ${colors[color]}`}>
+      <div className="flex items-center gap-3">
+        <div className={`p-2.5 rounded-lg ${bgColors[color]}`}>
+          <Icon className="w-5 h-5" />
+        </div>
+        <span className="text-sm font-semibold text-scalor-black/70">{label}</span>
+      </div>
+      {loading ? (
+        <div className="h-8 w-32 bg-gray-200 rounded-lg animate-pulse" />
+      ) : (
+        <p className="text-3xl font-bold text-scalor-black">{value}</p>
+      )}
+    </div>
+  );
+}
+
+// ─── QUICK SETUP + COMMERCIAUX SECTION ─────────────────────────────────────
+
+function QuickSetupAndCommerciauxSection({ commerciaux, onCreateClick, onConfigure, onDelete, deleting }) {
+  const steps = [
+    { num: 1, label: 'Ajouter un produit', icon: Package },
+    { num: 2, label: 'Connecter WhatsApp', icon: Smartphone },
+    { num: 3, label: 'Activer le commercial', icon: Zap },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      {/* Left: Quick Setup */}
+      <div className="rounded-3xl bg-gradient-to-r from-primary-100/50 to-primary-50 border-2 border-primary-300 p-8 h-fit">
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-scalor-black flex items-center gap-2 mb-2">
+            <Zap className="w-6 h-6 text-scalor-copper-light" />
+            Configuration rapide
+          </h2>
+          <p className="text-scalor-black/60 text-sm">Plus qu'une étape pour commencer à vendre 🚀</p>
+        </div>
+
+        {/* Steps visualization */}
+        <div className="space-y-4 mb-8">
+          {steps.map((step) => (
+            <div key={step.num} className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-ecom-primary text-white flex items-center justify-center font-bold flex-shrink-0">
+                {step.num}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-scalor-black">{step.label}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button
+          onClick={onCreateClick}
+          className="w-full group py-4 px-6 bg-gradient-to-r from-ecom-primary to-primary-600 hover:from-ecom-primary-dark hover:to-primary-700 text-white font-bold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 flex items-center justify-center gap-2"
+        >
+          <Sparkles className="w-5 h-5" />
+          Lancer la config
+          <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+        </button>
+      </div>
+
+      {/* Right: Mes commerciaux */}
+      <div className="rounded-3xl bg-white border-2 border-gray-100 p-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-scalor-black">
+            Mes commerciaux IA
+            {commerciaux.length > 0 && (
+              <span className="ml-3 text-sm bg-gray-200 text-scalor-black/70 px-3 py-1 rounded-full font-medium">
+                {commerciaux.length}
+              </span>
+            )}
+          </h2>
+          {commerciaux.length > 0 && (
+            <button
+              onClick={onCreateClick}
+              className="text-ecom-primary hover:text-ecom-primary-dark font-bold flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="text-sm hidden sm:inline">Nouveau</span>
+            </button>
+          )}
+        </div>
+
+        {commerciaux.length === 0 ? (
+          <div className="text-center py-8">
+            <User className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <p className="text-sm text-scalor-black/60 mb-4">Aucun commercial créé</p>
+            <button
+              onClick={onCreateClick}
+              className="text-sm text-ecom-primary hover:text-ecom-primary-dark font-bold"
+            >
+              Créez le vôtre
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {commerciaux.map((commercial) => {
+              const progress = getConfigProgress(commercial);
+              const isReady = (commercial.status === 'active' || commercial.ritaEnabled) && progress === 100;
+
+              return (
+                <div
+                  key={commercial._id}
+                  className="p-4 rounded-xl border-2 border-gray-100 hover:border-primary-300 hover:bg-primary-50 transition-all cursor-pointer"
+                  onClick={() => onConfigure(commercial)}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        isReady ? 'bg-primary-100' : 'bg-gray-100'
+                      }`}>
+                        <User className={`w-5 h-5 ${isReady ? 'text-ecom-primary' : 'text-gray-500'}`} />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-scalor-black text-sm">{commercial.name}</p>
+                        <p className="text-xs text-scalor-black/50">{commercial.productsCount || 0} produits</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(commercial._id);
+                      }}
+                      disabled={deleting === commercial._id}
+                      className="p-1.5 text-gray-300 hover:text-scalor-copper hover:bg-scalor-copper/10 rounded-lg transition-colors disabled:opacity-40"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="h-1.5 flex-1 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all ${
+                          progress === 100
+                            ? 'bg-gradient-to-r from-ecom-primary to-primary-600'
+                            : 'bg-gradient-to-r from-scalor-copper-light to-scalor-copper'
+                        }`}
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-bold ml-3 text-scalor-black/70">{progress}%</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── MAIN COMPONENT ────────────────────────────────────────────────────────
 
 export default function AgentIAList() {
   const navigate = useNavigate();
-  const [agents, setAgents] = useState([]);
+  const [commerciaux, setCommerciaux] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [kpis, setKpis] = useState({ orders: 0, revenue: 0, conversionRate: '0.0' });
+  const [kpisLoading, setKpisLoading] = useState(false);
 
   useEffect(() => {
-    loadAgents();
+    loadCommerciaux();
+    loadTodayStats();
   }, []);
 
-  const loadAgents = async () => {
+  const loadTodayStats = async () => {
+    try {
+      setKpisLoading(true);
+      const today = new Date().toISOString().slice(0, 10);
+      const res = await ecomApi.get(`/reports/stats/financial?startDate=${today}&endDate=${today}`);
+      if (res.data.success && res.data.data) {
+        const d = res.data.data;
+        setKpis({
+          orders: d.totalOrdersReceived || 0,
+          revenue: Math.round(d.totalRevenue || 0),
+          conversionRate: d.deliveryRate ? Number(d.deliveryRate).toFixed(1) : '0.0',
+        });
+      }
+    } catch {
+      // silently ignore
+    } finally {
+      setKpisLoading(false);
+    }
+  };
+
+  const loadCommerciaux = async () => {
     try {
       setLoading(true);
       const res = await ecomApi.get('/agents');
-      if (res.data.success) {
-        setAgents(res.data.agents || []);
-      }
+      if (res.data.success) setCommerciaux(res.data.agents || []);
       setError(null);
     } catch (err) {
-      console.error('Erreur chargement agents:', err);
-      setError('Impossible de charger les agents');
+      console.error('Erreur chargement commerciaux:', err);
+      setError('Impossible de charger les commerciaux');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreateAgent = () => {
-    navigate('/ecom/agent-onboarding');
-  };
+  const handleCreateCommercial = () => navigate('/ecom/agent-onboarding');
 
-  const handleDeleteAgent = async (agentId) => {
-    if (!window.confirm('Êtes-vous sûr ? Cela supprimera l\'agent et sa configuration.')) {
-      return;
-    }
-
+  const handleDeleteCommercial = async (commercialId) => {
+    if (!window.confirm('Êtes-vous sûr ? Cela supprimera le commercial et sa configuration.')) return;
     try {
-      setDeleting(agentId);
-      const res = await ecomApi.delete(`/agents/${agentId}`);
-
+      setDeleting(commercialId);
+      const res = await ecomApi.delete(`/agents/${commercialId}`);
       if (res.data.success) {
-        setAgents(agents.filter(a => a._id !== agentId));
+        setCommerciaux(commerciaux.filter(a => a._id !== commercialId));
         setError(null);
       }
     } catch (err) {
-      console.error('Erreur suppression agent:', err);
-      setError('Impossible de supprimer l\'agent');
+      console.error('Erreur suppression:', err);
+      setError('Impossible de supprimer le commercial');
     } finally {
       setDeleting(null);
     }
   };
 
-  const handleConfigure = (agent) => {
-    navigate('/ecom/whatsapp/agent-config', { state: { agent } });
+  const handleConfigure = (commercial) => {
+    navigate('/ecom/whatsapp/agent-config', { state: { agent: commercial } });
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-slate-50 to-slate-100">
         <div className="text-center">
-          <div className="animate-spin mb-4">
-            <Bot className="w-12 h-12 text-emerald-600 mx-auto" />
+          <div className="w-16 h-16 bg-gradient-to-br from-primary-100 to-primary-200 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <User className="w-8 h-8 text-ecom-primary" />
           </div>
-          <p className="text-gray-600">Chargement des agents...</p>
+          <p className="text-scalor-black/60 font-medium">Chargement de vos commerciaux...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-8 bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen">
-      {/* Header */}
-      <div className="mb-12 flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-3 mb-4">
-            <Bot className="w-8 h-8 text-emerald-600" />
-            <h1 className="text-4xl font-bold text-gray-900">Agent IA</h1>
-          </div>
-          <p className="text-lg text-gray-600">Gère tes agents IA pour vendre et supporter automatiquement</p>
-        </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-6 rounded-xl transition-colors flex items-center gap-2 whitespace-nowrap"
-        >
-          <Plus className="w-5 h-5" />
-          Créer un agent
-        </button>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-8 text-red-800 flex items-center justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-600 hover:text-red-800">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-      )}
+        {/* HERO SECTION */}
+        <HeroSection onCreateClick={handleCreateCommercial} />
 
-      {agents.length === 0 ? (
-        <div className="bg-white rounded-2xl border-2 border-dashed border-gray-300 p-12 text-center">
-          <Bot className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 text-lg mb-6">Aucun agent créé</p>
-          <button
-            onClick={handleCreateAgent}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-8 rounded-xl transition-colors inline-flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            Créer ton premier agent
-          </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {agents.map((agent) => (
-            <div
-              key={agent._id}
-              className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all border border-gray-200 overflow-hidden"
-            >
-              {/* Header de la carte */}
-              <div className={`h-2 ${agent.status === 'active' ? 'bg-emerald-500' : 'bg-gray-300'}`} />
-
-              <div className="p-8">
-                {/* Titre et statut */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-14 h-14 bg-emerald-100 rounded-xl flex items-center justify-center">
-                      <Bot className="w-8 h-8 text-emerald-600" />
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-bold text-gray-900">{agent.name}</h2>
-                      <p className="text-sm text-gray-500">{agent.type === 'whatsapp' ? 'WhatsApp IA' : agent.type}</p>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    {agent.status === 'active' ? (
-                      <div className="flex items-center gap-1 px-3 py-1 bg-emerald-50 rounded-full">
-                        <CheckCircle className="w-4 h-4 text-emerald-600" />
-                        <span className="text-sm font-semibold text-emerald-700">Actif</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1 px-3 py-1 bg-gray-50 rounded-full">
-                        <AlertCircle className="w-4 h-4 text-gray-600" />
-                        <span className="text-sm font-semibold text-gray-700">Inactif</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Description */}
-                {agent.description && (
-                  <p className="text-gray-600 mb-6">{agent.description}</p>
-                )}
-
-                {/* Stats */}
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div className="bg-emerald-50 rounded-lg p-4">
-                    <div className="flex items-center gap-2 text-emerald-700 font-semibold mb-2">
-                      <Package className="w-4 h-4" />
-                      Produits
-                    </div>
-                    <p className="text-2xl font-bold text-emerald-900">{agent.productsCount || 0}</p>
-                  </div>
-                  <div className="bg-blue-50 rounded-lg p-4">
-                    <div className="flex items-center gap-2 text-blue-700 font-semibold mb-2">
-                      <Bot className="w-4 h-4" />
-                      Instance
-                    </div>
-                    <p className="text-sm text-blue-900">
-                      {agent.instanceId ? '✅ Connectée' : '⚠️ À configurer'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => handleConfigure(agent)}
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Settings className="w-5 h-5" />
-                    Configurer
-                  </button>
-                  <button
-                    onClick={() => handleDeleteAgent(agent._id)}
-                    disabled={deleting === agent._id}
-                    className="px-4 bg-red-50 hover:bg-red-100 text-red-600 font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
+        {/* ERROR BANNER */}
+        {error && (
+          <div className="bg-ecom-danger/5 border-2 border-ecom-danger/20 rounded-2xl p-4 flex items-center justify-between text-ecom-danger text-sm">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              <span>{error}</span>
             </div>
-          ))}
-        </div>
-      )}
+            <button onClick={() => setError(null)} className="text-ecom-danger/60 hover:text-ecom-danger">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        )}
 
-
-      {/* Footer info */}
-      {agents.length > 0 && (
-        <div className="mt-12 bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
-          <p className="text-blue-900">
-            💡 <strong>Astuce :</strong> Clique sur "Configurer" pour gérer les produits, messages et paramètres de ton agent IA.
-          </p>
+        {/* KPI SECTION */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <KpiCard
+            icon={Activity}
+            label="Commandes aujourd'hui"
+            value={kpis.orders}
+            color="primary"
+            loading={kpisLoading}
+          />
+          <KpiCard
+            icon={DollarSign}
+            label="Chiffre d'affaires"
+            value={`${kpis.revenue.toLocaleString('fr-FR')} FCFA`}
+            color="secondary"
+            loading={kpisLoading}
+          />
+          <KpiCard
+            icon={BarChart3}
+            label="Taux de conversion"
+            value={`${kpis.conversionRate}%`}
+            color="accent"
+            loading={kpisLoading}
+          />
         </div>
-      )}
+
+        {/* QUICK SETUP + COMMERCIAUX */}
+        <QuickSetupAndCommerciauxSection
+          commerciaux={commerciaux}
+          onCreateClick={handleCreateCommercial}
+          onConfigure={handleConfigure}
+          onDelete={handleDeleteCommercial}
+          deleting={deleting}
+        />
+
+        {/* FOOTER TIP */}
+        {commerciaux.length > 0 && (
+          <div className="bg-primary-50 border-2 border-primary-300 rounded-2xl p-6 flex items-start gap-4">
+            <Zap className="w-5 h-5 text-ecom-primary flex-shrink-0 mt-1" />
+            <div className="text-sm text-scalor-green-dark">
+              <p className="font-bold mb-1">💡 Besoin d'aide pour activer votre commercial ?</p>
+              <p>Connectez WhatsApp, ajoutez vos produits et lancez le commercial. Vos clients recevront les messages automatiquement.</p>
+            </div>
+          </div>
+        )}
+
+      </div>
     </div>
   );
 }

@@ -757,7 +757,10 @@ export default function AgentConfig() {
           {/* Breadcrumb */}
           <div className="py-3">
             <nav className="flex items-center gap-1.5 text-[12px] text-gray-400">
-              <button onClick={() => navigate('/ecom/agent-ia')} className="hover:text-gray-600 transition-colors">Agent IA</button>
+              <button onClick={() => {
+                if (hasChanges && !window.confirm('Vous avez des modifications non sauvegardées. Voulez-vous vraiment quitter ?')) return;
+                navigate('/ecom/agent-ia');
+              }} className="hover:text-gray-600 transition-colors">Agent IA</button>
               <span>›</span>
               <span className="text-gray-600 font-medium">{agent?.name || 'Configuration'}</span>
             </nav>
