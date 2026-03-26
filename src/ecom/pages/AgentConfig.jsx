@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye, Star, Trash2, Plus, Image, Video, X, Download, Upload } from 'lucide-react';
+import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye, Star, Trash2, Plus, Image, Video, X, Download, Upload, FileText, ToggleLeft, ToggleRight } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ProductImportLocal from '../components/ProductImportLocal.jsx';
@@ -19,6 +19,7 @@ const TABS = [
   { id: 'admin-pilotage', label: 'Pilotage', icon: Headphones },
   { id: 'analytics', label: 'Analytiques', icon: BarChart3 },
   { id: 'contacts', label: 'Contacts', icon: Users },
+  { id: 'instructions', label: 'Instructions', icon: FileText },
 ];
 
 const TONE_OPTIONS = [
@@ -349,6 +350,9 @@ export default function AgentConfig() {
     // Témoignages
     testimonialsEnabled: false,
     testimonials: [],
+    // Instructions personnalisées
+    customInstructionsEnabled: false,
+    customInstructions: '',
   });
 
   const [savedConfig, setSavedConfig] = useState(null);
@@ -2997,6 +3001,81 @@ export default function AgentConfig() {
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ─── TAB: INSTRUCTIONS ─── */}
+        {activeTab === 'instructions' && (
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="p-5 border-b border-gray-100 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#f0fdf4' }}>
+                  <FileText className="w-5 h-5" style={{ color: ACCENT }} />
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-bold text-gray-900">Instructions personnalisées</h3>
+                  <p className="text-[12px] text-gray-500">Écrivez vos propres règles — elles remplacent le comportement par défaut quand activées</p>
+                </div>
+              </div>
+
+              <div className="p-5 space-y-5">
+                {/* Toggle activation */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
+                  <div>
+                    <p className="text-[14px] font-semibold text-gray-800">Activer les instructions personnalisées</p>
+                    <p className="text-[12px] text-gray-500 mt-0.5">
+                      {cfg.customInstructionsEnabled
+                        ? '✅ Actif — vos instructions remplacent le comportement par défaut'
+                        : '⬜ Inactif — l\'agent utilise le comportement standard'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleChange('customInstructionsEnabled', !cfg.customInstructionsEnabled)}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${cfg.customInstructionsEnabled ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                  >
+                    <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${cfg.customInstructionsEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+
+                {/* Zone de texte */}
+                <div className="space-y-2">
+                  <label className="text-[13px] font-semibold text-gray-700">Vos instructions</label>
+                  <textarea
+                    rows={14}
+                    value={cfg.customInstructions}
+                    onChange={e => handleChange('customInstructions', e.target.value)}
+                    placeholder={`Exemples d'instructions que vous pouvez écrire :
+
+- Ne jamais proposer de remise sur le produit X
+- Toujours demander si le client veut la version rouge ou noire avant de closer
+- Si le client mentionne le concurrent Y, répondre : "Nous sommes meilleurs parce que..."
+- Proposer systématiquement le produit B après que le client commande le produit A
+- Si le client demande la livraison à Bafoussam, dire que le délai est 48h
+- Utiliser uniquement des emojis 👍 et 🙏 — pas d'autres emojis
+- Ne jamais mentionner le prix avant d'avoir compris le besoin du client`}
+                    className={`w-full px-4 py-3 rounded-xl border text-[13px] font-mono resize-y focus:outline-none focus:ring-2 transition-all ${
+                      cfg.customInstructionsEnabled
+                        ? 'border-emerald-300 bg-white focus:ring-emerald-200'
+                        : 'border-gray-200 bg-gray-50 text-gray-400 focus:ring-gray-200'
+                    }`}
+                    disabled={!cfg.customInstructionsEnabled}
+                  />
+                  <p className="text-[11px] text-gray-400">
+                    {cfg.customInstructions?.length || 0} caractères · Écrivez en langage naturel, l'agent comprend vos instructions directement
+                  </p>
+                </div>
+
+                {/* Info box */}
+                <div className={`p-4 rounded-xl border text-[12px] space-y-1.5 ${cfg.customInstructionsEnabled ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
+                  <p className="font-bold">Comment ça fonctionne :</p>
+                  <p>• Quand <strong>activé</strong> : vos instructions ont la priorité maximale sur toutes les règles par défaut</p>
+                  <p>• Quand <strong>désactivé</strong> : l'agent ignore ces instructions et applique le comportement standard</p>
+                  <p>• Soyez précis : "Ne jamais baisser le prix" est mieux que "être ferme sur les prix"</p>
+                  <p>• Vous pouvez mélanger règles de vente, réponses spécifiques, et comportements personnalisés</p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
