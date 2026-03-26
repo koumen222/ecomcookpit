@@ -102,12 +102,27 @@ function extractEntities(text = '') {
 
   // ── Quantité ──
   // Détecte : "1", "2", "3", "une", "deux", "trois", "10 pièces", "5 boîtes", etc.
-  const quantityRe = /\b(?:je (?:veux|prends|cherche)|commander|pour|x|quantité|qt|qte|pieces?|boites?|paquet?|carton?|dose?)\s*[:=]?\s*([0-9]{1,3}|une|deux|trois|quatre|cinq|six|sept|huit|neuf|dix)/i;
-  const quantityMatch = text.match(quantityRe);
-  if (quantityMatch) {
-    const raw = quantityMatch[1].toLowerCase();
-    const wordToNum = { 'une': 1, 'deux': 2, 'trois': 3, 'quatre': 4, 'cinq': 5, 'six': 6, 'sept': 7, 'huit': 8, 'neuf': 9, 'dix': 10 };
-    found.quantite = wordToNum[raw] || parseInt(raw, 10);
+  const wordToNum = { 'une': 1, 'un': 1, 'deux': 2, 'trois': 3, 'quatre': 4, 'cinq': 5, 'six': 6, 'sept': 7, 'huit': 8, 'neuf': 9, 'dix': 10 };
+  const numOrWord = '([0-9]{1,3}|une?|deux|trois|quatre|cinq|six|sept|huit|neuf|dix)';
+  const unitWords = '(?:pieces?|pièces?|boites?|bo[iî]tes?|paquets?|paquet?|cartons?|doses?|exemplaires?|unités?|unites?)';
+
+  // Forme 1 : mot-clé AVANT le nombre  ex: "je veux 2", "paquet 3"
+  const qRe1 = new RegExp(`\\b(?:je (?:veux|prends|cherche|commande)|commander|pour|x|quantit[eé]|qt[e]?|${unitWords})\\s*[:=]?\\s*${numOrWord}`, 'i');
+  // Forme 2 : nombre AVANT l'unité     ex: "2 paquets", "3 boîtes", "1 unité"
+  const qRe2 = new RegExp(`\\b${numOrWord}\\s+${unitWords}`, 'i');
+  // Forme 3 : réponse isolée = juste un petit nombre  ex: "2", "1"
+  const qRe3 = /^\s*([0-9]{1,2})\s*$/;
+
+  const qm1 = text.match(qRe1);
+  const qm2 = text.match(qRe2);
+  const qm3 = text.match(qRe3);
+  const qmatch = qm1 || qm2 || qm3;
+  if (qmatch) {
+    const raw = qmatch[1].toLowerCase();
+    const parsed = wordToNum[raw] ?? parseInt(raw, 10);
+    if (!isNaN(parsed) && parsed > 0 && parsed <= 200) {
+      found.quantite = parsed;
+    }
   }
 
   // ── Ville ──
@@ -166,7 +181,7 @@ function updateClientState(historyKey, message) {
   // N'écraser que les valeurs null (ne pas réécrire si déjà connu)
   // NB: telephone principal n'est jamais modifié ici — uniquement via webhook JID
   if (entities.nom && !state.nom) state.nom = entities.nom;
-  if (entities.quantite && !state.quantite) state.quantite = entities.quantite;
+  if (entities.quantite) state.quantite = entities.quantite; // permet la correction de quantité
   if (entities.ville && !state.ville) state.ville = entities.ville;
   if (entities.adresse && !state.adresse) state.adresse = entities.adresse;
 
@@ -201,7 +216,7 @@ function updateClientState(historyKey, message) {
 
   // Auto-détection du statut selon l'intention
   const norm = normalizeForMatch(message);
-  if (/(je prends|je veux|je commande|je confirme|on commande|c est bon|ok pour|go|valide|je souhaite commander|je souhaiterais commander|je voudrais commander|je veux commander|prenez|je le prends|d accord pour|ok je prends)/.test(norm)) {
+  if (/(je prends|je veux|je commande|je confirme|on commande|c est bon|ok pour|go|valide|je souhaite commander|je souhaiterais commander|je voudrais commander|je veux commander|prenez|je le prends|d accord pour|ok je prends|comment on fait pour livrer|je peux commander|je suis a |je suis à )/.test(norm)) {
     state.statut = 'commande';
   } else if (/(cher|trop cher|reduction|remise|peut.?etre|je vais voir|je reflechis|hm|jsp|cava)/.test(norm)) {
     if (state.statut === 'nouveau' || state.statut === 'interesse') state.statut = 'negociation';
@@ -222,10 +237,12 @@ function buildClientStateSection(state, askedQs) {
   const lines = [];
   lines.push(`- Nom          : ${state.nom ? `✅ ${state.nom} (utiliser si connu)` : '— non fourni (NE PAS demander)'}`);
   lines.push(`- Tél WhatsApp : ✅ ${state.telephone || 'auto'} (JAMAIS demander)`);
-  lines.push(`- Quantité     : ${state.quantite ? `✅ ${state.quantite}` : '❓ à demander'}`);
-  lines.push(`- Ville        : ${state.ville ? `✅ ${state.ville}` : '❓ à demander'}`);
-  lines.push(`- Adresse      : ${state.adresse ? `✅ ${state.adresse}` : '❓ à demander'}`);
-  lines.push(`- Tél livraison: ${state.telephoneAppel ? `✅ ${state.telephoneAppel}` : '❓ à confirmer'}`);
+  const readyLabel = state.statut === 'commande' ? '❓ à demander' : '— (PAS ENCORE, attendre décision)';
+  const confirmLabel = state.statut === 'commande' ? '❓ à confirmer' : '— (PAS ENCORE)';
+  lines.push(`- Quantité     : ${state.quantite ? `✅ ${state.quantite}` : readyLabel}`);
+  lines.push(`- Ville        : ${state.ville ? `✅ ${state.ville}` : readyLabel}`);
+  lines.push(`- Adresse      : ${state.adresse ? `✅ ${state.adresse}` : readyLabel}`);
+  lines.push(`- Tél livraison: ${state.telephoneAppel ? `✅ ${state.telephoneAppel}` : confirmLabel}`);
   lines.push(`- Produit      : ${state.produit ? `✅ ${state.produit}` : '❓ non identifié'}`);
   lines.push(`- Prix         : ${state.prix ? `✅ ${state.prix}` : '— à déterminer selon quantité'}`);
   lines.push(`- Statut       : ${state.statut}`);
@@ -233,23 +250,34 @@ function buildClientStateSection(state, askedQs) {
   const askedList = askedQs && askedQs.size > 0 ? [...askedQs].join(' / ') : null;
 
   // Étapes de collecte dans l'ordre — une seule question à la fois
-  // CRUCIAL : ne collecter que si le client a montré une intention d'achat réelle
-  const hasBuyingIntent = state.statut === 'commande' ||
-    (state.statut === 'interesse' && state.produit !== null);
+  // RÈGLE ABSOLUE : ne collecter les infos de livraison QUE si le client a dit clairement qu'il veut acheter
+  // Un client qui demande le prix, pose des questions ou hésite n'a PAS encore décidé → 0 question de collecte
+  const isReadyToBuy = state.statut === 'commande';
 
   let deliveryRule;
-  if (!hasBuyingIntent) {
-    deliveryRule = `💡 PHASE DÉCOUVERTE : Le client explore encore. Réponds naturellement à ses questions, présente les produits. Ne demande PAS encore la ville, quantité ou adresse — attends qu'il montre clairement qu'il veut commander.`;
+  if (!isReadyToBuy) {
+    deliveryRule = `🚫 INTERDICTION DE COLLECTE — Le client n'a PAS encore décidé d'acheter.
+Tu ne demandes AUCUNE info de livraison (nom, ville, quartier, quantité).
+Tu réponds à ses questions, tu présentes les avantages, tu rassures.
+Tu guides naturellement vers la décision SANS forcer.
+Tu ne poses AUCUNE question de type "combien ?", "quelle ville ?", "votre adresse ?".
+Tu attends un signal CLAIR : "je prends", "ok", "je veux", "c'est bon", "je commande".
+
+Exemples de comportement correct :
+- Client demande le prix → Donne le prix + bénéfices. Point. 0 question.
+- Client hésite → Rassure avec preuve sociale. Point. 0 question.
+- Client dit "ok" ou "je prends" → LÀ seulement tu passes en mode commande.`;
   } else if (!state.quantite) {
-    deliveryRule = `👉 PROCHAINE QUESTION (une seule) : "Vous en voulez combien ? (ex: 1, 2, 5, 10...) 👍"`;
+    deliveryRule = `✅ MODE COMMANDE ACTIVÉ — Le client veut acheter ! Collecte rapide :
+👉 PROCHAINE QUESTION (une seule) : demande combien il en veut`;
   } else if (!state.ville) {
-    deliveryRule = `👉 PROCHAINE QUESTION (une seule) : "C'est pour quelle ville ? 👍"`;
+    deliveryRule = `✅ MODE COMMANDE — quantité OK. 👉 PROCHAINE : demande la ville de livraison`;
   } else if (!state.adresse) {
-    deliveryRule = `👉 PROCHAINE QUESTION (une seule) : "Quelle est l'adresse précise pour la livraison ? 👍"`;
+    deliveryRule = `✅ MODE COMMANDE — ville OK. 👉 PROCHAINE : demande l'adresse/quartier précis`;
   } else if (!state.telephoneAppel) {
-    deliveryRule = `👉 PROCHAINE QUESTION : "On te rappelle sur ce numéro WhatsApp pour la livraison, ou tu préfères qu'on appelle un autre numéro ? 👍"`;
+    deliveryRule = `✅ MODE COMMANDE — presque fini. 👉 PROCHAINE : confirme le numéro pour la livraison (ce WhatsApp ou un autre ?)`;
   } else {
-    deliveryRule = '✅ Toutes les infos sont collectées. Génère le récap de commande immédiatement.';
+    deliveryRule = '✅ Toutes les infos collectées → Génère le récap et close avec [ORDER_DATA:...]';
   }
 
   return `
@@ -263,9 +291,10 @@ ${lines.join('\n')}
 3. ✅ Si le client donne son nom → l'utiliser dans la conversation et le récap
 4. ✅ Ordre de collecte : quantité → ville → adresse → confirmation numéro d'appel
 
-⚠️ RÈGLE RÉPONSE D'ABORD : Si le client vient de poser une question, exprimer un doute ou une préoccupation → réponds COMPLÈTEMENT à sa question EN PREMIER. Pose la prochaine question de collecte SEULEMENT à la FIN de ce même message, en une seule phrase courte. Ne commence JAMAIS par la question de collecte si le client attend une réponse.
-Exemple : Client "ça marche vraiment ?" → "Oui complètement, [argument]. D'ailleurs ta ville pour la livraison c'est ?" ✅
-                                             "C'est pour quelle ville ?" ❌ (tu ignores sa question !)
+⚠️ RÈGLE RÉPONSE D'ABORD : Si le client pose une question ou exprime un doute → réponds COMPLÈTEMENT à sa question EN PREMIER.
+- Si le client N'EST PAS en mode commande → réponds et c'est tout. AUCUNE question de collecte.
+- Si le client EST en mode commande et pose une question → réponds d'abord, PUIS pose la question de collecte à la fin.
+Ne commence JAMAIS par une question de collecte quand le client attend une réponse.
 
 ${deliveryRule}
 ${askedList ? `\n### ⛔ QUESTIONS DÉJÀ POSÉES — NE PAS RÉPÉTER\n${askedList}` : ''}`;
