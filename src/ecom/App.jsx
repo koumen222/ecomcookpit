@@ -93,6 +93,7 @@ import SuperAdminWhatsAppPostulations from './pages/SuperAdminWhatsAppPostulatio
 import SuperAdminWhatsAppLogs from './pages/SuperAdminWhatsAppLogs.jsx';
 import SuperAdminPushCenter from './pages/SuperAdminPushCenter.jsx';
 import SuperAdminSupport from './pages/SuperAdminSupport.jsx';
+import SuperAdminBilling from './pages/SuperAdminBilling.jsx';
 import WhyScalor from './pages/WhyScalor.jsx';
 import Tarifs from './pages/Tarifs.jsx';
 import SourcingStats from './pages/SourcingStats.jsx';
@@ -420,6 +421,7 @@ const EcomApp = () => {
             <Route path="/ecom/super-admin/whatsapp-logs" element={<LayoutRoute requiredRole="super_admin"><SuperAdminWhatsAppLogs /></LayoutRoute>} />
             <Route path="/ecom/super-admin/push" element={<LayoutRoute requiredRole="super_admin"><SuperAdminPushCenter /></LayoutRoute>} />
             <Route path="/ecom/super-admin/support" element={<LayoutRoute requiredRole="super_admin"><SuperAdminSupport /></LayoutRoute>} />
+            <Route path="/ecom/super-admin/billing" element={<LayoutRoute requiredRole="super_admin"><SuperAdminBilling /></LayoutRoute>} />
 
             {/* Routes boutique - Utilise sa propre sidebar via BoutiqueLayout */}
             <Route element={<ProtectedRoute requiredRole="ecom_admin"><BoutiqueLayout /></ProtectedRoute>}>

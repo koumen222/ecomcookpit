@@ -8,7 +8,7 @@ import mongoose from 'mongoose';
 const planPaymentSchema = new mongoose.Schema({
   workspaceId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Workspace',
+    ref: 'EcomWorkspace',
     required: true,
     index: true
   },
