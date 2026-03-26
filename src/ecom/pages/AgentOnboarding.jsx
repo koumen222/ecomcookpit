@@ -23,25 +23,12 @@ const PRODUCT_TYPES = [
   'Biens numériques', 'Mix (produits + services)', 'Autres',
 ];
 
-const COMMUNICATION_STYLES = [
-  { value: 'professional', label: 'Professionnel', desc: 'Sérieux et efficace' },
-  { value: 'friendly', label: 'Amical', desc: 'Chaleureux et accessible' },
-  { value: 'casual', label: 'Décontracté', desc: 'Amusant et moderne' },
-  { value: 'formal', label: 'Formel', desc: 'Respectueux et académique' },
-];
-
 const TONES = [
   'Enthousiaste', 'Patient', 'Assertif', 'Humoristique', 'Neutre',
   'Bienveillant', 'Confiant', 'Analytique', 'Créatif', 'Pragmatique',
 ];
 
-const PERSONALITIES = [
-  'Experte en son domaine', 'Conseillère amicale', 'Spécialiste technique',
-  'Coach motivant', 'Assistant discret', 'Reine du shopping', 'Expert en tendances',
-  'Mécanicienne passionnée', 'Professeure patiente', 'Entrepreneur visionnaire',
-];
-
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 3; // Simplifié: Étape 1: Nom, Étape 2: Pays/Business/Catégorie, Étape 3: Ton
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -84,8 +71,6 @@ const EMPTY_FORM = {
   productType: '',
   communicationStyle: 'friendly',
   tone: '',
-  personality: '',
-  bossPhone: '',
   bossNotifications: false,
   notifyOnOrder: true,
 };
@@ -121,16 +106,11 @@ export default function AgentOnboarding() {
     }
     if (step === 2) {
       if (!formData.country) { setError('Le pays est requis'); return false; }
-      if (!formData.niche) { setError('La niche est requise'); return false; }
-      if (!formData.productType) { setError('Le type de produit est requis'); return false; }
+      if (!formData.description.trim()) { setError('Le nom du business est requis'); return false; }
+      if (!formData.niche) { setError('La catégorie est requise'); return false; }
     }
     if (step === 3) {
       if (!formData.tone) { setError('Le ton est requis'); return false; }
-      if (!formData.personality) { setError('La personnalité est requise'); return false; }
-    }
-    if (step === 4 && !formData.bossPhone.trim()) {
-      setError('Le numéro de contact est requis');
-      return false;
     }
     return true;
   };
@@ -152,16 +132,16 @@ export default function AgentOnboarding() {
         productType: formData.productType,
         communicationStyle: formData.communicationStyle,
         tone: formData.tone,
-        personality: formData.personality,
-        bossPhone: formData.bossPhone,
         bossNotifications: formData.bossNotifications,
         notifyOnOrder: formData.notifyOnOrder,
         onboardingCompleted: true,
       };
 
       if (!existingAgent) {
-        await ecomApi.post('/agents', payload);
-        setSuccess(true);
+        const res = await ecomApi.post('/agents', payload);
+        // Rediriger vers AgentConfig avec l'agent créé
+        const createdAgent = res.data.agent;
+        navigate('/ecom/whatsapp/agent-config', { state: { agent: createdAgent } });
       } else {
         await ecomApi.put(`/agents/${existingAgent._id}`, { name: formData.name, description: formData.description });
         await ecomApi.put('/rita/config', {
@@ -170,13 +150,11 @@ export default function AgentOnboarding() {
           productType: formData.productType,
           communicationStyle: formData.communicationStyle,
           tone: formData.tone,
-          personality: formData.personality,
-          bossPhone: formData.bossPhone,
           bossNotifications: formData.bossNotifications,
           notifyOnOrder: formData.notifyOnOrder,
           onboardingCompleted: true,
         });
-        navigate('/ecom/agent-ia', { state: { success: 'Agent IA mis à jour avec succès !' } });
+        navigate('/ecom/whatsapp/agent-config', { state: { agent: existingAgent } });
       }
     } catch (err) {
       console.error('Erreur:', err);
@@ -227,8 +205,6 @@ export default function AgentOnboarding() {
     { label: 'Identité' },
     { label: 'Business' },
     { label: 'Communication' },
-    { label: 'Contact' },
-    { label: 'Aperçu' },
   ];
 
   return (
@@ -310,12 +286,12 @@ export default function AgentOnboarding() {
             </div>
           )}
 
-          {/* ── Step 2: Business profile ── */}
+          {/* ── Step 2: Business info ── */}
           {step === 2 && (
             <div className="space-y-5">
               <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-1">Profil business</h2>
-                <p className="text-sm text-gray-500">Définissez votre marché pour personnaliser l'agent</p>
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Infos business</h2>
+                <p className="text-sm text-gray-500">Dites-nous plus sur votre activité</p>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -333,7 +309,20 @@ export default function AgentOnboarding() {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Secteur d'activité <span className="text-red-400">*</span>
+                  Nom du business <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  placeholder="Ex: Mon magasin de mode, Ma boutique..."
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Catégorie <span className="text-red-400">*</span>
                 </label>
                 <select
                   name="niche"
@@ -341,59 +330,19 @@ export default function AgentOnboarding() {
                   onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-white"
                 >
-                  <option value="">Sélectionner un secteur</option>
+                  <option value="">Sélectionner une catégorie</option>
                   {NICHES.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Type de produits <span className="text-red-400">*</span>
-                </label>
-                <select
-                  name="productType"
-                  value={formData.productType}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-white"
-                >
-                  <option value="">Sélectionner un type</option>
-                  {PRODUCT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
             </div>
           )}
 
-          {/* ── Step 3: Communication style ── */}
+          {/* ── Step 3: Tone ── */}
           {step === 3 && (
             <div className="space-y-5">
               <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-1">Style de communication</h2>
-                <p className="text-sm text-gray-500">Comment votre agent parlera à vos clients</p>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3">Style</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {COMMUNICATION_STYLES.map(s => (
-                    <label
-                      key={s.value}
-                      className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                        formData.communicationStyle === s.value
-                          ? 'border-emerald-500 bg-emerald-50'
-                          : 'border-gray-200 hover:border-gray-300 bg-white'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="communicationStyle"
-                        value={s.value}
-                        checked={formData.communicationStyle === s.value}
-                        onChange={handleInputChange}
-                        className="hidden"
-                      />
-                      <span className="font-semibold text-gray-900 text-sm">{s.label}</span>
-                      <p className="text-xs text-gray-500 mt-0.5">{s.desc}</p>
-                    </label>
-                  ))}
-                </div>
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Ton de voix</h2>
+                <p className="text-sm text-gray-500">Sélectionnez le ton avec lequel votre agent communiquera</p>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -409,129 +358,9 @@ export default function AgentOnboarding() {
                   {TONES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Personnalité <span className="text-red-400">*</span>
-                </label>
-                <select
-                  name="personality"
-                  value={formData.personality}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition bg-white"
-                >
-                  <option value="">Sélectionner une personnalité</option>
-                  {PERSONALITIES.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
             </div>
           )}
 
-          {/* ── Step 4: Contact & notifications ── */}
-          {step === 4 && (
-            <div className="space-y-5">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-1">Contact et notifications</h2>
-                <p className="text-sm text-gray-500">Recevez des alertes pour chaque nouvelle commande</p>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Votre numéro WhatsApp <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="tel"
-                  name="bossPhone"
-                  value={formData.bossPhone}
-                  onChange={handleInputChange}
-                  placeholder="Ex: +237 6 XX XX XX XX"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
-                />
-                <p className="text-xs text-gray-400 mt-1">Numéro sur lequel vous recevrez les alertes</p>
-              </div>
-              <div className="space-y-3">
-                {[
-                  { name: 'notifyOnOrder', label: 'Alertes commandes', desc: 'Être notifié à chaque nouvelle commande' },
-                  { name: 'bossNotifications', label: 'Alertes WhatsApp', desc: 'Recevoir les alertes sur ce numéro WhatsApp' },
-                ].map(opt => (
-                  <label
-                    key={opt.name}
-                    className={`flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                      formData[opt.name] ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-colors ${
-                      formData[opt.name] ? 'bg-emerald-500 border-emerald-500' : 'border-gray-300'
-                    }`}>
-                      {formData[opt.name] && <CheckCircle className="w-3 h-3 text-white" />}
-                    </div>
-                    <input
-                      type="checkbox"
-                      name={opt.name}
-                      checked={formData[opt.name]}
-                      onChange={handleInputChange}
-                      className="hidden"
-                    />
-                    <div>
-                      <span className="font-semibold text-gray-900 text-sm">{opt.label}</span>
-                      <p className="text-xs text-gray-500 mt-0.5">{opt.desc}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ── Step 5: Preview ── */}
-          {step === 5 && (
-            <div className="space-y-5">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-1">Aperçu de votre agent IA</h2>
-                <p className="text-sm text-gray-500">Vérifiez la configuration avant de créer l'agent</p>
-              </div>
-
-              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-6 border border-emerald-100">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
-                    <Bot className="w-7 h-7 text-emerald-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900">{formData.name}</h3>
-                    <p className="text-sm text-gray-500">{formData.country} · {formData.niche}</p>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-xl p-4 mb-4 border border-emerald-100">
-                  <p className="text-xs font-semibold text-gray-500 mb-2">💬 Message de bienvenue</p>
-                  <p className="text-gray-800 text-sm whitespace-pre-line font-medium leading-relaxed">
-                    {generateWelcomeMessage(formData.name, formData.niche, formData.personality)}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { label: 'Type de produits', value: formData.productType },
-                    { label: 'Style', value: formData.communicationStyle },
-                    { label: 'Ton', value: formData.tone },
-                    { label: 'Personnalité', value: formData.personality },
-                  ].map(item => (
-                    <div key={item.label} className="bg-white rounded-xl p-3 border border-emerald-100">
-                      <p className="text-xs text-gray-400 mb-0.5">{item.label}</p>
-                      <p className="text-sm font-semibold text-gray-800">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-blue-50 rounded-xl p-4 border border-blue-100 text-sm text-blue-900 space-y-1">
-                <p>📱 Contact : <strong>{formData.bossPhone}</strong></p>
-                <p>🔔 Alertes commandes : <strong>{formData.notifyOnOrder ? 'Activées' : 'Désactivées'}</strong></p>
-                <p>💬 Alertes WhatsApp : <strong>{formData.bossNotifications ? 'Activées' : 'Désactivées'}</strong></p>
-              </div>
-
-              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 text-sm text-emerald-800">
-                ✅ Après création, connectez WhatsApp et ajoutez vos produits pour activer l'agent.
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Navigation */}

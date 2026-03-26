@@ -149,23 +149,29 @@ router.post('/', requireEcomAuth, async (req, res) => {
         const isPaidActive = (workspace.plan === 'pro' || workspace.plan === 'ultra')
           && workspace.planExpiresAt && workspace.planExpiresAt > now;
         const trialActive = workspace.trialUsed && workspace.trialEndsAt && workspace.trialEndsAt > now;
-        const effectivePlan = isPaidActive ? workspace.plan : trialActive ? 'pro' : 'free';
+        const effectivePlan = isPaidActive ? workspace.plan : trialActive ? 'trial' : 'free';
         const limits = PLAN_LIMITS[effectivePlan] || PLAN_LIMITS.free;
 
         if (limits.agents === 0) {
           return res.status(403).json({
             success: false,
             error: 'upgrade_required',
-            message: 'Passez à Pro pour créer un agent IA',
+            message: `Votre plan ${PLAN_LIMITS[effectivePlan]?.label || effectivePlan} ne permet pas de créer d'agent. Passez à Pro pour créer jusqu'à 1 agent, ou Ultra pour en créer 5.`,
+            requiredPlan: 'pro',
           });
         }
 
         const existingCount = await Agent.countDocuments({ userId });
         if (existingCount >= limits.agents) {
+          const nextPlan = limits.agents === 1 ? 'ultra' : 'ultra';
+          const nextLimit = limits.agents === 1 ? 5 : 10;
           return res.status(403).json({
             success: false,
             error: 'limit_reached',
-            message: `Votre plan ${effectivePlan} est limité à ${limits.agents} agent(s). Passez à Ultra pour en créer plus.`,
+            message: `Votre plan ${PLAN_LIMITS[effectivePlan]?.label} est limité à ${limits.agents} agent(s). Passez à ${PLAN_LIMITS[nextPlan]?.label} pour en créer jusqu'à ${nextLimit}.`,
+            requiredPlan: nextPlan,
+            currentLimit: limits.agents,
+            nextLimit: nextLimit,
           });
         }
       }

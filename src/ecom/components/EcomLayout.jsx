@@ -7,6 +7,7 @@ import { useNotifications } from '../hooks/useNotifications';
 import NotificationModal from './NotificationModal.jsx';
 import PushNotificationBanner from './PushNotificationBanner.jsx';
 import InstallPrompt from './InstallPrompt.jsx';
+import TrialBanner from './TrialBanner.jsx';
 import { useDmUnread } from '../hooks/useDmUnread.js';
 import GlobalSearch from './GlobalSearch.jsx';
 import WorkspaceSwitcherMenu from './WorkspaceSwitcherMenu.jsx';
@@ -415,6 +416,13 @@ const EcomLayoutComponent = ({ children }) => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col lg:flex-row overflow-x-hidden max-w-[100vw]">
       <TopLoader />
+      {/* Trial Banner — affiché en haut pour les utilisateurs en essai gratuit */}
+      {workspace?.trialEndsAt && (
+        <TrialBanner
+          plan={workspace?.plan}
+          trialEndsAt={workspace?.trialEndsAt}
+        />
+      )}
       {/* Desktop Sidebar — white, clean, Chariow-inspired */}
       <aside className="hidden lg:flex lg:flex-col lg:w-[220px] lg:fixed lg:inset-y-0 z-30 bg-white border-r border-gray-200">
         <div className="flex flex-col h-full">
@@ -641,7 +649,9 @@ const EcomLayoutComponent = ({ children }) => {
         )}
 
         {/* Page content - pb-safe-nav = pb-20 + home indicator sur iOS */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden pt-14 pt-safe-header pb-safe-nav lg:pt-14 lg:pb-0">
+        <main className={`flex-1 overflow-y-auto overflow-x-hidden pb-safe-nav lg:pb-0 ${
+          workspace?.trialEndsAt ? 'pt-32 lg:pt-28' : 'pt-14 pt-safe-header lg:pt-14'
+        }`}>
           {children}
         </main>
       </div>

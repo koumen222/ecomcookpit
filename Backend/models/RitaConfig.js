@@ -38,12 +38,7 @@ const ritaConfigSchema = new mongoose.Schema({
   // ─── Communication Style ───
   communicationStyle: { type: String, enum: ['professional', 'friendly', 'casual', 'formal'], default: 'friendly' },
   tone: { type: String, default: '' },
-  personality: {
-    description: { type: String, default: '' },
-    mannerisms: [String],
-    forbiddenPhrases: [String],
-    tonalGuidelines: { type: String, default: '' },
-  },
+  personality: { type: mongoose.Schema.Types.Mixed, default: '' }, // Accepte string ou objet
 
   // ─── Boss settings ───
   bossPhone: { type: String, default: '' },
