@@ -41,9 +41,34 @@ const PLAN_DURATION = {
 
 // Per-plan resource limits
 export const PLAN_LIMITS = {
-  free:  { agents: 0, instances: 0 },
-  pro:   { agents: 1, instances: 1 },
-  ultra: { agents: 5, instances: 5 },
+  free:  {
+    agents: 1,
+    instances: 1,
+    messagesPerDay: 100,
+    messagesPerMonth: 3000,
+    label: 'Gratuit'
+  },
+  trial: {
+    agents: 1,
+    instances: 1,
+    messagesPerDay: 100,
+    messagesPerMonth: 3000,
+    label: 'Essai (3 jours)'
+  },
+  pro:   {
+    agents: 1,
+    instances: 1,
+    messagesPerDay: 1000,
+    messagesPerMonth: 50000,
+    label: 'Pro'
+  },
+  ultra: {
+    agents: 5,
+    instances: 5,
+    messagesPerDay: null, // Illimité
+    messagesPerMonth: null, // Illimité
+    label: 'Ultra'
+  },
 };
 
 const TRIAL_DAYS = 3;
@@ -112,11 +137,11 @@ router.get('/plan', requireEcomAuth, async (req, res) => {
     const trialActive = workspace.trialEndsAt && workspace.trialEndsAt > now;
     const trialExpired = workspace.trialUsed && workspace.trialEndsAt && workspace.trialEndsAt <= now;
 
-    // Effective plan: paid > trial (treated as pro) > free
+    // Effective plan: paid > trial > free
     const effectivePlan = isPaidActive
       ? workspace.plan
       : trialActive
-        ? 'pro' // trial gives pro-level access
+        ? 'trial' // trial retourne 'trial' avec les mêmes limites que free
         : 'free';
 
     res.json({

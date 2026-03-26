@@ -6,7 +6,7 @@ import UpgradeWall from '../components/UpgradeWall.jsx';
 import {
   AlertCircle, ArrowRight,
   Plus, Trash2, X, Zap,
-  Smartphone, Sparkles, DollarSign, BarChart3, Activity, User, Crown
+  Smartphone, Sparkles, DollarSign, BarChart3, Activity, User, Crown, Package, ChevronRight
 } from 'lucide-react';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
