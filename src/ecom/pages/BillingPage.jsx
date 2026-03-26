@@ -1,197 +1,227 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
-import { getCurrentPlan, createCheckout, getPaymentStatus, getPaymentHistory } from '../services/billingApi.js';
+import { getCurrentPlan, createCheckout, getPaymentStatus, getPaymentHistory, activateTrial } from '../services/billingApi.js';
 
 // ─── Country phone codes ──────────────────────────────────────────────────────
 const COUNTRY_CODES = [
-  { code: '+237', country: 'Cameroun', name: 'Cameroun' },
-  { code: '+221', country: 'Sénégal', name: 'Sénégal' },
-  { code: '+225', country: 'Côte d\'Ivoire', name: 'Côte d\'Ivoire' },
-  { code: '+223', country: 'Mali', name: 'Mali' },
-  { code: '+226', country: 'Burkina Faso', name: 'Burkina Faso' },
-  { code: '+229', country: 'Bénin', name: 'Bénin' },
-  { code: '+228', country: 'Togo', name: 'Togo' },
-  { code: '+227', country: 'Niger', name: 'Niger' },
-  { code: '+224', country: 'Guinée', name: 'Guinée' },
-  { code: '+234', country: 'Nigeria', name: 'Nigeria' },
-  { code: '+233', country: 'Ghana', name: 'Ghana' },
-  { code: '+231', country: 'Liberia', name: 'Liberia' },
-  { code: '+33', country: 'France', name: 'France' },
-  { code: '+32', country: 'Belgique', name: 'Belgique' },
-  { code: '+41', country: 'Suisse', name: 'Suisse' },
-  { code: '+1', country: 'Canada', name: 'Canada' },
-  { code: '+1', country: 'États-Unis', name: 'États-Unis' },
+  { code: '+237', flag: '🇨🇲', country: 'Cameroun' },
+  { code: '+221', flag: '🇸🇳', country: 'Sénégal' },
+  { code: '+225', flag: '🇨🇮', country: 'Côte d\'Ivoire' },
+  { code: '+223', flag: '🇲🇱', country: 'Mali' },
+  { code: '+226', flag: '🇧🇫', country: 'Burkina Faso' },
+  { code: '+229', flag: '🇧🇯', country: 'Bénin' },
+  { code: '+228', flag: '🇹🇬', country: 'Togo' },
+  { code: '+227', flag: '🇳🇪', country: 'Niger' },
+  { code: '+224', flag: '🇬🇳', country: 'Guinée' },
+  { code: '+234', flag: '🇳🇬', country: 'Nigeria' },
+  { code: '+233', flag: '🇬🇭', country: 'Ghana' },
+  { code: '+231', flag: '🇱🇷', country: 'Liberia' },
+  { code: '+33',  flag: '🇫🇷', country: 'France' },
+  { code: '+32',  flag: '🇧🇪', country: 'Belgique' },
+  { code: '+41',  flag: '🇨🇭', country: 'Suisse' },
+  { code: '+1',   flag: '🇨🇦', country: 'Canada' },
+  { code: '+1',   flag: '🇺🇸', country: 'États-Unis' },
 ];
 
-// ─── Plan definitions ────────────────────────────────────────────────────────
+// ─── Plan definitions ─────────────────────────────────────────────────────────
 const PLAN_TIERS = [
   {
     id: 'pro',
     name: 'Pro',
-    description: 'Parfait pour débuter avec l\'IA',
-    color: 'from-ecom-primary to-primary-600',
-    borderColor: 'border-ecom-primary',
-    badgeColor: 'bg-primary-100 text-ecom-primary',
+    tagline: 'Parfait pour démarrer',
+    color: 'from-emerald-500 to-emerald-700',
+    accentColor: 'emerald',
+    textAccent: 'text-emerald-600',
+    bgAccent: 'bg-emerald-50',
+    borderAccent: 'border-emerald-500',
+    btnClass: 'bg-emerald-600 hover:bg-emerald-700',
     features: [
-      '1 agent IA',
-      '1 instance WhatsApp',
-      '1 000 messages/jour',
-      '50 000 messages/mois',
-      'Support prioritaire',
+      { text: '1 agent IA actif', highlight: false },
+      { text: '1 numéro WhatsApp connecté', highlight: false },
+      { text: '1 000 messages / jour', highlight: false },
+      { text: '50 000 messages / mois', highlight: false },
+      { text: 'Catalogue produits illimité', highlight: false },
+      { text: 'Réponses automatiques 24h/7j', highlight: false },
+      { text: 'Support prioritaire', highlight: false },
     ],
     durations: [
-      { id: 'pro_1', label: 'Mensuel', price: 6000, months: 1, saving: null },
-      { id: 'pro_12', label: 'Annuel', price: 55000, months: 12, saving: '24%' },
+      { id: 'pro_1',  label: 'Mensuel', shortLabel: '1 mois',  price: 6000,  months: 1,  saving: null,  perMonth: 6000 },
+      { id: 'pro_12', label: 'Annuel',  shortLabel: '12 mois', price: 55000, months: 12, saving: '24%', perMonth: 4583 },
     ],
   },
   {
     id: 'ultra',
     name: 'Ultra',
-    description: 'Pour les agences et entrepreneurs',
-    color: 'from-scalor-copper to-scalor-copper-light',
-    borderColor: 'border-scalor-copper',
-    badgeColor: 'bg-scalor-copper/10 text-scalor-copper',
+    tagline: 'Pour scaler sans limites',
     badge: 'Recommandé',
+    color: 'from-amber-500 to-orange-600',
+    accentColor: 'amber',
+    textAccent: 'text-amber-600',
+    bgAccent: 'bg-amber-50',
+    borderAccent: 'border-amber-500',
+    btnClass: 'bg-amber-500 hover:bg-amber-600',
     features: [
-      '5 agents IA',
-      '5 instances WhatsApp',
-      'Messages illimités',
-      'Gestion multi-comptes',
-      'API & webhooks',
-      'Support 24/7',
+      { text: '5 agents IA actifs', highlight: true },
+      { text: '5 numéros WhatsApp', highlight: true },
+      { text: 'Messages illimités ∞', highlight: true },
+      { text: 'Gestion multi-boutiques', highlight: false },
+      { text: 'Campagnes de relance avancées', highlight: false },
+      { text: 'API & webhooks', highlight: false },
+      { text: 'Support 24/7 dédié', highlight: false },
     ],
     durations: [
-      { id: 'ultra_1', label: 'Mensuel', price: 15000, months: 1, saving: null },
-      { id: 'ultra_12', label: 'Annuel', price: 140000, months: 12, saving: '22%' },
+      { id: 'ultra_1',  label: 'Mensuel', shortLabel: '1 mois',  price: 15000,  months: 1,  saving: null,  perMonth: 15000 },
+      { id: 'ultra_12', label: 'Annuel',  shortLabel: '12 mois', price: 140000, months: 12, saving: '22%', perMonth: 11667 },
     ],
   },
 ];
 
-const PLANS = PLAN_TIERS.flatMap(tier =>
-  tier.durations.map(duration => ({
-    ...duration,
-    tier: tier.id,
-  }))
+const ALL_PLANS = PLAN_TIERS.flatMap(tier =>
+  tier.durations.map(d => ({ ...d, tier: tier.id }))
 );
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatDate(d) {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('fr-FR', {
-    day: '2-digit', month: 'long', year: 'numeric'
-  });
+  return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
-
 function formatAmount(n) {
   return new Intl.NumberFormat('fr-FR').format(n) + ' FCFA';
 }
+function daysLeft(dateStr) {
+  if (!dateStr) return 0;
+  const diff = new Date(dateStr) - new Date();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+}
 
+// ─── StatusBadge ──────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
   const cfg = {
-    paid:     { label: 'Payé',     cls: 'bg-emerald-100 text-emerald-700' },
-    pending:  { label: 'En attente', cls: 'bg-amber-100 text-amber-700' },
-    failure:  { label: 'Échoué',   cls: 'bg-red-100 text-red-700' },
-    'no paid':{ label: 'Non payé', cls: 'bg-gray-100 text-gray-600' }
-  }[status] || { label: status, cls: 'bg-gray-100 text-gray-600' };
+    paid:      { label: 'Payé',       cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+    pending:   { label: 'En attente', cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+    failure:   { label: 'Échoué',     cls: 'bg-red-100 text-red-700 border-red-200' },
+    'no paid': { label: 'Non payé',   cls: 'bg-gray-100 text-gray-600 border-gray-200' },
+  }[status] || { label: status, cls: 'bg-gray-100 text-gray-600 border-gray-200' };
   return (
-    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${cfg.cls}`}>
+    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${cfg.cls}`}>
       {cfg.label}
     </span>
   );
 }
 
-// ─── Checkout Modal ───────────────────────────────────────────────────────────
-function CheckoutModal({ selectedPlan, onClose, onSuccess, workspaceId, userName, userCountry }) {
-  const [country, setCountry] = useState(userCountry || 'Cameroun');
+// ─── CheckoutModal ────────────────────────────────────────────────────────────
+function CheckoutModal({ plan, tier, onClose, onSuccess, workspaceId, userName, userCountry }) {
+  const [country, setCountry] = useState(
+    COUNTRY_CODES.find(c => c.country === userCountry) ? userCountry : 'Cameroun'
+  );
   const [phoneLocal, setPhoneLocal] = useState('');
   const [clientName, setClientName] = useState(userName || '');
+  const [step, setStep] = useState(1); // 1=form, 2=confirming
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Obtenir le code pays sélectionné
-  const selectedCountryCode = COUNTRY_CODES.find(c => c.country === country);
-  const countryCode = selectedCountryCode?.code || '+237';
-
-  // Numéro complet avec code pays
-  const fullPhone = phoneLocal ? `${countryCode}${phoneLocal.replace(/^\+/, '').replace(/^0/, '')}` : '';
+  const selectedCode = COUNTRY_CODES.find(c => c.country === country);
+  const dialCode = selectedCode?.code || '+237';
+  const flag = selectedCode?.flag || '🌍';
+  const fullPhone = phoneLocal
+    ? `${dialCode}${phoneLocal.replace(/^0+/, '')}`
+    : '';
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
 
-    if (!phoneLocal.trim() || phoneLocal.trim().length < 7) {
-      setError('Entrez un numéro de téléphone valide (min. 7 chiffres).');
+    if (!clientName.trim() || clientName.trim().length < 2) {
+      setError('Veuillez entrer votre nom complet (minimum 2 caractères).');
       return;
     }
-    if (!clientName.trim() || clientName.trim().length < 2) {
-      setError('Entrez votre nom complet.');
+    if (!phoneLocal.trim() || phoneLocal.trim().length < 7) {
+      setError('Veuillez entrer un numéro valide (minimum 7 chiffres).');
       return;
     }
 
     setLoading(true);
     try {
       const result = await createCheckout({
-        plan: selectedPlan.id,
+        plan: plan.id,
         phone: fullPhone,
         clientName: clientName.trim(),
-        workspaceId
+        workspaceId,
       });
 
       if (!result.success) {
         setError(result.message || 'Erreur lors de l\'initialisation du paiement.');
+        setLoading(false);
         return;
       }
 
-      // Redirect to MoneyFusion payment page
       if (result.paymentUrl) {
         onSuccess(result.mfToken);
         window.location.href = result.paymentUrl;
       } else {
         setError('URL de paiement manquante. Veuillez réessayer.');
+        setLoading(false);
       }
     } catch (err) {
-      console.error('[checkout]', err);
-      setError(
-        err?.response?.data?.message ||
-        'Une erreur est survenue. Veuillez réessayer.'
-      );
-    } finally {
+      setError(err?.response?.data?.message || 'Une erreur est survenue. Veuillez réessayer.');
       setLoading(false);
     }
   }
 
+  const isUltra = tier.id === 'ultra';
+  const gradientHeader = isUltra ? 'from-amber-500 to-orange-600' : 'from-emerald-500 to-emerald-700';
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
+      <div className="bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+
         {/* Header */}
-        <div className={`bg-gradient-to-r ${selectedPlan.tier === 'ultra' ? 'from-scalor-copper to-scalor-copper-light' : 'from-emerald-600 to-emerald-700'} px-6 py-5 text-white`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold">Passer au plan {selectedPlan.tier === 'ultra' ? 'Ultra' : 'Pro'}</h2>
-              <p className={`${selectedPlan.tier === 'ultra' ? 'text-scalor-copper-light/90' : 'text-emerald-100'} text-sm mt-0.5`}>
-                {selectedPlan.label} — {formatAmount(selectedPlan.price)}
-                {selectedPlan.saving && (
-                  <span className="ml-2 bg-amber-400 text-gray-900 text-xs font-bold px-2 py-0.5 rounded-full">
-                    -{selectedPlan.saving}
-                  </span>
-                )}
-              </p>
+        <div className={`bg-gradient-to-br ${gradientHeader} px-6 pt-6 pb-8 text-white relative`}>
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl font-black">
+              {isUltra ? '⚡' : '🚀'}
             </div>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-white/20 transition"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <div>
+              <p className="text-white/80 text-xs font-semibold uppercase tracking-wider">Abonnement</p>
+              <h2 className="text-xl font-black">Plan {tier.name} — {plan.label}</h2>
+            </div>
+          </div>
+
+          {/* Price summary */}
+          <div className="bg-white/15 rounded-xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-white/80 text-xs mb-0.5">Total à payer</p>
+              <p className="text-2xl font-black">{formatAmount(plan.price)}</p>
+              {plan.saving && (
+                <p className="text-white/70 text-xs mt-0.5">
+                  Soit {formatAmount(plan.perMonth)}/mois · Économie {plan.saving}
+                </p>
+              )}
+            </div>
+            {plan.saving && (
+              <div className="bg-white text-amber-600 font-black text-sm px-3 py-1.5 rounded-full">
+                -{plan.saving}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+
+          {/* Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
               Nom complet
             </label>
             <input
@@ -199,100 +229,378 @@ function CheckoutModal({ selectedPlan, onClose, onSuccess, workspaceId, userName
               value={clientName}
               onChange={e => setClientName(e.target.value)}
               placeholder="Koumen Morgan"
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:border-emerald-500 transition"
               required
             />
           </div>
 
+          {/* Phone with country */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Pays
-            </label>
-            <select
-              value={country}
-              onChange={e => setCountry(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white"
-            >
-              {COUNTRY_CODES.map((c, idx) => (
-                <option key={idx} value={c.country}>
-                  {c.name} ({c.code})
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-500 mt-1">
-              Sélectionnez votre pays pour obtenir le bon indicatif
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
               Numéro Mobile Money
             </label>
+
+            {/* Country select */}
+            <div className="mb-2">
+              <select
+                value={country}
+                onChange={e => setCountry(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:border-emerald-500 transition bg-white appearance-none"
+              >
+                {COUNTRY_CODES.map((c, i) => (
+                  <option key={i} value={c.country}>
+                    {c.flag} {c.country} — {c.code}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Phone input */}
             <div className="flex gap-2">
-              <div className="px-4 py-2.5 border border-gray-300 rounded-xl text-sm bg-gray-50 text-gray-600 font-semibold flex items-center flex-shrink-0">
-                {countryCode}
+              <div className="flex items-center gap-2 px-4 py-3 border-2 border-gray-200 rounded-xl bg-gray-50 flex-shrink-0 min-w-[80px]">
+                <span className="text-lg">{flag}</span>
+                <span className="text-sm font-bold text-gray-700">{dialCode}</span>
               </div>
               <input
                 type="tel"
+                inputMode="numeric"
                 value={phoneLocal}
                 onChange={e => setPhoneLocal(e.target.value.replace(/\D/g, ''))}
-                placeholder="7XXXXXXXX"
-                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                placeholder="6 XX XX XX XX"
+                className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:border-emerald-500 transition"
                 required
               />
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Orange Money, MTN, Wave ou tout opérateur Mobile Money
-            </p>
-            {fullPhone && (
-              <p className="text-xs text-emerald-600 font-semibold mt-2">
-                📱 Numéro complet: {fullPhone}
+
+            {fullPhone ? (
+              <p className="text-xs font-semibold text-emerald-600 mt-2 flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                Numéro : {fullPhone}
               </p>
+            ) : (
+              <p className="text-xs text-gray-400 mt-2">Orange Money, MTN, Wave, Flooz…</p>
             )}
           </div>
 
+          {/* Error */}
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl p-3">
+            <div className="bg-red-50 border-2 border-red-200 text-red-700 text-sm rounded-xl p-3 flex items-start gap-2">
+              <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
               {error}
             </div>
           )}
 
-          <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 space-y-1.5">
-            <div className="flex justify-between">
-              <span>Plan Pro ({selectedPlan.label})</span>
-              <span className="font-semibold text-gray-900">{formatAmount(selectedPlan.price)}</span>
-            </div>
-            {selectedPlan.saving && (
-              <div className="flex justify-between text-emerald-600 text-xs">
-                <span>Économie vs mensuel</span>
-                <span className="font-medium">-{selectedPlan.saving}</span>
-              </div>
-            )}
-          </div>
-
+          {/* Submit */}
           <button
             type="submit"
-            disabled={loading}
-            className={`w-full py-3 ${selectedPlan.tier === 'ultra' ? 'bg-scalor-copper hover:bg-scalor-copper-dark' : 'bg-emerald-600 hover:bg-emerald-700'} disabled:opacity-60 text-white font-bold rounded-xl transition shadow-lg text-sm`}
+            disabled={loading || !phoneLocal || !clientName}
+            className={`w-full py-4 rounded-xl font-black text-white text-base transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${isUltra ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-200' : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200'}`}
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                 </svg>
                 Redirection vers le paiement…
               </span>
             ) : (
-              `Payer ${formatAmount(selectedPlan.price)}`
+              `Payer ${formatAmount(plan.price)} →`
             )}
           </button>
 
-          <p className="text-center text-xs text-gray-400">
-            Paiement sécurisé via MoneyFusion — votre abonnement est activé instantanément après confirmation.
-          </p>
+          <div className="flex items-center justify-center gap-4 text-xs text-gray-400">
+            <span className="flex items-center gap-1">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              Paiement sécurisé
+            </span>
+            <span>·</span>
+            <span>Activation instantanée</span>
+            <span>·</span>
+            <span>MoneyFusion</span>
+          </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+// ─── PlanCard ─────────────────────────────────────────────────────────────────
+function PlanCard({ tier, selectedDurationId, onSelectDuration, onCheckout }) {
+  const activeDuration = tier.durations.find(d => d.id === selectedDurationId) || tier.durations[0];
+  const isSelected = tier.durations.some(d => d.id === selectedDurationId);
+
+  return (
+    <div className={`relative flex flex-col rounded-3xl border-2 transition-all duration-200 overflow-hidden
+      ${isSelected ? `${tier.borderAccent} shadow-2xl` : 'border-gray-200 hover:border-gray-300 hover:shadow-md'}`}
+    >
+      {/* Badge */}
+      {tier.badge && (
+        <div className="absolute top-4 right-4 bg-amber-500 text-white text-xs font-black px-3 py-1 rounded-full">
+          ⭐ {tier.badge}
+        </div>
+      )}
+
+      {/* Gradient header */}
+      <div className={`bg-gradient-to-br ${tier.color} px-8 pt-8 pb-6 text-white`}>
+        <h3 className="text-3xl font-black mb-1">{tier.name}</h3>
+        <p className="text-white/80 text-sm">{tier.tagline}</p>
+
+        {/* Duration toggle */}
+        <div className="flex gap-2 mt-5 bg-white/15 p-1 rounded-xl">
+          {tier.durations.map(d => (
+            <button
+              key={d.id}
+              onClick={() => onSelectDuration(d)}
+              className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold transition-all ${
+                activeDuration.id === d.id
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-white/80 hover:text-white'
+              }`}
+            >
+              {d.label}
+              {d.saving && (
+                <span className={`ml-1.5 text-xs font-black ${activeDuration.id === d.id ? 'text-emerald-600' : 'text-white/90'}`}>
+                  -{d.saving}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Price */}
+        <div className="mt-5">
+          <div className="flex items-baseline gap-2">
+            <span className="text-4xl font-black">{formatAmount(activeDuration.price)}</span>
+          </div>
+          <p className="text-white/70 text-sm mt-1">
+            {activeDuration.months > 1
+              ? `${formatAmount(activeDuration.perMonth)}/mois · facturé annuellement`
+              : 'facturé mensuellement'
+            }
+          </p>
+        </div>
+      </div>
+
+      {/* Features */}
+      <div className="flex-1 px-8 py-6 bg-white space-y-3">
+        {tier.features.map((f, i) => (
+          <div key={i} className={`flex items-center gap-3 text-sm ${f.highlight ? 'font-bold text-gray-900' : 'text-gray-600'}`}>
+            <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${f.highlight ? tier.bgAccent : 'bg-gray-100'}`}>
+              <svg className={`w-3 h-3 ${f.highlight ? tier.textAccent : 'text-gray-500'}`} fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            </div>
+            {f.text}
+          </div>
+        ))}
+      </div>
+
+      {/* CTA */}
+      <div className="px-8 pb-8 bg-white">
+        <button
+          onClick={() => onCheckout(activeDuration)}
+          className={`w-full py-4 rounded-xl font-black text-white text-sm transition-all shadow-lg ${tier.btnClass}`}
+        >
+          Choisir {tier.name} {activeDuration.label} →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── CurrentPlanCard ──────────────────────────────────────────────────────────
+function CurrentPlanCard({ planInfo, loading, onUpgrade, onRenew, pendingToken, onActivateTrial }) {
+  const [trialLoading, setTrialLoading] = useState(false);
+  const [trialError, setTrialError] = useState(null);
+
+  const plan = planInfo?.plan;
+  const isActive = planInfo?.isActive;
+  const isPro = plan === 'pro' && isActive;
+  const isUltra = plan === 'ultra' && isActive;
+  const isTrial = planInfo?.trial?.active;
+  const trialUsed = planInfo?.trial?.used;
+  const trialDays = isTrial ? daysLeft(planInfo.trial.endsAt) : 0;
+  const isExpired = (plan === 'pro' || plan === 'ultra') && !isActive;
+
+  async function handleTrial() {
+    setTrialLoading(true);
+    setTrialError(null);
+    try {
+      await onActivateTrial();
+    } catch (e) {
+      setTrialError(e?.response?.data?.message || 'Impossible d\'activer l\'essai');
+      setTrialLoading(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border-2 border-gray-200 p-6 animate-pulse">
+        <div className="h-6 bg-gray-200 rounded w-1/3 mb-3" />
+        <div className="h-4 bg-gray-100 rounded w-1/2" />
+      </div>
+    );
+  }
+
+  // ── Active paid plan ──
+  if (isPro || isUltra) {
+    const tier = isUltra ? PLAN_TIERS[1] : PLAN_TIERS[0];
+    const days = daysLeft(planInfo.planExpiresAt);
+    const urgent = days <= 7;
+
+    return (
+      <div className={`rounded-2xl border-2 p-6 ${isUltra ? 'border-amber-400 bg-amber-50' : 'border-emerald-500 bg-emerald-50'}`}>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${isUltra ? 'bg-amber-100' : 'bg-emerald-100'}`}>
+              {isUltra ? '⚡' : '🚀'}
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <h3 className={`text-xl font-black ${isUltra ? 'text-amber-700' : 'text-emerald-700'}`}>Plan {tier.name}</h3>
+                <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full text-white ${isUltra ? 'bg-amber-500' : 'bg-emerald-600'}`}>ACTIF</span>
+              </div>
+              <p className={`text-sm ${urgent ? 'text-red-600 font-bold' : 'text-gray-600'}`}>
+                {urgent ? `⚠️ Expire dans ${days} jour${days > 1 ? 's' : ''} — ` : ''}
+                Expire le {formatDate(planInfo.planExpiresAt)}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onRenew}
+            className={`text-sm font-bold px-5 py-2.5 rounded-xl text-white transition ${isUltra ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+          >
+            Renouveler
+          </button>
+        </div>
+
+        {/* Limits summary */}
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'Agents', value: isUltra ? '5' : '1' },
+            { label: 'WhatsApp', value: isUltra ? '5' : '1' },
+            { label: 'Messages/jour', value: isUltra ? '∞' : '1 000' },
+            { label: 'Messages/mois', value: isUltra ? '∞' : '50 000' },
+          ].map(item => (
+            <div key={item.label} className="bg-white rounded-xl p-3 text-center">
+              <p className={`text-lg font-black ${isUltra ? 'text-amber-600' : 'text-emerald-600'}`}>{item.value}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{item.label}</p>
+            </div>
+          ))}
+        </div>
+
+        {pendingToken && <PendingPaymentBanner />}
+      </div>
+    );
+  }
+
+  // ── Trial active ──
+  if (isTrial) {
+    const urgent = trialDays <= 1;
+    const color = trialDays > 3 ? 'blue' : trialDays > 1 ? 'amber' : 'red';
+    const colorMap = {
+      blue:  { bg: 'bg-blue-50',  border: 'border-blue-300',  text: 'text-blue-700',  btn: 'bg-blue-600 hover:bg-blue-700' },
+      amber: { bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-700', btn: 'bg-amber-500 hover:bg-amber-600' },
+      red:   { bg: 'bg-red-50',   border: 'border-red-300',   text: 'text-red-700',   btn: 'bg-red-600 hover:bg-red-700' },
+    }[color];
+
+    return (
+      <div className={`rounded-2xl border-2 p-6 ${colorMap.bg} ${colorMap.border}`}>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-2xl">⏱️</div>
+            <div>
+              <h3 className={`text-xl font-black ${colorMap.text}`}>Essai gratuit en cours</h3>
+              <p className={`text-sm font-semibold mt-0.5 ${urgent ? 'text-red-600' : colorMap.text}`}>
+                {urgent ? '⚠️ Dernier jour ! ' : ''}{trialDays} jour{trialDays > 1 ? 's' : ''} restant{trialDays > 1 ? 's' : ''}
+                {' · '}expire le {formatDate(planInfo.trial.endsAt)}
+              </p>
+            </div>
+          </div>
+          <button onClick={onUpgrade} className={`text-sm font-bold px-5 py-2.5 rounded-xl text-white transition ${colorMap.btn}`}>
+            Passer au Pro →
+          </button>
+        </div>
+        {pendingToken && <PendingPaymentBanner />}
+      </div>
+    );
+  }
+
+  // ── Expired ──
+  if (isExpired) {
+    return (
+      <div className="rounded-2xl border-2 border-red-300 bg-red-50 p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center text-2xl">❌</div>
+            <div>
+              <h3 className="text-xl font-black text-red-700">Abonnement expiré</h3>
+              <p className="text-sm text-red-600 mt-0.5">
+                Votre plan {plan} a expiré le {formatDate(planInfo.planExpiresAt)}. Vous êtes repassé au plan gratuit.
+              </p>
+            </div>
+          </div>
+          <button onClick={onRenew} className="text-sm font-bold px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white transition">
+            Renouveler maintenant →
+          </button>
+        </div>
+        {pendingToken && <PendingPaymentBanner />}
+      </div>
+    );
+  }
+
+  // ── Free plan ──
+  return (
+    <div className="rounded-2xl border-2 border-gray-200 bg-white p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-2xl">🆓</div>
+          <div>
+            <h3 className="text-xl font-black text-gray-900">Plan Gratuit</h3>
+            <p className="text-sm text-gray-500 mt-0.5">Fonctionnalités limitées — passez à Pro pour vendre sur WhatsApp</p>
+          </div>
+        </div>
+        {!trialUsed && (
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={handleTrial}
+              disabled={trialLoading}
+              className="text-sm font-bold px-5 py-2.5 rounded-xl border-2 border-emerald-500 text-emerald-700 hover:bg-emerald-50 transition disabled:opacity-60"
+            >
+              {trialLoading ? 'Activation…' : '🎁 Essai 3 jours gratuit'}
+            </button>
+            <button onClick={onUpgrade} className="text-sm font-bold px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition">
+              Passer au Pro →
+            </button>
+          </div>
+        )}
+        {trialUsed && (
+          <button onClick={onUpgrade} className="text-sm font-bold px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition">
+            Passer au Pro →
+          </button>
+        )}
+      </div>
+      {trialError && <p className="mt-3 text-sm text-red-600 font-medium">{trialError}</p>}
+      {pendingToken && <PendingPaymentBanner />}
+    </div>
+  );
+}
+
+function PendingPaymentBanner() {
+  return (
+    <div className="mt-4 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+      <svg className="animate-spin w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+      </svg>
+      <span><strong>Vérification du paiement en cours…</strong> Votre plan sera activé automatiquement dès confirmation.</span>
     </div>
   );
 }
@@ -300,7 +608,6 @@ function CheckoutModal({ selectedPlan, onClose, onSuccess, workspaceId, userName
 // ─── Main BillingPage ─────────────────────────────────────────────────────────
 export default function BillingPage() {
   const { user } = useEcomAuth();
-  const navigate = useNavigate();
   const location = useLocation();
 
   const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
@@ -310,47 +617,39 @@ export default function BillingPage() {
   const [planInfo, setPlanInfo] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPlan, setSelectedPlan] = useState(PLAN_TIERS[0].durations[0]); // Pro Mensuel par défaut
-  const [showCheckout, setShowCheckout] = useState(() => {
-    // Auto-show checkout if a plan was selected from UpgradeWall
-    return !!location.state?.selectedPlan;
+  const [checkout, setCheckout] = useState(null); // { plan, tier }
+  const [selectedDurationIds, setSelectedDurationIds] = useState({
+    pro: 'pro_1',
+    ultra: 'ultra_1',
   });
   const [pendingToken, setPendingToken] = useState(
     () => sessionStorage.getItem('mf_pending_token') || null
   );
 
-  // Si un plan a été sélectionné depuis UpgradeWall, l'utiliser
+  // Handle inbound plan selection from UpgradeWall
   useEffect(() => {
-    if (location.state?.selectedPlan) {
-      const plan = location.state.selectedPlan;
-      // Trouver le plan correspondant
-      let foundPlan = PLANS.find(p => p.id === plan);
-
-      // Si pas trouvé, essayer de deviner (pro_1, ultra_1, etc)
-      if (!foundPlan) {
-        const tierName = plan.includes('ultra') ? 'ultra' : 'pro';
-        foundPlan = PLAN_TIERS.find(t => t.id === tierName)?.durations[0];
-      }
-
-      if (foundPlan) {
-        setSelectedPlan(foundPlan);
-      }
-      setShowCheckout(true);
+    if (!location.state?.selectedPlan) return;
+    const incoming = location.state.selectedPlan;
+    const tierName = incoming.includes('ultra') ? 'ultra' : 'pro';
+    const tier = PLAN_TIERS.find(t => t.id === tierName);
+    const plan = ALL_PLANS.find(p => p.id === incoming) || tier?.durations[0];
+    if (tier && plan) {
+      setSelectedDurationIds(prev => ({ ...prev, [tierName]: plan.id }));
+      setCheckout({ plan, tier });
     }
   }, [location.state]);
 
-  // Load plan + history
   const load = useCallback(async () => {
     if (!workspaceId) return;
     try {
       const [planRes, histRes] = await Promise.all([
         getCurrentPlan(workspaceId),
-        getPaymentHistory(workspaceId)
+        getPaymentHistory(workspaceId),
       ]);
       if (planRes.success) setPlanInfo(planRes);
       if (histRes.success) setHistory(histRes.payments || []);
-    } catch (err) {
-      console.error('[billing]', err);
+    } catch (e) {
+      console.error('[billing] load error:', e);
     } finally {
       setLoading(false);
     }
@@ -358,18 +657,13 @@ export default function BillingPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Poll pending payment (after return from MoneyFusion)
+  // Poll pending payment
   useEffect(() => {
     if (!pendingToken) return;
     const interval = setInterval(async () => {
       try {
         const res = await getPaymentStatus(pendingToken);
-        if (res.status === 'paid') {
-          clearInterval(interval);
-          sessionStorage.removeItem('mf_pending_token');
-          setPendingToken(null);
-          load(); // refresh plan
-        } else if (res.status === 'failure' || res.status === 'no paid') {
+        if (res.status === 'paid' || res.status === 'failure' || res.status === 'no paid') {
           clearInterval(interval);
           sessionStorage.removeItem('mf_pending_token');
           setPendingToken(null);
@@ -385,219 +679,95 @@ export default function BillingPage() {
     setPendingToken(token);
   }
 
-  const isPro = planInfo?.plan === 'pro' && planInfo?.isActive;
+  async function handleActivateTrial() {
+    await activateTrial(workspaceId);
+    window.location.reload();
+  }
+
+  const isActivePaid = planInfo?.isActive && (planInfo?.plan === 'pro' || planInfo?.plan === 'ultra');
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
+    <div className="max-w-5xl mx-auto px-4 py-10 space-y-10">
+
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Facturation & Abonnement</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          Gérez votre plan Scalor et consultez vos paiements.
-        </p>
+        <h1 className="text-3xl font-black text-gray-900">Abonnement</h1>
+        <p className="text-gray-500 mt-1">Gérez votre plan et vos paiements</p>
       </div>
 
-      {/* Current Plan Card */}
-      <div className={`rounded-2xl p-6 border-2 ${
-        isPro
-          ? 'border-emerald-500 bg-gradient-to-br from-emerald-50 to-white'
-          : 'border-gray-200 bg-white'
-      }`}>
-        <div className="flex items-start justify-between flex-wrap gap-4">
+      {/* Current Plan */}
+      <CurrentPlanCard
+        planInfo={planInfo}
+        loading={loading}
+        pendingToken={pendingToken}
+        onUpgrade={() => window.scrollTo({ top: 400, behavior: 'smooth' })}
+        onRenew={() => window.scrollTo({ top: 400, behavior: 'smooth' })}
+        onActivateTrial={handleActivateTrial}
+      />
+
+      {/* Plan Selection */}
+      <div className="space-y-6">
+        <div className="flex items-end justify-between">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <span className={`text-2xl font-black ${isPro ? 'text-emerald-700' : 'text-gray-900'}`}>
-                Plan {loading ? '…' : isPro ? 'Pro ✨' : 'Gratuit'}
-              </span>
-              {isPro && (
-                <span className="bg-emerald-600 text-white text-xs font-bold px-2.5 py-0.5 rounded-full">
-                  ACTIF
-                </span>
-              )}
-            </div>
-            {isPro && planInfo?.planExpiresAt ? (
-              <p className="text-sm text-gray-600">
-                Expire le <strong>{formatDate(planInfo.planExpiresAt)}</strong>
-              </p>
-            ) : (
-              <p className="text-sm text-gray-500">
-                Accès aux fonctionnalités de base — passer au Pro pour débloquer WhatsApp & IA.
-              </p>
-            )}
+            <h2 className="text-2xl font-black text-gray-900">
+              {isActivePaid ? 'Changer de plan' : 'Choisissez votre plan'}
+            </h2>
+            <p className="text-gray-500 text-sm mt-1">Annulez à tout moment. Activation immédiate après paiement.</p>
           </div>
-          {!isPro && (
-            <button
-              onClick={() => setShowCheckout(true)}
-              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shadow text-sm"
-            >
-              Passer au Pro
-            </button>
-          )}
         </div>
 
-        {pendingToken && (
-          <div className="mt-4 flex items-center gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm">
-            <svg className="animate-spin w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-            </svg>
-            Vérification du paiement en cours… Votre plan sera activé automatiquement.
-          </div>
-        )}
-      </div>
-
-      {/* Upgrade Plans (only if not pro) */}
-      {!isPro && (
-        <div className="space-y-8">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Choisissez votre plan</h2>
-            <p className="text-gray-600">Démarrez avec Pro ou passez à Ultra pour plus de capacités</p>
-          </div>
-
-          {/* Plan Cards */}
-          <div className="grid lg:grid-cols-2 gap-8">
-            {PLAN_TIERS.map(tier => (
-              <div
-                key={tier.id}
-                className={`relative rounded-3xl border-2 p-8 transition-all ${
-                  tier.borderColor
-                } ${tier.id === selectedPlan.tier ? 'shadow-2xl scale-[1.02]' : 'hover:shadow-lg'}`}
-              >
-                {tier.badge && (
-                  <div className={`absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full font-bold text-sm ${tier.badgeColor}`}>
-                    ⭐ {tier.badge}
-                  </div>
-                )}
-
-                {/* Header */}
-                <div className="mb-6">
-                  <h3 className="text-3xl font-black text-gray-900">{tier.name}</h3>
-                  <p className="text-gray-600 text-sm mt-1">{tier.description}</p>
-                </div>
-
-                {/* Duration Toggle */}
-                <div className="mb-6 flex gap-2">
-                  {tier.durations.map(duration => (
-                    <button
-                      key={duration.id}
-                      onClick={() => setSelectedPlan(duration)}
-                      className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${
-                        selectedPlan.id === duration.id
-                          ? `bg-gradient-to-r ${tier.color} text-white shadow-lg`
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      <span>{duration.label}</span>
-                      {duration.saving && (
-                        <div className="text-xs mt-0.5 font-bold opacity-90">-{duration.saving}</div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Price */}
-                <div className="mb-6 pb-6 border-b border-gray-200">
-                  <div className="flex items-baseline gap-1">
-                    <span className={`text-4xl font-black bg-gradient-to-r ${tier.color} bg-clip-text text-transparent`}>
-                      {formatAmount(selectedPlan.id.startsWith(tier.id) ? selectedPlan.price : tier.durations[0].price)}
-                    </span>
-                  </div>
-                  {selectedPlan.id.startsWith(tier.id) && selectedPlan.id !== `${tier.id}_1` && (
-                    <p className="text-xs text-gray-500 mt-2">
-                      {Math.round((selectedPlan.id.startsWith(tier.id) ? selectedPlan.price : tier.durations[0].price) / (selectedPlan.id.startsWith(tier.id) ? selectedPlan.months : tier.durations[0].months)).toLocaleString('fr-FR')} FCFA/mois
-                    </p>
-                  )}
-                </div>
-
-                {/* Features */}
-                <div className="space-y-3">
-                  {tier.features.map((feature, i) => (
-                    <div key={i} className="flex items-center gap-3 text-sm text-gray-700">
-                      <svg className="w-5 h-5 text-emerald-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      {feature}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Bottom Button */}
-                <div className="mt-8 pt-6 border-t border-gray-200">
-                  {selectedPlan.tier === tier.id ? (
-                    <button
-                      onClick={() => setShowCheckout(true)}
-                      className={`w-full py-3 px-6 rounded-xl font-bold transition-all ${
-                        tier.id === 'ultra'
-                          ? 'bg-scalor-copper hover:bg-scalor-copper-dark text-white'
-                          : 'bg-ecom-primary hover:bg-ecom-primary-dark text-white'
-                      }`}
-                    >
-                      Procéder au paiement
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setSelectedPlan(tier.durations[0])}
-                      className="w-full py-3 px-6 rounded-xl font-bold transition-all bg-gray-100 hover:bg-gray-200 text-gray-900"
-                    >
-                      Sélectionner ce plan
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Pro Features Summary */}
-      <div className="bg-gray-50 rounded-2xl p-6">
-        <h2 className="text-base font-bold text-gray-900 mb-4">Ce qui est inclus dans le plan Pro</h2>
-        <div className="grid sm:grid-cols-2 gap-3">
-          {[
-            'Envoi de messages WhatsApp automatique',
-            'Campagnes de relance WhatsApp',
-            'Messages personnalisés avec variables',
-            'Agent IA WhatsApp intelligent',
-            'Réponses automatiques aux clients',
-            'Qualification automatique des prospects',
-            'Support prioritaire',
-            'Accès anticipé aux nouvelles fonctionnalités'
-          ].map((f, i) => (
-            <div key={i} className="flex items-center gap-2.5 text-sm text-gray-700">
-              <svg className="w-4 h-4 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-              </svg>
-              {f}
-            </div>
+        <div className="grid md:grid-cols-2 gap-6">
+          {PLAN_TIERS.map(tier => (
+            <PlanCard
+              key={tier.id}
+              tier={tier}
+              selectedDurationId={selectedDurationIds[tier.id]}
+              onSelectDuration={duration => setSelectedDurationIds(prev => ({ ...prev, [tier.id]: duration.id }))}
+              onCheckout={duration => setCheckout({ plan: { ...duration, tier: tier.id }, tier })}
+            />
           ))}
         </div>
+      </div>
+
+      {/* FAQ / Reassurance */}
+      <div className="grid sm:grid-cols-3 gap-4">
+        {[
+          { icon: '⚡', title: 'Activation instantanée', desc: 'Votre plan est actif dès confirmation du paiement.' },
+          { icon: '🔒', title: 'Paiement sécurisé', desc: 'Via MoneyFusion. Orange Money, MTN, Wave acceptés.' },
+          { icon: '💬', title: 'Support réactif', desc: 'Une question ? Notre équipe répond en moins de 24h.' },
+        ].map(item => (
+          <div key={item.title} className="bg-gray-50 rounded-2xl p-5 flex items-start gap-3">
+            <span className="text-2xl">{item.icon}</span>
+            <div>
+              <p className="font-bold text-gray-900 text-sm">{item.title}</p>
+              <p className="text-gray-500 text-xs mt-0.5">{item.desc}</p>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Payment History */}
       {history.length > 0 && (
         <div>
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Historique des paiements</h2>
-          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+          <h2 className="text-xl font-black text-gray-900 mb-4">Historique des paiements</h2>
+          <div className="bg-white border-2 border-gray-100 rounded-2xl overflow-hidden">
             <table className="min-w-full divide-y divide-gray-100 text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Plan</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Durée</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Montant</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Méthode</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Statut</th>
+                  {['Date', 'Plan', 'Durée', 'Montant', 'Méthode', 'Statut'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wide">{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {history.map(p => (
                   <tr key={p._id} className="hover:bg-gray-50 transition">
-                    <td className="px-4 py-3 text-gray-700">{formatDate(p.createdAt)}</td>
-                    <td className="px-4 py-3 capitalize font-medium text-gray-900">{p.plan}</td>
-                    <td className="px-4 py-3 text-gray-600">{p.durationMonths} mois</td>
-                    <td className="px-4 py-3 font-semibold text-gray-900">{formatAmount(p.amount)}</td>
-                    <td className="px-4 py-3 text-gray-600 capitalize">{p.paymentMethod || '—'}</td>
-                    <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
+                    <td className="px-4 py-3.5 text-gray-600">{formatDate(p.createdAt)}</td>
+                    <td className="px-4 py-3.5 font-bold text-gray-900 capitalize">{p.plan}</td>
+                    <td className="px-4 py-3.5 text-gray-600">{p.durationMonths} mois</td>
+                    <td className="px-4 py-3.5 font-bold text-gray-900">{formatAmount(p.amount)}</td>
+                    <td className="px-4 py-3.5 text-gray-600 capitalize">{p.paymentMethod || '—'}</td>
+                    <td className="px-4 py-3.5"><StatusBadge status={p.status} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -607,13 +777,14 @@ export default function BillingPage() {
       )}
 
       {/* Checkout Modal */}
-      {showCheckout && (
+      {checkout && (
         <CheckoutModal
-          selectedPlan={selectedPlan}
+          plan={checkout.plan}
+          tier={checkout.tier}
           workspaceId={workspaceId}
           userName={user?.name || ''}
           userCountry={userCountry}
-          onClose={() => setShowCheckout(false)}
+          onClose={() => setCheckout(null)}
           onSuccess={handleCheckoutSuccess}
         />
       )}
