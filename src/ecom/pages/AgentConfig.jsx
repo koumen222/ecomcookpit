@@ -382,7 +382,16 @@ export default function AgentConfig() {
       }
     } catch (err) {
       console.error('[AgentConfig] Erreur chargement instances:', err);
-      setInstanceError(err.response?.data?.error || err.message || 'Erreur réseau');
+      const errData = err.response?.data;
+      let errorMsg = '❌ Erreur lors du chargement des instances WhatsApp';
+
+      if (errData?.message) {
+        errorMsg = `❌ ${errData.message}`;
+      } else if (err.message) {
+        errorMsg = `❌ ${err.message}`;
+      }
+
+      setInstanceError(errorMsg);
     }
   };
 
@@ -447,7 +456,7 @@ export default function AgentConfig() {
   const handleSave = async () => {
     if (config.enabled && !config.instanceId) {
       setSaveStatus('error');
-      alert('Sélectionnez une instance WhatsApp précise avant d\'activer Rita.');
+      alert('❌ Sélectionnez une instance WhatsApp précise avant d\'activer Rita.');
       return;
     }
 
@@ -460,7 +469,12 @@ export default function AgentConfig() {
         : { userId, config };
 
       const { data } = await ecomApi.post('/v1/external/whatsapp/rita-config', payload);
-      if (!data.success) { setSaveStatus('error'); return; }
+      if (!data.success) {
+        setSaveStatus('error');
+        const errorMsg = data.message || 'Erreur lors de la sauvegarde de la configuration';
+        alert(`❌ ${errorMsg}`);
+        return;
+      }
 
       await ecomApi.post('/v1/external/whatsapp/activate', {
         agentId: agentId || undefined,
@@ -480,6 +494,20 @@ export default function AgentConfig() {
     } catch (error) {
       console.error('[AgentConfig] Erreur sauvegarde:', error);
       setSaveStatus('error');
+      const errData = error.response?.data;
+      let errorMsg = '❌ Erreur lors de la sauvegarde de la configuration';
+
+      if (errData?.error === 'upgrade_required') {
+        errorMsg = `❌ ${errData.message || 'Votre plan n\'autorise pas cette action. Veuillez passer à Pro.'}`;
+      } else if (errData?.error === 'limit_reached') {
+        errorMsg = `❌ ${errData.message || 'Limite atteinte. Passez à un plan supérieur.'}`;
+      } else if (errData?.message) {
+        errorMsg = `❌ ${errData.message}`;
+      } else if (error.message) {
+        errorMsg = `❌ ${error.message}`;
+      }
+
+      alert(errorMsg);
     }
     finally { setSaving(false); }
   };
