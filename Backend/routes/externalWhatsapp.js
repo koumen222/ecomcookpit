@@ -1760,7 +1760,7 @@ router.post('/incoming', async (req, res) => {
 
           // Générer la réponse IA
           const startTime = Date.now();
-          const reply = await processIncomingMessage(userId, senderJid, text, { agentId });
+          const reply = await processIncomingMessage(userId, senderJid, text, { agentId, pushName });
           const elapsed = Date.now() - startTime;
 
           if (!reply) {
