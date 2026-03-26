@@ -76,14 +76,22 @@ router.get('/', requireEcomAuth, async (req, res) => {
 
     const agents = await Agent.find({ userId }).sort({ createdAt: -1 });
 
-    // Enrich each agent with live data from the shared RitaConfig
-    const ritaConfig = await RitaConfig.findOne({ userId }).select('instanceId productCatalog enabled').lean();
+    // Enrich each agent with its own RitaConfig (per-agent)
+    const agentIds = agents.map(a => String(a._id));
+    const ritaConfigs = await RitaConfig.find({ agentId: { $in: agentIds } })
+      .select('agentId instanceId productCatalog enabled').lean();
+    const configByAgentId = {};
+    for (const rc of ritaConfigs) {
+      configByAgentId[rc.agentId] = rc;
+    }
+
     const enrichedAgents = agents.map(a => {
       const obj = a.toObject();
-      if (ritaConfig) {
-        obj.instanceId = ritaConfig.instanceId || obj.instanceId || '';
-        obj.productsCount = ritaConfig.productCatalog?.length ?? obj.productsCount ?? 0;
-        obj.ritaEnabled = ritaConfig.enabled || false;
+      const rc = configByAgentId[String(a._id)];
+      if (rc) {
+        obj.instanceId = rc.instanceId || obj.instanceId || '';
+        obj.productsCount = rc.productCatalog?.length ?? obj.productsCount ?? 0;
+        obj.ritaEnabled = rc.enabled || false;
       }
       return obj;
     });
@@ -170,64 +178,43 @@ router.post('/', requireEcomAuth, async (req, res) => {
     // Générer le message de bienvenue personnalisé
     const welcomeMessage = generateWelcomeMessage(name, niche, personality);
 
-    // Créer ou récupérer la RitaConfig (une seule par userId)
-    let ritaConfig = await RitaConfig.findOne({ userId });
-    if (!ritaConfig) {
-      // Nouvelle configuration complète avec tous les paramètres du onboarding
-      ritaConfig = await RitaConfig.create({
-        userId,
-        enabled: false,
-        instanceId: '',
-        agentName: name,
-        welcomeMessage,
-        productCatalog: [],
-        // Profil business
-        country,
-        niche,
-        productType,
-        // Style de communication
-        communicationStyle,
-        tone,
-        personality,
-        // Contact et notifications
-        bossPhone,
-        bossNotifications,
-        notifyOnOrder,
-        // Statut
-        onboardingCompleted,
-      });
-      console.log(`   ✅ RitaConfig créée avec config complète: ${ritaConfig._id}`);
-    } else {
-      // Mettre à jour les champs du onboarding si RitaConfig existe
-      ritaConfig.agentName = name;
-      ritaConfig.welcomeMessage = welcomeMessage;
-      ritaConfig.country = country;
-      ritaConfig.niche = niche;
-      ritaConfig.productType = productType;
-      ritaConfig.communicationStyle = communicationStyle;
-      ritaConfig.tone = tone;
-      ritaConfig.personality = personality;
-      ritaConfig.bossPhone = bossPhone;
-      ritaConfig.bossNotifications = bossNotifications;
-      ritaConfig.notifyOnOrder = notifyOnOrder;
-      ritaConfig.onboardingCompleted = onboardingCompleted;
-      await ritaConfig.save();
-      console.log(`   ✅ RitaConfig mise à jour avec config complète: ${ritaConfig._id}`);
-    }
-
-    // Créer l'agent
+    // ─── Créer l'agent d'abord pour avoir son _id ────────────────────────────
     const agent = await Agent.create({
       userId,
       workspaceId: req.workspaceId,
       name,
       type,
       description,
-      configId: ritaConfig._id,
       status: 'inactive',
       productsCount: 0,
     });
 
-    console.log(`✅ [AGENTS] Agent créé: ${agent._id}`);
+    // ─── Créer une RitaConfig propre à cet agent ─────────────────────────────
+    const ritaConfig = await RitaConfig.create({
+      userId,
+      agentId: String(agent._id),
+      enabled: false,
+      instanceId: '',
+      agentName: name,
+      welcomeMessage,
+      productCatalog: [],
+      country,
+      niche,
+      productType,
+      communicationStyle,
+      tone,
+      personality,
+      bossPhone,
+      bossNotifications,
+      notifyOnOrder,
+      onboardingCompleted,
+    });
+
+    // Lier la config à l'agent
+    agent.configId = ritaConfig._id;
+    await agent.save();
+
+    console.log(`✅ [AGENTS] Agent créé: ${agent._id} | RitaConfig: ${ritaConfig._id}`);
 
     res.status(201).json({
       success: true,
@@ -326,8 +313,9 @@ router.delete('/:id', requireEcomAuth, async (req, res) => {
       });
     }
 
-    // Supprimer l'agent (la RitaConfig est partagée, ne pas la supprimer)
+    // Supprimer l'agent et sa RitaConfig dédiée
     await Agent.findByIdAndDelete(agent._id);
+    await RitaConfig.deleteOne({ agentId: String(agent._id) });
 
     console.log(`✅ [AGENTS] Agent supprimé: ${agent._id}`);
 

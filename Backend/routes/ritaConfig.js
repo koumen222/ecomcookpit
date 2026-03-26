@@ -72,12 +72,23 @@ router.get('/config', requireEcomAuth, requireRitaAgentAccess, async (req, res) 
 
 /**
  * POST /api/ecom/rita/config
- * Sauvegarder la configuration Rita
+ * Sauvegarder la configuration Rita (supporte userId et agentId)
  */
 router.post('/config', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
-    const userId = await resolveRitaUserId(req);
-    const { config } = req.body;
+    const { config, agentId, userId: bodyUserId } = req.body;
+
+    // Utiliser agentId s'il est fourni, sinon userId
+    let queryKey;
+    let queryValue;
+
+    if (agentId) {
+      queryKey = 'agentId';
+      queryValue = agentId;
+    } else {
+      queryKey = 'userId';
+      queryValue = bodyUserId || (await resolveRitaUserId(req));
+    }
 
     if (!config) {
       return res.status(400).json({
@@ -86,7 +97,7 @@ router.post('/config', requireEcomAuth, requireRitaAgentAccess, async (req, res)
       });
     }
 
-    console.log(`💾 [RITA] POST /config pour userId=${userId}`);
+    console.log(`💾 [RITA] POST /config pour ${queryKey}=${queryValue}`);
     console.log(`   - Produits: ${config.productCatalog?.length || 0}`);
 
     // Nettoyer les champs MongoDB (ex: _id, __v)
@@ -102,12 +113,12 @@ router.post('/config', requireEcomAuth, requireRitaAgentAccess, async (req, res)
     };
 
     const updated = await RitaConfig.findOneAndUpdate(
-      { userId },
-      { userId, ...cleanConfig },
+      { [queryKey]: queryValue },
+      { [queryKey]: queryValue, ...cleanConfig },
       { upsert: true, new: true, runValidators: false }
     );
 
-    console.log(`✅ [RITA] Config sauvegardée pour userId=${userId}`);
+    console.log(`✅ [RITA] Config sauvegardée pour ${queryKey}=${queryValue}`);
 
     res.json({
       success: true,
@@ -163,6 +174,48 @@ router.put('/config', requireEcomAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('❌ [RITA] Erreur PUT config:', error.message);
+    res.status(500).json({
+      success: false,
+      error: 'Erreur serveur',
+    });
+  }
+});
+
+/**
+ * GET /api/ecom/rita/config/:agentId
+ * Récupérer la configuration Rita d'un agent spécifique
+ */
+router.get('/config/:agentId', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    console.log(`📋 [RITA] GET /config/${agentId} pour agentId=${agentId}`);
+
+    const config = await RitaConfig.findOne({ agentId }).lean();
+
+    if (!config) {
+      console.log(`ℹ️ [RITA] Aucune config trouvée pour agentId=${agentId} - retour config vide`);
+      return res.json({
+        success: true,
+        config: null, // Frontend créera une config par défaut
+      });
+    }
+
+    console.log(`✅ [RITA] Config chargée pour agent - ${config.productCatalog?.length || 0} produits`);
+    res.json({
+      success: true,
+      config: {
+        enabled: config.enabled || false,
+        instanceId: config.instanceId || '',
+        agentName: config.agentName || 'Rita',
+        welcomeMessage: config.welcomeMessage || 'Bonjour 👋 Comment puis-je vous aider ?',
+        productCatalog: config.productCatalog || [],
+        bossPhone: config.bossPhone || '',
+        bossNotifications: config.bossNotifications || false,
+        notifyOnOrder: config.notifyOnOrder !== false,
+      },
+    });
+  } catch (error) {
+    console.error('❌ [RITA] Erreur GET config par agentId:', error.message);
     res.status(500).json({
       success: false,
       error: 'Erreur serveur',

@@ -1,7 +1,8 @@
 import mongoose from 'mongoose';
 
 const ritaConfigSchema = new mongoose.Schema({
-  userId: { type: String, required: true, unique: true, index: true },
+  userId: { type: String, index: true },
+  agentId: { type: String, index: true }, // Nouvelle clé pour supporter les configs par agent
 
   // ─── Activation ───
   enabled: { type: Boolean, default: false },
@@ -37,7 +38,12 @@ const ritaConfigSchema = new mongoose.Schema({
   // ─── Communication Style ───
   communicationStyle: { type: String, enum: ['professional', 'friendly', 'casual', 'formal'], default: 'friendly' },
   tone: { type: String, default: '' },
-  personality: { type: String, default: '' },
+  personality: {
+    description: { type: String, default: '' },
+    mannerisms: [String],
+    forbiddenPhrases: [String],
+    tonalGuidelines: { type: String, default: '' },
+  },
 
   // ─── Boss settings ───
   bossPhone: { type: String, default: '' },
@@ -50,7 +56,8 @@ const ritaConfigSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now },
 }, {
   collection: 'rita_configs',
-  timestamps: true
+  timestamps: true,
+  strict: false // Permettre les champs non définis dans le schéma
 });
 
 // Index pour recherche rapide
