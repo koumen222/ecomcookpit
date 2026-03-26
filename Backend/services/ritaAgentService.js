@@ -1291,10 +1291,14 @@ ${usesVous
 "Ok parfait ! Donc [Produit] à [Prix] 👍\n\nTu confirmes ? (Oui / Non)"`}
 
 ### Étape 2 — Infos client
-Après le "oui" du client, demande les infos de livraison :
+Après le "oui" du client, demande UNIQUEMENT les infos MANQUANTES.
+⚠️ IMPORTANT : Consulte l'ÉTAT CLIENT ci-dessous. Si une info est déjà marquée ✅ → NE LA REDEMANDE PAS.
+- Si le nom est déjà connu (pushName WhatsApp ou donné plus tôt) → utilise-le directement
+- Si le téléphone WhatsApp est déjà connu → NE JAMAIS le demander
+- Demande SEULEMENT ce qui manque (ville, quartier, numéro d'appel si différent)
 ${usesVous
-? `"Super ! 🎉 Pour préparer votre colis j'ai besoin de :\n- Votre nom complet\n- Votre ville / quartier\n- Un numéro de téléphone 📦"`
-: `"Super ! 🎉 Pour préparer ton colis j'ai besoin de :\n- Ton nom complet\n- Ta ville / quartier\n- Un numéro de téléphone 📦"`}
+? `Exemple avec nom connu : "Super [Prénom] ! 🎉 Pour préparer votre colis j'ai besoin de :\n- Votre ville / quartier\n📦"`
+: `Exemple avec nom connu : "Super [Prénom] ! 🎉 Pour préparer ton colis j'ai besoin de :\n- Ta ville / quartier\n📦"`}
 
 ### Étape 3 — Date et heure de livraison
 Après avoir reçu les infos client, demande la date/heure :
@@ -1325,6 +1329,17 @@ ${usesVous
 "[VOICE] C'est bon, votre commande est bien enregistrée ! On va vous appeler demain pour organiser votre livraison à Douala. Merci beaucoup et à très vite ! [ORDER_DATA:{"name":"Morgan","city":"Douala Akwa","phone":"676778377","product":"Ventilateur 48W","price":"15000 FCFA","delivery_date":"2026-03-18","delivery_time":"18:00"}]"`
 : `Exemple complet d'étape 5 :
 "[VOICE] C'est bon ma belle, ta commande est bien enregistrée ! On va t'appeler demain pour organiser ta livraison à Douala. Merci beaucoup et à très vite ! [ORDER_DATA:{"name":"Morgan","city":"Douala Akwa","phone":"676778377","product":"Ventilateur 48W","price":"15000 FCFA","delivery_date":"2026-03-18","delivery_time":"18:00"}]"`}
+
+## 🔄 CROSS-SELLING — APRÈS COMMANDE CONFIRMÉE
+Après que la commande est confirmée (étape 5 terminée), tu peux proposer UN produit complémentaire si ton catalogue en contient.
+${usesVous
+? `- "Au fait, on a aussi [Produit complémentaire] qui va très bien avec ! Vous voulez le voir ?"
+- "Beaucoup de clients prennent aussi [Produit] en complément, ça vous intéresse ?"`
+: `- "Au fait, on a aussi [Produit complémentaire] qui va très bien avec ! Tu veux le voir ?"
+- "Beaucoup de clients prennent aussi [Produit] en complément, ça t'intéresse ?"`}
+- UNE SEULE proposition de cross-sell par commande
+- Si le client dit non → n'insiste pas, remercie et termine
+- Ne propose que des produits qui ont un LIEN logique avec ce que le client a commandé
 
 ## 🔄 VARIES TES QUESTIONS (RÈGLE ANTI-RÉPÉTITION)
 Ne répète JAMAIS exactement la même question deux fois dans la même conversation.
@@ -2061,6 +2076,70 @@ Exemple TEXTE (question simple) :
 "Tu veux le grand format ou le petit ? 😊"`;
   }
 
+  // ─── LIVRAISON — tarifs, zones, délais ───
+  if (config.deliveryInfo || config.deliveryZones?.length || config.deliveryFee) {
+    prompt += `\n\n## 🚚 LIVRAISON — DONNÉES CONFIGURÉES`;
+    if (config.deliveryFee) {
+      prompt += `\n- Frais de livraison : ${config.deliveryFee}`;
+    }
+    if (config.deliveryDelay) {
+      prompt += `\n- Délai estimé : ${config.deliveryDelay}`;
+    }
+    if (config.deliveryZones?.length) {
+      prompt += `\n- Zones couvertes :`;
+      for (const z of config.deliveryZones) {
+        prompt += `\n  • ${z.city || z.zone}${z.fee ? ` → ${z.fee}` : ''}${z.delay ? ` (${z.delay})` : ''}`;
+      }
+    }
+    if (config.deliveryInfo) {
+      prompt += `\n- Infos complémentaires : ${config.deliveryInfo}`;
+    }
+    prompt += `\n\nSi le client demande des infos de livraison non configurées → ${config.bossEscalationEnabled ? 'utilise [ASK_BOSS:Question livraison du client]' : 'dis que tu vérifies et que tu reviens vers lui'}`;
+  }
+
+  // ─── LIEN GROUPE WHATSAPP ───
+  if (config.whatsappGroupLink) {
+    prompt += `\n\n## 📱 GROUPE WHATSAPP — PROMOTION
+Tu as un groupe WhatsApp que tu peux promouvoir auprès des clients.
+Lien : ${config.whatsappGroupLink}
+
+Quand proposer le groupe :
+- ✅ APRÈS une commande confirmée → "Au fait, on a un groupe WhatsApp où on partage les nouvelles offres et promos ! ${config.whatsappGroupLink}"
+- ✅ Quand le client montre de l'intérêt mais n'est pas encore prêt → "En attendant, rejoins notre groupe pour ne rien rater 😊 ${config.whatsappGroupLink}"
+- ✅ Quand le client demande à être informé des nouveautés
+- ⛔ NE PAS proposer le groupe plus d'UNE FOIS par conversation
+- ⛔ NE PAS proposer le groupe au tout début de la conversation (attends d'abord de comprendre ce que veut le client)`;
+  }
+
+  // ─── INTELLIGENCE COMMERCIALE — signaux d'achat et de fuite ───
+  prompt += `\n\n## 🧠 INTELLIGENCE COMMERCIALE — SIGNAUX À DÉTECTER
+
+### 🟢 Signaux d'ACHAT (accélère vers le closing) :
+- Le client demande la livraison, le délai, les tailles/couleurs → il est prêt
+- Le client demande le prix → il est intéressé, enchaîne avec une proposition
+- Le client dit "c'est bien", "ça m'intéresse", "j'aime bien" → propose la commande
+- Le client pose des questions pratiques (paiement, retour, garantie) → rassure et close
+- Le client donne sa ville ou son nom sans qu'on le demande → il veut commander
+
+### 🔴 Signaux de FUITE (réagis immédiatement) :
+- "Merci", "ok je vais voir", "bonne journée" → tente une dernière accroche AVANT qu'il parte
+${usesVous
+? `  Exemple : "Merci à vous ! 😊 Au fait, vous savez qu'on livre et vous payez à la réception ? Pas de risque !"
+  Exemple : "D'accord ! Juste pour info, il nous en reste très peu en stock 👀"`
+: `  Exemple : "Merci ! 😊 Au fait, tu sais qu'on livre et tu paies à la réception ? Pas de risque !"
+  Exemple : "D'accord ! Juste pour info, il nous en reste très peu en stock 👀"`}
+- "Je réfléchis", "peut-être", "je verrai" → relance douce avec témoignage ou urgence
+- Le client ne répond plus → prépare un message de relance chaleureux
+- "C'est trop cher" → NE BAISSE PAS le prix toi-même, argumente sur la valeur
+
+### 🎯 Vidéo comme arme de persuasion :
+Quand le client hésite et qu'un produit a une vidéo configurée (🎬) → propose PROACTIVEMENT la vidéo :
+${usesVous
+? `- "Vous voulez voir le produit en action ? Je vous montre 👀 [VIDEO:NomProduit]"`
+: `- "Tu veux voir le produit en action ? Je te montre 👀 [VIDEO:NomProduit]"`}
+- La vidéo est ton meilleur outil pour convaincre un client hésitant
+- Utilise-la AVANT de baisser le prix ou d'abandonner`;
+
   prompt += `\n\n## ✅ Rappel final
 - Le prospect vient d'une publicité → il a déjà vu un produit → ton job c'est de l'identifier et de le proposer
 - Ne signe jamais tes messages
@@ -2483,6 +2562,11 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
     contact = await RitaContact.findOne({ userId, phone: cleanPhone }).lean();
   } catch (_) { /* ignore */ }
 
+  // Auto-récupérer le nom depuis pushName WhatsApp si pas encore connu
+  if (!clientState.nom && contact?.pushName) {
+    clientState.nom = contact.pushName;
+  }
+
   // ── Vision : analyser l'image si présente ──
   let imageAnalysis = null;
   if (opts.imageBase64) {
@@ -2537,6 +2621,14 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
         if (/\[ORDER_DATA:/i.test(reply)) {
           t2.ordered = true;
           clientState.statut = 'commande';
+          // Marquer le contact comme "client" dans la base (best-effort)
+          try {
+            await RitaContact.findOneAndUpdate(
+              { userId, phone: cleanPhone },
+              { $set: { hasOrdered: true, lastOrderAt: new Date() }, $inc: { orderCount: 1 } },
+              { upsert: false }
+            );
+          } catch (_) { /* best-effort */ }
         }
       }
       // Tracker les questions posées pour l'anti-répétition
