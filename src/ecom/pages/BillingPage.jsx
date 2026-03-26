@@ -198,7 +198,7 @@ function CheckoutModal({ selectedPlan, onClose, onSuccess, workspaceId, userName
               type="text"
               value={clientName}
               onChange={e => setClientName(e.target.value)}
-              placeholder="Jean Dupont"
+              placeholder="Koumen Morgan"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               required
             />
@@ -509,24 +509,6 @@ export default function BillingPage() {
                   )}
                 </div>
 
-                {/* CTA Button */}
-                <button
-                  onClick={() => {
-                    if (selectedPlan.tier === tier.id) {
-                      setShowCheckout(true);
-                    } else {
-                      setSelectedPlan(tier.durations[0]);
-                    }
-                  }}
-                  className={`w-full py-3 px-6 rounded-xl font-bold transition-all shadow-lg mb-6 ${
-                    selectedPlan.tier === tier.id
-                      ? `bg-gradient-to-r ${tier.color} text-white hover:shadow-xl`
-                      : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-                  }`}
-                >
-                  {selectedPlan.tier === tier.id ? 'Procéder au paiement' : 'Sélectionner'}
-                </button>
-
                 {/* Features */}
                 <div className="space-y-3">
                   {tier.features.map((feature, i) => (
@@ -537,6 +519,29 @@ export default function BillingPage() {
                       {feature}
                     </div>
                   ))}
+                </div>
+
+                {/* Bottom Button */}
+                <div className="mt-8 pt-6 border-t border-gray-200">
+                  {selectedPlan.tier === tier.id ? (
+                    <button
+                      onClick={() => setShowCheckout(true)}
+                      className={`w-full py-3 px-6 rounded-xl font-bold transition-all ${
+                        tier.id === 'ultra'
+                          ? 'bg-scalor-copper hover:bg-scalor-copper-dark text-white'
+                          : 'bg-ecom-primary hover:bg-ecom-primary-dark text-white'
+                      }`}
+                    >
+                      Procéder au paiement
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setSelectedPlan(tier.durations[0])}
+                      className="w-full py-3 px-6 rounded-xl font-bold transition-all bg-gray-100 hover:bg-gray-200 text-gray-900"
+                    >
+                      Sélectionner ce plan
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
