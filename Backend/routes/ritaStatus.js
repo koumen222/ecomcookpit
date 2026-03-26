@@ -8,6 +8,7 @@ import RitaStatusSchedule from '../models/RitaStatusSchedule.js';
 import RitaConfig from '../models/RitaConfig.js';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import evolutionApiService from '../services/evolutionApiService.js';
+import { resolveStatusContent } from '../services/ritaStatusService.js';
 import { requireEcomAuth, requireRitaAgentAccess } from '../middleware/ecomAuth.js';
 import Workspace from '../models/Workspace.js';
 
@@ -107,27 +108,15 @@ router.post('/schedules/:id/send-now', requireEcomAuth, requireRitaAgentAccess, 
     const instance = await WhatsAppInstance.findById(config.instanceId).lean();
     if (!instance?.instanceName) return res.status(400).json({ success: false, error: 'Instance WhatsApp introuvable' });
 
-    // Résoudre le contenu
-    let mediaUrl = schedule.mediaUrl;
-    let caption = schedule.caption;
-    let type = schedule.type;
-
-    if (schedule.type === 'product' && schedule.productName) {
-      const product = (config.productCatalog || []).find(
-        p => p.name?.toLowerCase() === schedule.productName.toLowerCase()
-      );
-      if (product) {
-        mediaUrl = product.images?.[0] || '';
-        const priceText = product.price ? ` — ${product.price}` : '';
-        caption = caption?.trim() || `${product.name}${priceText}\n${product.description || ''}\n\n📦 Disponible maintenant ! Écris-moi pour commander.`;
-        type = mediaUrl ? 'image' : 'text';
-      }
+    const content = await resolveStatusContent(schedule);
+    if (!content.caption && !content.mediaUrl) {
+      return res.status(400).json({ success: false, error: 'Aucun contenu disponible pour ce statut' });
     }
 
     const result = await evolutionApiService.sendStatus(
       instance.instanceName,
       instance.instanceToken,
-      { type, mediaUrl, caption, backgroundColor: schedule.backgroundColor }
+      { type: content.type, mediaUrl: content.mediaUrl, caption: content.caption, backgroundColor: schedule.backgroundColor }
     );
 
     if (result.success) {
