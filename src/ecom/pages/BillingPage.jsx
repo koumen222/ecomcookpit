@@ -25,36 +25,55 @@ const COUNTRY_CODES = [
 ];
 
 // ─── Plan definitions ────────────────────────────────────────────────────────
-const PLANS = [
+const PLAN_TIERS = [
   {
-    id: 'pro_1',
-    label: '1 mois',
-    price: 6000,
-    durationMonths: 1,
-    saving: null
+    id: 'pro',
+    name: 'Pro',
+    description: 'Parfait pour débuter avec l\'IA',
+    color: 'from-ecom-primary to-primary-600',
+    borderColor: 'border-ecom-primary',
+    badgeColor: 'bg-primary-100 text-ecom-primary',
+    features: [
+      '1 agent IA',
+      '1 instance WhatsApp',
+      '1 000 messages/jour',
+      '50 000 messages/mois',
+      'Support prioritaire',
+    ],
+    durations: [
+      { id: 'pro_1', label: 'Mensuel', price: 6000, months: 1, saving: null },
+      { id: 'pro_12', label: 'Annuel', price: 55000, months: 12, saving: '24%' },
+    ],
   },
   {
-    id: 'pro_3',
-    label: '3 mois',
-    price: 16000,
-    durationMonths: 3,
-    saving: '11%'
+    id: 'ultra',
+    name: 'Ultra',
+    description: 'Pour les agences et entrepreneurs',
+    color: 'from-scalor-copper to-scalor-copper-light',
+    borderColor: 'border-scalor-copper',
+    badgeColor: 'bg-scalor-copper/10 text-scalor-copper',
+    badge: 'Recommandé',
+    features: [
+      '5 agents IA',
+      '5 instances WhatsApp',
+      'Messages illimités',
+      'Gestion multi-comptes',
+      'API & webhooks',
+      'Support 24/7',
+    ],
+    durations: [
+      { id: 'ultra_1', label: 'Mensuel', price: 15000, months: 1, saving: null },
+      { id: 'ultra_12', label: 'Annuel', price: 140000, months: 12, saving: '22%' },
+    ],
   },
-  {
-    id: 'pro_6',
-    label: '6 mois',
-    price: 30000,
-    durationMonths: 6,
-    saving: '17%'
-  },
-  {
-    id: 'pro_12',
-    label: '12 mois',
-    price: 55000,
-    durationMonths: 12,
-    saving: '24%'
-  }
 ];
+
+const PLANS = PLAN_TIERS.flatMap(tier =>
+  tier.durations.map(duration => ({
+    ...duration,
+    tier: tier.id,
+  }))
+);
 
 function formatDate(d) {
   if (!d) return '—';
@@ -145,11 +164,11 @@ function CheckoutModal({ selectedPlan, onClose, onSuccess, workspaceId, userName
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 px-6 py-5 text-white">
+        <div className={`bg-gradient-to-r ${selectedPlan.tier === 'ultra' ? 'from-scalor-copper to-scalor-copper-light' : 'from-emerald-600 to-emerald-700'} px-6 py-5 text-white`}>
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold">Passer au plan Pro</h2>
-              <p className="text-emerald-100 text-sm mt-0.5">
+              <h2 className="text-xl font-bold">Passer au plan {selectedPlan.tier === 'ultra' ? 'Ultra' : 'Pro'}</h2>
+              <p className={`${selectedPlan.tier === 'ultra' ? 'text-scalor-copper-light/90' : 'text-emerald-100'} text-sm mt-0.5`}>
                 {selectedPlan.label} — {formatAmount(selectedPlan.price)}
                 {selectedPlan.saving && (
                   <span className="ml-2 bg-amber-400 text-gray-900 text-xs font-bold px-2 py-0.5 rounded-full">
@@ -254,7 +273,7 @@ function CheckoutModal({ selectedPlan, onClose, onSuccess, workspaceId, userName
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold rounded-xl transition shadow-lg text-sm"
+            className={`w-full py-3 ${selectedPlan.tier === 'ultra' ? 'bg-scalor-copper hover:bg-scalor-copper-dark' : 'bg-emerald-600 hover:bg-emerald-700'} disabled:opacity-60 text-white font-bold rounded-xl transition shadow-lg text-sm`}
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
@@ -291,7 +310,7 @@ export default function BillingPage() {
   const [planInfo, setPlanInfo] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPlan, setSelectedPlan] = useState(PLANS[0]);
+  const [selectedPlan, setSelectedPlan] = useState(PLAN_TIERS[0].durations[0]); // Pro Mensuel par défaut
   const [showCheckout, setShowCheckout] = useState(() => {
     // Auto-show checkout if a plan was selected from UpgradeWall
     return !!location.state?.selectedPlan;
@@ -304,10 +323,18 @@ export default function BillingPage() {
   useEffect(() => {
     if (location.state?.selectedPlan) {
       const plan = location.state.selectedPlan;
-      // Trouver le plan correspondant (par défaut 1 mois)
-      const planKey = plan.startsWith('pro') || plan.startsWith('ultra') ? plan : `${plan}_1`;
-      const foundPlan = PLANS.find(p => p.id === planKey) || PLANS.find(p => p.id.startsWith(plan.split('_')[0])) || PLANS[0];
-      setSelectedPlan(foundPlan);
+      // Trouver le plan correspondant
+      let foundPlan = PLANS.find(p => p.id === plan);
+
+      // Si pas trouvé, essayer de deviner (pro_1, ultra_1, etc)
+      if (!foundPlan) {
+        const tierName = plan.includes('ultra') ? 'ultra' : 'pro';
+        foundPlan = PLAN_TIERS.find(t => t.id === tierName)?.durations[0];
+      }
+
+      if (foundPlan) {
+        setSelectedPlan(foundPlan);
+      }
       setShowCheckout(true);
     }
   }, [location.state]);
@@ -421,41 +448,99 @@ export default function BillingPage() {
 
       {/* Upgrade Plans (only if not pro) */}
       {!isPro && (
-        <div>
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Choisir une durée</h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {PLANS.map(plan => (
-              <button
-                key={plan.id}
-                onClick={() => setSelectedPlan(plan)}
-                className={`relative rounded-xl border-2 p-4 text-left transition-all ${
-                  selectedPlan.id === plan.id
-                    ? 'border-emerald-600 bg-emerald-50 shadow-md'
-                    : 'border-gray-200 bg-white hover:border-emerald-300'
-                }`}
-              >
-                {plan.saving && (
-                  <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-amber-400 text-gray-900 text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
-                    -{plan.saving}
-                  </span>
-                )}
-                <p className="font-bold text-gray-900 text-sm">{plan.label}</p>
-                <p className="text-xl font-black text-emerald-700 mt-1">
-                  {formatAmount(plan.price)}
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {Math.round(plan.price / plan.durationMonths).toLocaleString('fr-FR')} FCFA/mois
-                </p>
-              </button>
-            ))}
+        <div className="space-y-8">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Choisissez votre plan</h2>
+            <p className="text-gray-600">Démarrez avec Pro ou passez à Ultra pour plus de capacités</p>
           </div>
 
-          <button
-            onClick={() => setShowCheckout(true)}
-            className="mt-6 w-full sm:w-auto px-8 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shadow-lg"
-          >
-            Souscrire au plan Pro — {formatAmount(selectedPlan.price)}
-          </button>
+          {/* Plan Cards */}
+          <div className="grid lg:grid-cols-2 gap-8">
+            {PLAN_TIERS.map(tier => (
+              <div
+                key={tier.id}
+                className={`relative rounded-3xl border-2 p-8 transition-all ${
+                  tier.borderColor
+                } ${tier.id === selectedPlan.tier ? 'shadow-2xl scale-[1.02]' : 'hover:shadow-lg'}`}
+              >
+                {tier.badge && (
+                  <div className={`absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full font-bold text-sm ${tier.badgeColor}`}>
+                    ⭐ {tier.badge}
+                  </div>
+                )}
+
+                {/* Header */}
+                <div className="mb-6">
+                  <h3 className="text-3xl font-black text-gray-900">{tier.name}</h3>
+                  <p className="text-gray-600 text-sm mt-1">{tier.description}</p>
+                </div>
+
+                {/* Duration Toggle */}
+                <div className="mb-6 flex gap-2">
+                  {tier.durations.map(duration => (
+                    <button
+                      key={duration.id}
+                      onClick={() => setSelectedPlan(duration)}
+                      className={`flex-1 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${
+                        selectedPlan.id === duration.id
+                          ? `bg-gradient-to-r ${tier.color} text-white shadow-lg`
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <span>{duration.label}</span>
+                      {duration.saving && (
+                        <div className="text-xs mt-0.5 font-bold opacity-90">-{duration.saving}</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Price */}
+                <div className="mb-6 pb-6 border-b border-gray-200">
+                  <div className="flex items-baseline gap-1">
+                    <span className={`text-4xl font-black bg-gradient-to-r ${tier.color} bg-clip-text text-transparent`}>
+                      {formatAmount(selectedPlan.id.startsWith(tier.id) ? selectedPlan.price : tier.durations[0].price)}
+                    </span>
+                  </div>
+                  {selectedPlan.id.startsWith(tier.id) && selectedPlan.id !== `${tier.id}_1` && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      {Math.round((selectedPlan.id.startsWith(tier.id) ? selectedPlan.price : tier.durations[0].price) / (selectedPlan.id.startsWith(tier.id) ? selectedPlan.months : tier.durations[0].months)).toLocaleString('fr-FR')} FCFA/mois
+                    </p>
+                  )}
+                </div>
+
+                {/* CTA Button */}
+                <button
+                  onClick={() => {
+                    if (selectedPlan.tier === tier.id) {
+                      setShowCheckout(true);
+                    } else {
+                      setSelectedPlan(tier.durations[0]);
+                    }
+                  }}
+                  className={`w-full py-3 px-6 rounded-xl font-bold transition-all shadow-lg mb-6 ${
+                    selectedPlan.tier === tier.id
+                      ? `bg-gradient-to-r ${tier.color} text-white hover:shadow-xl`
+                      : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                  }`}
+                >
+                  {selectedPlan.tier === tier.id ? 'Procéder au paiement' : 'Sélectionner'}
+                </button>
+
+                {/* Features */}
+                <div className="space-y-3">
+                  {tier.features.map((feature, i) => (
+                    <div key={i} className="flex items-center gap-3 text-sm text-gray-700">
+                      <svg className="w-5 h-5 text-emerald-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      {feature}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
