@@ -526,6 +526,76 @@ class EvolutionApiService {
   }
 
   // ═══════════════════════════════════════════════════════════════
+  // Statuts WhatsApp (Stories)
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Publie un statut WhatsApp (image ou texte)
+   * POST /status/send/{instance}
+   * @param {string} instanceName
+   * @param {string} instanceToken
+   * @param {object} opts
+   * @param {string} opts.type - 'image' | 'text'
+   * @param {string} [opts.mediaUrl] - URL ou base64 de l'image (si type=image)
+   * @param {string} [opts.caption] - Texte/légende
+   * @param {string} [opts.backgroundColor] - Couleur de fond pour statut texte (ex: '#0F6B4F')
+   */
+  async sendStatus(instanceName, instanceToken, opts = {}) {
+    const { type = 'text', mediaUrl, caption = '', backgroundColor = '#0F6B4F' } = opts;
+
+    let payload;
+
+    if (type === 'image' && mediaUrl) {
+      // Résoudre fichier local → base64
+      let media = mediaUrl;
+      try {
+        const localMatch = mediaUrl.match(/(?:https?:\/\/(?:api\.scalor\.net|localhost[:\d]*))\/uploads\/(.+)$/);
+        if (localMatch) {
+          const decodedFile = decodeURIComponent(localMatch[1]);
+          const localPath = path.resolve(__dirname, '..', 'uploads', decodedFile);
+          if (fs.existsSync(localPath)) {
+            const buf = fs.readFileSync(localPath);
+            const ext = decodedFile.split('.').pop().toLowerCase();
+            const mime = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }[ext] || 'image/jpeg';
+            media = `data:${mime};base64,${buf.toString('base64')}`;
+          }
+        }
+      } catch { /* garder l'URL originale */ }
+
+      payload = {
+        type: 'image',
+        image: media,
+        caption,
+      };
+    } else {
+      payload = {
+        type: 'text',
+        value: caption,
+        backgroundColor,
+        font: 1,
+      };
+    }
+
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/status/send/${instanceName}`,
+        payload,
+        {
+          headers: { 'Content-Type': 'application/json', 'apikey': instanceToken },
+          timeout: 45000,
+          maxBodyLength: 50 * 1024 * 1024,
+        }
+      );
+      console.log(`✅ [Evolution API] Statut publié via ${instanceName}`);
+      return { success: true, data: response.data };
+    } catch (error) {
+      const errorData = error.response?.data;
+      console.error(`❌ Erreur Evolution API (sendStatus):`, JSON.stringify(errorData, null, 2) || error.message);
+      return { success: false, error: errorData?.message || error.message };
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   // Gestion des Groupes WhatsApp
   // ═══════════════════════════════════════════════════════════════
 
