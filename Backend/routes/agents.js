@@ -75,10 +75,22 @@ router.get('/', requireEcomAuth, async (req, res) => {
 
     const agents = await Agent.find({ userId }).sort({ createdAt: -1 });
 
+    // Enrich each agent with live data from the shared RitaConfig
+    const ritaConfig = await RitaConfig.findOne({ userId }).select('instanceId productCatalog enabled').lean();
+    const enrichedAgents = agents.map(a => {
+      const obj = a.toObject();
+      if (ritaConfig) {
+        obj.instanceId = ritaConfig.instanceId || obj.instanceId || '';
+        obj.productsCount = ritaConfig.productCatalog?.length ?? obj.productsCount ?? 0;
+        obj.ritaEnabled = ritaConfig.enabled || false;
+      }
+      return obj;
+    });
+
     console.log(`✅ [AGENTS] ${agents.length} agent(s) trouvé(s)`);
     res.json({
       success: true,
-      agents,
+      agents: enrichedAgents,
     });
   } catch (error) {
     console.error('❌ [AGENTS] Erreur GET agents:', error.message);
