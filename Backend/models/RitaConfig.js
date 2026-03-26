@@ -49,6 +49,15 @@ const ritaConfigSchema = new mongoose.Schema({
   customInstructionsEnabled: { type: Boolean, default: false },
   customInstructions: { type: String, default: '' },
 
+  // ─── Premier message (règles d'accueil) ───
+  firstMessageRulesEnabled: { type: Boolean, default: false },
+  firstMessageRules: [{
+    type: { type: String, enum: ['video', 'image', 'text', 'catalog'], default: 'text' },
+    content: { type: String, default: '' }, // URL pour video/image, texte pour text
+    label: { type: String, default: '' },   // Description courte
+    enabled: { type: Boolean, default: true },
+  }],
+
   // ─── Métadonnées ───
   onboardingCompleted: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },

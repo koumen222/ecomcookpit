@@ -353,6 +353,9 @@ export default function AgentConfig() {
     // Instructions personnalisées
     customInstructionsEnabled: false,
     customInstructions: '',
+    // Premier message
+    firstMessageRulesEnabled: false,
+    firstMessageRules: [],
   });
 
   const [savedConfig, setSavedConfig] = useState(null);
@@ -3007,7 +3010,130 @@ export default function AgentConfig() {
         {/* ─── TAB: INSTRUCTIONS ─── */}
         {activeTab === 'instructions' && (
           <div className="space-y-6">
-            {/* Header */}
+
+            {/* ── RÈGLES PREMIER MESSAGE ── */}
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="p-5 border-b border-gray-100 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#f0fdf4' }}>
+                  <MessageSquare className="w-5 h-5" style={{ color: ACCENT }} />
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-bold text-gray-900">Règles du premier message</h3>
+                  <p className="text-[12px] text-gray-500">Définissez ce que l'agent envoie automatiquement quand un contact vous écrit pour la première fois</p>
+                </div>
+              </div>
+
+              <div className="p-5 space-y-5">
+                {/* Toggle */}
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
+                  <div>
+                    <p className="text-[14px] font-semibold text-gray-800">Activer les règles du premier message</p>
+                    <p className="text-[12px] text-gray-500 mt-0.5">
+                      {config.firstMessageRulesEnabled
+                        ? '✅ Actif — vos règles s\'appliquent au premier contact'
+                        : '⬜ Inactif — l\'agent accueille naturellement sans règle fixe'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => set('firstMessageRulesEnabled', !config.firstMessageRulesEnabled)}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${config.firstMessageRulesEnabled ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                  >
+                    <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${config.firstMessageRulesEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+
+                {/* Rules list */}
+                {config.firstMessageRulesEnabled && (
+                  <div className="space-y-3">
+                    {(config.firstMessageRules || []).map((rule, idx) => (
+                      <div key={idx} className="p-4 rounded-xl border border-gray-200 bg-gray-50 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                const updated = (config.firstMessageRules || []).map((r, i) => i === idx ? { ...r, enabled: !r.enabled } : r);
+                                set('firstMessageRules', updated);
+                              }}
+                              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${rule.enabled ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                            >
+                              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${rule.enabled ? 'translate-x-4' : 'translate-x-1'}`} />
+                            </button>
+                            <select
+                              value={rule.type}
+                              onChange={e => {
+                                const updated = (config.firstMessageRules || []).map((r, i) => i === idx ? { ...r, type: e.target.value, content: '' } : r);
+                                set('firstMessageRules', updated);
+                              }}
+                              className="text-[12px] font-semibold border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none"
+                            >
+                              <option value="video">🎥 Vidéo</option>
+                              <option value="image">🖼️ Image</option>
+                              <option value="text">💬 Message texte</option>
+                              <option value="catalog">📦 Catalogue produits</option>
+                            </select>
+                          </div>
+                          <button
+                            onClick={() => set('firstMessageRules', (config.firstMessageRules || []).filter((_, i) => i !== idx))}
+                            className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {rule.type !== 'catalog' && (
+                          <div className="space-y-2">
+                            <input
+                              type="text"
+                              value={rule.label || ''}
+                              onChange={e => {
+                                const updated = (config.firstMessageRules || []).map((r, i) => i === idx ? { ...r, label: e.target.value } : r);
+                                set('firstMessageRules', updated);
+                              }}
+                              placeholder="Description courte (ex: Vidéo de présentation)"
+                              className="w-full px-3 py-2 text-[12px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                            />
+                            <input
+                              type="text"
+                              value={rule.content || ''}
+                              onChange={e => {
+                                const updated = (config.firstMessageRules || []).map((r, i) => i === idx ? { ...r, content: e.target.value } : r);
+                                set('firstMessageRules', updated);
+                              }}
+                              placeholder={
+                                rule.type === 'video' ? 'URL de la vidéo (ex: https://...)' :
+                                rule.type === 'image' ? 'URL de l\'image (ex: https://...)' :
+                                'Message à envoyer au client'
+                              }
+                              className="w-full px-3 py-2 text-[12px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 font-mono"
+                            />
+                          </div>
+                        )}
+                        {rule.type === 'catalog' && (
+                          <p className="text-[11px] text-gray-500 italic">L'agent enverra la liste complète de vos produits avec prix dès le premier contact.</p>
+                        )}
+                      </div>
+                    ))}
+
+                    <button
+                      onClick={() => set('firstMessageRules', [...(config.firstMessageRules || []), { type: 'text', content: '', label: '', enabled: true }])}
+                      className="w-full py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-[12px] font-semibold text-gray-500 hover:border-emerald-400 hover:text-emerald-600 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" /> Ajouter une règle
+                    </button>
+                  </div>
+                )}
+
+                <div className={`p-3 rounded-xl border text-[11px] space-y-1 ${config.firstMessageRulesEnabled ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
+                  <p className="font-bold">Exemples de règles :</p>
+                  <p>• Vidéo : envoyer une vidéo de présentation du produit phare dès le premier message</p>
+                  <p>• Image : envoyer une photo du catalogue ou d'une promo en cours</p>
+                  <p>• Texte : accueillir avec un message personnalisé avant de poser des questions</p>
+                  <p>• Catalogue : partager directement tous vos produits avec prix</p>
+                </div>
+              </div>
+            </div>
+
+            {/* ── INSTRUCTIONS PERSONNALISÉES ── */}
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
               <div className="p-5 border-b border-gray-100 flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#f0fdf4' }}>
@@ -3025,16 +3151,16 @@ export default function AgentConfig() {
                   <div>
                     <p className="text-[14px] font-semibold text-gray-800">Activer les instructions personnalisées</p>
                     <p className="text-[12px] text-gray-500 mt-0.5">
-                      {cfg.customInstructionsEnabled
+                      {config.customInstructionsEnabled
                         ? '✅ Actif — vos instructions remplacent le comportement par défaut'
                         : '⬜ Inactif — l\'agent utilise le comportement standard'}
                     </p>
                   </div>
                   <button
-                    onClick={() => handleChange('customInstructionsEnabled', !cfg.customInstructionsEnabled)}
-                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${cfg.customInstructionsEnabled ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                    onClick={() => set('customInstructionsEnabled', !config.customInstructionsEnabled)}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${config.customInstructionsEnabled ? 'bg-emerald-600' : 'bg-gray-300'}`}
                   >
-                    <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${cfg.customInstructionsEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${config.customInstructionsEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                   </button>
                 </div>
 
@@ -3043,8 +3169,8 @@ export default function AgentConfig() {
                   <label className="text-[13px] font-semibold text-gray-700">Vos instructions</label>
                   <textarea
                     rows={14}
-                    value={cfg.customInstructions}
-                    onChange={e => handleChange('customInstructions', e.target.value)}
+                    value={config.customInstructions}
+                    onChange={e => set('customInstructions', e.target.value)}
                     placeholder={`Exemples d'instructions que vous pouvez écrire :
 
 - Ne jamais proposer de remise sur le produit X
@@ -3055,19 +3181,19 @@ export default function AgentConfig() {
 - Utiliser uniquement des emojis 👍 et 🙏 — pas d'autres emojis
 - Ne jamais mentionner le prix avant d'avoir compris le besoin du client`}
                     className={`w-full px-4 py-3 rounded-xl border text-[13px] font-mono resize-y focus:outline-none focus:ring-2 transition-all ${
-                      cfg.customInstructionsEnabled
+                      config.customInstructionsEnabled
                         ? 'border-emerald-300 bg-white focus:ring-emerald-200'
                         : 'border-gray-200 bg-gray-50 text-gray-400 focus:ring-gray-200'
                     }`}
-                    disabled={!cfg.customInstructionsEnabled}
+                    disabled={!config.customInstructionsEnabled}
                   />
                   <p className="text-[11px] text-gray-400">
-                    {cfg.customInstructions?.length || 0} caractères · Écrivez en langage naturel, l'agent comprend vos instructions directement
+                    {config.customInstructions?.length || 0} caractères · Écrivez en langage naturel, l'agent comprend vos instructions directement
                   </p>
                 </div>
 
                 {/* Info box */}
-                <div className={`p-4 rounded-xl border text-[12px] space-y-1.5 ${cfg.customInstructionsEnabled ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
+                <div className={`p-4 rounded-xl border text-[12px] space-y-1.5 ${config.customInstructionsEnabled ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
                   <p className="font-bold">Comment ça fonctionne :</p>
                   <p>• Quand <strong>activé</strong> : vos instructions ont la priorité maximale sur toutes les règles par défaut</p>
                   <p>• Quand <strong>désactivé</strong> : l'agent ignore ces instructions et applique le comportement standard</p>

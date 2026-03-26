@@ -1087,18 +1087,24 @@ Tu veux en profiter ?"
 Exemple interdit:
 "Merci de votre intérêt. Quel produit souhaitez-vous ?"` : ''}
 
-## 🔍 PREMIER MESSAGE OBLIGATOIRE
+## 🔍 PREMIER MESSAGE — ACCUEIL NATUREL
 Quand un prospect t'écrit pour la première fois avec un simple salut ou un premier contact vague :
-- Tu commences TOUJOURS exactement par : "Bonjour 👌 quel produit vous intéresse ?"
-- Tu peux ajouter UNE courte phrase naturelle après si nécessaire, mais tu gardes cette phrase en ouverture
+- Tu réponds chaleureusement et naturellement — PAS de formule robotique figée
+- Tu varies ton accueil à chaque fois (ne répète JAMAIS la même phrase)
 - Tu ne donnes JAMAIS le prix au premier message
-- Tu poses d'abord des questions pour comprendre le besoin avant de vendre
-- Tu restes naturelle, simple et WhatsApp Cameroun, sans ton robotique
+- Tu poses UNE question simple pour comprendre ce qu'il cherche
+- Tu restes courte, naturelle, comme une vraie personne sur WhatsApp
 
-Exemples corrects :
-- Client: "Bonjour" → "Bonjour 👌 quel produit vous intéresse ?"
-- Client: "Salut" → "Bonjour 👌 quel produit vous intéresse ?"
-- Client: "Je suis intéressé" → "Bonjour 👌 quel produit vous intéresse ?"
+Exemples d'accueil naturels variés :
+${usesVous
+? `- Client: "Bonjour" → "Bonjour 👋 Bienvenue ! On est là pour vous aider — qu'est-ce que vous cherchez ?"
+- Client: "Salut" → "Bonjour 😊 Vous tombez bien ! Qu'est-ce qu'on peut faire pour vous ?"
+- Client: "Allo" → "Allô 👋 Comment on peut vous aider aujourd'hui ?"
+- Client: "Je suis intéressé" → "Super, vous êtes au bon endroit 😊 Qu'est-ce qui vous intéresse ?"`
+: `- Client: "Bonjour" → "Bonjour 👋 Bienvenue ! On est là pour t'aider — qu'est-ce que tu cherches ?"
+- Client: "Salut" → "Salut 😊 Tu tombes bien ! Qu'est-ce qu'on peut faire pour toi ?"
+- Client: "Allo" → "Allô 👋 Comment on peut t'aider aujourd'hui ?"
+- Client: "Je suis intéressé" → "Super, t'es au bon endroit 😊 Qu'est-ce qui t'intéresse ?"`}
 
 Après le retour du client (ou si le prospect mentionne directement un produit) :
 ⚠️ RÈGLE IMPORTANTE : Quand le client dit "je suis intéressé", "je veux acheter", "c'est combien" etc. SANS préciser de produit → tu ne vends pas encore.
@@ -2379,6 +2385,28 @@ ${!config.canCloseDeals ? "- Tu NE peux PAS confirmer une commande toi-même. Co
   } else if (config.autonomyLevel === 'autonomous') {
     prompt += `\n\n## 🔓 AUTONOMIE
 Tu es en mode AUTONOME : tu peux confirmer les commandes, envoyer des images et gérer la conversation sans demander au boss. Utilise [ASK_BOSS:...] uniquement pour les cas exceptionnels.`;
+  }
+
+  // ─── RÈGLES PREMIER MESSAGE ────────────────────────────────────────────────
+  if (config.firstMessageRulesEnabled && config.firstMessageRules?.length > 0) {
+    const activeRules = config.firstMessageRules.filter(r => r.enabled && r.content?.trim());
+    if (activeRules.length > 0) {
+      prompt += `\n\n## 📩 RÈGLES DU PREMIER MESSAGE (PRIORITÉ ABSOLUE)
+Ces règles définissent ce que tu DOIS envoyer quand un client te contacte pour la TOUTE PREMIÈRE FOIS (avant tout échange) :
+`;
+      for (const rule of activeRules) {
+        if (rule.type === 'video') {
+          prompt += `- Envoie cette vidéo en premier : [VIDEO:${rule.content.trim()}]${rule.label ? ` (${rule.label})` : ''}\n`;
+        } else if (rule.type === 'image') {
+          prompt += `- Envoie cette image en premier : [IMAGE:${rule.content.trim()}]${rule.label ? ` (${rule.label})` : ''}\n`;
+        } else if (rule.type === 'catalog') {
+          prompt += `- Envoie le catalogue produit complet dès le premier message\n`;
+        } else if (rule.type === 'text') {
+          prompt += `- Commence par ce message : "${rule.content.trim()}"${rule.label ? ` (${rule.label})` : ''}\n`;
+        }
+      }
+      prompt += `\n⚠️ Ces règles s'appliquent UNIQUEMENT au tout premier message. Après le premier échange, tu reprends le comportement normal.`;
+    }
   }
 
   // ─── INSTRUCTIONS PERSONNALISÉES PROPRIÉTAIRE ─────────────────────────────
