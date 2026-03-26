@@ -34,3 +34,9 @@ export async function getPaymentHistory(workspaceId) {
   const { data } = await ecomApi.get('/billing/history', { params: { workspaceId } });
   return data;
 }
+
+/** Activate 3-day free trial */
+export async function activateTrial(workspaceId) {
+  const { data } = await ecomApi.post('/billing/trial', { workspaceId });
+  return data;
+}

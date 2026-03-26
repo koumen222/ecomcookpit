@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ecomApi from '../services/ecommApi.js';
+import { getCurrentPlan } from '../services/billingApi.js';
+import UpgradeWall from '../components/UpgradeWall.jsx';
 import {
-  Settings, Package, AlertCircle, ArrowRight,
+  AlertCircle, ArrowRight,
   Plus, Trash2, X, Zap,
-  Smartphone, ChevronRight, Sparkles, Circle, DollarSign, BarChart3, Activity, User
+  Smartphone, Sparkles, DollarSign, BarChart3, Activity, User, Crown
 } from 'lucide-react';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -236,10 +238,13 @@ export default function AgentIAList() {
   const [deleting, setDeleting] = useState(null);
   const [kpis, setKpis] = useState({ orders: 0, revenue: 0, conversionRate: '0.0' });
   const [kpisLoading, setKpisLoading] = useState(false);
+  const [planInfo, setPlanInfo] = useState(null);
+  const [showUpgradeWall, setShowUpgradeWall] = useState(false);
 
   useEffect(() => {
     loadCommerciaux();
     loadTodayStats();
+    loadPlan();
   }, []);
 
   const loadTodayStats = async () => {
@@ -262,6 +267,15 @@ export default function AgentIAList() {
     }
   };
 
+  const loadPlan = async () => {
+    try {
+      const data = await getCurrentPlan();
+      setPlanInfo(data);
+    } catch {
+      // silently ignore
+    }
+  };
+
   const loadCommerciaux = async () => {
     try {
       setLoading(true);
@@ -276,7 +290,15 @@ export default function AgentIAList() {
     }
   };
 
-  const handleCreateCommercial = () => navigate('/ecom/agent-onboarding');
+  const isFreeUser = planInfo && planInfo.plan === 'free' && !planInfo.trial?.active;
+
+  const handleCreateCommercial = () => {
+    if (isFreeUser) {
+      setShowUpgradeWall(true);
+      return;
+    }
+    navigate('/ecom/agent-onboarding');
+  };
 
   const handleDeleteCommercial = async (commercialId) => {
     if (!window.confirm('Êtes-vous sûr ? Cela supprimera le commercial et sa configuration.')) return;
@@ -314,7 +336,49 @@ export default function AgentIAList() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      {/* Upgrade wall modal */}
+      {showUpgradeWall && (
+        <UpgradeWall
+          onDismiss={() => setShowUpgradeWall(false)}
+          workspaceId={planInfo?.workspaceId}
+          trialUsed={planInfo?.trial?.used}
+        />
+      )}
+
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+
+        {/* PLAN BADGE */}
+        {planInfo && (
+          <div className="flex justify-end">
+            {planInfo.plan === 'free' && !planInfo.trial?.active && (
+              <button
+                onClick={() => setShowUpgradeWall(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-scalor-copper/10 border border-scalor-copper/30 text-scalor-copper text-sm font-semibold rounded-xl hover:bg-scalor-copper/20 transition-colors"
+              >
+                <Crown className="w-4 h-4" />
+                Passer Pro
+              </button>
+            )}
+            {planInfo.trial?.active && (
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 text-sm font-semibold rounded-xl">
+                <Zap className="w-4 h-4" />
+                Essai gratuit — expire le {new Date(planInfo.trial.endsAt).toLocaleDateString('fr-FR')}
+              </div>
+            )}
+            {planInfo.plan === 'pro' && planInfo.isActive && (
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-50 border border-primary-200 text-ecom-primary text-sm font-semibold rounded-xl">
+                <Crown className="w-4 h-4" />
+                Plan Pro
+              </div>
+            )}
+            {planInfo.plan === 'ultra' && planInfo.isActive && (
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-scalor-copper/10 border border-scalor-copper/30 text-scalor-copper text-sm font-semibold rounded-xl">
+                <Crown className="w-4 h-4" />
+                Plan Ultra
+              </div>
+            )}
+          </div>
+        )}
 
         {/* HERO SECTION */}
         <HeroSection onCreateClick={handleCreateCommercial} />

@@ -20,7 +20,7 @@ const planPaymentSchema = new mongoose.Schema({
   },
   plan: {
     type: String,
-    enum: ['pro'],
+    enum: ['pro', 'ultra'],
     required: true
   },
   durationMonths: {
