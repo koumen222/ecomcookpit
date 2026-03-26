@@ -2656,7 +2656,7 @@ router.get('/rita-config/:agentId', requireEcomAuth, requireRitaAgentAccess, asy
     const config = await RitaConfig.findOne({ agentId }).lean();
     res.status(200).json({ success: true, config: config || null });
   } catch (error) {
-    console.error('❌ Erreur chargement rita-config par agentId:', error.message);
+    console.error('❌ Erreur chargement rita-config agent:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -2732,9 +2732,10 @@ router.get('/rita-activity', requireEcomAuth, requireRitaAgentAccess, async (req
  * @route   GET /api/ecom/v1/external/whatsapp/rita-contacts
  * @desc    Liste tous les contacts Rita enregistrés automatiquement
  */
-router.get('/rita-contacts', async (req, res) => {
+router.get('/rita-contacts', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
-    const { userId, page, limit: lim } = req.query;
+    const { page, limit: lim } = req.query;
+    const userId = await resolveRitaTargetUserId(req);
     if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
 
     const pageNum = Math.max(1, parseInt(page) || 1);
@@ -2756,6 +2757,9 @@ router.get('/rita-contacts', async (req, res) => {
         clientNumber: c.clientNumber,
         phone: c.phone,
         pushName: c.pushName,
+        nom: c.nom,
+        ville: c.ville,
+        adresse: c.adresse,
         messageCount: c.messageCount,
         hasOrdered: c.hasOrdered,
         firstMessageAt: c.firstMessageAt,
@@ -2776,9 +2780,9 @@ router.get('/rita-contacts', async (req, res) => {
  * @route   GET /api/ecom/v1/external/whatsapp/rita-contacts/export
  * @desc    Exporte tous les contacts Rita en CSV
  */
-router.get('/rita-contacts/export', async (req, res) => {
+router.get('/rita-contacts/export', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
-    const { userId } = req.query;
+    const userId = await resolveRitaTargetUserId(req);
     if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
 
     const contacts = await RitaContact.find({ userId }).sort({ clientNumber: 1 }).lean();
