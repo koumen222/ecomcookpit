@@ -195,32 +195,33 @@ router.post('/', requireEcomAuth, async (req, res) => {
       productsCount: 0,
     });
 
-    // ─── Créer une RitaConfig propre à cet agent ─────────────────────────────
-    const ritaConfig = await RitaConfig.create({
-      userId,
-      agentId: String(agent._id),
-      enabled: false,
-      instanceId: '',
-      agentName: name,
-      welcomeMessage,
-      productCatalog: [],
-      country,
-      niche,
-      productType,
-      communicationStyle,
-      tone,
-      personality,
-      bossPhone,
-      bossNotifications,
-      notifyOnOrder,
-      onboardingCompleted,
-    });
-
-    // Lier la config à l'agent
-    agent.configId = ritaConfig._id;
-    await agent.save();
-
-    console.log(`✅ [AGENTS] Agent créé: ${agent._id} | RitaConfig: ${ritaConfig._id}`);
+    // ─── Créer une RitaConfig propre à cet agent (best-effort) ─────────────
+    try {
+      const ritaConfig = await RitaConfig.create({
+        userId,
+        agentId: String(agent._id),
+        enabled: false,
+        instanceId: '',
+        agentName: name,
+        welcomeMessage,
+        productCatalog: [],
+        country,
+        niche,
+        productType,
+        communicationStyle,
+        tone,
+        personality,
+        bossPhone,
+        bossNotifications,
+        notifyOnOrder,
+        onboardingCompleted,
+      });
+      agent.configId = ritaConfig._id;
+      await agent.save();
+      console.log(`✅ [AGENTS] Agent créé: ${agent._id} | RitaConfig: ${ritaConfig._id}`);
+    } catch (configErr) {
+      console.error(`⚠️ [AGENTS] Agent créé (${agent._id}) mais RitaConfig échouée:`, configErr.message);
+    }
 
     res.status(201).json({
       success: true,
