@@ -1414,36 +1414,33 @@ router.post('/incoming', async (req, res) => {
           }
 
           // ─── Enregistrer le contact dès qu'il écrit (avant tout traitement) ───
-          if (instanceDoc) {
-            try {
-              const earlyUserId = userId;
-              const earlyPhone = senderPhone;
-              // Exclure le numéro du boss
-              const earlyCfg = await RitaConfig.findOne(agentId ? { agentId } : { userId: earlyUserId }).lean();
-              const bossPhoneEarly = (earlyCfg?.bossPhone || '').replace(/\D/g, '');
-              const fromPhoneEarly = earlyPhone.replace(/\D/g, '');
-              if (!bossPhoneEarly || fromPhoneEarly !== bossPhoneEarly) {
-                const ec = await RitaContact.findOne({ userId: earlyUserId, phone: earlyPhone });
-                if (ec) {
-                  ec.lastMessageAt = new Date();
-                  ec.messageCount = (ec.messageCount || 0) + 1;
-                  const needsNameSync = pushName && !ec.pushName;
-                  if (pushName && !ec.pushName) ec.pushName = pushName;
-                  await ec.save();
-                  // Mettre à jour le nom sur l'appareil si on vient de l'obtenir
-                  if (needsNameSync) {
-                    evolutionApiService.saveContact(
-                      instanceDoc.instanceName,
-                      instanceDoc.instanceToken,
-                      earlyPhone,
-                      pushName
-                    );
+          if (instanceDoc && userId) {
+            (async () => {
+              try {
+                const earlyPhone = senderPhone;
+                // Exclure le numéro du boss
+                const earlyCfg = await RitaConfig.findOne(agentId ? { agentId } : { userId }).select('bossPhone').lean();
+                const bossPhoneClean = (earlyCfg?.bossPhone || '').replace(/\D/g, '');
+                if (bossPhoneClean && earlyPhone.replace(/\D/g, '') === bossPhoneClean) return;
+
+                // Vérifier si le contact existe déjà
+                const existing = await RitaContact.findOne({ userId, phone: earlyPhone }).select('_id pushName clientNumber').lean();
+
+                if (existing) {
+                  // Mise à jour atomique
+                  const upd = { $set: { lastMessageAt: new Date() }, $inc: { messageCount: 1 } };
+                  if (pushName && !existing.pushName) {
+                    upd.$set.pushName = pushName;
+                    // Sync nom sur l'appareil WhatsApp
+                    evolutionApiService.saveContact(instanceDoc.instanceName, instanceDoc.instanceToken, earlyPhone, pushName).catch(() => {});
                   }
+                  await RitaContact.updateOne({ userId, phone: earlyPhone }, upd);
                 } else {
-                  const lc = await RitaContact.findOne({ userId: earlyUserId }).sort({ clientNumber: -1 }).lean();
+                  // Nouveau contact — numéro auto-incrémenté de façon atomique
+                  const lc = await RitaContact.findOne({ userId }).sort({ clientNumber: -1 }).select('clientNumber').lean();
                   const nn = (lc?.clientNumber || 0) + 1;
                   await RitaContact.create({
-                    userId: earlyUserId,
+                    userId,
                     phone: earlyPhone,
                     pushName: pushName || '',
                     clientNumber: nn,
@@ -1452,20 +1449,15 @@ router.post('/incoming', async (req, res) => {
                     messageCount: 1,
                   });
                   console.log(`📇 [RITA] Nouveau contact: Client ${nn} (${earlyPhone}, ${pushName || 'sans nom'})`);
-                  // Enregistrer également sur l'appareil WhatsApp (Evolution API)
-                  evolutionApiService.saveContact(
-                    instanceDoc.instanceName,
-                    instanceDoc.instanceToken,
-                    earlyPhone,
-                    pushName || `Client ${nn}`
-                  );
+                  evolutionApiService.saveContact(instanceDoc.instanceName, instanceDoc.instanceToken, earlyPhone, pushName || `Client ${nn}`).catch(() => {});
+                }
+              } catch (contactErr) {
+                // Duplicate key (11000) = race condition, le contact est déjà créé → ignorer
+                if (contactErr.code !== 11000) {
+                  console.error('⚠️ [RITA] Erreur enregistrement contact:', contactErr.message);
                 }
               }
-            } catch (earlyContactErr) {
-              if (earlyContactErr.code !== 11000) {
-                console.error('⚠️ [RITA] Erreur enregistrement contact (early):', earlyContactErr.message);
-              }
-            }
+            })();
           }
 
           // ─── Transcription vocale si c'est un audio ───
