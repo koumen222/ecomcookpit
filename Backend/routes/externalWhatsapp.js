@@ -1405,13 +1405,21 @@ router.post('/incoming', async (req, res) => {
           }
           console.log(`💬 [RITA] userId résolu: ${userId} (instance.userId=${instanceDoc?.userId}, workspaceId=${instanceDoc?.workspaceId})`);
 
+          // ─── Résoudre l'agentId via l'instanceId stocké dans RitaConfig ───
+          let agentId = null;
+          if (instanceDoc?._id) {
+            const instCfg = await RitaConfig.findOne({ instanceId: String(instanceDoc._id) }).select('agentId').lean();
+            agentId = instCfg?.agentId || null;
+            if (agentId) console.log(`🤖 [RITA] agentId résolu: ${agentId}`);
+          }
+
           // ─── Enregistrer le contact dès qu'il écrit (avant tout traitement) ───
           if (instanceDoc) {
             try {
               const earlyUserId = userId;
               const earlyPhone = senderPhone;
               // Exclure le numéro du boss
-              const earlyCfg = await RitaConfig.findOne({ userId: earlyUserId }).lean();
+              const earlyCfg = await RitaConfig.findOne(agentId ? { agentId } : { userId: earlyUserId }).lean();
               const bossPhoneEarly = (earlyCfg?.bossPhone || '').replace(/\D/g, '');
               const fromPhoneEarly = earlyPhone.replace(/\D/g, '');
               if (!bossPhoneEarly || fromPhoneEarly !== bossPhoneEarly) {
@@ -1471,7 +1479,7 @@ router.post('/incoming', async (req, res) => {
               );
               if (mediaData?.base64) {
                 // Déterminer la langue pour Whisper
-                const ritaCfgLang = await RitaConfig.findOne({ userId }).lean();
+                const ritaCfgLang = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
                 const langHint = ritaCfgLang?.language || 'fr';
                 const transcribed = await transcribeAudio(mediaData.base64, mediaData.mimetype, langHint);
                 if (transcribed) {
@@ -1561,7 +1569,7 @@ router.post('/incoming', async (req, res) => {
 
           // ─── Détecter si c'est le boss (escalade OU mode boss) ───
           {
-            const ritaCfgEsc = await RitaConfig.findOne({ userId }).lean();
+            const ritaCfgEsc = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
             const bossRaw = (ritaCfgEsc?.bossPhone || '').replace(/\D/g, '');
               const fromRaw  = senderPhone;
             if (bossRaw && fromRaw === bossRaw) {
@@ -1752,7 +1760,7 @@ router.post('/incoming', async (req, res) => {
 
           // Générer la réponse IA
           const startTime = Date.now();
-          const reply = await processIncomingMessage(userId, senderJid, text);
+          const reply = await processIncomingMessage(userId, senderJid, text, { agentId });
           const elapsed = Date.now() - startTime;
 
           if (!reply) {
@@ -1888,7 +1896,7 @@ router.post('/incoming', async (req, res) => {
           // Cas 1 : Rita a demandé "Tu veux voir l'image ?" sans envoyer le tag → on remplace par le tag
           if (!replyClean.includes('[IMAGE:') && /tu veux voir l[a']? ?image|voir (la |une )?photo|je t'envoie (la |une )?image/i.test(replyClean)) {
             try {
-              const ritaCfgSafeImg = await RitaConfig.findOne({ userId }).lean();
+              const ritaCfgSafeImg = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
               const safeImgCatalog = (ritaCfgSafeImg?.productCatalog || []).filter(p => p.name && p.images?.length);
               const allProducts = ritaCfgSafeImg?.productCatalog || [];
               const safeImgMatched = findProductByName(safeImgCatalog, replyClean);
@@ -1916,7 +1924,7 @@ router.post('/incoming', async (req, res) => {
             try {
               const lastBot = getLastAssistantMessage(userId, from);
               if (lastBot && /image|photo|voir/i.test(lastBot)) {
-                const ritaCfgSafeImg2 = await RitaConfig.findOne({ userId }).lean();
+                const ritaCfgSafeImg2 = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
                 const safeImgCatalog2 = (ritaCfgSafeImg2?.productCatalog || []).filter(p => p.name && p.images?.length);
                 const allProds2 = ritaCfgSafeImg2?.productCatalog || [];
                 const safeImgMatched2 = findProductByName(safeImgCatalog2, lastBot);
@@ -1940,7 +1948,7 @@ router.post('/incoming', async (req, res) => {
           if (askBossMatch) {
             replyClean = replyClean.replace(/\s*\[ASK_BOSS:.+?\]/g, '').trim();
             try {
-              const ritaCfgEsc2 = await RitaConfig.findOne({ userId }).lean();
+              const ritaCfgEsc2 = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
               if (ritaCfgEsc2?.bossEscalationEnabled && ritaCfgEsc2?.bossPhone) {
                 const question = askBossMatch[1].trim();
                 const bossPhone = ritaCfgEsc2.bossPhone.replace(/\D/g, '');
@@ -1993,7 +2001,7 @@ router.post('/incoming', async (req, res) => {
             textToSend = textToSend.replace(/\s*\[IMAGES_ALL:.+?\]/g, '').trim();
             console.log(`📸📸 [RITA] Tag IMAGES_ALL détecté pour produit: "${imageProductName}"`);
 
-            const ritaCfg = await RitaConfig.findOne({ userId }).lean();
+            const ritaCfg = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
             const catalog = ritaCfg?.productCatalog || [];
             const product = findProductByName(catalog, imageProductName);
             console.log(`📸📸 [RITA] Produit trouvé: ${product ? product.name : 'AUCUN'} | images: ${product?.images?.length || 0}`);
@@ -2016,7 +2024,7 @@ router.post('/incoming', async (req, res) => {
             textToSend = textToSend.replace(/\s*\[IMAGE:.+?\]/g, '').trim();
             console.log(`📸 [RITA] Tag image détecté pour produit: "${imageProductName}"`);
 
-            const ritaCfg = await RitaConfig.findOne({ userId }).lean();
+            const ritaCfg = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
             const catalog = ritaCfg?.productCatalog || [];
             const product = findProductByName(catalog, imageProductName);
             console.log(`📸 [RITA] Produit trouvé: ${product ? product.name : 'AUCUN'} | images: ${product?.images?.length || 0}`);
@@ -2044,7 +2052,7 @@ router.post('/incoming', async (req, res) => {
             textToSend = textToSend.replace(/\s*\[VIDEO:.+?\]/g, '').trim();
             console.log(`🎬 [RITA] Tag vidéo détecté pour produit: "${videoProductName}"`);
 
-            const ritaCfgV = await RitaConfig.findOne({ userId }).lean();
+            const ritaCfgV = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
             const catalogV = ritaCfgV?.productCatalog || [];
             const productV = findProductByName(catalogV, videoProductName);
             console.log(`🎬 [RITA] Produit vidéo trouvé: ${productV ? productV.name : 'AUCUN'} | vidéos: ${productV?.videos?.length || 0}`);
@@ -2059,7 +2067,7 @@ router.post('/incoming', async (req, res) => {
               console.log(`🎬 [RITA] Aucune vidéo trouvée pour "${videoProductName}"`);
               // Essayer d'escalader vers le boss si activé
               try {
-                const ritaCfgNoVid = await RitaConfig.findOne({ userId }).lean();
+                const ritaCfgNoVid = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
                 if (ritaCfgNoVid?.bossEscalationEnabled && ritaCfgNoVid?.bossPhone) {
                   const bossPhone = ritaCfgNoVid.bossPhone.replace(/\D/g, '');
                   const currentCleanFrom = from.replace(/@.*$/, '');
@@ -2118,7 +2126,7 @@ router.post('/incoming', async (req, res) => {
             textToSend = textToSend.replace(/\s*\[TESTIMONIAL:\d+\]/g, '').trim();
             console.log(`🗣️ [RITA] Tag TESTIMONIAL détecté, index: ${tIdx}`);
 
-            const ritaCfgT = await RitaConfig.findOne({ userId }).lean();
+            const ritaCfgT = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
             const testimonial = ritaCfgT?.testimonials?.[tIdx];
             if (testimonial) {
               if (testimonial.videos?.length) {

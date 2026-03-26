@@ -2524,14 +2524,15 @@ export async function processBossMessage(userId, from, text) {
  * @returns {Promise<string|null>} - Réponse générée ou null si Rita désactivée
  */
 export async function processIncomingMessage(userId, from, text, opts = {}) {
-  // Charger la config Rita
-  const config = await RitaConfig.findOne({ userId }).lean();
+  const { agentId } = opts;
+  // Charger la config Rita — préférer agentId si disponible pour les configs per-agent
+  const config = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
   if (!config) {
-    console.warn(`⚠️ [RITA] Aucune config trouvée pour userId=${userId}`);
+    console.warn(`⚠️ [RITA] Aucune config trouvée pour ${agentId ? 'agentId=' + agentId : 'userId=' + userId}`);
     return null;
   }
   if (!config.enabled) {
-    console.warn(`⚠️ [RITA] Rita désactivée (enabled=false) pour userId=${userId}`);
+    console.warn(`⚠️ [RITA] Rita désactivée (enabled=false) pour ${agentId ? 'agentId=' + agentId : 'userId=' + userId}`);
     return null;
   }
   console.log("BACK PRODUCTS:", JSON.stringify(config.productCatalog?.map(p => ({ name: p.name, price: p.price })) || []));
