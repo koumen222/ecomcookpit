@@ -4,250 +4,284 @@ import ecomApi from '../services/ecommApi.js';
 import { getCurrentPlan } from '../services/billingApi.js';
 import UpgradeWall from '../components/UpgradeWall.jsx';
 import {
-  AlertCircle, ArrowRight,
-  Plus, Trash2, X, Zap,
-  Smartphone, Sparkles, DollarSign, BarChart3, Activity, User, Crown, Package, ChevronRight
+  Plus, Trash2, Zap, Smartphone, Package, Settings,
+  TrendingUp, DollarSign, MessageSquare, Bot,
+  AlertTriangle, ArrowRight, CheckCircle, Clock, Loader2,
 } from 'lucide-react';
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
-function getConfigProgress(commercial) {
-  let score = 0;
-  if (commercial.name) score += 34;
-  if (commercial.instanceId) score += 33;
-  if ((commercial.productsCount || 0) > 0) score += 33;
-  return score;
-}
-
-function getStatusMeta(commercial) {
-  const progress = getConfigProgress(commercial);
-  if ((commercial.status === 'active' || commercial.ritaEnabled) && progress === 100)
-    return { label: 'Actif', color: 'emerald', dot: 'bg-emerald-500' };
-  if (progress < 67)
-    return { label: 'À configurer', color: 'orange', dot: 'bg-orange-400' };
-  return { label: 'Inactif', color: 'gray', dot: 'bg-gray-400' };
-}
-
-// ─── HERO SECTION ──────────────────────────────────────────────────────────
-
-function HeroSection({ onCreateClick }) {
-  return (
-    <div className="mb-12">
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-scalor-green-dark via-scalor-green to-scalor-green-light p-8 sm:p-12">
-        {/* Subtle background pattern */}
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-white rounded-full blur-3xl" />
-        </div>
-
-        <div className="relative z-10">
-          <h1 className="text-4xl sm:text-5xl font-extrabold text-white mb-3 leading-tight">
-            Vendez automatiquement sur WhatsApp 🚀
-          </h1>
-          <p className="text-lg text-white/90 mb-8 max-w-2xl leading-relaxed">
-            Configurez votre commercial IA en 2 minutes et commencez à générer des ventes automatiquement.
-            Les clients demandent → Rita répond → Les ventes arrivent.
-          </p>
-
-          <button
-            onClick={onCreateClick}
-            className="group inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-scalor-copper to-scalor-copper-light hover:from-scalor-copper-dark hover:to-scalor-copper text-white font-bold rounded-xl transition-all duration-300 shadow-lg shadow-scalor-copper/30 hover:shadow-scalor-copper/50 hover:scale-105"
-          >
-            <Zap className="w-5 h-5" />
-            Créer et activer mon commercial
-            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── KPI CARDS ─────────────────────────────────────────────────────────────
-
-function KpiCard({ icon: Icon, label, value, color, loading }) {
-  const colors = {
-    primary: 'bg-white border-primary-500/20 text-ecom-primary',
-    secondary: 'bg-white border-scalor-copper/20 text-scalor-copper',
-    accent: 'bg-white border-scalor-sand/20 text-scalor-sand-dark',
-  };
-  const bgColors = {
-    primary: 'bg-primary-50',
-    secondary: 'bg-scalor-copper/5',
-    accent: 'bg-scalor-sand-light/20',
-  };
-  return (
-    <div className={`flex-1 rounded-2xl border-2 p-6 flex flex-col gap-3 transition-all hover:shadow-lg ${colors[color]}`}>
-      <div className="flex items-center gap-3">
-        <div className={`p-2.5 rounded-lg ${bgColors[color]}`}>
-          <Icon className="w-5 h-5" />
-        </div>
-        <span className="text-sm font-semibold text-scalor-black/70">{label}</span>
-      </div>
-      {loading ? (
-        <div className="h-8 w-32 bg-gray-200 rounded-lg animate-pulse" />
-      ) : (
-        <p className="text-3xl font-bold text-scalor-black">{value}</p>
-      )}
-    </div>
-  );
-}
-
-// ─── QUICK SETUP + COMMERCIAUX SECTION ─────────────────────────────────────
-
-function QuickSetupAndCommerciauxSection({ commerciaux, onCreateClick, onConfigure, onDelete, deleting }) {
-  const steps = [
-    { num: 1, label: 'Ajouter un produit', icon: Package },
-    { num: 2, label: 'Connecter WhatsApp', icon: Smartphone },
-    { num: 3, label: 'Activer le commercial', icon: Zap },
+function getSteps(agent) {
+  return [
+    { label: 'Nom & catégorie',  done: !!agent.name },
+    { label: 'WhatsApp connecté', done: !!agent.instanceId },
+    { label: 'Produits ajoutés',  done: (agent.productsCount || 0) > 0 },
+    { label: 'Agent activé',      done: !!(agent.status === 'active' || agent.ritaEnabled) },
   ];
+}
+
+function getAgentStatus(agent) {
+  const steps = getSteps(agent);
+  const done = steps.filter(s => s.done).length;
+  if (done === 4) return { label: 'Actif', color: 'emerald', bg: 'bg-emerald-500' };
+  if (done >= 2)  return { label: 'En cours', color: 'amber',   bg: 'bg-amber-400' };
+  return           { label: 'À configurer', color: 'gray',    bg: 'bg-gray-400' };
+}
+
+function daysLeft(dateStr) {
+  if (!dateStr) return null;
+  const diff = new Date(dateStr) - new Date();
+  return Math.max(0, Math.ceil(diff / 86400000));
+}
+
+// ─── StatCard ─────────────────────────────────────────────────────────────────
+function StatCard({ icon: Icon, label, value, sub, loading, accent }) {
+  const accents = {
+    green:  { ring: 'ring-emerald-100', icon: 'bg-emerald-100 text-emerald-600', val: 'text-emerald-700' },
+    amber:  { ring: 'ring-amber-100',   icon: 'bg-amber-100  text-amber-600',   val: 'text-amber-700' },
+    blue:   { ring: 'ring-blue-100',    icon: 'bg-blue-100   text-blue-600',    val: 'text-blue-700' },
+  }[accent] || { ring: 'ring-gray-100', icon: 'bg-gray-100 text-gray-500', val: 'text-gray-900' };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      {/* Left: Quick Setup */}
-      <div className="rounded-3xl bg-gradient-to-r from-primary-100/50 to-primary-50 border-2 border-primary-300 p-8 h-fit">
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold text-scalor-black flex items-center gap-2 mb-2">
-            <Zap className="w-6 h-6 text-scalor-copper-light" />
-            Configuration rapide
-          </h2>
-          <p className="text-scalor-black/60 text-sm">Plus qu'une étape pour commencer à vendre 🚀</p>
-        </div>
+    <div className={`bg-white rounded-2xl p-5 ring-2 ${accents.ring} flex items-start gap-4`}>
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${accents.icon}`}>
+        <Icon className="w-5 h-5" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-gray-500 mb-1">{label}</p>
+        {loading
+          ? <div className="h-7 w-24 bg-gray-200 rounded-lg animate-pulse" />
+          : <p className={`text-2xl font-black ${accents.val} leading-none`}>{value}</p>
+        }
+        {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+      </div>
+    </div>
+  );
+}
 
-        {/* Steps visualization */}
-        <div className="space-y-4 mb-8">
-          {steps.map((step) => (
-            <div key={step.num} className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-ecom-primary text-white flex items-center justify-center font-bold flex-shrink-0">
-                {step.num}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-scalor-black">{step.label}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+// ─── AgentCard ────────────────────────────────────────────────────────────────
+function AgentCard({ agent, onConfigure, onDelete, deleting }) {
+  const status = getAgentStatus(agent);
+  const steps  = getSteps(agent);
+  const doneCt = steps.filter(s => s.done).length;
+  const pct    = Math.round((doneCt / steps.length) * 100);
 
-        <button
-          onClick={onCreateClick}
-          className="w-full group py-4 px-6 bg-gradient-to-r from-ecom-primary to-primary-600 hover:from-ecom-primary-dark hover:to-primary-700 text-white font-bold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 flex items-center justify-center gap-2"
-        >
-          <Sparkles className="w-5 h-5" />
-          Lancer la config
-          <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+  const statusStyles = {
+    emerald: { badge: 'bg-emerald-100 text-emerald-700', bar: 'from-emerald-400 to-emerald-600', ring: 'ring-emerald-200' },
+    amber:   { badge: 'bg-amber-100  text-amber-700',   bar: 'from-amber-400  to-amber-500',    ring: 'ring-amber-200' },
+    gray:    { badge: 'bg-gray-100   text-gray-600',    bar: 'from-gray-300   to-gray-400',     ring: 'ring-gray-200' },
+  }[status.color];
+
+  return (
+    <div
+      onClick={() => onConfigure(agent)}
+      className={`group relative bg-white rounded-2xl ring-2 ring-gray-100 hover:ring-2 hover:${statusStyles.ring} p-5 cursor-pointer transition-all duration-200 hover:shadow-lg`}
+    >
+      {/* Delete button */}
+      <button
+        onClick={e => { e.stopPropagation(); onDelete(agent._id); }}
+        disabled={deleting === agent._id}
+        className="absolute top-4 right-4 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-30"
+      >
+        {deleting === agent._id
+          ? <Loader2 className="w-4 h-4 animate-spin" />
+          : <Trash2 className="w-4 h-4" />
+        }
+      </button>
+
+      {/* Top row */}
+      <div className="flex items-start gap-4 mb-5 pr-8">
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl flex-shrink-0 ${
+          status.color === 'emerald' ? 'bg-emerald-100' : status.color === 'amber' ? 'bg-amber-100' : 'bg-gray-100'
+        }`}>
+          🤖
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-black text-gray-900 text-base truncate">{agent.name}</h3>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${statusStyles.badge}`}>
+              {status.label}
+            </span>
+          </div>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {agent.productsCount || 0} produit{(agent.productsCount || 0) !== 1 ? 's' : ''}
+            {agent.instanceId ? ' · WhatsApp connecté' : ' · WhatsApp non connecté'}
+          </p>
+        </div>
+      </div>
+
+      {/* Steps checklist */}
+      <div className="grid grid-cols-2 gap-1.5 mb-4">
+        {steps.map((step, i) => (
+          <div key={i} className={`flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1.5 ${
+            step.done ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-50 text-gray-400'
+          }`}>
+            {step.done
+              ? <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />
+              : <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+            }
+            <span className="truncate font-medium">{step.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Progress bar */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className={`h-full bg-gradient-to-r ${statusStyles.bar} transition-all duration-500`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <span className="text-xs font-black text-gray-600 w-10 text-right">{pct}%</span>
+      </div>
+
+      {/* CTA */}
+      <div className={`mt-4 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-bold ${
+        status.color === 'emerald' ? 'text-emerald-600' : 'text-gray-500'
+      }`}>
+        <span>{pct === 100 ? 'Voir les stats' : 'Continuer la configuration'}</span>
+        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+      </div>
+    </div>
+  );
+}
+
+// ─── EmptyState ───────────────────────────────────────────────────────────────
+function EmptyState({ onCreateClick }) {
+  return (
+    <div className="col-span-full bg-white rounded-2xl ring-2 ring-dashed ring-gray-200 p-12 text-center">
+      <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl">
+        🤖
+      </div>
+      <h3 className="text-lg font-black text-gray-900 mb-2">Aucun agent créé</h3>
+      <p className="text-gray-500 text-sm mb-6 max-w-xs mx-auto">
+        Créez votre premier commercial IA et commencez à vendre automatiquement sur WhatsApp.
+      </p>
+      <button
+        onClick={onCreateClick}
+        className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-200"
+      >
+        <Plus className="w-4 h-4" />
+        Créer mon premier agent
+      </button>
+    </div>
+  );
+}
+
+// ─── PlanBar ──────────────────────────────────────────────────────────────────
+function PlanBar({ planInfo, agentCount, agentLimit, onUpgrade, onBilling }) {
+  if (!planInfo) return null;
+
+  const plan = planInfo.plan;
+  const isActive = planInfo.isActive;
+  const isTrial = planInfo.trial?.active;
+  const isExpired = (plan === 'pro' || plan === 'ultra') && !isActive;
+  const trialDays = isTrial ? daysLeft(planInfo.trial.endsAt) : null;
+  const atLimit = agentCount >= agentLimit;
+
+  if (isExpired) {
+    return (
+      <div className="bg-red-50 border-2 border-red-200 rounded-2xl px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+          <div>
+            <p className="font-bold text-red-800 text-sm">Abonnement expiré</p>
+            <p className="text-red-600 text-xs">Votre plan {plan} a expiré — vous êtes sur le plan gratuit.</p>
+          </div>
+        </div>
+        <button onClick={onBilling} className="text-xs font-bold px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl transition">
+          Renouveler →
         </button>
       </div>
+    );
+  }
 
-      {/* Right: Mes commerciaux */}
-      <div className="rounded-3xl bg-white border-2 border-gray-100 p-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-scalor-black">
-            Mes commerciaux IA
-            {commerciaux.length > 0 && (
-              <span className="ml-3 text-sm bg-gray-200 text-scalor-black/70 px-3 py-1 rounded-full font-medium">
-                {commerciaux.length}
-              </span>
-            )}
-          </h2>
-          {commerciaux.length > 0 && (
-            <button
-              onClick={onCreateClick}
-              className="text-ecom-primary hover:text-ecom-primary-dark font-bold flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="text-sm hidden sm:inline">Nouveau</span>
-            </button>
-          )}
+  if (isTrial) {
+    const urgent = trialDays <= 1;
+    return (
+      <div className={`border-2 rounded-2xl px-5 py-4 flex flex-wrap items-center justify-between gap-3 ${
+        urgent ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'
+      }`}>
+        <div className="flex items-center gap-3">
+          <Clock className={`w-5 h-5 flex-shrink-0 ${urgent ? 'text-red-500' : 'text-blue-500'}`} />
+          <div>
+            <p className={`font-bold text-sm ${urgent ? 'text-red-800' : 'text-blue-800'}`}>
+              Essai gratuit {urgent ? '⚠️ expire bientôt' : 'en cours'}
+            </p>
+            <p className={`text-xs ${urgent ? 'text-red-600' : 'text-blue-600'}`}>
+              {trialDays} jour{trialDays !== 1 ? 's' : ''} restant{trialDays !== 1 ? 's' : ''} · expire le {new Date(planInfo.trial.endsAt).toLocaleDateString('fr-FR')}
+            </p>
+          </div>
         </div>
-
-        {commerciaux.length === 0 ? (
-          <div className="text-center py-8">
-            <User className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-sm text-scalor-black/60 mb-4">Aucun commercial créé</p>
-            <button
-              onClick={onCreateClick}
-              className="text-sm text-ecom-primary hover:text-ecom-primary-dark font-bold"
-            >
-              Créez le vôtre
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3 max-h-96 overflow-y-auto">
-            {commerciaux.map((commercial) => {
-              const progress = getConfigProgress(commercial);
-              const isReady = (commercial.status === 'active' || commercial.ritaEnabled) && progress === 100;
-
-              return (
-                <div
-                  key={commercial._id}
-                  className="p-4 rounded-xl border-2 border-gray-100 hover:border-primary-300 hover:bg-primary-50 transition-all cursor-pointer"
-                  onClick={() => onConfigure(commercial)}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        isReady ? 'bg-primary-100' : 'bg-gray-100'
-                      }`}>
-                        <User className={`w-5 h-5 ${isReady ? 'text-ecom-primary' : 'text-gray-500'}`} />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-scalor-black text-sm">{commercial.name}</p>
-                        <p className="text-xs text-scalor-black/50">{commercial.productsCount || 0} produits</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete(commercial._id);
-                      }}
-                      disabled={deleting === commercial._id}
-                      className="p-1.5 text-gray-300 hover:text-scalor-copper hover:bg-scalor-copper/10 rounded-lg transition-colors disabled:opacity-40"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="h-1.5 flex-1 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full transition-all ${
-                          progress === 100
-                            ? 'bg-gradient-to-r from-ecom-primary to-primary-600'
-                            : 'bg-gradient-to-r from-scalor-copper-light to-scalor-copper'
-                        }`}
-                        style={{ width: `${progress}%` }}
-                      />
-                    </div>
-                    <span className="text-xs font-bold ml-3 text-scalor-black/70">{progress}%</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <button onClick={onUpgrade} className="text-xs font-bold px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition">
+          Passer au Pro →
+        </button>
       </div>
-    </div>
-  );
+    );
+  }
+
+  if (atLimit && plan !== 'ultra') {
+    return (
+      <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+          <div>
+            <p className="font-bold text-amber-800 text-sm">Limite d'agents atteinte</p>
+            <p className="text-amber-600 text-xs">
+              Plan {plan === 'pro' ? 'Pro' : 'Gratuit'} : {agentLimit} agent{agentLimit > 1 ? 's' : ''} max.
+              Passez à Ultra pour en créer jusqu'à 5.
+            </p>
+          </div>
+        </div>
+        <button onClick={() => onUpgrade('ultra')} className="text-xs font-bold px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition">
+          Passer à Ultra →
+        </button>
+      </div>
+    );
+  }
+
+  return null;
 }
 
-// ─── MAIN COMPONENT ────────────────────────────────────────────────────────
-
+// ─── MAIN ─────────────────────────────────────────────────────────────────────
 export default function AgentIAList() {
   const navigate = useNavigate();
-  const [commerciaux, setCommerciaux] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [deleting, setDeleting] = useState(null);
-  const [kpis, setKpis] = useState({ orders: 0, revenue: 0, conversionRate: '0.0' });
+  const [agents, setAgents]         = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [deleting, setDeleting]     = useState(null);
+  const [planInfo, setPlanInfo]     = useState(null);
+  const [kpis, setKpis]             = useState({ orders: 0, revenue: 0, messages: 0 });
   const [kpisLoading, setKpisLoading] = useState(false);
-  const [planInfo, setPlanInfo] = useState(null);
   const [showUpgradeWall, setShowUpgradeWall] = useState(false);
+  const [upgradeTarget, setUpgradeTarget]     = useState(null); // 'pro' | 'ultra'
 
   useEffect(() => {
-    loadCommerciaux();
-    loadTodayStats();
+    loadAgents();
     loadPlan();
+    loadStats();
   }, []);
 
-  const loadTodayStats = async () => {
+  async function loadAgents() {
+    try {
+      setLoading(true);
+      const res = await ecomApi.get('/agents');
+      if (res.data.success) setAgents(res.data.agents || []);
+    } catch (e) {
+      console.error('loadAgents:', e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadPlan() {
+    try {
+      const data = await getCurrentPlan();
+      setPlanInfo(data);
+    } catch { /* silent */ }
+  }
+
+  async function loadStats() {
     try {
       setKpisLoading(true);
       const today = new Date().toISOString().slice(0, 10);
@@ -255,250 +289,197 @@ export default function AgentIAList() {
       if (res.data.success && res.data.data) {
         const d = res.data.data;
         setKpis({
-          orders: d.totalOrdersReceived || 0,
-          revenue: Math.round(d.totalRevenue || 0),
-          conversionRate: d.deliveryRate ? Number(d.deliveryRate).toFixed(1) : '0.0',
+          orders:   d.totalOrdersReceived || 0,
+          revenue:  Math.round(d.totalRevenue || 0),
+          messages: d.totalMessages || 0,
         });
       }
-    } catch {
-      // silently ignore
-    } finally {
-      setKpisLoading(false);
-    }
-  };
+    } catch { /* silent */ }
+    finally { setKpisLoading(false); }
+  }
 
-  const loadPlan = async () => {
-    try {
-      const data = await getCurrentPlan();
-      setPlanInfo(data);
-    } catch {
-      // silently ignore
-    }
-  };
-
-  const loadCommerciaux = async () => {
-    try {
-      setLoading(true);
-      const res = await ecomApi.get('/agents');
-      if (res.data.success) setCommerciaux(res.data.agents || []);
-      setError(null);
-    } catch (err) {
-      console.error('Erreur chargement commerciaux:', err);
-      setError('Impossible de charger les commerciaux');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const isFreeUser = planInfo && planInfo.plan === 'free' && !planInfo.trial?.active;
+  const agentLimit   = planInfo?.limits?.agents ?? 1;
   const isPlanExpired = planInfo && !planInfo.isActive && (planInfo.plan === 'pro' || planInfo.plan === 'ultra');
-  const agentLimit = planInfo?.limits?.agents || 1;
-  const hasReachedLimit = commerciaux.length >= agentLimit;
+  const isFreeNoTrial = planInfo?.plan === 'free' && !planInfo.trial?.active;
+  const atLimit       = agents.length >= agentLimit;
+  const canCreate     = !isPlanExpired && !(isFreeNoTrial && atLimit) && !atLimit;
 
-  const handleCreateCommercial = () => {
-    if (isFreeUser) {
-      setShowUpgradeWall(true);
-      return;
-    }
-    if (isPlanExpired) {
-      setError('Votre abonnement a expiré. Veuillez renouveler votre plan pour créer des agents.');
-      return;
-    }
-    if (hasReachedLimit) {
-      const nextPlan = agentLimit === 1 ? 'Ultra' : 'Ultra';
-      const nextLimit = agentLimit === 1 ? 5 : 10;
-      setError(`Limite atteinte ! Vous avez ${agentLimit} agent(s) maximum sur votre plan. Passez à ${nextPlan} pour créer jusqu'à ${nextLimit} agents.`);
-      return;
-    }
+  function handleCreate() {
+    if (isFreeNoTrial) { setShowUpgradeWall(true); return; }
+    if (isPlanExpired) { navigate('/ecom/billing'); return; }
+    if (atLimit) { setUpgradeTarget('ultra'); setShowUpgradeWall(true); return; }
     navigate('/ecom/agent-onboarding');
-  };
+  }
 
-  const handleDeleteCommercial = async (commercialId) => {
-    if (!window.confirm('Êtes-vous sûr ? Cela supprimera le commercial et sa configuration.')) return;
+  async function handleDelete(id) {
+    if (!window.confirm('Supprimer cet agent et toute sa configuration ?')) return;
     try {
-      setDeleting(commercialId);
-      const res = await ecomApi.delete(`/agents/${commercialId}`);
-      if (res.data.success) {
-        setCommerciaux(commerciaux.filter(a => a._id !== commercialId));
-        setError(null);
-      }
-    } catch (err) {
-      console.error('Erreur suppression:', err);
-      setError('Impossible de supprimer le commercial');
+      setDeleting(id);
+      const res = await ecomApi.delete(`/agents/${id}`);
+      if (res.data.success) setAgents(prev => prev.filter(a => a._id !== id));
+    } catch (e) {
+      console.error('delete agent:', e);
     } finally {
       setDeleting(null);
     }
-  };
-
-  const handleConfigure = (commercial) => {
-    navigate('/ecom/whatsapp/agent-config', { state: { agent: commercial } });
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-gradient-to-br from-primary-100 to-primary-200 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse">
-            <User className="w-8 h-8 text-ecom-primary" />
-          </div>
-          <p className="text-scalor-black/60 font-medium">Chargement de vos commerciaux...</p>
-        </div>
-      </div>
-    );
   }
 
+  const activeAgents   = agents.filter(a => getAgentStatus(a).color === 'emerald').length;
+  const pendingAgents  = agents.length - activeAgents;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Upgrade wall modal */}
+    <div className="min-h-screen bg-gray-50">
       {showUpgradeWall && (
         <UpgradeWall
-          onDismiss={() => setShowUpgradeWall(false)}
+          onDismiss={() => { setShowUpgradeWall(false); setUpgradeTarget(null); }}
           workspaceId={planInfo?.workspaceId}
           trialUsed={planInfo?.trial?.used}
+          selectedPlan={upgradeTarget}
         />
       )}
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
 
-        {/* PLAN BADGE & STATUS */}
-        {planInfo && (
-          <div className="space-y-4">
-            <div className="flex justify-end">
-              {planInfo.plan === 'free' && !planInfo.trial?.active && (
-                <button
-                  onClick={() => setShowUpgradeWall(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-scalor-copper/10 border border-scalor-copper/30 text-scalor-copper text-sm font-semibold rounded-xl hover:bg-scalor-copper/20 transition-colors"
-                >
-                  <Crown className="w-4 h-4" />
-                  Passer Pro
-                </button>
-              )}
-              {planInfo.trial?.active && (
-                <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 text-sm font-semibold rounded-xl">
-                  <Zap className="w-4 h-4" />
-                  Essai gratuit — expire le {new Date(planInfo.trial.endsAt).toLocaleDateString('fr-FR')}
-                </div>
-              )}
-              {planInfo.plan === 'pro' && planInfo.isActive && (
-                <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-50 border border-primary-200 text-ecom-primary text-sm font-semibold rounded-xl">
-                  <Crown className="w-4 h-4" />
-                  Plan Pro
-                </div>
-              )}
-              {planInfo.plan === 'ultra' && planInfo.isActive && (
-                <div className="inline-flex items-center gap-2 px-4 py-2 bg-scalor-copper/10 border border-scalor-copper/30 text-scalor-copper text-sm font-semibold rounded-xl">
-                  <Crown className="w-4 h-4" />
-                  Plan Ultra
-                </div>
-              )}
-              {isPlanExpired && (
-                <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 text-red-700 text-sm font-semibold rounded-xl">
-                  <AlertCircle className="w-4 h-4" />
-                  Plan expiré — Renouveler
-                </div>
-              )}
-            </div>
-
-            {/* PLAN STATUS ALERTS */}
-            {isPlanExpired && (
-              <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-5 flex items-start gap-4">
-                <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <h3 className="font-bold text-red-900 mb-1">Votre abonnement a expiré</h3>
-                  <p className="text-sm text-red-800 mb-4">
-                    Votre plan {planInfo.rawPlan} a expiré le {new Date(planInfo.planExpiresAt).toLocaleDateString('fr-FR')}.
-                    Vous êtes passé au plan gratuit. Pour créer des agents, renouveler votre abonnement.
-                  </p>
-                  <button
-                    onClick={() => navigate('/ecom/billing')}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg transition-colors"
-                  >
-                    <Crown className="w-4 h-4" />
-                    Renouveler le plan
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {hasReachedLimit && !isPlanExpired && (
-              <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-5 flex items-start gap-4">
-                <AlertCircle className="w-6 h-6 text-orange-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <h3 className="font-bold text-orange-900 mb-1">Limite d'agents atteinte</h3>
-                  <p className="text-sm text-orange-800 mb-4">
-                    Vous avez atteint la limite de {agentLimit} agent{agentLimit > 1 ? 's' : ''} sur votre plan {planInfo.plan === 'pro' ? 'Pro' : 'gratuit'}.
-                    Pour créer plus d'agents, passez à {agentLimit === 1 ? 'Ultra' : 'un plan supérieur'} (jusqu'à {agentLimit === 1 ? 5 : 10} agents).
-                  </p>
-                  <button
-                    onClick={() => setShowUpgradeWall(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-bold rounded-lg transition-colors"
-                  >
-                    <Zap className="w-4 h-4" />
-                    Passer au plan Ultra
-                  </button>
-                </div>
-              </div>
-            )}
+        {/* ── TOP BAR ─────────────────────────────────────────────────────── */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-black text-gray-900">Commerciaux IA</h1>
+            <p className="text-gray-500 text-sm mt-0.5">Gérez vos agents WhatsApp et suivez leurs performances</p>
           </div>
-        )}
+          <button
+            onClick={handleCreate}
+            className="inline-flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-emerald-200 text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Nouvel agent
+          </button>
+        </div>
 
-        {/* HERO SECTION */}
-        <HeroSection onCreateClick={handleCreateCommercial} />
+        {/* ── PLAN ALERT BAR ──────────────────────────────────────────────── */}
+        <PlanBar
+          planInfo={planInfo}
+          agentCount={agents.length}
+          agentLimit={agentLimit}
+          onUpgrade={(tier) => {
+            setUpgradeTarget(tier || 'pro');
+            setShowUpgradeWall(true);
+          }}
+          onBilling={() => navigate('/ecom/billing')}
+        />
 
-        {/* ERROR BANNER */}
-        {error && (
-          <div className="bg-ecom-danger/5 border-2 border-ecom-danger/20 rounded-2xl p-4 flex items-center justify-between text-ecom-danger text-sm">
-            <div className="flex items-center gap-3">
-              <AlertCircle className="w-5 h-5 flex-shrink-0" />
-              <span>{error}</span>
-            </div>
-            <button onClick={() => setError(null)} className="text-ecom-danger/60 hover:text-ecom-danger">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        )}
-
-        {/* KPI SECTION */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <KpiCard
-            icon={Activity}
-            label="Commandes aujourd'hui"
-            value={kpis.orders}
-            color="primary"
-            loading={kpisLoading}
+        {/* ── STATS ───────────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <StatCard
+            icon={Bot}
+            label="Agents actifs"
+            value={loading ? '…' : `${activeAgents} / ${agents.length}`}
+            sub={agents.length ? `${pendingAgents} à finaliser` : 'Aucun agent'}
+            accent="green"
           />
-          <KpiCard
+          <StatCard
             icon={DollarSign}
-            label="Chiffre d'affaires"
-            value={`${kpis.revenue.toLocaleString('fr-FR')} FCFA`}
-            color="secondary"
+            label="CA aujourd'hui"
+            value={kpisLoading ? '…' : `${kpis.revenue.toLocaleString('fr-FR')} F`}
+            accent="amber"
             loading={kpisLoading}
           />
-          <KpiCard
-            icon={BarChart3}
-            label="Taux de conversion"
-            value={`${kpis.conversionRate}%`}
-            color="accent"
+          <StatCard
+            icon={TrendingUp}
+            label="Commandes"
+            value={kpis.orders}
+            sub="Aujourd'hui"
+            accent="blue"
+            loading={kpisLoading}
+          />
+          <StatCard
+            icon={MessageSquare}
+            label="Messages traités"
+            value={kpis.messages || '—'}
+            sub="Aujourd'hui"
             loading={kpisLoading}
           />
         </div>
 
-        {/* QUICK SETUP + COMMERCIAUX */}
-        <QuickSetupAndCommerciauxSection
-          commerciaux={commerciaux}
-          onCreateClick={handleCreateCommercial}
-          onConfigure={handleConfigure}
-          onDelete={handleDeleteCommercial}
-          deleting={deleting}
-        />
+        {/* ── AGENTS GRID ─────────────────────────────────────────────────── */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-black text-gray-900">
+              Mes agents
+              {agents.length > 0 && (
+                <span className="ml-2 text-sm font-semibold text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full">
+                  {agents.length}/{agentLimit}
+                </span>
+              )}
+            </h2>
+            {agents.length > 0 && (
+              <button
+                onClick={handleCreate}
+                disabled={atLimit || isPlanExpired}
+                className="text-sm font-bold text-emerald-600 hover:text-emerald-700 disabled:text-gray-300 flex items-center gap-1 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Ajouter
+              </button>
+            )}
+          </div>
 
-        {/* FOOTER TIP */}
-        {commerciaux.length > 0 && (
-          <div className="bg-primary-50 border-2 border-primary-300 rounded-2xl p-6 flex items-start gap-4">
-            <Zap className="w-5 h-5 text-ecom-primary flex-shrink-0 mt-1" />
-            <div className="text-sm text-scalor-green-dark">
-              <p className="font-bold mb-1">💡 Besoin d'aide pour activer votre commercial ?</p>
-              <p>Connectez WhatsApp, ajoutez vos produits et lancez le commercial. Vos clients recevront les messages automatiquement.</p>
+          {loading ? (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {[1, 2].map(i => (
+                <div key={i} className="bg-white rounded-2xl ring-2 ring-gray-100 p-5 animate-pulse">
+                  <div className="flex items-center gap-4 mb-5">
+                    <div className="w-12 h-12 bg-gray-200 rounded-xl" />
+                    <div className="flex-1">
+                      <div className="h-4 bg-gray-200 rounded w-2/3 mb-2" />
+                      <div className="h-3 bg-gray-100 rounded w-1/2" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5 mb-4">
+                    {[1,2,3,4].map(j => <div key={j} className="h-7 bg-gray-100 rounded-lg" />)}
+                  </div>
+                  <div className="h-1.5 bg-gray-200 rounded-full" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {agents.length === 0
+                ? <EmptyState onCreateClick={handleCreate} />
+                : agents.map(agent => (
+                    <AgentCard
+                      key={agent._id}
+                      agent={agent}
+                      onConfigure={a => navigate('/ecom/whatsapp/agent-config', { state: { agent: a } })}
+                      onDelete={handleDelete}
+                      deleting={deleting}
+                    />
+                  ))
+              }
+            </div>
+          )}
+        </div>
+
+        {/* ── ONBOARDING GUIDE (si aucun agent actif) ─────────────────────── */}
+        {!loading && agents.length > 0 && activeAgents === 0 && (
+          <div className="bg-white rounded-2xl ring-2 ring-emerald-100 p-6 sm:p-8">
+            <h3 className="font-black text-gray-900 mb-1">3 étapes pour commencer à vendre</h3>
+            <p className="text-gray-500 text-sm mb-6">Suivez ces étapes pour activer votre commercial IA</p>
+            <div className="grid sm:grid-cols-3 gap-4">
+              {[
+                { icon: Package,    num: 1, title: 'Ajoutez vos produits', desc: 'Importez votre catalogue ou ajoutez-les manuellement dans la config.' },
+                { icon: Smartphone, num: 2, title: 'Connectez WhatsApp',   desc: 'Scannez le QR code pour lier votre numéro WhatsApp à l\'agent.' },
+                { icon: Zap,        num: 3, title: 'Activez l\'agent',     desc: 'Basculez le switch ON et votre commercial répond automatiquement.' },
+              ].map(step => (
+                <div key={step.num} className="flex gap-4">
+                  <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-700 font-black text-lg flex-shrink-0">
+                    {step.num}
+                  </div>
+                  <div>
+                    <p className="font-bold text-gray-900 text-sm mb-1">{step.title}</p>
+                    <p className="text-gray-500 text-xs leading-relaxed">{step.desc}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
