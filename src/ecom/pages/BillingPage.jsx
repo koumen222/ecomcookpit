@@ -1,7 +1,28 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
 import { getCurrentPlan, createCheckout, getPaymentStatus, getPaymentHistory } from '../services/billingApi.js';
+
+// ─── Country phone codes ──────────────────────────────────────────────────────
+const COUNTRY_CODES = [
+  { code: '+237', country: 'Cameroun', name: 'Cameroun' },
+  { code: '+221', country: 'Sénégal', name: 'Sénégal' },
+  { code: '+225', country: 'Côte d\'Ivoire', name: 'Côte d\'Ivoire' },
+  { code: '+223', country: 'Mali', name: 'Mali' },
+  { code: '+226', country: 'Burkina Faso', name: 'Burkina Faso' },
+  { code: '+229', country: 'Bénin', name: 'Bénin' },
+  { code: '+228', country: 'Togo', name: 'Togo' },
+  { code: '+227', country: 'Niger', name: 'Niger' },
+  { code: '+224', country: 'Guinée', name: 'Guinée' },
+  { code: '+234', country: 'Nigeria', name: 'Nigeria' },
+  { code: '+233', country: 'Ghana', name: 'Ghana' },
+  { code: '+231', country: 'Liberia', name: 'Liberia' },
+  { code: '+33', country: 'France', name: 'France' },
+  { code: '+32', country: 'Belgique', name: 'Belgique' },
+  { code: '+41', country: 'Suisse', name: 'Suisse' },
+  { code: '+1', country: 'Canada', name: 'Canada' },
+  { code: '+1', country: 'États-Unis', name: 'États-Unis' },
+];
 
 // ─── Plan definitions ────────────────────────────────────────────────────────
 const PLANS = [
@@ -61,17 +82,26 @@ function StatusBadge({ status }) {
 }
 
 // ─── Checkout Modal ───────────────────────────────────────────────────────────
-function CheckoutModal({ selectedPlan, onClose, onSuccess, workspaceId, userName }) {
-  const [phone, setPhone] = useState('');
+function CheckoutModal({ selectedPlan, onClose, onSuccess, workspaceId, userName, userCountry }) {
+  const [country, setCountry] = useState(userCountry || 'Cameroun');
+  const [phoneLocal, setPhoneLocal] = useState('');
   const [clientName, setClientName] = useState(userName || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Obtenir le code pays sélectionné
+  const selectedCountryCode = COUNTRY_CODES.find(c => c.country === country);
+  const countryCode = selectedCountryCode?.code || '+237';
+
+  // Numéro complet avec code pays
+  const fullPhone = phoneLocal ? `${countryCode}${phoneLocal.replace(/^\+/, '').replace(/^0/, '')}` : '';
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-    if (!phone.trim() || phone.trim().length < 8) {
-      setError('Entrez un numéro de téléphone valide (min. 8 chiffres).');
+
+    if (!phoneLocal.trim() || phoneLocal.trim().length < 7) {
+      setError('Entrez un numéro de téléphone valide (min. 7 chiffres).');
       return;
     }
     if (!clientName.trim() || clientName.trim().length < 2) {
@@ -83,7 +113,7 @@ function CheckoutModal({ selectedPlan, onClose, onSuccess, workspaceId, userName
     try {
       const result = await createCheckout({
         plan: selectedPlan.id,
-        phone: phone.trim(),
+        phone: fullPhone,
         clientName: clientName.trim(),
         workspaceId
       });
@@ -157,19 +187,49 @@ function CheckoutModal({ selectedPlan, onClose, onSuccess, workspaceId, userName
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Pays
+            </label>
+            <select
+              value={country}
+              onChange={e => setCountry(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white"
+            >
+              {COUNTRY_CODES.map((c, idx) => (
+                <option key={idx} value={c.country}>
+                  {c.name} ({c.code})
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Sélectionnez votre pays pour obtenir le bon indicatif
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Numéro Mobile Money
             </label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={e => setPhone(e.target.value)}
-              placeholder="07XXXXXXXX"
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-              required
-            />
+            <div className="flex gap-2">
+              <div className="px-4 py-2.5 border border-gray-300 rounded-xl text-sm bg-gray-50 text-gray-600 font-semibold flex items-center flex-shrink-0">
+                {countryCode}
+              </div>
+              <input
+                type="tel"
+                value={phoneLocal}
+                onChange={e => setPhoneLocal(e.target.value.replace(/\D/g, ''))}
+                placeholder="7XXXXXXXX"
+                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                required
+              />
+            </div>
             <p className="text-xs text-gray-500 mt-1">
               Orange Money, MTN, Wave ou tout opérateur Mobile Money
             </p>
+            {fullPhone && (
+              <p className="text-xs text-emerald-600 font-semibold mt-2">
+                📱 Numéro complet: {fullPhone}
+              </p>
+            )}
           </div>
 
           {error && (
@@ -222,18 +282,35 @@ function CheckoutModal({ selectedPlan, onClose, onSuccess, workspaceId, userName
 export default function BillingPage() {
   const { user } = useEcomAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
   const workspaceId = workspace?._id || workspace?.id;
+  const userCountry = workspace?.country || 'Cameroun';
 
   const [planInfo, setPlanInfo] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState(PLANS[0]);
-  const [showCheckout, setShowCheckout] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(() => {
+    // Auto-show checkout if a plan was selected from UpgradeWall
+    return !!location.state?.selectedPlan;
+  });
   const [pendingToken, setPendingToken] = useState(
     () => sessionStorage.getItem('mf_pending_token') || null
   );
+
+  // Si un plan a été sélectionné depuis UpgradeWall, l'utiliser
+  useEffect(() => {
+    if (location.state?.selectedPlan) {
+      const plan = location.state.selectedPlan;
+      // Trouver le plan correspondant (par défaut 1 mois)
+      const planKey = plan.startsWith('pro') || plan.startsWith('ultra') ? plan : `${plan}_1`;
+      const foundPlan = PLANS.find(p => p.id === planKey) || PLANS.find(p => p.id.startsWith(plan.split('_')[0])) || PLANS[0];
+      setSelectedPlan(foundPlan);
+      setShowCheckout(true);
+    }
+  }, [location.state]);
 
   // Load plan + history
   const load = useCallback(async () => {
@@ -445,6 +522,7 @@ export default function BillingPage() {
           selectedPlan={selectedPlan}
           workspaceId={workspaceId}
           userName={user?.name || ''}
+          userCountry={userCountry}
           onClose={() => setShowCheckout(false)}
           onSuccess={handleCheckoutSuccess}
         />
