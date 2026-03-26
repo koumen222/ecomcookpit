@@ -2628,6 +2628,33 @@ router.post('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req,
     // Retirer les champs Mongoose pour éviter un conflit _id lors de l'upsert
     const { _id, __v, createdAt, updatedAt, userId: _u, agentId: _a, ...cleanConfig } = config;
 
+    // Nettoyer les _id des sous-documents (productCatalog, quantityOffers, etc.)
+    // Mongoose génère des _id auto sur les sous-documents et ça crée des conflits à l'upsert
+    if (Array.isArray(cleanConfig.productCatalog)) {
+      cleanConfig.productCatalog = cleanConfig.productCatalog.map(p => {
+        const { _id: _pid, ...cleanProduct } = p;
+        if (Array.isArray(cleanProduct.quantityOffers)) {
+          cleanProduct.quantityOffers = cleanProduct.quantityOffers.map(o => {
+            const { _id: _oid, ...cleanOffer } = o;
+            return cleanOffer;
+          });
+        }
+        return cleanProduct;
+      });
+    }
+    if (Array.isArray(cleanConfig.testimonials)) {
+      cleanConfig.testimonials = cleanConfig.testimonials.map(t => {
+        const { _id: _tid, ...cleanT } = t;
+        return cleanT;
+      });
+    }
+    if (Array.isArray(cleanConfig.firstMessageRules)) {
+      cleanConfig.firstMessageRules = cleanConfig.firstMessageRules.map(r => {
+        const { _id: _rid, ...cleanR } = r;
+        return cleanR;
+      });
+    }
+
     const updated = await RitaConfig.findOneAndUpdate(
       { [queryKey]: queryValue },
       { [queryKey]: queryValue, ...cleanConfig },
