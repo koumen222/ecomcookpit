@@ -175,10 +175,13 @@ function PlanBar({ planInfo, agentCount, agentLimit, onUpgrade, onBilling }) {
 
   const plan = planInfo.plan;
   const isActive = planInfo.isActive;
-  const isTrial = planInfo.trial?.active;
+  const isTrial = planInfo.trial?.active && !isActive;
   const isExpired = (plan === 'pro' || plan === 'ultra') && !isActive;
   const trialDays = isTrial ? daysLeft(planInfo.trial.endsAt) : null;
   const atLimit = agentCount >= agentLimit;
+
+  // Paid active plan — no alert needed
+  if (isActive) return null;
 
   if (isExpired) {
     return (
