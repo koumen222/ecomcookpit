@@ -2727,12 +2727,36 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
     history.splice(0, history.length - MAX_HISTORY);
   }
 
-  // Charger le contexte client pour personnalisation
+  // Charger le contexte client pour personnalisation + auto-création au premier message
   const cleanPhone = from.replace(/@.*$/, '');
   let contact = null;
   try {
     contact = await RitaContact.findOne({ userId, phone: cleanPhone }).lean();
-  } catch (_) { /* ignore */ }
+    if (!contact) {
+      // Premier contact — créer avec un numéro auto-incrémenté
+      const lastContact = await RitaContact.findOne({ userId }).sort({ clientNumber: -1 }).select('clientNumber').lean();
+      const nextNumber = (lastContact?.clientNumber || 0) + 1;
+      const pushName = opts.pushName || '';
+      const created = await RitaContact.create({
+        userId,
+        phone: cleanPhone,
+        pushName,
+        clientNumber: nextNumber,
+        firstMessageAt: new Date(),
+        lastMessageAt: new Date(),
+        messageCount: 1,
+      });
+      contact = created.toObject();
+    } else {
+      // Contact existant — mettre à jour lastMessageAt + messageCount (best-effort)
+      RitaContact.findOneAndUpdate(
+        { userId, phone: cleanPhone },
+        { $set: { lastMessageAt: new Date() }, $inc: { messageCount: 1 } }
+      ).catch(() => {});
+    }
+  } catch (err) {
+    console.error('[RITA] Erreur upsert contact:', err.message);
+  }
 
   // Auto-récupérer le nom depuis pushName WhatsApp si pas encore connu
   if (!clientState.nom && contact?.pushName) {
