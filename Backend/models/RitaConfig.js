@@ -45,6 +45,10 @@ const ritaConfigSchema = new mongoose.Schema({
   bossNotifications: { type: Boolean, default: false },
   notifyOnOrder: { type: Boolean, default: true },
 
+  // ─── Instructions personnalisées propriétaire ───
+  customInstructionsEnabled: { type: Boolean, default: false },
+  customInstructions: { type: String, default: '' },
+
   // ─── Métadonnées ───
   onboardingCompleted: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },

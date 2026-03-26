@@ -2381,6 +2381,16 @@ ${!config.canCloseDeals ? "- Tu NE peux PAS confirmer une commande toi-même. Co
 Tu es en mode AUTONOME : tu peux confirmer les commandes, envoyer des images et gérer la conversation sans demander au boss. Utilise [ASK_BOSS:...] uniquement pour les cas exceptionnels.`;
   }
 
+  // ─── INSTRUCTIONS PERSONNALISÉES PROPRIÉTAIRE ─────────────────────────────
+  if (config.customInstructionsEnabled && config.customInstructions?.trim()) {
+    prompt += `\n\n## 🎯 INSTRUCTIONS SPÉCIALES DU PROPRIÉTAIRE (PRIORITÉ MAXIMALE)
+Ces instructions ont été définies par le propriétaire de la boutique. Elles REMPLACENT ou COMPLÈTENT le comportement par défaut. Tu les appliques en priorité absolue, avant tout le reste.
+
+${config.customInstructions.trim()}
+
+⚠️ Ces instructions sont définitives et non négociables. Si elles contredisent une règle par défaut, elles ont la priorité.`;
+  }
+
   // ─── RAPPEL FINAL (le modèle retient mieux les instructions en fin de prompt) ───
   prompt += `\n\n## 🚨 RAPPEL FINAL — AVANT CHAQUE RÉPONSE
 VÉRIFIE que ton message respecte ces 5 règles :
