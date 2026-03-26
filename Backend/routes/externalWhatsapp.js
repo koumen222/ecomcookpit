@@ -1431,8 +1431,6 @@ router.post('/incoming', async (req, res) => {
                   const upd = { $set: { lastMessageAt: new Date() }, $inc: { messageCount: 1 } };
                   if (pushName && !existing.pushName) {
                     upd.$set.pushName = pushName;
-                    // Sync nom sur l'appareil WhatsApp
-                    evolutionApiService.saveContact(instanceDoc.instanceName, instanceDoc.instanceToken, earlyPhone, pushName).catch(() => {});
                   }
                   await RitaContact.updateOne({ userId, phone: earlyPhone }, upd);
                 } else {
@@ -1449,7 +1447,6 @@ router.post('/incoming', async (req, res) => {
                     messageCount: 1,
                   });
                   console.log(`📇 [RITA] Nouveau contact: Client ${nn} (${earlyPhone}, ${pushName || 'sans nom'})`);
-                  evolutionApiService.saveContact(instanceDoc.instanceName, instanceDoc.instanceToken, earlyPhone, pushName || `Client ${nn}`).catch(() => {});
                 }
               } catch (contactErr) {
                 // Duplicate key (11000) = race condition, le contact est déjà créé → ignorer
