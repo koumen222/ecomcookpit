@@ -291,10 +291,23 @@ export default function AgentIAList() {
   };
 
   const isFreeUser = planInfo && planInfo.plan === 'free' && !planInfo.trial?.active;
+  const isPlanExpired = planInfo && !planInfo.isActive && (planInfo.plan === 'pro' || planInfo.plan === 'ultra');
+  const agentLimit = planInfo?.limits?.agents || 1;
+  const hasReachedLimit = commerciaux.length >= agentLimit;
 
   const handleCreateCommercial = () => {
     if (isFreeUser) {
       setShowUpgradeWall(true);
+      return;
+    }
+    if (isPlanExpired) {
+      setError('Votre abonnement a expiré. Veuillez renouveler votre plan pour créer des agents.');
+      return;
+    }
+    if (hasReachedLimit) {
+      const nextPlan = agentLimit === 1 ? 'Ultra' : 'Ultra';
+      const nextLimit = agentLimit === 1 ? 5 : 10;
+      setError(`Limite atteinte ! Vous avez ${agentLimit} agent(s) maximum sur votre plan. Passez à ${nextPlan} pour créer jusqu'à ${nextLimit} agents.`);
       return;
     }
     navigate('/ecom/agent-onboarding');
@@ -347,34 +360,83 @@ export default function AgentIAList() {
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
 
-        {/* PLAN BADGE */}
+        {/* PLAN BADGE & STATUS */}
         {planInfo && (
-          <div className="flex justify-end">
-            {planInfo.plan === 'free' && !planInfo.trial?.active && (
-              <button
-                onClick={() => setShowUpgradeWall(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-scalor-copper/10 border border-scalor-copper/30 text-scalor-copper text-sm font-semibold rounded-xl hover:bg-scalor-copper/20 transition-colors"
-              >
-                <Crown className="w-4 h-4" />
-                Passer Pro
-              </button>
-            )}
-            {planInfo.trial?.active && (
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 text-sm font-semibold rounded-xl">
-                <Zap className="w-4 h-4" />
-                Essai gratuit — expire le {new Date(planInfo.trial.endsAt).toLocaleDateString('fr-FR')}
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              {planInfo.plan === 'free' && !planInfo.trial?.active && (
+                <button
+                  onClick={() => setShowUpgradeWall(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-scalor-copper/10 border border-scalor-copper/30 text-scalor-copper text-sm font-semibold rounded-xl hover:bg-scalor-copper/20 transition-colors"
+                >
+                  <Crown className="w-4 h-4" />
+                  Passer Pro
+                </button>
+              )}
+              {planInfo.trial?.active && (
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 text-sm font-semibold rounded-xl">
+                  <Zap className="w-4 h-4" />
+                  Essai gratuit — expire le {new Date(planInfo.trial.endsAt).toLocaleDateString('fr-FR')}
+                </div>
+              )}
+              {planInfo.plan === 'pro' && planInfo.isActive && (
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-50 border border-primary-200 text-ecom-primary text-sm font-semibold rounded-xl">
+                  <Crown className="w-4 h-4" />
+                  Plan Pro
+                </div>
+              )}
+              {planInfo.plan === 'ultra' && planInfo.isActive && (
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-scalor-copper/10 border border-scalor-copper/30 text-scalor-copper text-sm font-semibold rounded-xl">
+                  <Crown className="w-4 h-4" />
+                  Plan Ultra
+                </div>
+              )}
+              {isPlanExpired && (
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 text-red-700 text-sm font-semibold rounded-xl">
+                  <AlertCircle className="w-4 h-4" />
+                  Plan expiré — Renouveler
+                </div>
+              )}
+            </div>
+
+            {/* PLAN STATUS ALERTS */}
+            {isPlanExpired && (
+              <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-5 flex items-start gap-4">
+                <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="font-bold text-red-900 mb-1">Votre abonnement a expiré</h3>
+                  <p className="text-sm text-red-800 mb-4">
+                    Votre plan {planInfo.rawPlan} a expiré le {new Date(planInfo.planExpiresAt).toLocaleDateString('fr-FR')}.
+                    Vous êtes passé au plan gratuit. Pour créer des agents, renouveler votre abonnement.
+                  </p>
+                  <button
+                    onClick={() => navigate('/ecom/billing')}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg transition-colors"
+                  >
+                    <Crown className="w-4 h-4" />
+                    Renouveler le plan
+                  </button>
+                </div>
               </div>
             )}
-            {planInfo.plan === 'pro' && planInfo.isActive && (
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-50 border border-primary-200 text-ecom-primary text-sm font-semibold rounded-xl">
-                <Crown className="w-4 h-4" />
-                Plan Pro
-              </div>
-            )}
-            {planInfo.plan === 'ultra' && planInfo.isActive && (
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-scalor-copper/10 border border-scalor-copper/30 text-scalor-copper text-sm font-semibold rounded-xl">
-                <Crown className="w-4 h-4" />
-                Plan Ultra
+
+            {hasReachedLimit && !isPlanExpired && (
+              <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-5 flex items-start gap-4">
+                <AlertCircle className="w-6 h-6 text-orange-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="font-bold text-orange-900 mb-1">Limite d'agents atteinte</h3>
+                  <p className="text-sm text-orange-800 mb-4">
+                    Vous avez atteint la limite de {agentLimit} agent{agentLimit > 1 ? 's' : ''} sur votre plan {planInfo.plan === 'pro' ? 'Pro' : 'gratuit'}.
+                    Pour créer plus d'agents, passez à {agentLimit === 1 ? 'Ultra' : 'un plan supérieur'} (jusqu'à {agentLimit === 1 ? 5 : 10} agents).
+                  </p>
+                  <button
+                    onClick={() => setShowUpgradeWall(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-bold rounded-lg transition-colors"
+                  >
+                    <Zap className="w-4 h-4" />
+                    Passer au plan Ultra
+                  </button>
+                </div>
               </div>
             )}
           </div>

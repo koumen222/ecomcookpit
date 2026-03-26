@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ecomApi from '../services/ecommApi.js';
-import { ArrowLeft, ArrowRight, CheckCircle, AlertCircle, Plus, Bot } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle, AlertCircle, Plus, Bot, X } from 'lucide-react';
 
 // ─── Predefined lists ────────────────────────────────────────────────────────
 
@@ -158,7 +158,20 @@ export default function AgentOnboarding() {
       }
     } catch (err) {
       console.error('Erreur:', err);
-      setError(err.response?.data?.error || 'Une erreur est survenue. Réessayez.');
+
+      // Gestion explicite des erreurs de plan
+      const errData = err.response?.data;
+      let errorMsg = 'Une erreur est survenue. Réessayez.';
+
+      if (errData?.error === 'upgrade_required') {
+        errorMsg = `❌ ${errData.message || 'Votre plan n\'autorise pas la création d\'agent. Passez à Pro pour créer jusqu\'à 1 agent, ou Ultra pour en créer 5.'}`;
+      } else if (errData?.error === 'limit_reached') {
+        errorMsg = `❌ ${errData.message || 'Limite atteinte ! Passez à un plan supérieur pour créer plus d\'agents.'}`;
+      } else if (errData?.message) {
+        errorMsg = `❌ ${errData.message}`;
+      }
+
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -240,14 +253,25 @@ export default function AgentOnboarding() {
           ))}
         </div>
 
+        {/* ERROR BANNER - MORE VISIBLE */}
+        {error && (
+          <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-6 mb-6 flex items-start gap-4 text-red-900">
+            <AlertCircle className="w-6 h-6 flex-shrink-0 mt-0.5 text-red-600" />
+            <div className="flex-1">
+              <p className="font-bold text-red-900 mb-2">Erreur</p>
+              <p className="text-sm text-red-800 whitespace-pre-wrap leading-relaxed">{error}</p>
+            </div>
+            <button
+              onClick={() => setError(null)}
+              className="text-red-600 hover:text-red-700 flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+
         {/* Form card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8 mb-6">
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-start gap-3 text-red-800 text-sm">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
 
           {/* ── Step 1: Identity ── */}
           {step === 1 && (
