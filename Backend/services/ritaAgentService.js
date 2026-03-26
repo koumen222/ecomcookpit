@@ -242,14 +242,10 @@ function buildClientStateSection(state, askedQs) {
     deliveryRule = `💡 PHASE DÉCOUVERTE : Le client explore encore. Réponds naturellement à ses questions, présente les produits. Ne demande PAS encore la ville, quantité ou adresse — attends qu'il montre clairement qu'il veut commander.`;
   } else if (!state.quantite) {
     deliveryRule = `👉 PROCHAINE QUESTION (une seule) : "Vous en voulez combien ? (ex: 1, 2, 5, 10...) 👍"`;
-  } else if (!state.ville || !state.adresse) {
-    if (!state.ville && !state.adresse) {
-      deliveryRule = `👉 PROCHAINE QUESTION (une seule) : "C'est pour quelle ville et quelle adresse de livraison ? 👍"`;
-    } else if (!state.ville) {
-      deliveryRule = `👉 PROCHAINE QUESTION : "C'est pour quelle ville ? 👍"`;
-    } else {
-      deliveryRule = `👉 PROCHAINE QUESTION : "Quelle est ton adresse précise pour la livraison ? 👍"`;
-    }
+  } else if (!state.ville) {
+    deliveryRule = `👉 PROCHAINE QUESTION (une seule) : "C'est pour quelle ville ? 👍"`;
+  } else if (!state.adresse) {
+    deliveryRule = `👉 PROCHAINE QUESTION (une seule) : "Quelle est l'adresse précise pour la livraison ? 👍"`;
   } else if (!state.telephoneAppel) {
     deliveryRule = `👉 PROCHAINE QUESTION : "On te rappelle sur ce numéro WhatsApp pour la livraison, ou tu préfères qu'on appelle un autre numéro ? 👍"`;
   } else {
