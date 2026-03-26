@@ -207,10 +207,29 @@ class EvolutionApiService {
     const ext = fileName.split('.').pop().toLowerCase();
     const mimetypes = { 'mp4': 'video/mp4', 'webm': 'video/webm', 'mov': 'video/quicktime', 'avi': 'video/x-msvideo' };
     const mimetype = mimetypes[ext] || 'video/mp4';
+
+    // ── Résoudre la vidéo : fichier local → base64, URL externe → envoi direct ──
+    let mediaPayload = videoUrl;
+    console.log(`🎬 [Evolution] sendVideo — URL source: ${videoUrl}`);
+    try {
+      // Détecter si c'est une URL locale (api.scalor.net/uploads/...) → lire depuis le disque
+      const localMatch = videoUrl.match(/(?:https?:\/\/(?:api\.scalor\.net|localhost[:\d]*))\/uploads\/(.+)$/);
+      if (localMatch) {
+        const decodedFile = decodeURIComponent(localMatch[1]);
+        const filePath = path.join(process.cwd(), 'uploads', decodedFile);
+        const fileData = fs.readFileSync(filePath);
+        mediaPayload = `data:${mimetype};base64,${fileData.toString('base64')}`;
+        console.log(`🎬 [Evolution] Vidéo locale détectée → conversion base64`);
+      }
+    } catch (readErr) {
+      console.warn(`⚠️ [Evolution] Impossible de lire vidéo locale, tentative URL directe:`, readErr.message);
+      mediaPayload = videoUrl;
+    }
+
     try {
       const response = await axios.post(
         `${this.baseUrl}/message/sendMedia/${instanceName}`,
-        { number: cleanNumber, mediatype: 'video', mimetype, caption, media: videoUrl, fileName, delay: 1500 },
+        { number: cleanNumber, mediatype: 'video', mimetype, caption, media: mediaPayload, fileName, delay: 1500 },
         { headers: { 'Content-Type': 'application/json', 'apikey': instanceToken }, timeout: 60000 }
       );
       console.log(`✅ [Evolution API] Vidéo envoyée à ${cleanNumber}`);
@@ -218,6 +237,8 @@ class EvolutionApiService {
     } catch (error) {
       const errorData = error.response?.data;
       console.error(`❌ Erreur Evolution API (sendVideo):`, JSON.stringify(errorData, null, 2) || error.message);
+      console.error(`   URL tentée: ${videoUrl}`);
+      console.error(`   Numéro: ${cleanNumber}`);
       let detailedError = errorData?.message || error.message;
       if (Array.isArray(errorData?.response?.message)) {
         detailedError = errorData.response.message.map(m => JSON.stringify(m)).join(', ');
