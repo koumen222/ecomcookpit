@@ -658,12 +658,19 @@ export default function BillingPage() {
   useEffect(() => { load(); }, [load]);
 
   // Poll pending payment
+  const navigate = useNavigate();
   useEffect(() => {
     if (!pendingToken) return;
     const interval = setInterval(async () => {
       try {
         const res = await getPaymentStatus(pendingToken);
-        if (res.status === 'paid' || res.status === 'failure' || res.status === 'no paid') {
+        if (res.status === 'paid') {
+          clearInterval(interval);
+          sessionStorage.removeItem('mf_pending_token');
+          setPendingToken(null);
+          await load();
+          navigate('/ecom/agent-ia');
+        } else if (res.status === 'failure' || res.status === 'no paid') {
           clearInterval(interval);
           sessionStorage.removeItem('mf_pending_token');
           setPendingToken(null);
@@ -672,7 +679,7 @@ export default function BillingPage() {
       } catch { /* ignore */ }
     }, 3000);
     return () => clearInterval(interval);
-  }, [pendingToken, load]);
+  }, [pendingToken, load, navigate]);
 
   function handleCheckoutSuccess(token) {
     sessionStorage.setItem('mf_pending_token', token);

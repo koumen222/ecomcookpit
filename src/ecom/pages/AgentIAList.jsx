@@ -360,10 +360,7 @@ export default function AgentIAList() {
           planInfo={planInfo}
           agentCount={agents.length}
           agentLimit={agentLimit}
-          onUpgrade={(tier) => {
-            setUpgradeTarget(tier || 'pro');
-            setShowUpgradeWall(true);
-          }}
+          onUpgrade={() => navigate('/ecom/billing')}
           onBilling={() => navigate('/ecom/billing')}
         />
 
