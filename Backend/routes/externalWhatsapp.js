@@ -8,6 +8,7 @@ import RitaConfig from '../models/RitaConfig.js';
 import WhatsAppOrder from '../models/WhatsAppOrder.js';
 import Order from '../models/Order.js';
 import RitaContact from '../models/RitaContact.js';
+import Agent from '../models/Agent.js';
 import { normalizePhone } from '../utils/phoneUtils.js';
 import evolutionApiService from '../services/evolutionApiService.js';
 import { processIncomingMessage, processBossMessage, generateTestReply, transcribeAudio, textToSpeech, textToSpeechFishAudio, getLastAssistantMessage, getTtsVoiceSettings } from '../services/ritaAgentService.js';
@@ -1053,20 +1054,36 @@ router.get('/instances/:id/webhook', async (req, res) => {
  */
 router.post('/activate', async (req, res) => {
   try {
-    const { userId, enabled, instanceId } = req.body;
-    if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
+    const { userId, agentId, enabled, instanceId } = req.body;
+
+    // Utiliser agentId s'il est fourni, sinon userId
+    const targetId = agentId || userId;
+    if (!targetId) return res.status(400).json({ success: false, error: 'userId ou agentId requis' });
 
     console.log(`\n🔧 ═══════════════════════════════════════════════════`);
-    console.log(`🔧 [ACTIVATE] userId=${userId} enabled=${enabled} instanceId=${instanceId || 'ALL'}`);
+    console.log(`🔧 [ACTIVATE] ${agentId ? 'agentId' : 'userId'}=${targetId} enabled=${enabled} instanceId=${instanceId || 'ALL'}`);
+
+    // Si agentId est fourni, chercher l'agent pour récupérer son userId
+    let actualUserId = userId;
+    if (agentId) {
+      const agent = await Agent.findById(agentId).select('userId').lean();
+      if (agent?.userId) {
+        actualUserId = agent.userId;
+        console.log(`🔧 [ACTIVATE] Agent trouvé, userId résolu: ${actualUserId}`);
+      } else {
+        console.log(`⚠️ [ACTIVATE] Agent introuvable ou sans userId associé`);
+        return res.status(400).json({ success: false, error: 'Agent introuvable' });
+      }
+    }
 
     // Chercher l'instance spécifique OU toutes les instances actives
     let instances;
     if (instanceId) {
-      const inst = await WhatsAppInstance.findOne({ _id: instanceId, userId, isActive: true });
+      const inst = await WhatsAppInstance.findOne({ _id: instanceId, userId: actualUserId, isActive: true });
       instances = inst ? [inst] : [];
-      console.log(`🔧 [ACTIVATE] Instance ciblée: ${inst ? inst.instanceName : 'INTROUVABLE (id=' + instanceId + ')'}`);  
+      console.log(`🔧 [ACTIVATE] Instance ciblée: ${inst ? inst.instanceName : 'INTROUVABLE (id=' + instanceId + ')'}`);
     } else {
-      instances = await WhatsAppInstance.find({ userId, isActive: true });
+      instances = await WhatsAppInstance.find({ userId: actualUserId, isActive: true });
       console.log(`🔧 [ACTIVATE] Toutes les instances: ${instances.map(i => i.instanceName).join(', ') || 'aucune'}`);
     }
 
@@ -1108,12 +1125,15 @@ router.post('/activate', async (req, res) => {
     // Envoyer un message WhatsApp de confirmation au propriétaire si activation réussie
     if (enabled && configured > 0) {
       try {
-        const owner = await EcomUser.findById(userId).lean();
+        const owner = await EcomUser.findById(actualUserId).lean();
         const ownerPhone = owner?.phone?.replace(/\D/g, '');
         console.log(`📲 [ACTIVATE] Propriétaire: ${owner?.email || 'inconnu'}, téléphone: ${ownerPhone || 'NON RENSEIGNÉ'}`);
         if (ownerPhone) {
           const targetInst = instances[0];
-          const ritaConfig = await RitaConfig.findOne({ userId }).lean();
+          // Chercher la RitaConfig par agentId ou userId
+          const ritaConfig = agentId
+            ? await RitaConfig.findOne({ agentId }).lean()
+            : await RitaConfig.findOne({ userId: actualUserId }).lean();
           const agentName = ritaConfig?.agentName || 'Rita';
           const confirmMsg = `✅ *${agentName} IA est maintenant active !*\n\n` +
             `Instance: ${targetInst.customName || targetInst.instanceName}\n` +
@@ -2587,26 +2607,56 @@ router.post('/test-boss-notification', async (req, res) => {
 
 /**
  * @route   POST /api/ecom/v1/external/whatsapp/rita-config
- * @desc    Sauvegarder la configuration Rita IA d'un utilisateur
+ * @desc    Sauvegarder la configuration Rita IA (supporte userId et agentId)
  */
 router.post('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
-    const { config } = req.body;
-    const userId = await resolveRitaTargetUserId(req);
-    if (!userId || !config) return res.status(400).json({ success: false, error: 'userId et config requis' });
+    const { config, agentId, userId: bodyUserId } = req.body;
+
+    // Utiliser agentId s'il est fourni, sinon userId
+    let queryKey, queryValue;
+
+    if (agentId) {
+      queryKey = 'agentId';
+      queryValue = agentId;
+    } else {
+      queryKey = 'userId';
+      queryValue = bodyUserId || (await resolveRitaTargetUserId(req));
+    }
+
+    if (!queryValue || !config) {
+      return res.status(400).json({ success: false, error: `${queryKey} et config requis` });
+    }
 
     // Retirer les champs Mongoose pour éviter un conflit _id lors de l'upsert
-    const { _id, __v, createdAt, updatedAt, userId: _u, ...cleanConfig } = config;
+    const { _id, __v, createdAt, updatedAt, userId: _u, agentId: _a, ...cleanConfig } = config;
 
     const updated = await RitaConfig.findOneAndUpdate(
-      { userId },
-      { userId, ...cleanConfig },
+      { [queryKey]: queryValue },
+      { [queryKey]: queryValue, ...cleanConfig },
       { upsert: true, new: true, runValidators: false }
     );
 
     res.status(200).json({ success: true, config: updated });
   } catch (error) {
     console.error('❌ Erreur sauvegarde rita-config:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/ecom/v1/external/whatsapp/rita-config/:agentId
+ * @desc    Charger la configuration Rita IA d'un agent spécifique
+ */
+router.get('/rita-config/:agentId', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    if (!agentId) return res.status(400).json({ success: false, error: 'agentId requis' });
+
+    const config = await RitaConfig.findOne({ agentId }).lean();
+    res.status(200).json({ success: true, config: config || null });
+  } catch (error) {
+    console.error('❌ Erreur chargement rita-config par agentId:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye, Star, Trash2, Plus, Image, Video, X, Download } from 'lucide-react';
+import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye, Star, Trash2, Plus, Image, Video, X, Download, Upload } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 import { useEcomAuth } from '../hooks/useEcomAuth';
+import ProductImportLocal from '../components/ProductImportLocal.jsx';
 
 const ACCENT = '#0F6B4F';
 
@@ -184,6 +185,7 @@ export default function AgentConfig() {
   const [instances, setInstances] = useState([]);
   const [instanceSwitching, setInstanceSwitching] = useState(false);
   const [instanceSwitchStatus, setInstanceSwitchStatus] = useState(null);
+  const [showImport, setShowImport] = useState(false);
 
   // Chat simulator
   const [simMessages, setSimMessages] = useState([]);
@@ -348,6 +350,7 @@ export default function AgentConfig() {
 
   const { user: authUser } = useEcomAuth();
   const userId = authUser?._id || authUser?.id;
+  const agentId = agent?._id; // Utiliser l'agentId si disponible
   const [instanceError, setInstanceError] = useState(null);
   const [ritaRequestForm, setRitaRequestForm] = useState({
     contactName: authUser?.name || '',
@@ -386,9 +389,14 @@ export default function AgentConfig() {
   // ─── Load ───
   const loadConfig = useCallback(async () => {
     try {
-      const configRes = await ecomApi.get(`/v1/external/whatsapp/rita-config`);
+      // Utiliser agentId s'il existe, sinon userId (pour rétro-compatibilité)
+      const endpoint = agentId
+        ? `/v1/external/whatsapp/rita-config/${agentId}`
+        : `/v1/external/whatsapp/rita-config`;
+
+      const configRes = await ecomApi.get(endpoint);
       if (!configRes.data.success || !configRes.data.config) {
-        console.warn('[AgentConfig] Aucune config Rita trouvée pour userId:', userId, '| response:', configRes.data);
+        console.warn('[AgentConfig] Aucune config Rita trouvée pour agentId:', agentId, '| response:', configRes.data);
       }
       if (configRes.data.success && configRes.data.config) {
         let loadedConfig = configRes.data.config;
@@ -414,23 +422,24 @@ export default function AgentConfig() {
     } catch (error) {
       console.error('[AgentConfig] Erreur chargement:', error);
     }
-  }, [userId]);
+  }, [agentId]);
 
   useEffect(() => {
     setLoading(true);
-    if (userId) {
+    if (agentId || userId) {
       Promise.all([loadConfig(), loadInstances()]).finally(() => setLoading(false));
     } else {
       setLoading(false);
     }
-  }, [userId, loadConfig]);
+  }, [agentId, userId, loadConfig]);
 
   // Polling : re-fetch la config chaque 30s pour détecter les changements en DB
+  // MAIS: ne pas surcharger si l'utilisateur a des changements non sauvegardés
   useEffect(() => {
-    if (!userId) return;
+    if ((!agentId && !userId) || hasChanges) return;
     const interval = setInterval(() => loadConfig(), 30000);
     return () => clearInterval(interval);
-  }, [userId, loadConfig]);
+  }, [agentId, userId, loadConfig, hasChanges]);
 
   useEffect(() => { simEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [simMessages, simTyping]);
 
@@ -445,22 +454,33 @@ export default function AgentConfig() {
     setSaving(true);
     setSaveStatus(null);
     try {
-      const { data } = await ecomApi.post('/v1/external/whatsapp/rita-config', { userId, config });
+      // Utiliser agentId s'il existe, sinon userId (pour rétro-compatibilité)
+      const payload = agentId
+        ? { agentId, config }
+        : { userId, config };
+
+      const { data } = await ecomApi.post('/v1/external/whatsapp/rita-config', payload);
       if (!data.success) { setSaveStatus('error'); return; }
+
       await ecomApi.post('/v1/external/whatsapp/activate', {
-        userId, enabled: config.enabled, instanceId: config.instanceId || undefined,
+        agentId: agentId || undefined,
+        userId: userId || undefined,
+        enabled: config.enabled,
+        instanceId: config.instanceId || undefined,
       });
       setSaveStatus('success');
       const savedFromServer = data.config || config;
       setConfig(prev => ({ ...prev, ...savedFromServer }));
       setSavedConfig(savedFromServer);
       setHasChanges(false);
-      // Refresh après save (certains champs peuvent avoir été modifiés côté serveur)
+      // Afficher le message de succès pendant 2 secondes puis le masquer
       setTimeout(() => {
-        loadConfig();
         setSaveStatus(null);
-      }, 500);
-    } catch { setSaveStatus('error'); }
+      }, 2000);
+    } catch (error) {
+      console.error('[AgentConfig] Erreur sauvegarde:', error);
+      setSaveStatus('error');
+    }
     finally { setSaving(false); }
   };
 
@@ -474,7 +494,8 @@ export default function AgentConfig() {
     setInstanceSwitching(true);
     try {
       await ecomApi.post('/v1/external/whatsapp/activate', {
-        userId,
+        agentId: agentId || undefined,
+        userId: userId || undefined,
         enabled: true,
         instanceId,
       });
@@ -1785,12 +1806,43 @@ export default function AgentConfig() {
                 <h2 className="text-[16px] font-bold text-gray-900">Catalogue Produits</h2>
                 <p className="text-[12px] text-gray-400 mt-0.5">{config.productCatalog.length} produit{config.productCatalog.length !== 1 ? 's' : ''} configuré{config.productCatalog.length !== 1 ? 's' : ''}</p>
               </div>
-              <button onClick={addProduct}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-bold text-white rounded-xl transition-all shadow-sm hover:shadow-md"
-                style={{ background: ACCENT }}>
-                + Ajouter un produit
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setShowImport(!showImport)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all shadow-sm hover:shadow-md">
+                  <Upload className="w-4 h-4" />
+                  Importer CSV
+                </button>
+                <button onClick={addProduct}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-bold text-white rounded-xl transition-all shadow-sm hover:shadow-md"
+                  style={{ background: ACCENT }}>
+                  + Ajouter un produit
+                </button>
+              </div>
             </div>
+
+            {showImport && (
+              <ProductImportLocal
+                onImportSuccess={(importedProducts) => {
+                  // Ajouter les produits importés au catalogue
+                  const newProducts = importedProducts.map(p => ({
+                    name: p.name,
+                    price: p.price,
+                    category: p.category || '',
+                    description: p.description || '',
+                    inStock: p.inStock !== false,
+                    images: [],
+                    quantityOffers: []
+                  }));
+                  setConfig(prev => ({
+                    ...prev,
+                    productCatalog: [...(prev.productCatalog || []), ...newProducts]
+                  }));
+                  setHasChanges(true);
+                  setShowImport(false);
+                }}
+                onClose={() => setShowImport(false)}
+              />
+            )}
 
             {config.productCatalog.length === 0 ? (
               <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
