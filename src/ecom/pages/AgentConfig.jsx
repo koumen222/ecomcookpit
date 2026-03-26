@@ -943,7 +943,7 @@ export default function AgentConfig() {
       if (data.success) setActivityData(data);
     } catch { /* ignore */ }
     finally { setAnalyticsLoading(false); }
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'analytics') fetchAnalytics(analyticsDays);
@@ -952,7 +952,9 @@ export default function AgentConfig() {
   const fetchContacts = useCallback(async (page = 1) => {
     setContactsLoading(true);
     try {
-      const { data } = await ecomApi.get(`/v1/external/whatsapp/rita-contacts?userId=${userId}&page=${page}&limit=50`);
+      const { data } = await ecomApi.get('/v1/external/whatsapp/rita-contacts', {
+        params: { page, limit: 50 },
+      });
       if (data.success) {
         setContactsList(data.contacts || []);
         setContactsTotal(data.total || 0);
@@ -960,7 +962,7 @@ export default function AgentConfig() {
       }
     } catch { /* ignore */ }
     finally { setContactsLoading(false); }
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'contacts') fetchContacts(1);
@@ -970,13 +972,23 @@ export default function AgentConfig() {
     if (activeTab === 'statuts') loadStatuts();
   }, [activeTab, loadStatuts]);
 
-  const exportContactsCSV = () => {
-    const base = (ecomApi.defaults.baseURL || '').replace(/\/$/, '');
-    const url = `${base}/v1/external/whatsapp/rita-contacts/export?userId=${userId}`;
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'rita-contacts.csv';
-    a.click();
+  const exportContactsCSV = async () => {
+    try {
+      const response = await ecomApi.get('/v1/external/whatsapp/rita-contacts/export', {
+        responseType: 'blob',
+      });
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv;charset=utf-8;' }));
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = 'rita-contacts.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('Error exporting contacts CSV:', error);
+      alert(error?.response?.data?.error || 'Impossible d\'exporter les contacts.');
+    }
   };
 
   if (loading) return (
