@@ -304,6 +304,11 @@ export default function AgentConfig() {
     fishAudioModel: 's2-pro',
     commercialOffersEnabled: false,
     commercialOffers: [],
+    deliveryFee: '',
+    deliveryDelay: '',
+    deliveryInfo: '',
+    deliveryZones: [],
+    whatsappGroupLink: null,
     bossNotifications: false,
     bossPhone: '',
     bossEscalationEnabled: false,
@@ -1630,6 +1635,168 @@ export default function AgentConfig() {
                       <span key={i} className="text-gray-300 text-lg font-bold">→</span>
                     ))}
                   </div>
+                </div>
+              </div>
+
+              {/* Livraison */}
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                      <MapPin className="w-4 h-4 text-blue-600" />
+                    </span>
+                    Configuration Livraison
+                  </h2>
+                  <p className="text-[12px] text-gray-400 mt-1">Tarifs, zones et délais de livraison que Rita mentionnera aux clients</p>
+                </div>
+                <div className="p-6 space-y-4">
+                  <Field label="Frais de livraison" hint="ex: 500 FCFA, gratuit">
+                    <input
+                      value={config.deliveryFee || ''}
+                      onChange={e => set('deliveryFee', e.target.value)}
+                      placeholder="ex: 500 FCFA"
+                      className="ac-input"
+                    />
+                  </Field>
+
+                  <Field label="Délai estimé" hint="ex: 24h, 2-3 jours">
+                    <input
+                      value={config.deliveryDelay || ''}
+                      onChange={e => set('deliveryDelay', e.target.value)}
+                      placeholder="ex: 24 heures"
+                      className="ac-input"
+                    />
+                  </Field>
+
+                  <Field label="Informations complémentaires" hint="optionnel">
+                    <textarea
+                      value={config.deliveryInfo || ''}
+                      onChange={e => set('deliveryInfo', e.target.value)}
+                      placeholder="ex: Paiement à la livraison, vérification avant paiement"
+                      rows={2}
+                      className="ac-textarea"
+                    />
+                  </Field>
+
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updatedZones = [...(config.deliveryZones || [])];
+                        updatedZones.push({ city: '', fee: '', delay: '' });
+                        set('deliveryZones', updatedZones);
+                      }}
+                      className="text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                      style={{ color: '#0F6B4F', background: 'rgba(15,107,79,0.08)' }}
+                    >
+                      + Ajouter une zone
+                    </button>
+                  </div>
+
+                  {(config.deliveryZones || []).length > 0 && (
+                    <div className="space-y-2 rounded-xl bg-blue-50/40 p-4">
+                      <p className="text-[12px] font-bold text-blue-900">Zones de livraison</p>
+                      {(config.deliveryZones || []).map((zone, idx) => (
+                        <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-lg border border-blue-100 bg-white p-3">
+                          <Field label="Ville/Zone">
+                            <input
+                              value={zone.city || ''}
+                              onChange={e => {
+                                const updatedZones = [...(config.deliveryZones || [])];
+                                updatedZones[idx].city = e.target.value;
+                                set('deliveryZones', updatedZones);
+                              }}
+                              placeholder="ex: Douala"
+                              className="ac-input"
+                            />
+                          </Field>
+                          <Field label="Tarif">
+                            <input
+                              value={zone.fee || ''}
+                              onChange={e => {
+                                const updatedZones = [...(config.deliveryZones || [])];
+                                updatedZones[idx].fee = e.target.value;
+                                set('deliveryZones', updatedZones);
+                              }}
+                              placeholder="ex: 500 FCFA"
+                              className="ac-input"
+                            />
+                          </Field>
+                          <div className="flex items-end gap-2">
+                            <div className="flex-1">
+                              <Field label="Délai">
+                                <input
+                                  value={zone.delay || ''}
+                                  onChange={e => {
+                                    const updatedZones = [...(config.deliveryZones || [])];
+                                    updatedZones[idx].delay = e.target.value;
+                                    set('deliveryZones', updatedZones);
+                                  }}
+                                  placeholder="ex: 24h"
+                                  className="ac-input"
+                                />
+                              </Field>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updatedZones = (config.deliveryZones || []).filter((_, i) => i !== idx);
+                                set('deliveryZones', updatedZones);
+                              }}
+                              className="px-2 py-2 text-red-500 hover:text-red-700 text-[12px] font-semibold mb-5"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Groupe WhatsApp */}
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center">
+                      <MessageCircle className="w-4 h-4 text-green-600" />
+                    </span>
+                    Groupe WhatsApp
+                  </h2>
+                  <p className="text-[12px] text-gray-400 mt-1">Rita promotionnera votre groupe auprès des clients intéressés</p>
+                </div>
+                <div className="p-6 space-y-4">
+                  <Toggle
+                    enabled={!!config.whatsappGroupLink}
+                    onChange={v => set('whatsappGroupLink', v ? '' : null)}
+                    label="Activer la promotion du groupe"
+                    description="Rita proposera le groupe WhatsApp après commande confirmée ou lors d'intérêt"
+                  />
+
+                  {config.whatsappGroupLink !== null && (
+                    <>
+                      <Field label="Lien du groupe" hint="Lien d'invitation WhatsApp (https://...)">
+                        <input
+                          value={config.whatsappGroupLink || ''}
+                          onChange={e => set('whatsappGroupLink', e.target.value)}
+                          placeholder="https://chat.whatsapp.com/..."
+                          className="ac-input"
+                        />
+                      </Field>
+
+                      <div className="rounded-xl border border-green-100 bg-green-50/40 p-4 space-y-2">
+                        <p className="text-[12px] font-bold text-green-800">📋 Quand Rita proposera le groupe :</p>
+                        <ul className="text-[11px] text-green-700 space-y-1 ml-4">
+                          <li>✅ Après une commande confirmée (bonus fidélité)</li>
+                          <li>✅ Quand le client montre de l'intérêt mais n'est pas prêt (ne pas partir)</li>
+                          <li>✅ Quand le client demande à être informé des promos</li>
+                          <li>⛔ JAMAIS au tout début de la conversation</li>
+                          <li>⛔ JAMAIS plus d'une fois par conversation</li>
+                        </ul>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
