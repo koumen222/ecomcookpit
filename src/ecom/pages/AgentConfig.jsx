@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye, Star, Trash2, Plus, Image, Video, X, Download, Upload, FileText, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye, Star, Trash2, Plus, Image, Video, X, Download, Upload, FileText, ToggleLeft, ToggleRight, Radio, CalendarClock, PlayCircle } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ProductImportLocal from '../components/ProductImportLocal.jsx';
@@ -19,6 +19,7 @@ const TABS = [
   { id: 'admin-pilotage', label: 'Pilotage', icon: Headphones },
   { id: 'analytics', label: 'Analytiques', icon: BarChart3 },
   { id: 'contacts', label: 'Contacts', icon: Users },
+  { id: 'statuts', label: 'Statuts', icon: Radio },
   { id: 'instructions', label: 'Instructions', icon: FileText },
 ];
 
@@ -193,6 +194,61 @@ export default function AgentConfig() {
   const [simInput, setSimInput] = useState('');
   const [simTyping, setSimTyping] = useState(false);
   const simEndRef = useRef(null);
+
+  // Statuts WhatsApp
+  const [statuts, setStatuts] = useState([]);
+  const [statutsLoading, setStatutsLoading] = useState(false);
+  const [statutSending, setStatutSending] = useState(null);
+  const [showStatutForm, setShowStatutForm] = useState(false);
+  const [editingStatut, setEditingStatut] = useState(null);
+  const [statutForm, setStatutForm] = useState({
+    name: '', type: 'product', caption: '', mediaUrl: '', productName: '',
+    backgroundColor: '#0F6B4F', scheduleType: 'daily', sendTime: '09:00', weekDays: [],
+  });
+
+  const loadStatuts = useCallback(async () => {
+    setStatutsLoading(true);
+    try {
+      const params = agentId ? `?agentId=${agentId}` : `?userId=${userId}`;
+      const { data } = await ecomApi.get(`/v1/rita-status/schedules${params}`);
+      if (data.success) setStatuts(data.schedules || []);
+    } catch { }
+    setStatutsLoading(false);
+  }, [agentId, userId]);
+
+  const saveStatut = async () => {
+    try {
+      const payload = { ...statutForm };
+      if (agentId) payload.agentId = agentId;
+      if (editingStatut) {
+        await ecomApi.put(`/v1/rita-status/schedules/${editingStatut._id}`, payload);
+      } else {
+        await ecomApi.post('/v1/rita-status/schedules', payload);
+      }
+      setShowStatutForm(false);
+      setEditingStatut(null);
+      setStatutForm({ name: '', type: 'product', caption: '', mediaUrl: '', productName: '', backgroundColor: '#0F6B4F', scheduleType: 'daily', sendTime: '09:00', weekDays: [] });
+      loadStatuts();
+    } catch { }
+  };
+
+  const deleteStatut = async (id) => {
+    await ecomApi.delete(`/v1/rita-status/schedules/${id}`);
+    loadStatuts();
+  };
+
+  const sendNow = async (id) => {
+    setStatutSending(id);
+    try {
+      await ecomApi.post(`/v1/rita-status/schedules/${id}/send-now`);
+    } catch { }
+    setStatutSending(null);
+  };
+
+  const toggleStatut = async (s) => {
+    await ecomApi.put(`/v1/rita-status/schedules/${s._id}`, { enabled: !s.enabled });
+    loadStatuts();
+  };
 
   // Voice preview
   const [playingVoiceId, setPlayingVoiceId] = useState(null);
@@ -788,6 +844,10 @@ export default function AgentConfig() {
   useEffect(() => {
     if (activeTab === 'contacts') fetchContacts(1);
   }, [activeTab, fetchContacts]);
+
+  useEffect(() => {
+    if (activeTab === 'statuts') loadStatuts();
+  }, [activeTab, loadStatuts]);
 
   const exportContactsCSV = () => {
     const base = (ecomApi.defaults.baseURL || '').replace(/\/$/, '');
@@ -3004,6 +3064,224 @@ export default function AgentConfig() {
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ─── TAB: STATUTS ─── */}
+        {activeTab === 'statuts' && (
+          <div className="space-y-6">
+            {/* Header + bouton ajouter */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-[15px] font-bold text-gray-900">Statuts WhatsApp automatiques</h2>
+                <p className="text-[12px] text-gray-500 mt-0.5">Planifiez des statuts avec images de vos produits — publiés automatiquement chaque jour</p>
+              </div>
+              <button
+                onClick={() => { setEditingStatut(null); setStatutForm({ name: '', type: 'product', caption: '', mediaUrl: '', productName: '', backgroundColor: '#0F6B4F', scheduleType: 'daily', sendTime: '09:00', weekDays: [] }); setShowStatutForm(true); }}
+                className="inline-flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-xl"
+                style={{ background: ACCENT }}
+              >
+                <Plus className="w-4 h-4" /> Nouveau statut
+              </button>
+            </div>
+
+            {/* Formulaire création/édition */}
+            {showStatutForm && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+                <h3 className="text-[14px] font-bold text-gray-900">{editingStatut ? 'Modifier le statut' : 'Nouveau statut'}</h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[12px] font-semibold text-gray-600">Nom</label>
+                    <input type="text" value={statutForm.name} onChange={e => setStatutForm(p => ({ ...p, name: e.target.value }))}
+                      placeholder="Ex: Statut produit phare du lundi"
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[12px] font-semibold text-gray-600">Type de contenu</label>
+                    <select value={statutForm.type} onChange={e => setStatutForm(p => ({ ...p, type: e.target.value }))}
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none bg-white">
+                      <option value="product">📦 Produit du catalogue (auto)</option>
+                      <option value="image">🖼️ Image manuelle + texte</option>
+                      <option value="text">💬 Texte uniquement</option>
+                    </select>
+                  </div>
+                </div>
+
+                {statutForm.type === 'product' && (
+                  <div className="space-y-1.5">
+                    <label className="text-[12px] font-semibold text-gray-600">Produit</label>
+                    <select value={statutForm.productName} onChange={e => setStatutForm(p => ({ ...p, productName: e.target.value }))}
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none bg-white">
+                      <option value="">— Choisir un produit —</option>
+                      {(config.productCatalog || []).filter(p => p.name).map((p, i) => (
+                        <option key={i} value={p.name}>{p.name}{p.price ? ` (${p.price})` : ''}</option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-gray-400">L'image du produit sera utilisée automatiquement. Laissez le texte vide pour générer automatiquement.</p>
+                  </div>
+                )}
+
+                {statutForm.type === 'image' && (
+                  <div className="space-y-1.5">
+                    <label className="text-[12px] font-semibold text-gray-600">URL de l'image</label>
+                    <input type="text" value={statutForm.mediaUrl} onChange={e => setStatutForm(p => ({ ...p, mediaUrl: e.target.value }))}
+                      placeholder="https://... ou URL de vos uploads"
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl font-mono focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                  </div>
+                )}
+
+                {statutForm.type !== 'product' && (
+                  <div className="space-y-1.5">
+                    <label className="text-[12px] font-semibold text-gray-600">Texte / Légende</label>
+                    <textarea rows={3} value={statutForm.caption} onChange={e => setStatutForm(p => ({ ...p, caption: e.target.value }))}
+                      placeholder="Ex: 🔥 Notre produit phare en stock ! Contactez-nous pour commander."
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-200 resize-none" />
+                  </div>
+                )}
+
+                {statutForm.type === 'product' && (
+                  <div className="space-y-1.5">
+                    <label className="text-[12px] font-semibold text-gray-600">Texte personnalisé (optionnel)</label>
+                    <textarea rows={2} value={statutForm.caption} onChange={e => setStatutForm(p => ({ ...p, caption: e.target.value }))}
+                      placeholder="Laissez vide pour générer automatiquement depuis le produit"
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-200 resize-none" />
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[12px] font-semibold text-gray-600">Fréquence</label>
+                    <select value={statutForm.scheduleType} onChange={e => setStatutForm(p => ({ ...p, scheduleType: e.target.value }))}
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none bg-white">
+                      <option value="daily">Tous les jours</option>
+                      <option value="weekly">Certains jours</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[12px] font-semibold text-gray-600">Heure d'envoi</label>
+                    <input type="time" value={statutForm.sendTime} onChange={e => setStatutForm(p => ({ ...p, sendTime: e.target.value }))}
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                  </div>
+                  {statutForm.type === 'text' && (
+                    <div className="space-y-1.5">
+                      <label className="text-[12px] font-semibold text-gray-600">Couleur de fond</label>
+                      <input type="color" value={statutForm.backgroundColor} onChange={e => setStatutForm(p => ({ ...p, backgroundColor: e.target.value }))}
+                        className="w-full h-[38px] px-1 py-1 border border-gray-200 rounded-xl cursor-pointer" />
+                    </div>
+                  )}
+                </div>
+
+                {statutForm.scheduleType === 'weekly' && (
+                  <div className="space-y-1.5">
+                    <label className="text-[12px] font-semibold text-gray-600">Jours</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'].map((d, i) => (
+                        <button key={i}
+                          onClick={() => setStatutForm(p => ({
+                            ...p,
+                            weekDays: p.weekDays.includes(i) ? p.weekDays.filter(x => x !== i) : [...p.weekDays, i]
+                          }))}
+                          className={`px-3 py-1.5 text-[12px] font-semibold rounded-lg border transition-colors ${
+                            statutForm.weekDays.includes(i)
+                              ? 'text-white border-emerald-600'
+                              : 'text-gray-500 border-gray-200 hover:border-emerald-300'
+                          }`}
+                          style={statutForm.weekDays.includes(i) ? { background: ACCENT } : {}}
+                        >{d}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+                  <button onClick={saveStatut}
+                    className="px-5 py-2 text-[13px] font-bold text-white rounded-xl"
+                    style={{ background: ACCENT }}>
+                    {editingStatut ? 'Enregistrer' : 'Créer'}
+                  </button>
+                  <button onClick={() => { setShowStatutForm(false); setEditingStatut(null); }}
+                    className="px-4 py-2 text-[13px] font-semibold text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50">
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Liste des statuts */}
+            {statutsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            ) : statuts.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-gray-200 p-10 text-center">
+                <Radio className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+                <p className="text-[14px] font-semibold text-gray-500">Aucun statut planifié</p>
+                <p className="text-[12px] text-gray-400 mt-1">Créez votre premier statut automatique avec les images de vos produits</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {statuts.map(s => (
+                  <div key={s._id} className={`bg-white rounded-2xl border p-4 flex items-center gap-4 ${s.enabled ? 'border-gray-200' : 'border-gray-100 opacity-60'}`}>
+                    {/* Icône type */}
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${s.type === 'product' ? 'bg-emerald-50' : s.type === 'image' ? 'bg-blue-50' : 'bg-amber-50'}`}>
+                      {s.type === 'product' ? <Package className="w-5 h-5 text-emerald-600" />
+                        : s.type === 'image' ? <Image className="w-5 h-5 text-blue-600" />
+                        : <MessageCircle className="w-5 h-5 text-amber-600" />}
+                    </div>
+
+                    {/* Infos */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-semibold text-gray-900">{s.name || 'Sans titre'}</p>
+                      <div className="flex items-center gap-3 mt-0.5">
+                        <span className="text-[11px] text-gray-400">
+                          {s.scheduleType === 'daily' ? 'Tous les jours' : 'Certains jours'} à {s.sendTime}
+                        </span>
+                        {s.type === 'product' && s.productName && (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-medium">{s.productName}</span>
+                        )}
+                        {s.sentCount > 0 && (
+                          <span className="text-[11px] text-gray-400">{s.sentCount} envois</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {/* Toggle */}
+                      <button onClick={() => toggleStatut(s)}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${s.enabled ? 'bg-emerald-600' : 'bg-gray-300'}`}>
+                        <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${s.enabled ? 'translate-x-4' : 'translate-x-1'}`} />
+                      </button>
+                      {/* Envoyer maintenant */}
+                      <button onClick={() => sendNow(s._id)} disabled={statutSending === s._id}
+                        title="Publier maintenant"
+                        className="p-1.5 text-gray-400 hover:text-emerald-600 transition-colors">
+                        {statutSending === s._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+                      </button>
+                      {/* Modifier */}
+                      <button onClick={() => { setEditingStatut(s); setStatutForm({ name: s.name, type: s.type, caption: s.caption, mediaUrl: s.mediaUrl, productName: s.productName, backgroundColor: s.backgroundColor, scheduleType: s.scheduleType, sendTime: s.sendTime, weekDays: s.weekDays || [] }); setShowStatutForm(true); }}
+                        className="p-1.5 text-gray-400 hover:text-blue-500 transition-colors">
+                        <Settings className="w-4 h-4" />
+                      </button>
+                      {/* Supprimer */}
+                      <button onClick={() => deleteStatut(s._id)} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Info box */}
+            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-[12px] text-blue-700 space-y-1">
+              <p className="font-bold">Comment ça fonctionne :</p>
+              <p>• <strong>Produit catalogue</strong> : l'image du produit est prise automatiquement depuis votre catalogue</p>
+              <p>• <strong>Image manuelle</strong> : collez l'URL d'une image uploadée</p>
+              <p>• Le statut est publié automatiquement à l'heure planifiée, chaque jour</p>
+              <p>• Bouton ▶ pour tester et publier immédiatement</p>
+            </div>
           </div>
         )}
 

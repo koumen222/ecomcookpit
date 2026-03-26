@@ -333,6 +333,7 @@ const startServer = async () => {
       // ─── WhatsApp External Integration (NAND/NK) ───────────────────────────
       ['./routes/externalWhatsapp.js',        '/api/ecom/v1/external/whatsapp'],
       ['./routes/ritaFlows.js',                 '/api/ecom/v1/rita-flows'],
+      ['./routes/ritaStatus.js',                '/api/ecom/v1/rita-status'],
       ['./routes/upload.js',                  '/api/ecom/upload'],
       // ─── WhatsApp Configuration ────────────────────────────────────────
       ['./routes/whatsappConfig.js',           '/api/ecom/integrations/whatsapp'],
@@ -404,6 +405,14 @@ const startServer = async () => {
       startRitaRelanceCron();
     } catch (err) {
       console.warn('⚠️ Rita relance cron non démarré:', err.message);
+    }
+
+    // ─── Rita statuts WhatsApp cron ──────────────────────────────────────
+    try {
+      const { startStatusCron } = await import('./services/ritaStatusService.js');
+      startStatusCron();
+    } catch (err) {
+      console.warn('⚠️ Rita status cron non démarré:', err.message);
     }
 
     // ─── Rita group animator (animation des groupes WhatsApp) ──────
