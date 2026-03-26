@@ -163,11 +163,11 @@ const workspaceSchema = new mongoose.Schema({
   // ─── Billing / Plan ──────────────────────────────────────────────────────
   plan: {
     type: String,
-    enum: ['free', 'pro'],
+    enum: ['free', 'pro', 'ultra'],
     default: 'free',
     index: true
   },
-  // Date when the pro plan expires; null = no active subscription
+  // Date when the plan expires; null = no active subscription
   planExpiresAt: {
     type: Date,
     default: null
@@ -176,6 +176,19 @@ const workspaceSchema = new mongoose.Schema({
   planPaymentToken: {
     type: String,
     default: null
+  },
+  // Free trial tracking
+  trialStartedAt: {
+    type: Date,
+    default: null
+  },
+  trialEndsAt: {
+    type: Date,
+    default: null
+  },
+  trialUsed: {
+    type: Boolean,
+    default: false
   },
 
   invites: [{

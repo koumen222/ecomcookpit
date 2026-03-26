@@ -681,4 +681,63 @@ router.put('/support/:sessionId/status', requireEcomAuth, requireSuperAdmin, asy
   }
 });
 
+// ─── Plan management ─────────────────────────────────────────────────────────
+
+// GET /api/ecom/super-admin/workspaces — list workspaces with plan info
+router.get('/workspaces', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { search, plan, page = 1, limit = 50 } = req.query;
+    const filter = {};
+    if (plan) filter.plan = plan;
+    if (search) filter.name = { $regex: search, $options: 'i' };
+
+    const workspaces = await Workspace.find(filter)
+      .select('name slug plan planExpiresAt trialStartedAt trialEndsAt trialUsed owner')
+      .populate('owner', 'email name')
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .lean();
+
+    const total = await Workspace.countDocuments(filter);
+    res.json({ success: true, data: { workspaces, total } });
+  } catch (err) {
+    console.error('[SuperAdmin] GET /workspaces error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/ecom/super-admin/workspaces/:id/plan — manually set plan
+router.patch('/workspaces/:id/plan', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { plan, durationMonths = 1 } = req.body;
+    if (!['free', 'pro', 'ultra'].includes(plan)) {
+      return res.status(400).json({ success: false, message: 'Plan invalide (free/pro/ultra)' });
+    }
+
+    const workspace = await Workspace.findById(req.params.id);
+    if (!workspace) return res.status(404).json({ success: false, message: 'Workspace introuvable' });
+
+    await logAudit(req, 'SET_PLAN', `Plan set to ${plan} for workspace ${workspace.name}`, 'workspace', workspace._id);
+
+    if (plan === 'free') {
+      workspace.plan = 'free';
+      workspace.planExpiresAt = null;
+    } else {
+      const now = new Date();
+      const base = workspace.planExpiresAt && workspace.planExpiresAt > now ? workspace.planExpiresAt : now;
+      const newExpiry = new Date(base);
+      newExpiry.setMonth(newExpiry.getMonth() + durationMonths);
+      workspace.plan = plan;
+      workspace.planExpiresAt = newExpiry;
+    }
+    await workspace.save();
+
+    res.json({ success: true, workspace: { _id: workspace._id, plan: workspace.plan, planExpiresAt: workspace.planExpiresAt } });
+  } catch (err) {
+    console.error('[SuperAdmin] PATCH /workspaces/:id/plan error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 export default router;

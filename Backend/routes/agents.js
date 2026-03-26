@@ -3,6 +3,7 @@ import Agent from '../models/Agent.js';
 import RitaConfig from '../models/RitaConfig.js';
 import Workspace from '../models/Workspace.js';
 import { requireEcomAuth, requireRitaAgentAccess } from '../middleware/ecomAuth.js';
+import { PLAN_LIMITS } from './billing.js';
 
 const router = express.Router();
 
@@ -130,6 +131,38 @@ router.post('/', requireEcomAuth, async (req, res) => {
         error: 'Le nom de l\'agent est requis',
       });
     }
+
+    // ─── Plan limit check ────────────────────────────────────────────────────
+    const wsId = req.workspaceId;
+    if (wsId) {
+      const workspace = await Workspace.findById(wsId).select('plan planExpiresAt trialEndsAt trialUsed').lean();
+      if (workspace) {
+        const now = new Date();
+        const isPaidActive = (workspace.plan === 'pro' || workspace.plan === 'ultra')
+          && workspace.planExpiresAt && workspace.planExpiresAt > now;
+        const trialActive = workspace.trialUsed && workspace.trialEndsAt && workspace.trialEndsAt > now;
+        const effectivePlan = isPaidActive ? workspace.plan : trialActive ? 'pro' : 'free';
+        const limits = PLAN_LIMITS[effectivePlan] || PLAN_LIMITS.free;
+
+        if (limits.agents === 0) {
+          return res.status(403).json({
+            success: false,
+            error: 'upgrade_required',
+            message: 'Passez à Pro pour créer un agent IA',
+          });
+        }
+
+        const existingCount = await Agent.countDocuments({ userId });
+        if (existingCount >= limits.agents) {
+          return res.status(403).json({
+            success: false,
+            error: 'limit_reached',
+            message: `Votre plan ${effectivePlan} est limité à ${limits.agents} agent(s). Passez à Ultra pour en créer plus.`,
+          });
+        }
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     console.log(`🆕 [AGENTS] POST / - Création agent pour userId=${userId}`);
     console.log(`   name: ${name}, type: ${type}`);

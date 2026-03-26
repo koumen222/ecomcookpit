@@ -24,15 +24,29 @@ const MF_API_URL = 'https://www.pay.moneyfusion.net/scalor/597e2cf962834532/pay/
 const MF_STATUS_URL = (token) => `https://www.pay.moneyfusion.net/paiementNotif/${token}`;
 
 const PLAN_PRICES = {
-  pro_1:  6000,   // 1 month
-  pro_3:  16000,  // 3 months (~11% off)
-  pro_6:  30000,  // 6 months (~17% off)
-  pro_12: 55000,  // 12 months (~24% off)
+  pro_1:   6000,   // 1 month
+  pro_3:   16000,  // 3 months (~11% off)
+  pro_6:   30000,  // 6 months (~17% off)
+  pro_12:  55000,  // 12 months (~24% off)
+  ultra_1:  15000, // 1 month
+  ultra_3:  40000, // 3 months (~11% off)
+  ultra_6:  75000, // 6 months (~17% off)
+  ultra_12: 140000,// 12 months (~22% off)
 };
 
 const PLAN_DURATION = {
-  pro_1: 1, pro_3: 3, pro_6: 6, pro_12: 12
+  pro_1: 1, pro_3: 3, pro_6: 6, pro_12: 12,
+  ultra_1: 1, ultra_3: 3, ultra_6: 6, ultra_12: 12,
 };
+
+// Per-plan resource limits
+export const PLAN_LIMITS = {
+  free:  { agents: 0, instances: 0 },
+  pro:   { agents: 1, instances: 1 },
+  ultra: { agents: 5, instances: 5 },
+};
+
+const TRIAL_DAYS = 3;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -54,7 +68,9 @@ async function applyPlanPayment(payment) {
   const newExpiry = new Date(base);
   newExpiry.setMonth(newExpiry.getMonth() + payment.durationMonths);
 
-  workspace.plan = 'pro';
+  // Determine which plan (pro or ultra) from the payment record
+  const planName = payment.plan || 'pro';
+  workspace.plan = planName;
   workspace.planExpiresAt = newExpiry;
   workspace.planPaymentToken = payment.mfToken;
   await workspace.save();
@@ -73,30 +89,50 @@ router.get('/plan', requireEcomAuth, async (req, res) => {
     }
 
     const workspace = await EcomWorkspace.findById(workspaceId).select(
-      'plan planExpiresAt planPaymentToken'
+      'plan planExpiresAt planPaymentToken trialStartedAt trialEndsAt trialUsed'
     );
     if (!workspace) {
       return res.status(404).json({ success: false, message: 'Workspace introuvable' });
     }
 
     const now = new Date();
-    const isActive =
-      workspace.plan === 'pro' &&
+    const isPaidActive =
+      (workspace.plan === 'pro' || workspace.plan === 'ultra') &&
       workspace.planExpiresAt &&
       workspace.planExpiresAt > now;
 
     // Auto-downgrade to free if subscription has expired
-    if (workspace.plan === 'pro' && workspace.planExpiresAt && workspace.planExpiresAt <= now) {
+    if (!isPaidActive && workspace.plan !== 'free') {
       workspace.plan = 'free';
       workspace.planExpiresAt = null;
       await workspace.save();
     }
 
+    // Trial status
+    const trialActive = workspace.trialEndsAt && workspace.trialEndsAt > now;
+    const trialExpired = workspace.trialUsed && workspace.trialEndsAt && workspace.trialEndsAt <= now;
+
+    // Effective plan: paid > trial (treated as pro) > free
+    const effectivePlan = isPaidActive
+      ? workspace.plan
+      : trialActive
+        ? 'pro' // trial gives pro-level access
+        : 'free';
+
     res.json({
       success: true,
-      plan: isActive ? 'pro' : 'free',
+      plan: effectivePlan,
+      rawPlan: workspace.plan,
       planExpiresAt: workspace.planExpiresAt,
-      isActive
+      isActive: isPaidActive,
+      trial: {
+        active: !!trialActive,
+        expired: !!trialExpired,
+        used: workspace.trialUsed,
+        endsAt: workspace.trialEndsAt,
+        startedAt: workspace.trialStartedAt,
+      },
+      limits: PLAN_LIMITS[effectivePlan] || PLAN_LIMITS.free,
     });
   } catch (err) {
     console.error('[billing] GET /plan error:', err);
@@ -125,13 +161,15 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
 
     const amount = PLAN_PRICES[plan];
     const durationMonths = PLAN_DURATION[plan];
+    const planName = plan.startsWith('ultra') ? 'ultra' : 'pro';
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://scalor.net';
     const backendUrl = process.env.BACKEND_URL || 'https://api.scalor.net';
 
+    const planLabel = planName === 'ultra' ? 'Scalor Ultra' : 'Scalor Pro';
     const paymentData = {
       totalPrice: amount,
-      article: [{ 'Scalor Pro': amount }],
+      article: [{ [planLabel]: amount }],
       personal_Info: [
         {
           workspaceId: workspaceId.toString(),
@@ -165,7 +203,7 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
     const payment = new PlanPayment({
       workspaceId,
       userId: req.ecomUser._id,
-      plan: 'pro',
+      plan: planName,
       durationMonths,
       amount,
       mfToken,
@@ -270,6 +308,41 @@ router.get('/history', requireEcomAuth, async (req, res) => {
     res.json({ success: true, payments });
   } catch (err) {
     console.error('[billing] GET /history error:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─── POST /trial — activate 3-day free trial ─────────────────────────────────
+router.post('/trial', requireEcomAuth, async (req, res) => {
+  try {
+    const workspaceId = req.workspaceId || req.body?.workspaceId;
+    if (!workspaceId) {
+      return res.status(400).json({ success: false, message: 'workspaceId requis' });
+    }
+
+    const workspace = await EcomWorkspace.findById(workspaceId);
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Workspace introuvable' });
+    }
+
+    if (workspace.trialUsed) {
+      return res.status(400).json({ success: false, message: 'Essai gratuit déjà utilisé' });
+    }
+    if (workspace.plan === 'pro' || workspace.plan === 'ultra') {
+      return res.status(400).json({ success: false, message: 'Vous avez déjà un abonnement actif' });
+    }
+
+    const now = new Date();
+    const trialEndsAt = new Date(now.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+
+    workspace.trialStartedAt = now;
+    workspace.trialEndsAt = trialEndsAt;
+    workspace.trialUsed = true;
+    await workspace.save();
+
+    res.json({ success: true, trialEndsAt, message: `Essai gratuit de ${TRIAL_DAYS} jours activé` });
+  } catch (err) {
+    console.error('[billing] POST /trial error:', err);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
