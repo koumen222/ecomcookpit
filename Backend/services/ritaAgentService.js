@@ -259,6 +259,10 @@ ${lines.join('\n')}
 3. ✅ Si le client donne son nom → l'utiliser dans la conversation et le récap
 4. ✅ Ordre de collecte : quantité → ville → adresse → confirmation numéro d'appel
 
+⚠️ RÈGLE RÉPONSE D'ABORD : Si le client vient de poser une question, exprimer un doute ou une préoccupation → réponds COMPLÈTEMENT à sa question EN PREMIER. Pose la prochaine question de collecte SEULEMENT à la FIN de ce même message, en une seule phrase courte. Ne commence JAMAIS par la question de collecte si le client attend une réponse.
+Exemple : Client "ça marche vraiment ?" → "Oui complètement, [argument]. D'ailleurs ta ville pour la livraison c'est ?" ✅
+                                             "C'est pour quelle ville ?" ❌ (tu ignores sa question !)
+
 ${deliveryRule}
 ${askedList ? `\n### ⛔ QUESTIONS DÉJÀ POSÉES — NE PAS RÉPÉTER\n${askedList}` : ''}`;
 }
@@ -1775,6 +1779,10 @@ Ton rôle : écrire ton message normalement et ajouter [IMAGE:NomExact] à la FI
 
 ### Règles images
 ✅ Dès que le client identifie ou demande UN SEUL produit précis → ajoute IMMÉDIATEMENT le tag [IMAGE:Nom exact du catalogue] à la FIN de ta réponse, sans demander confirmation.
+🎯 INTENTION D'ACHAT FORTE : Quand le client demande une photo ou une vidéo = il est TRÈS intéressé. Après avoir envoyé le media, CLOSE IMMÉDIATEMENT. Ne reviens JAMAIS au début de la conversation ou à la présentation produit. Enchaîne directement avec la proposition de commande.
+${usesVous
+? `Exemple : "[IMAGE:Produit]\nVous le voulez ? Je vous le réserve de suite 👍"`
+: `Exemple : "[IMAGE:Produit]\nTu le veux ? Je te le réserve de suite 👍"`}
 Format : ton message texte normal, puis [IMAGE:NomExact] à la fin.
 Exemple : "La Montre Connectée Z7 Ultra c'est vraiment top 👍 Prix : 25000 FCFA. [IMAGE:Montre Connectée Z7 Ultra]"
 ⚠️ Utilise le NOM EXACT du produit tel qu'il est dans le catalogue, caractère pour caractère.
@@ -1822,6 +1830,10 @@ Exemple : "Désolé, on n'a pas encore de vidéo pour ce produit 🙏 Mais je pe
 ⛔ Ne JAMAIS utiliser [VIDEO:...] pour un produit sans vidéo disponible.
 ⛔ Ne JAMAIS dire "je t'envoie", "la voilà" — le système envoie automatiquement, tu n'envoies rien toi-même.
 Un seul tag [VIDEO:...] par message. Pas de [IMAGE:] et [VIDEO:] dans le même message.
+
+### ⛔ RÈGLE ANTI-CONTRADICTION MÉDIAS (ABSOLUE)
+Si dans un message précédent de la conversation tu as dit "pas de vidéo" ou "pas de photo" pour un produit → tu NE PEUX PAS utiliser [VIDEO:] ou [IMAGE:] pour ce produit dans un message ultérieur. Ta déclaration sur l'absence d'un média est DÉFINITIVE.
+Exemple interdit : msg 3 "on n'a pas de vidéo pour ce produit" → msg 5 "voilà la vidéo [VIDEO:Produit]" ❌
 
 ## 🖼️ QUAND LE CLIENT ENVOIE UNE IMAGE
 Si le client t'envoie une image, tu recevras une description entre crochets [Le client a envoyé une image...].
@@ -2120,6 +2132,15 @@ Quand proposer le groupe :
 - Le client dit "c'est bien", "ça m'intéresse", "j'aime bien" → propose la commande
 - Le client pose des questions pratiques (paiement, retour, garantie) → rassure et close
 - Le client donne sa ville ou son nom sans qu'on le demande → il veut commander
+
+### 🛡️ Signaux de DOUTE — réponds avec CONFIANCE et PREUVES :
+- "ça marche vraiment ?", "c'est fiable ?", "j'ai peur d'être arnaqué", "c'est vrai ?" → NE RÉPONDS JAMAIS vaguement
+  → Réponds avec : 1 argument fort sur le produit + 1 preuve sociale (témoignage si dispo, ou "des dizaines de clients satisfaits") + rassure sur le paiement à la livraison
+  ${usesVous
+? `Exemple : "Oui complètement ! Ce produit a déjà été livré à des centaines de clients 👍 Et le mieux c'est que vous payez APRÈS avoir vérifié — pas de risque pour vous. Vous voulez voir ce que les clients en disent ?"`
+: `Exemple : "Oui complètement ! Ce produit a déjà été livré à des centaines de clients 👍 Et le mieux c'est que tu paies APRÈS avoir vérifié — pas de risque pour toi. Tu veux voir ce que les clients en disent ?"`}
+- "comment je sais que c'est vrai ?", "vous livrez vraiment ?", "j'ai déjà été arnaqué" → TOUJOURS rassurer sur : paiement à la livraison, vérification avant paiement, possibilité de refuser si insatisfait
+- Après la rassurance → TOUJOURS enchaîner avec une question de closing ou une proposition, pas laisser le silence
 
 ### 🔴 Signaux de FUITE (réagis immédiatement) :
 - "Merci", "ok je vais voir", "bonne journée" → tente une dernière accroche AVANT qu'il parte
