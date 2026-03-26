@@ -201,10 +201,13 @@ function updateClientState(historyKey, message) {
 
   // Auto-détection du statut selon l'intention
   const norm = normalizeForMatch(message);
-  if (/(je prends|je veux|je confirme|on commande|c est bon|ok pour|go|validé|je commande)/.test(norm)) {
+  if (/(je prends|je veux|je commande|je confirme|on commande|c est bon|ok pour|go|valide|je souhaite commander|je souhaiterais commander|je voudrais commander|je veux commander|prenez|je le prends|d accord pour|ok je prends)/.test(norm)) {
     state.statut = 'commande';
   } else if (/(cher|trop cher|reduction|remise|peut.?etre|je vais voir|je reflechis|hm|jsp|cava)/.test(norm)) {
     if (state.statut === 'nouveau' || state.statut === 'interesse') state.statut = 'negociation';
+  } else if (/(quoi d autre|qu est.ce que vous avez|avez.vous autre|n.y a.t.il pas|avez.vous d autre|autre produit|autres produits|que proposez|qu avez.vous|c est tout|y a.t.il d autre)/.test(norm)) {
+    // Client en exploration — ne pas forcer la collecte
+    if (state.statut !== 'commande') state.statut = 'nouveau';
   } else if (/(combien|prix|livraison|disponible|c est quoi|comment|marche|fonctionne|description)/.test(norm)) {
     if (state.statut === 'nouveau') state.statut = 'interesse';
   }
@@ -230,9 +233,14 @@ function buildClientStateSection(state, askedQs) {
   const askedList = askedQs && askedQs.size > 0 ? [...askedQs].join(' / ') : null;
 
   // Étapes de collecte dans l'ordre — une seule question à la fois
-  // CRUCIAL : demander quantité AVANT de demander la livraison
+  // CRUCIAL : ne collecter que si le client a montré une intention d'achat réelle
+  const hasBuyingIntent = state.statut === 'commande' ||
+    (state.statut === 'interesse' && state.produit !== null);
+
   let deliveryRule;
-  if (!state.quantite) {
+  if (!hasBuyingIntent) {
+    deliveryRule = `💡 PHASE DÉCOUVERTE : Le client explore encore. Réponds naturellement à ses questions, présente les produits. Ne demande PAS encore la ville, quantité ou adresse — attends qu'il montre clairement qu'il veut commander.`;
+  } else if (!state.quantite) {
     deliveryRule = `👉 PROCHAINE QUESTION (une seule) : "Vous en voulez combien ? (ex: 1, 2, 5, 10...) 👍"`;
   } else if (!state.ville || !state.adresse) {
     if (!state.ville && !state.adresse) {
