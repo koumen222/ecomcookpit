@@ -91,6 +91,7 @@ const ELEVENLABS_VOICES = [
 const FISH_AUDIO_VOICES = [
   { id: '13f7f6e260f94079b9d51c961fa6c9e2', name: 'Michelle', gender: '♀', lang: 'FR/EN', desc: 'Voix féminine chaleureuse, naturelle' },
   { id: '14b22748e04a48a58f92fbcde088ee50', name: 'Rita', gender: '♀', lang: 'FR', desc: 'Séduisante, persuasive' },
+  { id: 'e3a12335ddd040209a99002ee76b682f', name: 'Sophie', gender: '♀', lang: 'FR', desc: 'Douce, bienveillante, assistante' },
 ];
 
 const OFFER_TRIGGER_OPTIONS = [
