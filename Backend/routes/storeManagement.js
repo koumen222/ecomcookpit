@@ -404,32 +404,38 @@ INFORMATIONS DE LA BOUTIQUE:
 - Localisation: ${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}
 - Contact WhatsApp: ${s.storeWhatsApp || ''}
 
-Génère une page d'accueil complète et persuasive en JSON avec exactement ce format:
-{"sections": [...]}
+Génère une page d'accueil complète et persuasive en JSON: {"sections": [...]}
 
-Génère ces 7 sections dans cet ordre exact:
+Génère exactement ces 7 sections dans cet ordre:
 
-1. TYPE "hero" — config: {title (H1 accrocheur 5-10 mots), subtitle (sous-titre convaincant 1-2 phrases), ctaText (CTA bouton), ctaLink: "#products", alignment: "center", backgroundImage: ""}
+1. TYPE "hero"
+config: { title (H1 percutant 5-10 mots, adapté niche+ton), subtitle (promesse convaincante 1-2 phrases), ctaText (texte bouton CTA actif), ctaLink: "#products", alignment: "center", backgroundImage: "" }
 
-2. TYPE "text" — section badges de confiance. config: {title: "Pourquoi des milliers de clients nous font confiance", content (markdown avec 4 badges: livraison rapide, qualité garantie, support WhatsApp, retours faciles — chacun avec emoji, titre en gras, 1 phrase), alignment: "center", backgroundColor: "#F9FAFB"}
+2. TYPE "badges"
+config: { items: [ exactement 4 objets {icon: "emoji", title: "titre court 3-4 mots", desc: "1 phrase"} pour: livraison rapide, qualité garantie, support WhatsApp, retours faciles ] }
 
-3. TYPE "products" — config: {title (titre section produits adapté à la niche), subtitle (sous-titre engageant), layout: "grid", columns: 3, showPrice: true, showAddToCart: true, limit: 6}
+3. TYPE "products"
+config: { title (titre section produits adapté niche), subtitle (accroche engageante), layout: "grid", columns: 3, showPrice: true, showAddToCart: true, limit: 6 }
 
-4. TYPE "text" — section "Pourquoi nous choisir". config: {title (accrocheur selon le ton), content (markdown avec 4-5 arguments forts avec emojis, chacun en gras suivi d'une phrase d'explication), alignment: "left", backgroundColor: "#FFFFFF"}
+4. TYPE "features"
+config: { title (titre "Pourquoi nous choisir" adapté au ton), subtitle (sous-titre), items: [ exactement 4 objets {icon: "emoji", title: "titre avantage", desc: "2 phrases d'explication"} — avantages spécifiques à la niche et à la valeur de la boutique ] }
 
-5. TYPE "testimonials" — config: {title: "Ce que disent nos clients", items: (tableau de 3 témoignages avec name, location (ville réaliste de la zone ${regions}), content (60-100 mots, naturel et authentique), rating: 5), layout: "grid", showRating: true}
+5. TYPE "testimonials"
+config: { title: "Ce que disent nos clients", items: [ 3 objets {name: "Prénom Nom africain réaliste", location: "ville réaliste zone ${regions}", content: "témoignage naturel et enthousiaste de 40-70 mots", rating: 5} ], showRating: true }
 
-6. TYPE "faq" — config: {title: "Questions fréquentes", items: (tableau de 4 questions/réponses réalistes pour la niche et la région)}
+6. TYPE "faq"
+config: { title: "Questions fréquentes", items: [ 4 objets {question: "question réaliste", answer: "réponse rassurante 2-3 phrases"} — spécifiques à la niche, aux commandes, à la livraison en ${regions || 'Afrique'} ] }
 
-7. TYPE "contact" — config: {title: "Contactez-nous", subtitle: "Nous répondons en moins de 30 minutes !", whatsapp: "${s.storeWhatsApp || ''}", address: "${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}", showForm: true}
+7. TYPE "contact"
+config: { title: "Contactez-nous", subtitle: "Réponse garantie en moins de 30 minutes !", whatsapp: "${s.storeWhatsApp || ''}", address: "${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}", showForm: false }
 
-RÈGLES:
-- Tout en français, zéro anglais dans le contenu visible
-- Ton adapté: ${toneLabel.split('—')[0].trim()}
-- Copy persuasif et naturel pour l'audience: ${genders}, ${ages}, zone ${regions}
-- IDs uniques pour chaque section: "hero-1", "trust-1", "products-1", "why-us-1", "testimonials-1", "faq-1", "contact-1"
-- visible: true pour toutes les sections
-- Retourne UNIQUEMENT le JSON, rien d'autre`;
+RÈGLES STRICTES:
+- Tout en français, zéro anglais
+- Ton: ${toneLabel.split('—')[0].trim()}
+- Copy persuasif adapté: ${genders}, ${ages}, zone ${regions}
+- IDs: "hero-1", "badges-1", "products-1", "features-1", "testimonials-1", "faq-1", "contact-1"
+- visible: true pour toutes
+- JSON pur, rien d'autre`;
 
     let sections;
     try {
@@ -469,6 +475,123 @@ RÈGLES:
   } catch (error) {
     console.error('Erreur POST /store-manage/generate-homepage:', error.message);
     res.status(500).json({ success: false, message: 'Erreur lors de la génération de la page' });
+  }
+});
+
+/**
+ * POST /store-manage/regenerate-homepage
+ * Re-generate homepage for an existing boutique.
+ * Resets storePages then calls the same AI generation logic.
+ */
+router.post('/regenerate-homepage', requireEcomAuth, requireWorkspace, async (req, res) => {
+  try {
+    // Reset existing pages first
+    await EcomWorkspace.findByIdAndUpdate(
+      req.workspaceId,
+      { $set: { storePages: null } }
+    );
+
+    const workspace = await EcomWorkspace.findById(req.workspaceId)
+      .select('storeSettings')
+      .lean();
+
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Workspace introuvable' });
+    }
+
+    const s = workspace.storeSettings || {};
+    const groq = getGroq();
+
+    if (!groq) {
+      return res.json({ success: true, sections: buildFallbackSections(s) });
+    }
+
+    const productTypeLabel = PRODUCT_TYPE_LABELS[s.productType] || s.productType || 'Produits divers';
+    const toneLabel = TONE_LABELS[s.tone] || s.tone || 'Chaleureux & Proche';
+    const genders = (s.audience?.gender || []).join(', ') || 'tous';
+    const ages = (s.audience?.ageRange || []).join(', ') || 'tous âges';
+    const regions = (s.audience?.region || []).join(', ') || 'international';
+    const origins = (s.audience?.origin || []).join(', ') || '';
+
+    const prompt = `Tu es un expert en copywriting e-commerce et marketing digital. Tu génères des pages d'accueil pour boutiques en ligne vendant des produits physiques.
+
+INFORMATIONS DE LA BOUTIQUE:
+- Nom: ${s.storeName || 'Notre Boutique'}
+- Catégorie: ${productTypeLabel}
+- Produit phare: ${s.productDescription || ''}
+- Description boutique: ${s.storeDescription || ''}
+- Ton/Style: ${toneLabel}
+- Audience: Genre: ${genders} | Âge: ${ages} | Zone: ${regions}${origins ? ` | Origine: ${origins}` : ''}
+- Localisation: ${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}
+- Contact WhatsApp: ${s.storeWhatsApp || ''}
+
+Génère une page d'accueil complète et persuasive en JSON: {"sections": [...]}
+
+Génère exactement ces 7 sections dans cet ordre:
+
+1. TYPE "hero"
+config: { title (H1 percutant 5-10 mots, adapté niche+ton), subtitle (promesse convaincante 1-2 phrases), ctaText (texte bouton CTA actif), ctaLink: "#products", alignment: "center", backgroundImage: "" }
+
+2. TYPE "badges"
+config: { items: [ exactement 4 objets {icon: "emoji", title: "titre court 3-4 mots", desc: "1 phrase"} pour: livraison rapide, qualité garantie, support WhatsApp, retours faciles ] }
+
+3. TYPE "products"
+config: { title (titre section produits adapté niche), subtitle (accroche engageante), layout: "grid", columns: 3, showPrice: true, showAddToCart: true, limit: 6 }
+
+4. TYPE "features"
+config: { title (titre "Pourquoi nous choisir" adapté au ton), subtitle (sous-titre), items: [ exactement 4 objets {icon: "emoji", title: "titre avantage", desc: "2 phrases d'explication"} — avantages spécifiques à la niche et à la valeur de la boutique ] }
+
+5. TYPE "testimonials"
+config: { title: "Ce que disent nos clients", items: [ 3 objets {name: "Prénom Nom africain réaliste", location: "ville réaliste zone ${regions}", content: "témoignage naturel et enthousiaste de 40-70 mots", rating: 5} ], showRating: true }
+
+6. TYPE "faq"
+config: { title: "Questions fréquentes", items: [ 4 objets {question: "question réaliste", answer: "réponse rassurante 2-3 phrases"} — spécifiques à la niche, aux commandes, à la livraison en ${regions || 'Afrique'} ] }
+
+7. TYPE "contact"
+config: { title: "Contactez-nous", subtitle: "Réponse garantie en moins de 30 minutes !", whatsapp: "${s.storeWhatsApp || ''}", address: "${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}", showForm: false }
+
+RÈGLES STRICTES:
+- Tout en français, zéro anglais
+- Ton: ${toneLabel.split('—')[0].trim()}
+- Copy persuasif adapté: ${genders}, ${ages}, zone ${regions}
+- IDs: "hero-1", "badges-1", "products-1", "features-1", "testimonials-1", "faq-1", "contact-1"
+- visible: true pour toutes
+- JSON pur, rien d'autre`;
+
+    let sections;
+    try {
+      const response = await groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: 'Tu es un expert copywriter e-commerce. Tu génères uniquement du JSON valide.' },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 4000,
+        temperature: 0.7,
+        response_format: { type: 'json_object' }
+      });
+
+      const raw = response.choices[0]?.message?.content || '{}';
+      const parsed = JSON.parse(raw);
+      sections = parsed.sections;
+      if (!Array.isArray(sections) || sections.length === 0) throw new Error('Sections invalides');
+      sections = sections.map((sec, i) => ({ ...sec, id: sec.id || `${sec.type}-${i + 1}`, visible: true }));
+    } catch (aiError) {
+      console.warn('⚠️ Groq regenerate failed, using fallback:', aiError.message);
+      sections = buildFallbackSections(s);
+    }
+
+    // Save the new sections
+    await EcomWorkspace.findByIdAndUpdate(
+      req.workspaceId,
+      { $set: { storePages: { sections } } }
+    );
+
+    console.log(`✅ Homepage regenerated: ${sections.length} sections for workspace ${req.workspaceId}`);
+    res.json({ success: true, sections });
+  } catch (error) {
+    console.error('Erreur POST /store-manage/regenerate-homepage:', error.message);
+    res.status(500).json({ success: false, message: 'Erreur lors de la régénération' });
   }
 });
 

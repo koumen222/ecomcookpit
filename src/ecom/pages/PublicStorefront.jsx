@@ -8,161 +8,64 @@ import { useStoreCart } from '../hooks/useStoreCart';
 const fmt = (n, cur = 'XAF') =>
   `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
 
-// ─── Simple markdown inline renderer (bold + line breaks) ────────────────────
-function renderMd(text) {
-  if (!text) return null;
-  return text.split('\n').filter(Boolean).map((line, i) => {
-    // Headings
-    if (line.startsWith('## ')) {
-      return <h3 key={i} style={{ margin: '16px 0 4px', fontSize: 15, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{line.slice(3)}</h3>;
-    }
-    if (line.startsWith('# ')) {
-      return <h2 key={i} style={{ margin: '20px 0 6px', fontSize: 18, fontWeight: 800, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{line.slice(2)}</h2>;
-    }
-    // List items
-    if (line.startsWith('- ') || line.startsWith('* ')) {
-      return <p key={i} style={{ margin: '4px 0', fontSize: 14, color: 'var(--s-text2)', lineHeight: 1.6, paddingLeft: 8, fontFamily: 'var(--s-font)' }}>• {parseBold(line.slice(2))}</p>;
-    }
-    // Normal line
-    return <p key={i} style={{ margin: '4px 0', fontSize: 14, color: 'var(--s-text2)', lineHeight: 1.6, fontFamily: 'var(--s-font)' }}>{parseBold(line)}</p>;
-  });
-}
-
-function parseBold(text) {
-  const parts = text.split(/\*\*(.*?)\*\*/g);
-  return parts.map((part, i) =>
-    i % 2 === 1 ? <strong key={i} style={{ color: 'var(--s-text)', fontWeight: 700 }}>{part}</strong> : part
-  );
-}
-
-// ─── Section: Hero (AI-generated) ────────────────────────────────────────────
+// ─── HERO ─────────────────────────────────────────────────────────────────────
 const AiHeroSection = ({ cfg, store, prefix }) => (
   <section style={{
-    padding: 'clamp(56px, 10vw, 100px) 24px clamp(48px, 8vw, 80px)',
-    textAlign: cfg.alignment || 'center',
-    backgroundImage: cfg.backgroundImage ? `linear-gradient(rgba(0,0,0,0.45),rgba(0,0,0,0.45)),url(${cfg.backgroundImage})` : 'none',
-    backgroundSize: 'cover', backgroundPosition: 'center',
-    backgroundColor: cfg.backgroundImage ? undefined : 'var(--s-bg)',
-    color: cfg.backgroundImage ? '#fff' : 'var(--s-text)',
+    padding: 'clamp(72px, 12vw, 130px) 24px clamp(64px, 10vw, 110px)',
+    textAlign: cfg.alignment || 'center', position: 'relative', overflow: 'hidden',
+    background: cfg.backgroundImage
+      ? `linear-gradient(rgba(0,0,0,0.52),rgba(0,0,0,0.56)), url(${cfg.backgroundImage}) center/cover`
+      : 'linear-gradient(135deg, var(--s-primary) 0%, var(--s-accent, var(--s-primary)) 100%)',
   }}>
-    <div style={{ maxWidth: 700, margin: '0 auto' }}>
+    {/* Decorative orbs */}
+    <div style={{ position: 'absolute', top: -80, right: -80, width: 320, height: 320, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.07)', pointerEvents: 'none' }} />
+    <div style={{ position: 'absolute', bottom: -60, left: -60, width: 220, height: 220, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
+    <div style={{ maxWidth: 740, margin: '0 auto', position: 'relative', zIndex: 1 }}>
       {store?.logo && (
-        <img src={store.logo} alt={store.name} style={{ height: 52, width: 'auto', objectFit: 'contain', marginBottom: 24, display: 'block', margin: '0 auto 24px' }} />
+        <img src={store.logo} alt={store.name} style={{ height: 56, width: 'auto', objectFit: 'contain', display: 'block', margin: '0 auto 32px', filter: 'brightness(0) invert(1) drop-shadow(0 2px 8px rgba(0,0,0,0.3))' }} />
       )}
       <h1 style={{
-        fontSize: 'clamp(32px, 6vw, 56px)', fontWeight: 900,
-        lineHeight: 1.08, margin: '0 0 18px', letterSpacing: '-0.03em', fontFamily: 'var(--s-font)',
-        color: cfg.backgroundImage ? '#fff' : 'var(--s-text)',
+        fontSize: 'clamp(38px, 7vw, 72px)', fontWeight: 900, lineHeight: 1.04,
+        margin: '0 0 22px', letterSpacing: '-0.035em', fontFamily: 'var(--s-font)',
+        color: '#fff', textShadow: '0 2px 24px rgba(0,0,0,0.18)',
       }}>{cfg.title}</h1>
       {cfg.subtitle && (
         <p style={{
-          fontSize: 'clamp(15px, 2vw, 18px)', lineHeight: 1.65, margin: '0 0 36px',
-          color: cfg.backgroundImage ? 'rgba(255,255,255,0.85)' : 'var(--s-text2)', fontFamily: 'var(--s-font)',
+          fontSize: 'clamp(16px, 2.2vw, 20px)', lineHeight: 1.6, margin: '0 0 44px',
+          color: 'rgba(255,255,255,0.88)', fontFamily: 'var(--s-font)', maxWidth: 580, marginLeft: 'auto', marginRight: 'auto',
         }}>{cfg.subtitle}</p>
       )}
-      <a href={`${prefix}${cfg.ctaLink || '#products'}`} style={{
-        display: 'inline-flex', alignItems: 'center', gap: 9,
-        padding: '15px 34px', borderRadius: 40,
-        backgroundColor: 'var(--s-primary)', color: '#fff',
-        fontWeight: 700, fontSize: 15, textDecoration: 'none',
-        letterSpacing: '-0.01em', fontFamily: 'var(--s-font)',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-      }}>{cfg.ctaText || 'Voir nos produits'} <ArrowRight size={17} /></a>
+      <a
+        href={`${prefix}${cfg.ctaLink || '#products'}`}
+        onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 44px rgba(0,0,0,0.28)'; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 6px 30px rgba(0,0,0,0.22)'; }}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 10,
+          padding: '17px 40px', borderRadius: 50,
+          backgroundColor: '#fff', color: 'var(--s-primary)',
+          fontWeight: 800, fontSize: 15.5, textDecoration: 'none',
+          letterSpacing: '-0.01em', fontFamily: 'var(--s-font)',
+          boxShadow: '0 6px 30px rgba(0,0,0,0.22)', transition: 'transform 0.15s, box-shadow 0.15s',
+        }}>{cfg.ctaText || 'Découvrir'} <ArrowRight size={18} /></a>
     </div>
   </section>
 );
 
-// ─── Section: Text (badges / why-us) ─────────────────────────────────────────
-const AiTextSection = ({ cfg }) => (
-  <section style={{
-    padding: 'clamp(48px, 8vw, 72px) 24px',
-    backgroundColor: cfg.backgroundColor || 'var(--s-bg)',
-    textAlign: cfg.alignment || 'center',
-  }}>
-    <div style={{ maxWidth: 800, margin: '0 auto' }}>
-      {cfg.title && (
-        <h2 style={{
-          fontSize: 'clamp(20px, 3vw, 28px)', fontWeight: 800,
-          color: 'var(--s-text)', margin: '0 0 28px', letterSpacing: '-0.02em',
-          fontFamily: 'var(--s-font)',
-        }}>{cfg.title}</h2>
-      )}
-      <div style={{ textAlign: 'left' }}>{renderMd(cfg.content)}</div>
-    </div>
-  </section>
-);
-
-// ─── Section: Products (uses live products list) ──────────────────────────────
-const AiProductsSection = ({ cfg, products, prefix }) => {
-  const [activeCategory, setActiveCategory] = useState('all');
-  const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
-  const limit = cfg.limit || 6;
-  const filtered = (activeCategory === 'all' ? products : products.filter(p => p.category === activeCategory)).slice(0, limit);
-
-  return (
-    <section id="products" style={{ maxWidth: 1200, margin: '0 auto', padding: 'clamp(40px, 6vw, 64px) 24px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 16 }}>
-        <div>
-          <h2 style={{ fontSize: 'clamp(20px, 3vw, 28px)', fontWeight: 800, color: 'var(--s-text)', margin: 0, letterSpacing: '-0.02em', fontFamily: 'var(--s-font)' }}>
-            {cfg.title || 'Nos Produits'}
-          </h2>
-          {cfg.subtitle && <p style={{ fontSize: 13, color: 'var(--s-text2)', margin: '4px 0 0', fontFamily: 'var(--s-font)' }}>{cfg.subtitle}</p>}
-        </div>
-        {categories.length > 1 && (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {['all', ...categories].map(cat => (
-              <button key={cat} onClick={() => setActiveCategory(cat)} style={{
-                padding: '7px 17px', borderRadius: 40, border: '1.5px solid',
-                borderColor: activeCategory === cat ? 'var(--s-primary)' : 'var(--s-border)',
-                backgroundColor: activeCategory === cat ? 'var(--s-primary)' : 'transparent',
-                color: activeCategory === cat ? '#fff' : 'var(--s-text)',
-                fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--s-font)',
-              }}>{cat === 'all' ? 'Tout' : cat}</button>
-            ))}
-          </div>
-        )}
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 20 }}>
-        {filtered.length === 0 ? (
-          <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '48px 20px', color: 'var(--s-text2)' }}>
-            <ShoppingBag size={36} style={{ marginBottom: 12, opacity: 0.4 }} />
-            <p style={{ margin: 0, fontSize: 15 }}>Aucun produit pour l'instant.</p>
-          </div>
-        ) : (
-          filtered.map(p => <ProductCard key={p._id} product={p} prefix={prefix} />)
-        )}
-      </div>
-    </section>
-  );
-};
-
-// ─── Section: Testimonials ────────────────────────────────────────────────────
-const AiTestimonialsSection = ({ cfg }) => (
-  <section style={{ padding: 'clamp(48px, 8vw, 72px) 24px', backgroundColor: '#F9FAFB' }}>
-    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-      <h2 style={{
-        fontSize: 'clamp(20px, 3vw, 28px)', fontWeight: 800, textAlign: 'center',
-        color: 'var(--s-text)', margin: '0 0 40px', letterSpacing: '-0.02em', fontFamily: 'var(--s-font)',
-      }}>{cfg.title || 'Ce que disent nos clients'}</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 20 }}>
-        {(cfg.items || []).map((t, i) => (
+// ─── BADGES (trust strip) ──────────────────────────────────────────────────────
+const AiBadgesSection = ({ cfg }) => (
+  <section style={{ backgroundColor: '#fff', borderBottom: '1px solid #F3F4F6' }}>
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 0 }}>
+        {(cfg.items || []).map((badge, i) => (
           <div key={i} style={{
-            backgroundColor: '#fff', borderRadius: 16, padding: '24px 22px',
-            border: '1px solid #E5E7EB', boxShadow: '0 1px 6px rgba(0,0,0,0.05)',
+            display: 'flex', alignItems: 'center', gap: 14,
+            padding: '22px 20px',
+            borderRight: i < (cfg.items?.length - 1) ? '1px solid #F3F4F6' : 'none',
           }}>
-            {cfg.showRating !== false && (
-              <div style={{ display: 'flex', gap: 3, marginBottom: 12 }}>
-                {Array.from({ length: t.rating || 5 }).map((_, j) => (
-                  <Star key={j} size={14} fill="var(--s-primary)" color="var(--s-primary)" />
-                ))}
-              </div>
-            )}
-            <p style={{ fontSize: 14, lineHeight: 1.65, color: 'var(--s-text2)', margin: '0 0 16px', fontFamily: 'var(--s-font)', fontStyle: 'italic' }}>
-              "{t.content || t.text}"
-            </p>
+            <span style={{ fontSize: 30, lineHeight: 1, flexShrink: 0 }}>{badge.icon}</span>
             <div>
-              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{t.name}</p>
-              {t.location && <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>{t.location}</p>}
+              <p style={{ margin: 0, fontWeight: 700, fontSize: 13.5, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{badge.title}</p>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--s-text2)', lineHeight: 1.4, fontFamily: 'var(--s-font)' }}>{badge.desc}</p>
             </div>
           </div>
         ))}
@@ -171,32 +74,152 @@ const AiTestimonialsSection = ({ cfg }) => (
   </section>
 );
 
-// ─── Section: FAQ ─────────────────────────────────────────────────────────────
+// ─── PRODUCTS ─────────────────────────────────────────────────────────────────
+const AiProductsSection = ({ cfg, products, prefix }) => {
+  const [activeCategory, setActiveCategory] = useState('all');
+  const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
+  const limit = cfg.limit || 6;
+  const filtered = (activeCategory === 'all' ? products : products.filter(p => p.category === activeCategory)).slice(0, limit);
+  return (
+    <section id="products" style={{ backgroundColor: '#FAFAFA', padding: 'clamp(52px, 8vw, 80px) 24px' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 36, flexWrap: 'wrap', gap: 16 }}>
+          <div>
+            <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 34px)', fontWeight: 900, color: 'var(--s-text)', margin: 0, letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>
+              {cfg.title || 'Nos Produits'}
+            </h2>
+            {cfg.subtitle && <p style={{ fontSize: 14, color: 'var(--s-text2)', margin: '6px 0 0', fontFamily: 'var(--s-font)' }}>{cfg.subtitle}</p>}
+          </div>
+          {categories.length > 1 && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {['all', ...categories].map(cat => (
+                <button key={cat} onClick={() => setActiveCategory(cat)} style={{
+                  padding: '8px 18px', borderRadius: 40, border: '1.5px solid',
+                  borderColor: activeCategory === cat ? 'var(--s-primary)' : '#E5E7EB',
+                  backgroundColor: activeCategory === cat ? 'var(--s-primary)' : '#fff',
+                  color: activeCategory === cat ? '#fff' : 'var(--s-text)',
+                  fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--s-font)', transition: 'all 0.15s',
+                }}>{cat === 'all' ? 'Tout voir' : cat}</button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 20 }}>
+          {filtered.length === 0 ? (
+            <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '64px 20px', color: 'var(--s-text2)' }}>
+              <ShoppingBag size={40} style={{ marginBottom: 12, opacity: 0.3 }} />
+              <p style={{ margin: 0, fontSize: 15 }}>Aucun produit pour l'instant.</p>
+            </div>
+          ) : filtered.map(p => <ProductCard key={p._id} product={p} prefix={prefix} />)}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+// ─── FEATURES (why us) ────────────────────────────────────────────────────────
+const FEATURE_COLORS = ['#E6F2ED', '#EEF2FF', '#FEF3C7', '#FCE7F3'];
+const AiFeaturesSection = ({ cfg }) => (
+  <section style={{ padding: 'clamp(56px, 9vw, 88px) 24px', backgroundColor: '#fff' }}>
+    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <div style={{ textAlign: 'center', marginBottom: 48 }}>
+        <h2 style={{ fontSize: 'clamp(22px, 3.2vw, 34px)', fontWeight: 900, color: 'var(--s-text)', margin: 0, letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>
+          {cfg.title || 'Pourquoi nous choisir ?'}
+        </h2>
+        {cfg.subtitle && <p style={{ fontSize: 15, color: 'var(--s-text2)', margin: '10px 0 0', fontFamily: 'var(--s-font)' }}>{cfg.subtitle}</p>}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 20 }}>
+        {(cfg.items || []).map((f, i) => (
+          <div key={i} style={{
+            backgroundColor: '#FAFAFA', borderRadius: 20, padding: '28px 24px',
+            border: '1px solid #F0F0F0', transition: 'box-shadow 0.2s, transform 0.2s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
+          onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}
+          >
+            <div style={{
+              width: 52, height: 52, borderRadius: 16, marginBottom: 18,
+              backgroundColor: FEATURE_COLORS[i % FEATURE_COLORS.length],
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
+            }}>{f.icon}</div>
+            <h3 style={{ margin: '0 0 10px', fontSize: 15.5, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{f.title}</h3>
+            <p style={{ margin: 0, fontSize: 13.5, color: 'var(--s-text2)', lineHeight: 1.65, fontFamily: 'var(--s-font)' }}>{f.desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+);
+
+// ─── TESTIMONIALS ──────────────────────────────────────────────────────────────
+const AiTestimonialsSection = ({ cfg }) => (
+  <section style={{ padding: 'clamp(56px, 9vw, 88px) 24px', backgroundColor: '#F9FAFB' }}>
+    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <h2 style={{
+        fontSize: 'clamp(22px, 3.2vw, 34px)', fontWeight: 900, textAlign: 'center',
+        color: 'var(--s-text)', margin: '0 0 44px', letterSpacing: '-0.025em', fontFamily: 'var(--s-font)',
+      }}>{cfg.title || 'Ce que disent nos clients'}</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
+        {(cfg.items || []).map((t, i) => (
+          <div key={i} style={{
+            backgroundColor: '#fff', borderRadius: 20, padding: '28px 26px',
+            border: '1px solid #EBEBEB', boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+          }}>
+            <div style={{ display: 'flex', gap: 3, marginBottom: 16 }}>
+              {Array.from({ length: t.rating || 5 }).map((_, j) => (
+                <Star key={j} size={15} fill="var(--s-primary)" color="var(--s-primary)" />
+              ))}
+            </div>
+            <p style={{ fontSize: 14.5, lineHeight: 1.7, color: '#374151', margin: '0 0 20px', fontFamily: 'var(--s-font)', fontStyle: 'italic' }}>
+              "{t.content || t.text}"
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 38, height: 38, borderRadius: '50%', flexShrink: 0,
+                backgroundColor: 'var(--s-primary)', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontWeight: 700, fontSize: 14, color: '#fff', fontFamily: 'var(--s-font)',
+              }}>{(t.name || '?')[0]}</div>
+              <div>
+                <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{t.name}</p>
+                {t.location && <p style={{ margin: '1px 0 0', fontSize: 11.5, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>📍 {t.location}</p>}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+);
+
+// ─── FAQ ──────────────────────────────────────────────────────────────────────
 const AiFaqSection = ({ cfg }) => {
   const [open, setOpen] = useState(null);
   return (
-    <section style={{ padding: 'clamp(48px, 8vw, 72px) 24px', backgroundColor: 'var(--s-bg)' }}>
-      <div style={{ maxWidth: 720, margin: '0 auto' }}>
+    <section style={{ padding: 'clamp(56px, 9vw, 88px) 24px', backgroundColor: '#fff' }}>
+      <div style={{ maxWidth: 740, margin: '0 auto' }}>
         <h2 style={{
-          fontSize: 'clamp(20px, 3vw, 28px)', fontWeight: 800, textAlign: 'center',
-          color: 'var(--s-text)', margin: '0 0 36px', letterSpacing: '-0.02em', fontFamily: 'var(--s-font)',
+          fontSize: 'clamp(22px, 3.2vw, 34px)', fontWeight: 900, textAlign: 'center',
+          color: 'var(--s-text)', margin: '0 0 40px', letterSpacing: '-0.025em', fontFamily: 'var(--s-font)',
         }}>{cfg.title || 'Questions fréquentes'}</h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {(cfg.items || []).map((item, i) => (
-            <div key={i} style={{ borderRadius: 12, border: '1.5px solid var(--s-border)', overflow: 'hidden', backgroundColor: '#fff' }}>
-              <button
-                onClick={() => setOpen(open === i ? null : i)}
-                style={{
-                  width: '100%', padding: '16px 20px', display: 'flex', alignItems: 'center',
-                  justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer',
-                  textAlign: 'left', gap: 12,
-                }}
-              >
-                <span style={{ fontWeight: 600, fontSize: 14.5, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{item.question}</span>
-                {open === i ? <ChevronUp size={16} color="var(--s-primary)" /> : <ChevronDown size={16} color="var(--s-text2)" />}
+            <div key={i} style={{
+              borderRadius: 14, border: '1.5px solid', overflow: 'hidden',
+              borderColor: open === i ? 'var(--s-primary)' : '#E5E7EB',
+              backgroundColor: open === i ? '#FAFFFE' : '#fff',
+              transition: 'border-color 0.15s, background-color 0.15s',
+            }}>
+              <button onClick={() => setOpen(open === i ? null : i)} style={{
+                width: '100%', padding: '18px 22px', display: 'flex', alignItems: 'center',
+                justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', gap: 12,
+              }}>
+                <span style={{ fontWeight: 600, fontSize: 14.5, color: 'var(--s-text)', fontFamily: 'var(--s-font)', lineHeight: 1.4 }}>{item.question}</span>
+                <span style={{ flexShrink: 0 }}>
+                  {open === i ? <ChevronUp size={17} color="var(--s-primary)" /> : <ChevronDown size={17} color="#9CA3AF" />}
+                </span>
               </button>
               {open === i && (
-                <div style={{ padding: '0 20px 18px', fontSize: 14, color: 'var(--s-text2)', lineHeight: 1.65, fontFamily: 'var(--s-font)' }}>
+                <div style={{ padding: '0 22px 20px', fontSize: 14, color: '#4B5563', lineHeight: 1.7, fontFamily: 'var(--s-font)' }}>
                   {item.answer || item.reponse}
                 </div>
               )}
@@ -208,51 +231,57 @@ const AiFaqSection = ({ cfg }) => {
   );
 };
 
-// ─── Section: Contact ─────────────────────────────────────────────────────────
+// ─── CONTACT CTA ──────────────────────────────────────────────────────────────
 const AiContactSection = ({ cfg, store }) => {
   const whatsapp = cfg.whatsapp || store?.whatsapp || '';
   return (
     <section style={{
-      padding: 'clamp(48px, 8vw, 72px) 24px',
-      backgroundColor: cfg.backgroundColor || 'var(--s-primary)',
-      textAlign: 'center',
+      padding: 'clamp(64px, 10vw, 100px) 24px', textAlign: 'center', position: 'relative', overflow: 'hidden',
+      background: 'linear-gradient(135deg, var(--s-primary) 0%, var(--s-accent, var(--s-primary)) 100%)',
     }}>
-      <div style={{ maxWidth: 560, margin: '0 auto' }}>
-        <h2 style={{
-          fontSize: 'clamp(20px, 3vw, 28px)', fontWeight: 800,
-          color: cfg.textColor || '#fff', margin: '0 0 10px', fontFamily: 'var(--s-font)',
-        }}>{cfg.title || 'Contactez-nous'}</h2>
+      <div style={{ position: 'absolute', top: -40, right: -40, width: 200, height: 200, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.06)', pointerEvents: 'none' }} />
+      <div style={{ maxWidth: 600, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+        <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 40px)', fontWeight: 900, color: '#fff', margin: '0 0 12px', letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>
+          {cfg.title || 'Parlez-nous maintenant'}
+        </h2>
         {cfg.subtitle && (
-          <p style={{ fontSize: 15, color: cfg.textColor ? cfg.textColor + 'CC' : 'rgba(255,255,255,0.85)', margin: '0 0 28px', fontFamily: 'var(--s-font)' }}>
+          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.85)', margin: '0 0 36px', lineHeight: 1.6, fontFamily: 'var(--s-font)' }}>
             {cfg.subtitle}
           </p>
         )}
         {whatsapp && (
-          <a
-            href={`https://wa.me/${whatsapp.replace(/\D/g, '')}`}
-            target="_blank" rel="noreferrer"
+          <a href={`https://wa.me/${whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 44px rgba(0,0,0,0.22)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 6px 28px rgba(0,0,0,0.18)'; }}
             style={{
-              display: 'inline-flex', alignItems: 'center', gap: 10,
-              padding: '14px 32px', borderRadius: 40,
+              display: 'inline-flex', alignItems: 'center', gap: 12,
+              padding: '16px 36px', borderRadius: 50,
               backgroundColor: '#25D366', color: '#fff',
-              textDecoration: 'none', fontWeight: 700, fontSize: 15,
-              fontFamily: 'var(--s-font)', boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
-            }}
-          >
-            <MessageCircle size={18} /> Commander sur WhatsApp
+              textDecoration: 'none', fontWeight: 800, fontSize: 16,
+              fontFamily: 'var(--s-font)', boxShadow: '0 6px 28px rgba(0,0,0,0.18)', transition: 'transform 0.15s, box-shadow 0.15s',
+            }}>
+            <MessageCircle size={20} /> Commander sur WhatsApp
           </a>
         )}
         {cfg.address && (
-          <p style={{ marginTop: 16, fontSize: 13, color: cfg.textColor ? cfg.textColor + 'AA' : 'rgba(255,255,255,0.65)', fontFamily: 'var(--s-font)' }}>
-            📍 {cfg.address}
-          </p>
+          <p style={{ marginTop: 20, fontSize: 13, color: 'rgba(255,255,255,0.65)', fontFamily: 'var(--s-font)' }}>📍 {cfg.address}</p>
         )}
       </div>
     </section>
   );
 };
 
-// ─── Section: Spacer ─────────────────────────────────────────────────────────
+// ─── TEXT (fallback pour anciennes sections) ──────────────────────────────────
+const AiTextSection = ({ cfg }) => (
+  <section style={{ padding: 'clamp(48px, 8vw, 72px) 24px', backgroundColor: cfg.backgroundColor || '#fff', textAlign: cfg.alignment || 'left' }}>
+    <div style={{ maxWidth: 800, margin: '0 auto' }}>
+      {cfg.title && <h2 style={{ fontSize: 'clamp(20px, 3vw, 28px)', fontWeight: 800, color: 'var(--s-text)', margin: '0 0 20px', fontFamily: 'var(--s-font)' }}>{cfg.title}</h2>}
+      {cfg.content && <p style={{ fontSize: 14.5, color: 'var(--s-text2)', lineHeight: 1.7, fontFamily: 'var(--s-font)', whiteSpace: 'pre-line' }}>{cfg.content.replace(/\*\*/g, '')}</p>}
+    </div>
+  </section>
+);
+
+// ─── SPACER ───────────────────────────────────────────────────────────────────
 const AiSpacerSection = ({ cfg }) => (
   <div style={{ height: cfg.height || 40, backgroundColor: cfg.backgroundColor || 'transparent' }} />
 );
@@ -263,6 +292,8 @@ const SectionRenderer = ({ section, store, products, prefix }) => {
   const cfg = section.config || {};
   switch (section.type) {
     case 'hero':         return <AiHeroSection cfg={cfg} store={store} prefix={prefix} />;
+    case 'badges':       return <AiBadgesSection cfg={cfg} />;
+    case 'features':     return <AiFeaturesSection cfg={cfg} />;
     case 'text':         return <AiTextSection cfg={cfg} />;
     case 'products':     return <AiProductsSection cfg={cfg} products={products} prefix={prefix} />;
     case 'testimonials': return <AiTestimonialsSection cfg={cfg} />;
