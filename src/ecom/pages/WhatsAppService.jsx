@@ -61,6 +61,7 @@ const WhatsAppService = () => {
 
   const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
   const userId = user._id || user.id;
+  const workspaceId = user.workspaceId || user.workspace;
 
   useEffect(() => { loadInstances(); loadOrderCount(); loadDashboardStats(); }, []);
   useEffect(() => { instances.forEach(inst => loadMessageStats(inst._id)); }, [instances.length]);
@@ -71,7 +72,14 @@ const WhatsAppService = () => {
     try { const { data } = await ecomApi.get('/v1/external/whatsapp/orders/stats'); if (data.success) setOrderCount(data.stats?.pending || 0); } catch {}
   };
   const loadInstances = async () => {
-    try { setLoading(true); setError(''); const { data } = await ecomApi.get(`/v1/external/whatsapp/instances?userId=${userId}`); setInstances(data.success ? data.instances || [] : []); }
+    try {
+      setLoading(true);
+      setError('');
+      const params = new URLSearchParams({ userId });
+      if (workspaceId) params.append('workspaceId', workspaceId);
+      const { data } = await ecomApi.get(`/v1/external/whatsapp/instances?${params}`);
+      setInstances(data.success ? data.instances || [] : []);
+    }
     catch { setInstances([]); } finally { setLoading(false); }
   };
   const loadDashboardStats = async () => {
@@ -156,8 +164,20 @@ const WhatsAppService = () => {
         }
         loadInstances();
         loadDashboardStats();
-      } else { setError(data.error || 'Erreur lors de la création'); }
-    } catch (err) { setError(err.response?.data?.error || err.message || 'Erreur serveur'); }
+      } else {
+        // Améliorer le message d'erreur selon le type
+        let errorMsg = data.error || 'Erreur lors de la création';
+        if (data.suggestion) errorMsg += ` — ${data.suggestion}`;
+        setError(errorMsg);
+      }
+    } catch (err) {
+      let errorMsg = err.response?.data?.error || err.message || 'Erreur serveur';
+      if (err.response?.data?.suggestion) errorMsg += ` — ${err.response.data.suggestion}`;
+      if (errorMsg.includes('Application not found') || errorMsg.includes('indisponible')) {
+        errorMsg = "Service WhatsApp temporairement indisponible. Le serveur Evolution API n'est pas accessible. Veuillez réessayer plus tard ou contacter le support.";
+      }
+      setError(errorMsg);
+    }
     finally { setSubmitting(false); }
   };
 

@@ -563,7 +563,7 @@ router.post('/send', async (req, res) => {
  */
 router.get('/instances', async (req, res) => {
   try {
-    const { userId } = req.query;
+    const { userId, workspaceId } = req.query;
 
     if (!userId) {
       return res.status(400).json({
@@ -572,8 +572,33 @@ router.get('/instances', async (req, res) => {
       });
     }
 
-    const instances = await WhatsAppInstance.find({ userId, isActive: true });
-    
+    // Construire le filtre: chercher par userId OU workspaceId
+    const searchFilter = workspaceId
+      ? { $or: [{ userId }, { workspaceId }] }
+      : { userId };
+
+    // Auto-réactiver les instances inactives
+    const reactivated = await WhatsAppInstance.updateMany(
+      { ...searchFilter, isActive: false },
+      { $set: { isActive: true, userId } }
+    );
+    if (reactivated.modifiedCount > 0) {
+      console.log(`🔄 [INSTANCES] Auto-réactivé ${reactivated.modifiedCount} instance(s) pour userId: ${userId}`);
+    }
+
+    // Récupérer toutes les instances
+    const instances = await WhatsAppInstance.find({ ...searchFilter, isActive: true });
+
+    // S'assurer que toutes les instances sont liées au bon userId
+    for (const inst of instances) {
+      if (inst.userId !== userId) {
+        inst.userId = userId;
+        if (workspaceId) inst.workspaceId = workspaceId;
+        await inst.save();
+        console.log(`🔗 [INSTANCES] Transféré instance "${inst.instanceName}" vers userId=${userId}`);
+      }
+    }
+
     console.log(`📋 [INSTANCES] Trouvé ${instances.length} instance(s) pour userId: ${userId}`);
     instances.forEach(inst => {
       console.log(`   - ${inst.instanceName} | status: ${inst.status} | workspaceId: ${inst.workspaceId || 'N/A'}`);
@@ -2256,6 +2281,30 @@ router.get('/orders/stats', requireEcomAuth, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+// Test connexion Evolution API
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * @route   GET /api/ecom/v1/external/whatsapp/test-evolution
+ * @desc    Teste la connexion à l'Evolution API
+ */
+router.get('/test-evolution', async (req, res) => {
+  try {
+    const result = await evolutionApiService.testConnection();
+    res.json({
+      success: result.success,
+      evolutionUrl: process.env.EVOLUTION_API_URL,
+      tokenConfigured: !!process.env.EVOLUTION_ADMIN_TOKEN,
+      error: result.error,
+      details: result.details,
+      existingInstances: result.instances?.length || 0
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
 // Création directe d'instance via Scalot (sans passer par ZenChat)
 // ═══════════════════════════════════════════════════════════════
 
@@ -2269,6 +2318,20 @@ router.post('/create-instance', requireEcomAuth, async (req, res) => {
     const workspaceId = req.workspaceId;
     const { customName } = req.body;
 
+    // 0. Tester d'abord la connexion à Evolution API
+    console.log(`🔍 [CREATE] Test connexion Evolution API...`);
+    const testResult = await evolutionApiService.testConnection();
+    if (!testResult.success) {
+      console.error(`❌ [CREATE] Evolution API inaccessible:`, testResult.error);
+      return res.status(503).json({
+        success: false,
+        error: `Service Evolution API indisponible: ${testResult.error}`,
+        evolutionUrl: process.env.EVOLUTION_API_URL,
+        suggestion: "L'instance Evolution API Railway n'est peut-être plus active. Vérifiez votre configuration."
+      });
+    }
+    console.log(`✅ [CREATE] Evolution API accessible`);
+
     // Générer un nom d'instance unique basé sur le userId
     const slug = (customName || 'scalot').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 20).toLowerCase();
     const instanceName = `${slug}_${userId.slice(-6)}_${Date.now().toString(36)}`;
@@ -2278,6 +2341,7 @@ router.post('/create-instance', requireEcomAuth, async (req, res) => {
     // 1. Créer l'instance sur Evolution API
     const result = await evolutionApiService.createInstance(instanceName);
     if (!result.success) {
+      console.error(`❌ [CREATE] Échec Evolution API:`, result.error);
       return res.status(400).json({ success: false, error: result.error || "Impossible de créer l'instance sur Evolution API" });
     }
 

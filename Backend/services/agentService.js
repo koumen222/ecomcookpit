@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import Groq from 'groq-sdk';
 import AgentConversation from '../models/AgentConversation.js';
 import AgentMessage from '../models/AgentMessage.js';
 import ProductConfig from '../models/ProductConfig.js';
@@ -7,16 +7,16 @@ import Workspace from '../models/Workspace.js';
 import RitaConfig from '../models/RitaConfig.js';
 import { analyzeImage, buildImageResponsePrompt } from './agentImageService.js';
 
-let openai = null;
+let groqClient = null;
 
-const initOpenAI = () => {
-  if (!openai && process.env.OPENAI_API_KEY) {
-    openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
+const initGroq = () => {
+  if (!groqClient && process.env.GROQ_API_KEY) {
+    groqClient = new Groq({
+      apiKey: process.env.GROQ_API_KEY
     });
-    console.log('✅ Service Agent OpenAI initialisé');
+    console.log('✅ Service Agent Groq initialisé');
   }
-  return openai;
+  return groqClient;
 };
 
 const INTENT_KEYWORDS = {
@@ -309,10 +309,10 @@ Génère une réponse qui:
 };
 
 const generateAgentResponse = async (conversation, clientMessage, intent, sentiment) => {
-  initOpenAI();
-  
-  if (!openai) {
-    throw new Error('OpenAI non configuré - OPENAI_API_KEY manquante');
+  const groq = initGroq();
+
+  if (!groq) {
+    throw new Error('Groq non configuré - GROQ_API_KEY manquante');
   }
 
   const productConfig = await ProductConfig.findByProductName(
@@ -330,9 +330,9 @@ const generateAgentResponse = async (conversation, clientMessage, intent, sentim
 
   try {
     const startTime = Date.now();
-    
-    const completion = await openai.chat.completions.create({
-      model: process.env.AGENT_GPT_MODEL || 'gpt-4o-mini',
+
+    const completion = await groq.chat.completions.create({
+      model: process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
@@ -354,12 +354,12 @@ const generateAgentResponse = async (conversation, clientMessage, intent, sentim
     return {
       response,
       promptUsed: systemPrompt.substring(0, 500) + '...',
-      gptModel: process.env.AGENT_GPT_MODEL || 'gpt-4o-mini',
+      gptModel: process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
       tokensUsed,
       processingTime
     };
   } catch (error) {
-    console.error('❌ Erreur génération réponse GPT:', error.message);
+    console.error('❌ Erreur génération réponse Groq:', error.message);
     throw error;
   }
 };
@@ -862,8 +862,8 @@ const processIncomingImageMessage = async (conversation, base64Image, mimetype, 
  * Génère une réponse agent en tenant compte du contexte image.
  */
 const generateAgentImageResponse = async (conversation, imageContext, caption) => {
-  initOpenAI();
-  if (!openai) throw new Error('OpenAI non configuré');
+  const groq = initGroq();
+  if (!groq) throw new Error('Groq non configuré');
 
   const productConfig = await ProductConfig.findByProductName(
     conversation.workspaceId,
@@ -891,8 +891,8 @@ Génère une réponse naturelle qui:
 
   const startTime = Date.now();
 
-  const completion = await openai.chat.completions.create({
-    model: process.env.AGENT_GPT_MODEL || 'gpt-4o-mini',
+  const completion = await groq.chat.completions.create({
+    model: process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }
@@ -912,7 +912,7 @@ Génère une réponse naturelle qui:
   return {
     response,
     promptUsed: systemPrompt.substring(0, 500) + '...',
-    gptModel: process.env.AGENT_GPT_MODEL || 'gpt-4o-mini',
+    gptModel: process.env.AGENT_GROQ_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
     tokensUsed,
     processingTime
   };
@@ -959,7 +959,7 @@ const getConversationStats = async (workspaceId, dateFrom = null, dateTo = null)
 };
 
 export {
-  initOpenAI,
+  initGroq,
   analyzeIntent,
   analyzeSentiment,
   calculateConfidenceImpact,

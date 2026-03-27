@@ -358,6 +358,42 @@ class EvolutionApiService {
   }
 
   // ═══════════════════════════════════════════════════════════════
+  // Test de connexion à Evolution API
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Teste la connexion à l'Evolution API
+   * @returns {Promise<{success: boolean, error?: string, details?: object}>}
+   */
+  async testConnection() {
+    const masterKey = process.env.EVOLUTION_ADMIN_TOKEN || process.env.EVOLUTION_MASTER_API_KEY || this.apiKey;
+    try {
+      console.log(`🔍 [Evolution API] Test connexion vers ${this.baseUrl}`);
+      console.log(`🔑 [Evolution API] Token: ${masterKey ? masterKey.substring(0, 8) + '...' : 'NON CONFIGURÉ'}`);
+
+      const response = await axios.get(
+        `${this.baseUrl}/instance/fetchInstances`,
+        {
+          headers: { 'apikey': masterKey },
+          timeout: 10000,
+        }
+      );
+      console.log(`✅ [Evolution API] Connexion OK - ${response.data?.length || 0} instance(s) existante(s)`);
+      return { success: true, instances: response.data };
+    } catch (error) {
+      const status = error.response?.status;
+      const data = error.response?.data;
+      console.error(`❌ [Evolution API] Échec connexion:`, { status, data: JSON.stringify(data), message: error.message });
+      return {
+        success: false,
+        error: data?.message || error.message,
+        status,
+        details: data
+      };
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   // Création d'instance via Master API Key
   // ═══════════════════════════════════════════════════════════════
 
