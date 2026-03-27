@@ -214,11 +214,7 @@ const BoutiqueSettings = () => {
     }
   };
 
-  const previewUrl = subdomain
-    ? (window.location.hostname === 'localhost'
-        ? `/store/${subdomain}`
-        : `https://${subdomain}.scalor.net`)
-    : null;
+  const previewUrl = subdomain ? `https://${subdomain}.scalor.net` : null;
 
   return (
     <div className="p-4 lg:p-6 max-w-3xl mx-auto space-y-5">

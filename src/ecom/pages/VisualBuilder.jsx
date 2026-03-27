@@ -854,7 +854,7 @@ const VisualBuilder = () => {
 
           {/* Open in new tab */}
           {subdomain && (
-            <a href={`/store/${subdomain}`} target="_blank" rel="noopener noreferrer"
+            <a href={`https://${subdomain}.scalor.net`} target="_blank" rel="noopener noreferrer"
               title="Ouvrir la boutique"
               className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-500">
               <ExternalLink className="w-3.5 h-3.5" />
