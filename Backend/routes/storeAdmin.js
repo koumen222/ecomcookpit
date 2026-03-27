@@ -252,13 +252,42 @@ router.get('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
 
 router.put('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
-    const { subdomain, customDomain } = req.body;
-    
+    let { subdomain, customDomain } = req.body;
+
     console.log('🌐 PUT /store/domains - workspaceId:', req.workspaceId);
     console.log('🌐 Request body:', { subdomain, customDomain });
-    
+
     const update = {};
-    if (subdomain !== undefined) update.subdomain = subdomain;
+
+    if (subdomain !== undefined) {
+      // Sanitize
+      subdomain = String(subdomain || '').toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/^-|-$/g, '');
+
+      if (subdomain && subdomain.length < 3) {
+        return res.status(400).json({ success: false, message: 'Le sous-domaine doit contenir au moins 3 caractères' });
+      }
+
+      const RESERVED = ['www','api','app','admin','dashboard','mail','ftp','store','shop','scalor','help','support','docs','blog','static','cdn','assets','dev','staging','test'];
+      if (RESERVED.includes(subdomain)) {
+        return res.status(400).json({ success: false, message: 'Ce sous-domaine est réservé' });
+      }
+
+      // Check uniqueness
+      if (subdomain) {
+        const existing = await Workspace.findOne({ subdomain, _id: { $ne: req.workspaceId } }).select('_id').lean();
+        if (existing) {
+          return res.status(409).json({ success: false, message: 'Ce sous-domaine est déjà pris' });
+        }
+      }
+
+      update.subdomain = subdomain || null;
+
+      // Auto-enable store when a subdomain is set
+      if (subdomain) {
+        update['storeSettings.isStoreEnabled'] = true;
+      }
+    }
+
     if (customDomain !== undefined) update['storeDomains.customDomain'] = customDomain;
 
     await Workspace.findByIdAndUpdate(
@@ -273,6 +302,9 @@ router.put('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
       message: 'Domains updated'
     });
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({ success: false, message: 'Ce sous-domaine est déjà pris' });
+    }
     console.error('❌ Error PUT /store/domains:', error);
     console.error('❌ Error details:', error.message);
     res.status(500).json({ success: false, message: 'Error saving domains' });
