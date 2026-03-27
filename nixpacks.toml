@@ -3,18 +3,21 @@ nixPkgs = ["nodejs_22"]
 
 [phases.install]
 cmds = [
-  "npm ci",
-  "cd Backend && npm ci --include=dev"
+  "echo '=== PWD:' && pwd && ls -la",
+  "npm ci || (cd .. && npm ci) || echo 'WARN: root npm ci failed'",
+  "if [ -d Backend ]; then cd Backend && npm ci --include=dev; else npm ci --include=dev; fi"
 ]
 
 [phases.build]
 cmds = [
-  "npm run build || echo 'WARN: vite build failed'",
-  "ls -la dist/index.html 2>/dev/null && echo 'BUILD OK: dist/index.html found' || echo 'ERROR: dist/index.html NOT found'",
-  "mkdir -p Backend/client/build",
-  "cp -r dist/* Backend/client/build/ 2>/dev/null || echo 'WARN: copy dist failed'",
-  "ls -la Backend/client/build/index.html 2>/dev/null && echo 'COPY OK' || echo 'ERROR: Backend/client/build/index.html NOT found after copy'"
+  "echo '=== BUILD PWD:' && pwd && ls -la",
+  "if [ -f vite.config.js ] || [ -f vite.config.ts ]; then npm run build; elif [ -f ../vite.config.js ] || [ -f ../vite.config.ts ]; then cd .. && npm run build; else echo 'ERROR: No vite config found'; fi",
+  "echo '=== Looking for dist...' && find / -name 'index.html' -path '*/dist/*' 2>/dev/null | head -5",
+  "DIST_DIR=$(find / -name 'index.html' -path '*/dist/*' -not -path '*/node_modules/*' 2>/dev/null | head -1 | xargs dirname 2>/dev/null) && echo \"Found dist at: $DIST_DIR\"",
+  "if [ -d dist ]; then DIST_SRC=dist; elif [ -d ../dist ]; then DIST_SRC=../dist; else DIST_SRC=''; fi",
+  "if [ -n \"$DIST_SRC\" ]; then if [ -d Backend ]; then mkdir -p Backend/client/build && cp -r $DIST_SRC/* Backend/client/build/; else mkdir -p client/build && cp -r $DIST_SRC/* client/build/; fi && echo 'COPY OK'; else echo 'ERROR: no dist found to copy'; fi",
+  "echo '=== Final check:' && (ls Backend/client/build/index.html 2>/dev/null || ls client/build/index.html 2>/dev/null || echo 'NO index.html found')"
 ]
 
 [start]
-cmd = "cd Backend && node server.js"
+cmd = "if [ -f Backend/server.js ]; then cd Backend && node server.js; else node server.js; fi"
