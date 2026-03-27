@@ -2912,6 +2912,35 @@ export function getLastAssistantMessage(userId, from) {
  * @param {number} maxRelances - Nombre max de relances
  * @returns {Array<{userId, from, relanceCount, history}>}
  */
+/**
+ * Retourne toutes les conversations Rita actives en mémoire pour un userId donné.
+ * Utilisé pour la vue temps réel côté admin.
+ */
+export function getLiveConversations(userId) {
+  const result = [];
+  for (const [key, messages] of conversationHistory.entries()) {
+    const colonIdx = key.indexOf(':');
+    const uid = key.substring(0, colonIdx);
+    const from = key.substring(colonIdx + 1);
+    if (uid !== userId) continue;
+    const state = clientStates.get(key) || {};
+    const tracker = conversationTracker.get(key) || {};
+    const lastActivity = conversationLastActivity.get(key) || null;
+    const phone = from.replace(/@.*$/, '');
+    result.push({
+      key,
+      phone,
+      state,
+      tracker,
+      lastActivity,
+      messages: messages.slice(-30),
+      messageCount: messages.length,
+    });
+  }
+  result.sort((a, b) => (b.lastActivity || 0) - (a.lastActivity || 0));
+  return result;
+}
+
 export function getConversationsNeedingRelance(delayHours = 24, maxRelances = 3) {
   const now = new Date();
   const results = [];

@@ -275,6 +275,11 @@ const SuperAdminBilling = () => {
   const freeCount = planMap.free || 0;
   const conversionRate = totalWs > 0 ? Math.round(((proCount + ultraCount) / totalWs) * 100) : 0;
 
+  // Free plan workspaces count as "essais"
+  const freeWorkspaces = (data.workspaces || []).filter(w => w.plan === 'free');
+  const trialWorkspaces = data.activeTrials || [];
+  const totalEssais = trialWorkspaces.length + freeWorkspaces.length;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
       <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6">
@@ -335,14 +340,14 @@ const SuperAdminBilling = () => {
             icon={Shield}
             label="Abonnes actifs"
             value={data.activeSubscriptions || 0}
-            sub={`${proCount} Pro + ${ultraCount} Ultra`}
+            sub={`${proCount} Pro · ${ultraCount} Ultra (total)`}
             accent="emerald"
           />
           <KpiCard
             icon={Timer}
             label="Essais actifs"
-            value={(data.activeTrials || []).length}
-            sub="en cours de test"
+            value={totalEssais}
+            sub={`${freeWorkspaces.length} gratuit${freeWorkspaces.length > 1 ? 's' : ''} + ${trialWorkspaces.length} trial`}
             accent="amber"
           />
           <KpiCard
@@ -360,7 +365,7 @@ const SuperAdminBilling = () => {
             { id: 'overview', label: 'Vue globale' },
             { id: 'payments', label: 'Paiements', count: data.totalPayments },
             { id: 'subscriptions', label: 'Abonnements', count: data.activeSubscriptions },
-            { id: 'trials', label: 'Essais', count: (data.activeTrials || []).length },
+            { id: 'trials', label: 'Essais', count: totalEssais },
             { id: 'workspaces', label: 'Tous les workspaces', count: totalWs },
           ]}
           active={tab}
@@ -705,55 +710,96 @@ const SuperAdminBilling = () => {
 
         {/* ═══ TAB: TRIALS ═════════════════════════════════════════════════ */}
         {tab === 'trials' && (
-          <div className="space-y-4">
-            <SectionHead icon={Timer} title="Essais gratuits" subtitle="Utilisateurs en periode de test" color="from-amber-500 to-orange-500" />
+          <div className="space-y-6">
+            <SectionHead icon={Timer} title="Essais & Comptes gratuits" subtitle={`${totalEssais} compte(s) en essai ou plan gratuit`} color="from-amber-500 to-orange-500" />
 
-            {(data.activeTrials || []).length === 0 ? (
+            {/* Free plan accounts */}
+            {freeWorkspaces.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">Gratuit</span>
+                  {freeWorkspaces.length} compte{freeWorkspaces.length > 1 ? 's' : ''} gratuit{freeWorkspaces.length > 1 ? 's' : ''}
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {freeWorkspaces.map(ws => (
+                    <div key={ws._id} className="bg-white rounded-2xl ring-2 ring-slate-100 p-5 hover:shadow-md transition-all">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-slate-800 truncate">{ws.name}</p>
+                          <p className="text-[11px] text-slate-400 truncate">{ws.owner?.email}</p>
+                        </div>
+                        <PlanBadge plan="free" />
+                      </div>
+                      <div className="text-[11px] text-slate-400">
+                        Inscrit le {fmtDate(ws.createdAt)}
+                        {ws.owner?.phone && (
+                          <div className="flex items-center gap-1.5 mt-2 text-xs text-slate-500">
+                            <Phone className="w-3 h-3" />
+                            {ws.owner.phone}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Active trial period accounts */}
+            {trialWorkspaces.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-700">Trial</span>
+                  {trialWorkspaces.length} essai{trialWorkspaces.length > 1 ? 's' : ''} en cours
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {trialWorkspaces.map(ws => {
+                    const daysLeft = daysUntil(ws.trialEndsAt);
+                    const totalDays = 3;
+                    const elapsed = totalDays - (daysLeft || 0);
+                    const pct = Math.min(100, Math.round((elapsed / totalDays) * 100));
+                    return (
+                      <div key={ws._id} className="bg-white rounded-2xl ring-2 ring-amber-100 p-5 hover:shadow-md transition-all">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <p className="font-bold text-slate-800">{ws.name}</p>
+                            <p className="text-[11px] text-slate-400">{ws.owner?.email}</p>
+                          </div>
+                          <span className={`text-lg font-black ${daysLeft <= 1 ? 'text-red-600' : 'text-amber-600'}`}>
+                            {daysLeft}j
+                          </span>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="text-slate-400">Debut: {fmtDate(ws.trialStartedAt)}</span>
+                            <span className="text-slate-400">Fin: {fmtDate(ws.trialEndsAt)}</span>
+                          </div>
+                          <div className="w-full h-2 rounded-full bg-slate-100">
+                            <div
+                              className={`h-full rounded-full transition-all ${daysLeft <= 1 ? 'bg-red-500' : 'bg-amber-400'}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {ws.owner?.phone && (
+                          <div className="flex items-center gap-1.5 mt-3 text-xs text-slate-500">
+                            <Phone className="w-3 h-3" />
+                            {ws.owner.phone}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {totalEssais === 0 && (
               <div className="bg-white rounded-2xl ring-2 ring-slate-100 p-12 text-center">
                 <Timer className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <p className="text-sm text-slate-400">Aucun essai gratuit en cours</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(data.activeTrials || []).map(ws => {
-                  const daysLeft = daysUntil(ws.trialEndsAt);
-                  const totalDays = 3;
-                  const elapsed = totalDays - (daysLeft || 0);
-                  const pct = Math.min(100, Math.round((elapsed / totalDays) * 100));
-                  return (
-                    <div key={ws._id} className="bg-white rounded-2xl ring-2 ring-amber-100 p-5 hover:shadow-md transition-all">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <p className="font-bold text-slate-800">{ws.name}</p>
-                          <p className="text-[11px] text-slate-400">{ws.owner?.email}</p>
-                        </div>
-                        <span className={`text-lg font-black ${daysLeft <= 1 ? 'text-red-600' : 'text-amber-600'}`}>
-                          {daysLeft}j
-                        </span>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-slate-400">Debut: {fmtDate(ws.trialStartedAt)}</span>
-                          <span className="text-slate-400">Fin: {fmtDate(ws.trialEndsAt)}</span>
-                        </div>
-                        <div className="w-full h-2 rounded-full bg-slate-100">
-                          <div
-                            className={`h-full rounded-full transition-all ${daysLeft <= 1 ? 'bg-red-500' : 'bg-amber-400'}`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      {ws.owner?.phone && (
-                        <div className="flex items-center gap-1.5 mt-3 text-xs text-slate-500">
-                          <Phone className="w-3 h-3" />
-                          {ws.owner.phone}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                <p className="text-sm text-slate-400">Aucun compte gratuit ou essai en cours</p>
               </div>
             )}
           </div>
