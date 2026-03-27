@@ -2610,6 +2610,9 @@ router.post('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req,
   try {
     const { config, agentId, userId: bodyUserId } = req.body;
 
+    // Résoudre userId dans TOUS les cas (nécessaire pour rapport, activité, contacts)
+    const resolvedUserId = bodyUserId || (await resolveRitaTargetUserId(req));
+
     // Utiliser agentId s'il est fourni, sinon userId
     let queryKey, queryValue;
 
@@ -2618,7 +2621,7 @@ router.post('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req,
       queryValue = agentId;
     } else {
       queryKey = 'userId';
-      queryValue = bodyUserId || (await resolveRitaTargetUserId(req));
+      queryValue = resolvedUserId;
     }
 
     if (!queryValue || !config) {
@@ -2627,6 +2630,11 @@ router.post('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req,
 
     // Retirer les champs Mongoose pour éviter un conflit _id lors de l'upsert
     const { _id, __v, createdAt, updatedAt, userId: _u, agentId: _a, ...cleanConfig } = config;
+
+    // Toujours stocker userId même pour les configs per-agent (nécessaire pour rapport boss, activité, contacts)
+    if (resolvedUserId) {
+      cleanConfig.userId = resolvedUserId;
+    }
 
     // Nettoyer les _id des sous-documents (productCatalog, quantityOffers, etc.)
     // Mongoose génère des _id auto sur les sous-documents et ça crée des conflits à l'upsert
