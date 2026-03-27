@@ -2720,8 +2720,9 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
   }
   console.log("BACK PRODUCTS:", JSON.stringify(config.productCatalog?.map(p => ({ name: p.name, price: p.price })) || []));
 
-  // Clé unique par (userId, numéro expéditeur)
-  const historyKey = `${userId}:${from}`;
+  // Clé unique par agent (ou userId si pas d'agentId) + numéro expéditeur
+  // Chaque agent a ses propres conversations isolées
+  const historyKey = agentId ? `${agentId}:${from}` : `${userId}:${from}`;
   if (!conversationHistory.has(historyKey)) {
     conversationHistory.set(historyKey, []);
   }
@@ -2732,8 +2733,6 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
 
   // ── State management : créer/récupérer état + extraire entités du message ──
   const clientState = getOrCreateState(historyKey, from);
-  // Associer l'agentId à la conversation pour filtrage
-  if (agentId && !clientState._agentId) clientState._agentId = agentId;
   updateClientState(historyKey, text);
   const askedQs = askedQuestions.get(historyKey);
 
@@ -2900,8 +2899,9 @@ export function clearConversationHistory(userId, from) {
 /**
  * Retourne le dernier message assistant de l'historique (pour filet de sécurité image)
  */
-export function getLastAssistantMessage(userId, from) {
-  const hist = conversationHistory.get(`${userId}:${from}`) || [];
+export function getLastAssistantMessage(userId, from, agentId = null) {
+  const key = agentId ? `${agentId}:${from}` : `${userId}:${from}`;
+  const hist = conversationHistory.get(key) || [];
   for (let i = hist.length - 1; i >= 0; i--) {
     if (hist[i].role === 'assistant') return hist[i].content;
   }
@@ -2919,22 +2919,20 @@ export function getLastAssistantMessage(userId, from) {
  * Utilisé pour la vue temps réel côté admin.
  */
 export function getLiveConversations(userId, agentId = null) {
+  // Préfixe de recherche : agentId:* ou userId:*
+  const prefix = agentId ? `${agentId}:` : `${userId}:`;
   const result = [];
   for (const [key, messages] of conversationHistory.entries()) {
-    const colonIdx = key.indexOf(':');
-    const uid = key.substring(0, colonIdx);
-    const from = key.substring(colonIdx + 1);
-    if (uid !== userId) continue;
+    if (!key.startsWith(prefix)) continue;
+    const from = key.substring(prefix.length);
     const state = clientStates.get(key) || {};
-    // Filtrer par agentId si spécifié
-    if (agentId && state._agentId !== agentId) continue;
     const tracker = conversationTracker.get(key) || {};
     const lastActivity = conversationLastActivity.get(key) || null;
     const phone = from.replace(/@.*$/, '');
     result.push({
       key,
       phone,
-      agentId: state._agentId || null,
+      agentId: agentId || null,
       state,
       tracker,
       lastActivity,

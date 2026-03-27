@@ -1920,7 +1920,7 @@ router.post('/incoming', async (req, res) => {
           const isAffirmative = /^(oui|yes|ok|ouais|yep|d'accord|dac|oki|okay|y|si|sure|yeah|mh|mhm)[\s!.]*$/i.test(text.trim());
           if (isAffirmative && !replyClean.includes('[IMAGE:')) {
             try {
-              const lastBot = getLastAssistantMessage(userId, from);
+              const lastBot = getLastAssistantMessage(userId, from, agentId);
               if (lastBot && /image|photo|voir/i.test(lastBot)) {
                 const ritaCfgSafeImg2 = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
                 const safeImgCatalog2 = (ritaCfgSafeImg2?.productCatalog || []).filter(p => p.name && p.images?.length);
