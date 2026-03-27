@@ -116,7 +116,7 @@ import StoreProductsList from './pages/StoreProductsList.jsx';
 import StoreProductForm from './pages/StoreProductForm.jsx';
 import StoreAnalytics from './pages/StoreAnalytics.jsx';
 import StoreOrdersDashboard from './pages/StoreOrdersDashboard.jsx';
-import PublicStorefront from './pages/PublicStorefront.jsx';
+import PublicStorefront, { StoreAllProducts } from './pages/PublicStorefront.jsx';
 import StoreProductPage from './pages/StoreProductPage.jsx';
 import StoreCheckout from './pages/StoreCheckout.jsx';
 import StoreFront from './pages/StoreFront.jsx';
@@ -270,6 +270,7 @@ const StoreApp = () => {
       <div className="min-h-screen">
         <Routes>
           <Route path="/" element={<PublicStorefront />} />
+          <Route path="/products" element={<StoreAllProducts />} />
           <Route path="/product/:slug" element={<StoreProductPage />} />
           <Route path="/checkout" element={<StoreCheckout />} />
           <Route path="*" element={<Navigate to="/" replace />} />
