@@ -41,10 +41,13 @@ const router = express.Router();
 // In production: /app/client/build (Docker) or ../client/build (relative)
 // Vite outputs to /dist, so we also check that
 const BUILD_PATHS = [
-  path.resolve(__dirname, '../client/build'),
-  path.resolve(__dirname, '../client/dist'),
-  path.resolve(__dirname, '../../dist'),        // monorepo: frontend dist next to Backend/
-  path.resolve(__dirname, '../../client/build'),
+  path.resolve(__dirname, '../client/build'),    // /app/client/build (Railway root=Backend)
+  path.resolve(__dirname, '../client/dist'),     // /app/client/dist
+  path.resolve(__dirname, '../../dist'),         // monorepo: frontend dist next to Backend/
+  path.resolve(__dirname, '../../client/build'), // monorepo fallback
+  path.resolve(__dirname, '../dist'),            // /app/dist (if vite outputs here)
+  '/app/dist',                                   // absolute: nixpacks build output
+  '/app/Backend/client/build',                   // absolute: nixpacks copy target
 ];
 
 let BUILD_DIR = null;
