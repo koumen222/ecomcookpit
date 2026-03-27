@@ -11,7 +11,8 @@ import RitaContact from '../models/RitaContact.js';
 import Agent from '../models/Agent.js';
 import { normalizePhone } from '../utils/phoneUtils.js';
 import evolutionApiService from '../services/evolutionApiService.js';
-import { processIncomingMessage, processBossMessage, generateTestReply, transcribeAudio, textToSpeech, textToSpeechFishAudio, getLastAssistantMessage, getTtsVoiceSettings } from '../services/ritaAgentService.js';
+import { processIncomingMessage, processBossMessage, generateTestReply, transcribeAudio, textToSpeech, textToSpeechFishAudio, getLastAssistantMessage, getTtsVoiceSettings, getLiveConversations } from '../services/ritaAgentService.js';
+import { getIO } from '../services/socketService.js';
 import { logRitaActivity } from '../services/ritaBossReportService.js';
 import { analyzeImage as analyzeProductImage } from '../services/agentImageService.js';
 import { processFlows } from '../services/ritaFlowEngine.js';
@@ -1752,6 +1753,14 @@ router.post('/incoming', async (req, res) => {
           const reply = await processIncomingMessage(userId, senderJid, text, { agentId, pushName });
           const elapsed = Date.now() - startTime;
 
+          // Émettre un événement socket pour la vue temps réel
+          try {
+            const io = getIO();
+            if (io && workspaceId) {
+              io.to(`workspace:${workspaceId}`).emit('rita:message:new', { phone: senderPhone, agentId, userId });
+            }
+          } catch (_) { /* non-bloquant */ }
+
           if (!reply) {
             console.log(`ℹ️ [RITA] Rita désactivée ou pas de réponse pour userId=${userId} (${elapsed}ms)`);
             continue;
@@ -3223,6 +3232,22 @@ router.get('/dashboard-stats', requireEcomAuth, async (req, res) => {
       },
     });
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * @route GET /api/ecom/v1/external/whatsapp/rita-conversations
+ * @desc  Retourne toutes les conversations Rita actives en mémoire (temps réel)
+ */
+router.get('/rita-conversations', requireEcomAuth, async (req, res) => {
+  try {
+    const resolvedUserId = await resolveRitaTargetUserId(req);
+    if (!resolvedUserId) return res.status(400).json({ success: false, error: 'userId requis' });
+    const conversations = getLiveConversations(resolvedUserId);
+    res.json({ success: true, conversations });
+  } catch (error) {
+    console.error('❌ Erreur rita-conversations:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
