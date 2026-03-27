@@ -143,137 +143,90 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     console.log('✅ Photos uploadées:', realPhotos.length);
 
     // ══════════════════════════════════════════════════════════════════════════
-    // ÉTAPE 4 : Générer l'AFFICHE HERO (image principale)
+    // ÉTAPE 4 : Générer TOUTES les images EN PARALLÈLE (Hero + Avant/Après + 4 Affiches)
     // ══════════════════════════════════════════════════════════════════════════
-    console.log('🎨 Étape 4a: Génération de l\'affiche HERO...');
-    let heroImageUrl = null;
-    
-    if (gptResult.prompt_affiche_hero) {
+    console.log('🎨 Étape 4: Génération de toutes les images en parallèle...');
+
+    const axios = (await import('axios')).default;
+
+    // Helper pour générer et uploader une image
+    const generateAndUpload = async (prompt, baseBuffer, filename) => {
+      if (!prompt) return null;
       try {
-        const baseImageBuffer = imageFiles[0]?.buffer || null;
-        const generatedDataUrl = await generatePosterImage(gptResult.prompt_affiche_hero, baseImageBuffer);
-        
-        if (generatedDataUrl) {
-          let imageBuffer;
-          if (generatedDataUrl.startsWith('data:')) {
-            const base64Data = generatedDataUrl.split(',')[1];
-            imageBuffer = Buffer.from(base64Data, 'base64');
-          } else {
-            const axios = (await import('axios')).default;
-            const resp = await axios.get(generatedDataUrl, { responseType: 'arraybuffer', timeout: 15000 });
-            imageBuffer = Buffer.from(resp.data);
-          }
+        const generatedDataUrl = await generatePosterImage(prompt, baseBuffer);
+        if (!generatedDataUrl) return null;
 
-          const uploaded = await uploadImage(
-            imageBuffer,
-            `hero-${Date.now()}.png`,
-            { workspaceId: req.workspaceId, uploadedBy: userId, mimeType: 'image/png' }
-          );
-          heroImageUrl = uploaded?.url || null;
-          console.log('✅ Affiche HERO générée et uploadée');
-        }
-      } catch (heroErr) {
-        console.warn('⚠️ Affiche HERO échouée:', heroErr.message);
-        heroImageUrl = realPhotos[0] || null;
-      }
-    }
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // ÉTAPE 4b : Générer l'image AVANT/APRÈS
-    // ══════════════════════════════════════════════════════════════════════════
-    console.log('🔄 Étape 4b: Génération de l\'image avant/après...');
-    let beforeAfterImageUrl = null;
-
-    if (gptResult.prompt_avant_apres) {
-      try {
-        const beforeAfterDataUrl = await generatePosterImage(gptResult.prompt_avant_apres, null);
-        if (beforeAfterDataUrl) {
-          let imageBuffer;
-          if (beforeAfterDataUrl.startsWith('data:')) {
-            imageBuffer = Buffer.from(beforeAfterDataUrl.split(',')[1], 'base64');
-          } else {
-            const axios = (await import('axios')).default;
-            const resp = await axios.get(beforeAfterDataUrl, { responseType: 'arraybuffer', timeout: 15000 });
-            imageBuffer = Buffer.from(resp.data);
-          }
-          const uploaded = await uploadImage(
-            imageBuffer,
-            `before-after-${Date.now()}.png`,
-            { workspaceId: req.workspaceId, uploadedBy: userId, mimeType: 'image/png' }
-          );
-          beforeAfterImageUrl = uploaded?.url || null;
-          console.log('✅ Image avant/après générée et uploadée');
-        }
-      } catch (baErr) {
-        console.warn('⚠️ Image avant/après échouée:', baErr.message);
-      }
-    }
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // ÉTAPE 4c : Générer 4 AFFICHES PUBLICITAIRES avec NanoBanana
-    // ══════════════════════════════════════════════════════════════════════════
-    console.log('🎨 Étape 4c: Génération de 4 affiches publicitaires...');
-    
-    for (let i = 0; i < 4; i++) {
-      const angle = gptResult.angles[i];
-      if (!angle || !angle.prompt_affiche) {
-        console.warn(`⚠️ Angle ${i + 1} manquant ou sans prompt, skip`);
-        posterImages.push({
-          ...angle,
-          poster_url: realPhotos[i] || realPhotos[0] || null,
-          index: i + 1
-        });
-        continue;
-      }
-
-      try {
-        console.log(`🎨 Affiche ${i + 1}/4: "${angle.titre_angle}"`);        
-        
-        // Use original image for image-to-image (first image as reference)
-        const baseImageBuffer = imageFiles[i]?.buffer || imageFiles[0]?.buffer || null;
-        
-        const generatedDataUrl = await generatePosterImage(angle.prompt_affiche, baseImageBuffer);
-        
-        if (!generatedDataUrl) {
-          throw new Error('Aucune image générée par NanoBanana');
-        }
-
-        // Convert data URL or URL to buffer for R2 upload
         let imageBuffer;
         if (generatedDataUrl.startsWith('data:')) {
-          const base64Data = generatedDataUrl.split(',')[1];
-          imageBuffer = Buffer.from(base64Data, 'base64');
+          imageBuffer = Buffer.from(generatedDataUrl.split(',')[1], 'base64');
         } else {
-          const axios = (await import('axios')).default;
           const resp = await axios.get(generatedDataUrl, { responseType: 'arraybuffer', timeout: 15000 });
           imageBuffer = Buffer.from(resp.data);
         }
 
-        // Upload to R2
-        const uploaded = await uploadImage(
-          imageBuffer,
-          `poster-${i + 1}-${Date.now()}.png`,
-          { workspaceId: req.workspaceId, uploadedBy: userId, mimeType: 'image/png' }
+        const uploaded = await uploadImage(imageBuffer, filename, {
+          workspaceId: req.workspaceId,
+          uploadedBy: userId,
+          mimeType: 'image/png'
+        });
+        return uploaded?.url || null;
+      } catch (err) {
+        console.warn(`⚠️ Image ${filename} échouée:`, err.message);
+        return null;
+      }
+    };
+
+    // Préparer toutes les tâches de génération
+    const imagePromises = [];
+    const baseImageBuffer = imageFiles[0]?.buffer || null;
+
+    // Hero
+    imagePromises.push(
+      generateAndUpload(gptResult.prompt_affiche_hero, baseImageBuffer, `hero-${Date.now()}.png`)
+        .then(url => ({ type: 'hero', url }))
+    );
+
+    // Avant/Après
+    imagePromises.push(
+      generateAndUpload(gptResult.prompt_avant_apres, null, `before-after-${Date.now()}.png`)
+        .then(url => ({ type: 'beforeAfter', url }))
+    );
+
+    // 4 Affiches publicitaires
+    for (let i = 0; i < 4; i++) {
+      const angle = gptResult.angles?.[i];
+      if (angle?.prompt_affiche) {
+        const imgBuffer = imageFiles[i]?.buffer || baseImageBuffer;
+        imagePromises.push(
+          generateAndUpload(angle.prompt_affiche, imgBuffer, `poster-${i + 1}-${Date.now()}.png`)
+            .then(url => ({ type: 'poster', index: i, url, angle }))
         );
-
-        posterImages.push({
-          ...angle,
-          poster_url: uploaded?.url || realPhotos[i] || null,
-          index: i + 1
-        });
-        console.log(`✅ Affiche ${i + 1} uploadée`);
-
-      } catch (posterErr) {
-        console.warn(`⚠️ Affiche ${i + 1} échouée:`, posterErr.message);
-        posterImages.push({
-          ...angle,
-          poster_url: realPhotos[i] || realPhotos[0] || null,
-          index: i + 1
-        });
+      } else {
+        imagePromises.push(Promise.resolve({ type: 'poster', index: i, url: null, angle }));
       }
     }
 
-    console.log('✅ Affiches générées:', posterImages.filter(p => p.poster_url).length, '/ 4');
+    // Exécuter toutes les générations en parallèle
+    const imageResults = await Promise.all(imagePromises);
+
+    // Extraire les résultats
+    let heroImageUrl = imageResults.find(r => r.type === 'hero')?.url || realPhotos[0] || null;
+    let beforeAfterImageUrl = imageResults.find(r => r.type === 'beforeAfter')?.url || null;
+
+    const posterImages = imageResults
+      .filter(r => r.type === 'poster')
+      .sort((a, b) => a.index - b.index)
+      .map(r => ({
+        ...r.angle,
+        poster_url: r.url || realPhotos[r.index] || realPhotos[0] || null,
+        index: r.index + 1
+      }));
+
+    console.log('✅ Images générées:', {
+      hero: !!heroImageUrl,
+      beforeAfter: !!beforeAfterImageUrl,
+      posters: posterImages.filter(p => p.poster_url).length
+    });
 
     // ══════════════════════════════════════════════════════════════════════════
     // ÉTAPE 5 : Assembler la description avec les images
