@@ -10,7 +10,7 @@ FROM node:22-alpine
 WORKDIR /app
 COPY package*.json ./
 RUN npm install --omit=dev --no-audit
-COPY Backend/ ./Backend/
+COPY Backend/ .
 COPY --from=frontend /app/dist ./Backend/client/build
 WORKDIR /app/Backend
 RUN npm install --omit=dev --no-audit
