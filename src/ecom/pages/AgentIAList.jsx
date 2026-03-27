@@ -60,7 +60,7 @@ function StatCard({ icon: Icon, label, value, sub, loading, accent }) {
 }
 
 // ─── AgentCard ────────────────────────────────────────────────────────────────
-function AgentCard({ agent, onConfigure, onDelete, deleting }) {
+function AgentCard({ agent, onConfigure, onDelete, deleting, onViewConversations }) {
   const status = getAgentStatus(agent);
   const steps  = getSteps(agent);
   const doneCt = steps.filter(s => s.done).length;
@@ -143,6 +143,15 @@ function AgentCard({ agent, onConfigure, onDelete, deleting }) {
         <span>{pct === 100 ? 'Voir les stats' : 'Continuer la configuration'}</span>
         <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
       </div>
+
+      {/* Conversations button */}
+      <button
+        onClick={e => { e.stopPropagation(); onViewConversations(agent); }}
+        className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors"
+      >
+        <MessageSquare className="w-3.5 h-3.5" />
+        Conversations
+      </button>
     </div>
   );
 }
@@ -452,6 +461,7 @@ export default function AgentIAList() {
                       onConfigure={a => navigate('/ecom/whatsapp/agent-config', { state: { agent: a } })}
                       onDelete={handleDelete}
                       deleting={deleting}
+                      onViewConversations={a => navigate(`/ecom/whatsapp/conversations/${a._id}`)}
                     />
                   ))
               }
