@@ -1,5 +1,7 @@
 import express from 'express';
 import Workspace from '../models/Workspace.js';
+import StoreOrder from '../models/StoreOrder.js';
+import StoreProduct from '../models/StoreProduct.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { emitThemeUpdate } from '../services/socketService.js';
 
@@ -38,13 +40,52 @@ function summarizeStoreSettingsPayload(payload = {}) {
 
 router.get('/analytics/summary', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
+    const workspaceId = req.workspaceId;
+
+    // Get stats from StoreOrder using the built-in getQuickStats method
+    const [orderStats, productCount] = await Promise.all([
+      StoreOrder.getQuickStats(workspaceId),
+      StoreProduct.countDocuments({ workspaceId })
+    ]);
+
+    // Parse the aggregation result
+    const stats = orderStats && orderStats.length > 0 ? orderStats[0] : {
+      totalOrders: 0,
+      totalRevenue: 0,
+      byStatus: []
+    };
+
+    // Calculate today's sales (orders created today)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStats = await StoreOrder.aggregate([
+      {
+        $match: {
+          workspaceId: new (require('mongoose')).Types.ObjectId(workspaceId),
+          createdAt: { $gte: today }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          todayOrders: { $sum: 1 },
+          todaySales: { $sum: '$total' }
+        }
+      },
+      { $project: { _id: 0 } }
+    ]);
+
+    const todayData = todayStats && todayStats.length > 0 ? todayStats[0] : { todayOrders: 0, todaySales: 0 };
+
     res.json({
       success: true,
       data: {
-        totalOrders: 0,
-        totalRevenue: 0,
-        totalProducts: 0,
-        totalViews: 0
+        totalOrders: stats.totalOrders || 0,
+        totalRevenue: stats.totalRevenue || 0,
+        todayOrders: todayData.todayOrders || 0,
+        todaySales: todayData.todaySales || 0,
+        totalProducts: productCount,
+        byStatus: stats.byStatus || []
       }
     });
   } catch (error) {
@@ -57,10 +98,18 @@ router.get('/analytics/summary', requireEcomAuth, requireWorkspace, async (req, 
 
 router.get('/orders', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
+    const workspaceId = req.workspaceId;
+    const { limit = 20, page = 1, sort = '-createdAt' } = req.query;
+
+    const orders = await StoreOrder.findPaginated(
+      { workspaceId },
+      { page: parseInt(page), limit: parseInt(limit), sort: { createdAt: -1 } }
+    );
+
     res.json({
       success: true,
       data: {
-        orders: []
+        orders
       }
     });
   } catch (error) {
