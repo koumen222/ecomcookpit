@@ -31,7 +31,7 @@ const StoreProductsList = () => {
 
   const handleViewProduct = (product) => {
     if (!storeSubdomain || !product.slug) return;
-    const url = `/store/${storeSubdomain}/product/${product.slug}`;
+    const url = `https://${storeSubdomain}.scalor.net/product/${product.slug}`;
     window.open(url, '_blank');
   };
 

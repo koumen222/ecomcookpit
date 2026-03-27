@@ -383,7 +383,7 @@ const EnhancedVisualBuilder = () => {
 
             {subdomain && (
               <a
-                href={`/store/${subdomain}`}
+                href={`https://${subdomain}.scalor.net`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-2 rounded-lg text-gray-500 hover:text-gray-700 transition"
