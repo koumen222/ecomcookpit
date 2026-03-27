@@ -9,6 +9,7 @@ import RitaConfig from '../models/RitaConfig.js';
 import WhatsAppOrder from '../models/WhatsAppOrder.js';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import RitaActivity from '../models/RitaActivity.js';
+import Workspace from '../models/Workspace.js';
 import evolutionApiService from './evolutionApiService.js';
 
 let dailyCronJob = null;
@@ -29,18 +30,37 @@ export async function logRitaActivity(userId, type, data = {}) {
  * Build and send the daily summary for one user/instance
  */
 async function sendDailySummary(ritaCfg) {
-  const userId = ritaCfg.userId;
+  let userId = ritaCfg.userId;
   const bossPhone = ritaCfg.bossPhone?.replace(/\D/g, '');
   if (!bossPhone) return;
 
-  // Find the user's active instance for sending
-  const instance = await WhatsAppInstance.findOne({
-    userId,
-    isActive: true,
-    status: { $in: ['connected', 'active'] }
-  }).lean();
+  // Find the WhatsApp instance — prefer instanceId from config, fallback to userId lookup
+  let instance = null;
+  if (ritaCfg.instanceId) {
+    instance = await WhatsAppInstance.findById(ritaCfg.instanceId).lean();
+  }
+  if (!instance && userId) {
+    instance = await WhatsAppInstance.findOne({
+      userId,
+      isActive: true,
+      status: { $in: ['connected', 'active'] }
+    }).lean();
+  }
   if (!instance) {
-    console.log(`⏩ [RITA-REPORT] Pas d'instance active pour userId=${userId}`);
+    console.log(`⏩ [RITA-REPORT] Pas d'instance active pour userId=${userId} / instanceId=${ritaCfg.instanceId}`);
+    return;
+  }
+
+  // Resolve userId from workspace owner if missing (legacy per-agent configs)
+  if (!userId && instance.workspaceId) {
+    try {
+      const ws = await Workspace.findById(instance.workspaceId).select('owner').lean();
+      if (ws?.owner) userId = String(ws.owner);
+    } catch { }
+  }
+  if (!userId) userId = instance.userId;
+  if (!userId) {
+    console.log(`⏩ [RITA-REPORT] Impossible de résoudre userId pour config ${ritaCfg._id}`);
     return;
   }
 
