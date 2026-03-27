@@ -217,7 +217,9 @@ const PublicStorefront = () => {
   const { subdomain: paramSubdomain } = useParams();
   const { subdomain: detectedSubdomain, isStoreDomain } = useSubdomain();
   const subdomain = paramSubdomain || detectedSubdomain;
-  const prefix = isStoreDomain ? '' : (subdomain ? `/store/${subdomain}` : '');
+  const prefix = isStoreDomain
+    ? ''
+    : (subdomain ? `https://${subdomain}.scalor.net` : '');
 
   const { store, products, loading, error } = useStoreData(subdomain);
   const { cartCount } = useStoreCart(subdomain);
