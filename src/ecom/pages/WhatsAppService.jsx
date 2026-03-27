@@ -1,11 +1,11 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Plus, Trash2, RefreshCw, CheckCircle, AlertCircle, Loader2,
   ExternalLink, Copy, Check, Bot, Smartphone, Zap, Send,
   Eye, EyeOff, X, Globe, MessageSquare, Package,
   QrCode, BarChart3, Wifi, WifiOff, Settings,
 } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import ecomApi from '../services/ecommApi.js';
 
 const ACCENT = '#0F6B4F';
@@ -21,6 +21,7 @@ const WEBHOOK_EVENTS = [
 ];
 
 const WhatsAppService = () => {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'instances';
   const ritaPanel = searchParams.get('ritaPanel') || '';
@@ -61,26 +62,23 @@ const WhatsAppService = () => {
 
   const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
   const userId = user._id || user.id;
-  const workspaceId = user.workspaceId || user.workspace;
+  const canAccessRitaAgent = user?.role === 'super_admin' || (user?.role === 'ecom_admin' && user?.canAccessRitaAgent !== false);
 
   useEffect(() => { loadInstances(); loadOrderCount(); loadDashboardStats(); }, []);
   useEffect(() => { instances.forEach(inst => loadMessageStats(inst._id)); }, [instances.length]);
   useEffect(() => { return () => { if (qrIntervalRef.current) clearInterval(qrIntervalRef.current); }; }, []);
+  useEffect(() => {
+    // Legacy links with ?tab=rita now point to the dedicated IA page.
+    if (activeTab === 'rita') navigate('/ecom/whatsapp/agent-config', { replace: true });
+  }, [activeTab, navigate]);
 
   // ═══ Data loaders ═══
   const loadOrderCount = async () => {
     try { const { data } = await ecomApi.get('/v1/external/whatsapp/orders/stats'); if (data.success) setOrderCount(data.stats?.pending || 0); } catch {}
   };
   const loadInstances = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const params = new URLSearchParams({ userId });
-      if (workspaceId) params.append('workspaceId', workspaceId);
-      const { data } = await ecomApi.get(`/v1/external/whatsapp/instances?${params}`);
-      setInstances(data.success ? data.instances || [] : []);
-    }
-    catch { setInstances([]); } finally { setLoading(false); }
+    try { setLoading(true); setError(''); const { data } = await ecomApi.get(`/v1/external/whatsapp/instances?userId=${userId}`); setInstances(data.success ? data.instances || [] : []); }
+    catch (err) { setInstances([]); setError(err.response?.data?.error || 'Impossible de charger les instances'); } finally { setLoading(false); }
   };
   const loadDashboardStats = async () => {
     try { const { data } = await ecomApi.get('/v1/external/whatsapp/dashboard-stats'); if (data.success) setDashboardStats(data.stats); } catch {}
@@ -164,26 +162,15 @@ const WhatsAppService = () => {
         }
         loadInstances();
         loadDashboardStats();
-      } else {
-        // Améliorer le message d'erreur selon le type
-        let errorMsg = data.error || 'Erreur lors de la création';
-        if (data.suggestion) errorMsg += ` — ${data.suggestion}`;
-        setError(errorMsg);
-      }
-    } catch (err) {
-      let errorMsg = err.response?.data?.error || err.message || 'Erreur serveur';
-      if (err.response?.data?.suggestion) errorMsg += ` — ${err.response.data.suggestion}`;
-      if (errorMsg.includes('Application not found') || errorMsg.includes('indisponible')) {
-        errorMsg = "Service WhatsApp temporairement indisponible. Le serveur Evolution API n'est pas accessible. Veuillez réessayer plus tard ou contacter le support.";
-      }
-      setError(errorMsg);
-    }
+      } else { setError(data.error || 'Erreur lors de la création'); }
+    } catch (err) { setError(err.response?.data?.error || err.message || 'Erreur serveur'); }
     finally { setSubmitting(false); }
   };
 
-  const fetchQrCode = async (instanceId) => {
+  const fetchQrCode = async (instanceId, forceRefresh = false) => {
     try {
-      const { data } = await ecomApi.get(`/v1/external/whatsapp/instances/${instanceId}/qrcode`);
+      const suffix = forceRefresh ? '?refresh=1' : '';
+      const { data } = await ecomApi.get(`/v1/external/whatsapp/instances/${instanceId}/qrcode${suffix}`);
       if (data.success && data.connected) {
         onInstanceConnected();
       } else if (data.success && data.qrcode) {
@@ -220,7 +207,7 @@ const WhatsAppService = () => {
   const refreshQr = async () => {
     if (!createdInstance?.id) return;
     setQrCode(null);
-    fetchQrCode(createdInstance.id);
+    fetchQrCode(createdInstance.id, true);
   };
 
   // ─── Open QR code for existing disconnected instance ───
@@ -259,7 +246,6 @@ const WhatsAppService = () => {
 
   const TABS = [
     { id: 'instances', label: 'Instances', icon: Smartphone, count: instances.length },
-    { id: 'rita',      label: 'Rita IA',   icon: Bot },
     { id: 'orders',   label: 'Commandes',  icon: Package, count: orderCount || undefined },
   ];
 
@@ -318,26 +304,13 @@ const WhatsAppService = () => {
         </nav>
 
         <div className="flex items-center gap-2 pb-2 sm:pb-2">
-          {[
-            { id: 'notifications', label: 'Notifications', emoji: '🔔' },
-            { id: 'rapport', label: 'Rapport', emoji: '📊' },
-          ].map(item => {
-            const active = activeTab === 'rita' && ritaPanel === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setTab('rita', { ritaPanel: item.id })}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all whitespace-nowrap ${
-                  active
-                    ? 'bg-gray-900 text-white shadow-sm'
-                    : 'text-gray-500 bg-gray-50 hover:bg-gray-100 hover:text-gray-700'
-                }`}
-              >
-                <span className="text-[13px] leading-none">{item.emoji}</span>
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
+          <button
+            onClick={() => navigate('/ecom/whatsapp/agent-config')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all whitespace-nowrap text-gray-500 bg-gray-50 hover:bg-gray-100 hover:text-gray-700"
+          >
+            <Bot className="w-3.5 h-3.5" />
+            <span>Configurer Rita IA</span>
+          </button>
         </div>
       </div>
 
@@ -638,11 +611,11 @@ const WhatsAppService = () => {
                               Quotas
                             </span>
                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                              stats.plan === 'unlimited' ? 'bg-purple-100 text-purple-700' :
-                              stats.plan === 'premium' ? 'bg-amber-100 text-amber-700' :
+                              stats.plan === 'plus' ? 'bg-purple-100 text-purple-700' :
+                              stats.plan === 'pro' ? 'bg-amber-100 text-amber-700' :
                               'bg-gray-200 text-gray-600'
                             }`}>
-                              {stats.plan === 'free' ? 'Gratuit' : stats.plan === 'premium' ? 'Premium' : 'Illimité'}
+                              {stats.plan === 'free' ? 'Gratuit' : stats.plan === 'pro' ? 'Pro' : 'Plus'}
                             </span>
                           </div>
 
@@ -675,9 +648,33 @@ const WhatsAppService = () => {
                           </div>
 
                           {stats.limitExceeded && (
-                            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-red-50 border border-red-100 rounded-lg">
-                              <AlertCircle className="w-3 h-3 text-red-500 flex-shrink-0" />
-                              <p className="text-[10px] text-red-700 font-medium">Limite de messages atteinte</p>
+                            <div className="space-y-2 px-2.5 py-2 bg-red-50 border border-red-100 rounded-lg">
+                              <div className="flex items-center gap-1.5">
+                                <AlertCircle className="w-3 h-3 text-red-500 flex-shrink-0" />
+                                <p className="text-[10px] text-red-700 font-medium">Limite de messages atteinte</p>
+                              </div>
+                              <p className="text-[10px] text-red-700">Ce quota est lié au compte Rita. Passez à une offre supérieure pour continuer.</p>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <div className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5">
+                                  <p className="text-[9px] font-bold uppercase text-amber-700">Pro</p>
+                                  <p className="text-[10px] text-amber-700">1 000/jour · 50 000/mois</p>
+                                </div>
+                                <div className="rounded-md border border-violet-200 bg-violet-50 px-2 py-1.5">
+                                  <p className="text-[9px] font-bold uppercase text-violet-700">Plus</p>
+                                  <p className="text-[10px] text-violet-700">5 000/jour · 200 000/mois</p>
+                                </div>
+                              </div>
+                              {canAccessRitaAgent ? (
+                                <button
+                                  type="button"
+                                  onClick={() => navigate('/ecom/whatsapp/agent-config')}
+                                  className="w-full text-[10px] font-semibold px-2 py-1.5 rounded-md bg-white border border-red-200 text-red-700 hover:bg-red-100 transition-colors"
+                                >
+                                  Voir les offres Rita
+                                </button>
+                              ) : (
+                                <p className="text-[10px] text-red-700">Demandez au Super Admin d'activer une offre Pro ou Plus.</p>
+                              )}
                             </div>
                           )}
                         </div>
@@ -807,15 +804,6 @@ const WhatsAppService = () => {
         </div>
       )}
 
-      {/* Tab: Rita IA */}
-      {activeTab === 'rita' && (
-        <RitaIATab
-          instances={instances}
-          externalPanel={ritaPanel || null}
-          onExternalPanelChange={(panel) => setTab('rita', { ritaPanel: panel || '' })}
-        />
-      )}
-
       {/* Tab: Commandes */}
       {activeTab === 'orders' && <OrdersTab onCountChange={setOrderCount} />}
 
@@ -881,11 +869,11 @@ const WhatsAppService = () => {
         }
         .rita-select-dropdown {
           position: absolute;
-          z-index: 50;
+          z-index: 130;
           top: calc(100% + 4px);
           left: 0;
           right: 0;
-          max-height: 260px;
+          max-height: 300px;
           overflow-y: auto;
           background: white;
           border: 1px solid rgba(0,0,0,0.06);
@@ -894,8 +882,15 @@ const WhatsAppService = () => {
           padding: 4px;
           animation: ritaDropIn .18s cubic-bezier(.2,0,0,1);
         }
+        .rita-select-dropdown-up {
+          animation: ritaDropInUp .18s cubic-bezier(.2,0,0,1);
+        }
         @keyframes ritaDropIn {
           from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes ritaDropInUp {
+          from { opacity: 0; transform: translateY(6px) scale(0.97); }
           to   { opacity: 1; transform: translateY(0) scale(1); }
         }
         .rita-select-option {
@@ -977,9 +972,25 @@ const ToggleRow = ({ enabled, onChange, label, desc }) => (
 const CustomSelect = ({ value, onChange, options, placeholder = 'Sélectionner...' }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [focused, setFocused] = useState(-1);
+  const [openUpward, setOpenUpward] = useState(false);
+  const [menuMaxHeight, setMenuMaxHeight] = useState(300);
   const ref = React.useRef(null);
   const listRef = React.useRef(null);
   const selected = options.find(o => o.value === value);
+
+  const updateMenuPlacement = () => {
+    if (!ref.current || typeof window === 'undefined') return;
+
+    const rect = ref.current.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.bottom - 16;
+    const spaceAbove = rect.top - 16;
+    const shouldOpenUpward = spaceBelow < 220 && spaceAbove > spaceBelow;
+    const availableSpace = shouldOpenUpward ? spaceAbove : spaceBelow;
+
+    setOpenUpward(shouldOpenUpward);
+    setMenuMaxHeight(Math.max(160, Math.min(340, availableSpace)));
+  };
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -1009,9 +1020,27 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Sélectionner..
     }
   }, [focused, isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    updateMenuPlacement();
+    const handleViewportChange = () => updateMenuPlacement();
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('scroll', handleViewportChange, true);
+
+    return () => {
+      window.removeEventListener('resize', handleViewportChange);
+      window.removeEventListener('scroll', handleViewportChange, true);
+    };
+  }, [isOpen]);
+
   return (
-    <div ref={ref} className="relative" onKeyDown={handleKeyDown}>
-      <button type="button" onClick={() => { setIsOpen(!isOpen); setFocused(options.findIndex(o => o.value === value)); }}
+    <div ref={ref} className={isOpen ? 'relative z-[120]' : 'relative z-10'} onKeyDown={handleKeyDown}>
+      <button type="button" onClick={() => {
+        if (!isOpen) updateMenuPlacement();
+        setIsOpen(!isOpen);
+        setFocused(options.findIndex(o => o.value === value));
+      }}
         className={`rita-select-trigger ${isOpen ? 'rita-select-open' : ''}`}
         role="combobox" aria-expanded={isOpen} aria-haspopup="listbox">
         <span className="flex items-center gap-2 flex-1 min-w-0 truncate">
@@ -1022,7 +1051,16 @@ const CustomSelect = ({ value, onChange, options, placeholder = 'Sélectionner..
         </svg>
       </button>
       {isOpen && (
-        <div className="rita-select-dropdown" role="listbox" ref={listRef}>
+        <div
+          className={`rita-select-dropdown ${openUpward ? 'rita-select-dropdown-up' : ''}`}
+          role="listbox"
+          ref={listRef}
+          style={{
+            maxHeight: `${menuMaxHeight}px`,
+            top: openUpward ? 'auto' : 'calc(100% + 4px)',
+            bottom: openUpward ? 'calc(100% + 4px)' : 'auto',
+          }}
+        >
           {options.map((opt, i) => (
             <div key={opt.value} role="option" aria-selected={opt.value === value}
               className={`rita-select-option ${opt.value === value ? 'rita-select-option-active' : ''} ${focused === i ? 'rita-select-option-focused' : ''}`}
@@ -1196,7 +1234,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
     useEmojis: true,
     signMessages: false,
     responseDelay: 2,
-    welcomeMessage: "Bonjour ma chérie 👋 Tu cherches quel produit exactement ?",
+    welcomeMessage: "Bonjour 👌 quel produit vous intéresse ?",
     fallbackMessage: 'Je transfère votre demande à un de nos conseillers. Il vous contactera dans les plus brefs délais.',
     autonomyLevel: 3,
     canCloseDeals: false,
@@ -1242,6 +1280,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
     // Vocal
     responseMode: 'text',
     voiceMode: false,
+    mixedVoiceReplyChance: 65,
     elevenlabsApiKey: '',
     elevenlabsVoiceId: '9ZATEeixBigmezesCGAk',
     elevenlabsModel: 'eleven_v3',
@@ -1415,6 +1454,14 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
 
   useEffect(() => { loadConfig(); }, []);
   useEffect(() => { simEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [simMessages, simTyping]);
+  
+  // Auto-sélectionner la première instance si aucune n'est sélectionnée
+  useEffect(() => {
+    if (instances.length > 0 && !config.instanceId) {
+      const firstInstance = instances[0];
+      set('instanceId', firstInstance._id);
+    }
+  }, [instances.length, config.instanceId]);
 
   const loadConfig = async () => {
     try {
@@ -1434,10 +1481,25 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
 
   const handleSave = async (overrideEnabled) => {
     const effectiveConfig = overrideEnabled !== undefined ? { ...config, enabled: overrideEnabled } : config;
+    
+    // Validation: si Rita est activé, une instance doit être sélectionnée
+    if (effectiveConfig.enabled && !effectiveConfig.instanceId) {
+      setSaveStatus({ type: 'error', message: 'Veuillez sélectionner une instance WhatsApp avant d\'activer Rita IA.' });
+      setTimeout(() => setSaveStatus(null), 5000);
+      return;
+    }
+    
+    // Validation: vérifier que l'instance sélectionnée existe toujours
+    if (effectiveConfig.instanceId && !instances.find(i => i._id === effectiveConfig.instanceId)) {
+      setSaveStatus({ type: 'error', message: 'L\'instance sélectionnée n\'existe plus. Veuillez en sélectionner une autre.' });
+      setTimeout(() => setSaveStatus(null), 5000);
+      return;
+    }
+    
     setSaving(true); setSaveStatus(null);
     try {
       const { data } = await ecomApi.post('/v1/external/whatsapp/rita-config', { userId, config: effectiveConfig });
-      if (!data.success) { setSaveStatus({ type: 'error' }); return; }
+      if (!data.success) { setSaveStatus({ type: 'error', message: 'Erreur lors de la sauvegarde de la configuration.' }); return; }
 
       const { data: whData } = await ecomApi.post('/v1/external/whatsapp/activate', {
         userId,
@@ -1449,7 +1511,9 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
       setConfigSaved(true);
       setShowConfig(false);
       setTimeout(() => setSaveStatus(null), 4000);
-    } catch { setSaveStatus({ type: 'error' }); }
+    } catch (err) { 
+      setSaveStatus({ type: 'error', message: err?.response?.data?.error || 'Erreur lors de la sauvegarde.' }); 
+    }
     finally { setSaving(false); }
   };
 
@@ -1792,7 +1856,12 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                     <CheckCircle className="w-3 h-3" /> Enregistré
                   </span>
                 )}
-                {saveStatus?.type === 'error' && <span className="text-[11px] font-semibold text-red-600 flex items-center gap-1"><AlertCircle className="w-3 h-3" />Erreur</span>}
+                {saveStatus?.type === 'error' && (
+                  <span className="text-[11px] font-semibold text-red-600 flex items-center gap-1" title={saveStatus?.message}>
+                    <AlertCircle className="w-3 h-3" />
+                    {saveStatus?.message || 'Erreur'}
+                  </span>
+                )}
                 <button onClick={() => handleSave()} disabled={saving}
                   className="inline-flex items-center gap-1.5 px-4 py-2 text-[12px] font-bold text-white rounded-xl disabled:opacity-50 transition-all duration-200 shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
                   style={{ background: 'linear-gradient(135deg, #7c3aed, #4f46e5)' }}>
@@ -1915,7 +1984,7 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
       )}
 
       {/* ═══════════ MAIN LAYOUT: NAV + CONTENT (ALWAYS VISIBLE) ═══════════ */}
-      <div className="bg-white border border-gray-200/80 rounded-2xl overflow-hidden shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)]">
+      <div className="bg-white border border-gray-200/80 rounded-2xl overflow-visible shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)]">
 
         {/* ── Section Navigation (pill tabs, always visible) ── */}
         <div className="px-3 py-2.5 border-b border-gray-100 bg-gray-50/30">
@@ -1977,26 +2046,29 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                       value={config.toneStyle}
                       onChange={v => set('toneStyle', v)}
                       options={[
-                        { value: 'warm', label: '😊 Chaleureux et Proche (tutoiement)' },
-                        { value: 'professional', label: '💼 Professionnel et Sérieux (tutoiement)' },
-                        { value: 'casual', label: '😎 Décontracté et Moderne (tutoiement)' },
-                        { value: 'persuasive', label: '🎯 Persuasif et Direct (tutoiement)' },
-                        { value: 'formal', label: '🤝 Formel et Respectueux (vouvoiement)' },
-                        { value: 'luxury', label: '✨ Premium et Exclusif (vouvoiement)' },
+                        { value: 'warm', label: '🤗 Tutoiement chaleureux' },
+                        { value: 'professional', label: '💼 Tutoiement professionnel' },
+                        { value: 'casual', label: '😎 Tutoiement décontracté' },
+                        { value: 'formal', label: '🤝 Vouvoiement respectueux' },
+                        { value: 'luxury', label: '✨ Vouvoiement premium' },
+                        { value: 'humorous', label: '😄 Humoristique légère' },
+                        { value: 'persuasive', label: '🎯 Persuasif et direct' },
                       ]}
                     />
                   </Field>
                   <Field label="Délai avant de répondre" hint="secondes">
                     <input type="number" value={config.responseDelay} onChange={e => set('responseDelay', parseInt(e.target.value) || 0)} min="0" max="30" className="field-input" />
                   </Field>
-                  <Field label="Instance WhatsApp">
+                  <Field label="Instance WhatsApp" required>
                     <CustomSelect
                       value={config.instanceId}
                       onChange={v => set('instanceId', v)}
                       placeholder="Sélectionner une instance..."
                       options={instances.map(inst => ({ value: inst._id, label: inst.customName || inst.instanceName }))}
                     />
-                    {instances.length === 0 && <p className="text-[11px] text-amber-600 mt-1.5">Ajoutez une instance dans l'onglet Instances d'abord.</p>}
+                    {instances.length === 0 && <p className="text-[11px] text-amber-600 mt-1.5">⚠️ Ajoutez une instance dans l'onglet Instances d'abord.</p>}
+                    {instances.length > 0 && !config.instanceId && <p className="text-[11px] text-amber-600 mt-1.5">⚠️ Sélectionnez une instance pour activer Rita IA.</p>}
+                    {config.instanceId && !instances.find(i => i._id === config.instanceId) && <p className="text-[11px] text-red-600 mt-1.5">⚠️ L'instance sélectionnée n'existe plus. Veuillez en sélectionner une autre.</p>}
                   </Field>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-6 pt-1">
@@ -3120,9 +3192,45 @@ const RitaIATab = ({ instances, externalPanel = null, onExternalPanelChange }) =
                     ))}
                   </div>
                   {(config.responseMode === 'both') && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg mt-2">
-                      <span className="text-emerald-500 text-sm">✅</span>
-                    <p className="text-[11px] text-emerald-700">Rita envoie un <strong>vocal</strong> quand la réponse est longue (explication, mise en confiance, présentation produit) et un <strong>texte</strong> pour les réponses courtes. Naturel et stratégique.</p>
+                    <div className="space-y-3 mt-2">
+                      <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg">
+                        <span className="text-emerald-500 text-sm">✅</span>
+                        <p className="text-[11px] text-emerald-700">Rita envoie plus souvent un <strong>vocal</strong> pour les réponses longues, explications, mise en confiance et confirmations importantes, puis garde le <strong>texte</strong> pour les réponses plus rapides.</p>
+                      </div>
+
+                      <div className="p-4 bg-white border border-purple-100 rounded-xl space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-[13px] font-bold text-gray-900">Présence du vocal en mode mixte</p>
+                            <p className="text-[11px] text-gray-500">Plus la valeur est haute, plus Rita bascule facilement en vocal.</p>
+                          </div>
+                          <div className="px-3 py-1 rounded-full bg-purple-100 text-purple-700 text-[12px] font-bold">
+                            {config.mixedVoiceReplyChance ?? 65}%
+                          </div>
+                        </div>
+
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="5"
+                          value={config.mixedVoiceReplyChance ?? 65}
+                          onChange={e => set('mixedVoiceReplyChance', Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 65)))}
+                          className="w-full accent-purple-600"
+                        />
+
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={config.mixedVoiceReplyChance ?? 65}
+                            onChange={e => set('mixedVoiceReplyChance', Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)))}
+                            className="field-input w-24"
+                          />
+                          <p className="text-[11px] text-gray-500">0% = quasi tout en texte, 100% = vocal presque systématique quand le mode mixte est actif.</p>
+                        </div>
+                      </div>
                     </div>
                   )}
                   {(config.responseMode === 'voice') && (
@@ -3849,23 +3957,25 @@ const FILTER_TABS = [
   { id: 'pending',  label: 'En attente' },
   { id: 'accepted', label: 'Acceptées' },
   { id: 'refused',  label: 'Refusées' },
+  { id: 'delivered', label: 'Livrées' },
+  { id: 'cancelled', label: 'Annulées' },
 ];
 
 const OrdersTab = ({ onCountChange }) => {
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState({ pending: 0, accepted: 0, refused: 0, total: 0 });
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [productFilter, setProductFilter] = useState('');
   const [updatingId, setUpdatingId] = useState(null);
 
-  useEffect(() => { fetchAll(); }, [filter]);
+  useEffect(() => { fetchAll(); }, []);
 
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const qs = filter ? `?status=${filter}` : '';
       const [ordRes, stRes] = await Promise.all([
-        ecomApi.get(`/v1/external/whatsapp/orders${qs}`),
+        ecomApi.get('/v1/external/whatsapp/orders'),
         ecomApi.get('/v1/external/whatsapp/orders/stats'),
       ]);
       if (ordRes.data.success) setOrders(ordRes.data.orders || []);
@@ -3880,12 +3990,42 @@ const OrdersTab = ({ onCountChange }) => {
     setUpdatingId(id);
     try {
       const { data } = await ecomApi.patch(`/v1/external/whatsapp/orders/${id}`, { status });
-      if (data.success) await fetchAll();
+      if (data.success) {
+        setOrders(prev => prev.map(o => o._id === id ? { ...o, status } : o));
+        // refresh stats counts in background
+        ecomApi.get('/v1/external/whatsapp/orders/stats').then(r => {
+          if (r.data.success) { setStats(r.data.stats || {}); onCountChange?.(r.data.stats?.pending || 0); }
+        }).catch(() => {});
+      }
     } catch {} finally { setUpdatingId(null); }
   };
 
   const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
   const fmtTime = (d) => d ? new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+
+  const normalizeValue = (value) => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+  const productOptions = useMemo(() => {
+    const unique = new Set();
+    for (const order of orders) {
+      const label = String(order?.productName || '').trim();
+      if (label) unique.add(label);
+    }
+    return Array.from(unique).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+  }, [orders]);
+
+  const filteredOrders = useMemo(() => {
+    const normalizedStatus = normalizeValue(statusFilter);
+    const normalizedProduct = normalizeValue(productFilter);
+
+    return orders.filter((order) => {
+      const orderStatus = normalizeValue(order?.status);
+      const orderProduct = normalizeValue(order?.productName);
+      const statusOk = !normalizedStatus || orderStatus === normalizedStatus;
+      const productOk = !normalizedProduct || orderProduct === normalizedProduct;
+      return statusOk && productOk;
+    });
+  }, [orders, statusFilter, productFilter]);
 
   return (
     <div className="space-y-5">
@@ -3906,16 +4046,30 @@ const OrdersTab = ({ onCountChange }) => {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-2">
-        {FILTER_TABS.map(f => (
-          <button key={f.id} onClick={() => setFilter(f.id)}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-2 flex-wrap">
+          {FILTER_TABS.map(f => (
+            <button key={f.id} onClick={() => setStatusFilter(f.id)}
             className={`px-3.5 py-1.5 rounded-lg text-[13px] font-medium transition-colors ${
-              filter === f.id ? 'text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              statusFilter === f.id ? 'text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
             }`}
-            style={filter === f.id ? { background: ACCENT } : undefined}>
+            style={statusFilter === f.id ? { background: ACCENT } : undefined}>
             {f.label}
           </button>
-        ))}
+          ))}
+        </div>
+        <div className="sm:w-72">
+          <select
+            value={productFilter}
+            onChange={(e) => setProductFilter(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0F6B4F]/20 focus:border-[#0F6B4F]"
+          >
+            <option value="">Tous les produits</option>
+            {productOptions.map((productName) => (
+              <option key={productName} value={productName}>{productName}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Loading */}
@@ -3927,22 +4081,24 @@ const OrdersTab = ({ onCountChange }) => {
       )}
 
       {/* Empty state */}
-      {!loading && orders.length === 0 && (
+      {!loading && filteredOrders.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 px-4">
           <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mb-4">
             <Package className="w-6 h-6 text-gray-300" />
           </div>
           <p className="text-sm font-medium text-gray-900 mb-1">Aucune commande</p>
           <p className="text-xs text-gray-400 text-center max-w-xs">
-            Les commandes collectées par Rita apparaîtront ici.
+            {orders.length === 0
+              ? 'Les commandes collectées par Rita apparaîtront ici.'
+              : 'Aucun résultat pour les filtres sélectionnés.'}
           </p>
         </div>
       )}
 
       {/* Order cards */}
-      {!loading && orders.length > 0 && (
+      {!loading && filteredOrders.length > 0 && (
         <div className="space-y-3">
-          {orders.map(order => {
+          {filteredOrders.map(order => {
             const st = STATUS_LABELS[order.status] || STATUS_LABELS.pending;
             const isPending = order.status === 'pending';
             const isUpdating = updatingId === order._id;
@@ -3955,7 +4111,14 @@ const OrdersTab = ({ onCountChange }) => {
                       <p className="font-semibold text-[15px] text-gray-900 leading-tight truncate">
                         {order.customerName || order.pushName || 'Client'}
                       </p>
-                      <p className="text-[12px] text-gray-400 mt-0.5">{order.customerPhone}</p>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-gray-400 mt-0.5">
+                        <span>{order.customerPhone}</span>
+                        <span className="text-gray-300">•</span>
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {fmtDate(order.createdAt)} a {fmtTime(order.createdAt)}
+                        </span>
+                      </div>
                     </div>
                     <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${st.bg} ${st.text}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
@@ -3986,8 +4149,8 @@ const OrdersTab = ({ onCountChange }) => {
                       <span className="text-gray-700">{order.quantity || 1}</span>
                     </div>
                     <div>
-                      <span className="text-gray-400 text-[11px] block">Date</span>
-                      <span className="text-gray-500 text-[12px]">{fmtDate(order.createdAt)} {fmtTime(order.createdAt)}</span>
+                      <span className="text-gray-400 text-[11px] block">Entrée</span>
+                      <span className="text-gray-500 text-[12px]">{fmtDate(order.createdAt)} a {fmtTime(order.createdAt)}</span>
                     </div>
                   </div>
 

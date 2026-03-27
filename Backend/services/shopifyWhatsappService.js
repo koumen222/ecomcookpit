@@ -14,7 +14,7 @@
  *   - Workspace.whatsappAutoConfirm (toggle on/off)
  */
 
-import { sendWhatsAppMessage, sendWhatsAppMedia, sendWhatsAppAudio } from './whatsappService.js';
+import { sendWhatsAppMessage, sendWhatsAppMedia, sendWhatsAppAudio, sendWhatsAppVideo, sendWhatsAppDocument } from './whatsappService.js';
 import WhatsAppLog from '../models/WhatsAppLog.js';
 import EcomWorkspace from '../models/Workspace.js';
 import { formatInternationalPhone } from '../utils/phoneUtils.js';
@@ -75,6 +75,164 @@ export function buildConfirmationMessage({
     `Merci pour votre confiance 🙏` +
     storeSignature
   );
+}
+
+const ALLOWED_SEND_STEPS = ['text', 'image', 'video', 'document', 'audio'];
+
+function normalizeProductText(value = '') {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function buildTokenSet(value = '') {
+  return new Set(
+    normalizeProductText(value)
+      .split(/\s+/)
+      .map(token => token.trim())
+      .filter(token => token.length >= 3)
+  );
+}
+
+function splitKeywordPatterns(keyword = '') {
+  return String(keyword || '')
+    .split(/[\n,;|]+/)
+    .map(part => part.trim())
+    .filter(Boolean);
+}
+
+function scorePatternAgainstProduct(pattern, normalizedProduct, productTokens) {
+  const normalizedPattern = normalizeProductText(pattern);
+  if (!normalizedPattern) return 0;
+
+  const patternTokens = [...buildTokenSet(normalizedPattern)];
+  if (normalizedProduct === normalizedPattern) {
+    return 100;
+  }
+
+  if (normalizedProduct.includes(normalizedPattern)) {
+    return 80 + Math.min(normalizedPattern.length, 15);
+  }
+
+  if (patternTokens.length === 0) {
+    return 0;
+  }
+
+  let score = 0;
+  let matchedTokens = 0;
+
+  for (const token of patternTokens) {
+    if (productTokens.has(token)) {
+      matchedTokens += 1;
+      score += 20;
+      continue;
+    }
+
+    const partialMatch = [...productTokens].some(productToken =>
+      productToken.includes(token) || token.includes(productToken)
+    );
+
+    if (partialMatch) {
+      score += 8;
+    }
+  }
+
+  if (matchedTokens === patternTokens.length) {
+    score += 25;
+  }
+
+  return score;
+}
+
+function normalizeSendOrder(order = []) {
+  if (!Array.isArray(order)) return ['text', 'image', 'audio'];
+  const filtered = order.filter(step => ALLOWED_SEND_STEPS.includes(step));
+  return filtered.length > 0 ? filtered : ['text', 'image', 'audio'];
+}
+
+function resolveMediaRule(orderProduct = '', rules = []) {
+  if (!orderProduct || !Array.isArray(rules) || rules.length === 0) return null;
+  const normalizedProduct = normalizeProductText(orderProduct);
+  const productTokens = buildTokenSet(orderProduct);
+
+  let bestRule = null;
+  let bestScore = 0;
+
+  for (const rule of rules) {
+    const patterns = splitKeywordPatterns(rule?.productKeyword);
+    if (patterns.length === 0) continue;
+
+    let ruleScore = 0;
+    for (const pattern of patterns) {
+      ruleScore = Math.max(ruleScore, scorePatternAgainstProduct(pattern, normalizedProduct, productTokens));
+    }
+
+    if (ruleScore > bestScore) {
+      bestScore = ruleScore;
+      bestRule = rule;
+    }
+  }
+
+  return bestScore >= 20 ? bestRule : null;
+}
+
+async function sendAutoStep(step, context) {
+  const { whatsappNumber, workspaceId, instanceId, message, media } = context;
+
+  if (step === 'text') {
+    return sendWhatsAppMessage({
+      to: whatsappNumber,
+      message,
+      workspaceId: String(workspaceId),
+      userId: 'system',
+      firstName: 'Order Webhook',
+      instanceId,
+    });
+  }
+
+  if (step === 'image' && media.imageUrl) {
+    return sendWhatsAppMedia({
+      to: whatsappNumber,
+      mediaUrl: media.imageUrl,
+      caption: '',
+      workspaceId: String(workspaceId),
+      instanceId,
+    });
+  }
+
+  if (step === 'video' && media.videoUrl) {
+    return sendWhatsAppVideo({
+      to: whatsappNumber,
+      videoUrl: media.videoUrl,
+      caption: '',
+      workspaceId: String(workspaceId),
+      instanceId,
+    });
+  }
+
+  if (step === 'document' && media.documentUrl) {
+    return sendWhatsAppDocument({
+      to: whatsappNumber,
+      documentUrl: media.documentUrl,
+      caption: '',
+      workspaceId: String(workspaceId),
+      instanceId,
+    });
+  }
+
+  if (step === 'audio' && media.audioUrl) {
+    return sendWhatsAppAudio({
+      to: whatsappNumber,
+      audioUrl: media.audioUrl,
+      workspaceId: String(workspaceId),
+      instanceId,
+    });
+  }
+
+  return null;
 }
 
 // ─── Envoi du message de confirmation au client ─────────────────────────────
@@ -156,53 +314,40 @@ export async function sendClientOrderConfirmation(order, shopifyOrder, workspace
       `📱 ${logPrefix} Envoi WhatsApp à ${whatsappNumber} — commande #${order.orderId}`
     );
 
-    // ── Récupérer la config auto (instance spécifique, image, vocal) ─────
+    // ── Récupérer la config auto (instance spécifique, médias, ordre) ───
     const autoInstanceId = options.instanceId || null;
     const autoImageUrl = options.imageUrl || null;
+    const autoVideoUrl = options.videoUrl || null;
+    const autoDocumentUrl = options.documentUrl || null;
     const autoAudioUrl = options.audioUrl || null;
+    const sendOrder = normalizeSendOrder(options.sendOrder || ['text', 'image', 'audio']);
 
-    // ── Envoi progressif : texte → image → vocal ─────────────────────────
+    // ── Envoi progressif configurable ─────────────────────────────────────
     console.log(`📩 ${logPrefix} Envoi WhatsApp à : ${whatsappNumber} (instance: ${autoInstanceId || 'auto'})`);
-    const result = await sendWhatsAppMessage({
-      to:          whatsappNumber,
-      message,
-      workspaceId: String(workspaceId),
-      userId:      'system',
-      firstName:   'Shopify Webhook',
-      instanceId:  autoInstanceId,
-    });
-    console.log(`✅ ${logPrefix} Texte envoyé — messageId: ${result?.messageId || 'N/A'}, instance: ${result?.instanceName || 'N/A'}`);
-
-    // Envoi image si configurée (avec délai progressif)
-    if (autoImageUrl) {
+    let result = null;
+    for (const step of sendOrder) {
       try {
-        await new Promise(r => setTimeout(r, 2000));
-        const mediaResult = await sendWhatsAppMedia({
-          to: whatsappNumber,
-          mediaUrl: autoImageUrl,
-          caption: '',
-          workspaceId: String(workspaceId),
+        const stepResult = await sendAutoStep(step, {
+          whatsappNumber,
+          workspaceId,
           instanceId: autoInstanceId,
+          message,
+          media: {
+            imageUrl: autoImageUrl,
+            videoUrl: autoVideoUrl,
+            documentUrl: autoDocumentUrl,
+            audioUrl: autoAudioUrl,
+          }
         });
-        console.log(`✅ ${logPrefix} Image envoyée — messageId: ${mediaResult?.messageId || 'N/A'}`);
-      } catch (mediaErr) {
-        console.warn(`⚠️ ${logPrefix} Erreur envoi image auto: ${mediaErr.message}`);
-      }
-    }
-
-    // Envoi vocal si configuré (avec délai progressif)
-    if (autoAudioUrl) {
-      try {
-        await new Promise(r => setTimeout(r, 2000));
-        const audioResult = await sendWhatsAppAudio({
-          to: whatsappNumber,
-          audioUrl: autoAudioUrl,
-          workspaceId: String(workspaceId),
-          instanceId: autoInstanceId,
-        });
-        console.log(`✅ ${logPrefix} Vocal envoyé — messageId: ${audioResult?.messageId || 'N/A'}`);
-      } catch (audioErr) {
-        console.warn(`⚠️ ${logPrefix} Erreur envoi vocal auto: ${audioErr.message}`);
+        if (stepResult && !result && step === 'text') {
+          result = stepResult;
+        }
+        if (stepResult) {
+          console.log(`✅ ${logPrefix} Étape envoyée: ${step}`);
+        }
+        await new Promise(r => setTimeout(r, 1200));
+      } catch (stepErr) {
+        console.warn(`⚠️ ${logPrefix} Erreur envoi étape ${step}: ${stepErr.message}`);
       }
     }
 
@@ -285,7 +430,7 @@ export async function sendOrderConfirmationToClient(order, workspaceId) {
   try {
     // Vérifier que whatsappAutoConfirm est activé
     const workspace = await EcomWorkspace.findById(workspaceId)
-      .select('whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl storeSettings name')
+      .select('whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoAudioUrl whatsappAutoSendOrder whatsappAutoProductMediaRules storeSettings name')
       .lean();
 
     if (!workspace?.whatsappAutoConfirm) {
@@ -323,49 +468,35 @@ export async function sendOrderConfirmationToClient(order, workspaceId) {
     console.log(`📱 ${logPrefix} Envoi WhatsApp à ${whatsappNumber} — commande #${order.orderId}`);
 
     const autoInstanceId = workspace.whatsappAutoInstanceId || null;
-    const autoImageUrl = workspace.whatsappAutoImageUrl || null;
-    const autoAudioUrl = workspace.whatsappAutoAudioUrl || null;
+    const matchedRule = resolveMediaRule(order.product, workspace.whatsappAutoProductMediaRules || []);
+    const media = {
+      imageUrl: matchedRule?.imageUrl || workspace.whatsappAutoImageUrl || null,
+      videoUrl: matchedRule?.videoUrl || workspace.whatsappAutoVideoUrl || null,
+      documentUrl: matchedRule?.documentUrl || workspace.whatsappAutoDocumentUrl || null,
+      audioUrl: matchedRule?.audioUrl || workspace.whatsappAutoAudioUrl || null,
+    };
+    const sendOrder = normalizeSendOrder(matchedRule?.sendOrder?.length ? matchedRule.sendOrder : workspace.whatsappAutoSendOrder);
 
-    // Envoi progressif : texte → image → vocal
-    const result = await sendWhatsAppMessage({
-      to:          whatsappNumber,
-      message,
-      workspaceId: String(workspaceId),
-      userId:      'system',
-      firstName:   'Order Webhook',
-      instanceId:  autoInstanceId,
-    });
-
-    // Envoi image si configurée (avec délai progressif)
-    if (autoImageUrl) {
+    // Envoi progressif configurable (ordre global ou spécifique au produit)
+    let result = null;
+    for (const step of sendOrder) {
       try {
-        await new Promise(r => setTimeout(r, 2000));
-        await sendWhatsAppMedia({
-          to: whatsappNumber,
-          mediaUrl: autoImageUrl,
-          caption: '',
-          workspaceId: String(workspaceId),
+        const stepResult = await sendAutoStep(step, {
+          whatsappNumber,
+          workspaceId,
           instanceId: autoInstanceId,
+          message,
+          media,
         });
-        console.log(`✅ ${logPrefix} Image auto envoyée`);
-      } catch (mediaErr) {
-        console.warn(`⚠️ ${logPrefix} Erreur envoi image auto: ${mediaErr.message}`);
-      }
-    }
-
-    // Envoi vocal si configuré (avec délai progressif)
-    if (autoAudioUrl) {
-      try {
-        await new Promise(r => setTimeout(r, 2000));
-        await sendWhatsAppAudio({
-          to: whatsappNumber,
-          audioUrl: autoAudioUrl,
-          workspaceId: String(workspaceId),
-          instanceId: autoInstanceId,
-        });
-        console.log(`✅ ${logPrefix} Vocal auto envoyé`);
-      } catch (audioErr) {
-        console.warn(`⚠️ ${logPrefix} Erreur envoi vocal auto: ${audioErr.message}`);
+        if (stepResult && !result && step === 'text') {
+          result = stepResult;
+        }
+        if (stepResult) {
+          console.log(`✅ ${logPrefix} Étape envoyée: ${step}${matchedRule ? ` (règle produit: ${matchedRule.productKeyword})` : ''}`);
+        }
+        await new Promise(r => setTimeout(r, 1200));
+      } catch (stepErr) {
+        console.warn(`⚠️ ${logPrefix} Erreur envoi étape ${step}: ${stepErr.message}`);
       }
     }
 

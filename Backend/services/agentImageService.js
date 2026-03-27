@@ -36,11 +36,11 @@ const analyzeImage = async (base64Image, mimetype, workspaceId) => {
 
   const catalogSummary = buildCatalogSummary(storeProducts, productConfigs);
 
-  // 2. Appeler Groq Vision pour analyser l'image
+  // 2. Appeler GPT-4o Vision pour analyser l'image
   const startTime = Date.now();
 
   const completion = await groq.chat.completions.create({
-    model: process.env.AGENT_VISION_MODEL || 'llama-3.2-11b-vision-preview',
+    model: process.env.AGENT_VISION_MODEL || 'llama-4-scout-17b-16e-instruct',
     messages: [
       {
         role: 'system',
@@ -71,7 +71,8 @@ Réponds UNIQUEMENT en JSON (sans markdown) avec ce format:
           {
             type: 'image_url',
             image_url: {
-              url: `data:${mimetype || 'image/jpeg'};base64,${base64Image}`
+              url: `data:${mimetype || 'image/jpeg'};base64,${base64Image}`,
+              detail: 'low'
             }
           },
           {

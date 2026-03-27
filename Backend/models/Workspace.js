@@ -129,10 +129,68 @@ const workspaceSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  // URL vidéo par défaut à envoyer avec le message auto
+  whatsappAutoVideoUrl: {
+    type: String,
+    default: null
+  },
+  // URL document (PDF) par défaut à envoyer avec le message auto
+  whatsappAutoDocumentUrl: {
+    type: String,
+    default: null
+  },
+  // Ordre d'envoi global (ex: text -> image -> video -> document -> audio)
+  whatsappAutoSendOrder: {
+    type: [String],
+    default: ['text', 'image', 'audio']
+  },
+  // Règles d'envoi spécifiques par produit (matching par mot-clé)
+  whatsappAutoProductMediaRules: {
+    type: [{
+      productKeyword: { type: String, required: true },
+      imageUrl: { type: String, default: null },
+      videoUrl: { type: String, default: null },
+      documentUrl: { type: String, default: null },
+      audioUrl: { type: String, default: null },
+      sendOrder: { type: [String], default: [] }
+    }],
+    default: []
+  },
   isActive: {
     type: Boolean,
     default: true
   },
+  // ─── Billing / Plan ──────────────────────────────────────────────────────
+  plan: {
+    type: String,
+    enum: ['free', 'pro', 'ultra'],
+    default: 'free',
+    index: true
+  },
+  // Date when the plan expires; null = no active subscription
+  planExpiresAt: {
+    type: Date,
+    default: null
+  },
+  // Last confirmed MoneyFusion tokenPay for traceability
+  planPaymentToken: {
+    type: String,
+    default: null
+  },
+  // Free trial tracking
+  trialStartedAt: {
+    type: Date,
+    default: null
+  },
+  trialEndsAt: {
+    type: Date,
+    default: null
+  },
+  trialUsed: {
+    type: Boolean,
+    default: false
+  },
+
   invites: [{
     token: {
       type: String,

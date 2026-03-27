@@ -1,9 +1,9 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Users, Search, Filter, Shield, Crown, Briefcase, Package,
-  Calculator, Truck, CheckCircle2, XCircle, Trash2, Edit3,
-  Clock, Building2, AlertCircle, Loader2, TrendingUp, UserX, ChevronRight
+  Users, Search, Filter, Crown, Briefcase, Package,
+  Calculator, Truck, CheckCircle2, XCircle, Trash2,
+  Clock, Building2, AlertCircle, Loader2, UserX, ChevronRight
 } from 'lucide-react';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ecomApi from '../services/ecommApi.js';
@@ -102,6 +102,15 @@ const SuperAdminUsers = () => {
   const handleChangeRole = async (userId, newRole) => {
     try { const res = await ecomApi.put(`/super-admin/users/${userId}/role`, { role: newRole }); setSuccess(res.data.message); fetchUsers(); }
     catch (err) { setError(getContextualError(err, 'save_user')); }
+  };
+
+  const handleSetPlan = async (workspaceId, plan) => {
+    if (!workspaceId) return;
+    try {
+      await ecomApi.patch(`/super-admin/workspaces/${workspaceId}/plan`, { plan, durationMonths: 1 });
+      setSuccess(`Plan mis à jour : ${plan}`);
+      fetchWorkspaces();
+    } catch (err) { setError(getContextualError(err, 'save_user')); }
   };
 
   const handleDeleteUser = async (userId, email) => {
@@ -261,6 +270,18 @@ const SuperAdminUsers = () => {
                           {u.workspaceId.name}
                         </span>
                       )}
+                      {(() => {
+                        const ws = workspaces.find(w => w._id === (u.workspaceId?._id || u.workspaceId));
+                        const plan = ws?.plan || 'free';
+                        const planColors = { free: 'bg-slate-100 text-slate-500', pro: 'bg-emerald-100 text-emerald-700', ultra: 'bg-amber-100 text-amber-700' };
+                        const planLabels = { free: 'Gratuit', pro: 'Pro', ultra: 'Ultra' };
+                        return (
+                          <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${planColors[plan]}`}>
+                            <Crown className="w-3 h-3" />
+                            {planLabels[plan]}
+                          </span>
+                        );
+                      })()}
                       <span className="text-slate-300 hidden sm:inline">·</span>
                       <span className="inline-flex items-center gap-1 text-xs text-slate-400 font-medium hidden sm:flex">
                         <Clock className="w-3 h-3" />
@@ -290,6 +311,24 @@ const SuperAdminUsers = () => {
                       <option value="ecom_compta">Comptable</option>
                       <option value="ecom_livreur">Livreur</option>
                     </select>
+                    {u.role === 'ecom_admin' && (() => {
+                      const wsId = u.workspaceId?._id || u.workspaceId;
+                      const ws = workspaces.find(w => w._id === wsId);
+                      const plan = ws?.plan || 'free';
+                      return (
+                        <select
+                          value={plan}
+                          onChange={(e) => handleSetPlan(wsId, e.target.value)}
+                          disabled={!wsId}
+                          className="text-xs font-bold px-3 py-2.5 bg-slate-50 border-2 border-slate-200 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 transition-all"
+                          title="Changer le plan"
+                        >
+                          <option value="free">Gratuit</option>
+                          <option value="pro">Pro</option>
+                          <option value="ultra">Ultra</option>
+                        </select>
+                      );
+                    })()}
                     <button
                       onClick={() => handleToggleUser(u._id)}
                       disabled={u._id === currentUser?.id}

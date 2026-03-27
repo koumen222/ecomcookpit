@@ -1,8 +1,136 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { createCheckout } from '../services/billingApi.js';
+
+// ─── Inline checkout modal (for public Tarifs page, no auth required) ─────────
+function PublicCheckoutModal({ plan, onClose }) {
+  const navigate = useNavigate();
+  const [phone, setPhone] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const PLAN_PRICES = { pro_1: 6000, pro_3: 16000, pro_6: 30000, pro_12: 55000 };
+  const PLAN_DURATIONS = { pro_1: '1 mois', pro_3: '3 mois', pro_6: '6 mois', pro_12: '12 mois' };
+  const amount = PLAN_PRICES[plan] || 6000;
+  const durationLabel = PLAN_DURATIONS[plan] || '1 mois';
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    if (!phone.trim() || phone.trim().length < 8) {
+      setError('Entrez un numéro de téléphone valide (min. 8 chiffres).');
+      return;
+    }
+    if (!clientName.trim() || clientName.trim().length < 2) {
+      setError('Entrez votre nom complet.');
+      return;
+    }
+
+    // Check if user is logged in
+    const token = localStorage.getItem('ecomToken');
+    const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+    const workspaceId = workspace?._id || workspace?.id;
+
+    if (!token || !workspaceId) {
+      // Redirect to register then billing
+      sessionStorage.setItem('mf_post_register_redirect', '/ecom/billing');
+      navigate('/ecom/register');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await createCheckout({
+        plan,
+        phone: phone.trim(),
+        clientName: clientName.trim(),
+        workspaceId
+      });
+      if (!result.success) {
+        setError(result.message || 'Erreur lors de l\'initialisation du paiement.');
+        return;
+      }
+      if (result.paymentUrl) {
+        sessionStorage.setItem('mf_pending_token', result.mfToken);
+        window.location.href = result.paymentUrl;
+      } else {
+        setError('URL de paiement manquante. Veuillez réessayer.');
+      }
+    } catch (err) {
+      setError(
+        err?.response?.data?.message || 'Une erreur est survenue. Veuillez réessayer.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 px-6 py-5 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold">Passer au plan Pro</h2>
+              <p className="text-emerald-100 text-sm mt-0.5">
+                {durationLabel} — {new Intl.NumberFormat('fr-FR').format(amount)} FCFA
+              </p>
+            </div>
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/20 transition">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Nom complet</label>
+            <input
+              type="text"
+              value={clientName}
+              onChange={e => setClientName(e.target.value)}
+              placeholder="Jean Dupont"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Numéro Mobile Money</label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              placeholder="07XXXXXXXX"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">Orange Money, MTN, Wave…</p>
+          </div>
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl p-3">{error}</div>
+          )}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold rounded-xl transition shadow-lg text-sm"
+          >
+            {loading ? 'Redirection…' : `Payer ${new Intl.NumberFormat('fr-FR').format(amount)} FCFA`}
+          </button>
+          <p className="text-center text-xs text-gray-400">
+            Paiement sécurisé via MoneyFusion — activé instantanément après confirmation.
+          </p>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 const Tarifs = () => {
   const navigate = useNavigate();
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState('pro_1');
 
   const plans = [
     {
@@ -51,6 +179,7 @@ const Tarifs = () => {
   ];
 
   return (
+    <>
     <div className="min-h-screen bg-white">
       {/* NAVBAR */}
       <nav className="w-full bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -191,7 +320,13 @@ const Tarifs = () => {
                 </ul>
 
                 <button 
-                  onClick={() => navigate('/ecom/register')}
+                  onClick={() => {
+                    if (plan.highlighted) {
+                      setShowCheckout(true);
+                    } else {
+                      navigate('/ecom/register');
+                    }
+                  }}
                   className={`w-full py-4 rounded-xl font-bold text-base transition shadow-lg ${
                     plan.highlighted 
                       ? 'bg-white text-emerald-700 hover:bg-emerald-50' 
@@ -297,6 +432,15 @@ const Tarifs = () => {
         </div>
       </footer>
     </div>
+
+    {/* Checkout Modal */}
+    {showCheckout && (
+      <PublicCheckoutModal
+        plan={selectedPlan}
+        onClose={() => setShowCheckout(false)}
+      />
+    )}
+    </>
   );
 };
 

@@ -102,13 +102,13 @@ export default defineConfig({
         // Optimize imports
         globals: {
           __DEV__: JSON.stringify(process.env.NODE_ENV !== 'production')
-        },
-        // Tree shaking optimization
-        treeshake: {
-          moduleSideEffects: false,
-          propertyReadSideEffects: false,
-          unknownGlobalSideEffects: false
         }
+      },
+      // Tree shaking optimization
+      treeshake: {
+        moduleSideEffects: true,
+        propertyReadSideEffects: false,
+        unknownGlobalSideEffects: false
       },
       // External dependencies (don't bundle)
       external: [],

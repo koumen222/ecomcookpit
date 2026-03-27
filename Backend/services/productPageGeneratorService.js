@@ -290,13 +290,28 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     }
   ];
 
-  // Note: Groq ne supporte pas la vision, on utilise seulement le texte
-  console.log('⚠️ Note: Groq ne supporte pas la vision, analyse basée sur le texte uniquement');
+  // Groq supporte la vision via Llama 4 Scout
+  if (imageBuffers.length > 0) {
+    console.log(`🖼️ ${imageBuffers.length} image(s) disponible(s) — analyse avec Groq Vision`);
+    const imageContent = imageBuffers.slice(0, 3).map(buf => ({
+      type: 'image_url',
+      image_url: {
+        url: `data:image/jpeg;base64,${buf.toString('base64')}`,
+        detail: 'low'
+      }
+    }));
+    messages[1].content = [
+      { type: 'text', text: userPrompt },
+      ...imageContent
+    ];
+  } else {
+    console.log('ℹ️ Aucune image fournie — analyse basée sur le texte uniquement');
+  }
 
   let result;
   try {
     const response = await groq.chat.completions.create({
-      model: process.env.GROQ_MODEL || "meta-llama/llama-4-scout-17b-16e-instruct",
+      model: imageBuffers.length > 0 ? 'llama-4-scout-17b-16e-instruct' : 'llama-3.3-70b-versatile',
       messages,
       max_tokens: 4000,
       temperature: 0.7,

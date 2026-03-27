@@ -1,8 +1,8 @@
 ﻿import React, { useState, useEffect } from 'react';
 import {
   Building2, Users, CheckCircle2, XCircle, Copy, Calendar,
-  Mail, Power, PowerOff, AlertCircle, Loader2, TrendingUp,
-  Shield, Zap, Building
+  Mail, Power, PowerOff, AlertCircle, Loader2,
+  Shield, Zap, Building, Crown, ChevronDown
 } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 import { getContextualError } from '../utils/errorMessages';
@@ -25,6 +25,16 @@ const SuperAdminWorkspaces = () => {
   const handleToggle = async (wsId) => {
     try { const res = await ecomApi.put(`/super-admin/workspaces/${wsId}/toggle`); setSuccess(res.data.message); fetchWorkspaces(); }
     catch (err) { setError(getContextualError(err, 'update_settings')); }
+  };
+
+  const handleSetPlan = async (wsId, plan) => {
+    try {
+      await ecomApi.patch(`/super-admin/workspaces/${wsId}/plan`, { plan, durationMonths: 1 });
+      setSuccess(`Plan mis à jour : ${plan}`);
+      fetchWorkspaces();
+    } catch (err) {
+      setError(getContextualError(err, 'update_settings'));
+    }
   };
 
   const copyCode = (code) => { navigator.clipboard.writeText(code); setSuccess('Code copié !'); };
@@ -178,6 +188,26 @@ const SuperAdminWorkspaces = () => {
                       <span className="font-bold text-slate-700">{new Date(ws.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                     </div>
                   </div>
+
+                  {/* Plan selector */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <Crown className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                    <span className="text-xs text-slate-500 font-medium">Plan:</span>
+                    <select
+                      value={ws.plan || 'free'}
+                      onChange={(e) => handleSetPlan(ws._id, e.target.value)}
+                      className="flex-1 text-xs font-bold border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value="free">Gratuit</option>
+                      <option value="pro">Pro — 6 000 FCFA/mois</option>
+                      <option value="ultra">Ultra — 15 000 FCFA/mois</option>
+                    </select>
+                  </div>
+                  {ws.planExpiresAt && (
+                    <p className="text-[10px] text-slate-400 mb-3 text-center">
+                      Expire le {new Date(ws.planExpiresAt).toLocaleDateString('fr-FR')}
+                    </p>
+                  )}
 
                   {/* Action button */}
                   <button

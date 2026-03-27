@@ -8,12 +8,16 @@ import RitaConfig from '../models/RitaConfig.js';
 import WhatsAppOrder from '../models/WhatsAppOrder.js';
 import Order from '../models/Order.js';
 import RitaContact from '../models/RitaContact.js';
+import Agent from '../models/Agent.js';
 import { normalizePhone } from '../utils/phoneUtils.js';
 import evolutionApiService from '../services/evolutionApiService.js';
-import { processIncomingMessage, generateTestReply, transcribeAudio, textToSpeech, textToSpeechFishAudio, getLastAssistantMessage, getTtsVoiceSettings } from '../services/ritaAgentService.js';
+import { processIncomingMessage, processBossMessage, generateTestReply, transcribeAudio, textToSpeech, textToSpeechFishAudio, getLastAssistantMessage, getTtsVoiceSettings } from '../services/ritaAgentService.js';
 import { logRitaActivity } from '../services/ritaBossReportService.js';
 import { analyzeImage as analyzeProductImage } from '../services/agentImageService.js';
+import { processFlows } from '../services/ritaFlowEngine.js';
 import { uploadImage as uploadImageToR2, isConfigured as isR2Configured } from '../services/cloudflareImagesService.js';
+import { requireEcomAuth, requireRitaAgentAccess } from '../middleware/ecomAuth.js';
+import Workspace from '../models/Workspace.js';
 import mongoose from 'mongoose';
 import fs from 'fs';
 
@@ -63,9 +67,18 @@ const _uploadAudioMemory = multer({
   },
 });
 
-const HARD_CODED_WEBHOOK_BASE_URL = 'https://api.scalor.net';
+const ENV_WEBHOOK_BASE_URL = (
+  process.env.WEBHOOK_BASE_URL ||
+  process.env.PUBLIC_API_URL ||
+  process.env.BACKEND_PUBLIC_URL ||
+  (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '')
+).replace(/\/$/, '');
 
 function resolveWebhookBaseUrl(req) {
+  if (ENV_WEBHOOK_BASE_URL) {
+    return ENV_WEBHOOK_BASE_URL;
+  }
+
   const forwardedProto = req.headers['x-forwarded-proto'];
   const proto = (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto) || req.protocol || 'http';
   const host = req.get('host');
@@ -75,10 +88,9 @@ function resolveWebhookBaseUrl(req) {
     return `${proto}://${host}`.replace(/\/$/, '');
   }
 
-  return HARD_CODED_WEBHOOK_BASE_URL;
+  return `${proto}://${host}`.replace(/\/$/, '');
 }
 import { checkMessageLimit, incrementMessageCount, getInstanceUsage } from '../services/messageLimitService.js';
-import { requireEcomAuth } from '../middleware/ecomAuth.js';
 
 /**
  * Découpe un message long en plusieurs parties pour WhatsApp.
@@ -135,7 +147,250 @@ function splitWhatsAppMessage(text, maxLen = 1500) {
   return parts;
 }
 
+function firstNonEmptyText(...values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return '';
+}
+
+function unwrapMessageContent(message) {
+  let content = message;
+
+  while (content) {
+    if (content.ephemeralMessage?.message) {
+      content = content.ephemeralMessage.message;
+      continue;
+    }
+    if (content.viewOnceMessage?.message) {
+      content = content.viewOnceMessage.message;
+      continue;
+    }
+    if (content.viewOnceMessageV2?.message) {
+      content = content.viewOnceMessageV2.message;
+      continue;
+    }
+    if (content.viewOnceMessageV2Extension?.message) {
+      content = content.viewOnceMessageV2Extension.message;
+      continue;
+    }
+    if (content.documentWithCaptionMessage?.message) {
+      content = content.documentWithCaptionMessage.message;
+      continue;
+    }
+    if (content.editedMessage?.message) {
+      content = content.editedMessage.message;
+      continue;
+    }
+    break;
+  }
+
+  return content || {};
+}
+
+function extractInteractiveResponseText(interactiveResponseMessage) {
+  if (!interactiveResponseMessage) return '';
+
+  const nativeFlow = interactiveResponseMessage.nativeFlowResponseMessage;
+  const directText = firstNonEmptyText(
+    interactiveResponseMessage.body?.text,
+    interactiveResponseMessage.header?.title,
+    interactiveResponseMessage.nativeFlowResponseMessage?.name
+  );
+
+  if (directText) return directText;
+
+  const paramsJson = nativeFlow?.paramsJson;
+  if (!paramsJson || typeof paramsJson !== 'string') return '';
+
+  try {
+    const parsed = JSON.parse(paramsJson);
+    return firstNonEmptyText(
+      parsed.display_text,
+      parsed.title,
+      parsed.text,
+      parsed.id,
+      parsed.selected_display_text,
+      parsed.selected_row_id,
+      parsed.selected_row_title,
+      parsed.flow_token,
+      parsed.reply,
+      parsed.value
+    );
+  } catch {
+    return paramsJson.trim();
+  }
+}
+
+function extractIncomingText(message) {
+  const content = unwrapMessageContent(message);
+
+  return firstNonEmptyText(
+    content?.conversation,
+    content?.extendedTextMessage?.text,
+    content?.imageMessage?.caption,
+    content?.videoMessage?.caption,
+    content?.documentMessage?.caption,
+    content?.documentWithCaptionMessage?.message?.documentMessage?.caption,
+    content?.buttonsResponseMessage?.selectedDisplayText,
+    content?.buttonsResponseMessage?.selectedButtonId,
+    content?.templateButtonReplyMessage?.selectedDisplayText,
+    content?.templateButtonReplyMessage?.selectedId,
+    content?.listResponseMessage?.title,
+    content?.listResponseMessage?.description,
+    content?.listResponseMessage?.singleSelectReply?.selectedRowId,
+    content?.listResponseMessage?.singleSelectReply?.title,
+    content?.listResponseMessage?.singleSelectReply?.description,
+    extractInteractiveResponseText(content?.interactiveResponseMessage)
+  );
+}
+
+function extractContextInfo(message) {
+  const content = unwrapMessageContent(message);
+
+  return (
+    content?.extendedTextMessage?.contextInfo ||
+    content?.buttonsResponseMessage?.contextInfo ||
+    content?.templateButtonReplyMessage?.contextInfo ||
+    content?.listResponseMessage?.contextInfo ||
+    content?.imageMessage?.contextInfo ||
+    content?.videoMessage?.contextInfo ||
+    content?.documentMessage?.contextInfo ||
+    null
+  );
+}
+
+const INSTANCE_PLAN_LIMITS = {
+  free: { daily: 100, monthly: 5000 },
+  pro: { daily: 1000, monthly: 50000 },
+  plus: { daily: 5000, monthly: 200000 },
+};
+
+function normalizeInstancePlan(plan) {
+  const raw = String(plan || 'free').toLowerCase();
+  if (raw === 'premium') return 'pro';
+  if (raw === 'unlimited') return 'plus';
+  return INSTANCE_PLAN_LIMITS[raw] ? raw : 'free';
+}
+
+function resolveInstanceLimits(instance) {
+  const normalizedPlan = normalizeInstancePlan(instance.plan);
+  const defaults = INSTANCE_PLAN_LIMITS[normalizedPlan] || INSTANCE_PLAN_LIMITS.free;
+  const dailyLimit = Number.isFinite(instance.dailyLimit) && instance.dailyLimit > 0 ? instance.dailyLimit : defaults.daily;
+  const monthlyLimit = Number.isFinite(instance.monthlyLimit) && instance.monthlyLimit > 0 ? instance.monthlyLimit : defaults.monthly;
+  return { normalizedPlan, dailyLimit, monthlyLimit };
+}
+
+function extractPhoneFromJid(jid) {
+  if (!jid || typeof jid !== 'string') return null;
+
+  // Ex: 2376...@s.whatsapp.net, 2376...:12@s.whatsapp.net, +2376...@lid
+  const localPart = jid.split('@')[0] || '';
+  const noDeviceSuffix = localPart.split(':')[0] || '';
+
+  const normalized = normalizePhone(noDeviceSuffix);
+  if (normalized) return normalized;
+
+  const digitsOnly = noDeviceSuffix.replace(/\D/g, '');
+  return digitsOnly.length >= 8 && digitsOnly.length <= 15 ? digitsOnly : null;
+}
+
+async function resolveIncomingInstanceDoc(instance, data) {
+  const fromPayload = [
+    instance,
+    data?.instance,
+    data?.instanceName,
+    data?.instance?.instanceName,
+    data?.instance?.name,
+  ].filter(Boolean);
+
+  const candidateNames = [];
+  for (const item of fromPayload) {
+    if (typeof item === 'string' && item.trim()) {
+      candidateNames.push(item.trim());
+    } else if (typeof item === 'object') {
+      if (typeof item.instanceName === 'string' && item.instanceName.trim()) {
+        candidateNames.push(item.instanceName.trim());
+      }
+      if (typeof item.name === 'string' && item.name.trim()) {
+        candidateNames.push(item.name.trim());
+      }
+    }
+  }
+
+  if (!candidateNames.length) return null;
+
+  // 1) Match exact sur instanceName/customName
+  let instanceDoc = await WhatsAppInstance.findOne({
+    isActive: true,
+    $or: [
+      { instanceName: { $in: candidateNames } },
+      { customName: { $in: candidateNames } },
+    ],
+  }).lean();
+
+  if (instanceDoc) return instanceDoc;
+
+  // 2) Fallback insensible à la casse
+  const escaped = candidateNames.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  instanceDoc = await WhatsAppInstance.findOne({
+    isActive: true,
+    $or: [
+      { instanceName: { $in: escaped.map((name) => new RegExp(`^${name}$`, 'i')) } },
+      { customName: { $in: escaped.map((name) => new RegExp(`^${name}$`, 'i')) } },
+    ],
+  }).lean();
+
+  return instanceDoc;
+}
+
 const router = express.Router();
+
+async function resolveRitaTargetUserId(req) {
+  if (req.ecomUser?.role === 'super_admin') {
+    return req.body?.userId || req.query?.userId || String(req.ecomUser._id);
+  }
+
+  // Résoudre via le owner du workspace pour que tous les membres
+  // lisent/écrivent la MÊME RitaConfig (celle que le webhook utilise)
+  const wsId = req.workspaceId || req.ecomUser?.workspaceId;
+  if (wsId) {
+    try {
+      const ws = await Workspace.findById(wsId).select('owner').lean();
+      if (ws?.owner) return String(ws.owner);
+    } catch (e) {
+      console.warn('⚠️ resolveRitaTargetUserId: workspace owner lookup failed:', e.message);
+    }
+  }
+
+  return String(req.ecomUser?._id || '');
+}
+
+async function sendMessageAndTrack(instanceName, instanceToken, number, message, ...rest) {
+  const result = await evolutionApiService.sendMessage(
+    instanceName,
+    instanceToken,
+    number,
+    message,
+    ...rest
+  );
+
+  const isSuccess = result?.success !== false;
+  if (isSuccess) {
+    try {
+      const trackedInstance = await WhatsAppInstance.findOne({ instanceName, instanceToken }).select('_id').lean();
+      if (trackedInstance?._id) {
+        await incrementMessageCount(trackedInstance._id, 1);
+      }
+    } catch (quotaErr) {
+      console.error('⚠️ [QUOTA] Impossible de compter un message sortant:', quotaErr.message);
+    }
+  }
+
+  return result;
+}
 
 // Normalise une chaîne : minuscules + suppression des accents/diacritiques
 function normalizeStr(s) {
@@ -165,6 +420,34 @@ function findProductByName(catalog, query) {
     if (p?.score >= 0.6) return p.p;
   }
   return null;
+}
+
+function normalizeFilterValue(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+function resolveStatusVariants(rawStatus) {
+  const normalized = normalizeFilterValue(rawStatus);
+  const aliases = {
+    pending: ['pending'],
+    accepted: ['accepted', 'confirmed'],
+    refused: ['refused', 'rejected'],
+    delivered: ['delivered'],
+    cancelled: ['cancelled', 'canceled'],
+    all: [],
+  };
+
+  if (aliases[normalized]) return aliases[normalized];
+  if (normalized === 'en attente') return aliases.pending;
+  if (normalized === 'acceptee' || normalized === 'acceptees' || normalized === 'acceptee(s)') return aliases.accepted;
+  if (normalized === 'refusee' || normalized === 'refusees' || normalized === 'refusee(s)') return aliases.refused;
+  if (normalized === 'livree' || normalized === 'livrees' || normalized === 'livree(s)') return aliases.delivered;
+  if (normalized === 'annulee' || normalized === 'annulees' || normalized === 'annulee(s)') return aliases.cancelled;
+  return [normalized];
 }
 
 // ─── Escalades boss en attente: userId → [{ clientPhone, question, askedAt, instanceName, instanceToken }]
@@ -502,7 +785,7 @@ router.post('/send', async (req, res) => {
     }
 
     // Envoyer le message via ZenChat API
-    const result = await evolutionApiService.sendMessage(
+    const result = await sendMessageAndTrack(
       instanceName,
       instanceToken,
       number,
@@ -510,9 +793,6 @@ router.post('/send', async (req, res) => {
     );
 
     if (result.success) {
-      // Incrémenter les compteurs de messages
-      await incrementMessageCount(instance._id, 1);
-
       // Mettre à jour le statut de l'instance
       await WhatsAppInstance.findByIdAndUpdate(
         instance._id,
@@ -561,45 +841,32 @@ router.post('/send', async (req, res) => {
  * @desc    Lister les instances WhatsApp d'un utilisateur
  * @access  Public (Sécurisé par userId)
  */
-router.get('/instances', async (req, res) => {
+router.get('/instances', requireEcomAuth, async (req, res) => {
   try {
-    const { userId, workspaceId } = req.query;
+    const requester = req.ecomUser;
+    const requestedUserId = req.query.userId ? String(req.query.userId) : String(requester._id);
+    const isSuperAdmin = requester.role === 'super_admin';
 
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        error: "userId est requis"
-      });
+    // Non super-admin users must stay in their own workspace scope.
+    const effectiveUserId = isSuperAdmin ? requestedUserId : String(requester._id);
+
+    let query = { userId: effectiveUserId, isActive: true };
+
+    if (!isSuperAdmin && requester.workspaceId) {
+      const workspaceMembers = await EcomUser.find({ workspaceId: requester.workspaceId }).select('_id').lean();
+      const workspaceUserIds = workspaceMembers.map((u) => String(u._id));
+      query = {
+        isActive: true,
+        $or: [
+          { workspaceId: requester.workspaceId },
+          { userId: { $in: workspaceUserIds } },
+        ],
+      };
     }
 
-    // Construire le filtre: chercher par userId OU workspaceId
-    const searchFilter = workspaceId
-      ? { $or: [{ userId }, { workspaceId }] }
-      : { userId };
+    const instances = await WhatsAppInstance.find(query);
 
-    // Auto-réactiver les instances inactives
-    const reactivated = await WhatsAppInstance.updateMany(
-      { ...searchFilter, isActive: false },
-      { $set: { isActive: true, userId } }
-    );
-    if (reactivated.modifiedCount > 0) {
-      console.log(`🔄 [INSTANCES] Auto-réactivé ${reactivated.modifiedCount} instance(s) pour userId: ${userId}`);
-    }
-
-    // Récupérer toutes les instances
-    const instances = await WhatsAppInstance.find({ ...searchFilter, isActive: true });
-
-    // S'assurer que toutes les instances sont liées au bon userId
-    for (const inst of instances) {
-      if (inst.userId !== userId) {
-        inst.userId = userId;
-        if (workspaceId) inst.workspaceId = workspaceId;
-        await inst.save();
-        console.log(`🔗 [INSTANCES] Transféré instance "${inst.instanceName}" vers userId=${userId}`);
-      }
-    }
-
-    console.log(`📋 [INSTANCES] Trouvé ${instances.length} instance(s) pour userId: ${userId}`);
+    console.log(`📋 [INSTANCES] Trouvé ${instances.length} instance(s) pour scope: ${isSuperAdmin ? `userId=${effectiveUserId}` : `workspaceId=${requester.workspaceId || 'N/A'}`}`);
     instances.forEach(inst => {
       console.log(`   - ${inst.instanceName} | status: ${inst.status} | workspaceId: ${inst.workspaceId || 'N/A'}`);
     });
@@ -657,18 +924,28 @@ router.get('/instances/all', async (req, res) => {
  * @desc    Rafraîchir le statut des instances via Evolution API
  * @access  Public (Sécurisé par userId)
  */
-router.post('/refresh-status', async (req, res) => {
+router.post('/refresh-status', requireEcomAuth, async (req, res) => {
   try {
-    const { userId } = req.body;
+    const requester = req.ecomUser;
+    const requestedUserId = req.body?.userId ? String(req.body.userId) : String(requester._id);
+    const isSuperAdmin = requester.role === 'super_admin';
+    const effectiveUserId = isSuperAdmin ? requestedUserId : String(requester._id);
 
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        error: "userId est requis"
-      });
+    let query = { userId: effectiveUserId, isActive: true };
+
+    if (!isSuperAdmin && requester.workspaceId) {
+      const workspaceMembers = await EcomUser.find({ workspaceId: requester.workspaceId }).select('_id').lean();
+      const workspaceUserIds = workspaceMembers.map((u) => String(u._id));
+      query = {
+        isActive: true,
+        $or: [
+          { workspaceId: requester.workspaceId },
+          { userId: { $in: workspaceUserIds } },
+        ],
+      };
     }
 
-    const instances = await WhatsAppInstance.find({ userId, isActive: true });
+    const instances = await WhatsAppInstance.find(query);
 
     const updated = await Promise.all(instances.map(async (inst) => {
       try {
@@ -777,20 +1054,36 @@ router.get('/instances/:id/webhook', async (req, res) => {
  */
 router.post('/activate', async (req, res) => {
   try {
-    const { userId, enabled, instanceId } = req.body;
-    if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
+    const { userId, agentId, enabled, instanceId } = req.body;
+
+    // Utiliser agentId s'il est fourni, sinon userId
+    const targetId = agentId || userId;
+    if (!targetId) return res.status(400).json({ success: false, error: 'userId ou agentId requis' });
 
     console.log(`\n🔧 ═══════════════════════════════════════════════════`);
-    console.log(`🔧 [ACTIVATE] userId=${userId} enabled=${enabled} instanceId=${instanceId || 'ALL'}`);
+    console.log(`🔧 [ACTIVATE] ${agentId ? 'agentId' : 'userId'}=${targetId} enabled=${enabled} instanceId=${instanceId || 'ALL'}`);
+
+    // Si agentId est fourni, chercher l'agent pour récupérer son userId
+    let actualUserId = userId;
+    if (agentId) {
+      const agent = await Agent.findById(agentId).select('userId').lean();
+      if (agent?.userId) {
+        actualUserId = agent.userId;
+        console.log(`🔧 [ACTIVATE] Agent trouvé, userId résolu: ${actualUserId}`);
+      } else {
+        console.log(`⚠️ [ACTIVATE] Agent introuvable ou sans userId associé`);
+        return res.status(400).json({ success: false, error: 'Agent introuvable' });
+      }
+    }
 
     // Chercher l'instance spécifique OU toutes les instances actives
     let instances;
     if (instanceId) {
-      const inst = await WhatsAppInstance.findOne({ _id: instanceId, userId, isActive: true });
+      const inst = await WhatsAppInstance.findOne({ _id: instanceId, userId: actualUserId, isActive: true });
       instances = inst ? [inst] : [];
-      console.log(`🔧 [ACTIVATE] Instance ciblée: ${inst ? inst.instanceName : 'INTROUVABLE (id=' + instanceId + ')'}`);  
+      console.log(`🔧 [ACTIVATE] Instance ciblée: ${inst ? inst.instanceName : 'INTROUVABLE (id=' + instanceId + ')'}`);
     } else {
-      instances = await WhatsAppInstance.find({ userId, isActive: true });
+      instances = await WhatsAppInstance.find({ userId: actualUserId, isActive: true });
       console.log(`🔧 [ACTIVATE] Toutes les instances: ${instances.map(i => i.instanceName).join(', ') || 'aucune'}`);
     }
 
@@ -832,18 +1125,21 @@ router.post('/activate', async (req, res) => {
     // Envoyer un message WhatsApp de confirmation au propriétaire si activation réussie
     if (enabled && configured > 0) {
       try {
-        const owner = await EcomUser.findById(userId).lean();
+        const owner = await EcomUser.findById(actualUserId).lean();
         const ownerPhone = owner?.phone?.replace(/\D/g, '');
         console.log(`📲 [ACTIVATE] Propriétaire: ${owner?.email || 'inconnu'}, téléphone: ${ownerPhone || 'NON RENSEIGNÉ'}`);
         if (ownerPhone) {
           const targetInst = instances[0];
-          const ritaConfig = await RitaConfig.findOne({ userId }).lean();
+          // Chercher la RitaConfig par agentId ou userId
+          const ritaConfig = agentId
+            ? await RitaConfig.findOne({ agentId }).lean()
+            : await RitaConfig.findOne({ userId: actualUserId }).lean();
           const agentName = ritaConfig?.agentName || 'Rita';
           const confirmMsg = `✅ *${agentName} IA est maintenant active !*\n\n` +
             `Instance: ${targetInst.customName || targetInst.instanceName}\n` +
             `Envoyez un message ici pour tester la réponse automatique en temps réel.\n\n` +
             `— ${agentName} 🤖`;
-          const sendResult = await evolutionApiService.sendMessage(targetInst.instanceName, targetInst.instanceToken, ownerPhone, confirmMsg);
+          const sendResult = await sendMessageAndTrack(targetInst.instanceName, targetInst.instanceToken, ownerPhone, confirmMsg);
           console.log(`📲 [ACTIVATE] Message de confirmation envoyé à ${ownerPhone} via ${targetInst.instanceName}:`, sendResult.success ? '✅ OK' : `❌ ${sendResult.error}`);
         } else {
           console.log(`⚠️ [ACTIVATE] Pas de numéro de téléphone pour le propriétaire — message de confirmation non envoyé`);
@@ -1040,9 +1336,7 @@ router.post('/incoming', async (req, res) => {
         console.log(`📩 [WH INCOMING] ${messages.length} message(s) reçu(s)`);
 
         // Trouver l'instance WhatsApp correspondante pour récupérer le userId
-        const instanceDoc = instance
-          ? await WhatsAppInstance.findOne({ instanceName: instance, isActive: true }).lean()
-          : null;
+        const instanceDoc = await resolveIncomingInstanceDoc(instance, data);
 
         if (instanceDoc) {
           console.log(`📩 [WH INCOMING] Instance trouvée: ${instanceDoc.instanceName} (userId=${instanceDoc.userId})`);
@@ -1050,34 +1344,23 @@ router.post('/incoming', async (req, res) => {
 
         for (const msg of messages) {
           const fromMe = msg.key?.fromMe;
-          const from = msg.key?.remoteJid;
+          const from = msg.key?.remoteJid || msg.key?.participant || msg.participant || '';
+          const messageContent = unwrapMessageContent(msg.message);
 
           // ─── Détecter message vocal / audio ───
-          const isAudio = !!(msg.message?.audioMessage || msg.message?.pttMessage);
-          let text =
-            msg.message?.conversation ||
-            msg.message?.extendedTextMessage?.text ||
-            msg.message?.imageMessage?.caption ||
-            msg.message?.videoMessage?.caption ||
-            msg.message?.buttonsResponseMessage?.selectedButtonId ||
-            msg.message?.listResponseMessage?.title ||
-            '';
+          const isAudio = !!(messageContent?.audioMessage || messageContent?.pttMessage);
+          let text = extractIncomingText(messageContent);
           const pushName = msg.pushName || data?.pushName || '';
 
           // ─── Détecter message cité (reply/quote) et injecter le contexte ───
-          const contextInfo = msg.message?.extendedTextMessage?.contextInfo;
+          const contextInfo = extractContextInfo(messageContent);
           if (contextInfo?.quotedMessage) {
-            const quotedText =
-              contextInfo.quotedMessage.conversation ||
-              contextInfo.quotedMessage.extendedTextMessage?.text ||
-              contextInfo.quotedMessage.imageMessage?.caption ||
-              contextInfo.quotedMessage.videoMessage?.caption ||
-              '';
+            const quotedText = extractIncomingText(contextInfo.quotedMessage);
             if (quotedText) {
               const quotedFrom = contextInfo.participant || '';
               const isQuotedFromBot = msg.key?.fromMe === false && (contextInfo.quotedMessage?.key?.fromMe || !quotedFrom || quotedFrom === from);
               const quotedLabel = isQuotedFromBot ? 'ton propre message précédent' : 'un message précédent';
-              text = `[Le client répond à ${quotedLabel} : "${quotedText.substring(0, 300)}"] ${text}`;
+              text = `[Le client répond à ${quotedLabel} : "${quotedText.substring(0, 800)}"] ${text}`;
               console.log(`💬 [RITA] Message cité détecté: "${quotedText.substring(0, 100)}"`);
             }
           }
@@ -1101,6 +1384,82 @@ router.post('/incoming', async (req, res) => {
             continue;
           }
 
+          const senderPhone = extractPhoneFromJid(from);
+          if (!senderPhone) {
+            console.log(`⏩ [RITA] Numéro expéditeur non exploitable (${from}), message ignoré.`);
+            continue;
+          }
+          const senderJid = `${senderPhone}@s.whatsapp.net`;
+
+          // ─── Résoudre le userId via le workspace owner ───
+          // La RitaConfig est toujours sauvegardée avec userId = workspace.owner
+          // (cohérence avec resolveRitaTargetUserId dans l'API)
+          let userId = instanceDoc ? instanceDoc.userId : null;
+          if (instanceDoc?.workspaceId) {
+            try {
+              const ws = await Workspace.findById(instanceDoc.workspaceId).select('owner').lean();
+              if (ws?.owner) userId = String(ws.owner);
+            } catch (e) {
+              console.warn('⚠️ [RITA] Impossible de résoudre le workspace owner, fallback sur instanceDoc.userId:', e.message);
+            }
+          }
+          console.log(`💬 [RITA] userId résolu: ${userId} (instance.userId=${instanceDoc?.userId}, workspaceId=${instanceDoc?.workspaceId})`);
+
+          // ─── Enregistrer le contact dès qu'il écrit (avant tout traitement) ───
+          if (instanceDoc) {
+            try {
+              const earlyUserId = userId;
+              const earlyPhone = senderPhone;
+              // Exclure le numéro du boss
+              const earlyCfg = await RitaConfig.findOne({ userId: earlyUserId }).lean();
+              const bossPhoneEarly = (earlyCfg?.bossPhone || '').replace(/\D/g, '');
+              const fromPhoneEarly = earlyPhone.replace(/\D/g, '');
+              if (!bossPhoneEarly || fromPhoneEarly !== bossPhoneEarly) {
+                const ec = await RitaContact.findOne({ userId: earlyUserId, phone: earlyPhone });
+                if (ec) {
+                  ec.lastMessageAt = new Date();
+                  ec.messageCount = (ec.messageCount || 0) + 1;
+                  const needsNameSync = pushName && !ec.pushName;
+                  if (pushName && !ec.pushName) ec.pushName = pushName;
+                  await ec.save();
+                  // Mettre à jour le nom sur l'appareil si on vient de l'obtenir
+                  if (needsNameSync) {
+                    evolutionApiService.saveContact(
+                      instanceDoc.instanceName,
+                      instanceDoc.instanceToken,
+                      earlyPhone,
+                      pushName
+                    );
+                  }
+                } else {
+                  const lc = await RitaContact.findOne({ userId: earlyUserId }).sort({ clientNumber: -1 }).lean();
+                  const nn = (lc?.clientNumber || 0) + 1;
+                  await RitaContact.create({
+                    userId: earlyUserId,
+                    phone: earlyPhone,
+                    pushName: pushName || '',
+                    clientNumber: nn,
+                    firstMessageAt: new Date(),
+                    lastMessageAt: new Date(),
+                    messageCount: 1,
+                  });
+                  console.log(`📇 [RITA] Nouveau contact: Client ${nn} (${earlyPhone}, ${pushName || 'sans nom'})`);
+                  // Enregistrer également sur l'appareil WhatsApp (Evolution API)
+                  evolutionApiService.saveContact(
+                    instanceDoc.instanceName,
+                    instanceDoc.instanceToken,
+                    earlyPhone,
+                    pushName || `Client ${nn}`
+                  );
+                }
+              }
+            } catch (earlyContactErr) {
+              if (earlyContactErr.code !== 11000) {
+                console.error('⚠️ [RITA] Erreur enregistrement contact (early):', earlyContactErr.message);
+              }
+            }
+          }
+
           // ─── Transcription vocale si c'est un audio ───
           if (isAudio && instanceDoc) {
             console.log(`🎤 [RITA] Message vocal détecté — téléchargement en cours...`);
@@ -1112,13 +1471,13 @@ router.post('/incoming', async (req, res) => {
               );
               if (mediaData?.base64) {
                 // Déterminer la langue pour Whisper
-                const ritaCfgLang = await RitaConfig.findOne({ userId: instanceDoc.userId }).lean();
+                const ritaCfgLang = await RitaConfig.findOne({ userId }).lean();
                 const langHint = ritaCfgLang?.language || 'fr';
                 const transcribed = await transcribeAudio(mediaData.base64, mediaData.mimetype, langHint);
                 if (transcribed) {
                   text = transcribed;
                   console.log(`🎤 [RITA] Vocal transcrit: "${transcribed.substring(0, 200)}"`);
-                  if (instanceDoc?.userId) logRitaActivity(instanceDoc.userId, 'vocal_transcribed', { customerPhone: from.replace(/@.*$/, ''), details: transcribed.substring(0, 200) });
+                  if (userId) logRitaActivity(userId, 'vocal_transcribed', { customerPhone: from.replace(/@.*$/, ''), details: transcribed.substring(0, 200) });
                 } else {
                   console.log(`🎤 [RITA] Transcription échouée, message ignoré.`);
                   continue;
@@ -1134,7 +1493,7 @@ router.post('/incoming', async (req, res) => {
           }
 
           // ─── Détecter message image ───
-          const isImage = !!(msg.message?.imageMessage);
+          const isImage = !!(messageContent?.imageMessage);
           let imageAnalysisResult = null;
 
           if (isImage && instanceDoc) {
@@ -1150,7 +1509,7 @@ router.post('/incoming', async (req, res) => {
                 if (workspaceId) {
                   imageAnalysisResult = await analyzeProductImage(
                     mediaData.base64,
-                    mediaData.mimetype || msg.message?.imageMessage?.mimetype || 'image/jpeg',
+                    mediaData.mimetype || messageContent?.imageMessage?.mimetype || 'image/jpeg',
                     workspaceId
                   );
                   console.log(`🖼️ [RITA] Analyse image:`, {
@@ -1160,15 +1519,19 @@ router.post('/incoming', async (req, res) => {
                     confidence: imageAnalysisResult.confidence
                   });
                   // Injecter le contexte image dans le texte pour que Rita le traite
-                  const imageCaption = msg.message?.imageMessage?.caption || '';
+                  const imageCaption = messageContent?.imageMessage?.caption || '';
                   if (imageAnalysisResult.isProductImage && imageAnalysisResult.matchedProductName) {
-                    text = `[Le client a envoyé une image du produit "${imageAnalysisResult.matchedProductName}" (confiance: ${imageAnalysisResult.confidence}%). Description: ${imageAnalysisResult.description}]${imageCaption ? ' ' + imageCaption : ''}`;
+                    const confLevel = imageAnalysisResult.confidence >= 80 ? 'forte' : imageAnalysisResult.confidence >= 50 ? 'moyenne' : 'faible';
+                    text = `[Le client a envoyé une image du produit "${imageAnalysisResult.matchedProductName}" (confiance: ${confLevel}, ${imageAnalysisResult.confidence}%). Description: ${imageAnalysisResult.description}]${imageCaption ? ' ' + imageCaption : ''}`;
+                    if (imageAnalysisResult.confidence < 50) {
+                      text += '\n[Note système: confiance faible — demande au client de confirmer le produit avant de poursuivre]';
+                    }
                   } else if (imageAnalysisResult.isProductImage) {
                     text = `[Le client a envoyé une image d'un produit non identifié dans notre catalogue. Description: ${imageAnalysisResult.description}]${imageCaption ? ' ' + imageCaption : ''}`;
                   } else {
                     text = `[Le client a envoyé une image. Description: ${imageAnalysisResult.description}]${imageCaption ? ' ' + imageCaption : ''}`;
                   }
-                  if (instanceDoc?.userId) logRitaActivity(instanceDoc.userId, 'image_analyzed', { customerPhone: from.replace(/@.*$/, ''), details: imageAnalysisResult.description?.substring(0, 200) });
+                  if (userId) logRitaActivity(userId, 'image_analyzed', { customerPhone: from.replace(/@.*$/, ''), details: imageAnalysisResult.description?.substring(0, 200) });
                 } else {
                   console.log(`⚠️ [RITA] Pas de workspaceId, analyse image impossible.`);
                 }
@@ -1194,24 +1557,24 @@ router.post('/incoming', async (req, res) => {
             continue;
           }
 
-          const userId = instanceDoc.userId;
           console.log(`💬 [RITA] Traitement pour userId=${userId}...`);
 
-          // ─── Détecter si c'est le boss qui répond à une escalade ───
+          // ─── Détecter si c'est le boss (escalade OU mode boss) ───
           {
             const ritaCfgEsc = await RitaConfig.findOne({ userId }).lean();
             const bossRaw = (ritaCfgEsc?.bossPhone || '').replace(/\D/g, '');
-            const fromRaw  = from.replace(/@.*$/, '').replace(/\D/g, '');
-            if (bossRaw && fromRaw === bossRaw && ritaCfgEsc?.bossEscalationEnabled) {
-              const pending = shiftPendingEscalation(userId);
+              const fromRaw  = senderPhone;
+            if (bossRaw && fromRaw === bossRaw) {
+              // D'abord vérifier s'il y a une escalade en attente
+              const pending = ritaCfgEsc?.bossEscalationEnabled ? shiftPendingEscalation(userId) : null;
               if (pending) {
                 console.log(`🤝 [BOSS] Réponse boss reçue → transmission au client ${pending.clientPhone}`);
                 const clientJid = `${pending.clientPhone}@s.whatsapp.net`;
 
                 // Détecter si le boss envoie un media (image, vidéo, document)
-                const bossImage = msg.message?.imageMessage;
-                const bossVideo = msg.message?.videoMessage;
-                const bossDocument = msg.message?.documentMessage;
+                const bossImage = messageContent?.imageMessage;
+                const bossVideo = messageContent?.videoMessage;
+                const bossDocument = messageContent?.documentMessage;
                 const bossHasMedia = !!(bossImage || bossVideo || bossDocument);
 
                 if (bossHasMedia) {
@@ -1255,7 +1618,7 @@ router.post('/incoming', async (req, res) => {
 
                       // Si le boss a aussi du texte en plus du media, l'envoyer aussi
                       if (text && !caption) {
-                        await evolutionApiService.sendMessage(
+                        await sendMessageAndTrack(
                           instanceDoc.instanceName, instanceDoc.instanceToken,
                           clientJid, text
                         );
@@ -1264,7 +1627,7 @@ router.post('/incoming', async (req, res) => {
                       console.error(`❌ [BOSS] Impossible de télécharger le media du boss`);
                       // Fallback: envoyer au moins le texte s'il y en a
                       if (text) {
-                        await evolutionApiService.sendMessage(
+                        await sendMessageAndTrack(
                           instanceDoc.instanceName, instanceDoc.instanceToken,
                           clientJid, text
                         );
@@ -1273,7 +1636,7 @@ router.post('/incoming', async (req, res) => {
                   } catch (mediaErr) {
                     console.error(`❌ [BOSS] Erreur transfert media boss:`, mediaErr.message);
                     if (text) {
-                      await evolutionApiService.sendMessage(
+                      await sendMessageAndTrack(
                         instanceDoc.instanceName, instanceDoc.instanceToken,
                         clientJid, text
                       );
@@ -1281,7 +1644,7 @@ router.post('/incoming', async (req, res) => {
                   }
                 } else {
                   // Le boss envoie du texte simple → transmettre tel quel
-                  await evolutionApiService.sendMessage(
+                  await sendMessageAndTrack(
                     instanceDoc.instanceName,
                     instanceDoc.instanceToken,
                     clientJid,
@@ -1293,45 +1656,81 @@ router.post('/incoming', async (req, res) => {
                 console.log(`✅ [BOSS] Réponse transmise au client ${pending.clientPhone}`);
                 continue; // Ne pas traiter ce message comme une conversation client
               } else {
-                console.log(`ℹ️ [BOSS] Message du boss sans escalade en attente — traitement normal.`);
+                // ─── MODE BOSS : le boss envoie un message sans escalade en attente ───
+                console.log(`🧑‍💼 [BOSS-MODE] Message du boss détecté — activation mode boss`);
+                try {
+                  const bossReply = await processBossMessage(userId, from, text);
+                  if (bossReply) {
+                    console.log(`🧑‍💼 [BOSS-MODE] Réponse générée: "${bossReply.substring(0, 300)}"`);
+
+                    // Détecter si c'est une instruction d'exécution [BOSS_EXEC:...]
+                    const execMatch = bossReply.match(/\[BOSS_EXEC:([^\]]*)\]\s*/);
+                    if (execMatch) {
+                      // Mode Exécution : envoyer le message au client ciblé
+                      const execTarget = execMatch[1].trim();
+                      const messageForClient = bossReply.replace(/\[BOSS_EXEC:[^\]]*\]\s*/g, '').trim();
+                      console.log(`⚙️ [BOSS-EXEC] Instruction d'exécution détectée → cible: "${execTarget}"`);
+
+                      // Chercher le dernier client actif pour ce userId en cas de cible générique
+                      let targetPhone = null;
+                      if (/^\d{8,15}$/.test(execTarget.replace(/\D/g, ''))) {
+                        targetPhone = execTarget.replace(/\D/g, '');
+                      }
+
+                      if (targetPhone && messageForClient) {
+                        await sendMessageAndTrack(
+                          instanceDoc.instanceName,
+                          instanceDoc.instanceToken,
+                          targetPhone,
+                          messageForClient,
+                          2,
+                          1500
+                        );
+                        // Confirmer au boss
+                        const confirmMsg = `✅ Message envoyé au client ${targetPhone}`;
+                        await sendMessageAndTrack(
+                          instanceDoc.instanceName,
+                          instanceDoc.instanceToken,
+                          fromRaw,
+                          confirmMsg
+                        );
+                        logRitaActivity(userId, 'boss_exec', { customerPhone: targetPhone, details: `${messageForClient.substring(0, 200)}` });
+                      } else {
+                        // Pas de numéro clair — renvoyer la réponse au boss
+                        await sendMessageAndTrack(
+                          instanceDoc.instanceName,
+                          instanceDoc.instanceToken,
+                          fromRaw,
+                          bossReply
+                        );
+                        logRitaActivity(userId, 'boss_message', { customerPhone: fromRaw, details: `[Exec sans cible] ${bossReply.substring(0, 200)}` });
+                      }
+                    } else {
+                      // Mode Analyse / Conversation : renvoyer la réponse au boss
+                      await sendMessageAndTrack(
+                        instanceDoc.instanceName,
+                        instanceDoc.instanceToken,
+                        fromRaw,
+                        bossReply
+                      );
+                      logRitaActivity(userId, 'boss_message', { customerPhone: fromRaw, details: bossReply.substring(0, 200) });
+                    }
+                  } else {
+                    console.log(`ℹ️ [BOSS-MODE] Pas de réponse générée pour le boss`);
+                  }
+                } catch (bossErr) {
+                  console.error(`❌ [BOSS-MODE] Erreur traitement message boss:`, bossErr.message);
+                }
+                continue; // Ne pas traiter comme un message client
               }
             }
           }
 
           // Log message reçu
-          logRitaActivity(userId, 'message_received', { customerPhone: from.replace(/@.*$/, ''), customerName: pushName || '', details: text.substring(0, 200) });
-
-          // ─── Enregistrer / mettre à jour le contact automatiquement ───
-          try {
-            const contactPhone = from.replace(/@.*$/, '');
-            const existingContact = await RitaContact.findOne({ userId, phone: contactPhone });
-            if (existingContact) {
-              existingContact.lastMessageAt = new Date();
-              existingContact.messageCount = (existingContact.messageCount || 0) + 1;
-              if (pushName && !existingContact.pushName) existingContact.pushName = pushName;
-              await existingContact.save();
-            } else {
-              const lastContact = await RitaContact.findOne({ userId }).sort({ clientNumber: -1 }).lean();
-              const nextNumber = (lastContact?.clientNumber || 0) + 1;
-              await RitaContact.create({
-                userId,
-                phone: contactPhone,
-                pushName: pushName || '',
-                clientNumber: nextNumber,
-                firstMessageAt: new Date(),
-                lastMessageAt: new Date(),
-                messageCount: 1,
-              });
-              console.log(`📇 [RITA] Nouveau contact enregistré: Client ${nextNumber} (${contactPhone}, ${pushName || 'sans nom'})`);
-            }
-          } catch (contactErr) {
-            if (contactErr.code !== 11000) {
-              console.error('⚠️ [RITA] Erreur enregistrement contact:', contactErr.message);
-            }
-          }
+          logRitaActivity(userId, 'message_received', { customerPhone: senderPhone, customerName: pushName || '', details: text.substring(0, 200) });
 
           // ─── Vérifier si ce client est en attente d'une réponse boss (escalade) ───
-          const cleanFromEarly = from.replace(/@.*$/, '');
+          const cleanFromEarly = senderPhone;
           if (hasPendingEscalation(userId, cleanFromEarly)) {
             const escQueue = pendingBossEscalations.get(userId) || [];
             const clientEsc = escQueue.find(e => e.clientPhone === cleanFromEarly);
@@ -1341,7 +1740,7 @@ router.post('/incoming', async (req, res) => {
               // Toujours en attente, timeout pas encore expiré
               console.log(`⏳ [BOSS] Client ${cleanFromEarly} en attente de réponse boss (${Math.round(elapsedEscMin)} min / ${timeoutMin} min)`);
               const waitMsg = `Je suis toujours en train de vérifier pour toi 🙏 Une petite patience, j'arrive !`;
-              await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFromEarly, waitMsg, 2, 1500);
+              await sendMessageAndTrack(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFromEarly, waitMsg, 2, 1500);
               continue;
             } else {
               // Timeout expiré → retirer l'escalade, laisser Rita improviser
@@ -1353,7 +1752,7 @@ router.post('/incoming', async (req, res) => {
 
           // Générer la réponse IA
           const startTime = Date.now();
-          const reply = await processIncomingMessage(userId, from, text);
+          const reply = await processIncomingMessage(userId, senderJid, text);
           const elapsed = Date.now() - startTime;
 
           if (!reply) {
@@ -1365,16 +1764,37 @@ router.post('/incoming', async (req, res) => {
           console.log(`🤖 [RITA] "${reply.substring(0, 300)}"`);
           console.log(`🤖 [RITA] Tags détectés: IMAGE=${/\[IMAGE:/.test(reply)} VIDEO=${/\[VIDEO:/.test(reply)} ORDER=${/\[ORDER_DATA:/.test(reply)} ASK_BOSS=${/\[ASK_BOSS:/.test(reply)}`);
           // Extraire le numéro propre depuis le JID WhatsApp (ex: 33612345678@s.whatsapp.net)
-          const cleanFrom = from.replace(/@.*$/, '');
+          const cleanFrom = senderPhone;
 
           // ─── Détecter tag [ORDER_DATA:{...}] pour enregistrer la commande ───
-          const orderTagMatch = reply.match(/\[ORDER_DATA:(\{.+?\})\]/);
+          // Extraction robuste supportant le JSON imbriqué (ex: objets adresse)
+          function extractOrderDataTag(text) {
+            const startIdx = text.indexOf('[ORDER_DATA:');
+            if (startIdx === -1) return null;
+            let depth = 0;
+            let jsonStart = startIdx + 12; // longueur de '[ORDER_DATA:'
+            let jsonEnd = -1;
+            for (let i = jsonStart; i < text.length; i++) {
+              if (text[i] === '{') depth++;
+              if (text[i] === '}') {
+                depth--;
+                if (depth === 0) { jsonEnd = i + 1; break; }
+              }
+            }
+            if (jsonEnd === -1) return null;
+            const tagEnd = text[jsonEnd] === ']' ? jsonEnd + 1 : jsonEnd;
+            return {
+              json: text.substring(jsonStart, jsonEnd),
+              fullTag: text.substring(startIdx, tagEnd),
+            };
+          }
+          const orderTagExtracted = extractOrderDataTag(reply);
           let replyClean = reply;
 
-          if (orderTagMatch) {
-            replyClean = reply.replace(/\s*\[ORDER_DATA:\{.+?\}\]/, '').trim();
+          if (orderTagExtracted) {
+            replyClean = reply.replace(orderTagExtracted.fullTag, '').trim();
             try {
-              const orderData = JSON.parse(orderTagMatch[1]);
+              const orderData = JSON.parse(orderTagExtracted.json);
               console.log(`📦 [RITA] Commande détectée:`, JSON.stringify(orderData));
               await WhatsAppOrder.create({
                 userId,
@@ -1393,11 +1813,20 @@ router.post('/incoming', async (req, res) => {
               console.log(`✅ [RITA] WhatsAppOrder enregistrée pour ${cleanFrom}`);
               logRitaActivity(userId, 'order_confirmed', { customerPhone: cleanFrom, customerName: orderData.name || '', product: orderData.product || '', price: orderData.price || '' });
 
-              // Marquer le contact comme ayant commandé
+              // ─── Déclencher les flows sur order_confirmed ───
               try {
+                await processFlows(userId, 'order_confirmed', { text: text || '', phone: cleanFrom, pushName });
+              } catch (flowErr) { console.error('⚠️ [FlowEngine] order_confirmed:', flowErr.message); }
+
+              // Marquer le contact comme ayant commandé + enrichir avec nom/ville
+              try {
+                const contactUpdate = { hasOrdered: true };
+                if (orderData.name) contactUpdate.nom = orderData.name;
+                if (orderData.city) contactUpdate.ville = orderData.city;
+                if (orderData.address) contactUpdate.adresse = orderData.address;
                 await RitaContact.findOneAndUpdate(
                   { userId, phone: cleanFrom },
-                  { hasOrdered: true }
+                  contactUpdate
                 );
               } catch (_) { /* ignore */ }
 
@@ -1439,7 +1868,7 @@ router.post('/incoming', async (req, res) => {
                 if (ritaCfgBoss?.bossNotifications && ritaCfgBoss?.bossPhone && ritaCfgBoss?.notifyOnOrder) {
                   const bossMsg = `📦 *Nouvelle commande confirmée par Rita*\n\n👤 Client: ${orderData.name || 'N/A'}\n📱 Tél: ${cleanFrom}\n📍 Ville: ${orderData.city || 'N/A'}\n🛍️ Produit: ${orderData.product || 'N/A'}\n💰 Prix: ${orderData.price || 'N/A'}\n📅 Livraison: ${orderData.delivery_date || ''} ${orderData.delivery_time || ''}\n⏰ ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Douala' })}`;
                   const bossPhone = ritaCfgBoss.bossPhone.replace(/\D/g, '');
-                  await evolutionApiService.sendMessage(
+                  await sendMessageAndTrack(
                     instanceDoc.instanceName,
                     instanceDoc.instanceToken,
                     bossPhone,
@@ -1528,7 +1957,7 @@ router.post('/incoming', async (req, res) => {
                 });
                 // Notifier le boss
                 const bossMsg = `❓ *Question client sans réponse — Rita*\n\n📱 Client: ${currentCleanFrom}\n❓ Question: ${question}\n\nRéponds à ce message pour que Rita transmette ta réponse automatiquement au client.\n_(Si pas de réponse dans ${timeoutMin} min, Rita improvisera.)_`;
-                await evolutionApiService.sendMessage(
+                await sendMessageAndTrack(
                   instanceDoc.instanceName,
                   instanceDoc.instanceToken,
                   bossPhone,
@@ -1628,12 +2057,83 @@ router.post('/incoming', async (req, res) => {
               console.log(`🎬 [RITA] Vidéo trouvée: ${videoUrl}`);
             } else {
               console.log(`🎬 [RITA] Aucune vidéo trouvée pour "${videoProductName}"`);
-              const noVideoMsg = `Désolé, on n'a pas encore de vidéo pour ce produit 🙏 Mais je peux te montrer les photos ou te donner plus de détails !`;
-              if (!textToSend) {
-                textToSend = noVideoMsg;
-              } else {
-                textToSend += `\n\n${noVideoMsg}`;
+              // Essayer d'escalader vers le boss si activé
+              try {
+                const ritaCfgNoVid = await RitaConfig.findOne({ userId }).lean();
+                if (ritaCfgNoVid?.bossEscalationEnabled && ritaCfgNoVid?.bossPhone) {
+                  const bossPhone = ritaCfgNoVid.bossPhone.replace(/\D/g, '');
+                  const currentCleanFrom = from.replace(/@.*$/, '');
+                  const timeoutMin = ritaCfgNoVid.bossEscalationTimeoutMin || 30;
+                  const question = `Le client demande la vidéo du produit "${videoProductName}" — aucune vidéo configurée`;
+                  addPendingEscalation(userId, {
+                    clientPhone: currentCleanFrom,
+                    question,
+                    askedAt: Date.now(),
+                    timeoutMin,
+                    instanceName: instanceDoc.instanceName,
+                    instanceToken: instanceDoc.instanceToken,
+                  });
+                  const bossMsg = `❓ *Question client sans réponse — Rita*\n\n📱 Client: ${currentCleanFrom}\n❓ Question: ${question}\n\nRéponds à ce message pour que Rita transmette ta réponse automatiquement au client.\n_(Si pas de réponse dans ${timeoutMin} min, Rita improvisera.)_`;
+                  await sendMessageAndTrack(
+                    instanceDoc.instanceName,
+                    instanceDoc.instanceToken,
+                    bossPhone,
+                    bossMsg
+                  );
+                  console.log(`🤝 [BOSS] Escalade vidéo envoyée au boss pour client ${currentCleanFrom}`);
+                  logRitaActivity(userId, 'escalation', { customerPhone: currentCleanFrom, details: question });
+                  // Message rassurant pour le client
+                  const reassureMsg = `Je vérifie avec mon responsable si on a une vidéo pour ce produit, patiente 🙏`;
+                  if (!textToSend) {
+                    textToSend = reassureMsg;
+                  } else if (!textToSend.includes('responsable') && !textToSend.includes('vérif')) {
+                    textToSend += `\n\n${reassureMsg}`;
+                  }
+                } else {
+                  const noVideoMsg = `Désolé, on n'a pas encore de vidéo pour ce produit 🙏 Mais je peux te montrer les photos ou te donner plus de détails !`;
+                  if (!textToSend) {
+                    textToSend = noVideoMsg;
+                  } else {
+                    textToSend += `\n\n${noVideoMsg}`;
+                  }
+                }
+              } catch (noVidErr) {
+                console.error(`❌ [RITA] Erreur escalade vidéo manquante:`, noVidErr.message);
+                const noVideoMsg = `Désolé, on n'a pas encore de vidéo pour ce produit 🙏 Mais je peux te montrer les photos ou te donner plus de détails !`;
+                if (!textToSend) {
+                  textToSend = noVideoMsg;
+                } else {
+                  textToSend += `\n\n${noVideoMsg}`;
+                }
               }
+            }
+          }
+
+          // ─── Détecter tag [TESTIMONIAL:index] pour envoi de médias témoignage ───
+          const testimonialTagMatch = replyClean.match(/\[TESTIMONIAL:(\d+)\]/);
+          let testimonialMediaUrl = null;
+          let testimonialMediaType = null; // 'image' ou 'video'
+          if (testimonialTagMatch && !imageTagMatch && !imagesAllTagMatch && !videoTagMatch) {
+            const tIdx = parseInt(testimonialTagMatch[1], 10);
+            textToSend = textToSend.replace(/\s*\[TESTIMONIAL:\d+\]/g, '').trim();
+            console.log(`🗣️ [RITA] Tag TESTIMONIAL détecté, index: ${tIdx}`);
+
+            const ritaCfgT = await RitaConfig.findOne({ userId }).lean();
+            const testimonial = ritaCfgT?.testimonials?.[tIdx];
+            if (testimonial) {
+              if (testimonial.videos?.length) {
+                testimonialMediaUrl = testimonial.videos[0];
+                testimonialMediaType = 'video';
+              } else if (testimonial.images?.length) {
+                testimonialMediaUrl = testimonial.images[0];
+                testimonialMediaType = 'image';
+              }
+              if (testimonialMediaUrl && testimonialMediaUrl.startsWith('/')) {
+                testimonialMediaUrl = `https://api.scalor.net${testimonialMediaUrl}`;
+              }
+              console.log(`🗣️ [RITA] Témoignage #${tIdx} média: ${testimonialMediaType || 'aucun'} → ${testimonialMediaUrl || 'N/A'}`);
+            } else {
+              console.log(`🗣️ [RITA] Témoignage #${tIdx} non trouvé`);
             }
           }
 
@@ -1645,6 +2145,7 @@ router.post('/incoming', async (req, res) => {
           const ttsConfig = { ...ritaCfgVoice, elevenlabsApiKey: effectiveApiKey, fishAudioApiKey: effectiveFishKey };
           // responseMode: 'text' | 'voice' | 'both'. Legacy compat: voiceMode=true → 'voice'
           const responseMode = ritaCfgVoice?.responseMode || (ritaCfgVoice?.voiceMode ? 'voice' : 'text');
+          const mixedVoiceReplyChance = Math.max(0, Math.min(100, Number(ritaCfgVoice?.mixedVoiceReplyChance ?? 65) || 65));
           const isFishAudio = ritaCfgVoice?.ttsProvider === 'fishaudio';
           const canDoVoice = !!((isFishAudio ? effectiveFishKey : effectiveApiKey) && textToSend);
 
@@ -1664,33 +2165,46 @@ router.post('/incoming', async (req, res) => {
 
           // Déterminer vocal vs texte pour ce tour :
           // 1. Si mode "voice" → toujours vocal
-          // 2. Si mode "both" → vocal pour confirmation commande (ORDER_DATA) OU (explication longue + 10% de chance)
+          // 2. Si mode "both" → plus de vocal sur confirmations, tags [VOICE] et réponses longues
           // 3. Si mode "text" → toujours texte
-          // 4. Tag [VOICE] respecté UNIQUEMENT en mode voice
           let useVoiceThisTurn = false;
           if (responseMode === 'voice' && canDoVoice) {
             // Mode full vocal : toujours vocal
             useVoiceThisTurn = true;
           } else if (responseMode === 'both' && canDoVoice) {
-            // Mode mixte : vocal pour confirmation de commande
-            if (orderTagMatch) {
+            const isLongExplanation =
+              textToSend.length >= 180 ||
+              /\n|•|▪|◦|\d+\.\s|:/.test(textToSend) ||
+              splitWhatsAppMessage(textToSend, 220).length > 1;
+            const voiceChance = hasVoiceTag
+              ? 1
+              : isLongExplanation
+                ? mixedVoiceReplyChance / 100
+                : Math.max(0.15, Math.min(0.5, mixedVoiceReplyChance / 200));
+
+            if (orderTagExtracted) {
               useVoiceThisTurn = true;
               console.log(`🎙️ [RITA] Commande confirmée — vocal pour confirmation (mode both)`);
-            } else if (hasVoiceTag) {
-              // Tag [VOICE] en mode both = ~35% de chance (équilibre vocal/texte)
-              const randomChance = Math.random() < 0.35;
+            } else {
+              const randomChance = Math.random() < voiceChance;
               if (randomChance) {
                 useVoiceThisTurn = true;
-                console.log(`🎙️ [RITA] Vocal accordé (35%, mode both)`);
+                console.log(`🎙️ [RITA] Vocal accordé (${Math.round(voiceChance * 100)}%, mode both${isLongExplanation ? ', réponse longue' : ''})`);
               } else {
-                console.log(`🔇 [RITA] Texte cette fois (tirage 35%, mode both)`);
+                console.log(`🔇 [RITA] Texte cette fois (tirage ${Math.round(voiceChance * 100)}%, mode both${isLongExplanation ? ', réponse longue' : ''})`);
               }
             }
           }
-          const sendText  = responseMode === 'text' || (!useVoiceThisTurn && responseMode !== 'voice');
-          const sendVoice = responseMode === 'voice' || useVoiceThisTurn;
+          let sendText  = responseMode === 'text' || (!useVoiceThisTurn && responseMode !== 'voice');
+          let sendVoice = (responseMode === 'voice' || useVoiceThisTurn) && canDoVoice;
 
-          console.log(`🎚️ [RITA] Mode: ${responseMode} | tour: ${useVoiceThisTurn ? 'vocal' : 'texte'} | voiceTag: ${hasVoiceTag} | apiKey: ${effectiveApiKey ? 'oui' : 'non'}`);
+          if ((responseMode === 'voice' || useVoiceThisTurn) && !canDoVoice) {
+            console.warn(`⚠️ [RITA] Mode vocal demandé mais aucune voix n'est disponible — fallback texte pour ${cleanFrom}`);
+            sendText = !!textToSend;
+            sendVoice = false;
+          }
+
+          console.log(`🎚️ [RITA] Mode: ${responseMode} | tour: ${useVoiceThisTurn ? 'vocal' : 'texte'} | voiceTag: ${hasVoiceTag} | mixChance: ${mixedVoiceReplyChance}% | apiKey: ${effectiveApiKey ? 'oui' : 'non'}`);
 
 
           // ── Envoyer le texte (avec découpage [SPLIT] puis splitWhatsAppMessage) ──
@@ -1702,22 +2216,22 @@ router.post('/incoming', async (req, res) => {
             console.log(`📤 [RITA] Envoi réponse texte à ${cleanFrom} (${messageParts.length} partie(s), délai: ${responseDelayMs}ms)...`);
             for (let partIdx = 0; partIdx < messageParts.length; partIdx++) {
               const part = messageParts[partIdx];
-              const sendResult = await evolutionApiService.sendMessage(
+              const sendResult = await sendMessageAndTrack(
                 instanceDoc.instanceName,
                 instanceDoc.instanceToken,
                 cleanFrom,
                 part,
                 2,
-                partIdx === 0 ? responseDelayMs : 800
+                partIdx === 0 ? responseDelayMs : 1500
               );
               if (sendResult.success) {
                 console.log(`✅ [RITA] Réponse texte partie ${partIdx + 1}/${messageParts.length} envoyée`);
               } else {
                 console.error(`❌ [RITA] Échec envoi texte partie ${partIdx + 1}:`, sendResult.error);
               }
-              // Petit délai entre les parties pour garder l'ordre
+              // Délai entre les parties pour lisibilité sur WhatsApp
               if (partIdx < messageParts.length - 1) {
-                await new Promise(r => setTimeout(r, 600));
+                await new Promise(r => setTimeout(r, 1200));
               }
             }
             logRitaActivity(userId, 'message_replied', { customerPhone: cleanFrom, details: textToSend.substring(0, 200) });
@@ -1741,15 +2255,15 @@ router.post('/incoming', async (req, res) => {
                   logRitaActivity(userId, 'vocal_sent', { customerPhone: cleanFrom });
                 } else {
                   console.error(`❌ [RITA] Échec vocal, fallback texte:`, audioResult.error);
-                  await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
+                  await sendMessageAndTrack(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
                 }
               } else {
                 console.warn(`⚠️ [RITA] TTS null, fallback texte`);
-                await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
+                await sendMessageAndTrack(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
               }
             } catch (ttsErr) {
               console.error(`❌ [RITA] Erreur TTS:`, ttsErr.message);
-              await evolutionApiService.sendMessage(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
+              await sendMessageAndTrack(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
             }
           }
 
@@ -1789,7 +2303,7 @@ router.post('/incoming', async (req, res) => {
                 }
               }
               if (imagesSentCount === 0) {
-                await evolutionApiService.sendMessage(
+                await sendMessageAndTrack(
                   instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom,
                   `Désolé, je n'arrive pas à envoyer les photos en ce moment 🙏 Mais le produit est bien disponible !`
                 );
@@ -1846,7 +2360,7 @@ router.post('/incoming', async (req, res) => {
                 console.error(`❌ [RITA] Toutes les tentatives d'envoi image ont échoué pour ${cleanFrom}`);
                 console.error(`   URL tentée: ${imageUrl}`);
                 console.error(`   Produit: ${matchedProductForMedia?.name || 'N/A'}, Images: ${JSON.stringify(matchedProductForMedia?.images || [])}`);
-                await evolutionApiService.sendMessage(
+                await sendMessageAndTrack(
                   instanceDoc.instanceName,
                   instanceDoc.instanceToken,
                   cleanFrom,
@@ -1867,7 +2381,7 @@ router.post('/incoming', async (req, res) => {
                 : `Tu veux qu'on te réserve le ${p.name} ? 👍`;
 
               await new Promise(r => setTimeout(r, 1500));
-              await evolutionApiService.sendMessage(
+              await sendMessageAndTrack(
                 instanceDoc.instanceName,
                 instanceDoc.instanceToken,
                 cleanFrom,
@@ -1898,6 +2412,50 @@ router.post('/incoming', async (req, res) => {
               console.error(`❌ [RITA] Échec envoi vidéo à ${cleanFrom}:`, videoResult.error);
             }
           }
+
+          // ─── Envoi média de témoignage si détecté ───
+          if (testimonialMediaUrl) {
+            console.log(`🗣️ [RITA] Envoi média témoignage (${testimonialMediaType}) à ${cleanFrom}...`);
+            await new Promise(r => setTimeout(r, 1000));
+            if (testimonialMediaType === 'video') {
+              const tResult = await evolutionApiService.sendVideo(
+                instanceDoc.instanceName,
+                instanceDoc.instanceToken,
+                cleanFrom,
+                testimonialMediaUrl,
+                '',
+                'testimonial.mp4'
+              );
+              if (tResult.success) {
+                console.log(`✅ [RITA] Vidéo témoignage envoyée à ${cleanFrom}`);
+                logRitaActivity(userId, 'testimonial_video_sent', { customerPhone: cleanFrom });
+              } else {
+                console.error(`❌ [RITA] Échec envoi vidéo témoignage:`, tResult.error);
+              }
+            } else {
+              const tExt = (testimonialMediaUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
+              const tResult = await evolutionApiService.sendMedia(
+                instanceDoc.instanceName,
+                instanceDoc.instanceToken,
+                cleanFrom,
+                testimonialMediaUrl,
+                '',
+                `testimonial.${tExt}`
+              );
+              if (tResult.success) {
+                console.log(`✅ [RITA] Image témoignage envoyée à ${cleanFrom}`);
+                logRitaActivity(userId, 'testimonial_image_sent', { customerPhone: cleanFrom });
+              } else {
+                console.error(`❌ [RITA] Échec envoi image témoignage:`, tResult.error);
+              }
+            }
+          }
+
+          // ─── Déclencher les flows sur message_received ───
+          try {
+            await processFlows(userId, 'message_received', { text: text || '', phone: cleanFrom, pushName });
+          } catch (flowErr) { console.error('⚠️ [FlowEngine] message_received:', flowErr.message); }
+
           console.log(`💬 [RITA] ══════════════════════════════════════`);
         }
       } else if (normalizedEvent === 'MESSAGES_UPDATE') {
@@ -1954,6 +2512,59 @@ router.get('/instances/:id/usage', async (req, res) => {
 });
 
 /**
+ * @route   PATCH /api/ecom/v1/external/whatsapp/instances/:id/plan
+ * @desc    Active un plan (free/pro/plus) pour une instance et applique les quotas associés
+ * @access  Private (ecom_admin / super_admin)
+ */
+router.patch('/instances/:id/plan', requireEcomAuth, async (req, res) => {
+  try {
+    const userId = req.ecomUser._id.toString();
+    const role = req.ecomUser?.role;
+    if (!['ecom_admin', 'super_admin'].includes(role)) {
+      return res.status(403).json({ success: false, error: 'Action non autorisée' });
+    }
+
+    const { plan } = req.body || {};
+    const normalizedPlan = normalizeInstancePlan(plan);
+    if (!INSTANCE_PLAN_LIMITS[normalizedPlan]) {
+      return res.status(400).json({ success: false, error: 'Plan invalide. Utilisez free, pro ou plus.' });
+    }
+
+    const instance = await WhatsAppInstance.findOne({ _id: req.params.id, userId, isActive: true });
+    if (!instance) {
+      return res.status(404).json({ success: false, error: 'Instance introuvable ou non autorisée' });
+    }
+
+    const limits = INSTANCE_PLAN_LIMITS[normalizedPlan];
+    instance.plan = normalizedPlan;
+    instance.dailyLimit = limits.daily;
+    instance.monthlyLimit = limits.monthly;
+
+    const limitExceeded = (instance.messagesSentToday || 0) >= limits.daily || (instance.messagesSentThisMonth || 0) >= limits.monthly;
+    instance.limitExceeded = limitExceeded;
+    instance.limitExceededAt = limitExceeded ? (instance.limitExceededAt || new Date()) : null;
+
+    await instance.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Plan ${normalizedPlan.toUpperCase()} activé`,
+      stats: {
+        plan: normalizedPlan,
+        messagesSentToday: instance.messagesSentToday || 0,
+        messagesSentThisMonth: instance.messagesSentThisMonth || 0,
+        dailyLimit: limits.daily,
+        monthlyLimit: limits.monthly,
+        limitExceeded: instance.limitExceeded || false,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Erreur changement plan instance:', error.message);
+    res.status(500).json({ success: false, error: error.message || 'Erreur serveur' });
+  }
+});
+
+/**
  * @route   POST /api/ecom/v1/external/whatsapp/test-boss-notification
  * @desc    Envoyer un message de test au numéro WhatsApp du boss
  */
@@ -1979,7 +2590,7 @@ router.post('/test-boss-notification', async (req, res) => {
 
     const testMsg = `✅ *Test Rita — Notifications Boss*\n\nBonjour ! 👋 Ce message confirme que les notifications Rita sont bien configurées.\n\n📱 Instance: *${instance.instanceName}*\n⏰ ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Douala' })}\n\n🔔 Vous recevrez désormais les alertes pour:\n• 📦 Chaque commande confirmée\n• 📊 Le rapport quotidien\n\n_Généré par Rita IA_`;
 
-    await evolutionApiService.sendMessage(
+    await sendMessageAndTrack(
       instance.instanceName,
       instance.instanceToken,
       phone,
@@ -1996,16 +2607,33 @@ router.post('/test-boss-notification', async (req, res) => {
 
 /**
  * @route   POST /api/ecom/v1/external/whatsapp/rita-config
- * @desc    Sauvegarder la configuration Rita IA d'un utilisateur
+ * @desc    Sauvegarder la configuration Rita IA (supporte userId et agentId)
  */
-router.post('/rita-config', async (req, res) => {
+router.post('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
-    const { userId, config } = req.body;
-    if (!userId || !config) return res.status(400).json({ success: false, error: 'userId et config requis' });
+    const { config, agentId, userId: bodyUserId } = req.body;
+
+    // Utiliser agentId s'il est fourni, sinon userId
+    let queryKey, queryValue;
+
+    if (agentId) {
+      queryKey = 'agentId';
+      queryValue = agentId;
+    } else {
+      queryKey = 'userId';
+      queryValue = bodyUserId || (await resolveRitaTargetUserId(req));
+    }
+
+    if (!queryValue || !config) {
+      return res.status(400).json({ success: false, error: `${queryKey} et config requis` });
+    }
+
+    // Retirer les champs Mongoose pour éviter un conflit _id lors de l'upsert
+    const { _id, __v, createdAt, updatedAt, userId: _u, agentId: _a, ...cleanConfig } = config;
 
     const updated = await RitaConfig.findOneAndUpdate(
-      { userId },
-      { userId, ...config },
+      { [queryKey]: queryValue },
+      { [queryKey]: queryValue, ...cleanConfig },
       { upsert: true, new: true, runValidators: false }
     );
 
@@ -2017,12 +2645,29 @@ router.post('/rita-config', async (req, res) => {
 });
 
 /**
+ * @route   GET /api/ecom/v1/external/whatsapp/rita-config/:agentId
+ * @desc    Charger la configuration Rita IA d'un agent spécifique
+ */
+router.get('/rita-config/:agentId', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    if (!agentId) return res.status(400).json({ success: false, error: 'agentId requis' });
+
+    const config = await RitaConfig.findOne({ agentId }).lean();
+    res.status(200).json({ success: true, config: config || null });
+  } catch (error) {
+    console.error('❌ Erreur chargement rita-config par agentId:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * @route   GET /api/ecom/v1/external/whatsapp/rita-config
  * @desc    Charger la configuration Rita IA d'un utilisateur
  */
-router.get('/rita-config', async (req, res) => {
+router.get('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
-    const { userId } = req.query;
+    const userId = await resolveRitaTargetUserId(req);
     if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
 
     const config = await RitaConfig.findOne({ userId }).lean();
@@ -2037,9 +2682,10 @@ router.get('/rita-config', async (req, res) => {
  * @route   GET /api/ecom/v1/external/whatsapp/rita-activity
  * @desc    Récupérer l'activité Rita pour le dashboard (aujourd'hui + stats)
  */
-router.get('/rita-activity', async (req, res) => {
+router.get('/rita-activity', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
-    const { userId, days } = req.query;
+    const { days } = req.query;
+    const userId = await resolveRitaTargetUserId(req);
     if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
 
     const RitaActivity = (await import('../models/RitaActivity.js')).default;
@@ -2122,6 +2768,42 @@ router.get('/rita-contacts', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Erreur chargement rita-contacts:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/ecom/v1/external/whatsapp/rita-contacts/export
+ * @desc    Exporte tous les contacts Rita en CSV
+ */
+router.get('/rita-contacts/export', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
+
+    const contacts = await RitaContact.find({ userId }).sort({ clientNumber: 1 }).lean();
+
+    const header = ['N°', 'Téléphone', 'Nom', 'Ville', 'Adresse', 'Nb Messages', 'A commandé', 'Premier contact', 'Dernier contact', 'Notes'];
+    const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows = contacts.map(c => [
+      c.clientNumber,
+      c.phone,
+      c.nom || c.pushName || '',
+      c.ville || '',
+      c.adresse || '',
+      c.messageCount,
+      c.hasOrdered ? 'Oui' : 'Non',
+      c.firstMessageAt ? new Date(c.firstMessageAt).toLocaleString('fr-FR') : '',
+      c.lastMessageAt ? new Date(c.lastMessageAt).toLocaleString('fr-FR') : '',
+      c.notes || '',
+    ].map(escape).join(','));
+
+    const csv = '\uFEFF' + [header.map(escape).join(','), ...rows].join('\r\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="rita-contacts.csv"');
+    res.send(csv);
+  } catch (error) {
+    console.error('❌ Erreur export rita-contacts CSV:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -2222,11 +2904,21 @@ router.post('/test-chat', async (req, res) => {
 router.get('/orders', requireEcomAuth, async (req, res) => {
   try {
     const userId = req.ecomUser._id.toString();
-    const { status } = req.query;
+    const { status, product } = req.query;
     const filter = { userId };
-    if (status && status !== 'all') filter.status = status;
 
-    const orders = await WhatsAppOrder.find(filter).sort({ createdAt: -1 }).limit(200).lean();
+    const statusVariants = resolveStatusVariants(status);
+    if (Array.isArray(statusVariants) && statusVariants.length > 0) {
+      filter.status = statusVariants.length === 1 ? statusVariants[0] : { $in: statusVariants };
+    }
+
+    let orders = await WhatsAppOrder.find(filter).sort({ createdAt: -1 }).limit(200).lean();
+
+    const productQuery = normalizeFilterValue(product);
+    if (productQuery) {
+      orders = orders.filter(order => normalizeFilterValue(order.productName).includes(productQuery));
+    }
+
     res.json({ success: true, orders });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -2281,30 +2973,6 @@ router.get('/orders/stats', requireEcomAuth, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// Test connexion Evolution API
-// ═══════════════════════════════════════════════════════════════
-
-/**
- * @route   GET /api/ecom/v1/external/whatsapp/test-evolution
- * @desc    Teste la connexion à l'Evolution API
- */
-router.get('/test-evolution', async (req, res) => {
-  try {
-    const result = await evolutionApiService.testConnection();
-    res.json({
-      success: result.success,
-      evolutionUrl: process.env.EVOLUTION_API_URL,
-      tokenConfigured: !!process.env.EVOLUTION_ADMIN_TOKEN,
-      error: result.error,
-      details: result.details,
-      existingInstances: result.instances?.length || 0
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// ═══════════════════════════════════════════════════════════════
 // Création directe d'instance via Scalot (sans passer par ZenChat)
 // ═══════════════════════════════════════════════════════════════
 
@@ -2318,20 +2986,6 @@ router.post('/create-instance', requireEcomAuth, async (req, res) => {
     const workspaceId = req.workspaceId;
     const { customName } = req.body;
 
-    // 0. Tester d'abord la connexion à Evolution API
-    console.log(`🔍 [CREATE] Test connexion Evolution API...`);
-    const testResult = await evolutionApiService.testConnection();
-    if (!testResult.success) {
-      console.error(`❌ [CREATE] Evolution API inaccessible:`, testResult.error);
-      return res.status(503).json({
-        success: false,
-        error: `Service Evolution API indisponible: ${testResult.error}`,
-        evolutionUrl: process.env.EVOLUTION_API_URL,
-        suggestion: "L'instance Evolution API Railway n'est peut-être plus active. Vérifiez votre configuration."
-      });
-    }
-    console.log(`✅ [CREATE] Evolution API accessible`);
-
     // Générer un nom d'instance unique basé sur le userId
     const slug = (customName || 'scalot').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 20).toLowerCase();
     const instanceName = `${slug}_${userId.slice(-6)}_${Date.now().toString(36)}`;
@@ -2341,7 +2995,6 @@ router.post('/create-instance', requireEcomAuth, async (req, res) => {
     // 1. Créer l'instance sur Evolution API
     const result = await evolutionApiService.createInstance(instanceName);
     if (!result.success) {
-      console.error(`❌ [CREATE] Échec Evolution API:`, result.error);
       return res.status(400).json({ success: false, error: result.error || "Impossible de créer l'instance sur Evolution API" });
     }
 
@@ -2397,6 +3050,7 @@ router.get('/instances/:id/qrcode', requireEcomAuth, async (req, res) => {
     const userId = req.ecomUser._id.toString();
     const instance = await WhatsAppInstance.findOne({ _id: req.params.id, userId });
     if (!instance) return res.status(404).json({ success: false, error: 'Instance introuvable' });
+    const forceRefresh = ['1', 'true', 'yes'].includes(String(req.query.refresh || '').toLowerCase());
 
     // Vérifier si déjà connectée
     const statusResult = await evolutionApiService.getInstanceStatus(instance.instanceName, instance.instanceToken);
@@ -2408,7 +3062,7 @@ router.get('/instances/:id/qrcode', requireEcomAuth, async (req, res) => {
     }
 
     // Récupérer le QR code
-    const qrResult = await evolutionApiService.getQrCode(instance.instanceName, instance.instanceToken);
+    const qrResult = await evolutionApiService.getQrCode(instance.instanceName, instance.instanceToken, forceRefresh);
     if (!qrResult.success) {
       return res.status(400).json({ success: false, error: qrResult.error || 'Impossible de récupérer le QR code' });
     }
@@ -2465,6 +3119,7 @@ router.get('/instances/:id/message-stats', requireEcomAuth, async (req, res) => 
     if (!instance) return res.status(404).json({ success: false, error: 'Instance introuvable' });
 
     const usage = await getInstanceUsage(instance._id);
+    const limits = resolveInstanceLimits(instance);
 
     // Récupérer le statut Evolution API
     const statusResult = await evolutionApiService.getInstanceStatus(instance.instanceName, instance.instanceToken);
@@ -2479,9 +3134,9 @@ router.get('/instances/:id/message-stats', requireEcomAuth, async (req, res) => 
       stats: {
         messagesSentToday: instance.messagesSentToday || 0,
         messagesSentThisMonth: instance.messagesSentThisMonth || 0,
-        dailyLimit: instance.dailyLimit || 50,
-        monthlyLimit: instance.monthlyLimit || 100,
-        plan: instance.plan || 'free',
+        dailyLimit: limits.dailyLimit,
+        monthlyLimit: limits.monthlyLimit,
+        plan: limits.normalizedPlan,
         limitExceeded: instance.limitExceeded || false,
         lastSeen: instance.lastSeen,
         createdAt: instance.createdAt,
@@ -2510,10 +3165,11 @@ router.get('/dashboard-stats', requireEcomAuth, async (req, res) => {
     let disconnected = 0;
 
     for (const inst of allInstances) {
+      const limits = resolveInstanceLimits(inst);
       totalSentToday += inst.messagesSentToday || 0;
       totalSentMonth += inst.messagesSentThisMonth || 0;
-      totalDailyLimit += inst.dailyLimit || 50;
-      totalMonthlyLimit += inst.monthlyLimit || 100;
+      totalDailyLimit += limits.dailyLimit;
+      totalMonthlyLimit += limits.monthlyLimit;
       if (inst.status === 'connected' || inst.status === 'active') connected++;
       else disconnected++;
     }

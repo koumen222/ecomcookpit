@@ -35,7 +35,7 @@ export default {
           primary: '#0F6B4F',
           'primary-dark': '#0A5740',
           secondary: '#C56A2D',
-          danger: '#ef4444',
+          danger: '#730000',
           warning: '#f59e0b',
           info: '#0F6B4F',
           success: '#22c55e',

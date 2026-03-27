@@ -74,6 +74,10 @@ const ecomUserSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  canAccessRitaAgent: {
+    type: Boolean,
+    default: true
+  },
   lastLogin: {
     type: Date
   },
@@ -218,6 +222,13 @@ ecomUserSchema.methods.getPermissions = function() {
 ecomUserSchema.methods.hasPermission = function(permission) {
   const userPermissions = this.getPermissions();
   return userPermissions.includes('*') || userPermissions.includes(permission);
+};
+
+ecomUserSchema.methods.hasRitaAgentAccess = function() {
+  if (this.role === 'super_admin') return true;
+  if (this.role !== 'ecom_admin') return false;
+
+  return this.canAccessRitaAgent !== false;
 };
 
 export default mongoose.model('EcomUser', ecomUserSchema);

@@ -71,7 +71,8 @@ function isAllowedOrigin(origin) {
     return (
       hostname.endsWith('.ecomcookpit.pages.dev') ||
       hostname.endsWith('.scalor.net') ||
-      hostname.endsWith('.scalor.app')
+      hostname.endsWith('.scalor.app') ||
+      hostname.endsWith('.up.railway.app')
     );
   } catch {
     return false;
@@ -113,25 +114,17 @@ const enableVerboseLogging = process.env.ENABLE_VERBOSE_LOGGING === 'true' || pr
 if (enableVerboseLogging) {
   app.use((req, res, next) => {
     const start = Date.now();
-    const originalSend = res.send;
     
     // Log request details
     console.log(`🚀 ${req.method} ${req.path}`);
     console.log(`   Headers: Authorization=${req.headers.authorization ? '[Bearer]' : 'NONE'}, X-Workspace-Id=${req.headers['x-workspace-id'] || 'NONE'}`);
     console.log(`   Origin: ${req.headers.origin || 'NONE'}, User-Agent: ${req.headers['user-agent']?.substring(0, 50) || 'NONE'}...`);
     
-    // Override res.send to log response
-    res.send = function(data) {
+    // Use 'finish' event instead of overriding res.send — avoids breaking CORS headers
+    res.on('finish', () => {
       const duration = Date.now() - start;
       console.log(`✅ Response ${res.statusCode} in ${duration}ms`);
-      
-      // Log error responses in detail
-      if (res.statusCode >= 400) {
-        console.log(`❌ ERROR RESPONSE:`, typeof data === 'string' ? data.substring(0, 200) : JSON.stringify(data, null, 2).substring(0, 300));
-      }
-      
-      originalSend.call(this, data);
-    };
+    });
     
     next();
   });
@@ -165,7 +158,9 @@ app.use(compression({
 app.use(
   helmet({
     contentSecurityPolicy: false,
-    xFrameOptions: { action: 'sameorigin' }
+    xFrameOptions: { action: 'sameorigin' },
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginEmbedderPolicy: false
   })
 );
 
@@ -189,8 +184,8 @@ app.use((req, res, next) => {
 app.use(express.json({
   limit: '10mb',
   verify: (req, _res, buf) => {
-    // Capture raw body for webhook HMAC verification (Shopify, etc.)
-    if (req.url && req.url.startsWith('/api/webhooks/')) {
+    // Capture raw body for webhook HMAC verification (Shopify + generic orders)
+    if (req.url && (req.url.startsWith('/api/webhooks/') || req.url.startsWith('/webhook/orders/'))) {
       req.rawBody = buf;
     }
   }
@@ -279,6 +274,9 @@ const startServer = async () => {
 
     // ─── Route map: file → mount path ──────────────────────────────────
     const routes = [
+      // ─── Provider Management API (independent from ecomAuth) ─────────────
+      ['./routes/provider.js',                '/api/provider'],
+      // ─── Ecom Platform routes ──────────────────────────────────────────
       ['./routes/auth.js',                    '/api/ecom/auth'],
       ['./routes/products.js',                '/api/ecom/products'],
       ['./routes/productResearch.js',         '/api/ecom/products-research'],
@@ -313,6 +311,8 @@ const startServer = async () => {
       ['./routes/autoSync.js',                '/api/ecom/auto-sync'],
       ['./routes/agent.js',                   '/api/ecom/agent'],
       ['./routes/agentCommands.js',           '/api/ecom/agent/commands'],
+      ['./routes/agents.js',                  '/api/ecom/agents'],
+      ['./routes/ritaConfig.js',              '/api/ecom/rita'],
       // ─── Store / Storefront routes ──────────────────────────────────
       ['./routes/storeProducts.js',           '/api/ecom/store-products'],
       ['./routes/storeOrders.js',             '/api/ecom/store-orders'],
@@ -332,6 +332,7 @@ const startServer = async () => {
       ['./routes/sourcingStats.js',           '/api/ecom/sourcing/stats'],
       // ─── WhatsApp External Integration (NAND/NK) ───────────────────────────
       ['./routes/externalWhatsapp.js',        '/api/ecom/v1/external/whatsapp'],
+      ['./routes/ritaFlows.js',                 '/api/ecom/v1/rita-flows'],
       ['./routes/upload.js',                  '/api/ecom/upload'],
       // ─── WhatsApp Configuration ────────────────────────────────────────
       ['./routes/whatsappConfig.js',           '/api/ecom/integrations/whatsapp'],
@@ -340,9 +341,17 @@ const startServer = async () => {
       // ─── Shopify Webhooks (orders/create) ─────────────────────────────
       ['./routes/shopifyWebhooks.js',          '/api/webhooks/shopify'],
       // ─── Generic Order Webhook (external systems → /webhook/orders/:token) ─
-      ['./routes/orderWebhook.js',             '/webhook/orders'],
-      // ─── Test Routes ───────────────────────────────────────────────────
+      ['./routes/orderWebhook.js',             '/webhook/orders'],      // ─── Billing / Plan upgrade (MoneyFusion) ─────────────────────────────
+      ['./routes/billing.js',                   '/api/ecom/billing'],      // ─── Test Routes ───────────────────────────────────────────────────
       ['./routes/test.js',                      '/api/ecom/test'],
+      // ─── Scalor SaaS WhatsApp API ──────────────────────────────────────
+      ['./routes/scalorAuth.js',               '/api/scalor/auth'],
+      ['./routes/scalorInstance.js',           '/api/scalor/instance'],
+      ['./routes/scalorMessage.js',            '/api/scalor/message'],
+      ['./routes/scalorWebhook.js',            '/api/scalor/webhooks'],
+      ['./routes/scalorDashboard.js',          '/api/scalor/dashboard'],
+      // ─── Scalor Public API v1 (client-facing) ─────────────────────────
+      ['./routes/scalorPublicApi.js',          '/api/v1'],
     ];
 
     for (const [file, mountPath] of routes) {
@@ -397,6 +406,23 @@ const startServer = async () => {
       console.warn('⚠️ Rita relance cron non démarré:', err.message);
     }
 
+    // ─── Rita group animator (animation des groupes WhatsApp) ──────
+    try {
+      const { tickGroupAnimator } = await import('./services/ritaGroupAnimatorService.js');
+      setInterval(tickGroupAnimator, 60_000); // Vérifie chaque minute
+      console.log('✅ Rita group animator démarré (check chaque minute)');
+    } catch (err) {
+      console.warn('⚠️ Rita group animator non démarré:', err.message);
+    }
+
+    // ─── Rita webhook auto-sync (reconnect + health check) ──────────────
+    try {
+      const { initRitaWebhookSync } = await import('./services/ritaWebhookSyncService.js');
+      initRitaWebhookSync(); // async, runs in background after 5s delay
+    } catch (err) {
+      console.warn('⚠️ Rita webhook sync non démarré:', err.message);
+    }
+
     // ─── Auto-sync Google Sheets ─────────────────────────────────────────
     try {
       const autoSyncMod = await import('./services/googleSheetsImport.js');
@@ -441,6 +467,14 @@ const startServer = async () => {
       console.error('   Body:', JSON.stringify(req.body, null, 2));
       console.error('   Error:', err);
       console.error('   Stack:', err.stack);
+
+      // Re-apply CORS headers — the cors() middleware may not have run for this error path
+      const origin = req.headers.origin;
+      if (origin && isAllowedOrigin(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Vary', 'Origin');
+      }
       
       res.status(err.status || 500).json({
         success: false,
@@ -464,6 +498,14 @@ const startServer = async () => {
       if (req.isStoreDomain && !req.path.startsWith('/api')) {
         return res.redirect('/');
       }
+
+      // Re-apply CORS headers for 404 responses
+      const origin = req.headers.origin;
+      if (origin && isAllowedOrigin(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Vary', 'Origin');
+      }
       
       res.status(404).json({
         success: false,
@@ -481,7 +523,7 @@ const startServer = async () => {
     console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🔍 Debug mode: ENABLED (all requests logged)`);
     
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`🌐 Server ready on port ${PORT}`);
       console.log(`📡 API: http://localhost:${PORT}/api`);
       console.log(`🏪 Stores: http://localhost:${PORT}/store/:subdomain`);

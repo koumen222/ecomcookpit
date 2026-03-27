@@ -23,6 +23,7 @@ export function initSocketServer(httpServer) {
     'http://www.ecomcookpit.site',
     'https://ecomcookpit.pages.dev',
     'https://ecomcookpit-production.up.railway.app',
+    'https://ecomcookpit-production-7a08.up.railway.app',
     'http://localhost:5173',
     'http://localhost:5174',
     'http://localhost:3000',
@@ -46,7 +47,8 @@ export function initSocketServer(httpServer) {
           allowedOrigins.includes(origin) ||
           origin.endsWith('.ecomcookpit.pages.dev') ||
           origin.endsWith('.scalor.net') ||
-          origin.endsWith('.scalor.app')
+          origin.endsWith('.scalor.app') ||
+          origin.endsWith('.up.railway.app')
         ) {
           return callback(null, true);
         }

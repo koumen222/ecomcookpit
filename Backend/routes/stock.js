@@ -12,9 +12,10 @@ import Workspace from '../models/Workspace.js';
 
 const router = express.Router();
 
-// Helper: Calculate actual stock from StockLocation (source of truth)
-const calculateActualStock = async (productId, workspaceId) => {
+// Helper: Calculate actual stock from StockLocation — falls back to Product.stock when no locations exist
+const calculateActualStock = async (productId, workspaceId, fallbackStock = null) => {
   const locations = await StockLocation.find({ productId, workspaceId });
+  if (locations.length === 0 && fallbackStock !== null) return fallbackStock;
   return locations.reduce((total, loc) => total + (loc.quantity || 0), 0);
 };
 
@@ -379,12 +380,12 @@ router.get('/alerts',
       // Calculer le stock réel depuis StockLocation pour chaque produit
       const productsWithActualStock = await Promise.all(
         allProducts.map(async (product) => {
-          const actualStock = await calculateActualStock(product._id, req.workspaceId);
+          const actualStock = await calculateActualStock(product._id, req.workspaceId, product.stock ?? null);
           return {
             ...product,
             actualStock,
-            stock: actualStock, // Override Product.stock with actual stock
-            isLowStock: actualStock <= (product.reorderThreshold || 10)
+            stock: actualStock,
+            isLowStock: actualStock < (product.reorderThreshold || 10)
           };
         })
       );
@@ -514,7 +515,7 @@ router.post('/sync',
       const syncResults = [];
 
       for (const product of products) {
-        const actualStock = await calculateActualStock(product._id, req.workspaceId);
+        const actualStock = await calculateActualStock(product._id, req.workspaceId, product.stock ?? null);
         const oldStock = product.stock;
         
         if (oldStock !== actualStock) {
@@ -551,7 +552,7 @@ async function _checkStockAlerts(product, workspaceId) {
     if (!admin) return;
 
     // Utiliser le stock réel depuis StockLocation
-    const actualStock = await calculateActualStock(product._id, workspaceId);
+    const actualStock = await calculateActualStock(product._id, workspaceId, product.stock ?? null);
 
     if (actualStock === 0) {
       notifyStockOut(admin.email, { product: { ...product, stock: actualStock }, workspace, userId: admin._id }).catch(() => {});
