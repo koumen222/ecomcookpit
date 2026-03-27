@@ -6,7 +6,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import api from '../../lib/api';
-import { ExternalLink, Check, Upload, Palette, Type, Store, Megaphone, Sparkles } from 'lucide-react';
+import { storeManageApi } from '../services/storeApi.js';
+import { ExternalLink, Check, Upload, Palette, Type, Store, Megaphone, Sparkles, Loader2, RefreshCw } from 'lucide-react';
 
 const FONTS = [
   { id: 'inter',      name: 'Inter',      sample: 'Modern & Clean' },
@@ -162,6 +163,23 @@ const BoutiqueSettings = () => {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [subdomain, setSubdomain] = useState('');
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenMsg, setRegenMsg] = useState('');
+
+  const handleRegenerate = async () => {
+    setRegenerating(true);
+    setRegenMsg("L'IA reconstruit votre page d'accueil...");
+    try {
+      await storeManageApi.regenerateHomepage();
+      setRegenMsg('Page d\'accueil régénérée ! Actualisez votre boutique.');
+      setTimeout(() => setRegenMsg(''), 5000);
+    } catch {
+      setRegenMsg('Erreur lors de la régénération, réessayez.');
+      setTimeout(() => setRegenMsg(''), 4000);
+    } finally {
+      setRegenerating(false);
+    }
+  };
 
   // Load existing settings on mount
   useEffect(() => {
@@ -454,6 +472,30 @@ const BoutiqueSettings = () => {
           ))}
         </div>
       </Section>
+
+      {/* ── IA Homepage regeneration ─────────────────────────────────── */}
+      <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-2xl border border-purple-100 p-6">
+        <div className="flex items-start gap-3 mb-4">
+          <span className="w-9 h-9 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600 flex-shrink-0">
+            <Sparkles size={17} />
+          </span>
+          <div>
+            <h2 className="text-sm font-bold text-gray-900">Régénérer la homepage par IA</h2>
+            <p className="text-xs text-gray-500 mt-0.5">L'IA recrée toute votre page d'accueil en fonction de votre niche, audience et produits.</p>
+          </div>
+        </div>
+        <button
+          onClick={handleRegenerate}
+          disabled={regenerating}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 transition disabled:opacity-60 shadow-md shadow-purple-200"
+        >
+          {regenerating ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+          {regenerating ? regenMsg || 'Génération…' : 'Régénérer la page d\'accueil'}
+        </button>
+        {regenMsg && !regenerating && (
+          <p className="text-xs mt-3 font-medium text-purple-700">{regenMsg}</p>
+        )}
+      </div>
 
       {/* ── Bottom save ─────────────────────────────────────────────────── */}
       <div className="flex justify-end pb-8">
