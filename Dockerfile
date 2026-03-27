@@ -2,17 +2,18 @@
 FROM node:22-alpine AS frontend
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 COPY . .
 RUN npm run build
 
 FROM node:22-alpine
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --omit=dev --no-audit
+RUN npm install --omit=dev --no-audit
 COPY Backend ./Backend
 COPY --from=frontend /app/dist ./Backend/client/build
 WORKDIR /app/Backend
-RUN npm ci --omit=dev --no-audit
+COPY Backend/package*.json ./
+RUN npm install --omit=dev --no-audit
 EXPOSE 8080
 CMD ["node", "server.js"]
