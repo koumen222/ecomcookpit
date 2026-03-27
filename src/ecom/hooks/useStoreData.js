@@ -59,6 +59,7 @@ export function injectStoreCssVars(store) {
 
 export function useStoreData(subdomain) {
   const [store, setStore] = useState(null);
+  const [sections, setSections] = useState(null);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -80,11 +81,15 @@ export function useStoreData(subdomain) {
 
         if (cancelled) return;
 
-        const storeData = storeRes.data?.data || {};
+        const responseData = storeRes.data?.data || {};
+        // Handle both API structures: { store: {...}, sections: [...] } or flat { name, ... }
+        const storeData = responseData.store || responseData;
+        const sectionsData = responseData.sections ?? null;
         const productsData = productsRes.data?.data?.products || [];
 
         injectStoreCssVars(storeData);
         setStore(storeData);
+        setSections(sectionsData);
         setProducts(productsData);
       } catch (err) {
         if (cancelled) return;
@@ -98,7 +103,7 @@ export function useStoreData(subdomain) {
     return () => { cancelled = true; };
   }, [subdomain]);
 
-  return { store, products, loading, error };
+  return { store, sections, products, loading, error };
 }
 
 export function useStoreProduct(subdomain, slug) {
