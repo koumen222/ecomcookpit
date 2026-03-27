@@ -14,4 +14,4 @@ COPY Backend/ ./
 COPY --from=frontend /app/dist ./client/build
 RUN npm install --omit=dev --no-audit
 EXPOSE 8080
-CMD ["node", "server.js"]
+CMD ["npm", "start"]
