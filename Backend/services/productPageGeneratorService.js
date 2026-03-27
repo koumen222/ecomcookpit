@@ -311,7 +311,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   let result;
   try {
     const response = await groq.chat.completions.create({
-      model: imageBuffers.length > 0 ? 'llama-4-scout-17b-16e-instruct' : 'llama-3.3-70b-versatile',
+      model: imageBuffers.length > 0 ? 'meta-llama/llama-4-scout-17b-16e-instruct' : 'llama-3.3-70b-versatile',
       messages,
       max_tokens: 4000,
       temperature: 0.7,
