@@ -1,6 +1,7 @@
 import express from 'express';
 import EcomUser from '../models/EcomUser.js';
 import Workspace from '../models/Workspace.js';
+import PlanPayment from '../models/PlanPayment.js';
 import WhatsAppLog from '../models/WhatsAppLog.js';
 import SupportConversation from '../models/SupportConversation.js';
 import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
@@ -221,6 +222,34 @@ router.put('/users/:id/toggle',
       });
     } catch (error) {
       console.error('Erreur super-admin toggle user:', error);
+      res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+  }
+);
+
+// PUT /api/ecom/super-admin/users/:id/rita-toggle - Activer/désactiver Rita IA pour un utilisateur
+router.put('/users/:id/rita-toggle',
+  requireEcomAuth,
+  requireSuperAdmin,
+  async (req, res) => {
+    try {
+      const user = await EcomUser.findById(req.params.id);
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
+      }
+      if (user.role !== 'ecom_admin') {
+        return res.status(400).json({ success: false, message: 'Rita IA ne peut être activé que pour les admins' });
+      }
+      user.canAccessRitaAgent = !user.canAccessRitaAgent;
+      await user.save();
+      await logAudit(req, 'TOGGLE_RITA', `Rita IA ${user.canAccessRitaAgent ? 'activé' : 'désactivé'} pour ${user.email}`, 'user', user._id);
+      res.json({
+        success: true,
+        message: user.canAccessRitaAgent ? 'Rita IA activé' : 'Rita IA désactivé',
+        data: { id: user._id, email: user.email, canAccessRitaAgent: user.canAccessRitaAgent }
+      });
+    } catch (error) {
+      console.error('Erreur super-admin toggle rita:', error);
       res.status(500).json({ success: false, message: 'Erreur serveur' });
     }
   }
@@ -649,6 +678,227 @@ router.put('/support/:sessionId/status', requireEcomAuth, requireSuperAdmin, asy
     res.json({ success: true, data: { conversation: conv } });
   } catch (err) {
     console.error('[Support Admin] PUT /support/:id/status:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─── Plan management ─────────────────────────────────────────────────────────
+
+// GET /api/ecom/super-admin/workspaces — list workspaces with plan info
+router.get('/workspaces', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { search, plan, page = 1, limit = 50 } = req.query;
+    const filter = {};
+    if (plan) filter.plan = plan;
+    if (search) filter.name = { $regex: search, $options: 'i' };
+
+    const workspaces = await Workspace.find(filter)
+      .select('name slug plan planExpiresAt trialStartedAt trialEndsAt trialUsed owner')
+      .populate('owner', 'email name')
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .lean();
+
+    const total = await Workspace.countDocuments(filter);
+    res.json({ success: true, data: { workspaces, total } });
+  } catch (err) {
+    console.error('[SuperAdmin] GET /workspaces error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/ecom/super-admin/workspaces/:id/plan — manually set plan
+router.patch('/workspaces/:id/plan', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { plan, durationMonths = 1 } = req.body;
+    if (!['free', 'pro', 'ultra'].includes(plan)) {
+      return res.status(400).json({ success: false, message: 'Plan invalide (free/pro/ultra)' });
+    }
+
+    const workspace = await Workspace.findById(req.params.id);
+    if (!workspace) return res.status(404).json({ success: false, message: 'Workspace introuvable' });
+
+    await logAudit(req, 'SET_PLAN', `Plan set to ${plan} for workspace ${workspace.name}`, 'workspace', workspace._id);
+
+    if (plan === 'free') {
+      workspace.plan = 'free';
+      workspace.planExpiresAt = null;
+    } else {
+      const now = new Date();
+      const base = workspace.planExpiresAt && workspace.planExpiresAt > now ? workspace.planExpiresAt : now;
+      const newExpiry = new Date(base);
+      newExpiry.setMonth(newExpiry.getMonth() + durationMonths);
+      workspace.plan = plan;
+      workspace.planExpiresAt = newExpiry;
+    }
+    await workspace.save();
+
+    res.json({ success: true, workspace: { _id: workspace._id, plan: workspace.plan, planExpiresAt: workspace.planExpiresAt } });
+  } catch (err) {
+    console.error('[SuperAdmin] PATCH /workspaces/:id/plan error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ─── Billing tracking (Super Admin) ──────────────────────────────────────────
+
+// GET /api/ecom/super-admin/billing — full billing overview for all users
+router.get('/billing', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    console.log('[SuperAdmin] GET /billing starting...');
+    const { status, plan, search, page = 1, limit = 50 } = req.query;
+
+    // 1) All payments with user + workspace info
+    console.log('[SuperAdmin] Fetching payments...');
+    const paymentFilter = {};
+    if (status) paymentFilter.status = status;
+    if (plan) paymentFilter.plan = plan;
+
+    const payments = await PlanPayment.find(paymentFilter)
+      .populate('userId', 'email name phone')
+      .populate('workspaceId', 'name slug plan planExpiresAt trialEndsAt trialUsed')
+      .sort({ createdAt: -1 })
+      .limit(Number(limit))
+      .skip((Number(page) - 1) * Number(limit))
+      .lean();
+
+    const totalPayments = await PlanPayment.countDocuments(paymentFilter);
+
+    // 2) Revenue stats
+    console.log('[SuperAdmin] Calculating revenue stats...');
+    const revenueAgg = await PlanPayment.aggregate([
+      { $match: { status: 'paid' } },
+      { $group: {
+        _id: null,
+        totalRevenue: { $sum: '$amount' },
+        totalFees: { $sum: '$fees' },
+        count: { $sum: 1 },
+        avgAmount: { $avg: '$amount' }
+      }}
+    ]);
+    const revenue = revenueAgg[0] || { totalRevenue: 0, totalFees: 0, count: 0, avgAmount: 0 };
+
+    // Revenue by plan
+    const revenueByPlan = await PlanPayment.aggregate([
+      { $match: { status: 'paid' } },
+      { $group: { _id: '$plan', total: { $sum: '$amount' }, count: { $sum: 1 } } }
+    ]);
+
+    // Revenue by month (last 12 months)
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+    const revenueByMonth = await PlanPayment.aggregate([
+      { $match: { status: 'paid', createdAt: { $gte: twelveMonthsAgo } } },
+      { $group: {
+        _id: { $dateToString: { format: '%Y-%m', date: '$createdAt' } },
+        total: { $sum: '$amount' },
+        count: { $sum: 1 }
+      }},
+      { $sort: { _id: 1 } }
+    ]);
+
+    // 3) Payment status breakdown
+    const statusBreakdown = await PlanPayment.aggregate([
+      { $group: { _id: '$status', count: { $sum: 1 }, total: { $sum: '$amount' } } }
+    ]);
+
+    // 4) Workspace plan distribution
+    console.log('[SuperAdmin] Calculating plan distribution...');
+    const freeCt = await Workspace.countDocuments({ plan: 'free' });
+    const proCt = await Workspace.countDocuments({ plan: 'pro' });
+    const ultraCt = await Workspace.countDocuments({ plan: 'ultra' });
+    const planDistribution = [
+      { _id: 'free', count: freeCt },
+      { _id: 'pro', count: proCt },
+      { _id: 'ultra', count: ultraCt }
+    ].filter(p => p.count > 0);
+
+    // 5) Active subscriptions (plan != 'free' and not expired)
+    console.log('[SuperAdmin] Calculating active subscriptions...');
+    const now = new Date();
+    const activeSubscriptions = await Workspace.countDocuments({
+      plan: { $in: ['pro', 'ultra'] },
+      planExpiresAt: { $gt: now }
+    });
+
+    // Expiring soon (within 7 days)
+    const sevenDaysFromNow = new Date(now.getTime() + 7 * 86400000);
+    const expiringSoon = await Workspace.find({
+      plan: { $in: ['pro', 'ultra'] },
+      planExpiresAt: { $gt: now, $lte: sevenDaysFromNow }
+    })
+      .select('name slug plan planExpiresAt owner')
+      .populate('owner', 'email name phone')
+      .lean();
+
+    // 6) Active trials
+    const activeTrials = await Workspace.find({
+      trialEndsAt: { $gt: now },
+      trialUsed: false
+    })
+      .select('name slug trialStartedAt trialEndsAt owner plan')
+      .populate('owner', 'email name phone')
+      .sort({ trialEndsAt: 1 })
+      .lean();
+
+    // 7) Expired (paid plans that expired, now effectively free)
+    const expiredPaid = await Workspace.find({
+      plan: { $in: ['pro', 'ultra'] },
+      planExpiresAt: { $lte: now }
+    })
+      .select('name slug plan planExpiresAt owner')
+      .populate('owner', 'email name phone')
+      .lean();
+
+    // 8) Recent payments (last 30 days stats)
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000);
+    const recent30d = await PlanPayment.aggregate([
+      { $match: { status: 'paid', createdAt: { $gte: thirtyDaysAgo } } },
+      { $group: { _id: null, total: { $sum: '$amount' }, count: { $sum: 1 } } }
+    ]);
+
+    // 9) All workspaces with plan details (for search/filter)
+    const wsFilter = {};
+    if (search) wsFilter.name = { $regex: search, $options: 'i' };
+    const allWorkspaces = await Workspace.find(wsFilter)
+      .select('name slug plan planExpiresAt trialStartedAt trialEndsAt trialUsed owner createdAt')
+      .populate('owner', 'email name phone')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    console.log('[SuperAdmin] Billing request completed successfully');
+    res.json({
+      success: true,
+      data: {
+        payments,
+        totalPayments,
+        revenue: {
+          total: revenue.totalRevenue,
+          fees: revenue.totalFees,
+          paidCount: revenue.count,
+          avgAmount: Math.round(revenue.avgAmount || 0),
+          byPlan: revenueByPlan,
+          byMonth: revenueByMonth,
+          last30d: recent30d[0] || { total: 0, count: 0 }
+        },
+        statusBreakdown,
+        planDistribution,
+        activeSubscriptions,
+        expiringSoon,
+        activeTrials,
+        expiredPaid,
+        workspaces: allWorkspaces,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total: totalPayments,
+          pages: Math.ceil(totalPayments / Number(limit))
+        }
+      }
+    });
+  } catch (err) {
+    console.error('[SuperAdmin] GET /billing error:', err.message, err.stack);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });

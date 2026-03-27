@@ -115,9 +115,17 @@ class EvolutionApiService {
     const mimetypes = {
       'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
       'png': 'image/png', 'gif': 'image/gif',
-      'webp': 'image/webp', 'mp4': 'video/mp4', 'pdf': 'application/pdf'
+      'webp': 'image/webp', 'mp4': 'video/mp4', 'webm': 'video/webm', 'mov': 'video/quicktime',
+      'pdf': 'application/pdf', 'doc': 'application/msword', 'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     };
     let mimetype = mimetypes[ext] || 'image/jpeg';
+    const videoExt = ['mp4', 'webm', 'mov', 'avi'];
+    const documentExt = ['pdf', 'doc', 'docx'];
+    const mediatype = videoExt.includes(ext)
+      ? 'video'
+      : documentExt.includes(ext)
+        ? 'document'
+        : 'image';
 
     // ── Résoudre le média : fichier local → base64, URL externe → envoi direct ──
     let mediaPayload = mediaUrl;
@@ -159,7 +167,7 @@ class EvolutionApiService {
         `${this.baseUrl}/message/sendMedia/${instanceName}`,
         {
           number: cleanNumber,
-          mediatype: 'image',
+          mediatype,
           mimetype: mimetype,
           caption: caption,
           media: mediaPayload,
@@ -436,12 +444,14 @@ class EvolutionApiService {
    * Récupère le QR code de connexion d'une instance
    * @param {string} instanceName
    * @param {string} instanceToken
+   * @param {boolean} forceRefresh - Force la regeneration d'un nouveau QR code
    * @returns {Promise<{success: boolean, qrcode?: string, error?: string}>}
    */
-  async getQrCode(instanceName, instanceToken) {
+  async getQrCode(instanceName, instanceToken, forceRefresh = false) {
     try {
+      const endpoint = `${this.baseUrl}/instance/connect/${instanceName}${forceRefresh ? `?refresh=true&t=${Date.now()}` : ''}`;
       const response = await axios.get(
-        `${this.baseUrl}/instance/connect/${instanceName}`,
+        endpoint,
         {
           headers: { 'apikey': instanceToken },
           timeout: 30000,
@@ -491,6 +501,205 @@ class EvolutionApiService {
       return { success: true };
     } catch (error) {
       console.error(`❌ Erreur Evolution API (logoutInstance):`, error.response?.data || error.message);
+      return { success: false, error: error.response?.data?.message || error.message };
+    }
+  }
+
+  /**
+   * Enregistre (ou met à jour) un contact dans le carnet d'adresses de l'instance WhatsApp
+   * Endpoint Evolution API : POST /chat/contacts/{instance}
+   * Utilise Baileys upsertContacts pour que le nom s'affiche dans les conversations.
+   * @param {string} instanceName
+   * @param {string} instanceToken
+   * @param {string} phone - numéro international sans +
+   * @param {string} name  - nom d'affichage
+   */
+  async saveContact(instanceName, instanceToken, phone, name) {
+    const cleanPhone = phone.replace(/\D/g, '');
+    const displayName = (name || '').trim() || cleanPhone;
+    try {
+      await axios.post(
+        `${this.baseUrl}/chat/contacts/${instanceName}`,
+        {
+          contacts: [{
+            fullName: displayName,
+            wuid: `${cleanPhone}@s.whatsapp.net`,
+            phoneNumber: cleanPhone,
+          }]
+        },
+        {
+          headers: { 'Content-Type': 'application/json', 'apikey': instanceToken },
+          timeout: 10000,
+        }
+      );
+      console.log(`📇 [Evolution API] Contact enregistré sur l'appareil: ${displayName} (${cleanPhone})`);
+      return { success: true };
+    } catch {
+      // Silencieux — certaines versions d'Evolution API n'exposent pas cet endpoint
+      return { success: false };
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // Gestion des Groupes WhatsApp
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Crée un groupe WhatsApp
+   * @param {string} instanceName
+   * @param {string} instanceToken
+   * @param {string} subject - Nom du groupe
+   * @param {string[]} participants - Numéros au format "2376XXXXXXX"
+   * @param {string} [description] - Description du groupe
+   */
+  async createGroup(instanceName, instanceToken, subject, participants = [], description = '') {
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/group/create/${instanceName}`,
+        {
+          subject,
+          description,
+          participants: participants.map(p => p.replace(/\D/g, '')),
+        },
+        {
+          headers: { 'Content-Type': 'application/json', 'apikey': instanceToken },
+          timeout: 30000,
+        }
+      );
+      console.log(`✅ [Evolution API] Groupe créé: "${subject}"`);
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error(`❌ Erreur Evolution API (createGroup):`, error.response?.data || error.message);
+      return { success: false, error: error.response?.data?.message || error.message };
+    }
+  }
+
+  /**
+   * Ajoute des participants à un groupe
+   * @param {string} instanceName
+   * @param {string} instanceToken
+   * @param {string} groupJid - ID du groupe (ex: "120363XXXXX@g.us")
+   * @param {string[]} participants - Numéros internationaux
+   */
+  async addGroupParticipants(instanceName, instanceToken, groupJid, participants) {
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/group/updateParticipant/${instanceName}`,
+        {
+          groupJid,
+          action: 'add',
+          participants: participants.map(p => `${p.replace(/\D/g, '')}@s.whatsapp.net`),
+        },
+        {
+          headers: { 'Content-Type': 'application/json', 'apikey': instanceToken },
+          timeout: 30000,
+        }
+      );
+      console.log(`✅ [Evolution API] ${participants.length} participant(s) ajouté(s) au groupe`);
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error(`❌ Erreur Evolution API (addGroupParticipants):`, error.response?.data || error.message);
+      return { success: false, error: error.response?.data?.message || error.message };
+    }
+  }
+
+  /**
+   * Récupère le code d'invitation d'un groupe
+   * @param {string} instanceName
+   * @param {string} instanceToken
+   * @param {string} groupJid - ID du groupe
+   * @returns {Promise<{success: boolean, inviteCode?: string, inviteUrl?: string}>}
+   */
+  async getGroupInviteCode(instanceName, instanceToken, groupJid) {
+    try {
+      const response = await axios.get(
+        `${this.baseUrl}/group/inviteCode/${instanceName}?groupJid=${encodeURIComponent(groupJid)}`,
+        {
+          headers: { 'apikey': instanceToken },
+          timeout: 15000,
+        }
+      );
+      const code = response.data?.inviteCode || response.data?.code || response.data;
+      const inviteCode = typeof code === 'string' ? code : String(code);
+      console.log(`🔗 [Evolution API] Invite code obtenu pour groupe`);
+      return { success: true, inviteCode, inviteUrl: `https://chat.whatsapp.com/${inviteCode}` };
+    } catch (error) {
+      console.error(`❌ Erreur Evolution API (getGroupInviteCode):`, error.response?.data || error.message);
+      return { success: false, error: error.response?.data?.message || error.message };
+    }
+  }
+
+  /**
+   * Liste les groupes de l'instance
+   * @param {string} instanceName
+   * @param {string} instanceToken
+   */
+  async listGroups(instanceName, instanceToken) {
+    try {
+      const response = await axios.get(
+        `${this.baseUrl}/group/fetchAllGroups/${instanceName}?getParticipants=false`,
+        {
+          headers: { 'apikey': instanceToken },
+          timeout: 30000,
+        }
+      );
+      const groups = Array.isArray(response.data) ? response.data : (response.data?.groups || []);
+      return { success: true, groups };
+    } catch (error) {
+      console.error(`❌ Erreur Evolution API (listGroups):`, error.response?.data || error.message);
+      return { success: false, error: error.response?.data?.message || error.message, groups: [] };
+    }
+  }
+
+  /**
+   * Envoie un message dans un groupe
+   * @param {string} instanceName
+   * @param {string} instanceToken
+   * @param {string} groupJid - ID du groupe (xxx@g.us)
+   * @param {string} message
+   */
+  async sendGroupMessage(instanceName, instanceToken, groupJid, message) {
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/message/sendText/${instanceName}`,
+        {
+          number: groupJid,
+          text: message,
+          delay: 1200,
+        },
+        {
+          headers: { 'Content-Type': 'application/json', 'apikey': instanceToken },
+          timeout: 30000,
+        }
+      );
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error(`❌ Erreur Evolution API (sendGroupMessage):`, error.response?.data || error.message);
+      return { success: false, error: error.response?.data?.message || error.message };
+    }
+  }
+
+  /**
+   * Envoie une image dans un groupe
+   */
+  async sendGroupMedia(instanceName, instanceToken, groupJid, mediaUrl, caption = '') {
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/message/sendMedia/${instanceName}`,
+        {
+          number: groupJid,
+          media: mediaUrl,
+          caption,
+          mediatype: 'image',
+        },
+        {
+          headers: { 'Content-Type': 'application/json', 'apikey': instanceToken },
+          timeout: 30000,
+        }
+      );
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error(`❌ Erreur Evolution API (sendGroupMedia):`, error.response?.data || error.message);
       return { success: false, error: error.response?.data?.message || error.message };
     }
   }

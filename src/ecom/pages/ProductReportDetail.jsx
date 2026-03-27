@@ -277,10 +277,14 @@ const ProductReportDetail = () => {
 
       {/* KPIs Financiers - masqué pour closeuse */}
       {user?.role !== 'ecom_closeuse' && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
           <div className="bg-white rounded-lg shadow p-4">
             <p className="text-xs font-medium text-gray-500 uppercase">Chiffre d'affaires</p>
             <p className="text-2xl font-bold text-emerald-600 mt-1">{fmt(stats.totalRevenue)}</p>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <p className="text-xs font-medium text-gray-500 uppercase">Frais livraison</p>
+            <p className="text-2xl font-bold text-yellow-600 mt-1">{fmt(stats.totalDeliveryCost)}</p>
           </div>
           <div className="bg-white rounded-lg shadow p-4">
             <p className="text-xs font-medium text-gray-500 uppercase">Dépenses pub</p>
@@ -355,6 +359,7 @@ const ProductReportDetail = () => {
               {user?.role !== 'ecom_closeuse' && (
                 <>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pub</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Frais liv.</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">CA</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bénéfice</th>
                 </>
@@ -364,7 +369,7 @@ const ProductReportDetail = () => {
           <tbody className="bg-white divide-y divide-gray-200">
             {historicalData.length === 0 ? (
               <tr>
-                <td colSpan={user?.role === 'ecom_closeuse' ? 4 : 7} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={user?.role === 'ecom_closeuse' ? 4 : 8} className="px-6 py-8 text-center text-gray-500">
                   Aucune donnée disponible pour cette période
                 </td>
               </tr>
@@ -395,6 +400,9 @@ const ProductReportDetail = () => {
                       <>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {fmt(item.adSpend)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-yellow-600">
+                          {fmt(item.deliveryCost)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-emerald-600">
                           {fmt(item.revenue)}

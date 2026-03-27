@@ -56,7 +56,7 @@ const StockOrdersList = () => {
   useEffect(() => {
     loadOrders();
     if (location.pathname.endsWith('/new')) {
-      openNewModal();
+      openNewModal(location.state);
     } else if (routeId) {
       openEditModal(routeId);
     }
@@ -80,8 +80,10 @@ const StockOrdersList = () => {
     } catch { setProducts([]); }
   };
 
-  const openNewModal = () => {
-    setEditingId(null); setFormData(EMPTY_FORM); setFormError('');
+  const openNewModal = (prefill) => {
+    setEditingId(null);
+    setFormData(prefill?.productId ? { ...EMPTY_FORM, productId: prefill.productId, productName: prefill.productName || '' } : EMPTY_FORM);
+    setFormError('');
     loadProducts(); setShowModal(true);
   };
 

@@ -313,10 +313,77 @@ export async function sendWhatsAppAudio({ to, audioUrl, workspaceId, instanceId 
   }
 }
 
+/**
+ * Envoie une vidéo via WhatsApp
+ */
+export async function sendWhatsAppVideo({ to, videoUrl, caption = '', workspaceId, instanceId }) {
+  try {
+    if (!to || !videoUrl) {
+      throw new Error('Numéro de téléphone et URL vidéo requis');
+    }
+
+    if (!workspaceId) {
+      throw new Error('workspaceId requis pour envoyer une vidéo WhatsApp');
+    }
+
+    const instance = await getActiveInstance(workspaceId, instanceId);
+    if (!instance) {
+      throw new Error('Aucune instance WhatsApp connectée. Veuillez configurer WhatsApp dans les paramètres.');
+    }
+
+    const phoneCheck = formatInternationalPhone(to);
+    if (!phoneCheck.success) {
+      throw new Error(`Numéro de téléphone invalide: ${phoneCheck.error}`);
+    }
+
+    const cleanNumber = phoneCheck.formatted;
+    const fileName = (videoUrl.split('?')[0].split('/').pop() || 'video.mp4');
+    const result = await evolutionApiService.sendVideo(
+      instance.instanceName,
+      instance.instanceToken,
+      cleanNumber,
+      videoUrl,
+      caption,
+      fileName
+    );
+
+    if (!result.success) {
+      throw new Error(result.error || 'Erreur lors de l\'envoi de la vidéo');
+    }
+
+    instance.lastSeen = new Date();
+    await instance.save();
+
+    return {
+      success: true,
+      messageId: result.data?.key?.id || 'unknown',
+      instanceName: instance.instanceName
+    };
+  } catch (error) {
+    console.error('❌ Erreur sendWhatsAppVideo:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Envoie un document (PDF) via WhatsApp
+ */
+export async function sendWhatsAppDocument({ to, documentUrl, caption = '', workspaceId, instanceId }) {
+  return sendWhatsAppMedia({
+    to,
+    mediaUrl: documentUrl,
+    caption,
+    workspaceId,
+    instanceId
+  });
+}
+
 export default {
   sendWhatsAppMessage,
   sendOrderNotification,
   sendWhatsAppMedia,
   sendWhatsAppAudio,
+  sendWhatsAppVideo,
+  sendWhatsAppDocument,
   getActiveInstance
 };

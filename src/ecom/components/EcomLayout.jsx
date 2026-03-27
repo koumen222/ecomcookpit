@@ -7,6 +7,7 @@ import { useNotifications } from '../hooks/useNotifications';
 import NotificationModal from './NotificationModal.jsx';
 import PushNotificationBanner from './PushNotificationBanner.jsx';
 import InstallPrompt from './InstallPrompt.jsx';
+import TrialBanner from './TrialBanner.jsx';
 import { useDmUnread } from '../hooks/useDmUnread.js';
 import GlobalSearch from './GlobalSearch.jsx';
 import WorkspaceSwitcherMenu from './WorkspaceSwitcherMenu.jsx';
@@ -253,8 +254,19 @@ const EcomLayoutComponent = ({ children }) => {
     },
     {
       name: 'Service WhatsApp', shortName: 'WhatsApp', href: '/ecom/whatsapp/service', primary: false,
-      roles: ['ecom_admin'],
+      roles: ['ecom_admin', 'ecom_closeuse', 'ecom_compta'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+    },
+    {
+      name: 'Commercial IA', shortName: 'Commercial IA', href: '/ecom/agent-ia', primary: false,
+      roles: ['ecom_admin'],
+      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 00.659 1.591L19 14.5M14.25 3.104c.251.023.501.05.75.082M19 14.5l-2.47 2.47a2.25 2.25 0 01-1.59.659H9.06a2.25 2.25 0 01-1.591-.659L5 14.5m14 0V17a2 2 0 01-2 2H7a2 2 0 01-2-2v-2.5" /></svg>
+    },
+    {
+      name: 'Automation Flows', shortName: 'Flows', href: '/ecom/rita-flows', primary: false,
+      roles: ['ecom_admin'],
+      requiresRitaAccess: true,
+      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
     },
         {
       name: 'Fournisseurs', shortName: 'Fournisseurs', href: '/ecom/suppliers', primary: false,
@@ -276,9 +288,19 @@ const EcomLayoutComponent = ({ children }) => {
       roles: ['ecom_admin', 'ecom_closeuse'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" /></svg>
     },
+    {
+      name: 'API Développeur', shortName: 'Dev API', href: '/ecom/developer', primary: false,
+      roles: ['ecom_admin'],
+      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>
+    },
   ], []);
 
   const bottomNav = useMemo(() => [
+    {
+      name: 'Abonnement', shortName: 'Plan', href: '/ecom/billing', primary: false,
+      roles: ['ecom_admin'],
+      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+    },
     {
       name: 'Paramètres', shortName: 'Réglages', href: '/ecom/settings', primary: false,
       roles: ['ecom_admin', 'ecom_closeuse', 'ecom_compta', 'ecom_livreur'],
@@ -313,6 +335,11 @@ const EcomLayoutComponent = ({ children }) => {
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
     },
     {
+      name: 'Facturation', shortName: 'Billing', href: '/ecom/super-admin/billing', primary: true,
+      roles: ['super_admin'],
+      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+    },
+    {
       name: 'Marketing', shortName: 'Marketing', href: '/ecom/marketing', primary: true,
       roles: ['super_admin'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
@@ -345,11 +372,15 @@ const EcomLayoutComponent = ({ children }) => {
   ], []);
 
   const allNav = useMemo(() => [...mainNav, ...secondaryNav, ...bottomNav, ...superAdminNav], [mainNav, secondaryNav, bottomNav, superAdminNav]);
-  const filteredMain = useMemo(() => mainNav.filter(i => i.roles.includes(user?.role)), [mainNav, user?.role]);
-  const filteredSecondary = useMemo(() => secondaryNav.filter(i => i.roles.includes(user?.role)), [secondaryNav, user?.role]);
-  const filteredBottom = useMemo(() => bottomNav.filter(i => i.roles.includes(user?.role)), [bottomNav, user?.role]);
-  const filteredSuperAdmin = useMemo(() => superAdminNav.filter(i => i.roles.includes(user?.role)), [superAdminNav, user?.role]);
-  const filteredAll = useMemo(() => allNav.filter(i => i.roles.includes(user?.role)), [allNav, user?.role]);
+  const canAccessNavItem = useCallback((item) => {
+    if (!item.roles.includes(user?.role)) return false;
+    return true;
+  }, [user?.role]);
+  const filteredMain = useMemo(() => mainNav.filter(canAccessNavItem), [mainNav, canAccessNavItem]);
+  const filteredSecondary = useMemo(() => secondaryNav.filter(canAccessNavItem), [secondaryNav, canAccessNavItem]);
+  const filteredBottom = useMemo(() => bottomNav.filter(canAccessNavItem), [bottomNav, canAccessNavItem]);
+  const filteredSuperAdmin = useMemo(() => superAdminNav.filter(canAccessNavItem), [superAdminNav, canAccessNavItem]);
+  const filteredAll = useMemo(() => allNav.filter(canAccessNavItem), [allNav, canAccessNavItem]);
 
   const mobileMainTabs = useMemo(() => filteredAll.filter(i => i.primary).slice(0, 5), [filteredAll]);
   // Icônes mobile agrandies (w-7 h-7 au lieu de w-8 h-8)
@@ -390,6 +421,13 @@ const EcomLayoutComponent = ({ children }) => {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col lg:flex-row overflow-x-hidden max-w-[100vw]">
       <TopLoader />
+      {/* Trial Banner — affiché en haut pour les utilisateurs en essai gratuit */}
+      {workspace?.trialEndsAt && (
+        <TrialBanner
+          plan={workspace?.plan}
+          trialEndsAt={workspace?.trialEndsAt}
+        />
+      )}
       {/* Desktop Sidebar — white, clean, Chariow-inspired */}
       <aside className="hidden lg:flex lg:flex-col lg:w-[220px] lg:fixed lg:inset-y-0 z-30 bg-white border-r border-gray-200">
         <div className="flex flex-col h-full">
@@ -616,7 +654,9 @@ const EcomLayoutComponent = ({ children }) => {
         )}
 
         {/* Page content - pb-safe-nav = pb-20 + home indicator sur iOS */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden pt-14 pt-safe-header pb-safe-nav lg:pt-14 lg:pb-0">
+        <main className={`flex-1 overflow-y-auto overflow-x-hidden pb-safe-nav lg:pb-0 ${
+          workspace?.trialEndsAt ? 'pt-32 lg:pt-28' : 'pt-14 pt-safe-header lg:pt-14'
+        }`}>
           {children}
         </main>
       </div>
@@ -814,9 +854,13 @@ const getPageTitle = (pathname) => {
   if (pathname.includes('/clients/new')) return 'Nouveau client';
   if (pathname.includes('/clients') && pathname.includes('/edit')) return 'Modifier client';
   if (pathname.includes('/clients')) return 'Clients';
+  if (pathname.includes('/agent-ia')) return 'Commercial IA';
+  if (pathname.includes('/whatsapp/agent-config')) return 'Configurer Commercial IA';
   if (pathname.includes('/whatsapp/service')) return 'Service WhatsApp';
   if (pathname.includes('/whatsapp/connexion')) return 'Service WhatsApp';
+  if (pathname.includes('/rita-flows')) return 'Automation Flows';
   if (pathname.includes('/campaigns')) return 'Marketing';
+  if (pathname.includes('/super-admin/billing')) return 'Suivi Facturation';
   if (pathname.includes('/super-admin/users')) return 'Gestion des utilisateurs';
   if (pathname.includes('/super-admin/workspaces')) return 'Gestion des espaces';
   if (pathname.includes('/super-admin/activity')) return 'Activité';

@@ -93,12 +93,21 @@ import SuperAdminWhatsAppPostulations from './pages/SuperAdminWhatsAppPostulatio
 import SuperAdminWhatsAppLogs from './pages/SuperAdminWhatsAppLogs.jsx';
 import SuperAdminPushCenter from './pages/SuperAdminPushCenter.jsx';
 import SuperAdminSupport from './pages/SuperAdminSupport.jsx';
+import SuperAdminBilling from './pages/SuperAdminBilling.jsx';
 import WhyScalor from './pages/WhyScalor.jsx';
 import Tarifs from './pages/Tarifs.jsx';
 import SourcingStats from './pages/SourcingStats.jsx';
 import WhatsAppService from './pages/WhatsAppService.jsx';
+import DeveloperSection from './pages/DeveloperSection.jsx';
 import WhatsAppInstancesList from './pages/WhatsAppInstancesList.jsx';
+import RitaFlows from './pages/RitaFlows.jsx';
+import AgentConfig from './pages/AgentConfig.jsx';
+import AgentIAList from './pages/AgentIAList.jsx';
+import AgentOnboarding from './pages/AgentOnboarding.jsx';
 import ConnectShopify from './pages/ConnectShopify.jsx';
+import BillingPage from './pages/BillingPage.jsx';
+import BillingSuccess from './pages/BillingSuccess.jsx';
+import ProviderService from './pages/ProviderService.jsx';
 
 // Store pages
 import StoreSetup from './pages/StoreSetup.jsx';
@@ -125,7 +134,14 @@ import StoreCreationWizard from './pages/StoreCreationWizard.jsx';
 // PROTECTION DES ROUTES
 // ═══════════════════════════════════════════════════════════════
 
-const ProtectedRoute = ({ children, requiredRole }) => {
+const hasRitaAgentAccess = (user) => {
+  if (!user) return false;
+  if (user.role === 'super_admin') return true;
+  if (user.role !== 'ecom_admin') return false;
+  return user.canAccessRitaAgent !== false;
+};
+
+const ProtectedRoute = ({ children, requiredRole, requireRitaAgentAccess = false }) => {
   const { user, isAuthenticated } = useEcomAuth();
 
   const hasLocalSession = !!localStorage.getItem('ecomToken') && !!localStorage.getItem('ecomUser');
@@ -152,6 +168,10 @@ const ProtectedRoute = ({ children, requiredRole }) => {
       };
       return <Navigate to={roleDashboardMap[effectiveUser?.role] || '/ecom/login'} replace />;
     }
+  }
+
+  if (requireRitaAgentAccess && !hasRitaAgentAccess(effectiveUser)) {
+    return <Navigate to="/ecom/whatsapp/service" replace />;
   }
 
   return children;
@@ -203,8 +223,8 @@ const RootRedirect = () => {
   return <Navigate to={roleDashboardMap[effectiveUser?.role] || '/ecom/dashboard'} replace />;
 };
 
-const LayoutRoute = ({ children, requiredRole }) => (
-  <ProtectedRoute requiredRole={requiredRole}>
+const LayoutRoute = ({ children, requiredRole, requireRitaAgentAccess = false }) => (
+  <ProtectedRoute requiredRole={requiredRole} requireRitaAgentAccess={requireRitaAgentAccess}>
     <EcomLayout>
       {children}
     </EcomLayout>
@@ -282,6 +302,8 @@ const EcomApp = () => {
 
             {/* Routes publiques */}
             <Route path="/ecom/landing" element={<EcomLandingPage />} />
+            <Route path="/provider" element={<ProviderService />} />
+            <Route path="/ecom/provider" element={<ProviderService />} />
             <Route path="/ecom/why-scalor" element={<WhyScalor />} />
             <Route path="/ecom/tarifs" element={<Tarifs />} />
             <Route path="/ecom/privacy" element={<PrivacyPolicy />} />
@@ -313,31 +335,34 @@ const EcomApp = () => {
             <Route path="/ecom/import" element={<LayoutRoute requiredRole="ecom_admin"><ImportOrders /></LayoutRoute>} />
 
             {/* Routes clients */}
-            <Route path="/ecom/clients" element={<LayoutRoute><ClientsList /></LayoutRoute>} />
-            <Route path="/ecom/clients/new" element={<LayoutRoute><ClientForm /></LayoutRoute>} />
-            <Route path="/ecom/clients/:id/edit" element={<LayoutRoute><ClientForm /></LayoutRoute>} />
+            <Route path="/ecom/clients" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ClientsList /></LayoutRoute>} />
+            <Route path="/ecom/clients/new" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ClientForm /></LayoutRoute>} />
+            <Route path="/ecom/clients/:id/edit" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ClientForm /></LayoutRoute>} />
 
             {/* Routes rapports */}
-            <Route path="/ecom/reports" element={<LayoutRoute><ReportsList /></LayoutRoute>} />
-            <Route path="/ecom/reports/new" element={<LayoutRoute><ReportForm /></LayoutRoute>} />
-            <Route path="/ecom/reports/insights" element={<LayoutRoute><ReportsInsightsPage /></LayoutRoute>} />
-            <Route path="/ecom/reports/product/:productId" element={<LayoutRoute><ProductReportDetail /></LayoutRoute>} />
-            <Route path="/ecom/reports/:id" element={<LayoutRoute><ReportDetail /></LayoutRoute>} />
-            <Route path="/ecom/reports/:id/edit" element={<LayoutRoute><ReportForm /></LayoutRoute>} />
+            <Route path="/ecom/reports" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ReportsList /></LayoutRoute>} />
+            <Route path="/ecom/reports/new" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ReportForm /></LayoutRoute>} />
+            <Route path="/ecom/reports/insights" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ReportsInsightsPage /></LayoutRoute>} />
+            <Route path="/ecom/reports/product/:productId" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ProductReportDetail /></LayoutRoute>} />
+            <Route path="/ecom/reports/:id" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ReportDetail /></LayoutRoute>} />
+            <Route path="/ecom/reports/:id/edit" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><ReportForm /></LayoutRoute>} />
 
             {/* Routes sourcing */}
-            <Route path="/ecom/sourcing" element={<LayoutRoute><SourcingList /></LayoutRoute>} />
-            <Route path="/ecom/sourcing/stats" element={<LayoutRoute><SourcingStats /></LayoutRoute>} />
-            <Route path="/ecom/sourcing/:id" element={<LayoutRoute><SupplierDetail /></LayoutRoute>} />
+            <Route path="/ecom/sourcing" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_compta']}><SourcingList /></LayoutRoute>} />
+            <Route path="/ecom/sourcing/stats" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_compta']}><SourcingStats /></LayoutRoute>} />
+            <Route path="/ecom/sourcing/:id" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_compta']}><SupplierDetail /></LayoutRoute>} />
 
             {/* Routes stock */}
             <Route path="/ecom/stock" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><StockOrdersList /></LayoutRoute>} />
+            <Route path="/ecom/stock/orders" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><StockOrdersList /></LayoutRoute>} />
+            <Route path="/ecom/stock/orders/new" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><StockOrdersList /></LayoutRoute>} />
+            <Route path="/ecom/stock/orders/:id" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><StockOrdersList /></LayoutRoute>} />
             <Route path="/ecom/stock-locations" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><StockManagement /></LayoutRoute>} />
 
             {/* Routes transactions */}
-            <Route path="/ecom/transactions" element={<LayoutRoute><TransactionsList /></LayoutRoute>} />
-            <Route path="/ecom/transactions/new" element={<LayoutRoute><TransactionForm /></LayoutRoute>} />
-            <Route path="/ecom/transactions/:id" element={<LayoutRoute><TransactionDetail /></LayoutRoute>} />
+            <Route path="/ecom/transactions" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_compta']}><TransactionsList /></LayoutRoute>} />
+            <Route path="/ecom/transactions/new" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_compta']}><TransactionForm /></LayoutRoute>} />
+            <Route path="/ecom/transactions/:id" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_compta']}><TransactionDetail /></LayoutRoute>} />
 
             {/* Routes campagnes */}
             <Route path="/ecom/campaigns" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><CampaignsList /></LayoutRoute>} />
@@ -349,13 +374,17 @@ const EcomApp = () => {
             <Route path="/ecom/stats" element={<LayoutRoute requiredRole="ecom_admin"><StatsPage /></LayoutRoute>} />
 
             {/* Routes WhatsApp */}
-            <Route path="/ecom/whatsapp-postulation" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppPostulation /></LayoutRoute>} />
-            <Route path="/ecom/whatsapp/service" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppService /></LayoutRoute>} />
+            <Route path="/ecom/whatsapp-postulation" element={<LayoutRoute><WhatsAppPostulation /></LayoutRoute>} />
+            <Route path="/ecom/whatsapp/service" element={<LayoutRoute><WhatsAppService /></LayoutRoute>} />
             <Route path="/ecom/whatsapp/connexion" element={<Navigate to="/ecom/whatsapp/service" replace />} />
-            <Route path="/ecom/whatsapp/instances" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><WhatsAppInstancesList /></LayoutRoute>} />
+            <Route path="/ecom/whatsapp/instances" element={<LayoutRoute><WhatsAppInstancesList /></LayoutRoute>} />
 
             {/* Routes Intégrations */}
             <Route path="/ecom/integrations/shopify" element={<LayoutRoute requiredRole="ecom_admin"><ConnectShopify /></LayoutRoute>} />
+
+            {/* Routes Billing / Abonnement */}
+            <Route path="/ecom/billing" element={<LayoutRoute requiredRole="ecom_admin"><BillingPage /></LayoutRoute>} />
+            <Route path="/ecom/billing/success" element={<BillingSuccess />} />
 
             {/* Routes affectations */}
             <Route path="/ecom/assignments" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><AssignmentsManager /></LayoutRoute>} />
@@ -393,6 +422,7 @@ const EcomApp = () => {
             <Route path="/ecom/super-admin/whatsapp-logs" element={<LayoutRoute requiredRole="super_admin"><SuperAdminWhatsAppLogs /></LayoutRoute>} />
             <Route path="/ecom/super-admin/push" element={<LayoutRoute requiredRole="super_admin"><SuperAdminPushCenter /></LayoutRoute>} />
             <Route path="/ecom/super-admin/support" element={<LayoutRoute requiredRole="super_admin"><SuperAdminSupport /></LayoutRoute>} />
+            <Route path="/ecom/super-admin/billing" element={<LayoutRoute requiredRole="super_admin"><SuperAdminBilling /></LayoutRoute>} />
 
             {/* Routes boutique - Utilise sa propre sidebar via BoutiqueLayout */}
             <Route path="/ecom/boutique/wizard" element={<ProtectedRoute requiredRole="ecom_admin"><StoreCreationWizard /></ProtectedRoute>} />
@@ -409,6 +439,13 @@ const EcomApp = () => {
               <Route path="/ecom/boutique/settings" element={<BoutiqueSettings />} />
             </Route>
 
+            {/* Routes Developer & Rita - Accessibles à tous */}
+            <Route path="/ecom/developer" element={<LayoutRoute><DeveloperSection /></LayoutRoute>} />
+            <Route path="/ecom/agent-ia" element={<LayoutRoute><AgentIAList /></LayoutRoute>} />
+            <Route path="/ecom/agent-onboarding" element={<LayoutRoute><AgentOnboarding /></LayoutRoute>} />
+            <Route path="/ecom/rita-flows" element={<LayoutRoute><RitaFlows /></LayoutRoute>} />
+            <Route path="/ecom/whatsapp/agent-config" element={<LayoutRoute><AgentConfig /></LayoutRoute>} />
+
             {/* Routes Livreur */}
             <Route path="/ecom/livreur" element={<LayoutRoute requiredRole="ecom_livreur"><LivreurDashboard /></LayoutRoute>} />
             <Route path="/ecom/livreur/available" element={<LayoutRoute requiredRole="ecom_livreur"><LivreurAvailable /></LayoutRoute>} />
@@ -418,6 +455,11 @@ const EcomApp = () => {
             <Route path="/ecom/livreur/earnings" element={<LayoutRoute requiredRole="ecom_livreur"><LivreurEarningsPage /></LayoutRoute>} />
             <Route path="/ecom/livreur/revenus" element={<LayoutRoute requiredRole="ecom_livreur"><LivreurEarningsPage /></LayoutRoute>} />
             <Route path="/ecom/livreur-management" element={<LayoutRoute requiredRole={['ecom_admin', 'ecom_closeuse']}><LivreurManagement /></LayoutRoute>} />
+
+            {/* Scalor standalone routes → redirigées vers la section Développeur intégrée */}
+            <Route path="/scalor/login" element={<Navigate to="/ecom/developer" replace />} />
+            <Route path="/scalor/register" element={<Navigate to="/ecom/developer" replace />} />
+            <Route path="/scalor/dashboard" element={<Navigate to="/ecom/developer" replace />} />
 
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/ecom/login" replace />} />
