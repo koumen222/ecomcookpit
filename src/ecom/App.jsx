@@ -129,6 +129,7 @@ import BoutiquePayments from './pages/BoutiquePayments.jsx';
 import BoutiqueDomains from './pages/BoutiqueDomains.jsx';
 import BoutiqueSettings from './pages/BoutiqueSettings.jsx';
 import BoutiqueDeliveryZones from './pages/BoutiqueDeliveryZones.jsx';
+import StoreCreationWizard from './pages/StoreCreationWizard.jsx';
 
 // ═══════════════════════════════════════════════════════════════
 // PROTECTION DES ROUTES
@@ -425,6 +426,7 @@ const EcomApp = () => {
             <Route path="/ecom/super-admin/billing" element={<LayoutRoute requiredRole="super_admin"><SuperAdminBilling /></LayoutRoute>} />
 
             {/* Routes boutique - Utilise sa propre sidebar via BoutiqueLayout */}
+            <Route path="/ecom/boutique/wizard" element={<ProtectedRoute requiredRole="ecom_admin"><StoreCreationWizard /></ProtectedRoute>} />
             <Route element={<ProtectedRoute requiredRole="ecom_admin"><BoutiqueLayout /></ProtectedRoute>}>
               <Route path="/ecom/boutique" element={<BoutiqueDashboard />} />
               <Route path="/ecom/boutique/products" element={<StoreProductsList />} />

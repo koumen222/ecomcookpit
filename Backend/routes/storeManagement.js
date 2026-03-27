@@ -44,7 +44,15 @@ router.get('/config', requireEcomAuth, requireWorkspace, async (req, res) => {
           storePhone: '',
           storeWhatsApp: '',
           storeThemeColor: '#0F6B4F',
-          storeCurrency: 'XAF'
+          storeCurrency: 'XAF',
+          // Nouveaux champs
+          productType: '',
+          audience: { gender: [], ageRange: [], region: [], origin: [] },
+          tone: '',
+          city: '',
+          country: '',
+          secondaryColor: '',
+          productDescription: ''
         },
         storeUrl: workspace.subdomain ? `https://${workspace.subdomain}.scalor.net` : null
       }
@@ -64,7 +72,10 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
     const {
       storeName, storeDescription, storeLogo, storeBanner,
       storePhone, storeWhatsApp, storeThemeColor, storeCurrency,
-      isStoreEnabled
+      isStoreEnabled,
+      // Nouveaux champs pour génération IA
+      productType, audience, tone, city, country,
+      secondaryColor, productDescription
     } = req.body;
 
     const update = {};
@@ -78,6 +89,14 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
     if (storeThemeColor !== undefined) update['storeSettings.storeThemeColor'] = storeThemeColor;
     if (storeCurrency !== undefined) update['storeSettings.storeCurrency'] = storeCurrency;
     if (isStoreEnabled !== undefined) update['storeSettings.isStoreEnabled'] = isStoreEnabled;
+    // Nouveaux champs
+    if (productType !== undefined) update['storeSettings.productType'] = productType;
+    if (audience !== undefined) update['storeSettings.audience'] = audience;
+    if (tone !== undefined) update['storeSettings.tone'] = tone;
+    if (city !== undefined) update['storeSettings.city'] = city;
+    if (country !== undefined) update['storeSettings.country'] = country;
+    if (secondaryColor !== undefined) update['storeSettings.secondaryColor'] = secondaryColor;
+    if (productDescription !== undefined) update['storeSettings.productDescription'] = productDescription;
 
     const workspace = await EcomWorkspace.findByIdAndUpdate(
       req.workspaceId,

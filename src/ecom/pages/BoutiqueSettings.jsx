@@ -3,9 +3,10 @@
  * Radical & minimal : nom, logo, 4 couleurs, 1 police, description. C'est tout.
  */
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import api from '../../lib/api';
-import { ExternalLink, Check, Upload, Palette, Type, Store, Megaphone } from 'lucide-react';
+import { ExternalLink, Check, Upload, Palette, Type, Store, Megaphone, Sparkles } from 'lucide-react';
 
 const FONTS = [
   { id: 'inter',      name: 'Inter',      sample: 'Modern & Clean' },
@@ -138,6 +139,7 @@ const ColorPicker = ({ label, value, onChange }) => (
 
 // ── Main component ────────────────────────────────────────────────────────────
 const BoutiqueSettings = () => {
+  const navigate = useNavigate();
   const { workspace } = useEcomAuth();
 
   const [form, setForm] = useState({
@@ -242,6 +244,24 @@ const BoutiqueSettings = () => {
             className={`px-5 py-2.5 rounded-xl text-sm font-bold text-white shadow-md transition disabled:opacity-60 flex items-center gap-2 ${saved ? 'bg-green-500' : 'bg-[#0F6B4F] hover:bg-[#0A5740]'}`}
           >
             {saved ? (<><Check size={15} /> Sauvegardé</>) : saving ? 'Enregistrement…' : 'Sauvegarder'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Quick action: Edit with Wizard ─────────────────────────────── */}
+      <div className="bg-gradient-to-r from-[#0F6B4F] to-[#0A5740] rounded-2xl p-6 text-white shadow-lg">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h3 className="text-lg font-bold flex items-center gap-2 mb-1">
+              <Sparkles size={20} /> Modifier votre boutique
+            </h3>
+            <p className="text-sm text-white/80">Utilisez notre assistant pour configurer votre boutique en détail : cible, ton, audience, localisation, etc.</p>
+          </div>
+          <button
+            onClick={() => navigate('/ecom/boutique/wizard')}
+            className="px-6 py-2.5 rounded-xl bg-white text-[#0F6B4F] font-bold text-sm hover:bg-gray-100 transition whitespace-nowrap flex-shrink-0"
+          >
+            Ouvrir l'assistant
           </button>
         </div>
       </div>
