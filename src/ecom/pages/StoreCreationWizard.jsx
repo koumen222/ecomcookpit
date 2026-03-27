@@ -306,6 +306,7 @@ const StoreCreationWizard = ({ onComplete }) => {
 
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [savingStep, setSavingStep] = useState('');
   const [loading, setLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
   const [errors, setErrors] = useState({});
@@ -505,10 +506,14 @@ const StoreCreationWizard = ({ onComplete }) => {
         whatsapp: form.storeWhatsApp,
       });
 
+      // Étape 1 : Sous-domaine
+      setSavingStep('Création de votre boutique...');
       if (!isEditMode || isResetMode) {
         await storeManageApi.setSubdomain(form.subdomain);
       }
 
+      // Étape 2 : Config boutique
+      setSavingStep('Enregistrement de vos informations...');
       await storeManageApi.updateStoreConfig({
         storeName: form.storeName,
         storeDescription: form.storeDescription,
@@ -525,20 +530,35 @@ const StoreCreationWizard = ({ onComplete }) => {
         productDescription: form.productDescription,
       });
 
-      if (!isEditMode || isResetMode) {
-        await storeManageApi.updatePages({ sections: [] });
-      }
-
+      // Étape 3 : Thème
       try {
         await storeManageApi.updateTheme({ ...emptyStore.theme, primaryColor: form.themeColor });
       } catch {}
 
+      // Étape 4 : Génération IA de la page d'accueil (nouveau)
+      if (!isEditMode || isResetMode) {
+        setSavingStep("L'IA construit votre page d'accueil...");
+        try {
+          const genRes = await storeManageApi.generateHomepage();
+          const sections = genRes.data?.sections;
+          if (Array.isArray(sections) && sections.length > 0) {
+            await storeManageApi.updatePages({ sections });
+          } else {
+            await storeManageApi.updatePages({ sections: [] });
+          }
+        } catch {
+          await storeManageApi.updatePages({ sections: [] });
+        }
+      }
+
+      setSavingStep('Votre boutique est prête !');
       onComplete?.();
-      navigate(isEditMode && !isResetMode ? '/ecom/boutique' : '/ecom/boutique/builder');
+      navigate(isEditMode && !isResetMode ? '/ecom/boutique' : '/ecom/boutique');
     } catch (err) {
       setErrors({ submit: err.response?.data?.message || 'Une erreur est survenue' });
     } finally {
       setSaving(false);
+      setSavingStep('');
     }
   };
 
@@ -1037,12 +1057,12 @@ const StoreCreationWizard = ({ onComplete }) => {
               {saving ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Génération...
+                  <span className="max-w-[200px] truncate">{savingStep || 'Génération...'}</span>
                 </>
               ) : (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  Créer ma boutique
+                  Créer ma boutique avec l'IA
                 </>
               )}
             </button>
