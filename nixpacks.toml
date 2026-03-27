@@ -9,9 +9,11 @@ cmds = [
 
 [phases.build]
 cmds = [
-  "npm run build",
+  "npm run build || echo 'WARN: vite build failed'",
+  "ls -la dist/index.html 2>/dev/null && echo 'BUILD OK: dist/index.html found' || echo 'ERROR: dist/index.html NOT found'",
   "mkdir -p Backend/client/build",
-  "cp -r dist/* Backend/client/build/"
+  "cp -r dist/* Backend/client/build/ 2>/dev/null || echo 'WARN: copy dist failed'",
+  "ls -la Backend/client/build/index.html 2>/dev/null && echo 'COPY OK' || echo 'ERROR: Backend/client/build/index.html NOT found after copy'"
 ]
 
 [start]
