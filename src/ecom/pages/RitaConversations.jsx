@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageCircle, Phone, MapPin, Package, RefreshCw, Wifi, WifiOff, User } from 'lucide-react';
+import { useParams } from 'react-router-dom';
+import { MessageCircle, Phone, MapPin, Package, RefreshCw, Wifi, WifiOff, User, Bot } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 import { useSocket } from '../hooks/useSocket.js';
 
@@ -21,16 +22,30 @@ function timeAgo(ts) {
 }
 
 export default function RitaConversations() {
+  const { agentId } = useParams();
   const [conversations, setConversations] = useState([]);
   const [selected, setSelected]           = useState(null);
   const [loading, setLoading]             = useState(true);
   const [lastRefresh, setLastRefresh]     = useState(null);
+  const [agentName, setAgentName]         = useState(null);
   const bottomRef = useRef(null);
   const { on, off, isConnected } = useSocket();
 
+  // Charger le nom de l'agent si agentId fourni
+  useEffect(() => {
+    if (!agentId) return;
+    ecomApi.get(`/agents/${agentId}`)
+      .then(res => {
+        const agent = res.data?.agent;
+        if (agent?.name) setAgentName(agent.name);
+      })
+      .catch(() => {});
+  }, [agentId]);
+
   const fetchConversations = useCallback(async () => {
     try {
-      const { data } = await ecomApi.get('/v1/external/whatsapp/rita-conversations');
+      const params = agentId ? { agentId } : {};
+      const { data } = await ecomApi.get('/v1/external/whatsapp/rita-conversations', { params });
       if (data.success) {
         setConversations(data.conversations || []);
         setLastRefresh(new Date());
@@ -40,7 +55,7 @@ export default function RitaConversations() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [agentId]);
 
   // Polling toutes les 5s
   useEffect(() => {
@@ -82,7 +97,12 @@ export default function RitaConversations() {
           <div className="flex items-center justify-between mb-1">
             <h1 className="font-semibold text-gray-900 flex items-center gap-2">
               <MessageCircle className="w-5 h-5 text-emerald-500" />
-              Conversations Rita
+              {agentName ? (
+                <span className="flex items-center gap-1.5">
+                  <Bot className="w-4 h-4 text-emerald-400" />
+                  {agentName}
+                </span>
+              ) : 'Conversations Rita'}
             </h1>
             <div className="flex items-center gap-2">
               {isConnected

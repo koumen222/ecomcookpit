@@ -3244,7 +3244,8 @@ router.get('/rita-conversations', requireEcomAuth, async (req, res) => {
   try {
     const resolvedUserId = await resolveRitaTargetUserId(req);
     if (!resolvedUserId) return res.status(400).json({ success: false, error: 'userId requis' });
-    const conversations = getLiveConversations(resolvedUserId);
+    const { agentId } = req.query;
+    const conversations = getLiveConversations(resolvedUserId, agentId || null);
     res.json({ success: true, conversations });
   } catch (error) {
     console.error('❌ Erreur rita-conversations:', error.message);

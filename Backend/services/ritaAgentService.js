@@ -2732,6 +2732,8 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
 
   // ── State management : créer/récupérer état + extraire entités du message ──
   const clientState = getOrCreateState(historyKey, from);
+  // Associer l'agentId à la conversation pour filtrage
+  if (agentId && !clientState._agentId) clientState._agentId = agentId;
   updateClientState(historyKey, text);
   const askedQs = askedQuestions.get(historyKey);
 
@@ -2916,7 +2918,7 @@ export function getLastAssistantMessage(userId, from) {
  * Retourne toutes les conversations Rita actives en mémoire pour un userId donné.
  * Utilisé pour la vue temps réel côté admin.
  */
-export function getLiveConversations(userId) {
+export function getLiveConversations(userId, agentId = null) {
   const result = [];
   for (const [key, messages] of conversationHistory.entries()) {
     const colonIdx = key.indexOf(':');
@@ -2924,12 +2926,15 @@ export function getLiveConversations(userId) {
     const from = key.substring(colonIdx + 1);
     if (uid !== userId) continue;
     const state = clientStates.get(key) || {};
+    // Filtrer par agentId si spécifié
+    if (agentId && state._agentId !== agentId) continue;
     const tracker = conversationTracker.get(key) || {};
     const lastActivity = conversationLastActivity.get(key) || null;
     const phone = from.replace(/@.*$/, '');
     result.push({
       key,
       phone,
+      agentId: state._agentId || null,
       state,
       tracker,
       lastActivity,

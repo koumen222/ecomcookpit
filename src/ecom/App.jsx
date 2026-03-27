@@ -444,6 +444,7 @@ const EcomApp = () => {
             <Route path="/ecom/agent-onboarding" element={<LayoutRoute><AgentOnboarding /></LayoutRoute>} />
             <Route path="/ecom/rita-flows" element={<LayoutRoute><RitaFlows /></LayoutRoute>} />
             <Route path="/ecom/whatsapp/agent-config" element={<LayoutRoute><AgentConfig /></LayoutRoute>} />
+            <Route path="/ecom/whatsapp/conversations/:agentId" element={<LayoutRoute><RitaConversations /></LayoutRoute>} />
             <Route path="/ecom/whatsapp/conversations" element={<LayoutRoute><RitaConversations /></LayoutRoute>} />
 
             {/* Routes Livreur */}
