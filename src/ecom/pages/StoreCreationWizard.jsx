@@ -552,8 +552,9 @@ const StoreCreationWizard = ({ onComplete }) => {
       }
 
       setSavingStep('Votre boutique est prête !');
-      onComplete?.();
-      navigate(isEditMode && !isResetMode ? '/ecom/boutique' : '/ecom/boutique');
+      navigate('/ecom/boutique');
+      // Call onComplete after navigate to avoid unmounting wizard mid-redirect
+      setTimeout(() => onComplete?.(), 100);
     } catch (err) {
       setErrors({ submit: err.response?.data?.message || 'Une erreur est survenue' });
     } finally {
