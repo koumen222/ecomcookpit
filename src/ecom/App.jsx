@@ -269,7 +269,7 @@ const StoreApp = () => {
     <ThemeProvider subdomain={subdomain}>
       <div className="min-h-screen">
         <Routes>
-          <Route path="/" element={<StoreFront />} />
+          <Route path="/" element={<PublicStorefront />} />
           <Route path="/product/:slug" element={<StoreProductPage />} />
           <Route path="/checkout" element={<StoreCheckout />} />
           <Route path="*" element={<Navigate to="/" replace />} />
