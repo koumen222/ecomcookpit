@@ -217,9 +217,9 @@ const PublicStorefront = () => {
   const { subdomain: paramSubdomain } = useParams();
   const { subdomain: detectedSubdomain, isStoreDomain } = useSubdomain();
   const subdomain = paramSubdomain || detectedSubdomain;
-  const prefix = isStoreDomain
-    ? ''
-    : (subdomain ? `https://${subdomain}.scalor.net` : '');
+  // Si on est déjà sur le subdomain (isStoreDomain = true), utilise des liens relatifs
+  // Sinon (on est sur /store/:subdomain), utilise le préfixe /store/:subdomain
+  const prefix = isStoreDomain ? '' : (subdomain ? `/store/${subdomain}` : '');
 
   const { store, products, loading, error } = useStoreData(subdomain);
   const { cartCount } = useStoreCart(subdomain);
