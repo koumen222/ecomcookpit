@@ -179,7 +179,7 @@ export default function AgentConfig() {
   const navigate = useNavigate();
   const location = useLocation();
   const agent = location.state?.agent || null;
-  const agentId = agent?.id || null;
+  const agentId = agent?._id || agent?.id || null;
 
   const [activeTab, setActiveTab] = useState('identity');
   const [loading, setLoading] = useState(true);
