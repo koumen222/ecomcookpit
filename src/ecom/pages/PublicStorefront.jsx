@@ -493,7 +493,7 @@ const ProductCard = ({ product, prefix, store }) => {
 
 // ── Footer ────────────────────────────────────────────────────────────────────
 const StorefrontFooter = ({ store, prefix }) => (
-  <footer style={{ backgroundColor: '#0F172A', color: '#94A3B8', fontFamily: 'var(--s-font)', marginTop: 0 }}>
+  <footer style={{ backgroundColor: 'var(--s-primary)', color: 'rgba(255,255,255,0.7)', fontFamily: 'var(--s-font)', marginTop: 0 }}>
     {/* Main footer */}
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '64px 24px 48px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 48 }}>
       {/* Brand */}
@@ -502,14 +502,14 @@ const StorefrontFooter = ({ store, prefix }) => (
           {store?.logo ? (
             <img src={store.logo} alt={store?.name} style={{ height: 32, width: 'auto', objectFit: 'contain', filter: 'brightness(0) invert(1)', opacity: 0.9 }} />
           ) : (
-            <span style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: 'var(--s-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14 }}>
+            <span style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.2)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14 }}>
               {(store?.name || 'S')[0]}
             </span>
           )}
-          <span style={{ fontWeight: 700, fontSize: 16, color: '#F1F5F9' }}>{store?.name}</span>
+          <span style={{ fontWeight: 700, fontSize: 16, color: '#fff' }}>{store?.name}</span>
         </div>
         {store?.description && (
-          <p style={{ fontSize: 13, lineHeight: 1.65, margin: '0 0 20px', maxWidth: 260, color: '#64748B' }}>{store.description}</p>
+          <p style={{ fontSize: 13, lineHeight: 1.65, margin: '0 0 20px', maxWidth: 260, color: 'rgba(255,255,255,0.6)' }}>{store.description}</p>
         )}
         {store?.whatsapp && (
           <a href={`https://wa.me/${store.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
@@ -520,16 +520,16 @@ const StorefrontFooter = ({ store, prefix }) => (
       </div>
       {/* Navigation */}
       <div>
-        <p style={{ fontWeight: 700, fontSize: 13, color: '#F1F5F9', margin: '0 0 18px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Navigation</p>
+        <p style={{ fontWeight: 700, fontSize: 13, color: '#fff', margin: '0 0 18px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Navigation</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {[
             { label: 'Accueil', href: `${prefix}/` },
             { label: 'Tous nos produits', href: `${prefix}/products` },
             { label: 'Commander sur WhatsApp', href: store?.whatsapp ? `https://wa.me/${store.whatsapp.replace(/\D/g, '')}` : '#' },
           ].map(link => (
-            <a key={link.label} href={link.href} style={{ fontSize: 13.5, color: '#94A3B8', textDecoration: 'none', transition: 'color 0.15s' }}
-              onMouseEnter={e => e.currentTarget.style.color = '#F1F5F9'}
-              onMouseLeave={e => e.currentTarget.style.color = '#94A3B8'}>
+            <a key={link.label} href={link.href} style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.7)', textDecoration: 'none', transition: 'color 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}>
               {link.label}
             </a>
           ))}
@@ -537,16 +537,16 @@ const StorefrontFooter = ({ store, prefix }) => (
       </div>
       {/* Contact */}
       <div>
-        <p style={{ fontWeight: 700, fontSize: 13, color: '#F1F5F9', margin: '0 0 18px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Contact</p>
+        <p style={{ fontWeight: 700, fontSize: 13, color: '#fff', margin: '0 0 18px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Contact</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {store?.whatsapp && (
             <a href={`https://wa.me/${store.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
-              style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: '#94A3B8', textDecoration: 'none' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: 'rgba(255,255,255,0.7)', textDecoration: 'none' }}>
               <MessageCircle size={14} style={{ flexShrink: 0 }} /> {store.whatsapp}
             </a>
           )}
           {store?.city && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: '#64748B' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: 'rgba(255,255,255,0.6)' }}>
               <MapPin size={14} style={{ flexShrink: 0 }} /> {store.city}{store.country ? `, ${store.country}` : ''}
             </span>
           )}
@@ -554,9 +554,9 @@ const StorefrontFooter = ({ store, prefix }) => (
       </div>
     </div>
     {/* Bottom bar */}
-    <div style={{ borderTop: '1px solid #1E293B', padding: '20px 24px' }}>
+    <div style={{ borderTop: '1px solid rgba(255,255,255,0.15)', padding: '20px 24px' }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-        <p style={{ margin: 0, fontSize: 12, color: '#475569' }}>
+        <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
           © {new Date().getFullYear()} {store?.name}. Tous droits réservés.
         </p>
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
@@ -564,15 +564,15 @@ const StorefrontFooter = ({ store, prefix }) => (
             { label: 'Politique de confidentialité', href: '#' },
             { label: "Conditions d'utilisation", href: '#' },
           ].map(link => (
-            <a key={link.label} href={link.href} style={{ fontSize: 12, color: '#475569', textDecoration: 'none', transition: 'color 0.15s' }}
-              onMouseEnter={e => e.currentTarget.style.color = '#94A3B8'}
-              onMouseLeave={e => e.currentTarget.style.color = '#475569'}>
+            <a key={link.label} href={link.href} style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', textDecoration: 'none', transition: 'color 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}>
               {link.label}
             </a>
           ))}
-          <span style={{ fontSize: 12, color: '#334155' }}>
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
             Propulsé par{' '}
-            <a href="https://scalor.net" target="_blank" rel="noreferrer" style={{ color: 'var(--s-primary)', fontWeight: 600, textDecoration: 'none' }}>Scalor</a>
+            <a href="https://scalor.net" target="_blank" rel="noreferrer" style={{ color: '#fff', fontWeight: 600, textDecoration: 'none' }}>Scalor</a>
           </span>
         </div>
       </div>
