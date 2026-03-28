@@ -112,6 +112,7 @@ router.get('/:subdomain/products', readLimiter, resolveStoreBySubdomain, async (
       StoreProduct.countForFilter(filter)
     ]);
 
+    const storeCur = req.store.storeSettings?.storeCurrency || req.store.storeSettings?.currency || 'XAF';
     // Return lightweight response — only fields needed by storefront
     const lightProducts = products.map(p => ({
       _id: p._id,
@@ -119,7 +120,7 @@ router.get('/:subdomain/products', readLimiter, resolveStoreBySubdomain, async (
       slug: p.slug,
       price: p.price,
       compareAtPrice: p.compareAtPrice,
-      currency: p.currency,
+      currency: storeCur,
       stock: p.stock,
       image: p.images?.[0]?.url || '',
       category: p.category
@@ -171,7 +172,7 @@ router.get('/:subdomain/products/:slug', readLimiter, resolveStoreBySubdomain, a
         description: product.description,
         price: product.price,
         compareAtPrice: product.compareAtPrice,
-        currency: product.currency,
+        currency: req.store.storeSettings?.storeCurrency || req.store.storeSettings?.currency || product.currency || 'XAF',
         stock: product.stock,
         images: product.images || [],
         category: product.category,
