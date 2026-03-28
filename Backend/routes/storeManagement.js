@@ -25,16 +25,24 @@ const PRODUCT_TYPE_LABELS = {
   autre: 'Produits divers',
 };
 
-// ─── Images hero par niche — contexte africain (Unsplash CDN) ─────────────────
+// ─── Images hero — personnes africaines (Unsplash CDN) ────────────────────────
 const NICHE_HERO_IMAGES = {
-  beaute:  'https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=1920&q=80&auto=format',
-  fitness: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=1920&q=80&auto=format',
-  mode:    'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1920&q=80&auto=format',
-  tech:    'https://images.unsplash.com/photo-1563986768711-b3bde3dc821e?w=1920&q=80&auto=format',
+  // Femme africaine beauty / skincare naturelle
+  beaute:  'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=1920&q=80&auto=format',
+  // Femme africaine sport / fitness
+  fitness: 'https://images.unsplash.com/photo-1594381898411-846e7d193883?w=1920&q=80&auto=format',
+  // Mode africaine colorée / wax
+  mode:    'https://images.unsplash.com/photo-1590736969955-71cc94901144?w=1920&q=80&auto=format',
+  // Jeune africain tech / laptop
+  tech:    'https://images.unsplash.com/photo-1531482615713-2afd69097998?w=1920&q=80&auto=format',
+  // Intérieur africain chaleureux
   maison:  'https://images.unsplash.com/photo-1540518614846-7eded433c457?w=1920&q=80&auto=format',
-  sante:   'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1920&q=80&auto=format',
+  // Femme africaine bien-être / nature
+  sante:   'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=1920&q=80&auto=format',
+  // Enfants africains joyeux
   enfants: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?w=1920&q=80&auto=format',
-  autre:   'https://images.unsplash.com/photo-1521791136064-7986c2920216?w=1920&q=80&auto=format',
+  // Marché / commerce africain
+  autre:   'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=1920&q=80&auto=format',
 };
 
 function injectHeroImage(sections, productType) {
