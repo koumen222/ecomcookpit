@@ -1,9 +1,10 @@
 /**
- * useStoreData — Loads public store config + products, injects CSS variables.
+ * useStoreData — Store data with stale-while-revalidate cache.
  *
- * Single source of truth for the public storefront.
- * Fetches store info + first page of products in parallel.
- * Injects --s-* CSS variables on <html> for instant theming.
+ * Performance strategy:
+ * - Single API call: /api/store/:subdomain returns store + sections + products in one response
+ * - sessionStorage cache (5min TTL): instant render on navigation within session
+ * - CSS vars injected immediately from cache → no FOUC on subsequent visits
  */
 import { useState, useEffect } from 'react';
 import { publicStoreApi } from '../services/storeApi';
@@ -36,56 +37,69 @@ function loadGoogleFont(fontId) {
 }
 
 export function injectStoreCssVars(store) {
+  if (!store) return;
   const r = document.documentElement.style;
-  const primary = store.primaryColor || '#0F6B4F';
-  const accent = store.accentColor || '#059669';
-  const bg = store.backgroundColor || '#FFFFFF';
-  const text = store.textColor || '#111827';
-  const fontFamily = FONT_FAMILIES[store.font] || FONT_FAMILIES.inter;
-
-  r.setProperty('--s-primary', primary);
-  r.setProperty('--s-accent', accent);
-  r.setProperty('--s-bg', bg);
-  r.setProperty('--s-text', text);
+  r.setProperty('--s-primary', store.primaryColor || '#0F6B4F');
+  r.setProperty('--s-accent', store.accentColor || '#059669');
+  r.setProperty('--s-bg', store.backgroundColor || '#FFFFFF');
+  r.setProperty('--s-text', store.textColor || '#111827');
   r.setProperty('--s-text2', '#6B7280');
-  r.setProperty('--s-font', fontFamily);
+  r.setProperty('--s-font', FONT_FAMILIES[store.font] || FONT_FAMILIES.inter);
   r.setProperty('--s-border', '#E5E7EB');
-
+  document.documentElement.style.backgroundColor = store.backgroundColor || '#FFFFFF';
   loadGoogleFont(store.font || 'inter');
-
-  // Dark header text or light depending on bg luminance
-  document.documentElement.style.backgroundColor = bg;
 }
 
+// ─── sessionStorage cache ─────────────────────────────────────────────────────
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function readCache(key) {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const { d, t } = JSON.parse(raw);
+    if (Date.now() - t > CACHE_TTL) { sessionStorage.removeItem(key); return null; }
+    return d;
+  } catch { return null; }
+}
+
+function writeCache(key, data) {
+  try { sessionStorage.setItem(key, JSON.stringify({ d: data, t: Date.now() })); } catch {}
+}
+
+// ─── useStoreData ─────────────────────────────────────────────────────────────
 export function useStoreData(subdomain) {
-  const [store, setStore] = useState(null);
-  const [sections, setSections] = useState(null);
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = subdomain ? `sf_${subdomain}` : null;
+  const cached = cacheKey ? readCache(cacheKey) : null;
+
+  // Initialise with cached data → instant render, no loading flash
+  const [store, setStore] = useState(cached?.store || null);
+  const [sections, setSections] = useState(cached?.sections ?? null);
+  const [products, setProducts] = useState(cached?.products || []);
+  const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!subdomain) {
-      setLoading(false);
-      return;
-    }
+    if (!subdomain) { setLoading(false); return; }
+
+    // Inject CSS vars immediately from cache (no FOUC)
+    if (cached?.store) injectStoreCssVars(cached.store);
 
     let cancelled = false;
 
     async function load() {
       try {
-        const [storeRes, productsRes] = await Promise.all([
-          publicStoreApi.getStore(subdomain),
-          publicStoreApi.getProducts(subdomain, { limit: 50 }),
-        ]);
-
+        // Single request — returns store + sections + products + categories in one shot
+        const res = await publicStoreApi.getStore(subdomain);
         if (cancelled) return;
 
-        const responseData = storeRes.data?.data || {};
-        // Handle both API structures: { store: {...}, sections: [...] } or flat { name, ... }
-        const storeData = responseData.store || responseData;
-        const sectionsData = responseData.sections ?? null;
-        const productsData = productsRes.data?.data?.products || [];
+        const data = res.data?.data || {};
+        const storeData = data.store || data;
+        const sectionsData = data.sections ?? null;
+        // products come from the combined endpoint — no second getProducts call needed
+        const productsData = data.products || [];
+
+        if (cacheKey) writeCache(cacheKey, { store: storeData, sections: sectionsData, products: productsData });
 
         injectStoreCssVars(storeData);
         setStore(storeData);
@@ -93,7 +107,8 @@ export function useStoreData(subdomain) {
         setProducts(productsData);
       } catch (err) {
         if (cancelled) return;
-        setError(err?.response?.data?.message || 'Boutique introuvable');
+        // Only show error if there's nothing to show from cache
+        if (!cached) setError(err?.response?.data?.message || 'Boutique introuvable');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -106,58 +121,63 @@ export function useStoreData(subdomain) {
   return { store, sections, products, loading, error };
 }
 
+// ─── useStoreProduct ──────────────────────────────────────────────────────────
 export function useStoreProduct(subdomain, slug) {
+  const storeCacheKey = subdomain ? `sf_${subdomain}` : null;
+  const cachedStore = storeCacheKey ? readCache(storeCacheKey) : null;
+
+  const [store, setStore] = useState(cachedStore?.store || null);
   const [product, setProduct] = useState(null);
-  const [store, setStore] = useState(null);
   const [related, setRelated] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!subdomain || !slug) {
-      setLoading(false);
-      return;
-    }
+    if (!subdomain || !slug) { setLoading(false); return; }
+
+    // CSS vars from cached store → no FOUC on product page
+    if (cachedStore?.store) injectStoreCssVars(cachedStore.store);
 
     let cancelled = false;
 
     async function load() {
       try {
-        const [storeRes, productRes] = await Promise.all([
-          publicStoreApi.getStore(subdomain),
+        // If store already in session cache: skip getStore, only fetch the product (1 req instead of 2)
+        const [productRes, storeRes] = await Promise.all([
           publicStoreApi.getProduct(subdomain, slug),
+          cachedStore?.store ? null : publicStoreApi.getStore(subdomain),
         ]);
 
         if (cancelled) return;
 
-        const responseData = storeRes.data?.data || {};
-        const storeData = responseData.store || responseData; // Gérer les deux structures API
         const productData = productRes.data?.data || null;
 
-        console.log('[StoreProduct] Store data reçu:', storeData);
-        console.log('[StoreProduct] Couleurs:', {
-          primaryColor: storeData.primaryColor,
-          accentColor: storeData.accentColor,
-          backgroundColor: storeData.backgroundColor,
-          textColor: storeData.textColor
-        });
+        let storeData = cachedStore?.store;
+        if (storeRes) {
+          const data = storeRes.data?.data || {};
+          storeData = data.store || data;
+          // Cache store data for future navigations
+          if (storeCacheKey) writeCache(storeCacheKey, {
+            store: storeData,
+            sections: data.sections ?? null,
+            products: data.products || [],
+          });
+        }
 
         injectStoreCssVars(storeData);
         setStore(storeData);
         setProduct(productData);
 
-        // Load related products (same category, exclude current)
+        // Related products — non-blocking, doesn't delay paint
         if (productData?.category) {
-          try {
-            const relRes = await publicStoreApi.getProducts(subdomain, {
-              category: productData.category,
-              limit: 4,
-            });
-            if (!cancelled) {
-              const all = relRes.data?.data?.products || [];
-              setRelated(all.filter(p => p._id !== productData._id).slice(0, 4));
-            }
-          } catch (_) {}
+          publicStoreApi.getProducts(subdomain, { category: productData.category, limit: 4 })
+            .then(r => {
+              if (!cancelled) {
+                const all = r.data?.data?.products || [];
+                setRelated(all.filter(p => p._id !== productData._id).slice(0, 4));
+              }
+            })
+            .catch(() => {});
         }
       } catch (err) {
         if (cancelled) return;

@@ -490,24 +490,6 @@ const ProductCard = ({ product, prefix }) => {
   );
 };
 
-// ── Skeleton ──────────────────────────────────────────────────────────────────
-const Skeleton = ({ h = 16, w = '100%', r = 8, mb = 0 }) => (
-  <div style={{ height: h, width: w, borderRadius: r, marginBottom: mb, background: 'linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite' }} />
-);
-
-const ProductSkeleton = () => (
-  <div style={{ borderRadius: 16, overflow: 'hidden', border: '1px solid #f0f0f0' }}>
-    <div style={{ paddingBottom: '100%', position: 'relative', backgroundColor: '#f4f4f5' }}>
-      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite' }} />
-    </div>
-    <div style={{ padding: 16 }}>
-      <Skeleton h={10} w="50%" r={6} mb={8} />
-      <Skeleton h={14} r={6} mb={6} />
-      <Skeleton h={14} w="75%" r={6} mb={12} />
-      <Skeleton h={18} w="55%" r={6} />
-    </div>
-  </div>
-);
 
 // ── Footer ────────────────────────────────────────────────────────────────────
 const StorefrontFooter = ({ store, prefix }) => (
@@ -623,7 +605,7 @@ export const StoreAllProducts = () => {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--s-bg)', fontFamily: 'var(--s-font)', color: 'var(--s-text)' }}>
-      <style>{`@keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} } *{box-sizing:border-box}`}</style>
+      <style>{`*{box-sizing:border-box}`}</style>
       <AnnouncementBar store={store} />
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
 
@@ -656,7 +638,7 @@ export const StoreAllProducts = () => {
           )}
         </div>
 
-        {filtered.length === 0 && !loading ? (
+        {filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '80px 20px' }}>
             <ShoppingBag size={48} style={{ color: '#D1D5DB', marginBottom: 16 }} />
             <p style={{ fontSize: 16, color: 'var(--s-text2)' }}>Aucun produit trouvé.</p>
@@ -703,15 +685,12 @@ const PublicStorefront = () => {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--s-bg)', fontFamily: 'var(--s-font)', color: 'var(--s-text)' }}>
-      <style>{`
-        @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
-        *{box-sizing:border-box} body{margin:0;padding:0}
-      `}</style>
+      <style>{`*{box-sizing:border-box} body{margin:0;padding:0}`}</style>
 
       <AnnouncementBar store={store} />
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
 
-      {!loading && hasSections ? (
+      {hasSections ? (
         sections.filter(s => s.visible !== false).map(section => (
           <SectionRenderer key={section.id || section.type} section={section} store={store} products={products} prefix={prefix} />
         ))

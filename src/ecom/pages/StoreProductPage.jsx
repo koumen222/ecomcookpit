@@ -101,6 +101,9 @@ const ImageGallery = ({ images = [] }) => {
         <img
           src={images[active]?.url || images[active]}
           alt={images[active]?.alt || ''}
+          loading="eager"
+          fetchpriority="high"
+          decoding="async"
           style={{
             position: 'absolute', inset: 0, width: '100%', height: '100%',
             objectFit: 'cover', transition: 'opacity 0.2s',
@@ -423,14 +426,6 @@ const RelatedCard = ({ product, prefix }) => {
   );
 };
 
-// ── Skeleton ─────────────────────────────────────────────────────────────────
-const Sk = ({ h = 16, w = '100%', r = 8, mb = 0 }) => (
-  <div style={{
-    height: h, width: w, borderRadius: r, marginBottom: mb,
-    background: 'linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%)',
-    backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite',
-  }} />
-);
 
 // ── Footer ───────────────────────────────────────────────────────────────────
 const StorefrontFooter = ({ store }) => (
@@ -530,7 +525,6 @@ const StoreProductPage = () => {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--s-bg)', fontFamily: 'var(--s-font)', color: 'var(--s-text)' }}>
       <style>{`
-        @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
         *{box-sizing:border-box} body{margin:0;padding:0}
         @media(max-width:768px){ .product-grid{ grid-template-columns: 1fr !important; } }
         .ai-desc h3 { font-size:20px; font-weight:800; color:var(--s-text); margin:0 0 12px; line-height:1.3; }
