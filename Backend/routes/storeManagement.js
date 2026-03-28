@@ -407,7 +407,8 @@ router.post('/generate-homepage', requireEcomAuth, requireWorkspace, async (req,
       return res.status(404).json({ success: false, message: 'Workspace introuvable' });
     }
 
-    const s = workspace.storeSettings || {};
+    // Merge req.body over DB settings so wizard data always takes priority
+    const s = { ...(workspace.storeSettings || {}), ...req.body };
     const groq = getGroq();
 
     if (!groq) {
@@ -537,7 +538,8 @@ router.post('/regenerate-homepage', requireEcomAuth, requireWorkspace, async (re
       return res.status(404).json({ success: false, message: 'Workspace introuvable' });
     }
 
-    const s = workspace.storeSettings || {};
+    // Merge req.body over DB settings so caller data always takes priority
+    const s = { ...(workspace.storeSettings || {}), ...req.body };
     const groq = getGroq();
 
     if (!groq) {
