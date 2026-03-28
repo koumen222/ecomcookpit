@@ -357,7 +357,7 @@ const AiFaqSection = ({ cfg }) => {
 const AiContactSection = ({ cfg, store }) => {
   const whatsapp = cfg.whatsapp || store?.whatsapp || '';
   return (
-    <section style={{ padding: 'clamp(64px, 10vw, 100px) 24px', textAlign: 'center', position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, var(--s-primary) 0%, var(--s-accent, var(--s-primary)) 100%)' }}>
+    <section style={{ padding: 'clamp(64px, 10vw, 100px) 24px', textAlign: 'center', position: 'relative', overflow: 'hidden', backgroundColor: 'var(--s-primary)' }}>
       <div style={{ position: 'absolute', top: -40, right: -40, width: 200, height: 200, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.06)', pointerEvents: 'none' }} />
       <div style={{ maxWidth: 600, margin: '0 auto', position: 'relative', zIndex: 1 }}>
         <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 40px)', fontWeight: 900, color: '#fff', margin: '0 0 12px', letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>
@@ -464,7 +464,7 @@ const ProductCard = ({ product, prefix }) => {
       <div style={{ backgroundColor: 'var(--s-bg)', borderRadius: 16, overflow: 'hidden', border: '1px solid var(--s-border)', boxShadow: hovered ? '0 12px 36px rgba(0,0,0,0.1)' : '0 1px 4px rgba(0,0,0,0.05)', transform: hovered ? 'translateY(-3px)' : 'none', transition: 'box-shadow 0.25s, transform 0.25s' }}>
         <div style={{ position: 'relative', paddingBottom: '100%', backgroundColor: '#f4f4f5', overflow: 'hidden' }}>
           {product.image ? (
-            <img src={product.image} alt={product.name} loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transform: hovered ? 'scale(1.05)' : 'scale(1)', transition: 'transform 0.4s ease' }} />
+            <img src={product.image} alt={product.name} loading="eager" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transform: hovered ? 'scale(1.05)' : 'scale(1)', transition: 'transform 0.4s ease' }} />
           ) : (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <ShoppingBag size={40} style={{ color: '#d1d5db' }} />
@@ -656,11 +656,7 @@ export const StoreAllProducts = () => {
           )}
         </div>
 
-        {loading ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 20 }}>
-            {Array.from({ length: 8 }).map((_, i) => <ProductSkeleton key={i} />)}
-          </div>
-        ) : filtered.length === 0 ? (
+        {filtered.length === 0 && !loading ? (
           <div style={{ textAlign: 'center', padding: '80px 20px' }}>
             <ShoppingBag size={48} style={{ color: '#D1D5DB', marginBottom: 16 }} />
             <p style={{ fontSize: 16, color: 'var(--s-text2)' }}>Aucun produit trouvé.</p>
@@ -715,23 +711,14 @@ const PublicStorefront = () => {
       <AnnouncementBar store={store} />
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
 
-      {loading ? (
-        <div style={{ padding: 'clamp(56px, 10vw, 100px) 24px', textAlign: 'center' }}>
-          <div style={{ maxWidth: 640, margin: '0 auto' }}>
-            <Skeleton h={52} r={12} mb={16} />
-            <Skeleton h={20} w="80%" r={8} mb={8} />
-            <Skeleton h={20} w="60%" r={8} mb={36} />
-            <Skeleton h={48} w={200} r={28} />
-          </div>
-        </div>
-      ) : hasSections ? (
+      {!loading && hasSections ? (
         sections.filter(s => s.visible !== false).map(section => (
           <SectionRenderer key={section.id || section.type} section={section} store={store} products={products} prefix={prefix} />
         ))
       ) : (
         <>
           {/* Fallback hero */}
-          <section style={{ padding: 'clamp(56px, 10vw, 100px) 24px clamp(48px, 8vw, 80px)', textAlign: 'center', background: 'linear-gradient(135deg, var(--s-primary) 0%, var(--s-accent, var(--s-primary)) 100%)' }}>
+          <section style={{ padding: 'clamp(56px, 10vw, 100px) 24px clamp(48px, 8vw, 80px)', textAlign: 'center', backgroundColor: 'var(--s-primary)' }}>
             <div style={{ maxWidth: 640, margin: '0 auto' }}>
               <h1 style={{ fontSize: 'clamp(36px, 7vw, 60px)', fontWeight: 900, lineHeight: 1.08, color: '#fff', margin: '0 0 18px', letterSpacing: '-0.03em', fontFamily: 'var(--s-font)' }}>{store?.name}</h1>
               {store?.description && <p style={{ fontSize: 'clamp(15px, 2vw, 18px)', color: 'rgba(255,255,255,0.85)', lineHeight: 1.65, margin: '0 0 40px', fontFamily: 'var(--s-font)' }}>{store.description}</p>}

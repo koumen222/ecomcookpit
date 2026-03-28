@@ -397,7 +397,7 @@ const RelatedCard = ({ product, prefix }) => {
       }}>
         <div style={{ paddingBottom: '100%', position: 'relative', backgroundColor: '#f4f4f5', overflow: 'hidden' }}>
           {product.image ? (
-            <img src={product.image} alt={product.name} loading="lazy"
+            <img src={product.image} alt={product.name} loading="eager"
               style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
                 transform: hovered ? 'scale(1.04)' : 'scale(1)', transition: 'transform 0.3s' }} />
           ) : (
@@ -581,40 +581,12 @@ const StoreProductPage = () => {
         }}>
           {/* ── Left: Gallery ─────────────────────────────────────────────── */}
           <div style={{ position: 'sticky', top: 80 }}>
-            {loading ? (
-              <div>
-                <div style={{ paddingBottom: '100%', position: 'relative', borderRadius: 20, overflow: 'hidden' }}>
-                  <div style={{
-                    position: 'absolute', inset: 0,
-                    background: 'linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%)',
-                    backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite',
-                  }} />
-                </div>
-                <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                  {[0,1,2].map(i => <Sk key={i} h={68} w={68} r={12} />)}
-                </div>
-              </div>
-            ) : (
-              <ImageGallery images={images} />
-            )}
+            <ImageGallery images={images} />
           </div>
 
           {/* ── Right: Info ───────────────────────────────────────────────── */}
           <div style={{ paddingBottom: 48 }}>
-            {loading ? (
-              <div>
-                <Sk h={12} w="30%" r={6} mb={12} />
-                <Sk h={36} r={8} mb={8} />
-                <Sk h={36} w="70%" r={8} mb={24} />
-                <Sk h={28} w="40%" r={6} mb={8} />
-                <Sk h={20} w="25%" r={6} mb={32} />
-                <Sk h={54} r={12} mb={12} />
-                <Sk h={54} r={12} mb={24} />
-                <Sk h={16} r={6} mb={8} />
-                <Sk h={16} w="80%" r={6} mb={8} />
-                <Sk h={16} w="60%" r={6} />
-              </div>
-            ) : product ? (
+            {product ? (
               <>
                 {/* Category */}
                 {product.category && (
