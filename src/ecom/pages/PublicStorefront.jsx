@@ -351,7 +351,11 @@ const AiFaqSection = ({ cfg }) => {
 
 // ─── CONTACT CTA ──────────────────────────────────────────────────────────────
 const AiContactSection = ({ cfg, store }) => {
-  const whatsapp = cfg.whatsapp || store?.whatsapp || '';
+  const whatsapp = (cfg.whatsapp || store?.whatsapp || '').replace(/\D/g, '');
+  const storeName = store?.name || 'la boutique';
+  // Pre-filled WhatsApp message — user can add details after opening
+  const waMessage = encodeURIComponent(`Bonjour ${storeName} ! 👋 Je suis intéressé(e) par vos produits et j'aimerais passer une commande.`);
+  const waLink = whatsapp ? `https://wa.me/${whatsapp}?text=${waMessage}` : null;
   return (
     <section style={{ padding: 'clamp(64px, 10vw, 100px) 24px', textAlign: 'center', position: 'relative', overflow: 'hidden', backgroundColor: 'var(--s-primary)' }}>
       <div style={{ position: 'absolute', top: -40, right: -40, width: 200, height: 200, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.06)', pointerEvents: 'none' }} />
@@ -360,8 +364,8 @@ const AiContactSection = ({ cfg, store }) => {
           {cfg.title || 'Parlez-nous maintenant'}
         </h2>
         {cfg.subtitle && <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.85)', margin: '0 0 36px', lineHeight: 1.6, fontFamily: 'var(--s-font)' }}>{cfg.subtitle}</p>}
-        {whatsapp && (
-          <a href={`https://wa.me/${whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
+        {waLink && (
+          <a href={waLink} target="_blank" rel="noreferrer"
             onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 44px rgba(0,0,0,0.22)'; }}
             onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 6px 28px rgba(0,0,0,0.18)'; }}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 12, padding: '16px 36px', borderRadius: 50, backgroundColor: '#25D366', color: '#fff', textDecoration: 'none', fontWeight: 800, fontSize: 16, fontFamily: 'var(--s-font)', boxShadow: '0 6px 28px rgba(0,0,0,0.18)', transition: 'transform 0.15s, box-shadow 0.15s' }}>
