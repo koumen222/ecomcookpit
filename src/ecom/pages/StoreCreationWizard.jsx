@@ -539,7 +539,17 @@ const StoreCreationWizard = ({ onComplete }) => {
       if (!isEditMode || isResetMode) {
         setSavingStep("L'IA construit votre page d'accueil...");
         try {
-          const genRes = await storeManageApi.generateHomepage();
+          const genRes = await storeManageApi.generateHomepage({
+            storeName: form.storeName,
+            storeDescription: form.storeDescription,
+            productType: form.productType,
+            productDescription: form.productDescription,
+            tone: form.tone,
+            audience: form.audience,
+            city: form.city,
+            country: form.country,
+            storeWhatsApp: form.storeWhatsApp,
+          });
           const sections = genRes.data?.sections;
           if (Array.isArray(sections) && sections.length > 0) {
             await storeManageApi.updatePages({ sections });
