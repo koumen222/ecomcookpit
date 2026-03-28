@@ -156,6 +156,8 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
       })
     ]);
 
+    const storeCurrency = settings.storeCurrency || settings.currency || 'XAF';
+
     // Lightweight product mapping
     const lightProducts = products.map(p => ({
       _id: p._id,
@@ -163,7 +165,7 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
       slug: p.slug,
       price: p.price,
       compareAtPrice: p.compareAtPrice,
-      currency: p.currency,
+      currency: storeCurrency,
       stock: p.stock,
       image: p.images?.[0]?.url || '',
       category: p.category
@@ -279,13 +281,14 @@ router.get('/:subdomain/products', readLimiter, async (req, res) => {
       StoreProduct.countDocuments(filter)
     ]);
 
+    const storeCurrencyPag = workspace.storeSettings?.storeCurrency || workspace.storeSettings?.currency || 'XAF';
     const lightProducts = products.map(p => ({
       _id: p._id,
       name: p.name,
       slug: p.slug,
       price: p.price,
       compareAtPrice: p.compareAtPrice,
-      currency: p.currency,
+      currency: storeCurrencyPag,
       stock: p.stock,
       image: p.images?.[0]?.url || '',
       category: p.category
@@ -340,6 +343,8 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
     // Product pages cached 10 minutes — they change rarely
     setCacheHeaders(res, 600);
 
+    const productCurrency = workspace.storeSettings?.storeCurrency || workspace.storeSettings?.currency || product.currency || 'XAF';
+
     res.json({
       success: true,
       data: {
@@ -349,7 +354,7 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
         description: product.description,
         price: product.price,
         compareAtPrice: product.compareAtPrice,
-        currency: product.currency,
+        currency: productCurrency,
         stock: product.stock,
         images: product.images || [],
         category: product.category,
