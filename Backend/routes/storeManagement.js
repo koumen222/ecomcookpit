@@ -25,28 +25,56 @@ const PRODUCT_TYPE_LABELS = {
   autre: 'Produits divers',
 };
 
-// ─── Images hero — personnes africaines (Unsplash CDN) ────────────────────────
+// ─── Images hero — personnes africaines par pays (Unsplash CDN) ───────────────
+// Priorité : pays → niche → défaut
+const COUNTRY_HERO_IMAGES = {
+  // Cameroun — marché animé, femmes en tenue traditionnelle
+  cameroun:        'https://images.unsplash.com/photo-1589802829985-817e51171b92?w=1920&q=80&auto=format',
+  // Sénégal / Côte d'Ivoire — femme africaine élégante
+  senegal:         'https://images.unsplash.com/photo-1531123414780-f74242c2b052?w=1920&q=80&auto=format',
+  'cote d\'ivoire':'https://images.unsplash.com/photo-1531123414780-f74242c2b052?w=1920&q=80&auto=format',
+  // Nigeria / Ghana — femme business africaine
+  nigeria:         'https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=1920&q=80&auto=format',
+  ghana:           'https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=1920&q=80&auto=format',
+  // RDC / Congo — marché coloré central africain
+  'rdc':           'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=1920&q=80&auto=format',
+  congo:           'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=1920&q=80&auto=format',
+  // Bénin / Togo — couleurs vives africaines
+  benin:           'https://images.unsplash.com/photo-1590736969955-71cc94901144?w=1920&q=80&auto=format',
+  togo:            'https://images.unsplash.com/photo-1590736969955-71cc94901144?w=1920&q=80&auto=format',
+  // Mali / Burkina / Niger — Afrique de l'Ouest
+  mali:            'https://images.unsplash.com/photo-1531123414780-f74242c2b052?w=1920&q=80&auto=format',
+  burkina:         'https://images.unsplash.com/photo-1531123414780-f74242c2b052?w=1920&q=80&auto=format',
+  // Guinée / Sierra Leone / Liberia
+  guinee:          'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=1920&q=80&auto=format',
+};
+
 const NICHE_HERO_IMAGES = {
-  // Femme africaine beauty / skincare naturelle
   beaute:  'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=1920&q=80&auto=format',
-  // Femme africaine sport / fitness
   fitness: 'https://images.unsplash.com/photo-1594381898411-846e7d193883?w=1920&q=80&auto=format',
-  // Mode africaine colorée / wax
   mode:    'https://images.unsplash.com/photo-1590736969955-71cc94901144?w=1920&q=80&auto=format',
-  // Jeune africain tech / laptop
   tech:    'https://images.unsplash.com/photo-1531482615713-2afd69097998?w=1920&q=80&auto=format',
-  // Intérieur africain chaleureux
   maison:  'https://images.unsplash.com/photo-1540518614846-7eded433c457?w=1920&q=80&auto=format',
-  // Femme africaine bien-être / nature
   sante:   'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=1920&q=80&auto=format',
-  // Enfants africains joyeux
   enfants: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?w=1920&q=80&auto=format',
-  // Marché / commerce africain
   autre:   'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=1920&q=80&auto=format',
 };
 
-function injectHeroImage(sections, productType) {
-  const img = NICHE_HERO_IMAGES[productType] || NICHE_HERO_IMAGES.autre;
+function normalizeCountryKey(country) {
+  if (!country) return '';
+  return country.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove accents
+    .replace(/[^a-z\s']/g, '').trim();
+}
+
+function injectHeroImage(sections, productType, country) {
+  const countryKey = normalizeCountryKey(country);
+  // Try exact country match, then partial match (e.g. "Côte d'Ivoire" → "cote d'ivoire")
+  const img = COUNTRY_HERO_IMAGES[countryKey]
+    || Object.entries(COUNTRY_HERO_IMAGES).find(([k]) => countryKey.includes(k) || k.includes(countryKey))?.[1]
+    || NICHE_HERO_IMAGES[productType]
+    || NICHE_HERO_IMAGES.autre;
+
   return sections.map(sec => {
     if (sec.type === 'hero' && !sec.config?.backgroundImage) {
       return { ...sec, config: { ...sec.config, backgroundImage: img } };
@@ -169,7 +197,11 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
     if (storeBanner !== undefined) update['storeSettings.storeBanner'] = storeBanner;
     if (storePhone !== undefined) update['storeSettings.storePhone'] = storePhone;
     if (storeWhatsApp !== undefined) update['storeSettings.storeWhatsApp'] = storeWhatsApp;
-    if (storeThemeColor !== undefined) update['storeSettings.storeThemeColor'] = storeThemeColor;
+    if (storeThemeColor !== undefined) {
+      update['storeSettings.storeThemeColor'] = storeThemeColor;
+      // Sync primaryColor so it always takes priority over legacy storeThemeColor in the lookup chain
+      update['storeSettings.primaryColor'] = storeThemeColor;
+    }
     if (storeCurrency !== undefined) update['storeSettings.storeCurrency'] = storeCurrency;
     if (isStoreEnabled !== undefined) update['storeSettings.isStoreEnabled'] = isStoreEnabled;
     // Nouveaux champs
@@ -502,7 +534,7 @@ RÈGLES:
         id: sec.id || `${sec.type}-${i + 1}`,
         visible: true,
       }));
-      sections = injectHeroImage(sections, s.productType);
+      sections = injectHeroImage(sections, s.productType, s.country);
 
       console.log(`✅ AI homepage generated: ${sections.length} sections for workspace ${req.workspaceId}`);
     } catch (aiError) {
@@ -623,7 +655,7 @@ RÈGLES:
       sections = parsed.sections;
       if (!Array.isArray(sections) || sections.length === 0) throw new Error('Sections invalides');
       sections = sections.map((sec, i) => ({ ...sec, id: sec.id || `${sec.type}-${i + 1}`, visible: true }));
-      sections = injectHeroImage(sections, s.productType);
+      sections = injectHeroImage(sections, s.productType, s.country);
     } catch (aiError) {
       console.warn('⚠️ Groq regenerate failed, using fallback:', aiError.message);
       sections = buildFallbackSections(s);
