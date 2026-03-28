@@ -1,17 +1,18 @@
 /**
  * Store API Routes — Public store data endpoints
- * 
+ *
  * Mounted at: /api/store
  * Called by: React storefront SPA running on *.scalor.net
  * Via: https://api.scalor.net/api/store/:subdomain
- * 
+ *
  * Architecture:
  * - No authentication required (public endpoints)
  * - Workspace isolation via subdomain → workspaceId
  * - Cached workspace lookups (5min TTL in workspaceResolver)
  * - Lean queries for minimal memory footprint
- * - Proper MongoDB indexes on Workspace.subdomain + StoreProduct.workspaceId
- * 
+ * - Cache-Control headers so Cloudflare caches at the edge (s-maxage)
+ * - Rate limiting to protect Railway from abusive scrapers
+ *
  * Endpoints:
  *   GET /api/store/:subdomain          → Store config + featured products
  *   GET /api/store/:subdomain/products → Paginated products with filters
@@ -22,12 +23,33 @@
 
 import express from 'express';
 import mongoose from 'mongoose';
+import rateLimit from 'express-rate-limit';
 import Workspace from '../models/Workspace.js';
 import StoreProduct from '../models/StoreProduct.js';
 import StoreOrder from '../models/StoreOrder.js';
 import Order from '../models/Order.js';
 
 const router = express.Router();
+
+// ─── Rate limiting ────────────────────────────────────────────────────────────
+// GET routes: generous limit — Cloudflare caches most requests so real traffic is low
+const readLimiter = rateLimit({
+  windowMs: 60 * 1000,        // 1 minute window
+  max: 120,                   // 120 req/min per IP (2 req/s — enough for any human)
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Trop de requêtes, réessayez dans une minute.' },
+  skip: (req) => req.method !== 'GET',  // Only limit GET
+});
+
+// POST orders: strict limit to prevent order spam
+const orderLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,  // 10 minute window
+  max: 10,                    // 10 orders per 10min per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Trop de commandes, réessayez dans 10 minutes.' },
+});
 
 // ─── Simple in-memory cache for workspace lookups ─────────────────────────────
 const storeCache = new Map();
@@ -54,6 +76,15 @@ setInterval(() => {
     if (now > value.expires) storeCache.delete(key);
   }
 }, 10 * 60 * 1000);
+
+// ─── Cache-Control helper ─────────────────────────────────────────────────────
+// public: Cloudflare (and any CDN) may cache
+// s-maxage: CDN cache TTL (5 min)
+// stale-while-revalidate: serve stale while fetching fresh (10 min)
+// max-age=0: browser always revalidates (CDN handles caching, not the browser)
+function setCacheHeaders(res, ttl = 300) {
+  res.set('Cache-Control', `public, s-maxage=${ttl}, stale-while-revalidate=${ttl * 2}, max-age=0`);
+}
 
 // ─── Helper: resolve workspace from subdomain param ───────────────────────────
 async function resolveStore(subdomain) {
@@ -83,12 +114,12 @@ async function resolveStore(subdomain) {
 
 /**
  * GET /api/store/:subdomain
- * 
+ *
  * Returns store configuration + initial products in a single call.
  * This is the FIRST call the React SPA makes after loading.
  * Combines store info + products to minimize round-trips (critical for African markets).
  */
-router.get('/:subdomain', async (req, res) => {
+router.get('/:subdomain', readLimiter, async (req, res) => {
   try {
     const workspace = await resolveStore(req.params.subdomain);
 
@@ -141,6 +172,9 @@ router.get('/:subdomain', async (req, res) => {
     const theme = workspace.storeTheme || {};
     const pages = workspace.storePages;  // intentional: null if never set
     const pixels = workspace.storePixels || {};
+
+    // Cache at Cloudflare edge for 5 minutes
+    setCacheHeaders(res, 300);
 
     res.json({
       success: true,
@@ -197,18 +231,18 @@ router.get('/:subdomain', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ GET /api/store/:subdomain error:', error);
+    console.error('❌ GET /api/store/:subdomain error:', error.message);
     res.status(500).json({ success: false, message: 'Error loading store' });
   }
 });
 
 /**
  * GET /api/store/:subdomain/products
- * 
+ *
  * Paginated product listing with search/filter.
  * Query params: page, limit, category, search, sort
  */
-router.get('/:subdomain/products', async (req, res) => {
+router.get('/:subdomain/products', readLimiter, async (req, res) => {
   try {
     const workspace = await resolveStore(req.params.subdomain);
     if (!workspace) {
@@ -257,6 +291,9 @@ router.get('/:subdomain/products', async (req, res) => {
       category: p.category
     }));
 
+    // Cache at Cloudflare edge — search results cached for 2 minutes only
+    setCacheHeaders(res, search ? 120 : 300);
+
     res.json({
       success: true,
       data: {
@@ -271,17 +308,17 @@ router.get('/:subdomain/products', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ GET /api/store/:subdomain/products error:', error);
+    console.error('❌ GET /api/store/:subdomain/products error:', error.message);
     res.status(500).json({ success: false, message: 'Error loading products' });
   }
 });
 
 /**
  * GET /api/store/:subdomain/products/:slug
- * 
+ *
  * Full product detail by slug.
  */
-router.get('/:subdomain/products/:slug', async (req, res) => {
+router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
   try {
     const workspace = await resolveStore(req.params.subdomain);
     if (!workspace) {
@@ -300,6 +337,9 @@ router.get('/:subdomain/products/:slug', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
+    // Product pages cached 10 minutes — they change rarely
+    setCacheHeaders(res, 600);
+
     res.json({
       success: true,
       data: {
@@ -315,12 +355,13 @@ router.get('/:subdomain/products/:slug', async (req, res) => {
         category: product.category,
         tags: product.tags,
         seoTitle: product.seoTitle,
-        seoDescription: product.seoDescription
+        seoDescription: product.seoDescription,
+        features: product.features || []
       }
     });
 
   } catch (error) {
-    console.error('❌ GET /api/store/:subdomain/products/:slug error:', error);
+    console.error('❌ GET /api/store/:subdomain/products/:slug error:', error.message);
     res.status(500).json({ success: false, message: 'Error loading product' });
   }
 });
@@ -328,7 +369,7 @@ router.get('/:subdomain/products/:slug', async (req, res) => {
 /**
  * GET /api/store/:subdomain/categories
  */
-router.get('/:subdomain/categories', async (req, res) => {
+router.get('/:subdomain/categories', readLimiter, async (req, res) => {
   try {
     const workspace = await resolveStore(req.params.subdomain);
     if (!workspace) {
@@ -341,61 +382,47 @@ router.get('/:subdomain/categories', async (req, res) => {
       category: { $ne: '' }
     });
 
+    // Categories rarely change — cache 10 minutes
+    setCacheHeaders(res, 600);
     res.json({ success: true, data: categories.sort() });
 
   } catch (error) {
-    console.error('❌ GET /api/store/:subdomain/categories error:', error);
+    console.error('❌ GET /api/store/:subdomain/categories error:', error.message);
     res.status(500).json({ success: false, message: 'Error loading categories' });
   }
 });
 
 /**
  * POST /api/store/:subdomain/orders
- * 
+ *
  * Guest checkout — place a public order without authentication.
  * Validates stock, creates order, decrements stock atomically.
  */
-router.post('/:subdomain/orders', async (req, res) => {
+router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
   try {
-    console.log('🛒 [POST /api/store/:subdomain/orders] Début de la requête');
-    console.log('📝 Subdomain:', req.params.subdomain);
-    console.log('📦 Corps de la requête:', JSON.stringify(req.body, null, 2));
-    
     const workspace = await resolveStore(req.params.subdomain);
-    console.log('🏢 Workspace trouvé:', workspace ? 'OUI' : 'NON');
-    
     if (!workspace) {
-      console.log('❌ Store non trouvé pour subdomain:', req.params.subdomain);
       return res.status(404).json({ success: false, message: 'Store not found' });
     }
 
     const { customerName, phone, email, address, city, products, notes, channel } = req.body;
-    console.log('👤 Données client extraites:', { customerName, phone, email, address, city, products, notes, channel });
 
     if (!customerName || !phone || !products?.length) {
-      console.log('❌ Validation échouée - champs manquants:', { customerName: !!customerName, phone: !!phone, products: products?.length });
       return res.status(400).json({
         success: false,
         message: 'Nom, téléphone et au moins un produit requis'
       });
     }
 
-    console.log('🔍 Validation des produits...');
     // Validate products exist and are in stock
     const productIds = products.map(p => p.productId);
-    console.log('🆔 Product IDs à vérifier:', productIds);
-    
     const dbProducts = await StoreProduct.find({
       _id: { $in: productIds },
       workspaceId: workspace._id,
       isPublished: true
     }).lean();
-    
-    console.log('📋 Produits trouvés en DB:', dbProducts.length, 'attendus:', products.length);
-    console.log('📋 Détails produits DB:', dbProducts.map(p => ({ id: p._id, name: p.name, stock: p.stock })));
 
     if (dbProducts.length !== products.length) {
-      console.log('❌ Certains produits sont introuvables');
       return res.status(400).json({
         success: false,
         message: 'Un ou plusieurs produits sont introuvables'
@@ -406,12 +433,9 @@ router.post('/:subdomain/orders', async (req, res) => {
     let total = 0;
     const orderProducts = [];
 
-    console.log('💰 Calcul du total et validation du stock...');
     for (const item of products) {
-      console.log('🔄 Traitement produit:', item);
       const dbProduct = productMap.get(item.productId);
       if (!dbProduct) {
-        console.log('❌ Produit non trouvé dans le map:', item.productId);
         return res.status(400).json({
           success: false,
           message: `Produit ${item.productId} introuvable`
@@ -419,10 +443,7 @@ router.post('/:subdomain/orders', async (req, res) => {
       }
 
       const qty = Math.max(1, parseInt(item.quantity) || 1);
-      console.log('📊 Quantité demandée:', qty, 'Stock disponible:', dbProduct.stock);
-      
       if (dbProduct.stock < qty) {
-        console.log('❌ Stock insuffisant pour', dbProduct.name);
         return res.status(400).json({
           success: false,
           message: `Stock insuffisant pour "${dbProduct.name}" (${dbProduct.stock} disponible)`
@@ -438,12 +459,8 @@ router.post('/:subdomain/orders', async (req, res) => {
       });
 
       total += dbProduct.price * qty;
-      console.log('💵 Sous-total pour', dbProduct.name, ':', dbProduct.price * qty);
     }
 
-    console.log('💰 Total de la commande:', total);
-
-    console.log('📝 Création de la commande StoreOrder...');
     const order = new StoreOrder({
       workspaceId: workspace._id,
       customerName: customerName.trim(),
@@ -458,18 +475,11 @@ router.post('/:subdomain/orders', async (req, res) => {
       notes: notes?.trim() || ''
     });
 
-    console.log('💾 Sauvegarde de la commande StoreOrder...');
     await order.save();
-    console.log('✅ StoreOrder sauvegardée avec ID:', order._id);
 
-    // ── Sync to main system orders ──────────────────────────────────────────
-    // Creates a standard Order in the main system so the team sees it
-    // in the dashboard orders view with source='boutique'
+    // Sync to main system orders (non-blocking — don't fail the response if this errors)
     try {
-      console.log('🔄 Synchronisation vers le système principal...');
       const productSummary = orderProducts.map(p => `${p.name} x${p.quantity}`).join(', ');
-      console.log('📋 Résumé produits:', productSummary);
-      
       const mainOrder = new Order({
         workspaceId: workspace._id,
         clientName: order.customerName,
@@ -485,21 +495,13 @@ router.post('/:subdomain/orders', async (req, res) => {
         notes: [order.orderNumber, order.notes].filter(Boolean).join(' — '),
         date: new Date()
       });
-      
-      console.log('💾 Sauvegarde de la commande principale...');
       await mainOrder.save();
-      console.log('✅ Commande principale sauvegardée avec ID:', mainOrder._id);
-      
-      // Link back
       order.linkedOrderId = mainOrder._id;
       await order.save();
-      console.log('🔗 Liaison des commandes effectuée');
     } catch (syncErr) {
       console.error('⚠️ Could not sync store order to main orders:', syncErr.message);
-      console.error('⚠️ Stack trace:', syncErr.stack);
     }
 
-    console.log('📉 Décrémentation du stock...');
     // Decrement stock atomically
     const bulkOps = products.map(item => ({
       updateOne: {
@@ -507,12 +509,8 @@ router.post('/:subdomain/orders', async (req, res) => {
         update: { $inc: { stock: -(parseInt(item.quantity) || 1) } }
       }
     }));
-    
-    console.log('🔄 Opérations bulk de stock:', bulkOps);
     await StoreProduct.bulkWrite(bulkOps);
-    console.log('✅ Stock décrémenté avec succès');
 
-    console.log('📤 Envoi de la réponse succès...');
     res.status(201).json({
       success: true,
       message: 'Commande passée avec succès',
@@ -525,13 +523,7 @@ router.post('/:subdomain/orders', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ POST /api/store/:subdomain/orders error:', error);
-    console.error('❌ Stack trace complet:', error.stack);
-    console.error('❌ Détails de l\'erreur:', {
-      message: error.message,
-      name: error.name,
-      code: error.code
-    });
+    console.error('❌ POST /api/store/:subdomain/orders error:', error.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });

@@ -144,6 +144,8 @@ if (enableVerboseLogging) {
 
 // ─── Compression (disabled for SSE routes to prevent buffering) ──────────────
 app.use(compression({
+  level: 6,           // zlib level 6 — good balance of ratio vs CPU
+  threshold: 1024,    // Don't compress responses < 1KB
   filter: (req, res) => {
     // NEVER compress SSE — gzip buffering breaks streaming events
     const path = req.path || '';
