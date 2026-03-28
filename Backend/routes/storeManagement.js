@@ -25,16 +25,16 @@ const PRODUCT_TYPE_LABELS = {
   autre: 'Produits divers',
 };
 
-// ─── Images hero par niche (Unsplash CDN) ─────────────────────────────────────
+// ─── Images hero par niche — contexte africain (Unsplash CDN) ─────────────────
 const NICHE_HERO_IMAGES = {
-  beaute:  'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=1920&q=80&auto=format',
-  fitness: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=1920&q=80&auto=format',
-  mode:    'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1920&q=80&auto=format',
-  tech:    'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1920&q=80&auto=format',
-  maison:  'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=1920&q=80&auto=format',
-  sante:   'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=1920&q=80&auto=format',
-  enfants: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=1920&q=80&auto=format',
-  autre:   'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1920&q=80&auto=format',
+  beaute:  'https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=1920&q=80&auto=format',
+  fitness: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=1920&q=80&auto=format',
+  mode:    'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1920&q=80&auto=format',
+  tech:    'https://images.unsplash.com/photo-1563986768711-b3bde3dc821e?w=1920&q=80&auto=format',
+  maison:  'https://images.unsplash.com/photo-1540518614846-7eded433c457?w=1920&q=80&auto=format',
+  sante:   'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1920&q=80&auto=format',
+  enfants: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?w=1920&q=80&auto=format',
+  autre:   'https://images.unsplash.com/photo-1521791136064-7986c2920216?w=1920&q=80&auto=format',
 };
 
 function injectHeroImage(sections, productType) {
@@ -414,50 +414,57 @@ router.post('/generate-homepage', requireEcomAuth, requireWorkspace, async (req,
     const regions = (s.audience?.region || []).join(', ') || 'international';
     const origins = (s.audience?.origin || []).join(', ') || '';
 
-    const prompt = `Tu es un expert en copywriting e-commerce et marketing digital. Tu génères des pages d'accueil pour boutiques en ligne vendant des produits physiques.
+    const prompt = `Tu es un expert en copywriting pour le e-commerce africain. Tu crées des pages de vente pour des boutiques en ligne qui s'adressent à des consommateurs africains (Cameroun, Côte d'Ivoire, Sénégal, RDC, Bénin, Togo, etc.).
 
-INFORMATIONS DE LA BOUTIQUE:
+BOUTIQUE:
 - Nom: ${s.storeName || 'Notre Boutique'}
 - Catégorie: ${productTypeLabel}
 - Produit phare: ${s.productDescription || ''}
-- Description boutique: ${s.storeDescription || ''}
-- Ton/Style: ${toneLabel}
-- Audience: Genre: ${genders} | Âge: ${ages} | Zone: ${regions}${origins ? ` | Origine: ${origins}` : ''}
-- Localisation: ${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}
-- Contact WhatsApp: ${s.storeWhatsApp || ''}
+- Description: ${s.storeDescription || ''}
+- Ton: ${toneLabel}
+- Audience: ${genders} | ${ages} | ${regions}
+- Ville/Pays: ${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}
+- WhatsApp: ${s.storeWhatsApp || ''}
 
-Génère une page d'accueil complète et persuasive en JSON: {"sections": [...]}
+CONTEXTE AFRICAIN OBLIGATOIRE:
+- Le copywriting doit résonner avec la culture africaine locale : valeurs familiales, communauté, fierté locale, beauté naturelle africaine, excellence
+- Références réalistes : livraison à domicile, paiement à la livraison ou Mobile Money (MTN, Orange), commande WhatsApp
+- Prénoms et noms africains authentiques pour les témoignages (ex: Amina, Fatou, Kouassi, Brice, etc.)
+- Villes africaines réelles pour les témoignages selon la zone: ${regions}
+- Aucune référence western générique — tout doit être ancré dans le quotidien africain
+- Le titre hero doit être percutant, différenciant, avec un angle émotionnel fort lié à la niche
 
-Génère exactement ces 7 sections dans cet ordre:
+Génère la page en JSON: {"sections": [...]}
+
+Sections dans cet ordre:
 
 1. TYPE "hero"
-config: { title (H1 percutant 5-10 mots, adapté niche+ton), subtitle (promesse convaincante 1-2 phrases), ctaText (texte bouton CTA actif), ctaLink: "/products", alignment: "center", backgroundImage: "" }
+config: { title (accroche puissante 5-10 mots, émotionnelle, liée à la transformation qu'apporte le produit), subtitle (1-2 phrases de promesse concrète, bénéfice client réel), ctaText (appel à l'action actif et engageant), ctaLink: "/products", alignment: "center", backgroundImage: "" }
 
 2. TYPE "badges"
-config: { items: [ exactement 4 objets {icon: "emoji", title: "titre court 3-4 mots", desc: "1 phrase"} pour: livraison rapide, qualité garantie, support WhatsApp, retours faciles ] }
+config: { items: [ 4 badges de confiance {icon: "emoji", title: "3-4 mots", desc: "1 phrase rassurante"} : livraison rapide (délais locaux), qualité certifiée, support WhatsApp réactif, retours acceptés ] }
 
 3. TYPE "products"
-config: { title (titre section produits adapté niche), subtitle (accroche engageante), layout: "grid", columns: 3, showPrice: true, showAddToCart: true, limit: 6 }
+config: { title (angle niche), subtitle (accroche produits), layout: "grid", columns: 3, showPrice: true, showAddToCart: true, limit: 6 }
 
 4. TYPE "features"
-config: { title (titre "Pourquoi nous choisir" adapté au ton), subtitle (sous-titre), items: [ exactement 4 objets {icon: "emoji", title: "titre avantage", desc: "2 phrases d'explication"} — avantages spécifiques à la niche et à la valeur de la boutique ] }
+config: { title (pourquoi nous, ancré dans la réalité africaine), subtitle, items: [ 4 avantages {icon: "emoji", title, desc (2 phrases spécifiques à la boutique et au marché local)} ] }
 
 5. TYPE "testimonials"
-config: { title: "Ce que disent nos clients", items: [ 3 objets {name: "Prénom Nom africain réaliste", location: "ville réaliste zone ${regions}", content: "témoignage naturel et enthousiaste de 40-70 mots", rating: 5} ], showRating: true }
+config: { title: "Ils nous font confiance", items: [ 3 {name: "prénom+nom africain authentique", location: "ville réelle ${regions}", content: "témoignage vivant 50-80 mots, ton naturel africain, mentionne un bénéfice concret", rating: 5} ] }
 
 6. TYPE "faq"
-config: { title: "Questions fréquentes", items: [ 4 objets {question: "question réaliste", answer: "réponse rassurante 2-3 phrases"} — spécifiques à la niche, aux commandes, à la livraison en ${regions || 'Afrique'} ] }
+config: { title: "Vos questions, nos réponses", items: [ 4 {question: "vraie question client africain", answer: "réponse claire, rassurante, mentionne Mobile Money/livraison locale si pertinent"} ] }
 
 7. TYPE "contact"
-config: { title: "Contactez-nous", subtitle: "Réponse garantie en moins de 30 minutes !", whatsapp: "${s.storeWhatsApp || ''}", address: "${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}", showForm: false }
+config: { title: "Parlons-en sur WhatsApp", subtitle: "On vous répond en moins de 10 minutes !", whatsapp: "${s.storeWhatsApp || ''}", address: "${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}", showForm: false }
 
-RÈGLES STRICTES:
-- Tout en français, zéro anglais
+RÈGLES:
+- 100% français, zéro anglais
 - Ton: ${toneLabel.split('—')[0].trim()}
-- Copy persuasif adapté: ${genders}, ${ages}, zone ${regions}
 - IDs: "hero-1", "badges-1", "products-1", "features-1", "testimonials-1", "faq-1", "contact-1"
-- visible: true pour toutes
-- JSON pur, rien d'autre`;
+- visible: true
+- JSON pur uniquement, sans markdown`;
 
     let sections;
     try {
@@ -536,50 +543,57 @@ router.post('/regenerate-homepage', requireEcomAuth, requireWorkspace, async (re
     const regions = (s.audience?.region || []).join(', ') || 'international';
     const origins = (s.audience?.origin || []).join(', ') || '';
 
-    const prompt = `Tu es un expert en copywriting e-commerce et marketing digital. Tu génères des pages d'accueil pour boutiques en ligne vendant des produits physiques.
+    const prompt = `Tu es un expert en copywriting pour le e-commerce africain. Tu crées des pages de vente pour des boutiques en ligne qui s'adressent à des consommateurs africains (Cameroun, Côte d'Ivoire, Sénégal, RDC, Bénin, Togo, etc.).
 
-INFORMATIONS DE LA BOUTIQUE:
+BOUTIQUE:
 - Nom: ${s.storeName || 'Notre Boutique'}
 - Catégorie: ${productTypeLabel}
 - Produit phare: ${s.productDescription || ''}
-- Description boutique: ${s.storeDescription || ''}
-- Ton/Style: ${toneLabel}
-- Audience: Genre: ${genders} | Âge: ${ages} | Zone: ${regions}${origins ? ` | Origine: ${origins}` : ''}
-- Localisation: ${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}
-- Contact WhatsApp: ${s.storeWhatsApp || ''}
+- Description: ${s.storeDescription || ''}
+- Ton: ${toneLabel}
+- Audience: ${genders} | ${ages} | ${regions}
+- Ville/Pays: ${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}
+- WhatsApp: ${s.storeWhatsApp || ''}
 
-Génère une page d'accueil complète et persuasive en JSON: {"sections": [...]}
+CONTEXTE AFRICAIN OBLIGATOIRE:
+- Le copywriting doit résonner avec la culture africaine locale : valeurs familiales, communauté, fierté locale, beauté naturelle africaine, excellence
+- Références réalistes : livraison à domicile, paiement à la livraison ou Mobile Money (MTN, Orange), commande WhatsApp
+- Prénoms et noms africains authentiques pour les témoignages (ex: Amina, Fatou, Kouassi, Brice, etc.)
+- Villes africaines réelles pour les témoignages selon la zone: ${regions}
+- Aucune référence western générique — tout doit être ancré dans le quotidien africain
+- Le titre hero doit être percutant, différenciant, avec un angle émotionnel fort lié à la niche
 
-Génère exactement ces 7 sections dans cet ordre:
+Génère la page en JSON: {"sections": [...]}
+
+Sections dans cet ordre:
 
 1. TYPE "hero"
-config: { title (H1 percutant 5-10 mots, adapté niche+ton), subtitle (promesse convaincante 1-2 phrases), ctaText (texte bouton CTA actif), ctaLink: "/products", alignment: "center", backgroundImage: "" }
+config: { title (accroche puissante 5-10 mots, émotionnelle, liée à la transformation qu'apporte le produit), subtitle (1-2 phrases de promesse concrète, bénéfice client réel), ctaText (appel à l'action actif et engageant), ctaLink: "/products", alignment: "center", backgroundImage: "" }
 
 2. TYPE "badges"
-config: { items: [ exactement 4 objets {icon: "emoji", title: "titre court 3-4 mots", desc: "1 phrase"} pour: livraison rapide, qualité garantie, support WhatsApp, retours faciles ] }
+config: { items: [ 4 badges de confiance {icon: "emoji", title: "3-4 mots", desc: "1 phrase rassurante"} : livraison rapide (délais locaux), qualité certifiée, support WhatsApp réactif, retours acceptés ] }
 
 3. TYPE "products"
-config: { title (titre section produits adapté niche), subtitle (accroche engageante), layout: "grid", columns: 3, showPrice: true, showAddToCart: true, limit: 6 }
+config: { title (angle niche), subtitle (accroche produits), layout: "grid", columns: 3, showPrice: true, showAddToCart: true, limit: 6 }
 
 4. TYPE "features"
-config: { title (titre "Pourquoi nous choisir" adapté au ton), subtitle (sous-titre), items: [ exactement 4 objets {icon: "emoji", title: "titre avantage", desc: "2 phrases d'explication"} — avantages spécifiques à la niche et à la valeur de la boutique ] }
+config: { title (pourquoi nous, ancré dans la réalité africaine), subtitle, items: [ 4 avantages {icon: "emoji", title, desc (2 phrases spécifiques à la boutique et au marché local)} ] }
 
 5. TYPE "testimonials"
-config: { title: "Ce que disent nos clients", items: [ 3 objets {name: "Prénom Nom africain réaliste", location: "ville réaliste zone ${regions}", content: "témoignage naturel et enthousiaste de 40-70 mots", rating: 5} ], showRating: true }
+config: { title: "Ils nous font confiance", items: [ 3 {name: "prénom+nom africain authentique", location: "ville réelle ${regions}", content: "témoignage vivant 50-80 mots, ton naturel africain, mentionne un bénéfice concret", rating: 5} ] }
 
 6. TYPE "faq"
-config: { title: "Questions fréquentes", items: [ 4 objets {question: "question réaliste", answer: "réponse rassurante 2-3 phrases"} — spécifiques à la niche, aux commandes, à la livraison en ${regions || 'Afrique'} ] }
+config: { title: "Vos questions, nos réponses", items: [ 4 {question: "vraie question client africain", answer: "réponse claire, rassurante, mentionne Mobile Money/livraison locale si pertinent"} ] }
 
 7. TYPE "contact"
-config: { title: "Contactez-nous", subtitle: "Réponse garantie en moins de 30 minutes !", whatsapp: "${s.storeWhatsApp || ''}", address: "${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}", showForm: false }
+config: { title: "Parlons-en sur WhatsApp", subtitle: "On vous répond en moins de 10 minutes !", whatsapp: "${s.storeWhatsApp || ''}", address: "${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}", showForm: false }
 
-RÈGLES STRICTES:
-- Tout en français, zéro anglais
+RÈGLES:
+- 100% français, zéro anglais
 - Ton: ${toneLabel.split('—')[0].trim()}
-- Copy persuasif adapté: ${genders}, ${ages}, zone ${regions}
 - IDs: "hero-1", "badges-1", "products-1", "features-1", "testimonials-1", "faq-1", "contact-1"
-- visible: true pour toutes
-- JSON pur, rien d'autre`;
+- visible: true
+- JSON pur uniquement, sans markdown`;
 
     let sections;
     try {
