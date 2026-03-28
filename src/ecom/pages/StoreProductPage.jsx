@@ -388,7 +388,7 @@ const TrustBadges = () => (
 );
 
 // ── Related Products ─────────────────────────────────────────────────────────
-const RelatedCard = ({ product, prefix }) => {
+const RelatedCard = ({ product, prefix, store }) => {
   const [hovered, setHovered] = useState(false);
   return (
     <a href={`${prefix}/product/${product.slug}`} style={{ textDecoration: 'none' }}
@@ -418,7 +418,7 @@ const RelatedCard = ({ product, prefix }) => {
             {product.name}
           </p>
           <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--s-primary)', fontFamily: 'var(--s-font)' }}>
-            {fmt(product.price, product.currency)}
+            {fmt(product.price, product.currency || store?.currency || 'XAF')}
           </span>
         </div>
       </div>
@@ -610,12 +610,12 @@ const StoreProductPage = () => {
                 {/* Price */}
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
                   <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--s-primary)', fontFamily: 'var(--s-font)', letterSpacing: '-0.02em' }}>
-                    {fmt(product.price, product.currency)}
+                    {fmt(product.price, product.currency || store?.currency || 'XAF')}
                   </span>
                   {hasDiscount && (
                     <>
                       <span style={{ fontSize: 17, color: 'var(--s-text2)', textDecoration: 'line-through', fontFamily: 'var(--s-font)' }}>
-                        {fmt(product.compareAtPrice, product.currency)}
+                        {fmt(product.compareAtPrice, product.currency || store?.currency || 'XAF')}
                       </span>
                       <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 9px', borderRadius: 20, backgroundColor: '#FEE2E2', color: '#EF4444' }}>
                         -{pct}%
@@ -828,7 +828,7 @@ const StoreProductPage = () => {
             Vous aimerez aussi
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 16 }}>
-            {related.map(p => <RelatedCard key={p._id} product={p} prefix={prefix} />)}
+            {related.map(p => <RelatedCard key={p._id} product={p} prefix={prefix} store={store} />)}
           </div>
         </section>
       )}

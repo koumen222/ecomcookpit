@@ -220,7 +220,7 @@ const AiBadgesSection = ({ cfg }) => (
 );
 
 // ─── PRODUCTS (homepage: max 3 + see all) ─────────────────────────────────────
-const AiProductsSection = ({ cfg, products, prefix }) => {
+const AiProductsSection = ({ cfg, products, prefix, store }) => {
   const limit = cfg.homepageLimit || 3;
   const displayed = products.slice(0, limit);
   return (
@@ -238,7 +238,7 @@ const AiProductsSection = ({ cfg, products, prefix }) => {
               <ShoppingBag size={40} style={{ marginBottom: 12, opacity: 0.3 }} />
               <p style={{ margin: 0, fontSize: 15 }}>Aucun produit pour l'instant.</p>
             </div>
-          ) : displayed.map(p => <ProductCard key={p._id} product={p} prefix={prefix} />)}
+          ) : displayed.map(p => <ProductCard key={p._id} product={p} prefix={prefix} store={store} />)}
         </div>
         {products.length > limit && (
           <div style={{ textAlign: 'center', marginTop: 40 }}>
@@ -401,7 +401,7 @@ const SectionRenderer = ({ section, store, products, prefix }) => {
     case 'badges':       return <AiBadgesSection cfg={cfg} />;
     case 'features':     return <AiFeaturesSection cfg={cfg} />;
     case 'text':         return <AiTextSection cfg={cfg} />;
-    case 'products':     return <AiProductsSection cfg={cfg} products={products} prefix={prefix} />;
+    case 'products':     return <AiProductsSection cfg={cfg} products={products} prefix={prefix} store={store} />;
     case 'testimonials': return <AiTestimonialsSection cfg={cfg} />;
     case 'faq':          return <AiFaqSection cfg={cfg} />;
     case 'contact':      return <AiContactSection cfg={cfg} store={store} />;
@@ -454,7 +454,7 @@ const StorefrontHeader = ({ store, cartCount, prefix }) => (
 );
 
 // ── Product Card ──────────────────────────────────────────────────────────────
-const ProductCard = ({ product, prefix }) => {
+const ProductCard = ({ product, prefix, store }) => {
   const [hovered, setHovered] = useState(false);
   const hasDiscount = product.compareAtPrice && product.compareAtPrice > product.price;
   const pct = hasDiscount ? Math.round((1 - product.price / product.compareAtPrice) * 100) : 0;
@@ -481,8 +481,8 @@ const ProductCard = ({ product, prefix }) => {
           {product.category && <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--s-primary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{product.category}</span>}
           <p style={{ margin: '5px 0 10px', fontWeight: 600, fontSize: 14.5, color: 'var(--s-text)', lineHeight: 1.35, fontFamily: 'var(--s-font)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{product.name}</p>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--s-primary)', fontFamily: 'var(--s-font)' }}>{fmt(product.price, product.currency)}</span>
-            {hasDiscount && <span style={{ fontSize: 12, color: 'var(--s-text2)', textDecoration: 'line-through' }}>{fmt(product.compareAtPrice, product.currency)}</span>}
+            <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--s-primary)', fontFamily: 'var(--s-font)' }}>{fmt(product.price, product.currency || store?.currency || 'XAF')}</span>
+            {hasDiscount && <span style={{ fontSize: 12, color: 'var(--s-text2)', textDecoration: 'line-through' }}>{fmt(product.compareAtPrice, product.currency || store?.currency || 'XAF')}</span>}
           </div>
         </div>
       </div>
@@ -652,7 +652,7 @@ export const StoreAllProducts = () => {
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 20 }}>
-            {filtered.map(p => <ProductCard key={p._id} product={p} prefix={prefix} />)}
+            {filtered.map(p => <ProductCard key={p._id} product={p} prefix={prefix} store={store} />)}
           </div>
         )}
       </div>
@@ -745,7 +745,7 @@ const PublicStorefront = () => {
               )}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 20 }}>
-              {filtered.slice(0, 3).map(p => <ProductCard key={p._id} product={p} prefix={prefix} />)}
+              {filtered.slice(0, 3).map(p => <ProductCard key={p._id} product={p} prefix={prefix} store={store} />)}
             </div>
             {filtered.length === 0 && (
               <div style={{ textAlign: 'center', padding: '72px 20px' }}>
