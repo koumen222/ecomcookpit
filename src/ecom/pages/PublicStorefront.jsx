@@ -204,13 +204,9 @@ const HeroContent = ({ cfg, prefix }) => (
 const AiBadgesSection = ({ cfg }) => (
   <section style={{ backgroundColor: '#fff', borderBottom: '1px solid #F3F4F6' }}>
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 0 }}>
+      <div className="s-badges">
         {(cfg.items || []).map((badge, i) => (
-          <div key={i} style={{
-            display: 'flex', alignItems: 'center', gap: 16,
-            padding: '22px 20px',
-            borderRight: i < (cfg.items?.length - 1) ? '1px solid #F3F4F6' : 'none',
-          }}>
+          <div key={i} className="s-badge-item" style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '20px 20px' }}>
             <IconBox emoji={badge.icon} size={20} boxSize={46} radius={14} />
             <div>
               <p style={{ margin: 0, fontWeight: 700, fontSize: 13.5, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{badge.title}</p>
@@ -605,7 +601,14 @@ export const StoreAllProducts = () => {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--s-bg)', fontFamily: 'var(--s-font)', color: 'var(--s-text)' }}>
-      <style>{`*{box-sizing:border-box}`}</style>
+      <style>{`
+        *{box-sizing:border-box}
+        .s-badges{display:grid;grid-template-columns:1fr}
+        .s-badge-item{border-bottom:1px solid #F3F4F6}
+        .s-badge-item:last-child{border-bottom:none}
+        @media(min-width:560px){.s-badges{grid-template-columns:repeat(2,1fr)}.s-badge-item{border-right:1px solid #F3F4F6;border-bottom:1px solid #F3F4F6}.s-badge-item:nth-child(2n){border-right:none}}
+        @media(min-width:900px){.s-badges{grid-template-columns:repeat(4,1fr)}.s-badge-item{border-bottom:none;border-right:1px solid #F3F4F6}.s-badge-item:last-child{border-right:none}}
+      `}</style>
       <AnnouncementBar store={store} />
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
 
@@ -685,7 +688,23 @@ const PublicStorefront = () => {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--s-bg)', fontFamily: 'var(--s-font)', color: 'var(--s-text)' }}>
-      <style>{`*{box-sizing:border-box} body{margin:0;padding:0}`}</style>
+      <style>{`
+        *{box-sizing:border-box} body{margin:0;padding:0}
+        .s-badges{display:grid;grid-template-columns:1fr}
+        .s-badge-item{border-bottom:1px solid #F3F4F6}
+        .s-badge-item:last-child{border-bottom:none}
+        @media(min-width:560px){
+          .s-badges{grid-template-columns:repeat(2,1fr)}
+          .s-badge-item{border-right:1px solid #F3F4F6;border-bottom:1px solid #F3F4F6}
+          .s-badge-item:nth-child(2n){border-right:none}
+          .s-badge-item:nth-last-child(-n+2):nth-child(odd),.s-badge-item:last-child{border-bottom:none}
+        }
+        @media(min-width:900px){
+          .s-badges{grid-template-columns:repeat(4,1fr)}
+          .s-badge-item{border-bottom:none;border-right:1px solid #F3F4F6}
+          .s-badge-item:last-child{border-right:none}
+        }
+      `}</style>
 
       <AnnouncementBar store={store} />
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
