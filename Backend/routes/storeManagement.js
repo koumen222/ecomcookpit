@@ -25,6 +25,28 @@ const PRODUCT_TYPE_LABELS = {
   autre: 'Produits divers',
 };
 
+// ─── Images hero par niche (Unsplash CDN) ─────────────────────────────────────
+const NICHE_HERO_IMAGES = {
+  beaute:  'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=1920&q=80&auto=format',
+  fitness: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=1920&q=80&auto=format',
+  mode:    'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=1920&q=80&auto=format',
+  tech:    'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1920&q=80&auto=format',
+  maison:  'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=1920&q=80&auto=format',
+  sante:   'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=1920&q=80&auto=format',
+  enfants: 'https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=1920&q=80&auto=format',
+  autre:   'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1920&q=80&auto=format',
+};
+
+function injectHeroImage(sections, productType) {
+  const img = NICHE_HERO_IMAGES[productType] || NICHE_HERO_IMAGES.autre;
+  return sections.map(sec => {
+    if (sec.type === 'hero' && !sec.config?.backgroundImage) {
+      return { ...sec, config: { ...sec.config, backgroundImage: img } };
+    }
+    return sec;
+  });
+}
+
 const TONE_LABELS = {
   premium: 'Premium & Luxe — élégance, exclusivité, raffinement. Vocabulaire haut de gamme.',
   naturel: 'Naturel & Authentique — sincérité, bio, transparence. Ton doux et honnête.',
@@ -42,7 +64,7 @@ function buildFallbackSections(s) {
       config: {
         title: `Bienvenue chez ${s.storeName || 'notre boutique'}`,
         subtitle: s.storeDescription || 'Découvrez nos produits de qualité, livrés rapidement.',
-        ctaText: 'Voir nos produits', ctaLink: '#products', alignment: 'center', backgroundImage: '',
+        ctaText: 'Voir nos produits', ctaLink: '/products', alignment: 'center', backgroundImage: '',
       }
     },
     {
@@ -409,7 +431,7 @@ Génère une page d'accueil complète et persuasive en JSON: {"sections": [...]}
 Génère exactement ces 7 sections dans cet ordre:
 
 1. TYPE "hero"
-config: { title (H1 percutant 5-10 mots, adapté niche+ton), subtitle (promesse convaincante 1-2 phrases), ctaText (texte bouton CTA actif), ctaLink: "#products", alignment: "center", backgroundImage: "" }
+config: { title (H1 percutant 5-10 mots, adapté niche+ton), subtitle (promesse convaincante 1-2 phrases), ctaText (texte bouton CTA actif), ctaLink: "/products", alignment: "center", backgroundImage: "" }
 
 2. TYPE "badges"
 config: { items: [ exactement 4 objets {icon: "emoji", title: "titre court 3-4 mots", desc: "1 phrase"} pour: livraison rapide, qualité garantie, support WhatsApp, retours faciles ] }
@@ -464,6 +486,7 @@ RÈGLES STRICTES:
         id: sec.id || `${sec.type}-${i + 1}`,
         visible: true,
       }));
+      sections = injectHeroImage(sections, s.productType);
 
       console.log(`✅ AI homepage generated: ${sections.length} sections for workspace ${req.workspaceId}`);
     } catch (aiError) {
@@ -530,7 +553,7 @@ Génère une page d'accueil complète et persuasive en JSON: {"sections": [...]}
 Génère exactement ces 7 sections dans cet ordre:
 
 1. TYPE "hero"
-config: { title (H1 percutant 5-10 mots, adapté niche+ton), subtitle (promesse convaincante 1-2 phrases), ctaText (texte bouton CTA actif), ctaLink: "#products", alignment: "center", backgroundImage: "" }
+config: { title (H1 percutant 5-10 mots, adapté niche+ton), subtitle (promesse convaincante 1-2 phrases), ctaText (texte bouton CTA actif), ctaLink: "/products", alignment: "center", backgroundImage: "" }
 
 2. TYPE "badges"
 config: { items: [ exactement 4 objets {icon: "emoji", title: "titre court 3-4 mots", desc: "1 phrase"} pour: livraison rapide, qualité garantie, support WhatsApp, retours faciles ] }
@@ -576,6 +599,7 @@ RÈGLES STRICTES:
       sections = parsed.sections;
       if (!Array.isArray(sections) || sections.length === 0) throw new Error('Sections invalides');
       sections = sections.map((sec, i) => ({ ...sec, id: sec.id || `${sec.type}-${i + 1}`, visible: true }));
+      sections = injectHeroImage(sections, s.productType);
     } catch (aiError) {
       console.warn('⚠️ Groq regenerate failed, using fallback:', aiError.message);
       sections = buildFallbackSections(s);

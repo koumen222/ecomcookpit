@@ -34,15 +34,16 @@ const EMOJI_ICON_MAP = {
   '📧': Mail, '✉️': Mail,
 };
 
-const BADGE_COLORS = ['#E6F7F1', '#EEF2FF', '#FFF7ED', '#FCE7F3'];
-const FEATURE_COLORS = ['#E6F7F1', '#EEF2FF', '#FEF3C7', '#FCE7F3'];
+// Single tint box — uses store primary color via CSS color-mix
+const ICON_BG = 'color-mix(in srgb, var(--s-primary) 12%, white)';
 
-function IconBox({ emoji, size = 22, bg = '#E6F7F1', boxSize = 52, radius = 16 }) {
+function IconBox({ emoji, size = 22, bg, boxSize = 52, radius = 16 }) {
+  const boxBg = bg || ICON_BG;
   const Icon = EMOJI_ICON_MAP[emoji] || EMOJI_ICON_MAP[emoji?.trim()];
   return (
     <div style={{
       width: boxSize, height: boxSize, borderRadius: radius, flexShrink: 0,
-      backgroundColor: bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      backgroundColor: boxBg, display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
       {Icon
         ? <Icon size={size} color="var(--s-primary)" strokeWidth={2} />
@@ -58,7 +59,7 @@ const AnnouncementBar = ({ store }) => {
   if (!visible) return null;
   return (
     <div style={{
-      backgroundColor: 'var(--s-primary)', color: '#fff',
+      background: 'var(--s-primary)', color: '#fff',
       fontSize: 13, fontWeight: 500, fontFamily: 'var(--s-font)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: '9px 48px 9px 16px', textAlign: 'center',
@@ -81,14 +82,18 @@ const AiHeroSection = ({ cfg, store, prefix, products }) => {
   const isSplit = !heroImg && featuredProduct;
 
   if (heroImg) {
-    // Full-width overlay hero
+    // Full-width image hero with flat dark overlay
     return (
       <section style={{
         padding: 'clamp(80px, 14vw, 140px) 24px clamp(64px, 10vw, 110px)',
         textAlign: cfg.alignment || 'center', position: 'relative', overflow: 'hidden',
-        background: `linear-gradient(rgba(0,0,0,0.50),rgba(0,0,0,0.58)), url(${heroImg}) center/cover no-repeat`,
+        backgroundImage: `url(${heroImg})`, backgroundSize: 'cover', backgroundPosition: 'center',
       }}>
-        <HeroContent cfg={cfg} prefix={prefix} />
+        {/* flat dark overlay — no gradient */}
+        <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.52)', zIndex: 0 }} />
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <HeroContent cfg={cfg} prefix={prefix} />
+        </div>
       </section>
     );
   }
@@ -97,7 +102,7 @@ const AiHeroSection = ({ cfg, store, prefix, products }) => {
     // Split: text left, product image right
     return (
       <section style={{
-        background: 'linear-gradient(135deg, var(--s-primary) 0%, var(--s-accent, var(--s-primary)) 100%)',
+        backgroundColor: 'var(--s-primary)',
         position: 'relative', overflow: 'hidden',
         padding: 'clamp(60px, 10vw, 100px) 24px',
       }}>
@@ -120,7 +125,7 @@ const AiHeroSection = ({ cfg, store, prefix, products }) => {
                 color: 'rgba(255,255,255,0.88)', fontFamily: 'var(--s-font)',
               }}>{cfg.subtitle}</p>
             )}
-            <a href={`${prefix}${cfg.ctaLink || '/products'}`}
+            <a href={`${prefix}/products`}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 10,
                 padding: '16px 36px', borderRadius: 50,
@@ -154,7 +159,7 @@ const AiHeroSection = ({ cfg, store, prefix, products }) => {
     <section style={{
       padding: 'clamp(80px, 13vw, 130px) 24px clamp(64px, 10vw, 110px)',
       textAlign: cfg.alignment || 'center', position: 'relative', overflow: 'hidden',
-      background: 'linear-gradient(135deg, var(--s-primary) 0%, var(--s-accent, var(--s-primary)) 100%)',
+      backgroundColor: 'var(--s-primary)',
     }}>
       <div style={{ position: 'absolute', top: -80, right: -80, width: 320, height: 320, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.07)', pointerEvents: 'none' }} />
       <div style={{ position: 'absolute', bottom: -60, left: -60, width: 220, height: 220, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
@@ -181,7 +186,7 @@ const HeroContent = ({ cfg, prefix }) => (
         color: 'rgba(255,255,255,0.88)', fontFamily: 'var(--s-font)', maxWidth: 580, marginLeft: 'auto', marginRight: 'auto',
       }}>{cfg.subtitle}</p>
     )}
-    <a href={`${prefix}${cfg.ctaLink || '/products'}`}
+    <a href={`${prefix}/products`}
       onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 44px rgba(0,0,0,0.28)'; }}
       onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 6px 30px rgba(0,0,0,0.22)'; }}
       style={{
@@ -206,7 +211,7 @@ const AiBadgesSection = ({ cfg }) => (
             padding: '22px 20px',
             borderRight: i < (cfg.items?.length - 1) ? '1px solid #F3F4F6' : 'none',
           }}>
-            <IconBox emoji={badge.icon} bg={BADGE_COLORS[i % BADGE_COLORS.length]} size={20} boxSize={46} radius={14} />
+            <IconBox emoji={badge.icon} size={20} boxSize={46} radius={14} />
             <div>
               <p style={{ margin: 0, fontWeight: 700, fontSize: 13.5, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{badge.title}</p>
               <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--s-text2)', lineHeight: 1.4, fontFamily: 'var(--s-font)' }}>{badge.desc}</p>
@@ -277,7 +282,7 @@ const AiFeaturesSection = ({ cfg }) => (
             onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
             onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}
           >
-            <IconBox emoji={f.icon} bg={FEATURE_COLORS[i % FEATURE_COLORS.length]} size={22} boxSize={52} radius={16} />
+            <IconBox emoji={f.icon} size={22} boxSize={52} radius={16} />
             <h3 style={{ margin: '18px 0 10px', fontSize: 15.5, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{f.title}</h3>
             <p style={{ margin: 0, fontSize: 13.5, color: 'var(--s-text2)', lineHeight: 1.65, fontFamily: 'var(--s-font)' }}>{f.desc}</p>
           </div>
@@ -419,15 +424,31 @@ const StorefrontHeader = ({ store, cartCount, prefix }) => (
         )}
         <span style={{ fontWeight: 700, fontSize: 17, color: 'var(--s-text)', letterSpacing: '-0.01em' }}>{store?.name}</span>
       </a>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-        <a href={`${prefix}/products`} style={{ fontSize: 14, fontWeight: 600, color: 'var(--s-text2)', textDecoration: 'none', display: 'none' }} className="nav-products">
-          Produits
-        </a>
-        <a href={`${prefix}/checkout`} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 18px', borderRadius: 40, border: '1.5px solid', borderColor: cartCount > 0 ? 'var(--s-primary)' : 'var(--s-border)', backgroundColor: cartCount > 0 ? 'var(--s-primary)' : 'transparent', color: cartCount > 0 ? '#fff' : 'var(--s-text)', textDecoration: 'none', fontWeight: 600, fontSize: 14, transition: 'all 0.2s', fontFamily: 'var(--s-font)' }}>
+      <nav style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {[
+          { label: 'Accueil', href: `${prefix}/` },
+          { label: 'Produits', href: `${prefix}/products` },
+        ].map(link => (
+          <a key={link.label} href={link.href} style={{
+            padding: '7px 14px', borderRadius: 8, fontSize: 13.5, fontWeight: 600,
+            color: 'var(--s-text2)', textDecoration: 'none', fontFamily: 'var(--s-font)',
+            transition: 'background 0.15s, color 0.15s',
+          }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; e.currentTarget.style.color = 'var(--s-text)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--s-text2)'; }}
+          >{link.label}</a>
+        ))}
+        <a href={`${prefix}/checkout`} style={{
+          display: 'flex', alignItems: 'center', gap: 7, padding: '8px 18px', borderRadius: 40,
+          border: '1.5px solid', borderColor: cartCount > 0 ? 'var(--s-primary)' : 'var(--s-border)',
+          backgroundColor: cartCount > 0 ? 'var(--s-primary)' : 'transparent',
+          color: cartCount > 0 ? '#fff' : 'var(--s-text)', textDecoration: 'none',
+          fontWeight: 600, fontSize: 14, transition: 'all 0.2s', fontFamily: 'var(--s-font)', marginLeft: 8,
+        }}>
           <ShoppingCart size={17} />
           {cartCount > 0 && <span>{cartCount}</span>}
         </a>
-      </div>
+      </nav>
     </div>
   </header>
 );
