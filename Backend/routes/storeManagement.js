@@ -25,55 +25,95 @@ const PRODUCT_TYPE_LABELS = {
   autre: 'Produits divers',
 };
 
-// ─── Images hero — personnes africaines par pays (Unsplash CDN) ───────────────
-// Priorité : pays → niche → défaut
-const COUNTRY_HERO_IMAGES = {
-  // Cameroun — marché animé, femmes en tenue traditionnelle
-  cameroun:        'https://images.unsplash.com/photo-1589802829985-817e51171b92?w=1920&q=80&auto=format',
-  // Sénégal / Côte d'Ivoire — femme africaine élégante
-  senegal:         'https://images.unsplash.com/photo-1531123414780-f74242c2b052?w=1920&q=80&auto=format',
-  'cote d\'ivoire':'https://images.unsplash.com/photo-1531123414780-f74242c2b052?w=1920&q=80&auto=format',
-  // Nigeria / Ghana — femme business africaine
-  nigeria:         'https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=1920&q=80&auto=format',
-  ghana:           'https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=1920&q=80&auto=format',
-  // RDC / Congo — marché coloré central africain
-  'rdc':           'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=1920&q=80&auto=format',
-  congo:           'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=1920&q=80&auto=format',
-  // Bénin / Togo — couleurs vives africaines
-  benin:           'https://images.unsplash.com/photo-1590736969955-71cc94901144?w=1920&q=80&auto=format',
-  togo:            'https://images.unsplash.com/photo-1590736969955-71cc94901144?w=1920&q=80&auto=format',
-  // Mali / Burkina / Niger — Afrique de l'Ouest
-  mali:            'https://images.unsplash.com/photo-1531123414780-f74242c2b052?w=1920&q=80&auto=format',
-  burkina:         'https://images.unsplash.com/photo-1531123414780-f74242c2b052?w=1920&q=80&auto=format',
-  // Guinée / Sierra Leone / Liberia
-  guinee:          'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=1920&q=80&auto=format',
+// ─── Images hero — niche × région africaine (Unsplash CDN) ───────────────────
+// Priorité : niche+pays → niche seul → défaut
+// Clé région : 'central' (Cameroun/RDC/Congo) | 'west' (Sénégal/CI/Bénin/Togo/Mali)
+//              | 'nigeria' (Nigeria/Ghana) | 'default'
+
+const NICHE_REGION_IMAGES = {
+  // ── Beauté / Cosmétique ──────────────────────────────────────────────────────
+  beaute: {
+    // Femme africaine skincare — Cameroun / Afrique Centrale
+    central: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=1920&q=80&auto=format',
+    // Femme beauté Afrique de l'Ouest (Sénégal / CI)
+    west:    'https://images.unsplash.com/photo-1531123414780-f74242c2b052?w=1920&q=80&auto=format',
+    // Femme beauty Nigeria / Ghana
+    nigeria: 'https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=1920&q=80&auto=format',
+    default: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=1920&q=80&auto=format',
+  },
+  // ── Mode / Fashion ───────────────────────────────────────────────────────────
+  mode: {
+    // Tenue traditionnelle Cameroun / Afrique Centrale
+    central: 'https://images.unsplash.com/photo-1589802829985-817e51171b92?w=1920&q=80&auto=format',
+    // Wax / tissu africain Afrique de l'Ouest
+    west:    'https://images.unsplash.com/photo-1590736969955-71cc94901144?w=1920&q=80&auto=format',
+    nigeria: 'https://images.unsplash.com/photo-1590736969955-71cc94901144?w=1920&q=80&auto=format',
+    default: 'https://images.unsplash.com/photo-1590736969955-71cc94901144?w=1920&q=80&auto=format',
+  },
+  // ── Fitness / Sport ──────────────────────────────────────────────────────────
+  fitness: {
+    default: 'https://images.unsplash.com/photo-1594381898411-846e7d193883?w=1920&q=80&auto=format',
+  },
+  // ── Tech / Gadgets ───────────────────────────────────────────────────────────
+  tech: {
+    default: 'https://images.unsplash.com/photo-1531482615713-2afd69097998?w=1920&q=80&auto=format',
+  },
+  // ── Maison / Déco ────────────────────────────────────────────────────────────
+  maison: {
+    default: 'https://images.unsplash.com/photo-1540518614846-7eded433c457?w=1920&q=80&auto=format',
+  },
+  // ── Bien-être / Santé ────────────────────────────────────────────────────────
+  sante: {
+    default: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=1920&q=80&auto=format',
+  },
+  // ── Enfants ──────────────────────────────────────────────────────────────────
+  enfants: {
+    default: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?w=1920&q=80&auto=format',
+  },
+  // ── Autre / Général ──────────────────────────────────────────────────────────
+  autre: {
+    central: 'https://images.unsplash.com/photo-1589802829985-817e51171b92?w=1920&q=80&auto=format',
+    west:    'https://images.unsplash.com/photo-1531123414780-f74242c2b052?w=1920&q=80&auto=format',
+    nigeria: 'https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=1920&q=80&auto=format',
+    default: 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=1920&q=80&auto=format',
+  },
 };
 
-const NICHE_HERO_IMAGES = {
-  beaute:  'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=1920&q=80&auto=format',
-  fitness: 'https://images.unsplash.com/photo-1594381898411-846e7d193883?w=1920&q=80&auto=format',
-  mode:    'https://images.unsplash.com/photo-1590736969955-71cc94901144?w=1920&q=80&auto=format',
-  tech:    'https://images.unsplash.com/photo-1531482615713-2afd69097998?w=1920&q=80&auto=format',
-  maison:  'https://images.unsplash.com/photo-1540518614846-7eded433c457?w=1920&q=80&auto=format',
-  sante:   'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=1920&q=80&auto=format',
-  enfants: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?w=1920&q=80&auto=format',
-  autre:   'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=1920&q=80&auto=format',
+// Pays → région
+const COUNTRY_TO_REGION = {
+  cameroun: 'central', gabon: 'central', rdc: 'central', congo: 'central',
+  centrafrique: 'central', tchad: 'central',
+  senegal: 'west', mali: 'west', burkina: 'west', togo: 'west',
+  benin: 'west', guinee: 'west', mauritanie: 'west',
+  // "côte d'ivoire" après normalisation → "cote d ivoire"
+  'cote d ivoire': 'west', 'ivory coast': 'west',
+  nigeria: 'nigeria', ghana: 'nigeria',
 };
 
 function normalizeCountryKey(country) {
   if (!country) return '';
   return country.toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove accents
-    .replace(/[^a-z\s']/g, '').trim();
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function injectHeroImage(sections, productType, country) {
   const countryKey = normalizeCountryKey(country);
-  // Try exact country match, then partial match (e.g. "Côte d'Ivoire" → "cote d'ivoire")
-  const img = COUNTRY_HERO_IMAGES[countryKey]
-    || Object.entries(COUNTRY_HERO_IMAGES).find(([k]) => countryKey.includes(k) || k.includes(countryKey))?.[1]
-    || NICHE_HERO_IMAGES[productType]
-    || NICHE_HERO_IMAGES.autre;
+
+  // Trouver la région à partir du pays (exact puis partiel)
+  let region = COUNTRY_TO_REGION[countryKey];
+  if (!region) {
+    const match = Object.keys(COUNTRY_TO_REGION).find(k =>
+      countryKey.includes(k) || k.includes(countryKey)
+    );
+    region = match ? COUNTRY_TO_REGION[match] : 'default';
+  }
+
+  const nicheMap = NICHE_REGION_IMAGES[productType] || NICHE_REGION_IMAGES.autre;
+
+  // Priorité : niche+région → niche défaut → défaut global
+  const img = nicheMap[region] || nicheMap.default
+    || NICHE_REGION_IMAGES.autre.default;
 
   return sections.map(sec => {
     if (sec.type === 'hero' && !sec.config?.backgroundImage) {
