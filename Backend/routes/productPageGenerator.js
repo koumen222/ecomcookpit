@@ -17,6 +17,7 @@ import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { analyzeWithVision, generatePosterImage } from '../services/productPageGeneratorService.js';
 import { uploadImage } from '../services/cloudflareImagesService.js';
 import { scrapeAlibaba } from '../services/alibabaScraper.js';
+import EcomWorkspace from '../models/Workspace.js';
 
 const router = express.Router();
 
@@ -89,8 +90,19 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   let realPhotos = [];
   let posterImages = [];
   const cleanUrl = url?.trim() || '';
+  let storeContext = {};
 
   try {
+    if (req.workspaceId) {
+      const workspace = await EcomWorkspace.findById(req.workspaceId)
+        .select('storeSettings.country storeSettings.city')
+        .lean();
+      storeContext = {
+        country: workspace?.storeSettings?.country || '',
+        city: workspace?.storeSettings?.city || '',
+      };
+    }
+
     // ══════════════════════════════════════════════════════════════════════════
     // ÉTAPE 1 : Scraping minimal OU utilisation de la description directe
     // ══════════════════════════════════════════════════════════════════════════
@@ -115,7 +127,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     
     const imageBuffers = (imageFiles || []).map(f => f.buffer);
     
-    gptResult = await analyzeWithVision(scraped, imageBuffers, approach);
+    gptResult = await analyzeWithVision(scraped, imageBuffers, approach, storeContext);
     
     console.log('✅ GPT OK:', {
       title: gptResult.title?.slice(0, 40),
@@ -150,10 +162,10 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     const axios = (await import('axios')).default;
 
     // Helper pour générer et uploader une image
-    const generateAndUpload = async (prompt, baseBuffer, filename) => {
+    const generateAndUpload = async (prompt, baseBuffer, filename, mode = 'scene') => {
       if (!prompt) return null;
       try {
-        const generatedDataUrl = await generatePosterImage(prompt, baseBuffer);
+        const generatedDataUrl = await generatePosterImage(prompt, baseBuffer, { mode });
         if (!generatedDataUrl) return null;
 
         let imageBuffer;
@@ -182,13 +194,13 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     // Hero
     imagePromises.push(
-      generateAndUpload(gptResult.prompt_affiche_hero, baseImageBuffer, `hero-${Date.now()}.png`)
+      generateAndUpload(gptResult.prompt_affiche_hero, baseImageBuffer, `hero-${Date.now()}.png`, 'hero')
         .then(url => ({ type: 'hero', url }))
     );
 
     // Avant/Après
     imagePromises.push(
-      generateAndUpload(gptResult.prompt_avant_apres, null, `before-after-${Date.now()}.png`)
+      generateAndUpload(gptResult.prompt_avant_apres, null, `before-after-${Date.now()}.png`, 'before_after')
         .then(url => ({ type: 'beforeAfter', url }))
     );
 
@@ -196,9 +208,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     for (let i = 0; i < 4; i++) {
       const angle = gptResult.angles?.[i];
       if (angle?.prompt_affiche) {
-        const imgBuffer = imageFiles[i]?.buffer || baseImageBuffer;
         imagePromises.push(
-          generateAndUpload(angle.prompt_affiche, imgBuffer, `poster-${i + 1}-${Date.now()}.png`)
+          generateAndUpload(angle.prompt_affiche, null, `poster-${i + 1}-${Date.now()}.png`, 'scene')
             .then(url => ({ type: 'poster', index: i, url, angle }))
         );
       } else {
@@ -233,12 +244,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     // ══════════════════════════════════════════════════════════════════════════
     console.log('📝 Étape 5: Assemblage de la description');
     
-    let description = gptResult.description_optimisee || '';
-    
-    // Ajouter un titre h3 avant la description
-    if (description) {
-      description = `### Description du produit\n\n${description}`;
-    }
+    let description = '';
     
     // Replace {{IMAGE_X}} with actual poster URLs
     for (let i = 1; i <= 4; i++) {

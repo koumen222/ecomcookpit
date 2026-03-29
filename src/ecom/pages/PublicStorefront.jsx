@@ -9,9 +9,27 @@ import {
 import { useSubdomain } from '../hooks/useSubdomain';
 import { useStoreData } from '../hooks/useStoreData';
 import { useStoreCart } from '../hooks/useStoreCart';
+import { setDocumentMeta } from '../utils/pageMeta';
 
 const fmt = (n, cur = 'XAF') =>
   `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
+
+const normalizeMetaText = (value = '') => String(value || '')
+  .replace(/<[^>]*>/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const truncateMetaText = (value = '', max = 180) => {
+  if (!value || value.length <= max) return value;
+  return `${value.slice(0, max - 1).trimEnd()}…`;
+};
+
+const getStoreMetaImage = (store) => store?.logo || store?.banner || '/icon.png';
+
+const getStoreMetaDescription = (store, fallback = '') => truncateMetaText(
+  normalizeMetaText(fallback || store?.description || `Découvrez la boutique ${store?.name || 'Scalor'} en ligne.`),
+  180,
+);
 
 // ─── EMOJI → LUCIDE mapping ───────────────────────────────────────────────────
 const EMOJI_ICON_MAP = {
@@ -487,107 +505,109 @@ const ProductCard = ({ product, prefix, store }) => {
         </div>
       </div>
     </a>
+);
+
+// ── Footer ────────────────────────────────────────────────────────────────────
+const StorefrontFooter = ({ store, prefix }) => {
+  const showWhatsappButton = store?.sectionToggles?.showWhatsappButton ?? false;
+  const navigationLinks = [
+    { label: 'Accueil', href: `${prefix}/` },
+    { label: 'Tous nos produits', href: `${prefix}/products` },
+    ...(showWhatsappButton && store?.whatsapp ? [{ label: 'Commander sur WhatsApp', href: `https://wa.me/${store.whatsapp.replace(/\D/g, '')}` }] : []),
+  ];
+
+  return (
+    <footer style={{ backgroundColor: 'var(--s-primary)', color: 'rgba(255,255,255,0.7)', fontFamily: 'var(--s-font)', marginTop: 0 }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '64px 24px 48px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 48 }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            {store?.logo ? (
+              <img src={store.logo} alt={store?.name} style={{ height: 32, width: 'auto', objectFit: 'contain', filter: 'brightness(0) invert(1)', opacity: 0.9 }} />
+            ) : (
+              <span style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.2)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14 }}>
+                {(store?.name || 'S')[0]}
+              </span>
+            )}
+            <span style={{ fontWeight: 700, fontSize: 16, color: '#fff' }}>{store?.name}</span>
+          </div>
+          {store?.description && (
+            <p style={{ fontSize: 13, lineHeight: 1.65, margin: '0 0 20px', maxWidth: 260, color: 'rgba(255,255,255,0.6)' }}>{store.description}</p>
+          )}
+          {showWhatsappButton && store?.whatsapp && (
+            <a href={`https://wa.me/${store.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 18px', borderRadius: 40, backgroundColor: '#25D366', color: '#fff', textDecoration: 'none', fontWeight: 600, fontSize: 13 }}>
+              <MessageCircle size={14} /> WhatsApp
+            </a>
+          )}
+        </div>
+
+        <div>
+          <p style={{ fontWeight: 700, fontSize: 13, color: '#fff', margin: '0 0 18px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Navigation</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {navigationLinks.map(link => (
+              <a key={link.label} href={link.href} style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.7)', textDecoration: 'none', transition: 'color 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}>
+                {link.label}
+              </a>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p style={{ fontWeight: 700, fontSize: 13, color: '#fff', margin: '0 0 18px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Contact</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {showWhatsappButton && store?.whatsapp && (
+              <a href={`https://wa.me/${store.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
+                style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: 'rgba(255,255,255,0.7)', textDecoration: 'none' }}>
+                <MessageCircle size={14} style={{ flexShrink: 0 }} /> {store.whatsapp}
+              </a>
+            )}
+            {store?.city && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: 'rgba(255,255,255,0.6)' }}>
+                <MapPin size={14} style={{ flexShrink: 0 }} /> {store.city}{store.country ? `, ${store.country}` : ''}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.15)', padding: '20px 24px' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
+            © {new Date().getFullYear()} {store?.name}. Tous droits réservés.
+          </p>
+          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Politique de confidentialité', href: '#' },
+              { label: "Conditions d'utilisation", href: '#' },
+            ].map(link => (
+              <a key={link.label} href={link.href} style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', textDecoration: 'none', transition: 'color 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}>
+                {link.label}
+              </a>
+            ))}
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+              Propulsé par{' '}
+              <a href="https://scalor.net" target="_blank" rel="noreferrer" style={{ color: '#fff', fontWeight: 600, textDecoration: 'none' }}>
+                Scalor
+              </a>
+            </span>
+          </div>
+        </div>
+      </div>
+    </footer>
   );
 };
 
-
-// ── Footer ────────────────────────────────────────────────────────────────────
-const StorefrontFooter = ({ store, prefix }) => (
-  <footer style={{ backgroundColor: 'var(--s-primary)', color: 'rgba(255,255,255,0.7)', fontFamily: 'var(--s-font)', marginTop: 0 }}>
-    {/* Main footer */}
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '64px 24px 48px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 48 }}>
-      {/* Brand */}
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-          {store?.logo ? (
-            <img src={store.logo} alt={store?.name} style={{ height: 32, width: 'auto', objectFit: 'contain', filter: 'brightness(0) invert(1)', opacity: 0.9 }} />
-          ) : (
-            <span style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.2)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14 }}>
-              {(store?.name || 'S')[0]}
-            </span>
-          )}
-          <span style={{ fontWeight: 700, fontSize: 16, color: '#fff' }}>{store?.name}</span>
-        </div>
-        {store?.description && (
-          <p style={{ fontSize: 13, lineHeight: 1.65, margin: '0 0 20px', maxWidth: 260, color: 'rgba(255,255,255,0.6)' }}>{store.description}</p>
-        )}
-        {store?.whatsapp && (
-          <a href={`https://wa.me/${store.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 18px', borderRadius: 40, backgroundColor: '#25D366', color: '#fff', textDecoration: 'none', fontWeight: 600, fontSize: 13 }}>
-            <MessageCircle size={14} /> WhatsApp
-          </a>
-        )}
-      </div>
-      {/* Navigation */}
-      <div>
-        <p style={{ fontWeight: 700, fontSize: 13, color: '#fff', margin: '0 0 18px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Navigation</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {[
-            { label: 'Accueil', href: `${prefix}/` },
-            { label: 'Tous nos produits', href: `${prefix}/products` },
-            { label: 'Commander sur WhatsApp', href: store?.whatsapp ? `https://wa.me/${store.whatsapp.replace(/\D/g, '')}` : '#' },
-          ].map(link => (
-            <a key={link.label} href={link.href} style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.7)', textDecoration: 'none', transition: 'color 0.15s' }}
-              onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}>
-              {link.label}
-            </a>
-          ))}
-        </div>
-      </div>
-      {/* Contact */}
-      <div>
-        <p style={{ fontWeight: 700, fontSize: 13, color: '#fff', margin: '0 0 18px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Contact</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {store?.whatsapp && (
-            <a href={`https://wa.me/${store.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
-              style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: 'rgba(255,255,255,0.7)', textDecoration: 'none' }}>
-              <MessageCircle size={14} style={{ flexShrink: 0 }} /> {store.whatsapp}
-            </a>
-          )}
-          {store?.city && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: 'rgba(255,255,255,0.6)' }}>
-              <MapPin size={14} style={{ flexShrink: 0 }} /> {store.city}{store.country ? `, ${store.country}` : ''}
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-    {/* Bottom bar */}
-    <div style={{ borderTop: '1px solid rgba(255,255,255,0.15)', padding: '20px 24px' }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-        <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
-          © {new Date().getFullYear()} {store?.name}. Tous droits réservés.
-        </p>
-        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-          {[
-            { label: 'Politique de confidentialité', href: '#' },
-            { label: "Conditions d'utilisation", href: '#' },
-          ].map(link => (
-            <a key={link.label} href={link.href} style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', textDecoration: 'none', transition: 'color 0.15s' }}
-              onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}>
-              {link.label}
-            </a>
-          ))}
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
-            Propulsé par{' '}
-            <a href="https://scalor.net" target="_blank" rel="noreferrer" style={{ color: '#fff', fontWeight: 600, textDecoration: 'none' }}>Scalor</a>
-          </span>
-        </div>
-      </div>
-    </div>
-  </footer>
-);
-
-// ── All Products Page ─────────────────────────────────────────────────────────
 export const StoreAllProducts = () => {
   const { subdomain: paramSubdomain } = useParams();
   const { subdomain: detectedSubdomain, isStoreDomain } = useSubdomain();
   const subdomain = paramSubdomain || detectedSubdomain;
   const prefix = isStoreDomain ? '' : (subdomain ? `/store/${subdomain}` : '');
 
-  const { store, products, loading, error } = useStoreData(subdomain);
+  const { store, products, error } = useStoreData(subdomain);
   const { cartCount } = useStoreCart(subdomain);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
@@ -600,8 +620,28 @@ export const StoreAllProducts = () => {
   });
 
   useEffect(() => {
-    if (store?.name) document.title = `Produits — ${store.name}`;
-  }, [store?.name]);
+    if (!store?.name) return;
+    const image = getStoreMetaImage(store);
+    setDocumentMeta({
+      title: `Produits — ${store.name}`,
+      description: getStoreMetaDescription(store, `Découvrez tous les produits disponibles chez ${store.name}.`),
+      image,
+      icon: image,
+      siteName: store.name,
+      appTitle: store.name,
+      type: 'website',
+    });
+  }, [store]);
+
+  if (error) return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
+      <div style={{ textAlign: 'center', padding: 40 }}>
+        <p style={{ fontSize: 48, margin: '0 0 16px' }}>🛍️</p>
+        <h2 style={{ color: '#111', fontWeight: 700, margin: '0 0 8px' }}>Boutique introuvable</h2>
+        <p style={{ color: '#6B7280', fontSize: 15 }}>{error}</p>
+      </div>
+    </div>
+  );
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--s-bg)', fontFamily: 'var(--s-font)', color: 'var(--s-text)' }}>
@@ -617,7 +657,6 @@ export const StoreAllProducts = () => {
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
 
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: 'clamp(32px, 6vw, 64px) 24px 80px' }}>
-        {/* Back + title */}
         <div style={{ marginBottom: 36 }}>
           <a href={`${prefix}/`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13.5, color: 'var(--s-text2)', textDecoration: 'none', marginBottom: 20 }}>
             ← Retour à l'accueil
@@ -628,7 +667,6 @@ export const StoreAllProducts = () => {
           <p style={{ fontSize: 14, color: 'var(--s-text2)', margin: 0 }}>{products.length} article{products.length !== 1 ? 's' : ''} disponible{products.length !== 1 ? 's' : ''}</p>
         </div>
 
-        {/* Search + filters */}
         <div style={{ display: 'flex', gap: 12, marginBottom: 32, flexWrap: 'wrap', alignItems: 'center' }}>
           <input
             type="text" placeholder="Rechercher un produit..." value={search} onChange={e => setSearch(e.target.value)}
@@ -677,8 +715,18 @@ const PublicStorefront = () => {
   const hasSections = Array.isArray(sections) && sections.length > 0;
 
   useEffect(() => {
-    if (store?.name) document.title = store.name;
-  }, [store?.name]);
+    if (!store?.name) return;
+    const image = getStoreMetaImage(store);
+    setDocumentMeta({
+      title: store.name,
+      description: getStoreMetaDescription(store),
+      image,
+      icon: image,
+      siteName: store.name,
+      appTitle: store.name,
+      type: 'website',
+    });
+  }, [store]);
 
   if (error) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>

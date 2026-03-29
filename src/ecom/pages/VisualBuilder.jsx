@@ -402,11 +402,13 @@ const DEFAULT_THEME = {
     showPromoBanner: true,
     showTrustBadges: true,
     showRelatedProducts: true,
-    showWhatsappButton: true,
+    showWhatsappButton: false,
     showBenefits: true,
     showNewsletter: false,
   },
 };
+
+const getSectionToggleDefault = (key) => (key === 'showWhatsappButton' ? false : true);
 
 const PRODUCT_PAGE_TOGGLES = [
   { key: 'showReviews',         label: 'Avis clients',         desc: 'Section témoignages' },
@@ -1096,10 +1098,10 @@ const VisualBuilder = () => {
                         <p className="text-[10px] text-gray-400 truncate">{desc}</p>
                       </div>
                       <button
-                        onClick={() => updateTheme((prev) => ({ ...prev, sections: { ...prev.sections, [key]: !(prev.sections?.[key] ?? true) } }))}
-                        className={`relative w-8 h-4 rounded-full transition-colors flex-shrink-0 ${theme.sections?.[key] !== false ? 'bg-[#0F6B4F]' : 'bg-gray-300'}`}
+                        onClick={() => updateTheme((prev) => ({ ...prev, sections: { ...prev.sections, [key]: !(prev.sections?.[key] ?? getSectionToggleDefault(key)) } }))}
+                        className={`relative w-8 h-4 rounded-full transition-colors flex-shrink-0 ${(theme.sections?.[key] ?? getSectionToggleDefault(key)) ? 'bg-[#0F6B4F]' : 'bg-gray-300'}`}
                       >
-                        <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${theme.sections?.[key] !== false ? 'translate-x-4' : ''}`} />
+                        <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${(theme.sections?.[key] ?? getSectionToggleDefault(key)) ? 'translate-x-4' : ''}`} />
                       </button>
                     </div>
                   ))}
