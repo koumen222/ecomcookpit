@@ -27,8 +27,8 @@ export const storeManageApi = {
   updatePages: (data) => ecomApi.put('/store/pages', data),
 
   // ─── AI Homepage Generation ───────────────────────────────────────────
-  generateHomepage: () => ecomApi.post('/store-manage/generate-homepage'),
-  regenerateHomepage: () => ecomApi.post('/store-manage/regenerate-homepage'),
+  generateHomepage: (data) => ecomApi.post('/store-manage/generate-homepage', data),
+  regenerateHomepage: (data) => ecomApi.post('/store-manage/regenerate-homepage', data),
 };
 
 export const storeProductsApi = {

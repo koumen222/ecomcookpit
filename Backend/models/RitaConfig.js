@@ -10,7 +10,7 @@ const ritaConfigSchema = new mongoose.Schema({
 
   // ─── Identité ───
   agentName: { type: String, default: 'Rita' },
-  welcomeMessage: { type: String, default: 'Bonjour 👋 Comment puis-je vous aider ?' },
+  welcomeMessage: { type: String, default: "Bonjour 👋 J'espère que vous allez bien ! Je suis là pour vous aider — lequel de nos produits vous a intéressé ?" },
 
   // ─── Catalogue produits ───
   productCatalog: [{

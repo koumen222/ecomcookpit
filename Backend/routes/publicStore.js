@@ -1,11 +1,25 @@
 import express from 'express';
 import mongoose from 'mongoose';
+import rateLimit from 'express-rate-limit';
 import StoreProduct from '../models/StoreProduct.js';
 import StoreOrder from '../models/StoreOrder.js';
 import EcomWorkspace from '../models/Workspace.js';
 import { resolveStoreBySubdomain } from '../middleware/storeAuth.js';
 
 const router = express.Router();
+
+const readLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false,
+  message: { success: false, message: 'Trop de requêtes.' },
+});
+const orderLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false,
+  message: { success: false, message: 'Trop de commandes.' },
+});
+
+function setCacheHeaders(res, ttl = 300) {
+  res.set('Cache-Control', `public, s-maxage=${ttl}, stale-while-revalidate=${ttl * 2}, max-age=0`);
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PUBLIC STORE ROUTES (no authentication — customer-facing)
@@ -17,7 +31,7 @@ const router = express.Router();
  * Get store info (name, logo, banner, theme, description).
  * First call made by the public store frontend to render the shell.
  */
-router.get('/:subdomain', resolveStoreBySubdomain, async (req, res) => {
+router.get('/:subdomain', readLimiter, resolveStoreBySubdomain, async (req, res) => {
   try {
     const { store } = req;
 
@@ -38,6 +52,7 @@ router.get('/:subdomain', resolveStoreBySubdomain, async (req, res) => {
         cost: z.cost || 0
       }));
 
+    setCacheHeaders(res, 300);
     res.json({
       success: true,
       data: {
@@ -72,7 +87,7 @@ router.get('/:subdomain', resolveStoreBySubdomain, async (req, res) => {
  * Supports pagination: ?page=1&limit=20&category=&search=
  * Only returns published products — lightweight response.
  */
-router.get('/:subdomain/products', resolveStoreBySubdomain, async (req, res) => {
+router.get('/:subdomain/products', readLimiter, resolveStoreBySubdomain, async (req, res) => {
   try {
     const { page = 1, limit = 20, category, search } = req.query;
     const pageNum = Math.max(1, parseInt(page));
@@ -97,6 +112,7 @@ router.get('/:subdomain/products', resolveStoreBySubdomain, async (req, res) => 
       StoreProduct.countForFilter(filter)
     ]);
 
+    const storeCur = req.store.storeSettings?.storeCurrency || req.store.storeSettings?.currency || 'XAF';
     // Return lightweight response — only fields needed by storefront
     const lightProducts = products.map(p => ({
       _id: p._id,
@@ -104,12 +120,13 @@ router.get('/:subdomain/products', resolveStoreBySubdomain, async (req, res) => 
       slug: p.slug,
       price: p.price,
       compareAtPrice: p.compareAtPrice,
-      currency: p.currency,
+      currency: storeCur,
       stock: p.stock,
       image: p.images?.[0]?.url || '',
       category: p.category
     }));
 
+    setCacheHeaders(res, 300);
     res.json({
       success: true,
       data: {
@@ -133,7 +150,7 @@ router.get('/:subdomain/products', resolveStoreBySubdomain, async (req, res) => 
  * Get single product by slug for product detail page.
  * Returns full product data including all images.
  */
-router.get('/:subdomain/products/:slug', resolveStoreBySubdomain, async (req, res) => {
+router.get('/:subdomain/products/:slug', readLimiter, resolveStoreBySubdomain, async (req, res) => {
   try {
     const product = await StoreProduct.findOne({
       workspaceId: req.storeWorkspaceId,
@@ -145,6 +162,7 @@ router.get('/:subdomain/products/:slug', resolveStoreBySubdomain, async (req, re
       return res.status(404).json({ success: false, message: 'Produit introuvable' });
     }
 
+    setCacheHeaders(res, 600);
     res.json({
       success: true,
       data: {
@@ -154,7 +172,7 @@ router.get('/:subdomain/products/:slug', resolveStoreBySubdomain, async (req, re
         description: product.description,
         price: product.price,
         compareAtPrice: product.compareAtPrice,
-        currency: product.currency,
+        currency: req.store.storeSettings?.storeCurrency || req.store.storeSettings?.currency || product.currency || 'XAF',
         stock: product.stock,
         images: product.images || [],
         category: product.category,
@@ -173,7 +191,7 @@ router.get('/:subdomain/products/:slug', resolveStoreBySubdomain, async (req, re
  * GET /public/store/:subdomain/categories
  * Get available categories for store navigation.
  */
-router.get('/:subdomain/categories', resolveStoreBySubdomain, async (req, res) => {
+router.get('/:subdomain/categories', readLimiter, resolveStoreBySubdomain, async (req, res) => {
   try {
     const categories = await StoreProduct.distinct('category', {
       workspaceId: req.storeWorkspaceId,
@@ -181,6 +199,7 @@ router.get('/:subdomain/categories', resolveStoreBySubdomain, async (req, res) =
       category: { $ne: '' }
     });
 
+    setCacheHeaders(res, 600);
     res.json({ success: true, data: categories.sort() });
   } catch (error) {
     console.error('Erreur GET /public/store/:subdomain/categories:', error.message);
@@ -193,7 +212,7 @@ router.get('/:subdomain/categories', resolveStoreBySubdomain, async (req, res) =
  * Get delivery zones for public checkout (no auth).
  * Returns countries and zones so checkout can validate the customer's location.
  */
-router.get('/:subdomain/delivery-zones', resolveStoreBySubdomain, async (req, res) => {
+router.get('/:subdomain/delivery-zones', readLimiter, resolveStoreBySubdomain, async (req, res) => {
   try {
     const workspace = await EcomWorkspace.findById(req.storeWorkspaceId)
       .select('storeDeliveryZones')
@@ -212,6 +231,7 @@ router.get('/:subdomain/delivery-zones', resolveStoreBySubdomain, async (req, re
         cost: z.cost || 0
       }));
 
+    setCacheHeaders(res, 600);
     res.json({
       success: true,
       data: {
@@ -230,7 +250,7 @@ router.get('/:subdomain/delivery-zones', resolveStoreBySubdomain, async (req, re
  * Place a public order (guest checkout — no auth required).
  * Validates stock, creates order, decrements stock.
  */
-router.post('/:subdomain/orders', resolveStoreBySubdomain, async (req, res) => {
+router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (req, res) => {
   try {
     const { customerName, phone, email, address, city, country, products, notes, channel, deliveryType, deliveryCost } = req.body;
 

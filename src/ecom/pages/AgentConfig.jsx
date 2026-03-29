@@ -179,7 +179,7 @@ export default function AgentConfig() {
   const navigate = useNavigate();
   const location = useLocation();
   const agent = location.state?.agent || null;
-  const agentId = agent?.id || null;
+  const agentId = agent?._id || agent?.id || null;
 
   const [activeTab, setActiveTab] = useState('identity');
   const [loading, setLoading] = useState(true);
@@ -408,7 +408,7 @@ export default function AgentConfig() {
     useEmojis: true,
     signMessages: false,
     responseDelay: 3,
-    welcomeMessage: "Bonjour 👌 quel produit vous intéresse ?",
+    welcomeMessage: "Bonjour 👋 J'espère que vous allez bien ! Je suis là pour vous aider — lequel de nos produits vous a intéressé ?",
     fallbackMessage: "Je transmets votre demande à mon responsable. Un instant s'il vous plaît 🙏",
     autoLanguageDetection: true,
     autonomyLevel: 3,
@@ -611,7 +611,7 @@ export default function AgentConfig() {
         setSavedConfig(loadedConfig);
         setSimMessages([{
           role: 'agent',
-          text: loadedConfig.welcomeMessage || "Bonjour ! Comment puis-je vous aider ?",
+          text: loadedConfig.welcomeMessage || "Bonjour 👋 J'espère que vous allez bien ! Je suis là pour vous aider — lequel de nos produits vous a intéressé ?",
           time: '14:30',
         }]);
       }

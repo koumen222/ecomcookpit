@@ -331,15 +331,21 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
 
       // Utiliser l'instance sélectionnée par l'utilisateur ou la première par défaut
       let instance;
-      if (req.body.instanceId) {
-        instance = await WhatsAppInstance.findOne({ 
-          _id: req.body.instanceId, 
+      const selectedInstanceId = req.body.whatsappInstanceId || req.body.instanceId;
+      const userIdStr = String(req.ecomUser._id);
+      if (selectedInstanceId) {
+        instance = await WhatsAppInstance.findOne({
+          _id: selectedInstanceId,
           $or: [
             { workspaceId: req.workspaceId },
-            { userId: req.ecomUser._id }
+            { userId: userIdStr }
           ],
-          isActive: true 
+          isActive: true
         });
+        if (!instance) {
+          // Dernière tentative : chercher uniquement par _id (cas instance liée à un autre user du même workspace)
+          instance = await WhatsAppInstance.findOne({ _id: selectedInstanceId, isActive: true });
+        }
         if (!instance) {
           return res.status(400).json({ success: false, message: 'Instance WhatsApp sélectionnée introuvable ou inactive.' });
         }
@@ -347,7 +353,7 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
       } else {
         let instances = await WhatsAppInstance.find({ workspaceId: req.workspaceId, isActive: true, status: { $in: ['connected', 'active'] } }).sort({ defaultPart: -1 });
         if (instances.length === 0) {
-          instances = await WhatsAppInstance.find({ workspaceId: { $exists: false }, userId: req.ecomUser._id, isActive: true, status: { $in: ['connected', 'active'] } }).sort({ defaultPart: -1 });
+          instances = await WhatsAppInstance.find({ userId: userIdStr, isActive: true, status: { $in: ['connected', 'active'] } }).sort({ defaultPart: -1 });
         }
         if (instances.length === 0) return res.status(400).json({ success: false, message: 'Aucune instance WhatsApp connectée. Configurez une instance dans "Connexion WhatsApp".' });
         instance = instances[0];
@@ -450,6 +456,9 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
       console.log(`📤 Envoi SSE "${campaign.name}" → ${recipients.length} destinataires via ${instance.instanceName}`);
 
       let sent = 0, failed = 0, skipped = 0;
+      const BATCH_SIZE = 10;          // pause tous les N messages envoyés
+      const BATCH_PAUSE_MS = 20 * 60 * 1000; // 20 minutes
+      const MSG_DELAY_MS = 5 * 60 * 1000; // 5 minutes entre chaque message
 
       for (const { phone, client, orderData } of recipients) {
         // Vérifier interruption client
@@ -544,7 +553,15 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
           emit('progress', { sent, failed, skipped, total: recipients.length, index, current: { name: clientName, phone: cleanNumber, status: 'failed', reason: String(result.error || 'Erreur inconnue') } });
         }
 
-        await new Promise(r => setTimeout(r, 10000));
+        // Pause de 5 min tous les 10 messages envoyés avec succès
+        if (result.success && sent % BATCH_SIZE === 0 && sent < recipients.length) {
+          console.log(`⏸️ [CAMPAIGN] Pause 5 min après ${sent} messages envoyés...`);
+          emit('substep', { name: '', phone: '', step: 'batch_pause', status: 'pausing', detail: `Pause anti-spam 20 min (${sent} envoyés)` });
+          await new Promise(r => setTimeout(r, BATCH_PAUSE_MS));
+          emit('substep', { name: '', phone: '', step: 'batch_pause', status: 'done' });
+        } else {
+          await new Promise(r => setTimeout(r, MSG_DELAY_MS));
+        }
       }
 
       campaign.status = (sent === 0 && failed > 0) ? 'failed' : 'sent';

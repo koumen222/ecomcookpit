@@ -2723,13 +2723,25 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
   // Clé unique par agent (ou userId si pas d'agentId) + numéro expéditeur
   // Chaque agent a ses propres conversations isolées
   const historyKey = agentId ? `${agentId}:${from}` : `${userId}:${from}`;
-  if (!conversationHistory.has(historyKey)) {
+  const isNewConversation = !conversationHistory.has(historyKey);
+  if (isNewConversation) {
     conversationHistory.set(historyKey, []);
   }
   const history = conversationHistory.get(historyKey);
 
   // Mettre à jour le timestamp d'activité (rétention 24h)
   conversationLastActivity.set(historyKey, Date.now());
+
+  // ── Message de bienvenue configuré : retourner directement au 1er message ──
+  if (isNewConversation && config.welcomeMessage?.trim()) {
+    const welcomeReply = config.welcomeMessage.trim();
+    // Ajouter user + welcome dans l'historique pour la continuité
+    history.push({ role: 'user', content: text });
+    history.push({ role: 'assistant', content: welcomeReply });
+    conversationLastActivity.set(historyKey, Date.now());
+    console.log(`🎉 [RITA] Message de bienvenue envoyé à ${from}`);
+    return welcomeReply;
+  }
 
   // ── State management : créer/récupérer état + extraire entités du message ──
   const clientState = getOrCreateState(historyKey, from);

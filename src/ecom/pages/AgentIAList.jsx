@@ -296,14 +296,13 @@ export default function AgentIAList() {
   async function loadStats() {
     try {
       setKpisLoading(true);
-      const today = new Date().toISOString().slice(0, 10);
-      const res = await ecomApi.get(`/reports/stats/financial?startDate=${today}&endDate=${today}`);
-      if (res.data.success && res.data.data) {
-        const d = res.data.data;
+      const res = await ecomApi.get('/v1/external/whatsapp/agent-dashboard-stats');
+      if (res.data.success && res.data.stats) {
+        const s = res.data.stats;
         setKpis({
-          orders:   d.totalOrdersReceived || 0,
-          revenue:  Math.round(d.totalRevenue || 0),
-          messages: d.totalMessages || 0,
+          orders:   s.ordersToday   || 0,
+          revenue:  s.revenueToday  || 0,
+          messages: s.messagesToday || 0,
         });
       }
     } catch { /* silent */ }
@@ -403,7 +402,7 @@ export default function AgentIAList() {
           <StatCard
             icon={MessageSquare}
             label="Messages traités"
-            value={kpis.messages || '—'}
+            value={kpisLoading ? '…' : kpis.messages}
             sub="Aujourd'hui"
             loading={kpisLoading}
           />

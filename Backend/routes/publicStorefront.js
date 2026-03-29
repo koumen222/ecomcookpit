@@ -31,6 +31,8 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import EcomWorkspace from '../models/Workspace.js';
+import StoreProduct from '../models/StoreProduct.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -69,6 +71,257 @@ if (BUILD_DIR) {
     const indexExists = dirExists && fs.existsSync(path.join(p, 'index.html'));
     console.warn(`     ${p} → dir=${dirExists}, index.html=${indexExists}`);
   }
+}
+
+const DEFAULT_PLATFORM_TITLE = 'Scalor — The Operating System for African Ecommerce';
+const DEFAULT_PLATFORM_DESCRIPTION = 'Scalor — Growth. Structure. Intelligence. The Operating System for African Ecommerce.';
+const DEFAULT_PLATFORM_IMAGE = 'https://scalor.net/icon.png';
+
+let indexHtmlTemplate = null;
+
+function readIndexTemplate() {
+  if (!BUILD_DIR) return '';
+  if (!indexHtmlTemplate) {
+    indexHtmlTemplate = fs.readFileSync(path.join(BUILD_DIR, 'index.html'), 'utf8');
+  }
+  return indexHtmlTemplate;
+}
+
+function escapeHtml(value = '') {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escapeRegExp(value = '') {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeText(value = '') {
+  return String(value || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function truncateText(value = '', max = 180) {
+  if (!value || value.length <= max) return value;
+  return `${value.slice(0, max - 1).trimEnd()}…`;
+}
+
+function getRequestOrigin(req) {
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
+  const forwardedHost = String(req.headers['x-forwarded-host'] || req.headers.host || 'scalor.net').split(',')[0].trim();
+  return `${forwardedProto || 'https'}://${forwardedHost || 'scalor.net'}`;
+}
+
+function toAbsoluteUrl(value, req) {
+  if (!value) return '';
+  try {
+    return new URL(value, getRequestOrigin(req)).toString();
+  } catch {
+    return String(value);
+  }
+}
+
+function decodeSegment(value = '') {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function replaceTitleTag(html, title) {
+  const safeTitle = escapeHtml(title || DEFAULT_PLATFORM_TITLE);
+  if (/<title>[\s\S]*?<\/title>/i.test(html)) {
+    return html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${safeTitle}</title>`);
+  }
+  return html.replace('</head>', `      <title>${safeTitle}</title>\n    </head>`);
+}
+
+function upsertMetaTag(html, attrName, attrValue, content) {
+  const safeContent = escapeHtml(content || '');
+  const matcher = new RegExp(`<meta[^>]+${attrName}=["']${escapeRegExp(attrValue)}["'][^>]*>`, 'i');
+  const tag = `      <meta ${attrName}="${attrValue}" content="${safeContent}" />`;
+  if (matcher.test(html)) {
+    return html.replace(matcher, tag);
+  }
+  return html.replace('</head>', `${tag}\n    </head>`);
+}
+
+function replaceIconTags(html, iconUrl) {
+  if (!iconUrl) return html;
+  const safeIconUrl = escapeHtml(iconUrl);
+  let nextHtml = html.replace(/\s*<link rel="icon"[^>]*>\s*/ig, '\n');
+  nextHtml = nextHtml.replace(/\s*<link rel="apple-touch-icon"[^>]*>\s*/ig, '\n');
+  return nextHtml.replace(
+    '</head>',
+    `      <link rel="icon" type="image/png" href="${safeIconUrl}" />\n      <link rel="apple-touch-icon" href="${safeIconUrl}" />\n    </head>`,
+  );
+}
+
+function injectHeadMeta(html, meta) {
+  const resolved = {
+    title: meta?.title || DEFAULT_PLATFORM_TITLE,
+    description: meta?.description || DEFAULT_PLATFORM_DESCRIPTION,
+    image: meta?.image || DEFAULT_PLATFORM_IMAGE,
+    logo: meta?.logo || meta?.icon || '',
+    icon: meta?.icon || meta?.image || DEFAULT_PLATFORM_IMAGE,
+    url: meta?.url || 'https://scalor.net/',
+    type: meta?.type || 'website',
+    siteName: meta?.siteName || 'Scalor',
+    appTitle: meta?.appTitle || meta?.siteName || 'Scalor',
+  };
+
+  let nextHtml = replaceTitleTag(html, resolved.title);
+  nextHtml = upsertMetaTag(nextHtml, 'name', 'description', resolved.description);
+  nextHtml = upsertMetaTag(nextHtml, 'property', 'og:title', resolved.title);
+  nextHtml = upsertMetaTag(nextHtml, 'property', 'og:description', resolved.description);
+  nextHtml = upsertMetaTag(nextHtml, 'property', 'og:type', resolved.type);
+  nextHtml = upsertMetaTag(nextHtml, 'property', 'og:url', resolved.url);
+  nextHtml = upsertMetaTag(nextHtml, 'property', 'og:site_name', resolved.siteName);
+  nextHtml = upsertMetaTag(nextHtml, 'property', 'og:image', resolved.image);
+  if (resolved.logo) {
+    nextHtml = upsertMetaTag(nextHtml, 'property', 'og:logo', resolved.logo);
+  }
+  nextHtml = upsertMetaTag(nextHtml, 'name', 'twitter:card', resolved.image ? 'summary_large_image' : 'summary');
+  nextHtml = upsertMetaTag(nextHtml, 'name', 'twitter:title', resolved.title);
+  nextHtml = upsertMetaTag(nextHtml, 'name', 'twitter:description', resolved.description);
+  nextHtml = upsertMetaTag(nextHtml, 'name', 'twitter:image', resolved.image);
+  if (resolved.logo) {
+    nextHtml = upsertMetaTag(nextHtml, 'name', 'twitter:site', resolved.siteName);
+  }
+  nextHtml = upsertMetaTag(nextHtml, 'name', 'apple-mobile-web-app-title', resolved.appTitle);
+  return replaceIconTags(nextHtml, resolved.icon);
+}
+
+function resolveStoreRouteContext(req) {
+  const parts = String(req.path || '/').split('/').filter(Boolean);
+
+  if (req.isStoreDomain && req.subdomain) {
+    if (parts[0] === 'product' && parts[1]) {
+      return { subdomain: req.subdomain, pageType: 'product', slug: decodeSegment(parts[1]) };
+    }
+    if (parts[0] === 'products') {
+      return { subdomain: req.subdomain, pageType: 'products', slug: null };
+    }
+    if (parts[0] === 'checkout') {
+      return { subdomain: req.subdomain, pageType: 'checkout', slug: null };
+    }
+    return { subdomain: req.subdomain, pageType: 'home', slug: null };
+  }
+
+  if (parts[0] === 'store' && parts[1]) {
+    if (parts[2] === 'product' && parts[3]) {
+      return { subdomain: parts[1].toLowerCase(), pageType: 'product', slug: decodeSegment(parts[3]) };
+    }
+    if (parts[2] === 'products') {
+      return { subdomain: parts[1].toLowerCase(), pageType: 'products', slug: null };
+    }
+    if (parts[2] === 'checkout') {
+      return { subdomain: parts[1].toLowerCase(), pageType: 'checkout', slug: null };
+    }
+    return { subdomain: parts[1].toLowerCase(), pageType: 'home', slug: null };
+  }
+
+  return null;
+}
+
+async function resolveRequestMeta(req) {
+  const routeContext = resolveStoreRouteContext(req);
+  const baseUrl = `${getRequestOrigin(req)}${String(req.originalUrl || req.url || '/').split('?')[0] || '/'}`;
+
+  if (!routeContext?.subdomain) {
+    return {
+      title: DEFAULT_PLATFORM_TITLE,
+      description: DEFAULT_PLATFORM_DESCRIPTION,
+      image: DEFAULT_PLATFORM_IMAGE,
+      icon: DEFAULT_PLATFORM_IMAGE,
+      type: 'website',
+      siteName: 'Scalor',
+      appTitle: 'Scalor',
+      url: baseUrl,
+    };
+  }
+
+  const workspace = await EcomWorkspace.findOne({
+    subdomain: routeContext.subdomain,
+    isActive: true,
+    'storeSettings.isStoreEnabled': true,
+  }).select('name subdomain storeSettings').lean();
+
+  if (!workspace) {
+    return {
+      title: DEFAULT_PLATFORM_TITLE,
+      description: DEFAULT_PLATFORM_DESCRIPTION,
+      image: DEFAULT_PLATFORM_IMAGE,
+      icon: DEFAULT_PLATFORM_IMAGE,
+      type: 'website',
+      siteName: 'Scalor',
+      appTitle: 'Scalor',
+      url: baseUrl,
+    };
+  }
+
+  const storeName = normalizeText(workspace.storeSettings?.storeName || workspace.name) || 'Boutique';
+  const storeDescription = truncateText(
+    normalizeText(workspace.storeSettings?.storeDescription || `Découvrez la boutique ${storeName} en ligne.`),
+    180,
+  );
+  const storeLogo = workspace.storeSettings?.storeLogo || '';
+  const storeBanner = workspace.storeSettings?.storeBanner || '';
+  const defaultStoreVisual = toAbsoluteUrl(storeLogo || storeBanner || '/icon.png', req) || DEFAULT_PLATFORM_IMAGE;
+
+  const absoluteLogo = toAbsoluteUrl(storeLogo || '', req);
+  const meta = {
+    title: storeName,
+    description: storeDescription,
+    image: defaultStoreVisual,
+    logo: absoluteLogo || '',
+    icon: absoluteLogo || toAbsoluteUrl('/icon.png', req) || defaultStoreVisual,
+    type: 'website',
+    siteName: storeName,
+    appTitle: storeName,
+    url: baseUrl,
+  };
+
+  if (routeContext.pageType === 'products') {
+    meta.title = `Produits — ${storeName}`;
+    meta.description = truncateText(normalizeText(`Découvrez tous les produits disponibles chez ${storeName}.`), 180);
+    return meta;
+  }
+
+  if (routeContext.pageType === 'checkout') {
+    meta.title = `Finaliser la commande — ${storeName}`;
+    meta.description = truncateText(normalizeText(`Finalisez votre commande sur la boutique ${storeName}.`), 180);
+    return meta;
+  }
+
+  if (routeContext.pageType === 'product' && routeContext.slug) {
+    const product = await StoreProduct.findOne({
+      workspaceId: workspace._id,
+      slug: routeContext.slug,
+      isPublished: true,
+    }).select('name seoTitle seoDescription description images').lean();
+
+    if (product) {
+      const productImage = product.images?.[0]?.url || '';
+      meta.title = normalizeText(product.seoTitle || `${product.name} — ${storeName}`) || `${product.name} — ${storeName}`;
+      meta.description = truncateText(
+        normalizeText(product.seoDescription || product.description || storeDescription || `Découvrez ${product.name} chez ${storeName}.`),
+        180,
+      );
+      // og:image = image produit (plus engageante) ; logo dans icon/favicon et og:logo
+      meta.image = toAbsoluteUrl(productImage || storeLogo || storeBanner || '/icon.png', req) || defaultStoreVisual;
+      meta.type = 'product';
+    }
+  }
+
+  return meta;
 }
 
 // ─── 1. Skip this router for API paths and API domain ─────────────────────────
@@ -152,7 +405,7 @@ if (BUILD_DIR) {
 // ─── 4. SPA Fallback — serve index.html for all non-static routes ─────────────
 // This handles routes like: koumen.scalor.net/product/123, koumen.scalor.net/cart
 // React Router takes over client-side routing from index.html
-router.get('*', (req, res) => {
+router.get('*', async (req, res) => {
   if (!BUILD_DIR) {
     const accepts = req.headers.accept || '';
     if (accepts.includes('text/html')) {
@@ -171,9 +424,7 @@ router.get('*', (req, res) => {
       code: 'BUILD_NOT_READY'
     });
   }
-  
-  const indexPath = path.join(BUILD_DIR, 'index.html');
-  
+
   // Set proper headers for HTML
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -182,17 +433,18 @@ router.get('*', (req, res) => {
   // Security headers for the SPA shell
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  
-  res.sendFile(indexPath, (err) => {
-    if (err) {
-      console.error('❌ [storefront] Failed to send index.html:', err.message);
-      res.status(500).json({
-        success: false,
-        message: 'Error loading store',
-        code: 'INDEX_SEND_ERROR'
-      });
-    }
-  });
+
+  try {
+    const html = injectHeadMeta(readIndexTemplate(), await resolveRequestMeta(req));
+    res.status(200).send(html);
+  } catch (err) {
+    console.error('❌ [storefront] Failed to render dynamic index.html:', err.message);
+    res.status(500).json({
+      success: false,
+      message: 'Error loading store',
+      code: 'INDEX_SEND_ERROR'
+    });
+  }
 });
 
 export default router;
