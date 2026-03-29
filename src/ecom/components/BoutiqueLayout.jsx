@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
-import { useSubdomain } from '../hooks/useSubdomain.js';
+import { storeManageApi } from '../services/storeApi.js';
 
 // ── Boutique Sidebar Navigation ──────────────────────────────────────────────
 const BOUTIQUE_NAV = [
@@ -97,14 +97,28 @@ const BoutiqueLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, workspace } = useEcomAuth();
-  const { subdomain, isStoreDomain } = useSubdomain();
   const [moreOpen, setMoreOpen] = useState(false);
   const [entering, setEntering] = useState(true);
+  const [storeSubdomain, setStoreSubdomain] = useState(null);
 
-  // Build store URLs (always use full subdomain URLs)
+  // Load store subdomain on mount
+  useEffect(() => {
+    const loadSubdomain = async () => {
+      try {
+        const res = await storeManageApi.getStoreConfig();
+        const subdomain = res?.data?.data?.subdomain;
+        setStoreSubdomain(subdomain || null);
+      } catch (err) {
+        console.error('Failed to load subdomain:', err);
+      }
+    };
+    loadSubdomain();
+  }, []);
+
+  // Build store URLs (use loaded subdomain)
   const storeUrl = (path = '/') => {
-    if (!subdomain) return '#';
-    return `https://${subdomain}.scalor.net${path}`;
+    if (!storeSubdomain) return '#';
+    return `https://${storeSubdomain}.scalor.net${path}`;
   };
 
   // Entry animation
