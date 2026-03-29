@@ -801,12 +801,15 @@ const StoreProductPage = () => {
                 {/* Messages de confiance */}
                 {showTrustBadges && <TrustBadges compact />}
 
-                {/* Description - affichage direct sans titre */}
-                {product.description?.toString().trim() && (
-                  <div style={{ marginBottom: 16, paddingTop: 16, borderTop: '1px solid var(--s-border)' }}>
-                    <ProductDescription content={product.description} stripFaqSection={showFaq && product.faq?.length > 0} />
-                  </div>
-                )}
+                {/* Description IA uniquement (HTML) — le texte brut n'est pas affiché */}
+                {(() => {
+                  const raw = product.description?.toString().trim() || '';
+                  return raw && /<[^>]+>/.test(raw) ? (
+                    <div style={{ marginBottom: 16, paddingTop: 16, borderTop: '1px solid var(--s-border)' }}>
+                      <ProductDescription content={raw} stripFaqSection={showFaq && product.faq?.length > 0} />
+                    </div>
+                  ) : null;
+                })()}
 
                 {showFaq && product.faq?.length > 0 && (
                   <ProductFaqAccordion items={product.faq} />
