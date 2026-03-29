@@ -514,12 +514,6 @@ const StorefrontFooter = ({ store }) => (
         {store?.description && <p style={{ fontSize: 13, color: 'var(--s-text2)', margin: 0, maxWidth: 320 }}>{store.description}</p>}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-        {(store?.sectionToggles?.showWhatsappButton ?? false) && store?.whatsapp && (
-          <a href={`https://wa.me/${store.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
-            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 40, backgroundColor: '#25D366', color: '#fff', textDecoration: 'none', fontWeight: 600, fontSize: 13 }}>
-            <MessageCircle size={15} /> Commander via WhatsApp
-          </a>
-        )}
         <span style={{ fontSize: 12, color: 'var(--s-text2)' }}>
           Propulsé par <a href="https://scalor.net" target="_blank" rel="noreferrer" style={{ color: 'var(--s-primary)', fontWeight: 600, textDecoration: 'none' }}>Scalor</a>
         </span>

@@ -479,7 +479,7 @@ const ProductCard = ({ product, prefix, store }) => {
   return (
     <a href={`${prefix}/product/${product.slug}`} style={{ textDecoration: 'none' }}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
-      <div style={{ backgroundColor: 'var(--s-bg)', borderRadius: 16, overflow: 'hidden', border: '1px solid var(--s-border)', boxShadow: hovered ? '0 12px 36px rgba(0,0,0,0.1)' : '0 1px 4px rgba(0,0,0,0.05)', transform: hovered ? 'translateY(-3px)' : 'none', transition: 'box-shadow 0.25s, transform 0.25s' }}>
+      <div style={{ backgroundColor: 'var(--s-bg)', overflow: 'hidden', border: '1px solid var(--s-border)', boxShadow: hovered ? '0 12px 36px rgba(0,0,0,0.1)' : '0 1px 4px rgba(0,0,0,0.05)', transform: hovered ? 'translateY(-3px)' : 'none', transition: 'box-shadow 0.25s, transform 0.25s' }}>
         <div style={{ position: 'relative', paddingBottom: '100%', backgroundColor: '#f4f4f5', overflow: 'hidden' }}>
           {product.image ? (
             <img src={product.image} alt={product.name} loading="eager" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transform: hovered ? 'scale(1.05)' : 'scale(1)', transition: 'transform 0.4s ease' }} />

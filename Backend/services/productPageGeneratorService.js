@@ -369,12 +369,14 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
 ⚠️ guide_utilisation.applicable = false si le produit n'a pas besoin d'explication.
 ⚠️ Adapte prompt_avant_apres au PROBLÈME RÉEL que résout CE produit spécifique.
 ⚠️ description_optimisee doit toujours être une chaîne vide car la page commence directement par les angles marketing.
+⚠️ ORTHOGRAPHE PARFAITE : zéro faute d'orthographe, zéro faute de grammaire, zéro faute de conjugaison dans TOUT le contenu français.
+⚠️ TÉMOIGNAGES : prénoms et villes doivent correspondre au pays de la boutique (${storeCountry || 'Afrique de l\'Ouest'}).
 ⚠️ JSON uniquement. Pas d'explication. Pas de texte avant/après.`;
 
   const messages = [
     {
       role: "system",
-      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit optimisée pour la conversion. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS (sauf prompts images en anglais). 3) ZÉRO généricité — tout doit être spécifique à CE produit. 4) ZÉRO exagération — bénéfices réels et crédibles. 5) CRITIQUE hero : prompt_affiche_hero = produit réel, cadrage serré plein cadre, zéro marge vide, fond adaptatif universel (PAS un template beauté pour un produit tech ou autre), badge optionnel très court ou rien. 6) CRITIQUE avant/après : split-screen carré, zéro texte ni flèche, transformation réaliste liée au produit spécifique. 7) CRITIQUE angles : 4 photos pures sans AUCUN texte (même pas une lettre), scène réelle plein cadre, adaptées au type RÉEL du produit. 8) Les témoignages respectent le pays de la boutique. 9) Prompts ENTIÈREMENT réécrits pour CE produit — JAMAIS copier les exemples. 10) description_optimisee = chaîne vide toujours. 11) JSON uniquement."
+      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit optimisée pour la conversion. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS PARFAIT (sauf prompts images en anglais) — zéro faute d'orthographe, zéro faute de grammaire, zéro faute de conjugaison. 3) ZÉRO généricité — tout doit être spécifique à CE produit. 4) ZÉRO exagération — bénéfices réels et crédibles. 5) CRITIQUE hero : prompt_affiche_hero = produit réel, cadrage serré plein cadre, zéro marge vide, fond adaptatif universel (PAS un template beauté pour un produit tech ou autre), badge optionnel très court ou rien. 6) CRITIQUE avant/après : split-screen carré, zéro texte ni flèche, transformation réaliste liée au produit spécifique. 7) CRITIQUE angles : 4 photos pures sans AUCUN texte (même pas une lettre), scène réelle plein cadre, adaptées au type RÉEL du produit. 8) Témoignages : prénoms, villes et contexte adaptés au pays de la boutique, orthographe parfaite. 9) Prompts ENTIÈREMENT réécrits pour CE produit — JAMAIS copier les exemples. 10) description_optimisee = chaîne vide toujours. 11) JSON uniquement."
     },
     {
       role: "user",
