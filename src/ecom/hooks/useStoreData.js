@@ -76,6 +76,7 @@ export function useStoreData(subdomain) {
   const [store, setStore] = useState(cached?.store || null);
   const [sections, setSections] = useState(cached?.sections ?? null);
   const [products, setProducts] = useState(cached?.products || []);
+  const [pixels, setPixels] = useState(cached?.pixels || null);
   const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState(null);
 
@@ -99,12 +100,14 @@ export function useStoreData(subdomain) {
         // products come from the combined endpoint — no second getProducts call needed
         const productsData = data.products || [];
 
-        if (cacheKey) writeCache(cacheKey, { store: storeData, sections: sectionsData, products: productsData });
+        const pixelsData = data.pixels || null;
+        if (cacheKey) writeCache(cacheKey, { store: storeData, sections: sectionsData, products: productsData, pixels: pixelsData });
 
         injectStoreCssVars(storeData);
         setStore(storeData);
         setSections(sectionsData);
         setProducts(productsData);
+        setPixels(pixelsData);
       } catch (err) {
         if (cancelled) return;
         // Only show error if there's nothing to show from cache
@@ -118,7 +121,7 @@ export function useStoreData(subdomain) {
     return () => { cancelled = true; };
   }, [subdomain]);
 
-  return { store, sections, products, loading, error };
+  return { store, sections, products, pixels, loading, error };
 }
 
 // ─── useStoreProduct ──────────────────────────────────────────────────────────
@@ -127,6 +130,7 @@ export function useStoreProduct(subdomain, slug) {
   const cachedStore = storeCacheKey ? readCache(storeCacheKey) : null;
 
   const [store, setStore] = useState(cachedStore?.store || null);
+  const [pixels, setPixels] = useState(cachedStore?.pixels || null);
   const [product, setProduct] = useState(null);
   const [related, setRelated] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -153,19 +157,23 @@ export function useStoreProduct(subdomain, slug) {
         const productData = productRes.data?.data || null;
 
         let storeData = cachedStore?.store;
+        let pixelsData = cachedStore?.pixels || null;
         if (storeRes) {
           const data = storeRes.data?.data || {};
           storeData = data.store || data;
+          pixelsData = data.pixels || null;
           // Cache store data for future navigations
           if (storeCacheKey) writeCache(storeCacheKey, {
             store: storeData,
             sections: data.sections ?? null,
             products: data.products || [],
+            pixels: pixelsData,
           });
         }
 
         injectStoreCssVars(storeData);
         setStore(storeData);
+        setPixels(pixelsData);
         setProduct(productData);
 
         // Related products — non-blocking, doesn't delay paint
@@ -191,5 +199,5 @@ export function useStoreProduct(subdomain, slug) {
     return () => { cancelled = true; };
   }, [subdomain, slug]);
 
-  return { store, product, related, loading, error };
+  return { store, pixels, product, related, loading, error };
 }
