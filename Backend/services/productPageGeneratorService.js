@@ -317,15 +317,15 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   "hero_headline": "PROMESSE PRINCIPALE EN MAJUSCULES (4-6 mots)",
   "hero_slogan": "Sous-titre accrocheur orienté bénéfice spécifique au produit",
   "hero_baseline": "Phrase de réassurance courte spécifique au produit",
-  "prompt_affiche_hero": "[Generate in English a premium square 1:1 e-commerce hero image. The EXACT real product must be clearly visible. If the product is used by a person (beauty, health, wellness, fitness, food): include a real authentic Black African person (dark brown skin, natural African hair, African facial features) using or benefiting from the product. Tight crop, full-bleed framing, zero empty margins, clean or warm contextual African background. At most one very short French benefit badge (3 words max) OR no text at all. No paragraphs, no button, no prices.]",
-  "prompt_avant_apres": "[Generate in English a square 1:1 split-screen before/after visual specific to this product. MANDATORY: feature a real authentic Black African person (dark brown skin, African features, natural hair). Left side BEFORE: the African person showing the real problem this product solves. Right side AFTER: the same African person showing the realistic improved result after using the product. Tight crop, clear transformation, small 'Avant' / 'Après' label text if helpful, no arrows, no empty margins, realistic and not exaggerated.]",
+  "prompt_affiche_hero": "[Generate in English: High-converting ecommerce hero image for THIS specific product. Ultra realistic, 4K, advertising photography. Product clearly visible center/foreground. If used by a person: include authentic Black African model (dark brown skin, natural hair, African features) with confident/satisfied expression. Clean premium background (white, beige, or warm contextual). Professional studio lighting, soft shadows, depth of field. Optional short French badge (3 words max, bold font). No paragraphs, no CTA, no price. Scroll-stopping, trustworthy, premium mood.]",
+  "prompt_avant_apres": "[Generate in English: Square 1:1 split-screen before/after transformation for THIS product. MANDATORY: authentic Black African person (dark brown skin, natural hair, African features, realistic skin). LEFT = BEFORE: person showing the problem/frustration this product solves. RIGHT = AFTER: same person showing the result — improvement, confidence, glow. Professional lighting, clean premium aesthetic, 4K quality. Small bold 'Avant'/'Après' label if helpful. No arrows, no heavy overlays. Convincing, high-conversion, scroll-stopping.]",
   "angles": [
     {
       "titre_angle": "Phrase complète de 10-15 mots expliquant concrètement le bénéfice (PAS de titre court, PAS de slogan de 2-3 mots)",
       "explication": "3-4 phrases concrètes et persuasives. Décris comment ce bénéfice spécifique se manifeste dans la vie réelle. Reste crédible et factuel, sans exagération.",
       "message_principal": "1 phrase d'accroche mémorable spécifique à ce bénéfice",
       "promesse": "La transformation concrète que l'utilisateur va vivre",
-      "prompt_affiche": "Illustrative marketing visual square 1:1: [Describe in English: a real authentic Black African person (dark brown skin, natural African hair, African facial features) using or benefiting from this specific product in a real-life scene. The product must be visible or its result clearly shown. Clean natural light, warm African or neutral background. Add a short French text overlay: 1 bold headline (4-5 words max) at the top or bottom that captures the key benefit of this marketing angle. No price, no phone number, no CTA button, no URL. Subject fills the frame, tight crop, zero empty margins.]"
+      "prompt_affiche": "Scroll-stopping ecommerce ad image, square 1:1, ultra realistic, 4K, advertising photography: [Describe in English: authentic Black African model (dark brown skin, natural hair, African features, realistic skin, confident/satisfied expression) using or benefiting from THIS product in a real-life or studio scene. Product clearly visible or result shown. Clean premium background, professional lighting, soft shadows, depth of field. Visual storytelling: problem → product → result. Bold French headline (4-5 words max, modern font) at top or bottom. Optional supporting line (8 words max). No price, no phone, no CTA, no URL. Trustworthy, premium, high-conversion mood.]"
     }
   ],
   "raisons_acheter": [
@@ -523,28 +523,52 @@ export async function generatePosterImage(promptAffiche, originalImageBuffer = n
     console.log(`🎨 Generating ${mode} image with NanoBanana...`);
 
     const heroRules = `
-USE THE EXACT REAL PRODUCT IMAGE PROVIDED. NEVER invent, recreate or redesign the product.
-Square 1:1 premium hero, tight crop, full-bleed composition, ZERO empty margins around the subject.
-MANDATORY: if the product is used by a person (beauty, health, wellness, fitness, food), include an authentic Black African person (dark brown skin, natural African hair, African facial features) using or benefiting from the product. The product must remain clearly visible.
-Universal composition adaptable to any product category — do NOT impose a beauty or fashion template if this is not a beauty product.
-Background should be clean, warm contextual or neutral according to the product function. African or neutral setting preferred.
-At most one very short French badge (3 words max) OR no text at all.
-No paragraphs, no long text, no button, no price, no clutter, no flashy effects.`;
+Create a high-converting ecommerce product hero image. Ultra realistic, 4K quality, sharp focus, advertising photography style.
+USE THE EXACT REAL PRODUCT IMAGE PROVIDED — NEVER invent, recreate or redesign the product.
+Square 1:1 premium composition, tight crop, full-bleed framing, ZERO empty margins.
+
+Visual style: Clean, modern, premium brand aesthetic. Minimalist background (white, beige, or soft warm color). Strong focus on the product. Professional lighting with soft shadows, studio quality. Depth of field for a premium look.
+
+Human element (MANDATORY if the product is used by a person — beauty, health, wellness, fitness, food):
+Include an authentic Black African model (dark brown skin, natural African hair, African facial features). Natural expression showing confidence and satisfaction. Realistic skin and features — not fake or plastic.
+
+Composition: Product clearly visible in center or foreground. Supporting elements that reinforce the product context. Show the product as a premium solution.
+
+Text overlay: At most one very short French benefit badge (3 words max, bold modern font) OR no text at all. Optional small "BEST SELLER" or "NOUVEAU" badge.
+NO paragraphs, NO long text, NO button, NO price, NO phone number, NO CTA, NO clutter.
+
+Mood: Trustworthy, premium, high-conversion ecommerce ad, clean and attractive, scroll-stopping.`;
 
     const beforeAfterRules = `
-Square 1:1 split-screen before/after visual specific to this product.
-MANDATORY: feature an authentic Black African person (dark brown skin, natural African hair, African facial features).
-Left side BEFORE: African person showing the real problem. Right side AFTER: same African person showing the realistic improvement.
-Tight crop, clear realistic transformation, small 'Avant'/'Après' label text if helpful for reading.
-No arrows, no numbers, no heavy graphic overlays, no empty margins.`;
+Create a high-converting before/after product transformation image. Ultra realistic, 4K quality, sharp focus, advertising photography style.
+Square 1:1 split-screen visual specific to this product.
+
+MANDATORY: feature an authentic Black African person (dark brown skin, natural African hair, African facial features). Natural expression, realistic skin and features — not fake or plastic.
+
+Left side BEFORE: The African person clearly showing the PROBLEM or CONTEXT this product solves — visible frustration, discomfort, or issue.
+Right side AFTER: The SAME African person showing the RESULT — improvement, satisfaction, confidence, glowing outcome.
+
+Visual style: Clean, modern, premium. Professional lighting, soft shadows, studio quality. Clear visual storytelling: problem → product → result.
+Tight crop, clear realistic transformation (not exaggerated). Small 'Avant'/'Après' label text in bold modern font if helpful for reading.
+NO arrows, NO heavy graphic overlays, NO empty margins, NO price, NO CTA.
+
+Mood: Trustworthy, convincing, high-conversion, impossible to ignore in a Facebook or TikTok feed.`;
 
     const sceneRules = `
+Create a scroll-stopping ecommerce ad image. Ultra realistic, 4K quality, sharp focus, advertising photography style.
 Square 1:1 illustrative marketing visual, tight crop, subject fills the entire frame, ZERO empty space.
-MANDATORY: feature an authentic Black African person (dark brown skin, natural African hair, African facial features) using or benefiting from this specific product in a real-life scene.
-The product must be visible in the scene or its result clearly shown on the person.
-Short French text overlay allowed: 1 bold headline (4-5 words max) that captures the key benefit. NO price, NO phone number, NO CTA button, NO URL.
-Clean natural light, warm African or neutral background.
-Adapted to the actual product category and niche.`;
+
+Visual style: Clean, modern, premium brand aesthetic. Minimalist or contextual background. Professional lighting with soft shadows. Depth of field for a premium look.
+
+Human element (MANDATORY): Include an authentic Black African model (dark brown skin, natural African hair, African facial features). Natural expression showing confidence, satisfaction, or the benefit of the product. Realistic skin and features — not fake or plastic.
+
+Composition: Product clearly visible in the scene or its result shown on the person. Supporting elements that reinforce the product benefit. Visual storytelling: show the PROBLEM or CONTEXT → PRODUCT as solution → RESULT (clean, glowing, improved).
+
+Text overlay (modern bold font): 1 bold French headline (4-5 words max) capturing the key benefit at the top or bottom. Optional supporting line (8 words max). Optional small badge: "BEST SELLER" or "NOUVEAU".
+NO price, NO phone number, NO CTA button, NO URL. Keep it clean.
+
+Mood: Trustworthy, premium, high-conversion ecommerce ad, clean and attractive, impossible to ignore in a Facebook or TikTok feed.
+Strong emotional impact. Eye-catching composition. Clear problem → solution → result.`;
 
     const posterPrompt = `${promptAffiche}
 
