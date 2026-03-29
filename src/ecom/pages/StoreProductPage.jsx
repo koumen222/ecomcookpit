@@ -399,8 +399,34 @@ const ProductDescription = ({ content, stripFaqSection = false }) => {
   );
 };
 
+// ── Collapsible Section ──────────────────────────────────────────────────────
+const CollapsibleSection = ({ title, children, defaultOpen = false }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ borderTop: '1px solid var(--s-border)', marginTop: 8 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '16px 0', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+        }}
+      >
+        <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>
+          {title}
+        </span>
+        {open ? <ChevronUp size={18} color="var(--s-text2)" /> : <ChevronDown size={18} color="var(--s-text2)" />}
+      </button>
+      {open && (
+        <div style={{ paddingBottom: 20 }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ProductFaqAccordion = ({ items = [] }) => {
-  const [openIndex, setOpenIndex] = useState(0);
+  const [openIndex, setOpenIndex] = useState(null);
 
   if (!items.length) return null;
 
@@ -800,18 +826,22 @@ const StoreProductPage = () => {
                 {/* Messages de confiance */}
                 {showTrustBadges && <TrustBadges compact />}
 
-                {/* Description IA uniquement (HTML) — le texte brut n'est pas affiché */}
+                {/* Description IA — section réductible */}
                 {(() => {
                   const raw = product.description?.toString().trim() || '';
-                  return raw && /<[^>]+>/.test(raw) ? (
-                    <div style={{ marginBottom: 16, paddingTop: 16, borderTop: '1px solid var(--s-border)' }}>
+                  if (!raw || !/<[^>]+>/.test(raw)) return null;
+                  return (
+                    <CollapsibleSection title="Description du produit" defaultOpen={true}>
                       <ProductDescription content={raw} stripFaqSection={showFaq && product.faq?.length > 0} />
-                    </div>
-                  ) : null;
+                    </CollapsibleSection>
+                  );
                 })()}
 
+                {/* FAQ — section réductible */}
                 {showFaq && product.faq?.length > 0 && (
-                  <ProductFaqAccordion items={product.faq} />
+                  <CollapsibleSection title="❓ Questions fréquentes" defaultOpen={true}>
+                    <ProductFaqAccordion items={product.faq} />
+                  </CollapsibleSection>
                 )}
               </>
             ) : null}
