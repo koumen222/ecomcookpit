@@ -329,7 +329,6 @@ const StoreCreationWizard = ({ onComplete }) => {
     city: '',
     country: 'Cameroun',
     storeCurrency: 'XAF',
-    productDescription: '',
     storeDescription: '',
   });
 
@@ -365,7 +364,6 @@ const StoreCreationWizard = ({ onComplete }) => {
             city: s.city || '',
             country: s.country || 'Cameroun',
             storeCurrency: s.storeCurrency || 'XAF',
-            productDescription: s.productDescription || '',
             storeDescription: s.storeDescription || '',
           }));
           if (s.storeLogo) setLogoPreview(s.storeLogo);
