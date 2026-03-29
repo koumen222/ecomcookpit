@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
-import { useSubdomain } from '../hooks/useSubdomain.js';
+import { storeManageApi } from '../services/storeApi.js';
 
 // ── Boutique Sidebar Navigation ──────────────────────────────────────────────
 const BOUTIQUE_NAV = [
@@ -30,6 +30,15 @@ const BOUTIQUE_NAV = [
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+      </svg>
+    ),
+  },
+  {
+    name: 'Pages',
+    href: '/ecom/boutique/pages',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
       </svg>
     ),
   },
@@ -88,14 +97,28 @@ const BoutiqueLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, workspace } = useEcomAuth();
-  const { subdomain, isStoreDomain } = useSubdomain();
   const [moreOpen, setMoreOpen] = useState(false);
   const [entering, setEntering] = useState(true);
+  const [storeSubdomain, setStoreSubdomain] = useState(null);
 
-  // Build store URLs (always use full subdomain URLs)
+  // Load store subdomain on mount
+  useEffect(() => {
+    const loadSubdomain = async () => {
+      try {
+        const res = await storeManageApi.getStoreConfig();
+        const subdomain = res?.data?.data?.subdomain;
+        setStoreSubdomain(subdomain || null);
+      } catch (err) {
+        console.error('Failed to load subdomain:', err);
+      }
+    };
+    loadSubdomain();
+  }, []);
+
+  // Build store URLs (use loaded subdomain)
   const storeUrl = (path = '/') => {
-    if (!subdomain) return '#';
-    return `https://${subdomain}.scalor.net${path}`;
+    if (!storeSubdomain) return '#';
+    return `https://${storeSubdomain}.scalor.net${path}`;
   };
 
   // Entry animation

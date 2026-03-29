@@ -35,9 +35,12 @@ const BoutiqueDashboard = () => {
         // Check if store exists
         const configRes = await storeManageApi.getStoreConfig().catch(() => null);
         const subdomain = configRes?.data?.data?.subdomain;
+        const storeUrlFromApi = configRes?.data?.data?.storeUrl;
         setHasStore(!!subdomain);
         
-        if (subdomain) {
+        if (storeUrlFromApi) {
+          setStoreUrl(storeUrlFromApi);
+        } else if (subdomain) {
           setStoreUrl(`https://${subdomain}.scalor.net`);
         }
 
@@ -122,33 +125,6 @@ const BoutiqueDashboard = () => {
 
       {/* Quick actions */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {/* Store URL banner */}
-        {storeUrl && (
-          <div className="col-span-full bg-gradient-to-r from-[#0F6B4F] to-[#0A5740] rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="text-white text-center sm:text-left">
-              <p className="text-xs font-medium opacity-80">Votre boutique en ligne</p>
-              <p className="text-sm font-bold truncate">{storeUrl}</p>
-            </div>
-            <div className="flex gap-2">
-              <a 
-                href={storeUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="px-4 py-2 bg-white text-[#0F6B4F] text-sm font-bold rounded-lg hover:bg-gray-100 transition flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                Voir
-              </a>
-              <Link 
-                to="/ecom/boutique/pages"
-                className="px-4 py-2 bg-white/20 text-white text-sm font-bold rounded-lg hover:bg-white/30 transition flex items-center gap-2 border border-white/30"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                Modifier
-              </Link>
-            </div>
-          </div>
-        )}
         {[
           { label: 'Ajouter produit', href: '/ecom/boutique/products/new', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>, color: 'bg-[#E6F2ED] text-[#0A5740] border-[#96C7B5]' },
           { label: 'Voir commandes', href: '/ecom/boutique/orders', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>, color: 'bg-blue-50 text-blue-700 border-blue-200' },
