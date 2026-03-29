@@ -13,6 +13,10 @@ import { extractSubdomain } from './middleware/subdomain.js';
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// ─── Trust proxy (Railway / Render / Cloudflare) ──────────────────────────────
+// Nécessaire pour que req.ip soit l'IP réelle et que express-rate-limit fonctionne
+app.set('trust proxy', 1);
+
 // ─── CORS ────────────────────────────────────────────────────────────────────
 const configuredOrigins = (process.env.CORS_ORIGINS || '')
   .split(',')

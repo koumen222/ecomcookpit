@@ -4,6 +4,7 @@ import { Search, ShoppingBag, ChevronLeft, ChevronRight, Loader2, Phone, Message
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
 import { injectStoreCssVars } from '../hooks/useStoreData.js';
+import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking.js';
 
 /**
  * StoreFront — Public-facing product grid page.
@@ -56,10 +57,16 @@ const StoreFront = () => {
         setProducts(data?.products || []);
         setPagination(data?.pagination || { page: 1, limit: 20, total: 0, pages: 0 });
         setCategories(data?.categories || []);
-        
+
         // Injecter les couleurs et le thème du store
         if (storeData) {
           injectStoreCssVars(storeData);
+        }
+
+        // Injecter les pixels de tracking et fire PageView
+        if (data?.pixels) {
+          injectPixelScripts(data.pixels);
+          firePixelEvent('PageView');
         }
         
         clearTimeout(timeoutId);
