@@ -4,6 +4,7 @@ import { ArrowLeft, ShoppingCart, CheckCircle, AlertCircle, Loader2, User, Phone
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
 import { setDocumentMeta } from '../utils/pageMeta';
+import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking.js';
 
 /**
  * Normalize a city name for fuzzy matching.
@@ -57,6 +58,7 @@ const StoreCheckout = () => {
   const storePath = (path) => isStoreDomain ? path : `/store/${subdomain}${path}`;
 
   const [store, setStore] = useState(null);
+  const [pixels, setPixels] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -148,7 +150,20 @@ const StoreCheckout = () => {
     (async () => {
       try {
         const res = await publicStoreApi.getStore(subdomain);
-        setStore(res.data?.data);
+        const data = res.data?.data || {};
+        setStore(data.store || data);
+        setPixels(data.pixels || null);
+        // Inject pixels + fire InitiateCheckout
+        if (data.pixels) {
+          injectPixelScripts(data.pixels);
+          const total = cartProducts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);
+          firePixelEvent('InitiateCheckout', {
+            value: total,
+            currency: data.store?.currency || 'XAF',
+            num_items: cartProducts.length,
+            content_ids: cartProducts.map(p => p._id || p.productId || ''),
+          });
+        }
       } catch {
         setError('Boutique introuvable');
       } finally {
@@ -232,7 +247,17 @@ const StoreCheckout = () => {
         channel: 'store'
       });
 
-      setOrderResult(res.data?.data);
+      const orderData = res.data?.data;
+      setOrderResult(orderData);
+
+      // Fire Purchase pixel event
+      const orderTotal = orderData?.total ?? cartProducts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);
+      firePixelEvent('Purchase', {
+        value: orderTotal,
+        currency: store?.currency || 'XAF',
+        content_ids: cartProducts.map(p => p._id || p.productId || ''),
+        num_items: cartProducts.length,
+      });
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur lors de la commande');
     } finally {
