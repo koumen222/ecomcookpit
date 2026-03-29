@@ -11,6 +11,7 @@ import { useStoreCart } from '../hooks/useStoreCart';
 import QuickOrderModal from '../components/QuickOrderModal';
 import { io } from 'socket.io-client';
 import { setDocumentMeta } from '../utils/pageMeta';
+import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
 
@@ -613,12 +614,24 @@ const StoreProductPage = () => {
   const subdomain = paramSubdomain || detectedSubdomain;
   const prefix = isStoreDomain ? '' : (subdomain ? `/store/${subdomain}` : '');
 
-  const { store, product, related, error } = useStoreProduct(subdomain, slug);
+  const { store, pixels, product, related, error } = useStoreProduct(subdomain, slug);
   const { cartCount } = useStoreCart(subdomain);
 
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showStickyOrderBar, setShowStickyOrderBar] = useState(false);
   const ctaButtonsRef = useRef(null);
+
+  // Inject pixel scripts and fire ViewContent when product loads
+  useEffect(() => {
+    if (!product || !pixels) return;
+    injectPixelScripts(pixels);
+    firePixelEvent('ViewContent', {
+      content_ids: [product._id || product.slug || ''],
+      content_name: product.name || '',
+      value: product.price || 0,
+      currency: store?.currency || 'XAF',
+    });
+  }, [product, pixels, store?.currency]);
 
   useEffect(() => {
     if (!store?.name || !product?.name) return;
@@ -704,7 +717,14 @@ const StoreProductPage = () => {
   }, [product, inStock]);
 
   const openOrderModal = () => {
-    if (inStock) setShowOrderModal(true);
+    if (!inStock) return;
+    setShowOrderModal(true);
+    firePixelEvent('AddToCart', {
+      content_ids: [product?._id || product?.slug || ''],
+      content_name: product?.name || '',
+      value: product?.price || 0,
+      currency: store?.currency || 'XAF',
+    });
   };
 
   if (error) return (
