@@ -382,14 +382,6 @@ const AiContactSection = ({ cfg, store }) => {
           {cfg.title || 'Parlez-nous maintenant'}
         </h2>
         {cfg.subtitle && <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.85)', margin: '0 0 36px', lineHeight: 1.6, fontFamily: 'var(--s-font)' }}>{cfg.subtitle}</p>}
-        {waLink && (
-          <a href={waLink} target="_blank" rel="noreferrer"
-            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 44px rgba(0,0,0,0.22)'; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 6px 28px rgba(0,0,0,0.18)'; }}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 12, padding: '16px 36px', borderRadius: 50, backgroundColor: '#25D366', color: '#fff', textDecoration: 'none', fontWeight: 800, fontSize: 16, fontFamily: 'var(--s-font)', boxShadow: '0 6px 28px rgba(0,0,0,0.18)', transition: 'transform 0.15s, box-shadow 0.15s' }}>
-            <MessageCircle size={20} /> Commander sur WhatsApp
-          </a>
-        )}
         {cfg.address && <p style={{ marginTop: 20, fontSize: 13, color: 'rgba(255,255,255,0.65)', fontFamily: 'var(--s-font)' }}>📍 {cfg.address}</p>}
       </div>
     </section>
@@ -509,11 +501,9 @@ const ProductCard = ({ product, prefix, store }) => {
 
 // ── Footer ────────────────────────────────────────────────────────────────────
 const StorefrontFooter = ({ store, prefix }) => {
-  const showWhatsappButton = store?.sectionToggles?.showWhatsappButton ?? false;
   const navigationLinks = [
     { label: 'Accueil', href: `${prefix}/` },
     { label: 'Tous nos produits', href: `${prefix}/products` },
-    ...(showWhatsappButton && store?.whatsapp ? [{ label: 'Commander sur WhatsApp', href: `https://wa.me/${store.whatsapp.replace(/\D/g, '')}` }] : []),
   ];
 
   return (
@@ -533,12 +523,6 @@ const StorefrontFooter = ({ store, prefix }) => {
           {store?.description && (
             <p style={{ fontSize: 13, lineHeight: 1.65, margin: '0 0 20px', maxWidth: 260, color: 'rgba(255,255,255,0.6)' }}>{store.description}</p>
           )}
-          {showWhatsappButton && store?.whatsapp && (
-            <a href={`https://wa.me/${store.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 18px', borderRadius: 40, backgroundColor: '#25D366', color: '#fff', textDecoration: 'none', fontWeight: 600, fontSize: 13 }}>
-              <MessageCircle size={14} /> WhatsApp
-            </a>
-          )}
         </div>
 
         <div>
@@ -557,12 +541,6 @@ const StorefrontFooter = ({ store, prefix }) => {
         <div>
           <p style={{ fontWeight: 700, fontSize: 13, color: '#fff', margin: '0 0 18px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Contact</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {showWhatsappButton && store?.whatsapp && (
-              <a href={`https://wa.me/${store.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
-                style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: 'rgba(255,255,255,0.7)', textDecoration: 'none' }}>
-                <MessageCircle size={14} style={{ flexShrink: 0 }} /> {store.whatsapp}
-              </a>
-            )}
             {store?.city && (
               <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: 'rgba(255,255,255,0.6)' }}>
                 <MapPin size={14} style={{ flexShrink: 0 }} /> {store.city}{store.country ? `, ${store.country}` : ''}
@@ -658,9 +636,6 @@ export const StoreAllProducts = () => {
 
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: 'clamp(32px, 6vw, 64px) 24px 80px' }}>
         <div style={{ marginBottom: 36 }}>
-          <a href={`${prefix}/`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13.5, color: 'var(--s-text2)', textDecoration: 'none', marginBottom: 20 }}>
-            ← Retour à l'accueil
-          </a>
           <h1 style={{ fontSize: 'clamp(26px, 4vw, 38px)', fontWeight: 900, color: 'var(--s-text)', margin: '0 0 6px', letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>
             Tous nos produits
           </h1>
