@@ -331,9 +331,10 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
 
       // Utiliser l'instance sélectionnée par l'utilisateur ou la première par défaut
       let instance;
-      if (req.body.instanceId) {
-        instance = await WhatsAppInstance.findOne({ 
-          _id: req.body.instanceId, 
+      const selectedInstanceId = req.body.whatsappInstanceId || req.body.instanceId;
+      if (selectedInstanceId) {
+        instance = await WhatsAppInstance.findOne({
+          _id: selectedInstanceId,
           $or: [
             { workspaceId: req.workspaceId },
             { userId: req.ecomUser._id }
