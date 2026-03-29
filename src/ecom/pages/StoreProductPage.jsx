@@ -609,13 +609,7 @@ const StoreProductPage = () => {
 
     const checkStickyVisibility = () => {
       const ctaBox = ctaButtonsRef.current;
-      const isMobileViewport = window.innerWidth <= 768;
-
-      if (!ctaBox || !isMobileViewport) {
-        setShowStickyOrderBar(false);
-        return;
-      }
-
+      if (!ctaBox) { setShowStickyOrderBar(false); return; }
       const rect = ctaBox.getBoundingClientRect();
       const isVisible = rect.top < window.innerHeight && rect.bottom > 0;
       setShowStickyOrderBar(!isVisible);
@@ -802,22 +796,6 @@ const StoreProductPage = () => {
                     </span>
                   </button>
 
-                  {showWhatsappButton && (
-                    <button
-                      onClick={openOrderModal}
-                      style={{
-                        width: '100%', padding: '14px 24px', borderRadius: 40, border: '1.5px solid #25D366',
-                        backgroundColor: 'transparent', color: '#25D366',
-                        fontWeight: 700, fontSize: 15, cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
-                        fontFamily: 'var(--s-font)', transition: 'all 0.15s',
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#25D366'; e.currentTarget.style.color = '#fff'; }}
-                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#25D366'; }}
-                    >
-                      <MessageCircle size={17} /> Commander via WhatsApp
-                    </button>
-                  )}
                 </div>
 
                 {/* Messages de confiance */}
