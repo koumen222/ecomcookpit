@@ -36,22 +36,93 @@ const TONE_LABELS = {
 
 // ─── Fallback sections si Groq échoue ────────────────────────────────────────
 function buildFallbackSections(s) {
+  const storeName = s.storeName || 'Notre Boutique';
+  const productType = PRODUCT_TYPE_LABELS[s.productType] || 'Produits de qualité';
+  const city = s.city || 'votre ville';
+  const whatsapp = s.storeWhatsApp || '';
+
   return [
     {
       id: 'hero-1', type: 'hero', visible: true,
       config: {
-        title: `Bienvenue chez ${s.storeName || 'notre boutique'}`,
-        subtitle: s.storeDescription || 'Découvrez nos produits de qualité, livrés rapidement.',
-        ctaText: 'Voir nos produits', ctaLink: '#products', alignment: 'center', backgroundImage: '',
+        title: s.storeDescription 
+          ? `${storeName}`
+          : `Bienvenue chez ${storeName}`,
+        subtitle: s.storeDescription || `Découvrez notre sélection exclusive. Qualité garantie, livraison rapide partout.`,
+        ctaText: 'Découvrir nos produits',
+        ctaLink: '#products',
+        alignment: 'center',
+        backgroundImage: '',
+      }
+    },
+    {
+      id: 'badges-1', type: 'badges', visible: true,
+      config: {
+        items: [
+          { icon: '🚚', title: 'Livraison Rapide', desc: 'Expédition sous 24-48h dans toute la région' },
+          { icon: '✅', title: 'Qualité Garantie', desc: 'Produits authentiques et certifiés' },
+          { icon: '💬', title: 'Support WhatsApp', desc: 'Réponse rapide à toutes vos questions' },
+          { icon: '🔄', title: 'Retours Faciles', desc: 'Satisfait ou remboursé sous 7 jours' },
+        ]
       }
     },
     {
       id: 'products-1', type: 'products', visible: true,
-      config: { title: 'Nos Produits Phares', subtitle: 'Une sélection soigneusement choisie pour vous', layout: 'grid', columns: 3, showPrice: true, showAddToCart: true, limit: 6 }
+      config: {
+        title: 'Nos Produits',
+        subtitle: 'Une sélection soigneusement choisie pour vous',
+        layout: 'grid',
+        columns: 3,
+        showPrice: true,
+        showAddToCart: true,
+        limit: 6
+      }
+    },
+    {
+      id: 'features-1', type: 'features', visible: true,
+      config: {
+        title: 'Pourquoi nous choisir ?',
+        subtitle: 'Des avantages qui font la différence',
+        items: [
+          { icon: '⭐', title: 'Qualité Premium', desc: 'Nous sélectionnons uniquement les meilleurs produits pour vous garantir une satisfaction totale.' },
+          { icon: '💰', title: 'Prix Compétitifs', desc: 'Des tarifs justes et transparents, sans surprise. Le meilleur rapport qualité-prix.' },
+          { icon: '🛡️', title: 'Paiement Sécurisé', desc: 'Vos transactions sont protégées. Payez en toute confiance.' },
+          { icon: '❤️', title: 'Service Client Dédié', desc: 'Une équipe à votre écoute pour vous accompagner avant et après votre achat.' },
+        ]
+      }
+    },
+    {
+      id: 'testimonials-1', type: 'testimonials', visible: true,
+      config: {
+        title: 'Ce que disent nos clients',
+        items: [
+          { name: 'Marie K.', location: city, content: 'Excellente boutique ! Produits de qualité et livraison rapide. Je recommande vivement.', rating: 5 },
+          { name: 'Paul M.', location: city, content: 'Service client au top, ils ont répondu à toutes mes questions. Très satisfait de mon achat.', rating: 5 },
+          { name: 'Aïcha B.', location: city, content: 'Belle découverte ! Les produits correspondent parfaitement à la description. Merci !', rating: 5 },
+        ],
+        showRating: true
+      }
+    },
+    {
+      id: 'faq-1', type: 'faq', visible: true,
+      config: {
+        title: 'Questions Fréquentes',
+        items: [
+          { question: 'Quels sont les délais de livraison ?', answer: 'Nous livrons généralement sous 24 à 48 heures dans les grandes villes et sous 3 à 5 jours dans les autres localités.' },
+          { question: 'Comment passer commande ?', answer: 'Vous pouvez commander directement sur notre site ou nous contacter via WhatsApp pour une assistance personnalisée.' },
+          { question: 'Quels modes de paiement acceptez-vous ?', answer: 'Nous acceptons les paiements Mobile Money, carte bancaire et paiement à la livraison dans certaines zones.' },
+          { question: 'Puis-je retourner un produit ?', answer: 'Oui, vous disposez de 7 jours pour retourner un produit non utilisé dans son emballage d\'origine.' },
+        ]
+      }
     },
     {
       id: 'contact-1', type: 'contact', visible: true,
-      config: { title: 'Contactez-nous', subtitle: 'Une question ? Nous sommes là pour vous !', whatsapp: s.storeWhatsApp || '', showForm: true }
+      config: {
+        title: 'Besoin d\'aide ?',
+        subtitle: 'Notre équipe est disponible pour répondre à toutes vos questions',
+        whatsapp: whatsapp,
+        address: s.city && s.country ? `${s.city}, ${s.country}` : '',
+      }
     }
   ];
 }

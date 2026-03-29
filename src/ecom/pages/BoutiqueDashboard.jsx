@@ -24,6 +24,7 @@ const BoutiqueDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [recentOrders, setRecentOrders] = useState([]);
   const [hasStore, setHasStore] = useState(null); // null=loading, true/false
+  const [storeUrl, setStoreUrl] = useState(null);
 
   const fmt = (n) => new Intl.NumberFormat('fr-FR').format(n || 0);
   const currency = workspace?.storeSettings?.storeCurrency || 'XAF';
@@ -35,6 +36,10 @@ const BoutiqueDashboard = () => {
         const configRes = await storeManageApi.getStoreConfig().catch(() => null);
         const subdomain = configRes?.data?.data?.subdomain;
         setHasStore(!!subdomain);
+        
+        if (subdomain) {
+          setStoreUrl(`https://${subdomain}.scalor.net`);
+        }
 
         if (!subdomain) { setLoading(false); return; }
 
@@ -117,10 +122,37 @@ const BoutiqueDashboard = () => {
 
       {/* Quick actions */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Store URL banner */}
+        {storeUrl && (
+          <div className="col-span-full bg-gradient-to-r from-[#0F6B4F] to-[#0A5740] rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="text-white text-center sm:text-left">
+              <p className="text-xs font-medium opacity-80">Votre boutique en ligne</p>
+              <p className="text-sm font-bold truncate">{storeUrl}</p>
+            </div>
+            <div className="flex gap-2">
+              <a 
+                href={storeUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="px-4 py-2 bg-white text-[#0F6B4F] text-sm font-bold rounded-lg hover:bg-gray-100 transition flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                Voir
+              </a>
+              <Link 
+                to="/ecom/boutique/pages"
+                className="px-4 py-2 bg-white/20 text-white text-sm font-bold rounded-lg hover:bg-white/30 transition flex items-center gap-2 border border-white/30"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                Modifier
+              </Link>
+            </div>
+          </div>
+        )}
         {[
           { label: 'Ajouter produit', href: '/ecom/boutique/products/new', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>, color: 'bg-[#E6F2ED] text-[#0A5740] border-[#96C7B5]' },
           { label: 'Voir commandes', href: '/ecom/boutique/orders', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>, color: 'bg-blue-50 text-blue-700 border-blue-200' },
-          { label: 'Modifier thème', href: '/ecom/boutique/theme', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>, color: 'bg-pink-50 text-pink-700 border-pink-200' },
+          { label: 'Modifier pages', href: '/ecom/boutique/pages', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>, color: 'bg-purple-50 text-purple-700 border-purple-200' },
           { label: 'Configurer pixel', href: '/ecom/boutique/pixel', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>, color: 'bg-green-50 text-green-700 border-green-200' },
         ].map(a => (
           <Link key={a.label} to={a.href} className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-semibold transition hover:shadow-md ${a.color}`}>

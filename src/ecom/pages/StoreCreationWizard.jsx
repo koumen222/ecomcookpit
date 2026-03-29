@@ -474,9 +474,7 @@ const StoreCreationWizard = ({ onComplete }) => {
     if (step === 4) {
       if (!form.storeWhatsApp.trim()) e.storeWhatsApp = 'Ajoutez un numéro WhatsApp';
     }
-    if (step === 5) {
-      if (!form.productDescription.trim()) e.productDescription = 'Décrivez votre produit phare';
-    }
+    // Étape 5 : pas de validation obligatoire, description optionnelle
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -527,7 +525,6 @@ const StoreCreationWizard = ({ onComplete }) => {
         tone: form.tone,
         city: form.city,
         country: form.country,
-        productDescription: form.productDescription,
       });
 
       // Étape 3 : Thème
@@ -553,7 +550,15 @@ const StoreCreationWizard = ({ onComplete }) => {
 
       setSavingStep('Votre boutique est prête !');
       onComplete?.();
-      navigate(isEditMode && !isResetMode ? '/ecom/boutique' : '/ecom/boutique');
+      
+      // Redirection directe vers la boutique publique
+      const storeUrl = `https://${form.subdomain}.scalor.net`;
+      
+      // Petit délai pour laisser voir le message de succès
+      setTimeout(() => {
+        window.open(storeUrl, '_blank');
+        navigate('/ecom/boutique');
+      }, 1500);
     } catch (err) {
       setErrors({ submit: err.response?.data?.message || 'Une erreur est survenue' });
     } finally {
@@ -934,7 +939,7 @@ const StoreCreationWizard = ({ onComplete }) => {
         )}
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* ÉTAPE 5 : Finalisation */}
+        {/* ÉTAPE 5 : Finalisation avec Aperçu */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {step === 5 && (
           <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
@@ -942,81 +947,117 @@ const StoreCreationWizard = ({ onComplete }) => {
               <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl shadow-lg shadow-amber-500/30 mb-2">
                 <Sparkles className="w-8 h-8 text-white" />
               </div>
-              <h1 className="text-2xl font-black text-gray-900">Dernière étape !</h1>
-              <p className="text-gray-500">Décrivez votre produit pour une génération optimale</p>
+              <h1 className="text-2xl font-black text-gray-900">Votre boutique est prête !</h1>
+              <p className="text-gray-500">Vérifiez les informations et lancez la création</p>
             </div>
 
-            <Card className="p-6 space-y-6">
-              <Textarea
-                label="Décrivez votre produit phare"
-                hint="Cette description sera utilisée pour générer le contenu de votre boutique"
-                placeholder="Ex: Crème anti-âge 100% naturelle à base de beurre de karité, idéale pour les peaux sensibles. Résultats visibles en 2 semaines..."
-                rows={4}
-                value={form.productDescription}
-                onChange={e => set('productDescription', e.target.value)}
-                error={errors.productDescription}
-              />
+            {/* ══ Aperçu visuel de la boutique ══ */}
+            <Card className="overflow-hidden">
+              <div 
+                className="relative p-8 text-center"
+                style={{ background: `linear-gradient(135deg, ${form.themeColor} 0%, ${form.themeColor}dd 100%)` }}
+              >
+                {/* Decorative elements */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+                <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+                
+                <div className="relative z-10">
+                  {logoPreview ? (
+                    <img 
+                      src={logoPreview} 
+                      alt="Logo" 
+                      className="h-16 w-auto mx-auto mb-4 object-contain brightness-0 invert drop-shadow-lg"
+                    />
+                  ) : (
+                    <div 
+                      className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-white/20 flex items-center justify-center text-white text-2xl font-black"
+                    >
+                      {form.storeName?.[0]?.toUpperCase() || 'S'}
+                    </div>
+                  )}
+                  <h2 className="text-2xl font-black text-white mb-2 drop-shadow-sm">
+                    {form.storeName || 'Ma Boutique'}
+                  </h2>
+                  <p className="text-white/80 text-sm max-w-md mx-auto mb-6">
+                    {form.storeDescription || `Bienvenue dans notre boutique ${PRODUCT_TYPES.find(p => p.value === form.productType)?.label || ''}`}
+                  </p>
+                  <div className="inline-flex items-center gap-2 px-6 py-3 bg-white rounded-full text-sm font-bold shadow-lg" style={{ color: form.themeColor }}>
+                    <span>Découvrir nos produits</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </div>
+                </div>
+              </div>
+              
+              {/* URL Preview */}
+              <div className="bg-gray-50 px-6 py-4 flex items-center justify-between border-t">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                    <Globe2 className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Votre boutique sera accessible sur</p>
+                    <p className="font-mono text-sm font-bold text-emerald-600">
+                      https://{form.subdomain || 'maboutique'}.scalor.net
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </Card>
 
+            {/* Description (optionnelle) */}
+            <Card className="p-6">
               <Textarea
-                label="Description de votre boutique (optionnel)"
-                hint="Un texte de présentation pour votre page d'accueil"
-                placeholder="Bienvenue chez [Nom] ! Nous proposons des produits de qualité exceptionnelle..."
+                label="Description de votre boutique"
+                hint="Ce texte apparaîtra sur votre page d'accueil (optionnel)"
+                placeholder="Bienvenue chez nous ! Découvrez notre sélection de produits de qualité..."
                 rows={3}
                 value={form.storeDescription}
                 onChange={e => set('storeDescription', e.target.value)}
               />
             </Card>
 
-            {/* Récapitulatif */}
-            <Card className="p-6 bg-gradient-to-br from-gray-900 to-gray-800 text-white">
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-amber-400" />
-                Récapitulatif
-              </h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
+            {/* Récapitulatif compact */}
+            <Card className="p-5 bg-gradient-to-br from-gray-900 to-gray-800 text-white">
+              <div className="flex items-center gap-2 mb-4">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <h3 className="text-sm font-bold">Récapitulatif</h3>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                 <div>
-                  <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Boutique</p>
-                  <p className="font-semibold">{form.storeName || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">URL</p>
-                  <p className="font-mono text-emerald-400">scalor.store/{form.subdomain || '...'}</p>
-                </div>
-                <div>
-                  <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Catégorie</p>
+                  <p className="text-gray-400 uppercase tracking-wider mb-1">Catégorie</p>
                   <p className="font-semibold">{PRODUCT_TYPES.find(p => p.value === form.productType)?.label || '—'}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Style</p>
+                  <p className="text-gray-400 uppercase tracking-wider mb-1">Style</p>
                   <p className="font-semibold">{TONES.find(t => t.value === form.tone)?.label || '—'}</p>
                 </div>
-                <div className="col-span-2">
-                  <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Audience</p>
-                  <div className="space-y-1">
-                    {form.audience.gender?.length > 0 && (
-                      <p className="font-semibold text-xs">
-                        Genre: {form.audience.gender.map(g => AUDIENCE.gender.options.find(o => o.value === g)?.label).join(', ')}
-                      </p>
-                    )}
-                    {form.audience.ageRange?.length > 0 && (
-                      <p className="font-semibold text-xs">
-                        Âge: {form.audience.ageRange.map(a => AUDIENCE.ageRange.options.find(o => o.value === a)?.label).join(', ')}
-                      </p>
-                    )}
-                    {form.audience.region?.length > 0 && (
-                      <p className="font-semibold text-xs">
-                        Zone: {form.audience.region.map(r => AUDIENCE.region.options.find(o => o.value === r)?.label).join(', ')}
-                      </p>
-                    )}
-                    {form.audience.origin?.length > 0 && (
-                      <p className="font-semibold text-xs">
-                        Origine: {form.audience.origin.map(o => AUDIENCE.origin.options.find(x => x.value === o)?.label).join(', ')}
-                      </p>
-                    )}
-                  </div>
+                <div>
+                  <p className="text-gray-400 uppercase tracking-wider mb-1">Audience</p>
+                  <p className="font-semibold">
+                    {form.audience.gender?.map(g => AUDIENCE.gender.options.find(o => o.value === g)?.label).join(', ') || '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-400 uppercase tracking-wider mb-1">Contact</p>
+                  <p className="font-semibold text-emerald-400">{form.storeWhatsApp || '—'}</p>
                 </div>
               </div>
             </Card>
+
+            {/* Message de ce qui va se passer */}
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <Zap className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-emerald-900">L'IA va créer votre boutique</p>
+                  <p className="text-xs text-emerald-700 mt-1">
+                    En cliquant sur "Créer ma boutique", notre IA génère automatiquement une page d'accueil professionnelle adaptée à votre activité. Vous serez redirigé vers votre nouvelle boutique !
+                  </p>
+                </div>
+              </div>
+            </div>
 
             {errors.submit && (
               <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
