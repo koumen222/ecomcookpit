@@ -332,15 +332,20 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
       // Utiliser l'instance sélectionnée par l'utilisateur ou la première par défaut
       let instance;
       const selectedInstanceId = req.body.whatsappInstanceId || req.body.instanceId;
+      const userIdStr = String(req.ecomUser._id);
       if (selectedInstanceId) {
         instance = await WhatsAppInstance.findOne({
           _id: selectedInstanceId,
           $or: [
             { workspaceId: req.workspaceId },
-            { userId: req.ecomUser._id }
+            { userId: userIdStr }
           ],
-          isActive: true 
+          isActive: true
         });
+        if (!instance) {
+          // Dernière tentative : chercher uniquement par _id (cas instance liée à un autre user du même workspace)
+          instance = await WhatsAppInstance.findOne({ _id: selectedInstanceId, isActive: true });
+        }
         if (!instance) {
           return res.status(400).json({ success: false, message: 'Instance WhatsApp sélectionnée introuvable ou inactive.' });
         }
@@ -348,7 +353,7 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
       } else {
         let instances = await WhatsAppInstance.find({ workspaceId: req.workspaceId, isActive: true, status: { $in: ['connected', 'active'] } }).sort({ defaultPart: -1 });
         if (instances.length === 0) {
-          instances = await WhatsAppInstance.find({ workspaceId: { $exists: false }, userId: req.ecomUser._id, isActive: true, status: { $in: ['connected', 'active'] } }).sort({ defaultPart: -1 });
+          instances = await WhatsAppInstance.find({ userId: userIdStr, isActive: true, status: { $in: ['connected', 'active'] } }).sort({ defaultPart: -1 });
         }
         if (instances.length === 0) return res.status(400).json({ success: false, message: 'Aucune instance WhatsApp connectée. Configurez une instance dans "Connexion WhatsApp".' });
         instance = instances[0];
