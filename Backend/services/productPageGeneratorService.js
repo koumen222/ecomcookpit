@@ -262,54 +262,54 @@ Pose-toi 3 questions :
 
 🎯 Chaque titre doit expliquer CONCRÈTEMENT ce que le produit fait pour le client.
 
-═══ IMAGES D'ANGLES — PHOTOS PURES SANS TEXTE ═══
-Les 4 images d'angles sont de simples photos illustratives. AUCUN texte, AUCUN badge, AUCUN design graphique.
+═══ IMAGES D'ANGLES — VISUELS ILLUSTRATIFS AVEC PERSONNES AFRICAINES ═══
+Les 4 images d'angles sont des visuels marketing illustratifs avec des personnes africaines et du texte qui illustre le bénéfice du produit.
 
-🎯 OBJECTIF : Photo réelle qui montre la situation ou le bénéfice de l'angle en un coup d'œil.
+🎯 OBJECTIF : Visuel percutant montrant une personne africaine qui bénéficie du produit, avec un court texte overlay qui illustre le bénéfice clé de l'angle.
 
 ✅ CE QU'IL FAUT :
-- Photo réaliste de la situation, du résultat ou du contexte d'utilisation
-- Cadrage 1:1 serré, plein cadre, sujet bien rempli, ZÉRO espace mort
-- Adaptée au type RÉEL du produit (pas un template beauté pour un produit tech)
-- Lumière naturelle propre, scène crédible
+- Personne africaine authentique (peau noire/marron, cheveux naturels, visage africain) en situation d'utilisation réelle du produit
+- Le produit VISIBLE dans l'image ou son résultat clairement montré
+- Court texte overlay en français : 1 titre court (4-6 mots max) + éventuellement 1 courte phrase (8-10 mots max)
+- Cadrage 1:1 serré, lumière naturelle propre, fond net
+- Ambiance africaine ou universelle — jamais de contexte occidental artificiel
 
-❌ CE QUI EST INTERDIT (zéro exception) :
-- Tout texte visible (mot, lettre, chiffre, slogan)
-- Tout badge, icône graphique, prix, CTA, watermark
-- Tout overlay graphique ou mise en page d'affiche
-- Toute mise en scène d'influenceur avec produit tendu à la caméra
-- Espaces vides / marges autour du sujet
+❌ CE QUI EST INTERDIT :
+- Prix, CTA "Acheter maintenant", numéros de téléphone, URLs
+- Texte long (plus de 2 éléments texte)
+- Visage flou ou corps coupé de façon malvenue
+- Espaces vides / marges inutiles autour du sujet
 
-═══ VISUEL HÉRO — SEUL VISUEL MARKETING ═══
-⚠️ RÈGLE ABSOLUE : Le HERO est le SEUL visuel avec un éventuel texte très court. Les 4 images d'angles sont de pures scènes sans texte.
+═══ VISUEL HÉRO — IMAGE PRINCIPALE AVEC PRODUIT ET PERSONNE AFRICAINE ═══
+⚠️ Le HERO montre le produit réel ET une personne africaine qui l'utilise ou en bénéficie (si le produit implique une utilisation humaine).
 
 Le HERO doit être :
-✅ Le produit réel (EXACT, jamais recréé) en cadrage carré 1:1 tight crop, plein cadre, ZÉRO espace vide
-✅ Fond clean ou contexte d'utilisation naturel selon le produit
-✅ Universel : s'adapte à TOUT type de produit sans template figé par catégorie
-✅ Au maximum un badge TRÈS court (3 mots max) OU absent — pas plus
+✅ Le produit réel visible au premier plan (EXACT, jamais recréé)
+✅ Si produit de beauté/santé/corps : personne africaine authentique utilisant le produit ou montrant le résultat
+✅ Si produit tech/objet : produit en contexte d'utilisation naturel avec fond africain
+✅ Cadrage carré 1:1 tight crop, ZÉRO espace vide, lumière propre
+✅ Au maximum un badge TRÈS court (3 mots max) OU absent
 
-❌ PAS de texte long, PAS de paragraphe, PAS de prix, PAS de bouton
-❌ PAS de template beauté imposé si ce n'est pas un produit beauté
-❌ PAS de cadrage trop large avec marges vides autour du produit
-❌ PAS de design d'affiche publicitaire chargé
+❌ PAS de template beauté imposé pour un produit tech
+❌ PAS de visage/personne non africain si des humains sont montrés
+❌ PAS de cadrage trop large avec marges vides
 
-═══ VISUEL AVANT/APRÈS — 2ÈME IMAGE SEULE AUTRE IMAGE ═══
-⚠️ Le visuel avant/après est le second visuel fort. Les 4 visuels d'angles restent autorisés, mais doivent rester simples et sans texte.
+═══ VISUEL AVANT/APRÈS — TRANSFORMATION RÉALISTE AVEC PERSONNE AFRICAINE ═══
+⚠️ Le visuel avant/après est le second visuel fort. Il DOIT montrer une personne africaine authentique.
 
 Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE produit :
-✅ Split-screen : côté gauche = AVANT (le problème concret que CE produit résout)
-✅ Côté droit = APRÈS (le résultat réel et crédible après utilisation)
-✅ Cadrage carré 1:1, serré, sans texte ni espace inutile
-✅ Personnes africaines authentiques, transformation réaliste (pas exagérée)
-❌ Aucun texte, aucune flèche, aucun label sur l'image
+✅ Split-screen : côté gauche = AVANT (le problème concret que CE produit résout, personne africaine)
+✅ Côté droit = APRÈS (le résultat réel et crédible après utilisation, même personne africaine)
+✅ Personne africaine OBLIGATOIRE : peau noire/marron, traits africains authentiques
+✅ Cadrage carré 1:1, serré, transformation réaliste (pas exagérée)
+✅ Petit label "Avant" / "Après" accepté si utile à la lecture
 
 🎯 ADAPTE AU PRODUIT RÉEL :
-- Pour produit cheveux → cheveux abîmés → cheveux sains
-- Pour produit yeux → yeux fatigués → yeux éclatants
-- Pour produit énergie → personne fatiguée → personne énergique
+- Pour produit cheveux → cheveux abîmés (femme africaine) → cheveux sains et brillants
+- Pour produit peau/visage → peau avec problème → peau nette (homme/femme africain)
+- Pour produit énergie → personne africaine fatiguée → personne africaine énergique et souriante
 - Pour produit nettoyage → surface sale → surface propre
-- Pour produit minceur → silhouette avant → silhouette après
+- Pour produit minceur → silhouette africaine avant → silhouette africaine après
 
 ═══ FORMAT JSON STRICT ═══
 {
@@ -317,15 +317,15 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   "hero_headline": "PROMESSE PRINCIPALE EN MAJUSCULES (4-6 mots)",
   "hero_slogan": "Sous-titre accrocheur orienté bénéfice spécifique au produit",
   "hero_baseline": "Phrase de réassurance courte spécifique au produit",
-  "prompt_affiche_hero": "[Generate in English a universal square 1:1 premium e-commerce hero image using the EXACT real product provided (never recreate it). Tight crop, full-bleed framing, zero empty margins, clean or contextual background adapted to the product function — not a beauty template unless it is a beauty product. Universal composition adaptable to any product category. At most one very short French badge (3 words max) OR no text at all. No paragraphs, no button, no prices, no heavy design.]",
-  "prompt_avant_apres": "[Generate in English a square 1:1 split-screen before/after visual specific to this product. Left shows the real problem this product solves, right shows the realistic improved result. Tight crop, no text, no arrows, no labels, no empty margins, authentic African context if humans are shown.]",
+  "prompt_affiche_hero": "[Generate in English a premium square 1:1 e-commerce hero image. The EXACT real product must be clearly visible. If the product is used by a person (beauty, health, wellness, fitness, food): include a real authentic Black African person (dark brown skin, natural African hair, African facial features) using or benefiting from the product. Tight crop, full-bleed framing, zero empty margins, clean or warm contextual African background. At most one very short French benefit badge (3 words max) OR no text at all. No paragraphs, no button, no prices.]",
+  "prompt_avant_apres": "[Generate in English a square 1:1 split-screen before/after visual specific to this product. MANDATORY: feature a real authentic Black African person (dark brown skin, African features, natural hair). Left side BEFORE: the African person showing the real problem this product solves. Right side AFTER: the same African person showing the realistic improved result after using the product. Tight crop, clear transformation, small 'Avant' / 'Après' label text if helpful, no arrows, no empty margins, realistic and not exaggerated.]",
   "angles": [
     {
       "titre_angle": "Phrase complète de 10-15 mots expliquant concrètement le bénéfice (PAS de titre court, PAS de slogan de 2-3 mots)",
       "explication": "3-4 phrases concrètes et persuasives. Décris comment ce bénéfice spécifique se manifeste dans la vie réelle. Reste crédible et factuel, sans exagération.",
       "message_principal": "1 phrase d'accroche mémorable spécifique à ce bénéfice",
       "promesse": "La transformation concrète que l'utilisateur va vivre",
-      "prompt_affiche": "Pure photo square 1:1: [describe in English the exact real-life scene or context that illustrates this marketing angle for THIS specific product. Tight crop, full-bleed framing, subject fills the frame completely. ABSOLUTELY NO text, NO words, NO letters, NO badge, NO overlay, NO graphic element of any kind. Just a clean professional photo that speaks for itself.]"
+      "prompt_affiche": "Illustrative marketing visual square 1:1: [Describe in English: a real authentic Black African person (dark brown skin, natural African hair, African facial features) using or benefiting from this specific product in a real-life scene. The product must be visible or its result clearly shown. Clean natural light, warm African or neutral background. Add a short French text overlay: 1 bold headline (4-5 words max) at the top or bottom that captures the key benefit of this marketing angle. No price, no phone number, no CTA button, no URL. Subject fills the frame, tight crop, zero empty margins.]"
     }
   ],
   "raisons_acheter": [
@@ -376,7 +376,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   const messages = [
     {
       role: "system",
-      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit optimisée pour la conversion. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS PARFAIT (sauf prompts images en anglais) — zéro faute d'orthographe, zéro faute de grammaire, zéro faute de conjugaison. 3) ZÉRO généricité — tout doit être spécifique à CE produit. 4) ZÉRO exagération — bénéfices réels et crédibles. 5) CRITIQUE hero : prompt_affiche_hero = produit réel, cadrage serré plein cadre, zéro marge vide, fond adaptatif universel (PAS un template beauté pour un produit tech ou autre), badge optionnel très court ou rien. 6) CRITIQUE avant/après : split-screen carré, zéro texte ni flèche, transformation réaliste liée au produit spécifique. 7) CRITIQUE angles : 4 photos pures sans AUCUN texte (même pas une lettre), scène réelle plein cadre, adaptées au type RÉEL du produit. 8) Témoignages : prénoms, villes et contexte adaptés au pays de la boutique, orthographe parfaite. 9) Prompts ENTIÈREMENT réécrits pour CE produit — JAMAIS copier les exemples. 10) description_optimisee = chaîne vide toujours. 11) JSON uniquement."
+      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit optimisée pour la conversion avec des visuels représentant des personnes africaines authentiques. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS PARFAIT (sauf prompts images en anglais) — zéro faute d'orthographe, zéro faute de grammaire, zéro faute de conjugaison. 3) ZÉRO généricité — tout doit être spécifique à CE produit et à sa niche. 4) ZÉRO exagération — bénéfices réels et crédibles. 5) CRITIQUE hero : le produit réel DOIT être visible + inclure une personne africaine authentique (peau noire/marron, cheveux naturels, traits africains) si le produit implique un usage humain. Cadrage serré plein cadre, zéro marge vide. 6) CRITIQUE avant/après : split-screen carré, OBLIGATOIREMENT avec une personne africaine authentique, transformation réaliste liée au produit spécifique. 7) CRITIQUE angles : 4 visuels illustratifs avec OBLIGATOIREMENT des personnes africaines authentiques utilisant ou bénéficiant du produit, avec le produit visible + court texte overlay en français (titre 4-5 mots max). 8) Témoignages : prénoms, villes et contexte adaptés au pays de la boutique, orthographe parfaite. 9) Prompts ENTIÈREMENT réécrits pour CE produit ET cette niche — JAMAIS copier les exemples. 10) description_optimisee = chaîne vide toujours. 11) JSON uniquement."
     },
     {
       role: "user",
@@ -525,22 +525,26 @@ export async function generatePosterImage(promptAffiche, originalImageBuffer = n
     const heroRules = `
 USE THE EXACT REAL PRODUCT IMAGE PROVIDED. NEVER invent, recreate or redesign the product.
 Square 1:1 premium hero, tight crop, full-bleed composition, ZERO empty margins around the subject.
+MANDATORY: if the product is used by a person (beauty, health, wellness, fitness, food), include an authentic Black African person (dark brown skin, natural African hair, African facial features) using or benefiting from the product. The product must remain clearly visible.
 Universal composition adaptable to any product category — do NOT impose a beauty or fashion template if this is not a beauty product.
-Background should be clean, contextual or neutral according to the product function.
+Background should be clean, warm contextual or neutral according to the product function. African or neutral setting preferred.
 At most one very short French badge (3 words max) OR no text at all.
 No paragraphs, no long text, no button, no price, no clutter, no flashy effects.`;
 
     const beforeAfterRules = `
 Square 1:1 split-screen before/after visual specific to this product.
-Tight crop, clear transformation, no text, no arrows, no labels, no numbers, no graphic overlays of any kind.
-If humans are shown, keep the scene authentic and directly relevant to the product function.`;
+MANDATORY: feature an authentic Black African person (dark brown skin, natural African hair, African facial features).
+Left side BEFORE: African person showing the real problem. Right side AFTER: same African person showing the realistic improvement.
+Tight crop, clear realistic transformation, small 'Avant'/'Après' label text if helpful for reading.
+No arrows, no numbers, no heavy graphic overlays, no empty margins.`;
 
     const sceneRules = `
-Square 1:1 pure photo, tight crop, subject fills the entire frame, ZERO empty space.
-ABSOLUTELY NO TEXT of any kind — no words, no letters, no numbers, no badge, no overlay, no watermark, no graphic element.
-No poster layout, no CTA, no price, no button.
-Show a real-life scene or context that visually illustrates the marketing angle for this specific product.
-Adapted to the actual product category — not a generic beauty template.`;
+Square 1:1 illustrative marketing visual, tight crop, subject fills the entire frame, ZERO empty space.
+MANDATORY: feature an authentic Black African person (dark brown skin, natural African hair, African facial features) using or benefiting from this specific product in a real-life scene.
+The product must be visible in the scene or its result clearly shown on the person.
+Short French text overlay allowed: 1 bold headline (4-5 words max) that captures the key benefit. NO price, NO phone number, NO CTA button, NO URL.
+Clean natural light, warm African or neutral background.
+Adapted to the actual product category and niche.`;
 
     const posterPrompt = `${promptAffiche}
 
