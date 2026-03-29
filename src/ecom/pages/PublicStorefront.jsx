@@ -497,7 +497,8 @@ const ProductCard = ({ product, prefix, store }) => {
         </div>
       </div>
     </a>
-);
+  );
+};
 
 // ── Footer ────────────────────────────────────────────────────────────────────
 const StorefrontFooter = ({ store, prefix }) => {
