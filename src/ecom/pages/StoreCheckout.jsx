@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, ShoppingCart, CheckCircle, AlertCircle, Loader2, MessageCircle, User, Phone, MapPin, FileText, Truck, Package } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
+import { setDocumentMeta } from '../utils/pageMeta';
 
 /**
  * Normalize a city name for fuzzy matching.
@@ -162,6 +163,22 @@ const StoreCheckout = () => {
       navigate(storePath('/'), { replace: true });
     }
   }, [loading, cartProducts, navigate, subdomain]);
+
+  useEffect(() => {
+    if (!store?.name) return;
+    const visual = store.logo || store.banner || '/icon.png';
+    setDocumentMeta({
+      title: orderResult?.orderNumber ? `Commande confirmée — ${store.name}` : `Finaliser la commande — ${store.name}`,
+      description: orderResult?.orderNumber
+        ? `Votre commande ${orderResult.orderNumber} a bien été enregistrée chez ${store.name}.`
+        : `Finalisez votre commande sur la boutique ${store.name}.`,
+      image: visual,
+      icon: visual,
+      siteName: store.name,
+      appTitle: store.name,
+      type: 'website',
+    });
+  }, [store, orderResult]);
 
   const handleChange = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));

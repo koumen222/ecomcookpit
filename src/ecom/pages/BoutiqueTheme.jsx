@@ -51,6 +51,8 @@ const SECTION_TOGGLES = [
   { key: 'showBenefits', label: 'Liste bénéfices', desc: 'Points forts du produit en vert' },
 ];
 
+const getSectionToggleDefault = (key) => (key === 'showWhatsappButton' ? false : true);
+
 const ColorPicker = ({ label, value, onChange }) => (
   <div className="flex items-center gap-3">
     <div className="relative">
@@ -261,7 +263,7 @@ const BoutiqueTheme = () => {
               key={s.key}
               label={s.label}
               desc={s.desc}
-              checked={localTheme.sections[s.key] ?? true}
+              checked={localTheme.sections[s.key] ?? getSectionToggleDefault(s.key)}
               onChange={(v) => updateSection(s.key, v)}
             />
           ))}

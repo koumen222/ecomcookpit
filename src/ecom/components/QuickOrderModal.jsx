@@ -76,7 +76,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store }) => {
   // ── Écran de succès ──────────────────────────────────────────────────────────
   if (success && orderResult) {
     const waNumber = (store?.whatsapp || '').replace(/\D/g, '');
-    const waLink = waNumber
+    const waLink = ((store?.sectionToggles?.showWhatsappButton ?? false) && waNumber)
       ? `https://wa.me/${waNumber}?text=${buildWhatsAppMessage(orderResult)}`
       : null;
 

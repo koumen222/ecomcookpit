@@ -361,7 +361,8 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
         tags: product.tags,
         seoTitle: product.seoTitle,
         seoDescription: product.seoDescription,
-        features: product.features || []
+        features: product.features || [],
+        faq: product.faq || []
       }
     });
 

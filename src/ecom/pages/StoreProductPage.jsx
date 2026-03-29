@@ -2,16 +2,27 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, ShoppingCart, MessageCircle,
-  ShoppingBag, Shield, RotateCcw, Truck, Check, Minus, Plus,
-  ChevronDown, ChevronUp, ArrowLeft, Star,
+  ShoppingBag, Shield, RotateCcw, Truck, Check,
+  ChevronDown, ChevronUp, Star,
 } from 'lucide-react';
 import { useSubdomain } from '../hooks/useSubdomain';
 import { useStoreProduct, injectStoreCssVars } from '../hooks/useStoreData';
 import { useStoreCart } from '../hooks/useStoreCart';
 import QuickOrderModal from '../components/QuickOrderModal';
 import { io } from 'socket.io-client';
+import { setDocumentMeta } from '../utils/pageMeta';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
+
+const normalizeMetaText = (value = '') => String(value || '')
+  .replace(/<[^>]*>/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const truncateMetaText = (value = '', max = 180) => {
+  if (!value || value.length <= max) return value;
+  return `${value.slice(0, max - 1).trimEnd()}…`;
+};
 
 // ── Shared Header ────────────────────────────────────────────────────────────
 const StorefrontHeader = ({ store, cartCount, prefix }) => (
@@ -338,14 +349,34 @@ const ProductFeatures = ({ features }) => {
 };
 
 // ── Description (handles both HTML and markdown) ─────────────────────────────
-const ProductDescription = ({ content }) => {
-  // Nettoyer le contenu : enlever les espaces et balises vides
-  const cleanContent = content?.toString().trim() || '';
+const removeFaqFromDescriptionHtml = (html = '') => {
+  if (!html || typeof DOMParser === 'undefined') return html;
+
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<div id="sf-desc-root">${html}</div>`, 'text/html');
+    const root = doc.getElementById('sf-desc-root');
+    if (!root) return html;
+
+    const faqSections = Array.from(root.querySelectorAll('div')).filter((element) => {
+      const heading = element.querySelector('h1, h2, h3, h4, h5, h6');
+      return heading && /questions fréquentes|faq/i.test((heading.textContent || '').trim());
+    });
+
+    faqSections.forEach((section) => section.remove());
+    return root.innerHTML.trim();
+  } catch {
+    return html;
+  }
+};
+
+const ProductDescription = ({ content, stripFaqSection = false }) => {
+  const rawContent = content?.toString().trim() || '';
+  const isHTML = /<[^>]+>/.test(rawContent);
+  const cleanContent = isHTML && stripFaqSection ? removeFaqFromDescriptionHtml(rawContent) : rawContent;
   const hasContent = cleanContent.length > 0 && !/^\s*<[^>]*>\s*<\/[^>]*>\s*$/.test(cleanContent);
-  
+
   if (!hasContent) return null;
-  
-  const isHTML = /<[^>]+>/.test(cleanContent);
 
   const bodyStyle = {
     fontSize: 15, lineHeight: 1.75, color: 'var(--s-text2)',
@@ -363,23 +394,70 @@ const ProductDescription = ({ content }) => {
   );
 };
 
+const ProductFaqAccordion = ({ items = [] }) => {
+  const [openIndex, setOpenIndex] = useState(0);
+
+  if (!items.length) return null;
+
+  return (
+    <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--s-border)' }}>
+      <h2 style={{ margin: '0 0 18px', fontSize: 20, fontWeight: 800, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>
+        Questions fréquentes
+      </h2>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {items.map((item, index) => {
+          const opened = openIndex === index;
+          return (
+            <div key={`${item.question}-${index}`} style={{ borderRadius: 14, border: '1px solid', overflow: 'hidden', borderColor: opened ? 'var(--s-primary)' : 'var(--s-border)', backgroundColor: opened ? '#FAFFFE' : '#fff' }}>
+              <button
+                onClick={() => setOpenIndex(opened ? null : index)}
+                style={{ width: '100%', padding: '18px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+              >
+                <span style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--s-text)', lineHeight: 1.45, fontFamily: 'var(--s-font)' }}>
+                  {item.question}
+                </span>
+                <span style={{ flexShrink: 0, color: opened ? 'var(--s-primary)' : 'var(--s-text2)' }}>
+                  {opened ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                </span>
+              </button>
+              {opened && (
+                <div style={{ padding: '0 18px 18px', fontSize: 14, color: 'var(--s-text2)', lineHeight: 1.7, fontFamily: 'var(--s-font)' }}>
+                  {item.answer || item.reponse}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // ── Trust Badges ─────────────────────────────────────────────────────────────
-const TrustBadges = () => (
-  <div style={{
-    display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12,
-    marginTop: 24, padding: '20px 0', borderTop: '1px solid var(--s-border)',
+const TrustBadges = ({ compact = false }) => (
+  <div className="sf-no-scrollbar" style={{
+    display: 'flex', gap: 12,
+    marginTop: compact ? 24 : 28,
+    padding: compact ? '0 0 4px' : '20px 0 4px',
+    borderTop: compact ? 'none' : '1px solid var(--s-border)',
+    overflowX: 'auto',
+    flexWrap: 'nowrap',
   }}>
     {[
-      { icon: <Truck size={18} />, text: 'Livraison rapide' },
-      { icon: <Shield size={18} />, text: 'Paiement sécurisé' },
-      { icon: <RotateCcw size={18} />, text: 'Retours acceptés' },
+      { icon: <Truck size={16} />, text: 'Livraison rapide' },
+      { icon: <Shield size={16} />, text: 'Paiement sécurisé' },
+      { icon: <RotateCcw size={16} />, text: 'Retours acceptés' },
     ].map(({ icon, text }) => (
       <div key={text} style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-        textAlign: 'center',
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 14px', borderRadius: 999,
+        border: '1px solid var(--s-border)',
+        backgroundColor: '#fff',
+        whiteSpace: 'nowrap',
+        flexShrink: 0,
       }}>
-        <span style={{ color: 'var(--s-primary)' }}>{icon}</span>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>
+        <span style={{ width: 28, height: 28, borderRadius: '50%', backgroundColor: 'var(--s-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>
           {text}
         </span>
       </div>
@@ -436,7 +514,7 @@ const StorefrontFooter = ({ store }) => (
         {store?.description && <p style={{ fontSize: 13, color: 'var(--s-text2)', margin: 0, maxWidth: 320 }}>{store.description}</p>}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-        {store?.whatsapp && (
+        {(store?.sectionToggles?.showWhatsappButton ?? false) && store?.whatsapp && (
           <a href={`https://wa.me/${store.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
             style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 40, backgroundColor: '#25D366', color: '#fff', textDecoration: 'none', fontWeight: 600, fontSize: 13 }}>
             <MessageCircle size={15} /> Commander via WhatsApp
@@ -457,15 +535,29 @@ const StoreProductPage = () => {
   const subdomain = paramSubdomain || detectedSubdomain;
   const prefix = isStoreDomain ? '' : (subdomain ? `/store/${subdomain}` : '');
 
-  const { store, product, related, loading, error } = useStoreProduct(subdomain, slug);
-  const { cartCount, addToCart } = useStoreCart(subdomain);
+  const { store, product, related, error } = useStoreProduct(subdomain, slug);
+  const { cartCount } = useStoreCart(subdomain);
 
-  const [addedToCart, setAddedToCart] = useState(false);
   const [showOrderModal, setShowOrderModal] = useState(false);
+  const [showStickyOrderBar, setShowStickyOrderBar] = useState(false);
+  const ctaButtonsRef = useRef(null);
 
   useEffect(() => {
-    if (product?.name) document.title = `${product.name} — ${store?.name || ''}`;
-  }, [product?.name, store?.name]);
+    if (!store?.name || !product?.name) return;
+    const storeVisual = store.logo || store.banner || product.images?.[0]?.url || '/icon.png';
+    setDocumentMeta({
+      title: product.seoTitle || `${product.name} — ${store.name}`,
+      description: truncateMetaText(
+        normalizeMetaText(product.seoDescription || product.description || store.description || `Découvrez ${product.name} chez ${store.name}.`),
+        180,
+      ),
+      image: storeVisual,
+      icon: store.logo || storeVisual,
+      siteName: store.name,
+      appTitle: store.name,
+      type: 'product',
+    });
+  }, [product, store]);
 
   // Écouter les changements de couleurs en temps réel via Socket.io
   useEffect(() => {
@@ -498,11 +590,49 @@ const StoreProductPage = () => {
     };
   }, [subdomain]);
 
-  const handleAddToCart = () => {
-    if (!product) return;
-    addToCart({ ...product, image: product.images?.[0]?.url || '' }, 1);
-    setAddedToCart(true);
-    setTimeout(() => setAddedToCart(false), 2400);
+  const images = product?.images?.length ? product.images : [];
+  const hasDiscount = product?.compareAtPrice && product.compareAtPrice > product.price;
+  const pct = hasDiscount ? Math.round((1 - product.price / product.compareAtPrice) * 100) : 0;
+  const inStock = !product || product.stock > 0;
+  const lowStock = product && product.stock > 0 && product.stock <= 5;
+  const sectionToggles = store?.sectionToggles || {};
+  const showWhatsappButton = (sectionToggles.showWhatsappButton ?? false) && !!store?.whatsapp;
+  const showFaq = sectionToggles.showFaq ?? true;
+  const showTrustBadges = sectionToggles.showTrustBadges ?? true;
+  const showRelatedProducts = sectionToggles.showRelatedProducts ?? true;
+
+  useEffect(() => {
+    if (!product || !inStock) {
+      setShowStickyOrderBar(false);
+      return;
+    }
+
+    const checkStickyVisibility = () => {
+      const ctaBox = ctaButtonsRef.current;
+      const isMobileViewport = window.innerWidth <= 768;
+
+      if (!ctaBox || !isMobileViewport) {
+        setShowStickyOrderBar(false);
+        return;
+      }
+
+      const rect = ctaBox.getBoundingClientRect();
+      const isVisible = rect.top < window.innerHeight && rect.bottom > 0;
+      setShowStickyOrderBar(!isVisible);
+    };
+
+    checkStickyVisibility();
+    window.addEventListener('scroll', checkStickyVisibility, { passive: true });
+    window.addEventListener('resize', checkStickyVisibility);
+
+    return () => {
+      window.removeEventListener('scroll', checkStickyVisibility);
+      window.removeEventListener('resize', checkStickyVisibility);
+    };
+  }, [product, inStock]);
+
+  const openOrderModal = () => {
+    if (inStock) setShowOrderModal(true);
   };
 
   if (error) return (
@@ -511,26 +641,23 @@ const StoreProductPage = () => {
         <p style={{ fontSize: 48, margin: '0 0 16px' }}>😕</p>
         <h2 style={{ color: '#111', fontWeight: 700, margin: '0 0 8px' }}>Produit introuvable</h2>
         <p style={{ color: '#6B7280', fontSize: 15 }}>{error}</p>
-        <a href={`${prefix}/`} style={{ marginTop: 20, display: 'inline-block', color: 'var(--s-primary)', fontWeight: 600, fontSize: 14 }}>← Retour à la boutique</a>
+        <a href={`${prefix}/`} style={{ marginTop: 20, display: 'inline-block', color: 'var(--s-primary)', fontWeight: 600, fontSize: 14 }}>← Accueil</a>
       </div>
     </div>
   );
-
-  const images = product?.images?.length ? product.images : [];
-  const hasDiscount = product?.compareAtPrice && product.compareAtPrice > product.price;
-  const pct = hasDiscount ? Math.round((1 - product.price / product.compareAtPrice) * 100) : 0;
-  const inStock = !product || product.stock > 0;
-  const lowStock = product && product.stock > 0 && product.stock <= 5;
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--s-bg)', fontFamily: 'var(--s-font)', color: 'var(--s-text)' }}>
       <style>{`
         *{box-sizing:border-box} body{margin:0;padding:0}
+        .sf-no-scrollbar { scrollbar-width:none; -ms-overflow-style:none; }
+        .sf-no-scrollbar::-webkit-scrollbar { display:none; }
+        @keyframes slide-up { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @media(max-width:768px){ .product-grid{ grid-template-columns: 1fr !important; } }
         .ai-desc h3 { font-size:20px; font-weight:800; color:var(--s-text); margin:0 0 12px; line-height:1.3; }
         .ai-desc h3 strong { font-weight:800; }
         .ai-desc p { font-size:15px; line-height:1.75; color:var(--s-text2); margin:0 0 14px; }
-        .ai-desc img { width:100%; max-width:680px; height:auto; display:block; border-radius:14px; margin:0 auto 16px; box-shadow:0 4px 20px rgba(0,0,0,0.10); }
+        .ai-desc img { width:100% !important; max-width:none !important; aspect-ratio:1 / 1; object-fit:cover; display:block; border-radius:14px; margin:0 auto 16px; box-shadow:0 4px 20px rgba(0,0,0,0.10); }
         .ai-desc ul { margin:0; padding:0; list-style:none; }
         .ai-desc ul li { display:flex; align-items:flex-start; gap:10px; margin-bottom:10px; font-size:14px; }
         .ai-desc-testimonials { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; }
@@ -553,20 +680,6 @@ const StoreProductPage = () => {
       )}
 
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
-
-      {/* Breadcrumb */}
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 24px' }}>
-        <a href={`${prefix}/`} style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          color: 'var(--s-text2)', fontSize: 13.5, textDecoration: 'none',
-          fontWeight: 500, fontFamily: 'var(--s-font)',
-        }}
-        onMouseEnter={e => e.currentTarget.style.color = 'var(--s-primary)'}
-        onMouseLeave={e => e.currentTarget.style.color = 'var(--s-text2)'}
-        >
-          <ArrowLeft size={15} /> Retour à la boutique
-        </a>
-      </div>
 
       {/* Product Detail */}
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '8px 24px 0' }}>
@@ -642,9 +755,9 @@ const StoreProductPage = () => {
                 </div>
 
                 {/* CTA Buttons */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+                <div ref={ctaButtonsRef} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
                   <button
-                    onClick={inStock ? () => setShowOrderModal(true) : undefined}
+                    onClick={openOrderModal}
                     disabled={!inStock}
                     onMouseEnter={(e) => {
                       if (inStock) {
@@ -689,9 +802,9 @@ const StoreProductPage = () => {
                     </span>
                   </button>
 
-                  {store?.whatsapp && (
+                  {showWhatsappButton && (
                     <button
-                      onClick={() => setShowOrderModal(true)}
+                      onClick={openOrderModal}
                       style={{
                         width: '100%', padding: '14px 24px', borderRadius: 40, border: '1.5px solid #25D366',
                         backgroundColor: 'transparent', color: '#25D366',
@@ -708,110 +821,18 @@ const StoreProductPage = () => {
                 </div>
 
                 {/* Messages de confiance */}
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'center', 
-                  gap: '24px', 
-                  marginTop: '24px',
-                  marginBottom: '16px',
-                  flexWrap: 'wrap'
-                }}>
-                  <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
-                    gap: '8px',
-                    textAlign: 'center'
-                  }}>
-                    <div style={{
-                      width: '48px',
-                      height: '48px',
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--s-primary)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'white'
-                    }}>
-                      <Truck size={20} />
-                    </div>
-                    <span style={{ 
-                      fontSize: '12px', 
-                      fontWeight: 600, 
-                      color: 'var(--s-text)',
-                      fontFamily: 'var(--s-font)'
-                    }}>
-                      Livraison rapide
-                    </span>
-                  </div>
-                  
-                  <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
-                    gap: '8px',
-                    textAlign: 'center'
-                  }}>
-                    <div style={{
-                      width: '48px',
-                      height: '48px',
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--s-primary)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'white'
-                    }}>
-                      <Shield size={20} />
-                    </div>
-                    <span style={{ 
-                      fontSize: '12px', 
-                      fontWeight: 600, 
-                      color: 'var(--s-text)',
-                      fontFamily: 'var(--s-font)'
-                    }}>
-                      Paiement sécurisé
-                    </span>
-                  </div>
-                  
-                  <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
-                    gap: '8px',
-                    textAlign: 'center'
-                  }}>
-                    <div style={{
-                      width: '48px',
-                      height: '48px',
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--s-primary)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'white'
-                    }}>
-                      <RotateCcw size={20} />
-                    </div>
-                    <span style={{ 
-                      fontSize: '12px', 
-                      fontWeight: 600, 
-                      color: 'var(--s-text)',
-                      fontFamily: 'var(--s-font)'
-                    }}>
-                      Retours acceptés
-                    </span>
-                  </div>
-                </div>
+                {showTrustBadges && <TrustBadges compact />}
 
                 {/* Description - affichage direct sans titre */}
                 {product.description?.toString().trim() && (
                   <div style={{ marginBottom: 16, paddingTop: 16, borderTop: '1px solid var(--s-border)' }}>
-                    <ProductDescription content={product.description} />
+                    <ProductDescription content={product.description} stripFaqSection={showFaq && product.faq?.length > 0} />
                   </div>
                 )}
 
-                <TrustBadges />
+                {showFaq && product.faq?.length > 0 && (
+                  <ProductFaqAccordion items={product.faq} />
+                )}
               </>
             ) : null}
           </div>
@@ -819,7 +840,7 @@ const StoreProductPage = () => {
       </div>
 
       {/* ── Related Products ───────────────────────────────────────────────── */}
-      {related.length > 0 && (
+      {showRelatedProducts && related.length > 0 && (
         <section style={{ maxWidth: 1200, margin: '64px auto 0', padding: '0 24px' }}>
           <h2 style={{
             fontSize: 'clamp(20px, 3vw, 26px)', fontWeight: 800, color: 'var(--s-text)',
@@ -831,6 +852,39 @@ const StoreProductPage = () => {
             {related.map(p => <RelatedCard key={p._id} product={p} prefix={prefix} store={store} />)}
           </div>
         </section>
+      )}
+
+      {showStickyOrderBar && product && (
+        <div style={{
+          position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 70,
+          padding: '10px 14px calc(env(safe-area-inset-bottom, 0px) + 10px)',
+          backgroundColor: 'rgba(255,255,255,0.96)',
+          borderTop: '1px solid var(--s-border)',
+          boxShadow: '0 -10px 30px rgba(0,0,0,0.08)',
+          backdropFilter: 'blur(10px)',
+          animation: 'slide-up 0.2s ease-out',
+        }}>
+          <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>{product.name}</p>
+              <p style={{ margin: '2px 0 0', fontSize: 16, fontWeight: 800, color: 'var(--s-primary)', fontFamily: 'var(--s-font)' }}>
+                {fmt(product.price, product.currency || store?.currency || 'XAF')}
+              </p>
+            </div>
+            <button
+              onClick={openOrderModal}
+              disabled={!inStock}
+              style={{
+                border: 'none', borderRadius: 999, padding: '14px 20px',
+                backgroundColor: inStock ? 'var(--s-primary)' : '#d1d5db', color: '#fff',
+                fontSize: 14, fontWeight: 800, fontFamily: 'var(--s-font)',
+                cursor: inStock ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap',
+              }}
+            >
+              Commander
+            </button>
+          </div>
+        </div>
       )}
 
       <StorefrontFooter store={store} />

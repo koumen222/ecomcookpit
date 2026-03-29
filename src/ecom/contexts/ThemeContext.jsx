@@ -25,7 +25,7 @@ export const DEFAULT_THEME = {
     showPromoBanner: true,
     showTrustBadges: true,
     showRelatedProducts: true,
-    showWhatsappButton: true,
+    showWhatsappButton: false,
     showBenefits: true,
     showNewsletter: false,
   },
