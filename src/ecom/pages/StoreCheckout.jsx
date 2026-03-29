@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, ShoppingCart, CheckCircle, AlertCircle, Loader2, MessageCircle, User, Phone, MapPin, FileText, Truck, Package } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, CheckCircle, AlertCircle, Loader2, User, Phone, MapPin, FileText, Truck, Package } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
 import { setDocumentMeta } from '../utils/pageMeta';
@@ -294,18 +294,6 @@ const StoreCheckout = () => {
           </div>
 
           <div className="space-y-3">
-            {store?.whatsapp && (
-              <a
-                href={`https://wa.me/${store.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(whatsappMsg)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-green-500 text-white rounded-xl font-medium text-sm hover:bg-green-600 transition"
-              >
-                <MessageCircle className="w-4 h-4" />
-                Confirmer via WhatsApp
-              </a>
-            )}
-
             <button
               onClick={() => navigate(storePath('/'))}
               className="w-full px-4 py-3 border border-gray-200 text-gray-700 rounded-xl font-medium text-sm hover:bg-gray-50 transition"
