@@ -169,6 +169,7 @@ function injectHeadMeta(html, meta) {
     title: meta?.title || DEFAULT_PLATFORM_TITLE,
     description: meta?.description || DEFAULT_PLATFORM_DESCRIPTION,
     image: meta?.image || DEFAULT_PLATFORM_IMAGE,
+    logo: meta?.logo || meta?.icon || '',
     icon: meta?.icon || meta?.image || DEFAULT_PLATFORM_IMAGE,
     url: meta?.url || 'https://scalor.net/',
     type: meta?.type || 'website',
@@ -184,10 +185,16 @@ function injectHeadMeta(html, meta) {
   nextHtml = upsertMetaTag(nextHtml, 'property', 'og:url', resolved.url);
   nextHtml = upsertMetaTag(nextHtml, 'property', 'og:site_name', resolved.siteName);
   nextHtml = upsertMetaTag(nextHtml, 'property', 'og:image', resolved.image);
+  if (resolved.logo) {
+    nextHtml = upsertMetaTag(nextHtml, 'property', 'og:logo', resolved.logo);
+  }
   nextHtml = upsertMetaTag(nextHtml, 'name', 'twitter:card', resolved.image ? 'summary_large_image' : 'summary');
   nextHtml = upsertMetaTag(nextHtml, 'name', 'twitter:title', resolved.title);
   nextHtml = upsertMetaTag(nextHtml, 'name', 'twitter:description', resolved.description);
   nextHtml = upsertMetaTag(nextHtml, 'name', 'twitter:image', resolved.image);
+  if (resolved.logo) {
+    nextHtml = upsertMetaTag(nextHtml, 'name', 'twitter:site', resolved.siteName);
+  }
   nextHtml = upsertMetaTag(nextHtml, 'name', 'apple-mobile-web-app-title', resolved.appTitle);
   return replaceIconTags(nextHtml, resolved.icon);
 }
@@ -269,11 +276,13 @@ async function resolveRequestMeta(req) {
   const storeBanner = workspace.storeSettings?.storeBanner || '';
   const defaultStoreVisual = toAbsoluteUrl(storeLogo || storeBanner || '/icon.png', req) || DEFAULT_PLATFORM_IMAGE;
 
+  const absoluteLogo = toAbsoluteUrl(storeLogo || '', req);
   const meta = {
     title: storeName,
     description: storeDescription,
     image: defaultStoreVisual,
-    icon: toAbsoluteUrl(storeLogo || '/icon.png', req) || defaultStoreVisual,
+    logo: absoluteLogo || '',
+    icon: absoluteLogo || toAbsoluteUrl('/icon.png', req) || defaultStoreVisual,
     type: 'website',
     siteName: storeName,
     appTitle: storeName,
@@ -306,7 +315,8 @@ async function resolveRequestMeta(req) {
         normalizeText(product.seoDescription || product.description || storeDescription || `Découvrez ${product.name} chez ${storeName}.`),
         180,
       );
-      meta.image = toAbsoluteUrl(storeLogo || productImage || storeBanner || '/icon.png', req) || defaultStoreVisual;
+      // og:image = image produit (plus engageante) ; logo dans icon/favicon et og:logo
+      meta.image = toAbsoluteUrl(productImage || storeLogo || storeBanner || '/icon.png', req) || defaultStoreVisual;
       meta.type = 'product';
     }
   }
