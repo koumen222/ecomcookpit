@@ -41,10 +41,13 @@ const router = express.Router();
 // In production: /app/client/build (Docker) or ../client/build (relative)
 // Vite outputs to /dist, so we also check that
 const BUILD_PATHS = [
-  path.resolve(__dirname, '../client/build'),
-  path.resolve(__dirname, '../client/dist'),
-  path.resolve(__dirname, '../../dist'),        // monorepo: frontend dist next to Backend/
-  path.resolve(__dirname, '../../client/build'),
+  path.resolve(__dirname, '../client/build'),    // /app/client/build (Railway root=Backend)
+  path.resolve(__dirname, '../client/dist'),     // /app/client/dist
+  path.resolve(__dirname, '../../dist'),         // monorepo: frontend dist next to Backend/
+  path.resolve(__dirname, '../../client/build'), // monorepo fallback
+  path.resolve(__dirname, '../dist'),            // /app/dist (if vite outputs here)
+  '/app/dist',                                   // absolute: nixpacks build output
+  '/app/Backend/client/build',                   // absolute: nixpacks copy target
 ];
 
 let BUILD_DIR = null;
@@ -59,7 +62,13 @@ if (BUILD_DIR) {
   console.log(`📦 [storefront] React build found at: ${BUILD_DIR}`);
 } else {
   console.warn('⚠️ [storefront] No React build found. Store subdomains will return 503.');
-  console.warn('   Expected locations:', BUILD_PATHS.join(', '));
+  console.warn('   __dirname:', __dirname);
+  console.warn('   Checked paths:');
+  for (const p of BUILD_PATHS) {
+    const dirExists = fs.existsSync(p);
+    const indexExists = dirExists && fs.existsSync(path.join(p, 'index.html'));
+    console.warn(`     ${p} → dir=${dirExists}, index.html=${indexExists}`);
+  }
 }
 
 // ─── 1. Skip this router for API paths and API domain ─────────────────────────
@@ -90,13 +99,25 @@ router.use((req, res, next) => {
 // Serve for both store subdomains AND root domain (for /store/:subdomain routes)
 router.use((req, res, next) => {
   if (!BUILD_DIR) {
+    // Serve a user-friendly HTML page instead of raw JSON
+    const accepts = req.headers.accept || '';
+    if (accepts.includes('text/html')) {
+      return res.status(503).send(`<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Boutique en cours de déploiement</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f9fafb;color:#111827}
+.c{text-align:center;padding:2rem}.icon{font-size:3rem;margin-bottom:1rem}h1{font-size:1.25rem;font-weight:700;margin-bottom:.5rem}p{color:#6b7280;font-size:.875rem;max-width:24rem}
+.retry{margin-top:1.5rem;display:inline-block;padding:.625rem 1.5rem;background:#0F6B4F;color:#fff;border-radius:.75rem;text-decoration:none;font-weight:600;font-size:.875rem}</style>
+</head><body><div class="c"><div class="icon">🚀</div><h1>Boutique en cours de déploiement</h1><p>La boutique est en cours de mise à jour. Réessayez dans quelques instants.</p>
+<a href="." class="retry">Réessayer</a></div></body></html>`);
+    }
     return res.status(503).json({
       success: false,
       message: 'Store is being deployed. Please try again in a few minutes.',
       code: 'BUILD_NOT_READY'
     });
   }
-  
+
   next();
 });
 
@@ -133,6 +154,17 @@ if (BUILD_DIR) {
 // React Router takes over client-side routing from index.html
 router.get('*', (req, res) => {
   if (!BUILD_DIR) {
+    const accepts = req.headers.accept || '';
+    if (accepts.includes('text/html')) {
+      return res.status(503).send(`<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Boutique en cours de déploiement</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f9fafb;color:#111827}
+.c{text-align:center;padding:2rem}.icon{font-size:3rem;margin-bottom:1rem}h1{font-size:1.25rem;font-weight:700;margin-bottom:.5rem}p{color:#6b7280;font-size:.875rem;max-width:24rem}
+.retry{margin-top:1.5rem;display:inline-block;padding:.625rem 1.5rem;background:#0F6B4F;color:#fff;border-radius:.75rem;text-decoration:none;font-weight:600;font-size:.875rem}</style>
+</head><body><div class="c"><div class="icon">🚀</div><h1>Boutique en cours de déploiement</h1><p>La boutique est en cours de mise à jour. Réessayez dans quelques instants.</p>
+<a href="." class="retry">Réessayer</a></div></body></html>`);
+    }
     return res.status(503).json({
       success: false,
       message: 'Store is being deployed. Please try again in a few minutes.',

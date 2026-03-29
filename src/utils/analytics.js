@@ -22,8 +22,9 @@ class AnalyticsService {
     const configured = String(import.meta.env.VITE_CUSTOM_ANALYTICS_ENDPOINT || '').trim();
     if (configured) return configured;
 
-    // Default to same-origin backend route to avoid cross-origin/CORS issues.
-    return '/api/ecom/analytics/track';
+    // Use backend URL to avoid routing analytics through the frontend server
+    const backendUrl = (import.meta.env.VITE_BACKEND_URL || 'https://api.scalor.net').replace(/\/$/, '');
+    return `${backendUrl}/api/ecom/analytics/track`;
   }
 
   generateSessionId() {

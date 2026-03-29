@@ -7,8 +7,10 @@
 import cron from 'node-cron';
 import RitaConfig from '../models/RitaConfig.js';
 import WhatsAppOrder from '../models/WhatsAppOrder.js';
+import StoreOrder from '../models/StoreOrder.js';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import RitaActivity from '../models/RitaActivity.js';
+import Workspace from '../models/Workspace.js';
 import evolutionApiService from './evolutionApiService.js';
 
 let dailyCronJob = null;
@@ -29,18 +31,37 @@ export async function logRitaActivity(userId, type, data = {}) {
  * Build and send the daily summary for one user/instance
  */
 async function sendDailySummary(ritaCfg) {
-  const userId = ritaCfg.userId;
+  let userId = ritaCfg.userId;
   const bossPhone = ritaCfg.bossPhone?.replace(/\D/g, '');
   if (!bossPhone) return;
 
-  // Find the user's active instance for sending
-  const instance = await WhatsAppInstance.findOne({
-    userId,
-    isActive: true,
-    status: { $in: ['connected', 'active'] }
-  }).lean();
+  // Find the WhatsApp instance — prefer instanceId from config, fallback to userId lookup
+  let instance = null;
+  if (ritaCfg.instanceId) {
+    instance = await WhatsAppInstance.findById(ritaCfg.instanceId).lean();
+  }
+  if (!instance && userId) {
+    instance = await WhatsAppInstance.findOne({
+      userId,
+      isActive: true,
+      status: { $in: ['connected', 'active'] }
+    }).lean();
+  }
   if (!instance) {
-    console.log(`⏩ [RITA-REPORT] Pas d'instance active pour userId=${userId}`);
+    console.log(`⏩ [RITA-REPORT] Pas d'instance active pour userId=${userId} / instanceId=${ritaCfg.instanceId}`);
+    return;
+  }
+
+  // Resolve userId from workspace owner if missing (legacy per-agent configs)
+  if (!userId && instance.workspaceId) {
+    try {
+      const ws = await Workspace.findById(instance.workspaceId).select('owner').lean();
+      if (ws?.owner) userId = String(ws.owner);
+    } catch { }
+  }
+  if (!userId) userId = instance.userId;
+  if (!userId) {
+    console.log(`⏩ [RITA-REPORT] Impossible de résoudre userId pour config ${ritaCfg._id}`);
     return;
   }
 
@@ -49,18 +70,39 @@ async function sendDailySummary(ritaCfg) {
   const startOfDay = new Date(now);
   startOfDay.setHours(0, 0, 0, 0);
 
-  // Count today's activities
-  const [activities, orders] = await Promise.all([
+  // Get workspace for this instance to fetch store orders
+  let workspaceId = instance.workspaceId;
+  if (!workspaceId && userId) {
+    try {
+      const ws = await Workspace.findOne({ owner: userId }).select('_id').lean();
+      if (ws) workspaceId = ws._id;
+    } catch { }
+  }
+
+  // Count today's activities and orders from both sources
+  const [activities, whatsappOrders, storeOrders] = await Promise.all([
     RitaActivity.find({ userId, createdAt: { $gte: startOfDay } }).lean(),
     WhatsAppOrder.find({ userId, createdAt: { $gte: startOfDay } }).lean(),
+    workspaceId ? StoreOrder.find({ workspaceId, createdAt: { $gte: startOfDay } }).lean() : Promise.resolve([])
   ]);
+
+  // Combine orders from both sources
+  const orders = [...(whatsappOrders || []), ...(storeOrders || [])];
 
   const messagesReceived = activities.filter(a => a.type === 'message_received').length;
   const messagesReplied = activities.filter(a => a.type === 'message_replied').length;
   const uniqueClients = new Set(activities.filter(a => a.customerPhone).map(a => a.customerPhone)).size;
-  const ordersConfirmed = orders.filter(o => o.status === 'pending' || o.status === 'accepted').length;
+  const ordersConfirmed = orders.length; // Count all orders (both WhatsAppOrder and StoreOrder)
   const totalRevenue = orders.reduce((sum, o) => {
-    const price = parseFloat(String(o.productPrice || '0').replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
+    // Handle both WhatsAppOrder (productPrice) and StoreOrder (total)
+    let price = 0;
+    if (o.total !== undefined) {
+      // StoreOrder format
+      price = parseFloat(o.total) || 0;
+    } else if (o.productPrice) {
+      // WhatsAppOrder format
+      price = parseFloat(String(o.productPrice).replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
+    }
     return sum + price;
   }, 0);
   const vocalsTranscribed = activities.filter(a => a.type === 'vocal_transcribed').length;
@@ -80,9 +122,12 @@ async function sendDailySummary(ritaCfg) {
 
   if (orders.length > 0) {
     report += `💰 Chiffre d'affaires: *${totalRevenue.toLocaleString('fr-FR')} FCFA*\n\n`;
-    // List orders
+    // List orders (handle both WhatsAppOrder and StoreOrder formats)
     orders.forEach((o, i) => {
-      report += `${i + 1}. ${o.productName || 'Produit'} — ${o.customerName || 'Client'} (${o.customerCity || '?'}) — ${o.productPrice || '?'}\n`;
+      const productName = o.productName || o.products?.[0]?.name || 'Produit';
+      const customerName = o.customerName;
+      const price = o.productPrice || o.total || '?';
+      report += `${i + 1}. ${productName} — ${customerName || 'Client'} — ${price}\n`;
     });
   } else {
     report += `Aucune commande aujourd'hui.\n`;

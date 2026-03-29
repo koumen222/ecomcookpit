@@ -40,7 +40,7 @@ const analyzeImage = async (base64Image, mimetype, workspaceId) => {
   const startTime = Date.now();
 
   const completion = await groq.chat.completions.create({
-    model: process.env.AGENT_VISION_MODEL || 'llama-4-scout-17b-16e-instruct',
+    model: process.env.AGENT_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
     messages: [
       {
         role: 'system',
