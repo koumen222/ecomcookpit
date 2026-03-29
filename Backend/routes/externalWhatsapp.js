@@ -1412,11 +1412,22 @@ router.post('/incoming', async (req, res) => {
           console.log(`💬 [RITA] userId résolu: ${userId} (instance.userId=${instanceDoc?.userId}, workspaceId=${instanceDoc?.workspaceId})`);
 
           // ─── Résoudre l'agentId via l'instanceId stocké dans RitaConfig ───
+          // IMPORTANT : seule une config avec instanceId correspondant à cette instance peut répondre.
+          // Si aucune config n'est liée à cette instance, Rita ne répond PAS (évite les réponses sur des instances non configurées).
           let agentId = null;
+          let ritaConfigForInstance = null;
           if (instanceDoc?._id) {
-            const instCfg = await RitaConfig.findOne({ instanceId: String(instanceDoc._id) }).select('agentId').lean();
-            agentId = instCfg?.agentId || null;
-            if (agentId) console.log(`🤖 [RITA] agentId résolu: ${agentId}`);
+            ritaConfigForInstance = await RitaConfig.findOne({ instanceId: String(instanceDoc._id) }).select('agentId enabled').lean();
+            if (ritaConfigForInstance) {
+              agentId = ritaConfigForInstance.agentId || null;
+              if (agentId) console.log(`🤖 [RITA] agentId résolu: ${agentId}`);
+            } else {
+              console.log(`⏩ [RITA] Aucune config Rita liée à l'instance "${instanceDoc.instanceName}" (id=${instanceDoc._id}) — message ignoré.`);
+              continue;
+            }
+          } else {
+            console.log(`⏩ [RITA] instanceDoc introuvable — message ignoré.`);
+            continue;
           }
 
           // ─── Enregistrer le contact dès qu'il écrit (avant tout traitement) ───
