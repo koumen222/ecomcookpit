@@ -103,6 +103,7 @@ import WhatsAppInstancesList from './pages/WhatsAppInstancesList.jsx';
 import RitaFlows from './pages/RitaFlows.jsx';
 import AgentConfig from './pages/AgentConfig.jsx';
 import AgentIAList from './pages/AgentIAList.jsx';
+import RitaConversations from './pages/RitaConversations.jsx';
 import AgentOnboarding from './pages/AgentOnboarding.jsx';
 import ConnectShopify from './pages/ConnectShopify.jsx';
 import BillingPage from './pages/BillingPage.jsx';
@@ -445,6 +446,8 @@ const EcomApp = () => {
             <Route path="/ecom/agent-onboarding" element={<LayoutRoute><AgentOnboarding /></LayoutRoute>} />
             <Route path="/ecom/rita-flows" element={<LayoutRoute><RitaFlows /></LayoutRoute>} />
             <Route path="/ecom/whatsapp/agent-config" element={<LayoutRoute><AgentConfig /></LayoutRoute>} />
+            <Route path="/ecom/whatsapp/conversations/:agentId" element={<LayoutRoute><RitaConversations /></LayoutRoute>} />
+            <Route path="/ecom/whatsapp/conversations" element={<LayoutRoute><RitaConversations /></LayoutRoute>} />
 
             {/* Routes Livreur */}
             <Route path="/ecom/livreur" element={<LayoutRoute requiredRole="ecom_livreur"><LivreurDashboard /></LayoutRoute>} />

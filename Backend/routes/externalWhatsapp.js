@@ -11,7 +11,8 @@ import RitaContact from '../models/RitaContact.js';
 import Agent from '../models/Agent.js';
 import { normalizePhone } from '../utils/phoneUtils.js';
 import evolutionApiService from '../services/evolutionApiService.js';
-import { processIncomingMessage, processBossMessage, generateTestReply, transcribeAudio, textToSpeech, textToSpeechFishAudio, getLastAssistantMessage, getTtsVoiceSettings } from '../services/ritaAgentService.js';
+import { processIncomingMessage, processBossMessage, generateTestReply, transcribeAudio, textToSpeech, textToSpeechFishAudio, getLastAssistantMessage, getTtsVoiceSettings, getLiveConversations } from '../services/ritaAgentService.js';
+import { getIO } from '../services/socketService.js';
 import { logRitaActivity } from '../services/ritaBossReportService.js';
 import { analyzeImage as analyzeProductImage } from '../services/agentImageService.js';
 import { processFlows } from '../services/ritaFlowEngine.js';
@@ -1405,37 +1406,40 @@ router.post('/incoming', async (req, res) => {
           }
           console.log(`💬 [RITA] userId résolu: ${userId} (instance.userId=${instanceDoc?.userId}, workspaceId=${instanceDoc?.workspaceId})`);
 
+          // ─── Résoudre l'agentId via l'instanceId stocké dans RitaConfig ───
+          let agentId = null;
+          if (instanceDoc?._id) {
+            const instCfg = await RitaConfig.findOne({ instanceId: String(instanceDoc._id) }).select('agentId').lean();
+            agentId = instCfg?.agentId || null;
+            if (agentId) console.log(`🤖 [RITA] agentId résolu: ${agentId}`);
+          }
+
           // ─── Enregistrer le contact dès qu'il écrit (avant tout traitement) ───
-          if (instanceDoc) {
-            try {
-              const earlyUserId = userId;
-              const earlyPhone = senderPhone;
-              // Exclure le numéro du boss
-              const earlyCfg = await RitaConfig.findOne({ userId: earlyUserId }).lean();
-              const bossPhoneEarly = (earlyCfg?.bossPhone || '').replace(/\D/g, '');
-              const fromPhoneEarly = earlyPhone.replace(/\D/g, '');
-              if (!bossPhoneEarly || fromPhoneEarly !== bossPhoneEarly) {
-                const ec = await RitaContact.findOne({ userId: earlyUserId, phone: earlyPhone });
-                if (ec) {
-                  ec.lastMessageAt = new Date();
-                  ec.messageCount = (ec.messageCount || 0) + 1;
-                  const needsNameSync = pushName && !ec.pushName;
-                  if (pushName && !ec.pushName) ec.pushName = pushName;
-                  await ec.save();
-                  // Mettre à jour le nom sur l'appareil si on vient de l'obtenir
-                  if (needsNameSync) {
-                    evolutionApiService.saveContact(
-                      instanceDoc.instanceName,
-                      instanceDoc.instanceToken,
-                      earlyPhone,
-                      pushName
-                    );
+          if (instanceDoc && userId) {
+            (async () => {
+              try {
+                const earlyPhone = senderPhone;
+                // Exclure le numéro du boss
+                const earlyCfg = await RitaConfig.findOne(agentId ? { agentId } : { userId }).select('bossPhone').lean();
+                const bossPhoneClean = (earlyCfg?.bossPhone || '').replace(/\D/g, '');
+                if (bossPhoneClean && earlyPhone.replace(/\D/g, '') === bossPhoneClean) return;
+
+                // Vérifier si le contact existe déjà
+                const existing = await RitaContact.findOne({ userId, phone: earlyPhone }).select('_id pushName clientNumber').lean();
+
+                if (existing) {
+                  // Mise à jour atomique
+                  const upd = { $set: { lastMessageAt: new Date() }, $inc: { messageCount: 1 } };
+                  if (pushName && !existing.pushName) {
+                    upd.$set.pushName = pushName;
                   }
+                  await RitaContact.updateOne({ userId, phone: earlyPhone }, upd);
                 } else {
-                  const lc = await RitaContact.findOne({ userId: earlyUserId }).sort({ clientNumber: -1 }).lean();
+                  // Nouveau contact — numéro auto-incrémenté de façon atomique
+                  const lc = await RitaContact.findOne({ userId }).sort({ clientNumber: -1 }).select('clientNumber').lean();
                   const nn = (lc?.clientNumber || 0) + 1;
                   await RitaContact.create({
-                    userId: earlyUserId,
+                    userId,
                     phone: earlyPhone,
                     pushName: pushName || '',
                     clientNumber: nn,
@@ -1444,20 +1448,14 @@ router.post('/incoming', async (req, res) => {
                     messageCount: 1,
                   });
                   console.log(`📇 [RITA] Nouveau contact: Client ${nn} (${earlyPhone}, ${pushName || 'sans nom'})`);
-                  // Enregistrer également sur l'appareil WhatsApp (Evolution API)
-                  evolutionApiService.saveContact(
-                    instanceDoc.instanceName,
-                    instanceDoc.instanceToken,
-                    earlyPhone,
-                    pushName || `Client ${nn}`
-                  );
+                }
+              } catch (contactErr) {
+                // Duplicate key (11000) = race condition, le contact est déjà créé → ignorer
+                if (contactErr.code !== 11000) {
+                  console.error('⚠️ [RITA] Erreur enregistrement contact:', contactErr.message);
                 }
               }
-            } catch (earlyContactErr) {
-              if (earlyContactErr.code !== 11000) {
-                console.error('⚠️ [RITA] Erreur enregistrement contact (early):', earlyContactErr.message);
-              }
-            }
+            })();
           }
 
           // ─── Transcription vocale si c'est un audio ───
@@ -1471,7 +1469,7 @@ router.post('/incoming', async (req, res) => {
               );
               if (mediaData?.base64) {
                 // Déterminer la langue pour Whisper
-                const ritaCfgLang = await RitaConfig.findOne({ userId }).lean();
+                const ritaCfgLang = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
                 const langHint = ritaCfgLang?.language || 'fr';
                 const transcribed = await transcribeAudio(mediaData.base64, mediaData.mimetype, langHint);
                 if (transcribed) {
@@ -1561,7 +1559,7 @@ router.post('/incoming', async (req, res) => {
 
           // ─── Détecter si c'est le boss (escalade OU mode boss) ───
           {
-            const ritaCfgEsc = await RitaConfig.findOne({ userId }).lean();
+            const ritaCfgEsc = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
             const bossRaw = (ritaCfgEsc?.bossPhone || '').replace(/\D/g, '');
               const fromRaw  = senderPhone;
             if (bossRaw && fromRaw === bossRaw) {
@@ -1752,8 +1750,16 @@ router.post('/incoming', async (req, res) => {
 
           // Générer la réponse IA
           const startTime = Date.now();
-          const reply = await processIncomingMessage(userId, senderJid, text);
+          const reply = await processIncomingMessage(userId, senderJid, text, { agentId, pushName });
           const elapsed = Date.now() - startTime;
+
+          // Émettre un événement socket pour la vue temps réel
+          try {
+            const io = getIO();
+            if (io && workspaceId) {
+              io.to(`workspace:${workspaceId}`).emit('rita:message:new', { phone: senderPhone, agentId, userId });
+            }
+          } catch (_) { /* non-bloquant */ }
 
           if (!reply) {
             console.log(`ℹ️ [RITA] Rita désactivée ou pas de réponse pour userId=${userId} (${elapsed}ms)`);
@@ -1888,7 +1894,7 @@ router.post('/incoming', async (req, res) => {
           // Cas 1 : Rita a demandé "Tu veux voir l'image ?" sans envoyer le tag → on remplace par le tag
           if (!replyClean.includes('[IMAGE:') && /tu veux voir l[a']? ?image|voir (la |une )?photo|je t'envoie (la |une )?image/i.test(replyClean)) {
             try {
-              const ritaCfgSafeImg = await RitaConfig.findOne({ userId }).lean();
+              const ritaCfgSafeImg = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
               const safeImgCatalog = (ritaCfgSafeImg?.productCatalog || []).filter(p => p.name && p.images?.length);
               const allProducts = ritaCfgSafeImg?.productCatalog || [];
               const safeImgMatched = findProductByName(safeImgCatalog, replyClean);
@@ -1914,9 +1920,9 @@ router.post('/incoming', async (req, res) => {
           const isAffirmative = /^(oui|yes|ok|ouais|yep|d'accord|dac|oki|okay|y|si|sure|yeah|mh|mhm)[\s!.]*$/i.test(text.trim());
           if (isAffirmative && !replyClean.includes('[IMAGE:')) {
             try {
-              const lastBot = getLastAssistantMessage(userId, from);
+              const lastBot = getLastAssistantMessage(userId, from, agentId);
               if (lastBot && /image|photo|voir/i.test(lastBot)) {
-                const ritaCfgSafeImg2 = await RitaConfig.findOne({ userId }).lean();
+                const ritaCfgSafeImg2 = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
                 const safeImgCatalog2 = (ritaCfgSafeImg2?.productCatalog || []).filter(p => p.name && p.images?.length);
                 const allProds2 = ritaCfgSafeImg2?.productCatalog || [];
                 const safeImgMatched2 = findProductByName(safeImgCatalog2, lastBot);
@@ -1940,7 +1946,7 @@ router.post('/incoming', async (req, res) => {
           if (askBossMatch) {
             replyClean = replyClean.replace(/\s*\[ASK_BOSS:.+?\]/g, '').trim();
             try {
-              const ritaCfgEsc2 = await RitaConfig.findOne({ userId }).lean();
+              const ritaCfgEsc2 = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
               if (ritaCfgEsc2?.bossEscalationEnabled && ritaCfgEsc2?.bossPhone) {
                 const question = askBossMatch[1].trim();
                 const bossPhone = ritaCfgEsc2.bossPhone.replace(/\D/g, '');
@@ -1993,7 +1999,7 @@ router.post('/incoming', async (req, res) => {
             textToSend = textToSend.replace(/\s*\[IMAGES_ALL:.+?\]/g, '').trim();
             console.log(`📸📸 [RITA] Tag IMAGES_ALL détecté pour produit: "${imageProductName}"`);
 
-            const ritaCfg = await RitaConfig.findOne({ userId }).lean();
+            const ritaCfg = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
             const catalog = ritaCfg?.productCatalog || [];
             const product = findProductByName(catalog, imageProductName);
             console.log(`📸📸 [RITA] Produit trouvé: ${product ? product.name : 'AUCUN'} | images: ${product?.images?.length || 0}`);
@@ -2016,7 +2022,7 @@ router.post('/incoming', async (req, res) => {
             textToSend = textToSend.replace(/\s*\[IMAGE:.+?\]/g, '').trim();
             console.log(`📸 [RITA] Tag image détecté pour produit: "${imageProductName}"`);
 
-            const ritaCfg = await RitaConfig.findOne({ userId }).lean();
+            const ritaCfg = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
             const catalog = ritaCfg?.productCatalog || [];
             const product = findProductByName(catalog, imageProductName);
             console.log(`📸 [RITA] Produit trouvé: ${product ? product.name : 'AUCUN'} | images: ${product?.images?.length || 0}`);
@@ -2044,7 +2050,7 @@ router.post('/incoming', async (req, res) => {
             textToSend = textToSend.replace(/\s*\[VIDEO:.+?\]/g, '').trim();
             console.log(`🎬 [RITA] Tag vidéo détecté pour produit: "${videoProductName}"`);
 
-            const ritaCfgV = await RitaConfig.findOne({ userId }).lean();
+            const ritaCfgV = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
             const catalogV = ritaCfgV?.productCatalog || [];
             const productV = findProductByName(catalogV, videoProductName);
             console.log(`🎬 [RITA] Produit vidéo trouvé: ${productV ? productV.name : 'AUCUN'} | vidéos: ${productV?.videos?.length || 0}`);
@@ -2059,7 +2065,7 @@ router.post('/incoming', async (req, res) => {
               console.log(`🎬 [RITA] Aucune vidéo trouvée pour "${videoProductName}"`);
               // Essayer d'escalader vers le boss si activé
               try {
-                const ritaCfgNoVid = await RitaConfig.findOne({ userId }).lean();
+                const ritaCfgNoVid = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
                 if (ritaCfgNoVid?.bossEscalationEnabled && ritaCfgNoVid?.bossPhone) {
                   const bossPhone = ritaCfgNoVid.bossPhone.replace(/\D/g, '');
                   const currentCleanFrom = from.replace(/@.*$/, '');
@@ -2118,7 +2124,7 @@ router.post('/incoming', async (req, res) => {
             textToSend = textToSend.replace(/\s*\[TESTIMONIAL:\d+\]/g, '').trim();
             console.log(`🗣️ [RITA] Tag TESTIMONIAL détecté, index: ${tIdx}`);
 
-            const ritaCfgT = await RitaConfig.findOne({ userId }).lean();
+            const ritaCfgT = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
             const testimonial = ritaCfgT?.testimonials?.[tIdx];
             if (testimonial) {
               if (testimonial.videos?.length) {
@@ -2613,6 +2619,9 @@ router.post('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req,
   try {
     const { config, agentId, userId: bodyUserId } = req.body;
 
+    // Résoudre userId dans TOUS les cas (nécessaire pour rapport, activité, contacts)
+    const resolvedUserId = bodyUserId || (await resolveRitaTargetUserId(req));
+
     // Utiliser agentId s'il est fourni, sinon userId
     let queryKey, queryValue;
 
@@ -2621,7 +2630,7 @@ router.post('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req,
       queryValue = agentId;
     } else {
       queryKey = 'userId';
-      queryValue = bodyUserId || (await resolveRitaTargetUserId(req));
+      queryValue = resolvedUserId;
     }
 
     if (!queryValue || !config) {
@@ -2630,6 +2639,38 @@ router.post('/rita-config', requireEcomAuth, requireRitaAgentAccess, async (req,
 
     // Retirer les champs Mongoose pour éviter un conflit _id lors de l'upsert
     const { _id, __v, createdAt, updatedAt, userId: _u, agentId: _a, ...cleanConfig } = config;
+
+    // Toujours stocker userId même pour les configs per-agent (nécessaire pour rapport boss, activité, contacts)
+    if (resolvedUserId) {
+      cleanConfig.userId = resolvedUserId;
+    }
+
+    // Nettoyer les _id des sous-documents (productCatalog, quantityOffers, etc.)
+    // Mongoose génère des _id auto sur les sous-documents et ça crée des conflits à l'upsert
+    if (Array.isArray(cleanConfig.productCatalog)) {
+      cleanConfig.productCatalog = cleanConfig.productCatalog.map(p => {
+        const { _id: _pid, ...cleanProduct } = p;
+        if (Array.isArray(cleanProduct.quantityOffers)) {
+          cleanProduct.quantityOffers = cleanProduct.quantityOffers.map(o => {
+            const { _id: _oid, ...cleanOffer } = o;
+            return cleanOffer;
+          });
+        }
+        return cleanProduct;
+      });
+    }
+    if (Array.isArray(cleanConfig.testimonials)) {
+      cleanConfig.testimonials = cleanConfig.testimonials.map(t => {
+        const { _id: _tid, ...cleanT } = t;
+        return cleanT;
+      });
+    }
+    if (Array.isArray(cleanConfig.firstMessageRules)) {
+      cleanConfig.firstMessageRules = cleanConfig.firstMessageRules.map(r => {
+        const { _id: _rid, ...cleanR } = r;
+        return cleanR;
+      });
+    }
 
     const updated = await RitaConfig.findOneAndUpdate(
       { [queryKey]: queryValue },
@@ -2656,7 +2697,7 @@ router.get('/rita-config/:agentId', requireEcomAuth, requireRitaAgentAccess, asy
     const config = await RitaConfig.findOne({ agentId }).lean();
     res.status(200).json({ success: true, config: config || null });
   } catch (error) {
-    console.error('❌ Erreur chargement rita-config par agentId:', error.message);
+    console.error('❌ Erreur chargement rita-config agent:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -2732,9 +2773,10 @@ router.get('/rita-activity', requireEcomAuth, requireRitaAgentAccess, async (req
  * @route   GET /api/ecom/v1/external/whatsapp/rita-contacts
  * @desc    Liste tous les contacts Rita enregistrés automatiquement
  */
-router.get('/rita-contacts', async (req, res) => {
+router.get('/rita-contacts', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
-    const { userId, page, limit: lim } = req.query;
+    const { page, limit: lim } = req.query;
+    const userId = await resolveRitaTargetUserId(req);
     if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
 
     const pageNum = Math.max(1, parseInt(page) || 1);
@@ -2756,6 +2798,9 @@ router.get('/rita-contacts', async (req, res) => {
         clientNumber: c.clientNumber,
         phone: c.phone,
         pushName: c.pushName,
+        nom: c.nom,
+        ville: c.ville,
+        adresse: c.adresse,
         messageCount: c.messageCount,
         hasOrdered: c.hasOrdered,
         firstMessageAt: c.firstMessageAt,
@@ -2776,9 +2821,9 @@ router.get('/rita-contacts', async (req, res) => {
  * @route   GET /api/ecom/v1/external/whatsapp/rita-contacts/export
  * @desc    Exporte tous les contacts Rita en CSV
  */
-router.get('/rita-contacts/export', async (req, res) => {
+router.get('/rita-contacts/export', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
   try {
-    const { userId } = req.query;
+    const userId = await resolveRitaTargetUserId(req);
     if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
 
     const contacts = await RitaContact.find({ userId }).sort({ clientNumber: 1 }).lean();
@@ -3187,6 +3232,23 @@ router.get('/dashboard-stats', requireEcomAuth, async (req, res) => {
       },
     });
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * @route GET /api/ecom/v1/external/whatsapp/rita-conversations
+ * @desc  Retourne toutes les conversations Rita actives en mémoire (temps réel)
+ */
+router.get('/rita-conversations', requireEcomAuth, async (req, res) => {
+  try {
+    const resolvedUserId = await resolveRitaTargetUserId(req);
+    if (!resolvedUserId) return res.status(400).json({ success: false, error: 'userId requis' });
+    const { agentId } = req.query;
+    const conversations = getLiveConversations(resolvedUserId, agentId || null);
+    res.json({ success: true, conversations });
+  } catch (error) {
+    console.error('❌ Erreur rita-conversations:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });

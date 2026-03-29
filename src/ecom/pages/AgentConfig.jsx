@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye, Star, Trash2, Plus, Image, Video, X, Download, Upload } from 'lucide-react';
+import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye, Star, Trash2, Plus, Image, Video, X, Download, Upload, FileText, ToggleLeft, ToggleRight, Radio, PlayCircle } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ProductImportLocal from '../components/ProductImportLocal.jsx';
@@ -19,6 +19,8 @@ const TABS = [
   { id: 'admin-pilotage', label: 'Pilotage', icon: Headphones },
   { id: 'analytics', label: 'Analytiques', icon: BarChart3 },
   { id: 'contacts', label: 'Contacts', icon: Users },
+  { id: 'statuts', label: 'Statuts', icon: Radio },
+  { id: 'instructions', label: 'Instructions', icon: FileText },
 ];
 
 const TONE_OPTIONS = [
@@ -127,13 +129,13 @@ const Field = ({ label, hint, required, children }) => (
 );
 
 const Toggle = ({ enabled, onChange, label, description }) => (
-  <div className="flex items-center justify-between gap-3 py-2">
+  <div className="flex flex-col gap-3 py-2 sm:flex-row sm:items-center sm:justify-between">
     <div className="flex-1 min-w-0">
       <p className="text-[13px] font-semibold text-gray-700">{label}</p>
       {description && <p className="text-[11px] text-gray-400 mt-0.5">{description}</p>}
     </div>
     <button type="button" onClick={() => onChange(!enabled)}
-      className={`relative w-[44px] h-[26px] rounded-full transition-all duration-200 flex-shrink-0 ${enabled ? 'bg-emerald-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
+      className={`relative self-end sm:self-auto w-[44px] h-[26px] rounded-full transition-all duration-200 flex-shrink-0 ${enabled ? 'bg-emerald-500' : 'bg-gray-200 hover:bg-gray-300'}`}>
       <span className={`absolute top-[3px] w-5 h-5 bg-white rounded-full shadow-md transition-all duration-200 ${enabled ? 'left-[21px]' : 'left-[3px]'}`} />
     </button>
   </div>
@@ -176,7 +178,8 @@ const SelectDropdown = ({ value, onChange, options, placeholder = 'Sélectionner
 export default function AgentConfig() {
   const navigate = useNavigate();
   const location = useLocation();
-  const agent = location.state?.agent; // Agent depuis la page liste
+  const agent = location.state?.agent || null;
+  const agentId = agent?.id || null;
 
   const [activeTab, setActiveTab] = useState('identity');
   const [loading, setLoading] = useState(true);
@@ -193,6 +196,143 @@ export default function AgentConfig() {
   const [simInput, setSimInput] = useState('');
   const [simTyping, setSimTyping] = useState(false);
   const simEndRef = useRef(null);
+
+  // Statuts WhatsApp
+  const [statuts, setStatuts] = useState([]);
+  const [statutsLoading, setStatutsLoading] = useState(false);
+  const [statutSending, setStatutSending] = useState(null);
+  const [statutSaving, setStatutSaving] = useState(false);
+  const [showStatutForm, setShowStatutForm] = useState(false);
+  const [editingStatut, setEditingStatut] = useState(null);
+  const [statutForm, setStatutForm] = useState({
+    name: '', type: 'product', caption: '', mediaUrl: '', productName: '',
+    backgroundColor: '#0F6B4F', scheduleType: 'daily', sendTime: '09:00', weekDays: [],
+  });
+
+  const loadStatuts = useCallback(async () => {
+    setStatutsLoading(true);
+    try {
+      if (agentId) {
+        const [{ data: agentData }, { data: userData }] = await Promise.all([
+          ecomApi.get(`/v1/rita-status/schedules?agentId=${agentId}`),
+          ecomApi.get('/v1/rita-status/schedules'),
+        ]);
+
+        const mergedSchedules = [...(agentData?.schedules || []), ...(userData?.schedules || [])]
+          .filter((schedule, index, array) => array.findIndex(item => item._id === schedule._id) === index);
+
+        setStatuts(mergedSchedules);
+      } else {
+        const { data } = await ecomApi.get('/v1/rita-status/schedules');
+        if (data.success) setStatuts(data.schedules || []);
+      }
+    } catch (error) {
+      console.error('Error loading statuts:', error);
+    }
+    setStatutsLoading(false);
+  }, [agentId]);
+
+  const saveStatut = async () => {
+    if (statutForm.type === 'product' && !statutForm.productName?.trim()) {
+      alert('Sélectionnez un produit pour ce statut.');
+      return;
+    }
+
+    if (statutForm.type === 'image' && !statutForm.mediaUrl?.trim()) {
+      alert('Ajoutez une URL d\'image pour ce statut.');
+      return;
+    }
+
+    if (statutForm.type !== 'product' && !statutForm.caption?.trim()) {
+      alert('Ajoutez un texte pour ce statut.');
+      return;
+    }
+
+    if (statutForm.scheduleType === 'weekly' && !(statutForm.weekDays || []).length) {
+      alert('Sélectionnez au moins un jour de publication.');
+      return;
+    }
+
+    const scopeAgentId = editingStatut ? editingStatut.agentId : agentId;
+
+    setStatutSaving(true);
+    try {
+      const partialStatusConfig = {};
+      if (config.instanceId) {
+        partialStatusConfig.instanceId = config.instanceId;
+      }
+      if (statutForm.type === 'product') {
+        partialStatusConfig.productCatalog = config.productCatalog || [];
+      }
+      if (Object.keys(partialStatusConfig).length > 0) {
+        await syncRitaConfigPartial(partialStatusConfig);
+      }
+
+      const payload = {
+        ...statutForm,
+        name: statutForm.name?.trim() || 'Statut automatique',
+        caption: statutForm.caption?.trim() || '',
+        mediaUrl: statutForm.mediaUrl?.trim() || '',
+        productName: statutForm.productName?.trim() || '',
+        weekDays: statutForm.scheduleType === 'weekly' ? (statutForm.weekDays || []) : [],
+        ...(scopeAgentId ? { agentId: scopeAgentId } : {}),
+      };
+
+      if (editingStatut) {
+        await ecomApi.put(`/v1/rita-status/schedules/${editingStatut._id}`, payload);
+      } else {
+        await ecomApi.post('/v1/rita-status/schedules', payload);
+      }
+      setShowStatutForm(false);
+      setEditingStatut(null);
+      setStatutForm({ name: '', type: 'product', caption: '', mediaUrl: '', productName: '', backgroundColor: '#0F6B4F', scheduleType: 'daily', sendTime: '09:00', weekDays: [] });
+      await loadStatuts();
+    } catch (error) {
+      console.error('Error saving statut:', error);
+      alert(error?.response?.data?.error || 'Impossible d\'enregistrer le statut.');
+    } finally {
+      setStatutSaving(false);
+    }
+  };
+
+  const deleteStatut = async (id) => {
+    await ecomApi.delete(`/v1/rita-status/schedules/${id}`);
+    loadStatuts();
+  };
+
+  const sendNow = async (schedule) => {
+    if (!config.instanceId) {
+      alert('Sélectionnez et sauvegardez une instance WhatsApp Rita avant de publier un statut.');
+      return;
+    }
+
+    setStatutSending(schedule._id);
+    try {
+      const partialStatusConfig = { instanceId: config.instanceId };
+      if (schedule.type === 'product') {
+        partialStatusConfig.productCatalog = config.productCatalog || [];
+      }
+      await syncRitaConfigPartial(partialStatusConfig);
+
+      const { data } = await ecomApi.post(`/v1/rita-status/schedules/${schedule._id}/send-now`);
+
+      if (!data.success) {
+        throw new Error(data.error || data.message || 'Impossible de publier le statut maintenant.');
+      }
+
+      await loadStatuts();
+    } catch (error) {
+      console.error('Error sending statut now:', error);
+      alert(error?.response?.data?.error || error.message || 'Impossible de publier le statut maintenant.');
+    } finally {
+      setStatutSending(null);
+    }
+  };
+
+  const toggleStatut = async (s) => {
+    await ecomApi.put(`/v1/rita-status/schedules/${s._id}`, { enabled: !s.enabled });
+    loadStatuts();
+  };
 
   // Voice preview
   const [playingVoiceId, setPlayingVoiceId] = useState(null);
@@ -305,6 +445,11 @@ export default function AgentConfig() {
     fishAudioModel: 's2-pro',
     commercialOffersEnabled: false,
     commercialOffers: [],
+    deliveryFee: '',
+    deliveryDelay: '',
+    deliveryInfo: '',
+    deliveryZones: [],
+    whatsappGroupLink: null,
     bossNotifications: false,
     bossPhone: '',
     bossEscalationEnabled: false,
@@ -345,13 +490,18 @@ export default function AgentConfig() {
     // Témoignages
     testimonialsEnabled: false,
     testimonials: [],
+    // Instructions personnalisées
+    customInstructionsEnabled: false,
+    customInstructions: '',
+    // Premier message
+    firstMessageRulesEnabled: false,
+    firstMessageRules: [],
   });
 
   const [savedConfig, setSavedConfig] = useState(null);
 
   const { user: authUser } = useEcomAuth();
   const userId = authUser?._id || authUser?.id;
-  const agentId = agent?._id; // Utiliser l'agentId si disponible
   const [instanceError, setInstanceError] = useState(null);
   const [ritaRequestForm, setRitaRequestForm] = useState({
     contactName: authUser?.name || '',
@@ -366,11 +516,47 @@ export default function AgentConfig() {
     label: `${instance.customName || instance.instanceName || 'Instance WhatsApp'} · ${getInstanceStatusLabel(instance.status)}`,
   }));
   const selectedInstance = instances.find((instance) => instance._id === config.instanceId);
+  const selectedStatutProduct = (config.productCatalog || []).find((product) => product.name === statutForm.productName) || null;
+  const statutProductMediaOptions = [
+    ...((selectedStatutProduct?.images || []).filter(Boolean).map((url, index) => ({
+      key: `image-${index}-${url}`,
+      url,
+      type: 'image',
+      label: `Image ${index + 1}`,
+    }))),
+    ...((selectedStatutProduct?.videos || []).filter(Boolean).map((url, index) => ({
+      key: `video-${index}-${url}`,
+      url,
+      type: 'video',
+      label: `Vidéo ${index + 1}`,
+    }))),
+  ];
 
   const set = useCallback((field, value) => {
     setConfig(prev => ({ ...prev, [field]: value }));
     setHasChanges(true);
   }, []);
+
+  const syncRitaConfigPartial = useCallback(async (partialConfig = {}) => {
+    if (!partialConfig || Object.keys(partialConfig).length === 0) return false;
+
+    const payload = agentId
+      ? { agentId, config: partialConfig }
+      : { userId, config: partialConfig };
+
+    const { data } = await ecomApi.post('/v1/external/whatsapp/rita-config', payload);
+    if (!data.success) {
+      throw new Error(data.error || data.message || 'Impossible de synchroniser la configuration Rita.');
+    }
+
+    setSavedConfig(prev => ({ ...(prev || {}), ...partialConfig }));
+    return true;
+  }, [agentId, userId]);
+
+  const syncRitaInstanceConfig = useCallback(async (instanceId = config.instanceId) => {
+    if (!instanceId) return false;
+    return syncRitaConfigPartial({ instanceId });
+  }, [config.instanceId, syncRitaConfigPartial]);
 
   const loadInstances = async () => {
     try {
@@ -517,19 +703,22 @@ export default function AgentConfig() {
     set('instanceId', instanceId);
     setInstanceSwitchStatus(null);
 
-    // If Rita is active, apply the instance switch immediately.
-    if (!config.enabled) return;
-
     setInstanceSwitching(true);
     try {
-      await ecomApi.post('/v1/external/whatsapp/activate', {
-        agentId: agentId || undefined,
-        userId: userId || undefined,
-        enabled: true,
-        instanceId,
-      });
+      await syncRitaInstanceConfig(instanceId);
+
+      if (config.enabled) {
+        await ecomApi.post('/v1/external/whatsapp/activate', {
+          agentId: agentId || undefined,
+          userId: userId || undefined,
+          enabled: true,
+          instanceId,
+        });
+      }
+
       setInstanceSwitchStatus('success');
-    } catch {
+    } catch (error) {
+      console.error('[AgentConfig] Erreur synchronisation instance Rita:', error);
       setInstanceSwitchStatus('error');
     } finally {
       setInstanceSwitching(false);
@@ -755,7 +944,7 @@ export default function AgentConfig() {
       if (data.success) setActivityData(data);
     } catch { /* ignore */ }
     finally { setAnalyticsLoading(false); }
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'analytics') fetchAnalytics(analyticsDays);
@@ -764,7 +953,9 @@ export default function AgentConfig() {
   const fetchContacts = useCallback(async (page = 1) => {
     setContactsLoading(true);
     try {
-      const { data } = await ecomApi.get(`/v1/external/whatsapp/rita-contacts?userId=${userId}&page=${page}&limit=50`);
+      const { data } = await ecomApi.get('/v1/external/whatsapp/rita-contacts', {
+        params: { page, limit: 50 },
+      });
       if (data.success) {
         setContactsList(data.contacts || []);
         setContactsTotal(data.total || 0);
@@ -772,19 +963,33 @@ export default function AgentConfig() {
       }
     } catch { /* ignore */ }
     finally { setContactsLoading(false); }
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'contacts') fetchContacts(1);
   }, [activeTab, fetchContacts]);
 
-  const exportContactsCSV = () => {
-    const base = (ecomApi.defaults.baseURL || '').replace(/\/$/, '');
-    const url = `${base}/v1/external/whatsapp/rita-contacts/export?userId=${userId}`;
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'rita-contacts.csv';
-    a.click();
+  useEffect(() => {
+    if (activeTab === 'statuts') loadStatuts();
+  }, [activeTab, loadStatuts]);
+
+  const exportContactsCSV = async () => {
+    try {
+      const response = await ecomApi.get('/v1/external/whatsapp/rita-contacts/export', {
+        responseType: 'blob',
+      });
+      const blobUrl = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv;charset=utf-8;' }));
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = 'rita-contacts.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('Error exporting contacts CSV:', error);
+      alert(error?.response?.data?.error || 'Impossible d\'exporter les contacts.');
+    }
   };
 
   if (loading) return (
@@ -806,7 +1011,7 @@ export default function AgentConfig() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Breadcrumb */}
           <div className="py-3">
-            <nav className="flex items-center gap-1.5 text-[12px] text-gray-400">
+            <nav className="flex flex-wrap items-center gap-1.5 text-[12px] text-gray-400">
               <button onClick={() => {
                 if (hasChanges && !window.confirm('Vous avez des modifications non sauvegardées. Voulez-vous vraiment quitter ?')) return;
                 navigate('/ecom/agent-ia');
@@ -817,18 +1022,18 @@ export default function AgentConfig() {
           </div>
 
           {/* Title bar */}
-          <div className="flex items-center justify-between pb-4">
-            <div>
-              <h1 className="text-[22px] font-bold text-gray-900">{agent?.name || 'Configuration Agent IA'}</h1>
+          <div className="flex flex-col gap-4 pb-4 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-[20px] sm:text-[22px] font-bold text-gray-900 break-words">{agent?.name || 'Configuration Agent IA'}</h1>
               <p className="text-[13px] text-gray-400 mt-0.5">Configurez les produits, messages et paramètres de votre agent.</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:gap-3 w-full md:w-auto">
               <button onClick={handleReset} disabled={!hasChanges}
-                className="px-4 py-2 text-[13px] font-medium text-gray-500 hover:text-gray-700 disabled:opacity-40 transition-colors">
+                className="w-full sm:w-auto px-4 py-2 text-[13px] font-medium text-gray-500 hover:text-gray-700 disabled:opacity-40 transition-colors">
                 Annuler
               </button>
               <button onClick={handleSave} disabled={saving}
-                className="inline-flex items-center gap-2 px-5 py-2.5 text-[13px] font-bold text-white rounded-xl disabled:opacity-50 transition-all shadow-sm hover:shadow-md"
+                className="inline-flex w-full sm:w-auto justify-center items-center gap-2 px-5 py-2.5 text-[13px] font-bold text-white rounded-xl disabled:opacity-50 transition-all shadow-sm hover:shadow-md"
                 style={{ background: ACCENT }}>
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 Sauvegarder
@@ -837,13 +1042,13 @@ export default function AgentConfig() {
           </div>
 
           {/* Tab navigation */}
-          <div className="flex gap-0 border-b-0 -mb-px">
+          <div className="flex gap-0 border-b-0 -mb-px overflow-x-auto whitespace-nowrap scrollbar-thin">
             {TABS.map(tab => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
               return (
                 <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-medium border-b-2 transition-all ${
+                  className={`flex items-center gap-1.5 px-3 sm:px-4 py-2.5 text-[12px] sm:text-[13px] font-medium border-b-2 transition-all flex-shrink-0 ${
                     isActive
                       ? 'border-emerald-600 text-emerald-700'
                       : 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200'
@@ -857,7 +1062,7 @@ export default function AgentConfig() {
       </div>
 
       {/* ═══ CONTENT ═══ */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
 
         {/* ─── TAB: IDENTITÉ ─── */}
         {activeTab === 'identity' && (
@@ -1121,7 +1326,7 @@ export default function AgentConfig() {
                 <div className="p-5 space-y-4">
                   <div>
                     <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Mode de réponse</p>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       {[
                         { value: 'text',  icon: '💬',    label: 'Texte',  desc: 'Messages écrits uniquement' },
                         { value: 'voice', icon: '🎙️',   label: 'Vocal',  desc: 'Notes audio uniquement' },
@@ -1179,7 +1384,7 @@ export default function AgentConfig() {
                       {config.ttsProvider === 'elevenlabs' ? (
                         <>
                           <Field label="Voix réaliste">
-                            <div className="grid grid-cols-2 gap-2 mb-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
                               {ELEVENLABS_VOICES.map(voice => {
                                 const isSelected = config.elevenlabsVoiceId === voice.id;
                                 const isPlaying = playingVoiceId === voice.id;
@@ -1244,7 +1449,7 @@ export default function AgentConfig() {
                       ) : (
                         <>
                           <Field label="Voix ultra réaliste">
-                            <div className="grid grid-cols-2 gap-2 mb-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
                               {FISH_AUDIO_VOICES.map(voice => {
                                 const isSelected = config.fishAudioReferenceId === voice.id;
                                 const isPlaying = playingVoiceId === voice.id;
@@ -1382,7 +1587,7 @@ export default function AgentConfig() {
                 <div className="p-6 space-y-3">
                   {MODES_CONFIG.map(mode => (
                     <div key={mode.id}
-                      className={`flex items-start gap-4 px-4 py-4 rounded-xl border-2 transition-all ${mode.color}`}>
+                      className={`flex flex-col sm:flex-row items-start gap-4 px-4 py-4 rounded-xl border-2 transition-all ${mode.color}`}>
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${mode.iconBg}`}>
                         <span className="text-lg">{mode.label.split(' ')[0]}</span>
                       </div>
@@ -1481,7 +1686,7 @@ export default function AgentConfig() {
                     label="Activer les relances" description="Rita relance naturellement les prospects silencieux" />
                   {config.followUpEnabled && (
                     <div className="space-y-3 pt-2">
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <Field label="Relancer après" hint="heures">
                           <input type="number" value={config.followUpDelay} onChange={e => set('followUpDelay', parseInt(e.target.value) || 24)} min="1" className="ac-input" />
                         </Field>
@@ -1539,7 +1744,7 @@ export default function AgentConfig() {
                   <Toggle enabled={config.businessHoursOnly} onChange={v => set('businessHoursOnly', v)}
                     label="Heures de bureau uniquement" description="Réponses différentes hors horaires" />
                   {config.businessHoursOnly && (
-                    <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                       <Field label="Début">
                         <input type="time" value={config.businessHoursStart} onChange={e => set('businessHoursStart', e.target.value)} className="ac-input" />
                       </Field>
@@ -1631,6 +1836,168 @@ export default function AgentConfig() {
                       <span key={i} className="text-gray-300 text-lg font-bold">→</span>
                     ))}
                   </div>
+                </div>
+              </div>
+
+              {/* Livraison */}
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                      <MapPin className="w-4 h-4 text-blue-600" />
+                    </span>
+                    Configuration Livraison
+                  </h2>
+                  <p className="text-[12px] text-gray-400 mt-1">Tarifs, zones et délais de livraison que Rita mentionnera aux clients</p>
+                </div>
+                <div className="p-6 space-y-4">
+                  <Field label="Frais de livraison" hint="ex: 500 FCFA, gratuit">
+                    <input
+                      value={config.deliveryFee || ''}
+                      onChange={e => set('deliveryFee', e.target.value)}
+                      placeholder="ex: 500 FCFA"
+                      className="ac-input"
+                    />
+                  </Field>
+
+                  <Field label="Délai estimé" hint="ex: 24h, 2-3 jours">
+                    <input
+                      value={config.deliveryDelay || ''}
+                      onChange={e => set('deliveryDelay', e.target.value)}
+                      placeholder="ex: 24 heures"
+                      className="ac-input"
+                    />
+                  </Field>
+
+                  <Field label="Informations complémentaires" hint="optionnel">
+                    <textarea
+                      value={config.deliveryInfo || ''}
+                      onChange={e => set('deliveryInfo', e.target.value)}
+                      placeholder="ex: Paiement à la livraison, vérification avant paiement"
+                      rows={2}
+                      className="ac-textarea"
+                    />
+                  </Field>
+
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updatedZones = [...(config.deliveryZones || [])];
+                        updatedZones.push({ city: '', fee: '', delay: '' });
+                        set('deliveryZones', updatedZones);
+                      }}
+                      className="text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                      style={{ color: '#0F6B4F', background: 'rgba(15,107,79,0.08)' }}
+                    >
+                      + Ajouter une zone
+                    </button>
+                  </div>
+
+                  {(config.deliveryZones || []).length > 0 && (
+                    <div className="space-y-2 rounded-xl bg-blue-50/40 p-4">
+                      <p className="text-[12px] font-bold text-blue-900">Zones de livraison</p>
+                      {(config.deliveryZones || []).map((zone, idx) => (
+                        <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-lg border border-blue-100 bg-white p-3">
+                          <Field label="Ville/Zone">
+                            <input
+                              value={zone.city || ''}
+                              onChange={e => {
+                                const updatedZones = [...(config.deliveryZones || [])];
+                                updatedZones[idx].city = e.target.value;
+                                set('deliveryZones', updatedZones);
+                              }}
+                              placeholder="ex: Douala"
+                              className="ac-input"
+                            />
+                          </Field>
+                          <Field label="Tarif">
+                            <input
+                              value={zone.fee || ''}
+                              onChange={e => {
+                                const updatedZones = [...(config.deliveryZones || [])];
+                                updatedZones[idx].fee = e.target.value;
+                                set('deliveryZones', updatedZones);
+                              }}
+                              placeholder="ex: 500 FCFA"
+                              className="ac-input"
+                            />
+                          </Field>
+                          <div className="flex items-end gap-2">
+                            <div className="flex-1">
+                              <Field label="Délai">
+                                <input
+                                  value={zone.delay || ''}
+                                  onChange={e => {
+                                    const updatedZones = [...(config.deliveryZones || [])];
+                                    updatedZones[idx].delay = e.target.value;
+                                    set('deliveryZones', updatedZones);
+                                  }}
+                                  placeholder="ex: 24h"
+                                  className="ac-input"
+                                />
+                              </Field>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updatedZones = (config.deliveryZones || []).filter((_, i) => i !== idx);
+                                  set('deliveryZones', updatedZones);
+                                }}
+                                className="px-2 py-2 text-red-500 hover:text-red-700 text-[12px] font-semibold mb-5"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Groupe WhatsApp */}
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center">
+                      <MessageCircle className="w-4 h-4 text-green-600" />
+                    </span>
+                    Groupe WhatsApp
+                  </h2>
+                  <p className="text-[12px] text-gray-400 mt-1">Rita promotionnera votre groupe auprès des clients intéressés</p>
+                </div>
+                <div className="p-6 space-y-4">
+                  <Toggle
+                    enabled={!!config.whatsappGroupLink}
+                    onChange={v => set('whatsappGroupLink', v ? '' : null)}
+                    label="Activer la promotion du groupe"
+                    description="Rita proposera le groupe WhatsApp après commande confirmée ou lors d'intérêt"
+                  />
+
+                  {config.whatsappGroupLink !== null && (
+                    <>
+                      <Field label="Lien du groupe" hint="Lien d'invitation WhatsApp (https://...)">
+                        <input
+                          value={config.whatsappGroupLink || ''}
+                          onChange={e => set('whatsappGroupLink', e.target.value)}
+                          placeholder="https://..."
+                          className="ac-input"
+                        />
+                      </Field>
+
+                      <div className="rounded-xl border border-green-100 bg-green-50/40 p-4 space-y-2">
+                        <p className="text-[12px] font-bold text-green-800">📋 Quand Rita proposera le groupe :</p>
+                        <ul className="text-[11px] text-green-700 space-y-1 ml-4">
+                          <li>✅ Après une commande confirmée (bonus fidélité)</li>
+                          <li>✅ Quand le client montre de l'intérêt mais n'est pas prêt (ne pas partir)</li>
+                          <li>✅ Quand le client demande à être informé des promos</li>
+                          <li>⛔ JAMAIS au tout début de la conversation</li>
+                          <li>⛔ JAMAIS plus d'une fois par conversation</li>
+                        </ul>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -1830,19 +2197,19 @@ export default function AgentConfig() {
         {/* ─── TAB: PRODUITS ─── */}
         {activeTab === 'products' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
                 <h2 className="text-[16px] font-bold text-gray-900">Catalogue Produits</h2>
                 <p className="text-[12px] text-gray-400 mt-0.5">{config.productCatalog.length} produit{config.productCatalog.length !== 1 ? 's' : ''} configuré{config.productCatalog.length !== 1 ? 's' : ''}</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
                 <button onClick={() => setShowImport(!showImport)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all shadow-sm hover:shadow-md">
+                  className="inline-flex w-full sm:w-auto justify-center items-center gap-1.5 px-4 py-2.5 text-[13px] font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all shadow-sm hover:shadow-md">
                   <Upload className="w-4 h-4" />
                   Importer CSV
                 </button>
                 <button onClick={addProduct}
-                  className="inline-flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-bold text-white rounded-xl transition-all shadow-sm hover:shadow-md"
+                  className="inline-flex w-full sm:w-auto justify-center items-center gap-1.5 px-4 py-2.5 text-[13px] font-bold text-white rounded-xl transition-all shadow-sm hover:shadow-md"
                   style={{ background: ACCENT }}>
                   + Ajouter un produit
                 </button>
@@ -1884,17 +2251,17 @@ export default function AgentConfig() {
                 {config.productCatalog.map((product, idx) => (
                   <div key={idx} className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                     <button onClick={() => setEditingProduct(editingProduct === idx ? null : idx)} type="button"
-                      className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-gray-50/50 transition-colors">
-                      <div className="flex items-center gap-3">
+                      className="w-full px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-left hover:bg-gray-50/50 transition-colors">
+                      <div className="flex items-center gap-3 min-w-0">
                         <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-[16px]">
                           {product.images?.length > 0 ? '🖼️' : '📦'}
                         </div>
-                        <div>
-                          <p className="text-[13px] font-bold text-gray-900">{product.name || 'Produit sans nom'}</p>
-                          <p className="text-[12px] text-gray-400">{product.price || 'Prix non défini'}{product.category ? ` · ${product.category}` : ''}</p>
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-bold text-gray-900 break-words">{product.name || 'Produit sans nom'}</p>
+                          <p className="text-[12px] text-gray-400 break-words">{product.price || 'Prix non défini'}{product.category ? ` · ${product.category}` : ''}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${product.inStock !== false ? 'text-emerald-600 bg-emerald-50' : 'text-red-600 bg-red-50'}`}>
                           {product.inStock !== false ? 'En stock' : 'Rupture'}
                         </span>
@@ -1921,7 +2288,7 @@ export default function AgentConfig() {
                           <textarea value={product.description || ''} onChange={e => updateProduct(idx, 'description', e.target.value)} rows={3} className="ac-textarea" />
                         </Field>
                         <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 space-y-3">
-                          <div className="flex items-center justify-between gap-3">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                               <p className="text-[13px] font-bold text-amber-800">Offres de quantité</p>
                               <p className="text-[11px] text-amber-700">Exemple: 1 = 10 000 FCFA, 2 = 15 000 FCFA</p>
@@ -1929,7 +2296,7 @@ export default function AgentConfig() {
                             <button
                               type="button"
                               onClick={() => addProductQuantityOffer(idx)}
-                              className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-[11px] font-semibold hover:bg-amber-700 transition-colors"
+                              className="w-full sm:w-auto px-3 py-1.5 rounded-lg bg-amber-600 text-white text-[11px] font-semibold hover:bg-amber-700 transition-colors"
                             >
                               + Ajouter palier
                             </button>
@@ -2130,12 +2497,12 @@ export default function AgentConfig() {
                   ) : (
                     <div className="space-y-2">
                       {(config.stockEntries || []).map((entry, idx) => (
-                        <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                        <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 bg-gray-50 rounded-xl">
                           <input value={entry.productName || ''} onChange={e => updateStockEntry(idx, 'productName', e.target.value)}
                             placeholder="Nom du produit" className="ac-input flex-1 !bg-white" />
                           <input type="number" value={entry.quantity || 0} onChange={e => updateStockEntry(idx, 'quantity', parseInt(e.target.value) || 0)}
-                            className="ac-input w-20 !bg-white text-center" min="0" />
-                          <button onClick={() => removeStockEntry(idx)} className="text-gray-400 hover:text-red-500 transition-colors p-1">
+                            className="ac-input w-full sm:w-20 !bg-white text-center" min="0" />
+                          <button onClick={() => removeStockEntry(idx)} className="self-end sm:self-auto text-gray-400 hover:text-red-500 transition-colors p-1">
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                           </button>
                         </div>
@@ -2277,8 +2644,8 @@ export default function AgentConfig() {
           <div className="space-y-6">
             {/* Header */}
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                <div>
+              <div className="px-6 py-4 border-b border-gray-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
                   <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
                     <span className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
                       <Star className="w-4 h-4 text-amber-600" />
@@ -2321,7 +2688,7 @@ export default function AgentConfig() {
                             <option value="">-- Choisir un produit --</option>
                             {(config.productCatalog || []).map(p => (
                               <option key={p.name} value={p.name}>
-                                {p.name} {p.price ? `• ${p.price}` : ''}
+                                {p.name} {p.price ? ` • ${p.price}` : ''}
                               </option>
                             ))}
                           </select>
@@ -2329,7 +2696,7 @@ export default function AgentConfig() {
 
                         {/* Product Preview */}
                         {selectedProduct && (
-                          <div className="bg-white rounded-lg border border-emerald-200 p-3 flex gap-3">
+                          <div className="bg-white rounded-lg border border-emerald-200 p-3 flex flex-col sm:flex-row gap-3">
                             {selectedProduct.images?.[0] && (
                               <img src={selectedProduct.images[0]} alt="" className="w-20 h-20 rounded-lg object-cover" />
                             )}
@@ -2684,7 +3051,7 @@ export default function AgentConfig() {
             ) : !activityData ? (
               <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
                 <BarChart3 className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                <p className="text-[14px] text-gray-500">Aucune donnée disponible</p>
+                <p className="text-[14px] font-semibold text-gray-500">Aucune donnée disponible</p>
               </div>
             ) : (
               <>
@@ -2745,14 +3112,14 @@ export default function AgentConfig() {
         {activeTab === 'contacts' && (
           <div className="space-y-4">
             {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
                 <h2 className="text-[15px] font-bold text-gray-900">Liste des contacts Rita</h2>
                 <p className="text-[12px] text-gray-400 mt-0.5">{contactsTotal} contact{contactsTotal !== 1 ? 's' : ''} enregistré{contactsTotal !== 1 ? 's' : ''}</p>
               </div>
               <button
                 onClick={exportContactsCSV}
-                className="inline-flex items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-xl shadow-sm hover:opacity-90 transition-all"
+                className="inline-flex w-full sm:w-auto justify-center items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-xl shadow-sm hover:opacity-90 transition-all"
                 style={{ background: ACCENT }}>
                 <Download className="w-4 h-4" />
                 Exporter CSV
@@ -2815,7 +3182,7 @@ export default function AgentConfig() {
 
             {/* Pagination */}
             {contactsTotal > 50 && (
-              <div className="flex items-center justify-center gap-2">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
                 <button
                   disabled={contactsPage === 1}
                   onClick={() => fetchContacts(contactsPage - 1)}
@@ -2833,23 +3200,491 @@ export default function AgentConfig() {
             )}
           </div>
         )}
+
+        {/* ─── TAB: STATUTS ─── */}
+        {activeTab === 'statuts' && (
+          <div className="space-y-6">
+            {/* Header + bouton ajouter */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <h2 className="text-[15px] font-bold text-gray-900">Statuts WhatsApp automatiques</h2>
+                <p className="text-[12px] text-gray-500 mt-0.5">Planifiez des statuts avec images de vos produits — publiés automatiquement chaque jour</p>
+              </div>
+              <button
+                onClick={() => { setEditingStatut(null); setStatutForm({ name: '', type: 'product', caption: '', mediaUrl: '', productName: '', backgroundColor: '#0F6B4F', scheduleType: 'daily', sendTime: '09:00', weekDays: [] }); setShowStatutForm(true); }}
+                className="inline-flex w-full sm:w-auto justify-center items-center gap-2 px-4 py-2 text-[13px] font-semibold text-white rounded-xl"
+                style={{ background: ACCENT }}
+              >
+                <Plus className="w-4 h-4" /> Nouveau statut
+              </button>
+            </div>
+
+            {/* Formulaire création/édition */}
+            {showStatutForm && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+                <h3 className="text-[14px] font-bold text-gray-900">{editingStatut ? 'Modifier le statut' : 'Nouveau statut'}</h3>
+
+                <div className={`rounded-xl border p-3 text-[12px] ${config.instanceId ? 'border-emerald-100 bg-emerald-50 text-emerald-700' : 'border-amber-100 bg-amber-50 text-amber-700'}`}>
+                  {config.instanceId
+                    ? `Ce statut sera publié avec l'instance WhatsApp actuellement sélectionnée pour Rita : ${selectedInstance?.customName || selectedInstance?.instanceName || 'Instance configurée'}.`
+                    : 'Aucune instance WhatsApp Rita n\'est sélectionnée. Vous pouvez créer le statut maintenant, mais il faudra configurer une instance pour pouvoir le publier.'}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[12px] font-semibold text-gray-600">Nom</label>
+                    <input type="text" value={statutForm.name} onChange={e => setStatutForm(p => ({ ...p, name: e.target.value }))}
+                      placeholder="Ex: Statut produit phare du lundi"
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[12px] font-semibold text-gray-600">Type de contenu</label>
+                    <select value={statutForm.type} onChange={e => setStatutForm(p => ({ ...p, type: e.target.value }))}
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none bg-white">
+                      <option value="product">📦 Produit du catalogue (auto)</option>
+                      <option value="image">🖼️ Image manuelle + texte</option>
+                      <option value="text">💬 Texte uniquement</option>
+                    </select>
+                  </div>
+                </div>
+
+                {statutForm.type === 'product' && (
+                  <div className="space-y-3">
+                    <label className="text-[12px] font-semibold text-gray-600">Produit</label>
+                    <select value={statutForm.productName} onChange={e => setStatutForm(p => ({ ...p, productName: e.target.value, mediaUrl: '' }))}
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none bg-white">
+                      <option value="">— Choisir un produit —</option>
+                      {(config.productCatalog || []).filter(p => p.name).map((p, i) => (
+                        <option key={i} value={p.name}>{p.name}{p.price ? ` (${p.price})` : ''}</option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] text-gray-400">Choisissez le produit, personnalisez le texte si besoin, puis laissez le média en automatique ou sélectionnez une image / vidéo déjà uploadée.</p>
+
+                    {statutForm.productName && (
+                      <div className="space-y-2">
+                        <label className="text-[12px] font-semibold text-gray-600">Média du produit</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setStatutForm(p => ({ ...p, mediaUrl: '' }))}
+                            className={`rounded-xl border px-3 py-3 text-left transition-colors ${!statutForm.mediaUrl ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-emerald-300'}`}
+                          >
+                            <p className="text-[12px] font-semibold text-gray-700">Automatique</p>
+                            <p className="text-[11px] text-gray-400 mt-1">Utiliser le premier média disponible du produit</p>
+                          </button>
+
+                          {statutProductMediaOptions.map((media) => (
+                            <button
+                              key={media.key}
+                              type="button"
+                              onClick={() => setStatutForm(p => ({ ...p, mediaUrl: media.url }))}
+                              className={`rounded-xl border overflow-hidden text-left transition-colors ${statutForm.mediaUrl === media.url ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-emerald-300'}`}
+                            >
+                              <div className="aspect-[4/3] bg-gray-100 flex items-center justify-center overflow-hidden">
+                                {media.type === 'video' ? (
+                                  <video src={media.url} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+                                ) : (
+                                  <img src={media.url} alt={media.label} className="h-full w-full object-cover" />
+                                )}
+                              </div>
+                              <div className="px-3 py-2 flex items-center justify-between gap-2">
+                                <span className="text-[12px] font-semibold text-gray-700 truncate">{media.label}</span>
+                                <span className="text-[11px] text-gray-400 flex items-center gap-1 flex-shrink-0">
+                                  {media.type === 'video' ? <Video className="w-3.5 h-3.5" /> : <Image className="w-3.5 h-3.5" />}
+                                  {media.type === 'video' ? 'Vidéo' : 'Image'}
+                                </span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+
+                        {selectedStatutProduct && statutProductMediaOptions.length === 0 && (
+                          <p className="text-[11px] text-amber-600">Ce produit n'a pas encore d'image ni de vidéo uploadée. Le statut utilisera seulement le texte personnalisé.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {statutForm.type === 'image' && (
+                  <div className="space-y-1.5">
+                    <label className="text-[12px] font-semibold text-gray-600">URL de l'image</label>
+                    <input type="text" value={statutForm.mediaUrl} onChange={e => setStatutForm(p => ({ ...p, mediaUrl: e.target.value }))}
+                      placeholder="https://..."
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl font-mono focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                  </div>
+                )}
+
+                {statutForm.type !== 'product' && (
+                  <div className="space-y-1.5">
+                    <label className="text-[12px] font-semibold text-gray-600">Texte / Légende</label>
+                    <textarea rows={3} value={statutForm.caption} onChange={e => setStatutForm(p => ({ ...p, caption: e.target.value }))}
+                      placeholder="Ex: 🔥 Notre produit phare en stock ! Contactez-nous pour commander."
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-200 resize-none" />
+                  </div>
+                )}
+
+                {statutForm.type === 'product' && (
+                  <div className="space-y-1.5">
+                    <label className="text-[12px] font-semibold text-gray-600">Texte personnalisé (optionnel)</label>
+                    <textarea rows={2} value={statutForm.caption} onChange={e => setStatutForm(p => ({ ...p, caption: e.target.value }))}
+                      placeholder="Laissez vide pour générer automatiquement depuis le produit"
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-200 resize-none" />
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[12px] font-semibold text-gray-600">Fréquence</label>
+                    <select value={statutForm.scheduleType} onChange={e => setStatutForm(p => ({ ...p, scheduleType: e.target.value }))}
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none bg-white">
+                      <option value="daily">Tous les jours</option>
+                      <option value="weekly">Certains jours</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[12px] font-semibold text-gray-600">Heure d'envoi</label>
+                    <input type="time" value={statutForm.sendTime} onChange={e => setStatutForm(p => ({ ...p, sendTime: e.target.value }))}
+                      className="w-full px-3 py-2 text-[13px] border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                  </div>
+                  {statutForm.type === 'text' && (
+                    <div className="space-y-1.5">
+                      <label className="text-[12px] font-semibold text-gray-600">Couleur de fond</label>
+                      <input type="color" value={statutForm.backgroundColor} onChange={e => setStatutForm(p => ({ ...p, backgroundColor: e.target.value }))}
+                        className="w-full h-[38px] px-1 py-1 border border-gray-200 rounded-xl cursor-pointer" />
+                    </div>
+                  )}
+                </div>
+
+                {statutForm.scheduleType === 'weekly' && (
+                  <div className="space-y-1.5">
+                    <label className="text-[12px] font-semibold text-gray-600">Jours</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'].map((d, i) => (
+                        <button key={i}
+                          onClick={() => setStatutForm(p => ({
+                            ...p,
+                            weekDays: p.weekDays.includes(i) ? p.weekDays.filter(x => x !== i) : [...p.weekDays, i]
+                          }))}
+                          className={`px-3 py-1.5 text-[12px] font-semibold rounded-lg border transition-colors ${
+                            statutForm.weekDays.includes(i)
+                              ? 'text-white border-emerald-600'
+                              : 'text-gray-500 border-gray-200 hover:border-emerald-300'
+                          }`}
+                          style={statutForm.weekDays.includes(i) ? { background: ACCENT } : {}}
+                        >{d}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2 border-t border-gray-100">
+                  <button onClick={saveStatut}
+                    disabled={statutSaving}
+                    className="w-full sm:w-auto px-5 py-2 text-[13px] font-bold text-white rounded-xl disabled:opacity-60"
+                    style={{ background: ACCENT }}>
+                    {statutSaving ? 'Enregistrement...' : editingStatut ? 'Enregistrer' : 'Créer'}
+                  </button>
+                  <button onClick={() => { setShowStatutForm(false); setEditingStatut(null); }}
+                    className="w-full sm:w-auto px-4 py-2 text-[13px] font-semibold text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50">
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Liste des statuts */}
+            {statutsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            ) : statuts.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-gray-200 p-10 text-center">
+                <Radio className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+                <p className="text-[14px] font-semibold text-gray-500">Aucun statut planifié</p>
+                <p className="text-[12px] text-gray-400 mt-1">Créez votre premier statut automatique avec les images de vos produits</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {statuts.map(s => (
+                  <div key={s._id} className={`bg-white rounded-2xl border p-4 flex flex-col sm:flex-row sm:items-center gap-4 ${s.enabled ? 'border-gray-200' : 'border-gray-100 opacity-60'}`}>
+                    {/* Icône type */}
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${s.type === 'product' ? 'bg-emerald-50' : s.type === 'image' ? 'bg-blue-50' : 'bg-amber-50'}`}>
+                      {s.type === 'product' ? <Package className="w-5 h-5 text-emerald-600" />
+                        : s.type === 'image' ? <Image className="w-5 h-5 text-blue-600" />
+                        : <MessageCircle className="w-5 h-5 text-amber-600" />}
+                    </div>
+
+                    {/* Infos */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-semibold text-gray-900">{s.name || 'Sans titre'}</p>
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-0.5">
+                        <span className="text-[11px] text-gray-400">
+                          {s.scheduleType === 'daily' ? 'Tous les jours' : 'Certains jours'} à {s.sendTime}
+                        </span>
+                        {s.type === 'product' && s.productName && (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-medium">{s.productName}</span>
+                        )}
+                        {s.sentCount > 0 && (
+                          <span className="text-[11px] text-gray-400">{s.sentCount} envois</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-end gap-2 flex-shrink-0 w-full sm:w-auto">
+                      {/* Toggle */}
+                      <button onClick={() => toggleStatut(s)}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${s.enabled ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                      >
+                        <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${s.enabled ? 'translate-x-4' : 'translate-x-1'}`} />
+                      </button>
+                      {/* Envoyer maintenant */}
+                      <button onClick={() => sendNow(s)} disabled={statutSending === s._id}
+                        title="Publier maintenant"
+                        className="p-1.5 text-gray-400 hover:text-emerald-600 transition-colors">
+                        {statutSending === s._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
+                      </button>
+                      {/* Modifier */}
+                      <button onClick={() => { setEditingStatut(s); setStatutForm({ name: s.name, type: s.type, caption: s.caption, mediaUrl: s.mediaUrl, productName: s.productName, backgroundColor: s.backgroundColor, scheduleType: s.scheduleType, sendTime: s.sendTime, weekDays: s.weekDays || [] }); setShowStatutForm(true); }}
+                        className="p-1.5 text-gray-400 hover:text-blue-500 transition-colors">
+                        <Settings className="w-4 h-4" />
+                      </button>
+                      {/* Supprimer */}
+                      <button onClick={() => deleteStatut(s._id)} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Info box */}
+            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 text-[12px] text-blue-700 space-y-1">
+              <p className="font-bold">Comment ça fonctionne :</p>
+              <p>• <strong>Produit catalogue</strong> : choisissez une image ou vidéo déjà uploadée sur le produit, ou laissez le média automatique</p>
+              <p>• <strong>Image manuelle</strong> : collez l'URL d'une image uploadée</p>
+              <p>• Le statut est publié automatiquement à l'heure planifiée, chaque jour</p>
+              <p>• Bouton ▶ pour tester et publier immédiatement</p>
+            </div>
+          </div>
+        )}
+
+        {/* ─── TAB: INSTRUCTIONS ─── */}
+        {activeTab === 'instructions' && (
+          <div className="space-y-6">
+
+            {/* ── RÈGLES PREMIER MESSAGE ── */}
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="p-5 border-b border-gray-100 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#f0fdf4' }}>
+                  <MessageSquare className="w-5 h-5" style={{ color: ACCENT }} />
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-bold text-gray-900">Règles du premier message</h3>
+                  <p className="text-[12px] text-gray-500">Définissez ce que l'agent envoie automatiquement quand un contact vous écrit pour la première fois</p>
+                </div>
+              </div>
+
+              <div className="p-5 space-y-5">
+                {/* Toggle */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
+                  <div>
+                    <p className="text-[14px] font-semibold text-gray-800">Activer les règles du premier message</p>
+                    <p className="text-[12px] text-gray-500 mt-0.5">
+                      {config.firstMessageRulesEnabled
+                        ? '✅ Actif — vos règles s\'appliquent au premier contact'
+                        : '⬜ Inactif — l\'agent accueille naturellement sans règle fixe'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => set('firstMessageRulesEnabled', !config.firstMessageRulesEnabled)}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${config.firstMessageRulesEnabled ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                  >
+                    <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${config.firstMessageRulesEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+
+                {/* Rules list */}
+                {config.firstMessageRulesEnabled && (
+                  <div className="space-y-3">
+                    {(config.firstMessageRules || []).map((rule, idx) => (
+                      <div key={idx} className="p-4 rounded-xl border border-gray-200 bg-gray-50 space-y-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              onClick={() => {
+                                const updated = (config.firstMessageRules || []).map((r, i) => i === idx ? { ...r, enabled: !r.enabled } : r);
+                                set('firstMessageRules', updated);
+                              }}
+                              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${rule.enabled ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                            >
+                              <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${rule.enabled ? 'translate-x-4' : 'translate-x-1'}`} />
+                            </button>
+                            <select
+                              value={rule.type}
+                              onChange={e => {
+                                const updated = (config.firstMessageRules || []).map((r, i) => i === idx ? { ...r, type: e.target.value, content: '' } : r);
+                                set('firstMessageRules', updated);
+                              }}
+                              className="text-[12px] font-semibold border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none"
+                            >
+                              <option value="video">🎥 Vidéo</option>
+                              <option value="image">🖼️ Image</option>
+                              <option value="text">💬 Message texte</option>
+                              <option value="catalog">📦 Catalogue produits</option>
+                            </select>
+                          </div>
+                          <button
+                            onClick={() => set('firstMessageRules', (config.firstMessageRules || []).filter((_, i) => i !== idx))}
+                            className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {rule.type !== 'catalog' && (
+                          <div className="space-y-2">
+                            <input
+                              type="text"
+                              value={rule.label || ''}
+                              onChange={e => {
+                                const updated = (config.firstMessageRules || []).map((r, i) => i === idx ? { ...r, label: e.target.value } : r);
+                                set('firstMessageRules', updated);
+                              }}
+                              placeholder="Description courte (ex: Vidéo de présentation)"
+                              className="w-full px-3 py-2 text-[12px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                            />
+                            <input
+                              type="text"
+                              value={rule.content || ''}
+                              onChange={e => {
+                                const updated = (config.firstMessageRules || []).map((r, i) => i === idx ? { ...r, content: e.target.value } : r);
+                                set('firstMessageRules', updated);
+                              }}
+                              placeholder={
+                                rule.type === 'video' ? 'URL de la vidéo (ex: https://...)' :
+                                rule.type === 'image' ? 'URL de l\'image (ex: https://...)' :
+                                'Message à envoyer au client'
+                              }
+                              className="w-full px-3 py-2 text-[12px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-emerald-200 font-mono"
+                            />
+                          </div>
+                        )}
+                        {rule.type === 'catalog' && (
+                          <p className="text-[11px] text-gray-500 italic">L'agent enverra la liste complète de vos produits avec prix dès le premier contact.</p>
+                        )}
+                      </div>
+                    ))}
+
+                    <button
+                      onClick={() => set('firstMessageRules', [...(config.firstMessageRules || []), { type: 'text', content: '', label: '', enabled: true }])}
+                      className="w-full py-2.5 border-2 border-dashed border-gray-300 rounded-xl text-[12px] font-semibold text-gray-500 hover:border-emerald-400 hover:text-emerald-600 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" /> Ajouter une règle
+                    </button>
+                  </div>
+                )}
+
+                <div className={`p-3 rounded-xl border text-[11px] space-y-1 ${config.firstMessageRulesEnabled ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
+                  <p className="font-bold">Exemples de règles :</p>
+                  <p>• Vidéo : envoyer une vidéo de présentation du produit phare dès le premier message</p>
+                  <p>• Image : envoyer une photo du catalogue ou d'une promo en cours</p>
+                  <p>• Texte : accueillir avec un message personnalisé avant de poser des questions</p>
+                  <p>• Catalogue : partager directement tous vos produits avec prix</p>
+                </div>
+              </div>
+            </div>
+
+            {/* ── INSTRUCTIONS PERSONNALISÉES ── */}
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="p-5 border-b border-gray-100 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#f0fdf4' }}>
+                  <FileText className="w-5 h-5" style={{ color: ACCENT }} />
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-bold text-gray-900">Instructions personnalisées</h3>
+                  <p className="text-[12px] text-gray-500">Écrivez vos propres règles — elles remplacent le comportement par défaut quand activées</p>
+                </div>
+              </div>
+
+              <div className="p-5 space-y-5">
+                {/* Toggle activation */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
+                  <div>
+                    <p className="text-[14px] font-semibold text-gray-800">Activer les instructions personnalisées</p>
+                    <p className="text-[12px] text-gray-500 mt-0.5">
+                      {config.customInstructionsEnabled
+                        ? '✅ Actif — vos instructions remplacent le comportement par défaut'
+                        : '⬜ Inactif — l\'agent utilise le comportement standard'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => set('customInstructionsEnabled', !config.customInstructionsEnabled)}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${config.customInstructionsEnabled ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                  >
+                    <span className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${config.customInstructionsEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+
+                {/* Zone de texte */}
+                <div className="space-y-2">
+                  <label className="text-[13px] font-semibold text-gray-700">Vos instructions</label>
+                  <textarea
+                    rows={14}
+                    value={config.customInstructions}
+                    onChange={e => set('customInstructions', e.target.value)}
+                    placeholder={`Exemples d'instructions que vous pouvez écrire :
+
+- Ne jamais proposer de remise sur le produit X
+- Toujours demander si le client veut la version rouge ou noire avant de closer
+- Si le client mentionne le concurrent Y, répondre : "Nous sommes meilleurs parce que..."
+- Proposer systématiquement le produit B après que le client commande le produit A
+- Si le client demande la livraison à Bafoussam, dire que le délai est 48h
+- Utiliser uniquement des emojis 👍 et 🙏 — pas d'autres emojis
+- Ne jamais mentionner le prix avant d'avoir compris le besoin du client`}
+                    className={`w-full px-4 py-3 rounded-xl border text-[13px] font-mono resize-y focus:outline-none focus:ring-2 transition-all ${
+                      config.customInstructionsEnabled
+                        ? 'border-emerald-300 bg-white focus:ring-emerald-200'
+                        : 'border-gray-200 bg-gray-50 text-gray-400 focus:ring-gray-200'
+                    }`}
+                    disabled={!config.customInstructionsEnabled}
+                  />
+                  <p className="text-[11px] text-gray-400">
+                    {config.customInstructions?.length || 0} caractères · Écrivez en langage naturel, l'agent comprend vos instructions directement
+                  </p>
+                </div>
+
+                {/* Info box */}
+                <div className={`p-4 rounded-xl border text-[12px] space-y-1.5 ${config.customInstructionsEnabled ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
+                  <p className="font-bold">Comment ça fonctionne :</p>
+                  <p>• Quand <strong>activé</strong> : vos instructions ont la priorité maximale sur toutes les règles par défaut</p>
+                  <p>• Quand <strong>désactivé</strong> : l'agent ignore ces instructions et applique le comportement standard</p>
+                  <p>• Soyez précis : "Ne jamais baisser le prix" est mieux que "être ferme sur les prix"</p>
+                  <p>• Vous pouvez mélanger règles de vente, réponses spécifiques, et comportements personnalisés</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ═══ BOTTOM SAVE BAR ═══ */}
       {hasChanges && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_20px_-4px_rgba(0,0,0,0.08)] z-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-amber-400" />
               <span className="text-[13px] font-medium text-gray-600">Modifications non enregistrées</span>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
               <button onClick={handleReset}
-                className="px-4 py-2 text-[13px] font-semibold text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                className="w-full sm:w-auto px-4 py-2 text-[13px] font-semibold text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
                 Réinitialiser
               </button>
               <button onClick={handleSave} disabled={saving}
-                className="inline-flex items-center gap-2 px-5 py-2 text-[13px] font-bold text-white rounded-xl disabled:opacity-50 transition-all"
+                className="inline-flex w-full sm:w-auto justify-center items-center gap-2 px-5 py-2.5 text-[13px] font-bold text-white rounded-xl disabled:opacity-50 transition-all"
                 style={{ background: ACCENT }}>
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 Enregistrer maintenant
@@ -2861,7 +3696,7 @@ export default function AgentConfig() {
 
       {/* Save status toast */}
       {saveStatus && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-xl text-[13px] font-semibold shadow-lg transition-all animate-in fade-in slide-in-from-top-2 ${
+        <div className={`fixed top-4 left-4 right-4 sm:left-auto sm:right-4 z-50 px-4 py-2.5 rounded-xl text-[13px] font-semibold shadow-lg transition-all animate-in fade-in slide-in-from-top-2 ${
           saveStatus === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
         }`}>
           {saveStatus === 'success' ? '✅ Configuration enregistrée' : '❌ Erreur lors de la sauvegarde'}

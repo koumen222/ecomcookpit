@@ -1,5 +1,7 @@
 import express from 'express';
 import Workspace from '../models/Workspace.js';
+import StoreOrder from '../models/StoreOrder.js';
+import StoreProduct from '../models/StoreProduct.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { emitThemeUpdate } from '../services/socketService.js';
 
@@ -38,13 +40,52 @@ function summarizeStoreSettingsPayload(payload = {}) {
 
 router.get('/analytics/summary', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
+    const workspaceId = req.workspaceId;
+
+    // Get stats from StoreOrder using the built-in getQuickStats method
+    const [orderStats, productCount] = await Promise.all([
+      StoreOrder.getQuickStats(workspaceId),
+      StoreProduct.countDocuments({ workspaceId })
+    ]);
+
+    // Parse the aggregation result
+    const stats = orderStats && orderStats.length > 0 ? orderStats[0] : {
+      totalOrders: 0,
+      totalRevenue: 0,
+      byStatus: []
+    };
+
+    // Calculate today's sales (orders created today)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStats = await StoreOrder.aggregate([
+      {
+        $match: {
+          workspaceId: new (require('mongoose')).Types.ObjectId(workspaceId),
+          createdAt: { $gte: today }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          todayOrders: { $sum: 1 },
+          todaySales: { $sum: '$total' }
+        }
+      },
+      { $project: { _id: 0 } }
+    ]);
+
+    const todayData = todayStats && todayStats.length > 0 ? todayStats[0] : { todayOrders: 0, todaySales: 0 };
+
     res.json({
       success: true,
       data: {
-        totalOrders: 0,
-        totalRevenue: 0,
-        totalProducts: 0,
-        totalViews: 0
+        totalOrders: stats.totalOrders || 0,
+        totalRevenue: stats.totalRevenue || 0,
+        todayOrders: todayData.todayOrders || 0,
+        todaySales: todayData.todaySales || 0,
+        totalProducts: productCount,
+        byStatus: stats.byStatus || []
       }
     });
   } catch (error) {
@@ -57,10 +98,18 @@ router.get('/analytics/summary', requireEcomAuth, requireWorkspace, async (req, 
 
 router.get('/orders', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
+    const workspaceId = req.workspaceId;
+    const { limit = 20, page = 1, sort = '-createdAt' } = req.query;
+
+    const orders = await StoreOrder.findPaginated(
+      { workspaceId },
+      { page: parseInt(page), limit: parseInt(limit), sort: { createdAt: -1 } }
+    );
+
     res.json({
       success: true,
       data: {
-        orders: []
+        orders
       }
     });
   } catch (error) {
@@ -252,13 +301,42 @@ router.get('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
 
 router.put('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
-    const { subdomain, customDomain } = req.body;
-    
+    let { subdomain, customDomain } = req.body;
+
     console.log('🌐 PUT /store/domains - workspaceId:', req.workspaceId);
     console.log('🌐 Request body:', { subdomain, customDomain });
-    
+
     const update = {};
-    if (subdomain !== undefined) update.subdomain = subdomain;
+
+    if (subdomain !== undefined) {
+      // Sanitize
+      subdomain = String(subdomain || '').toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/^-|-$/g, '');
+
+      if (subdomain && subdomain.length < 3) {
+        return res.status(400).json({ success: false, message: 'Le sous-domaine doit contenir au moins 3 caractères' });
+      }
+
+      const RESERVED = ['www','api','app','admin','dashboard','mail','ftp','store','shop','scalor','help','support','docs','blog','static','cdn','assets','dev','staging','test'];
+      if (RESERVED.includes(subdomain)) {
+        return res.status(400).json({ success: false, message: 'Ce sous-domaine est réservé' });
+      }
+
+      // Check uniqueness
+      if (subdomain) {
+        const existing = await Workspace.findOne({ subdomain, _id: { $ne: req.workspaceId } }).select('_id').lean();
+        if (existing) {
+          return res.status(409).json({ success: false, message: 'Ce sous-domaine est déjà pris' });
+        }
+      }
+
+      update.subdomain = subdomain || null;
+
+      // Auto-enable store when a subdomain is set
+      if (subdomain) {
+        update['storeSettings.isStoreEnabled'] = true;
+      }
+    }
+
     if (customDomain !== undefined) update['storeDomains.customDomain'] = customDomain;
 
     await Workspace.findByIdAndUpdate(
@@ -273,6 +351,9 @@ router.put('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
       message: 'Domains updated'
     });
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({ success: false, message: 'Ce sous-domaine est déjà pris' });
+    }
     console.error('❌ Error PUT /store/domains:', error);
     console.error('❌ Error details:', error.message);
     res.status(500).json({ success: false, message: 'Error saving domains' });

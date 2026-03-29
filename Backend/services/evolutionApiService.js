@@ -207,10 +207,29 @@ class EvolutionApiService {
     const ext = fileName.split('.').pop().toLowerCase();
     const mimetypes = { 'mp4': 'video/mp4', 'webm': 'video/webm', 'mov': 'video/quicktime', 'avi': 'video/x-msvideo' };
     const mimetype = mimetypes[ext] || 'video/mp4';
+
+    // ── Résoudre la vidéo : fichier local → base64, URL externe → envoi direct ──
+    let mediaPayload = videoUrl;
+    console.log(`🎬 [Evolution] sendVideo — URL source: ${videoUrl}`);
+    try {
+      // Détecter si c'est une URL locale (api.scalor.net/uploads/...) → lire depuis le disque
+      const localMatch = videoUrl.match(/(?:https?:\/\/(?:api\.scalor\.net|localhost[:\d]*))\/uploads\/(.+)$/);
+      if (localMatch) {
+        const decodedFile = decodeURIComponent(localMatch[1]);
+        const filePath = path.join(process.cwd(), 'uploads', decodedFile);
+        const fileData = fs.readFileSync(filePath);
+        mediaPayload = `data:${mimetype};base64,${fileData.toString('base64')}`;
+        console.log(`🎬 [Evolution] Vidéo locale détectée → conversion base64`);
+      }
+    } catch (readErr) {
+      console.warn(`⚠️ [Evolution] Impossible de lire vidéo locale, tentative URL directe:`, readErr.message);
+      mediaPayload = videoUrl;
+    }
+
     try {
       const response = await axios.post(
         `${this.baseUrl}/message/sendMedia/${instanceName}`,
-        { number: cleanNumber, mediatype: 'video', mimetype, caption, media: videoUrl, fileName, delay: 1500 },
+        { number: cleanNumber, mediatype: 'video', mimetype, caption, media: mediaPayload, fileName, delay: 1500 },
         { headers: { 'Content-Type': 'application/json', 'apikey': instanceToken }, timeout: 60000 }
       );
       console.log(`✅ [Evolution API] Vidéo envoyée à ${cleanNumber}`);
@@ -218,6 +237,8 @@ class EvolutionApiService {
     } catch (error) {
       const errorData = error.response?.data;
       console.error(`❌ Erreur Evolution API (sendVideo):`, JSON.stringify(errorData, null, 2) || error.message);
+      console.error(`   URL tentée: ${videoUrl}`);
+      console.error(`   Numéro: ${cleanNumber}`);
       let detailedError = errorData?.message || error.message;
       if (Array.isArray(errorData?.response?.message)) {
         detailedError = errorData.response.message.map(m => JSON.stringify(m)).join(', ');
@@ -538,6 +559,161 @@ class EvolutionApiService {
       // Silencieux — certaines versions d'Evolution API n'exposent pas cet endpoint
       return { success: false };
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // Statuts WhatsApp (Stories)
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Publie un statut WhatsApp (image ou texte)
+   * POST /status/send/{instance}
+   * @param {string} instanceName
+   * @param {string} instanceToken
+   * @param {object} opts
+   * @param {string} opts.type - 'image' | 'text'
+   * @param {string} [opts.mediaUrl] - URL ou base64 de l'image (si type=image)
+   * @param {string} [opts.caption] - Texte/légende
+   * @param {string} [opts.backgroundColor] - Couleur de fond pour statut texte (ex: '#0F6B4F')
+   */
+  async sendStatus(instanceName, instanceToken, opts = {}) {
+    const { type = 'text', mediaUrl, caption = '', backgroundColor = '#0F6B4F' } = opts;
+
+    let payload;
+    let media = mediaUrl;
+
+    if ((type === 'image' || type === 'video') && mediaUrl) {
+      // Résoudre fichier local → base64
+      try {
+        const localMatch = mediaUrl.match(/(?:https?:\/\/(?:api\.scalor\.net|localhost[:\d]*))\/uploads\/(.+)$/);
+        if (localMatch) {
+          const decodedFile = decodeURIComponent(localMatch[1]);
+          const localPath = path.resolve(__dirname, '..', 'uploads', decodedFile);
+          if (fs.existsSync(localPath)) {
+            const buf = fs.readFileSync(localPath);
+            const ext = decodedFile.split('.').pop().toLowerCase();
+            const mime = {
+              jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
+              mp4: 'video/mp4', mov: 'video/quicktime', avi: 'video/x-msvideo', webm: 'video/webm', mkv: 'video/x-matroska'
+            }[ext] || (type === 'video' ? 'video/mp4' : 'image/jpeg');
+            media = `data:${mime};base64,${buf.toString('base64')}`;
+          }
+        }
+      } catch { /* garder l'URL originale */ }
+
+      payload = type === 'video'
+        ? {
+          type: 'video',
+          video: media,
+          caption,
+        }
+        : {
+          type: 'image',
+          image: media,
+          caption,
+        };
+    } else {
+      payload = {
+        type: 'text',
+        value: caption,
+        backgroundColor,
+        font: 1,
+      };
+    }
+
+    const resolvedType = (payload.type === 'image' || payload.type === 'video') && media ? payload.type : 'text';
+    const modernStatusPayload = resolvedType === 'text'
+      ? {
+        type: 'text',
+        content: caption,
+        backgroundColor,
+        font: 1,
+        allContacts: true,
+      }
+      : {
+        type: resolvedType,
+        content: media,
+        caption,
+        allContacts: true,
+      };
+
+    const requestVariants = [
+      {
+        url: `${this.baseUrl}/message/sendStatus/${instanceName}`,
+        payload: modernStatusPayload,
+      },
+      {
+        url: `${this.baseUrl}/message/sendStatus/${instanceName}`,
+        payload: {
+          statusMessage: modernStatusPayload,
+        },
+      },
+      {
+        url: `${this.baseUrl}/status/send/${instanceName}`,
+        payload,
+      },
+    ];
+
+    const formatStatusError = (errorData, fallbackMessage) => {
+      if (Array.isArray(errorData?.response?.message)) {
+        return errorData.response.message
+          .map((message) => (typeof message === 'string' ? message : JSON.stringify(message)))
+          .join(', ');
+      }
+
+      if (Array.isArray(errorData?.message)) {
+        return errorData.message
+          .map((message) => (typeof message === 'string' ? message : JSON.stringify(message)))
+          .join(', ');
+      }
+
+      return errorData?.message || fallbackMessage;
+    };
+
+    let lastError = null;
+
+    for (const variant of requestVariants) {
+      try {
+        const response = await axios.post(
+          variant.url,
+          variant.payload,
+          {
+            headers: { 'Content-Type': 'application/json', 'apikey': instanceToken },
+            timeout: 45000,
+            maxBodyLength: 50 * 1024 * 1024,
+          }
+        );
+        console.log(`✅ [Evolution API] Statut publié via ${instanceName}`);
+        return { success: true, data: response.data };
+      } catch (error) {
+        lastError = error;
+        const errorData = error.response?.data;
+        const detailedError = formatStatusError(errorData, error.message);
+        console.error(`❌ Erreur Evolution API (sendStatus):`, JSON.stringify(errorData, null, 2) || error.message);
+        console.error(`   URL tentée: ${variant.url}`);
+
+        const isTimeout = error.code === 'ECONNABORTED' || /timeout/i.test(detailedError || '');
+        if (isTimeout) {
+          console.warn(`⚠️ [Evolution API] Timeout sendStatus pour ${instanceName} — statut probablement publié`);
+          return {
+            success: true,
+            assumedSuccess: true,
+            warning: 'Evolution API a expiré avant de répondre, mais le statut a probablement été publié.',
+            data: { timeout: true },
+          };
+        }
+
+        const isRetryableVariantError = [400, 404].includes(error.response?.status)
+          || /cannot post|not found|requires property|must have required property|bad request/i.test(detailedError || '');
+
+        if (!isRetryableVariantError) {
+          return { success: false, error: detailedError };
+        }
+      }
+    }
+
+    const lastErrorData = lastError?.response?.data;
+    return { success: false, error: formatStatusError(lastErrorData, lastError?.message || 'Erreur inconnue lors de la publication du statut.') };
   }
 
   // ═══════════════════════════════════════════════════════════════
