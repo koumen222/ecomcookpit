@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Minus, Truck, MessageCircle } from 'lucide-react';
+import { X, ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Minus, Truck } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
@@ -22,21 +22,6 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store }) => {
 
   const set = (field, value) => { setForm(prev => ({ ...prev, [field]: value })); setError(''); };
 
-  const buildWhatsAppMessage = (order) => {
-    const lines = [
-      `🛍️ *Nouvelle commande* — ${store?.name || 'Boutique'}`,
-      `📦 *Produit :* ${product?.name} x${form.quantity}`,
-      `💰 *Total :* ${fmt(order.total, order.currency)}`,
-      `👤 *Client :* ${form.customerName}`,
-      `📞 *Téléphone :* ${form.phone}`,
-      `📍 *Ville :* ${form.city}`,
-      `🏠 *Adresse :* ${form.address}`,
-      `🔖 *Référence :* ${order.orderNumber}`,
-      ``,
-      `Paiement à la livraison ✅`,
-    ];
-    return encodeURIComponent(lines.join('\n'));
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -75,11 +60,6 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store }) => {
 
   // ── Écran de succès ──────────────────────────────────────────────────────────
   if (success && orderResult) {
-    const waNumber = (store?.whatsapp || '').replace(/\D/g, '');
-    const waLink = ((store?.sectionToggles?.showWhatsappButton ?? false) && waNumber)
-      ? `https://wa.me/${waNumber}?text=${buildWhatsAppMessage(orderResult)}`
-      : null;
-
     return (
       <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}>
         <div style={{ backgroundColor: '#fff', borderRadius: 20, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', width: '100%', maxWidth: 420, padding: 32, textAlign: 'center' }}>
@@ -102,18 +82,6 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store }) => {
               </div>
             ))}
           </div>
-
-          {waLink && (
-            <a href={waLink} target="_blank" rel="noreferrer" style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-              width: '100%', padding: '14px 20px', borderRadius: 40,
-              backgroundColor: '#25D366', color: '#fff',
-              fontWeight: 700, fontSize: 15, textDecoration: 'none', marginBottom: 12,
-              boxShadow: '0 4px 16px rgba(37,211,102,0.35)',
-            }}>
-              <MessageCircle size={18} /> Confirmer via WhatsApp
-            </a>
-          )}
 
           <button onClick={handleClose} style={{
             width: '100%', padding: '12px 20px', borderRadius: 40,
