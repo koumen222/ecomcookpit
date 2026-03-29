@@ -262,50 +262,37 @@ Pose-toi 3 questions :
 
 🎯 Chaque titre doit expliquer CONCRÈTEMENT ce que le produit fait pour le client.
 
-═══ IMAGES SECONDAIRES — VISUELS D'ANGLES MARKETING ═══
-Les 4 images doivent illustrer l'angle marketing avec un cadrage carré serré, sans espace vide et sans design publicitaire.
+═══ IMAGES D'ANGLES — PHOTOS PURES SANS TEXTE ═══
+Les 4 images d'angles sont de simples photos illustratives. AUCUN texte, AUCUN badge, AUCUN design graphique.
 
-🎯 OBJECTIF : Montrer visuellement la situation, le bénéfice ou le résultat de l'angle choisi.
+🎯 OBJECTIF : Photo réelle qui montre la situation ou le bénéfice de l'angle en un coup d'œil.
 
-✅ CE QU'ON DOIT MONTRER :
-- Une scène réelle, claire et crédible liée à l'angle marketing
-- Un cadrage 1:1 serré, plein cadre, sans marges inutiles
-- Une image universelle qui s'adapte au type réel du produit
-- Une scène naturelle qui explique l'angle sans texte
+✅ CE QU'IL FAUT :
+- Photo réaliste de la situation, du résultat ou du contexte d'utilisation
+- Cadrage 1:1 serré, plein cadre, sujet bien rempli, ZÉRO espace mort
+- Adaptée au type RÉEL du produit (pas un template beauté pour un produit tech)
+- Lumière naturelle propre, scène crédible
 
-❌ CE QU'ON NE DOIT PAS MONTRER :
-- Texte, badge, bouton, prix, CTA ou mise en page d'affiche
-- Pose influenceur ou produit tendu vers la caméra sans contexte
-- Template beauté imposé si le produit n'est pas un produit beauté
-- Trop d'espace vide autour du sujet principal
+❌ CE QUI EST INTERDIT (zéro exception) :
+- Tout texte visible (mot, lettre, chiffre, slogan)
+- Tout badge, icône graphique, prix, CTA, watermark
+- Tout overlay graphique ou mise en page d'affiche
+- Toute mise en scène d'influenceur avec produit tendu à la caméra
+- Espaces vides / marges autour du sujet
 
-🎨 STYLE VISUEL :
-✅ Réaliste, propre, moderne, explicatif
-✅ Lumière naturelle ou studio doux
-✅ Sujet principal bien recadré
-❌ Pas de montage graphique artificiel
-❌ Pas de surcharge visuelle
+═══ VISUEL HÉRO — SEUL VISUEL MARKETING ═══
+⚠️ RÈGLE ABSOLUE : Le HERO est le SEUL visuel avec un éventuel texte très court. Les 4 images d'angles sont de pures scènes sans texte.
 
-Les images doivent dépendre de l'angle marketing choisi et rester lisibles en un coup d'œil.
+Le HERO doit être :
+✅ Le produit réel (EXACT, jamais recréé) en cadrage carré 1:1 tight crop, plein cadre, ZÉRO espace vide
+✅ Fond clean ou contexte d'utilisation naturel selon le produit
+✅ Universel : s'adapte à TOUT type de produit sans template figé par catégorie
+✅ Au maximum un badge TRÈS court (3 mots max) OU absent — pas plus
 
-═══ VISUEL HÉRO — 1ÈRE IMAGE SEULE IMAGE MARKETING ═══
-⚠️ RÈGLE ABSOLUE : Seul le HERO est un visuel designé marketing. Les autres images doivent être simples et explicatives.
-
-Le HERO doit contenir :
-✅ L'image réelle du produit (EXACT produit fourni, jamais recréé)
-✅ Un cadrage carré 1:1 serré, plein cadre, sans espace vide autour du sujet
-✅ Un design propre, professionnel, adaptable à tous les types de produits
-✅ Au maximum un mini badge court OU une headline très courte (3-5 mots), pas plus
-
-❌ PAS de prix (ni barré, ni promo)
-❌ PAS de bouton d'achat
-❌ PAS de paragraphe long ni de gros bloc de texte
-❌ PAS d'effets flashy, PAS d'encombrement visuel
-
-🎯 ADAPTE AU PRODUIT RÉEL :
-- Le layout doit rester universel et s'adapter au produit réel, sans template figé par catégorie
-- PAS de référence systématique à la peau, au visage ou à la beauté
-- Basé sur la fonction réelle du produit
+❌ PAS de texte long, PAS de paragraphe, PAS de prix, PAS de bouton
+❌ PAS de template beauté imposé si ce n'est pas un produit beauté
+❌ PAS de cadrage trop large avec marges vides autour du produit
+❌ PAS de design d'affiche publicitaire chargé
 
 ═══ VISUEL AVANT/APRÈS — 2ÈME IMAGE SEULE AUTRE IMAGE ═══
 ⚠️ Le visuel avant/après est le second visuel fort. Les 4 visuels d'angles restent autorisés, mais doivent rester simples et sans texte.
@@ -330,15 +317,15 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   "hero_headline": "PROMESSE PRINCIPALE EN MAJUSCULES (4-6 mots)",
   "hero_slogan": "Sous-titre accrocheur orienté bénéfice spécifique au produit",
   "hero_baseline": "Phrase de réassurance courte spécifique au produit",
-  "prompt_affiche_hero": "[Generate in English a universal square 1:1 premium e-commerce hero using the exact real product provided. Tight crop, full frame, clean background, elegant lighting, composition adaptable to any product category. Optional subtle human presence only if relevant to the product function. At most one very short French badge or one very short French headline, no paragraphs, no button, no prices, no clutter.]",
-  "prompt_avant_apres": "[Generate in English a square 1:1 split-screen before/after visual specific to this product. Left shows the real problem, right shows the realistic improved result. Tight crop, no text, no arrows, no empty margins, authentic African context if humans are shown.]",
+  "prompt_affiche_hero": "[Generate in English a universal square 1:1 premium e-commerce hero image using the EXACT real product provided (never recreate it). Tight crop, full-bleed framing, zero empty margins, clean or contextual background adapted to the product function — not a beauty template unless it is a beauty product. Universal composition adaptable to any product category. At most one very short French badge (3 words max) OR no text at all. No paragraphs, no button, no prices, no heavy design.]",
+  "prompt_avant_apres": "[Generate in English a square 1:1 split-screen before/after visual specific to this product. Left shows the real problem this product solves, right shows the realistic improved result. Tight crop, no text, no arrows, no labels, no empty margins, authentic African context if humans are shown.]",
   "angles": [
     {
       "titre_angle": "Phrase complète de 10-15 mots expliquant concrètement le bénéfice (PAS de titre court, PAS de slogan de 2-3 mots)",
       "explication": "3-4 phrases concrètes et persuasives. Décris comment ce bénéfice spécifique se manifeste dans la vie réelle. Reste crédible et factuel, sans exagération.",
       "message_principal": "1 phrase d'accroche mémorable spécifique à ce bénéfice",
       "promesse": "La transformation concrète que l'utilisateur va vivre",
-      "prompt_affiche": "Simple explanatory square 1:1 photo: [describe in English the real-life scene that illustrates this angle and benefit. Tight crop, full-bleed framing, no text overlay, no badge, no button, no CTA, no poster layout, no forced beauty template. Natural believable scene, professional but simple.]"
+      "prompt_affiche": "Pure photo square 1:1: [describe in English the exact real-life scene or context that illustrates this marketing angle for THIS specific product. Tight crop, full-bleed framing, subject fills the frame completely. ABSOLUTELY NO text, NO words, NO letters, NO badge, NO overlay, NO graphic element of any kind. Just a clean professional photo that speaks for itself.]"
     }
   ],
   "raisons_acheter": [
@@ -387,7 +374,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   const messages = [
     {
       role: "system",
-      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit optimisée pour la conversion. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS (sauf prompts images en anglais). 3) ZÉRO généricité — tout doit être spécifique à CE produit. 4) ZÉRO exagération — bénéfices réels et crédibles. 5) CRITIQUE : prompt_affiche_hero = seul visuel autorisé à contenir éventuellement un texte très court, avec le PRODUIT RÉEL fourni, cadrage carré serré, jamais de bouton ni de prix. 6) CRITIQUE : prompt_avant_apres = split-screen carré, zéro texte, transformation réaliste liée au produit. 7) CRITIQUE : prompts angles = scènes réelles explicatives, carrées, sans aucun texte overlay ni template figé, adaptées à n'importe quelle catégorie produit. 8) Les témoignages doivent respecter le pays de la boutique s'il est fourni. 9) Ces prompts doivent être ENTIÈREMENT RÉÉCRITS pour CE produit — JAMAIS copier les exemples. 10) description_optimisee doit toujours être vide pour commencer directement par les angles marketing. 11) Génère UNIQUEMENT du JSON valide."
+      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit optimisée pour la conversion. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS (sauf prompts images en anglais). 3) ZÉRO généricité — tout doit être spécifique à CE produit. 4) ZÉRO exagération — bénéfices réels et crédibles. 5) CRITIQUE hero : prompt_affiche_hero = produit réel, cadrage serré plein cadre, zéro marge vide, fond adaptatif universel (PAS un template beauté pour un produit tech ou autre), badge optionnel très court ou rien. 6) CRITIQUE avant/après : split-screen carré, zéro texte ni flèche, transformation réaliste liée au produit spécifique. 7) CRITIQUE angles : 4 photos pures sans AUCUN texte (même pas une lettre), scène réelle plein cadre, adaptées au type RÉEL du produit. 8) Les témoignages respectent le pays de la boutique. 9) Prompts ENTIÈREMENT réécrits pour CE produit — JAMAIS copier les exemples. 10) description_optimisee = chaîne vide toujours. 11) JSON uniquement."
     },
     {
       role: "user",
@@ -535,20 +522,23 @@ export async function generatePosterImage(promptAffiche, originalImageBuffer = n
 
     const heroRules = `
 USE THE EXACT REAL PRODUCT IMAGE PROVIDED. NEVER invent, recreate or redesign the product.
-Square 1:1 premium hero, tight crop, full-bleed composition, no empty margins around the subject.
-Universal premium layout adaptable to any product category.
-At most one very short French badge OR one very short French headline.
-No long text, no paragraph, no button, no price, no clutter, no flashy effects.`;
+Square 1:1 premium hero, tight crop, full-bleed composition, ZERO empty margins around the subject.
+Universal composition adaptable to any product category — do NOT impose a beauty or fashion template if this is not a beauty product.
+Background should be clean, contextual or neutral according to the product function.
+At most one very short French badge (3 words max) OR no text at all.
+No paragraphs, no long text, no button, no price, no clutter, no flashy effects.`;
 
     const beforeAfterRules = `
-Square 1:1 split-screen before/after visual.
-Tight crop, clear transformation, no text, no arrows, no labels, no graphic overlays.
-If humans are shown, keep the scene authentic and relevant to the product function.`;
+Square 1:1 split-screen before/after visual specific to this product.
+Tight crop, clear transformation, no text, no arrows, no labels, no numbers, no graphic overlays of any kind.
+If humans are shown, keep the scene authentic and directly relevant to the product function.`;
 
     const sceneRules = `
-Square 1:1 explanatory image with tight crop and no empty space.
-No text overlay, no badge, no CTA, no poster layout, no button, no pricing.
-Show a real-life scene illustrating the marketing angle in a universal way adapted to the product function.`;
+Square 1:1 pure photo, tight crop, subject fills the entire frame, ZERO empty space.
+ABSOLUTELY NO TEXT of any kind — no words, no letters, no numbers, no badge, no overlay, no watermark, no graphic element.
+No poster layout, no CTA, no price, no button.
+Show a real-life scene or context that visually illustrates the marketing angle for this specific product.
+Adapted to the actual product category — not a generic beauty template.`;
 
     const posterPrompt = `${promptAffiche}
 

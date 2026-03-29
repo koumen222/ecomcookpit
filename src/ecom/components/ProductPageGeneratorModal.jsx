@@ -242,7 +242,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
         }
         // Image
         if (angle.poster_url) {
-          descHtml += `<img src="${angle.poster_url}" alt="${angle.titre_angle}" style="width:100%;aspect-ratio:1 / 1;object-fit:cover;display:block;border-radius:14px;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,0.10);"/>`;
+          descHtml += `<img src="${angle.poster_url}" alt="${angle.titre_angle}" style="width:100%;aspect-ratio:1 / 1;object-fit:cover;display:block;margin:0;"/>`;
         }
         descHtml += `</div>`;
       });

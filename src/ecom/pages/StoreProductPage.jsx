@@ -85,7 +85,7 @@ const ImageGallery = ({ images = [] }) => {
 
   if (!images.length) return (
     <div style={{
-      paddingBottom: '100%', position: 'relative', borderRadius: 20,
+      paddingBottom: '100%', position: 'relative',
       backgroundColor: '#f4f4f5', overflow: 'hidden',
     }}>
       <div style={{
@@ -102,7 +102,7 @@ const ImageGallery = ({ images = [] }) => {
       {/* Main image */}
       <div
         style={{
-          position: 'relative', paddingBottom: '100%', borderRadius: 20,
+          position: 'relative', paddingBottom: '100%',
           backgroundColor: '#f4f4f5', overflow: 'hidden', cursor: 'zoom-in',
         }}
         onClick={() => setZoomed(true)}
@@ -162,10 +162,10 @@ const ImageGallery = ({ images = [] }) => {
 
       {/* Thumbnails */}
       {images.length > 1 && (
-        <div style={{ display: 'flex', gap: 10, marginTop: 12, overflowX: 'auto', paddingBottom: 4 }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 8, overflowX: 'auto', paddingBottom: 4 }}>
           {images.map((img, i) => (
             <button key={i} onClick={() => setActive(i)} style={{
-              flexShrink: 0, width: 68, height: 68, borderRadius: 12, overflow: 'hidden', padding: 0,
+              flexShrink: 0, width: 68, height: 68, overflow: 'hidden', padding: 0,
               border: '2.5px solid',
               borderColor: i === active ? 'var(--s-primary)' : 'transparent',
               cursor: 'pointer', transition: 'border-color 0.15s',
@@ -657,7 +657,7 @@ const StoreProductPage = () => {
         .ai-desc h3 { font-size:20px; font-weight:800; color:var(--s-text); margin:0 0 12px; line-height:1.3; }
         .ai-desc h3 strong { font-weight:800; }
         .ai-desc p { font-size:15px; line-height:1.75; color:var(--s-text2); margin:0 0 14px; }
-        .ai-desc img { width:100% !important; max-width:none !important; aspect-ratio:1 / 1; object-fit:cover; display:block; border-radius:14px; margin:0 auto 16px; box-shadow:0 4px 20px rgba(0,0,0,0.10); }
+        .ai-desc img { width:100% !important; max-width:none !important; aspect-ratio:1 / 1; object-fit:cover; display:block; margin:0 0 0; }
         .ai-desc ul { margin:0; padding:0; list-style:none; }
         .ai-desc ul li { display:flex; align-items:flex-start; gap:10px; margin-bottom:10px; font-size:14px; }
         .ai-desc-testimonials { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; }
