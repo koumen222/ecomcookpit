@@ -1077,15 +1077,20 @@ router.post('/activate', async (req, res) => {
       }
     }
 
-    // Chercher l'instance spécifique OU toutes les instances actives
+    // Chercher UNIQUEMENT l'instance spécifique — si aucune instanceId fournie, refuser quand enabled=true
     let instances;
     if (instanceId) {
       const inst = await WhatsAppInstance.findOne({ _id: instanceId, userId: actualUserId, isActive: true });
       instances = inst ? [inst] : [];
       console.log(`🔧 [ACTIVATE] Instance ciblée: ${inst ? inst.instanceName : 'INTROUVABLE (id=' + instanceId + ')'}`);
+    } else if (enabled) {
+      // Activation sans instance sélectionnée → bloquer
+      console.log(`⛔ [ACTIVATE] Activation refusée : aucune instanceId fournie`);
+      return res.status(400).json({ success: false, error: 'Sélectionnez une instance WhatsApp avant d\'activer Rita.' });
     } else {
+      // Désactivation sans instanceId → désactiver toutes les instances du user
       instances = await WhatsAppInstance.find({ userId: actualUserId, isActive: true });
-      console.log(`🔧 [ACTIVATE] Toutes les instances: ${instances.map(i => i.instanceName).join(', ') || 'aucune'}`);
+      console.log(`🔧 [ACTIVATE] Désactivation de toutes les instances: ${instances.map(i => i.instanceName).join(', ') || 'aucune'}`);
     }
 
     if (!instances.length) {
