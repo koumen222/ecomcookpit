@@ -198,18 +198,18 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         .then(url => ({ type: 'hero', url }))
     );
 
-    // Avant/Après
+    // Avant/Après — baseImageBuffer pour garder le VRAI produit
     imagePromises.push(
-      generateAndUpload(gptResult.prompt_avant_apres, null, `before-after-${Date.now()}.png`, 'before_after')
+      generateAndUpload(gptResult.prompt_avant_apres, baseImageBuffer, `before-after-${Date.now()}.png`, 'before_after')
         .then(url => ({ type: 'beforeAfter', url }))
     );
 
-    // 4 Affiches publicitaires
+    // 4 Affiches publicitaires — baseImageBuffer pour garder le VRAI produit
     for (let i = 0; i < 4; i++) {
       const angle = gptResult.angles?.[i];
       if (angle?.prompt_affiche) {
         imagePromises.push(
-          generateAndUpload(angle.prompt_affiche, null, `poster-${i + 1}-${Date.now()}.png`, 'scene')
+          generateAndUpload(angle.prompt_affiche, baseImageBuffer, `poster-${i + 1}-${Date.now()}.png`, 'scene')
             .then(url => ({ type: 'poster', index: i, url, angle }))
         );
       } else {

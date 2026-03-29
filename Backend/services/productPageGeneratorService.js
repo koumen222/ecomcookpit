@@ -570,14 +570,18 @@ NO price, NO phone number, NO CTA button, NO URL. Keep it clean.
 Mood: Trustworthy, premium, high-conversion ecommerce ad, clean and attractive, impossible to ignore in a Facebook or TikTok feed.
 Strong emotional impact. Eye-catching composition. Clear problem → solution → result.`;
 
-    const posterPrompt = `${promptAffiche}
+    const productRefRule = originalImageBuffer
+      ? `\nCRITICAL: A reference image of the EXACT real product is provided. You MUST include THIS SPECIFIC product (same shape, color, packaging, design) in the generated image. NEVER invent, replace, or redesign the product. The product in the output MUST be recognizably the same as the reference.\n`
+      : '';
 
+    const posterPrompt = `${promptAffiche}
+${productRefRule}
 ${mode === 'hero' ? heroRules : mode === 'before_after' ? beforeAfterRules : sceneRules}`;
 
     let result;
 
     if (originalImageBuffer) {
-      console.log('📸 Image-to-image poster generation...');
+      console.log('📸 Image-to-image poster generation (with product reference)...');
       result = await generateNanoBananaImageToImage(
         posterPrompt,
         originalImageBuffer,
