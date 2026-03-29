@@ -370,76 +370,86 @@ const removeFaqFromDescriptionHtml = (html = '') => {
   }
 };
 
-// Extraire les Q/R depuis le HTML de description (anciens produits sans product.faq)
-const extractFaqFromHtml = (html = '') => {
-  if (!html || typeof DOMParser === 'undefined') return [];
-  try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(`<div id="sf-faq-root">${html}</div>`, 'text/html');
-    const root = doc.getElementById('sf-faq-root');
-    if (!root) return [];
-
-    // Trouver la section FAQ
-    const faqSection = Array.from(root.querySelectorAll('div')).find((el) => {
-      const h = el.querySelector('h1,h2,h3,h4,h5,h6');
-      return h && /questions fréquentes|faq/i.test(h.textContent?.trim() || '');
-    });
-    if (!faqSection) return [];
-
-    const items = [];
-    // Pattern 1 : <h4>question</h4><p>réponse</p>
-    const headings = Array.from(faqSection.querySelectorAll('h4, h3, strong, b, dt'));
-    headings.forEach((h) => {
-      const question = h.textContent?.trim();
-      if (!question || /questions fréquentes|faq/i.test(question)) return;
-      // La réponse est dans le prochain élément frère
-      let next = h.nextElementSibling;
-      while (next && !next.textContent?.trim()) next = next.nextElementSibling;
-      const reponse = next?.textContent?.trim() || '';
-      if (question && reponse) items.push({ question, reponse });
-    });
-
-    // Pattern 2 : suite de <p> où les impairs sont questions et pairs sont réponses
-    if (!items.length) {
-      const paras = Array.from(faqSection.querySelectorAll('p')).filter(p => p.textContent?.trim());
-      for (let i = 0; i + 1 < paras.length; i += 2) {
-        items.push({ question: paras[i].textContent?.trim(), reponse: paras[i + 1].textContent?.trim() });
-      }
-    }
-
-    return items;
-  } catch {
-    return [];
-  }
-};
-
 const removeIntroBeforeAngles = (html = '') => {
-  // Supprimer tout contenu (paragraphes intro, titres "Description") avant le premier H3 marketing
-  // Si le HTML contient des <h3>, on retire tout ce qui précède le premier <h3>
   const h3Index = html.search(/<h3[\s>]/i);
-  if (h3Index > 0) {
-    return html.slice(h3Index);
-  }
+  if (h3Index > 0) return html.slice(h3Index);
   return html;
 };
 
-const ProductDescription = ({ content, stripFaqSection = false }) => {
+const ProductDescription = ({ content }) => {
+  const ref = useRef(null);
   const rawContent = content?.toString().trim() || '';
   const isHTML = /<[^>]+>/.test(rawContent);
-  if (!isHTML) return null; // Ne jamais afficher le texte brut
+  if (!isHTML) return null;
 
-  let cleanContent = stripFaqSection ? removeFaqFromDescriptionHtml(rawContent) : rawContent;
-  cleanContent = removeIntroBeforeAngles(cleanContent);
-  const hasContent = cleanContent.length > 0 && !/^\s*<[^>]*>\s*<\/[^>]*>\s*$/.test(cleanContent);
-
-  if (!hasContent) return null;
+  const cleanContent = removeIntroBeforeAngles(rawContent);
+  if (!cleanContent) return null;
 
   return (
-    <div>
+    <div ref={ref}>
       <div className="ai-desc" style={{ fontSize: 15, lineHeight: 1.75, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}
         dangerouslySetInnerHTML={{ __html: cleanContent }} />
     </div>
   );
+};
+
+// Extraire Q/R depuis le HTML pour les anciens produits
+const extractFaqItemsFromHtml = (html = '') => {
+  if (!html || typeof DOMParser === 'undefined') return [];
+  try {
+    const doc = new DOMParser().parseFromString(`<div id="r">${html}</div>`, 'text/html');
+    const root = doc.getElementById('r');
+
+    // Trouver le conteneur FAQ (div avec heading "Questions fréquentes")
+    const faqContainer = Array.from(root.querySelectorAll('*')).find(el => {
+      if (!/^(DIV|SECTION|ARTICLE)$/.test(el.tagName)) return false;
+      const h = el.querySelector('h1,h2,h3,h4,h5,h6');
+      return h && /questions?\s*fréquentes?|faq/i.test(h.textContent || '');
+    });
+
+    const source = faqContainer || root;
+    const items = [];
+
+    // Pattern A : éléments de question (h4, h3, p>strong, p>b)
+    const questionEls = Array.from(source.querySelectorAll('h4,h3')).filter(el =>
+      !/questions?\s*fréquentes?|faq/i.test(el.textContent || '')
+    );
+
+    if (questionEls.length) {
+      questionEls.forEach(qEl => {
+        const q = qEl.textContent?.trim();
+        if (!q) return;
+        let next = qEl.nextElementSibling;
+        while (next && !next.textContent?.trim()) next = next.nextElementSibling;
+        const a = next?.textContent?.trim();
+        if (q && a) items.push({ question: q, reponse: a });
+      });
+    }
+
+    // Pattern B : <p><strong>Q?</strong></p> suivi de <p>R.</p>
+    if (!items.length) {
+      const allP = Array.from(source.querySelectorAll('p')).filter(p => p.textContent?.trim());
+      allP.forEach((p, i) => {
+        const strong = p.querySelector('strong, b');
+        if (strong && p.textContent?.includes('?')) {
+          const next = allP[i + 1];
+          if (next && !next.querySelector('strong, b')) {
+            items.push({ question: p.textContent.trim(), reponse: next.textContent.trim() });
+          }
+        }
+      });
+    }
+
+    // Pattern C : alternance paragraphes (impairs = questions, pairs = réponses)
+    if (!items.length && faqContainer) {
+      const paras = Array.from(faqContainer.querySelectorAll('p')).filter(p => p.textContent?.trim());
+      for (let i = 0; i + 1 < paras.length; i += 2) {
+        items.push({ question: paras[i].textContent.trim(), reponse: paras[i + 1].textContent.trim() });
+      }
+    }
+
+    return items;
+  } catch { return []; }
 };
 
 // ── Collapsible Section ──────────────────────────────────────────────────────
@@ -869,33 +879,36 @@ const StoreProductPage = () => {
                 {/* Messages de confiance */}
                 {showTrustBadges && <TrustBadges compact />}
 
-                {/* Description IA — section réductible */}
+                {/* Description IA + FAQ — sections réductibles */}
                 {(() => {
                   const raw = product.description?.toString().trim() || '';
-                  if (!raw || !/<[^>]+>/.test(raw)) return null;
-                  // Extraire FAQ du HTML si product.faq est vide
-                  const faqFromHtml = (!product.faq?.length && showFaq) ? extractFaqFromHtml(raw) : [];
-                  const hasFaq = product.faq?.length > 0 || faqFromHtml.length > 0;
+                  const hasHtml = raw && /<[^>]+>/.test(raw);
+
+                  // FAQ : priorité product.faq, sinon extraction depuis HTML
+                  const faqItems = product.faq?.length > 0
+                    ? product.faq
+                    : (showFaq && hasHtml ? extractFaqItemsFromHtml(raw) : []);
+                  const hasFaq = showFaq && faqItems.length > 0;
+
+                  // Description nettoyée : retirer la section FAQ du HTML
+                  const descHtml = hasHtml ? removeFaqFromDescriptionHtml(raw) : '';
+                  const hasDesc = !!descHtml;
+
                   return (
                     <>
-                      <CollapsibleSection title="Description du produit" defaultOpen={true}>
-                        <ProductDescription content={raw} stripFaqSection={hasFaq} />
-                      </CollapsibleSection>
-                      {showFaq && hasFaq && (
-                        <CollapsibleSection title="❓ Questions fréquentes" defaultOpen={true}>
-                          <ProductFaqAccordion items={product.faq?.length > 0 ? product.faq : faqFromHtml} />
+                      {hasDesc && (
+                        <CollapsibleSection title="Description du produit" defaultOpen={true}>
+                          <ProductDescription content={descHtml} />
+                        </CollapsibleSection>
+                      )}
+                      {hasFaq && (
+                        <CollapsibleSection title="❓ Questions fréquentes" defaultOpen={false}>
+                          <ProductFaqAccordion items={faqItems} />
                         </CollapsibleSection>
                       )}
                     </>
                   );
                 })()}
-
-                {/* FAQ — si description sans HTML mais product.faq existe */}
-                {showFaq && product.faq?.length > 0 && !product.description && (
-                  <CollapsibleSection title="❓ Questions fréquentes" defaultOpen={true}>
-                    <ProductFaqAccordion items={product.faq} />
-                  </CollapsibleSection>
-                )}
               </>
             ) : null}
           </div>
