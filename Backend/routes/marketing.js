@@ -458,7 +458,7 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
       let sent = 0, failed = 0, skipped = 0;
       const BATCH_SIZE = 10;          // pause tous les N messages envoyés
       const BATCH_PAUSE_MS = 20 * 60 * 1000; // 20 minutes
-      const MSG_DELAY_MS = 60 * 1000; // 1 minute entre chaque message
+      const MSG_DELAY_MS = 5 * 60 * 1000; // 5 minutes entre chaque message
 
       for (const { phone, client, orderData } of recipients) {
         // Vérifier interruption client
