@@ -370,26 +370,31 @@ const removeFaqFromDescriptionHtml = (html = '') => {
   }
 };
 
+const removeIntroBeforeAngles = (html = '') => {
+  // Supprimer tout contenu (paragraphes intro, titres "Description") avant le premier H3 marketing
+  // Si le HTML contient des <h3>, on retire tout ce qui précède le premier <h3>
+  const h3Index = html.search(/<h3[\s>]/i);
+  if (h3Index > 0) {
+    return html.slice(h3Index);
+  }
+  return html;
+};
+
 const ProductDescription = ({ content, stripFaqSection = false }) => {
   const rawContent = content?.toString().trim() || '';
   const isHTML = /<[^>]+>/.test(rawContent);
-  const cleanContent = isHTML && stripFaqSection ? removeFaqFromDescriptionHtml(rawContent) : rawContent;
+  if (!isHTML) return null; // Ne jamais afficher le texte brut
+
+  let cleanContent = stripFaqSection ? removeFaqFromDescriptionHtml(rawContent) : rawContent;
+  cleanContent = removeIntroBeforeAngles(cleanContent);
   const hasContent = cleanContent.length > 0 && !/^\s*<[^>]*>\s*<\/[^>]*>\s*$/.test(cleanContent);
 
   if (!hasContent) return null;
 
-  const bodyStyle = {
-    fontSize: 15, lineHeight: 1.75, color: 'var(--s-text2)',
-    fontFamily: 'var(--s-font)',
-  };
-
   return (
     <div>
-      {isHTML ? (
-        <div className="ai-desc" style={bodyStyle} dangerouslySetInnerHTML={{ __html: cleanContent }} />
-      ) : (
-        <p style={{ ...bodyStyle, whiteSpace: 'pre-wrap', margin: 0 }}>{cleanContent}</p>
-      )}
+      <div className="ai-desc" style={{ fontSize: 15, lineHeight: 1.75, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}
+        dangerouslySetInnerHTML={{ __html: cleanContent }} />
     </div>
   );
 };
