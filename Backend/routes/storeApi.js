@@ -219,7 +219,8 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
           metaPixelId: pixels.metaPixelId || '',
           tiktokPixelId: pixels.tiktokPixelId || '',
           googleTagId: pixels.googleTagId || '',
-          snapPixelId: pixels.snapPixelId || '',
+          googleAdsId: pixels.googleAdsId || '',
+          snapchatPixelId: pixels.snapchatPixelId || pixels.snapPixelId || '',
         },
         products: lightProducts,
         categories: categories.sort(),
@@ -527,6 +528,39 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
         status: order.status
       }
     });
+
+    // ── Meta Conversions API (server-side, non-blocking) ─────────────────────
+    const metaAccessToken = workspace.storePixels?.metaAccessToken;
+    const metaPixelId = workspace.storePixels?.metaPixelId;
+    if (metaAccessToken && metaPixelId) {
+      const { createHash } = await import('crypto');
+      const hash = (v) => v ? createHash('sha256').update(v.trim().toLowerCase()).digest('hex') : undefined;
+      const capiPayload = {
+        data: [{
+          event_name: 'Purchase',
+          event_time: Math.floor(Date.now() / 1000),
+          action_source: 'website',
+          event_id: order._id.toString(),
+          user_data: {
+            ph: [hash(phone)],
+            em: email ? [hash(email)] : undefined,
+          },
+          custom_data: {
+            value: order.total,
+            currency: order.currency,
+            order_id: order.orderNumber,
+            contents: orderProducts.map(p => ({ id: p.productId.toString(), quantity: p.quantity })),
+            num_items: orderProducts.reduce((s, p) => s + p.quantity, 0),
+          }
+        }]
+      };
+      const capiUrl = `https://graph.facebook.com/v18.0/${metaPixelId}/events?access_token=${metaAccessToken}`;
+      fetch(capiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(capiPayload),
+      }).catch(err => console.warn('⚠️ Meta CAPI error:', err.message));
+    }
 
   } catch (error) {
     console.error('❌ POST /api/store/:subdomain/orders error:', error.message);
