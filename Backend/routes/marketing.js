@@ -456,6 +456,9 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
       console.log(`📤 Envoi SSE "${campaign.name}" → ${recipients.length} destinataires via ${instance.instanceName}`);
 
       let sent = 0, failed = 0, skipped = 0;
+      const BATCH_SIZE = 10;         // pause tous les N messages envoyés
+      const BATCH_PAUSE_MS = 5 * 60 * 1000; // 5 minutes
+      const MSG_DELAY_MS = 10000;    // 10 secondes entre chaque message
 
       for (const { phone, client, orderData } of recipients) {
         // Vérifier interruption client
@@ -550,7 +553,15 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
           emit('progress', { sent, failed, skipped, total: recipients.length, index, current: { name: clientName, phone: cleanNumber, status: 'failed', reason: String(result.error || 'Erreur inconnue') } });
         }
 
-        await new Promise(r => setTimeout(r, 10000));
+        // Pause de 5 min tous les 10 messages envoyés avec succès
+        if (result.success && sent % BATCH_SIZE === 0 && sent < recipients.length) {
+          console.log(`⏸️ [CAMPAIGN] Pause 5 min après ${sent} messages envoyés...`);
+          emit('substep', { name: '', phone: '', step: 'batch_pause', status: 'pausing', detail: `Pause anti-spam 5 min (${sent} envoyés)` });
+          await new Promise(r => setTimeout(r, BATCH_PAUSE_MS));
+          emit('substep', { name: '', phone: '', step: 'batch_pause', status: 'done' });
+        } else {
+          await new Promise(r => setTimeout(r, MSG_DELAY_MS));
+        }
       }
 
       campaign.status = (sent === 0 && failed > 0) ? 'failed' : 'sent';
