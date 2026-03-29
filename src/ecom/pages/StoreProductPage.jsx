@@ -2,16 +2,27 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, ShoppingCart, MessageCircle,
-  ShoppingBag, Shield, RotateCcw, Truck, Check, Minus, Plus,
-  ChevronDown, ChevronUp, ArrowLeft, Star,
+  ShoppingBag, Shield, RotateCcw, Truck, Check,
+  ChevronDown, ChevronUp, Star,
 } from 'lucide-react';
 import { useSubdomain } from '../hooks/useSubdomain';
 import { useStoreProduct, injectStoreCssVars } from '../hooks/useStoreData';
 import { useStoreCart } from '../hooks/useStoreCart';
 import QuickOrderModal from '../components/QuickOrderModal';
 import { io } from 'socket.io-client';
+import { setDocumentMeta } from '../utils/pageMeta';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
+
+const normalizeMetaText = (value = '') => String(value || '')
+  .replace(/<[^>]*>/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const truncateMetaText = (value = '', max = 180) => {
+  if (!value || value.length <= max) return value;
+  return `${value.slice(0, max - 1).trimEnd()}…`;
+};
 
 // ── Shared Header ────────────────────────────────────────────────────────────
 const StorefrontHeader = ({ store, cartCount, prefix }) => (
@@ -74,7 +85,7 @@ const ImageGallery = ({ images = [] }) => {
 
   if (!images.length) return (
     <div style={{
-      paddingBottom: '100%', position: 'relative', borderRadius: 20,
+      paddingBottom: '100%', position: 'relative',
       backgroundColor: '#f4f4f5', overflow: 'hidden',
     }}>
       <div style={{
@@ -91,7 +102,7 @@ const ImageGallery = ({ images = [] }) => {
       {/* Main image */}
       <div
         style={{
-          position: 'relative', paddingBottom: '100%', borderRadius: 20,
+          position: 'relative', paddingBottom: '100%',
           backgroundColor: '#f4f4f5', overflow: 'hidden', cursor: 'zoom-in',
         }}
         onClick={() => setZoomed(true)}
@@ -101,6 +112,9 @@ const ImageGallery = ({ images = [] }) => {
         <img
           src={images[active]?.url || images[active]}
           alt={images[active]?.alt || ''}
+          loading="eager"
+          fetchpriority="high"
+          decoding="async"
           style={{
             position: 'absolute', inset: 0, width: '100%', height: '100%',
             objectFit: 'cover', transition: 'opacity 0.2s',
@@ -148,10 +162,10 @@ const ImageGallery = ({ images = [] }) => {
 
       {/* Thumbnails */}
       {images.length > 1 && (
-        <div style={{ display: 'flex', gap: 10, marginTop: 12, overflowX: 'auto', paddingBottom: 4 }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 8, overflowX: 'auto', paddingBottom: 4 }}>
           {images.map((img, i) => (
             <button key={i} onClick={() => setActive(i)} style={{
-              flexShrink: 0, width: 68, height: 68, borderRadius: 12, overflow: 'hidden', padding: 0,
+              flexShrink: 0, width: 68, height: 68, overflow: 'hidden', padding: 0,
               border: '2.5px solid',
               borderColor: i === active ? 'var(--s-primary)' : 'transparent',
               cursor: 'pointer', transition: 'border-color 0.15s',
@@ -335,48 +349,199 @@ const ProductFeatures = ({ features }) => {
 };
 
 // ── Description (handles both HTML and markdown) ─────────────────────────────
-const ProductDescription = ({ content }) => {
-  // Nettoyer le contenu : enlever les espaces et balises vides
-  const cleanContent = content?.toString().trim() || '';
-  const hasContent = cleanContent.length > 0 && !/^\s*<[^>]*>\s*<\/[^>]*>\s*$/.test(cleanContent);
-  
-  if (!hasContent) return null;
-  
-  const isHTML = /<[^>]+>/.test(cleanContent);
+const removeFaqFromDescriptionHtml = (html = '') => {
+  if (!html || typeof DOMParser === 'undefined') return html;
 
-  const bodyStyle = {
-    fontSize: 15, lineHeight: 1.75, color: 'var(--s-text2)',
-    fontFamily: 'var(--s-font)',
-  };
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<div id="sf-desc-root">${html}</div>`, 'text/html');
+    const root = doc.getElementById('sf-desc-root');
+    if (!root) return html;
+
+    const faqSections = Array.from(root.querySelectorAll('div')).filter((element) => {
+      const heading = element.querySelector('h1, h2, h3, h4, h5, h6');
+      return heading && /questions fréquentes|faq/i.test((heading.textContent || '').trim());
+    });
+
+    faqSections.forEach((section) => section.remove());
+    return root.innerHTML.trim();
+  } catch {
+    return html;
+  }
+};
+
+const removeIntroBeforeAngles = (html = '') => {
+  const h3Index = html.search(/<h3[\s>]/i);
+  if (h3Index > 0) return html.slice(h3Index);
+  return html;
+};
+
+const ProductDescription = ({ content }) => {
+  const ref = useRef(null);
+  const rawContent = content?.toString().trim() || '';
+  const isHTML = /<[^>]+>/.test(rawContent);
+  if (!isHTML) return null;
+
+  const cleanContent = removeIntroBeforeAngles(rawContent);
+  if (!cleanContent) return null;
 
   return (
-    <div>
-      {isHTML ? (
-        <div className="ai-desc" style={bodyStyle} dangerouslySetInnerHTML={{ __html: cleanContent }} />
-      ) : (
-        <p style={{ ...bodyStyle, whiteSpace: 'pre-wrap', margin: 0 }}>{cleanContent}</p>
+    <div ref={ref}>
+      <div className="ai-desc" style={{ fontSize: 15, lineHeight: 1.75, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}
+        dangerouslySetInnerHTML={{ __html: cleanContent }} />
+    </div>
+  );
+};
+
+// Extraire Q/R depuis le HTML pour les anciens produits
+const extractFaqItemsFromHtml = (html = '') => {
+  if (!html || typeof DOMParser === 'undefined') return [];
+  try {
+    const doc = new DOMParser().parseFromString(`<div id="r">${html}</div>`, 'text/html');
+    const root = doc.getElementById('r');
+
+    // Trouver le conteneur FAQ (div avec heading "Questions fréquentes")
+    const faqContainer = Array.from(root.querySelectorAll('*')).find(el => {
+      if (!/^(DIV|SECTION|ARTICLE)$/.test(el.tagName)) return false;
+      const h = el.querySelector('h1,h2,h3,h4,h5,h6');
+      return h && /questions?\s*fréquentes?|faq/i.test(h.textContent || '');
+    });
+
+    const source = faqContainer || root;
+    const items = [];
+
+    // Pattern A : éléments de question (h4, h3, p>strong, p>b)
+    const questionEls = Array.from(source.querySelectorAll('h4,h3')).filter(el =>
+      !/questions?\s*fréquentes?|faq/i.test(el.textContent || '')
+    );
+
+    if (questionEls.length) {
+      questionEls.forEach(qEl => {
+        const q = qEl.textContent?.trim();
+        if (!q) return;
+        let next = qEl.nextElementSibling;
+        while (next && !next.textContent?.trim()) next = next.nextElementSibling;
+        const a = next?.textContent?.trim();
+        if (q && a) items.push({ question: q, reponse: a });
+      });
+    }
+
+    // Pattern B : <p><strong>Q?</strong></p> suivi de <p>R.</p>
+    if (!items.length) {
+      const allP = Array.from(source.querySelectorAll('p')).filter(p => p.textContent?.trim());
+      allP.forEach((p, i) => {
+        const strong = p.querySelector('strong, b');
+        if (strong && p.textContent?.includes('?')) {
+          const next = allP[i + 1];
+          if (next && !next.querySelector('strong, b')) {
+            items.push({ question: p.textContent.trim(), reponse: next.textContent.trim() });
+          }
+        }
+      });
+    }
+
+    // Pattern C : alternance paragraphes (impairs = questions, pairs = réponses)
+    if (!items.length && faqContainer) {
+      const paras = Array.from(faqContainer.querySelectorAll('p')).filter(p => p.textContent?.trim());
+      for (let i = 0; i + 1 < paras.length; i += 2) {
+        items.push({ question: paras[i].textContent.trim(), reponse: paras[i + 1].textContent.trim() });
+      }
+    }
+
+    return items;
+  } catch { return []; }
+};
+
+// ── Collapsible Section ──────────────────────────────────────────────────────
+const CollapsibleSection = ({ title, children, defaultOpen = false }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ borderTop: '1px solid var(--s-border)', marginTop: 8 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '16px 0', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+        }}
+      >
+        <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>
+          {title}
+        </span>
+        {open ? <ChevronUp size={18} color="var(--s-text2)" /> : <ChevronDown size={18} color="var(--s-text2)" />}
+      </button>
+      {open && (
+        <div style={{ paddingBottom: 20 }}>
+          {children}
+        </div>
       )}
     </div>
   );
 };
 
+const ProductFaqAccordion = ({ items = [] }) => {
+  const [openIndex, setOpenIndex] = useState(null);
+
+  if (!items.length) return null;
+
+  return (
+    <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--s-border)' }}>
+      <h2 style={{ margin: '0 0 18px', fontSize: 20, fontWeight: 800, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>
+        Questions fréquentes
+      </h2>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {items.map((item, index) => {
+          const opened = openIndex === index;
+          return (
+            <div key={`${item.question}-${index}`} style={{ borderRadius: 14, border: '1px solid', overflow: 'hidden', borderColor: opened ? 'var(--s-primary)' : 'var(--s-border)', backgroundColor: opened ? '#FAFFFE' : '#fff' }}>
+              <button
+                onClick={() => setOpenIndex(opened ? null : index)}
+                style={{ width: '100%', padding: '18px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+              >
+                <span style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--s-text)', lineHeight: 1.45, fontFamily: 'var(--s-font)' }}>
+                  {item.question}
+                </span>
+                <span style={{ flexShrink: 0, color: opened ? 'var(--s-primary)' : 'var(--s-text2)' }}>
+                  {opened ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                </span>
+              </button>
+              {opened && (
+                <div style={{ padding: '0 18px 18px', fontSize: 14, color: 'var(--s-text2)', lineHeight: 1.7, fontFamily: 'var(--s-font)' }}>
+                  {item.answer || item.reponse}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // ── Trust Badges ─────────────────────────────────────────────────────────────
-const TrustBadges = () => (
-  <div style={{
-    display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12,
-    marginTop: 24, padding: '20px 0', borderTop: '1px solid var(--s-border)',
+const TrustBadges = ({ compact = false }) => (
+  <div className="sf-no-scrollbar" style={{
+    display: 'flex', gap: 12,
+    marginTop: compact ? 24 : 28,
+    padding: compact ? '0 0 4px' : '20px 0 4px',
+    borderTop: compact ? 'none' : '1px solid var(--s-border)',
+    overflowX: 'auto',
+    flexWrap: 'nowrap',
   }}>
     {[
-      { icon: <Truck size={18} />, text: 'Livraison rapide' },
-      { icon: <Shield size={18} />, text: 'Paiement sécurisé' },
-      { icon: <RotateCcw size={18} />, text: 'Retours acceptés' },
+      { icon: <Truck size={16} />, text: 'Livraison rapide' },
+      { icon: <Shield size={16} />, text: 'Paiement sécurisé' },
+      { icon: <RotateCcw size={16} />, text: 'Retours acceptés' },
     ].map(({ icon, text }) => (
       <div key={text} style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-        textAlign: 'center',
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 14px', borderRadius: 999,
+        border: '1px solid var(--s-border)',
+        backgroundColor: '#fff',
+        whiteSpace: 'nowrap',
+        flexShrink: 0,
       }}>
-        <span style={{ color: 'var(--s-primary)' }}>{icon}</span>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>
+        <span style={{ width: 28, height: 28, borderRadius: '50%', backgroundColor: 'var(--s-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>
           {text}
         </span>
       </div>
@@ -385,7 +550,7 @@ const TrustBadges = () => (
 );
 
 // ── Related Products ─────────────────────────────────────────────────────────
-const RelatedCard = ({ product, prefix }) => {
+const RelatedCard = ({ product, prefix, store }) => {
   const [hovered, setHovered] = useState(false);
   return (
     <a href={`${prefix}/product/${product.slug}`} style={{ textDecoration: 'none' }}
@@ -397,7 +562,7 @@ const RelatedCard = ({ product, prefix }) => {
       }}>
         <div style={{ paddingBottom: '100%', position: 'relative', backgroundColor: '#f4f4f5', overflow: 'hidden' }}>
           {product.image ? (
-            <img src={product.image} alt={product.name} loading="lazy"
+            <img src={product.image} alt={product.name} loading="eager"
               style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
                 transform: hovered ? 'scale(1.04)' : 'scale(1)', transition: 'transform 0.3s' }} />
           ) : (
@@ -415,7 +580,7 @@ const RelatedCard = ({ product, prefix }) => {
             {product.name}
           </p>
           <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--s-primary)', fontFamily: 'var(--s-font)' }}>
-            {fmt(product.price, product.currency)}
+            {fmt(product.price, product.currency || store?.currency || 'XAF')}
           </span>
         </div>
       </div>
@@ -423,14 +588,6 @@ const RelatedCard = ({ product, prefix }) => {
   );
 };
 
-// ── Skeleton ─────────────────────────────────────────────────────────────────
-const Sk = ({ h = 16, w = '100%', r = 8, mb = 0 }) => (
-  <div style={{
-    height: h, width: w, borderRadius: r, marginBottom: mb,
-    background: 'linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%)',
-    backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite',
-  }} />
-);
 
 // ── Footer ───────────────────────────────────────────────────────────────────
 const StorefrontFooter = ({ store }) => (
@@ -441,12 +598,6 @@ const StorefrontFooter = ({ store }) => (
         {store?.description && <p style={{ fontSize: 13, color: 'var(--s-text2)', margin: 0, maxWidth: 320 }}>{store.description}</p>}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-        {store?.whatsapp && (
-          <a href={`https://wa.me/${store.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
-            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 40, backgroundColor: '#25D366', color: '#fff', textDecoration: 'none', fontWeight: 600, fontSize: 13 }}>
-            <MessageCircle size={15} /> Commander via WhatsApp
-          </a>
-        )}
         <span style={{ fontSize: 12, color: 'var(--s-text2)' }}>
           Propulsé par <a href="https://scalor.net" target="_blank" rel="noreferrer" style={{ color: 'var(--s-primary)', fontWeight: 600, textDecoration: 'none' }}>Scalor</a>
         </span>
@@ -462,15 +613,29 @@ const StoreProductPage = () => {
   const subdomain = paramSubdomain || detectedSubdomain;
   const prefix = isStoreDomain ? '' : (subdomain ? `/store/${subdomain}` : '');
 
-  const { store, product, related, loading, error } = useStoreProduct(subdomain, slug);
-  const { cartCount, addToCart } = useStoreCart(subdomain);
+  const { store, product, related, error } = useStoreProduct(subdomain, slug);
+  const { cartCount } = useStoreCart(subdomain);
 
-  const [addedToCart, setAddedToCart] = useState(false);
   const [showOrderModal, setShowOrderModal] = useState(false);
+  const [showStickyOrderBar, setShowStickyOrderBar] = useState(false);
+  const ctaButtonsRef = useRef(null);
 
   useEffect(() => {
-    if (product?.name) document.title = `${product.name} — ${store?.name || ''}`;
-  }, [product?.name, store?.name]);
+    if (!store?.name || !product?.name) return;
+    const storeVisual = store.logo || store.banner || product.images?.[0]?.url || '/icon.png';
+    setDocumentMeta({
+      title: product.seoTitle || `${product.name} — ${store.name}`,
+      description: truncateMetaText(
+        normalizeMetaText(product.seoDescription || product.description || store.description || `Découvrez ${product.name} chez ${store.name}.`),
+        180,
+      ),
+      image: storeVisual,
+      icon: store.logo || storeVisual,
+      siteName: store.name,
+      appTitle: store.name,
+      type: 'product',
+    });
+  }, [product, store]);
 
   // Écouter les changements de couleurs en temps réel via Socket.io
   useEffect(() => {
@@ -503,11 +668,43 @@ const StoreProductPage = () => {
     };
   }, [subdomain]);
 
-  const handleAddToCart = () => {
-    if (!product) return;
-    addToCart({ ...product, image: product.images?.[0]?.url || '' }, 1);
-    setAddedToCart(true);
-    setTimeout(() => setAddedToCart(false), 2400);
+  const images = product?.images?.length ? product.images : [];
+  const hasDiscount = product?.compareAtPrice && product.compareAtPrice > product.price;
+  const pct = hasDiscount ? Math.round((1 - product.price / product.compareAtPrice) * 100) : 0;
+  const inStock = !product || product.stock > 0;
+  const lowStock = product && product.stock > 0 && product.stock <= 5;
+  const sectionToggles = store?.sectionToggles || {};
+  const showWhatsappButton = (sectionToggles.showWhatsappButton ?? false) && !!store?.whatsapp;
+  const showFaq = sectionToggles.showFaq ?? true;
+  const showTrustBadges = sectionToggles.showTrustBadges ?? true;
+  const showRelatedProducts = sectionToggles.showRelatedProducts ?? true;
+
+  useEffect(() => {
+    if (!product || !inStock) {
+      setShowStickyOrderBar(false);
+      return;
+    }
+
+    const checkStickyVisibility = () => {
+      const ctaBox = ctaButtonsRef.current;
+      if (!ctaBox) { setShowStickyOrderBar(false); return; }
+      const rect = ctaBox.getBoundingClientRect();
+      const isVisible = rect.top < window.innerHeight && rect.bottom > 0;
+      setShowStickyOrderBar(!isVisible);
+    };
+
+    checkStickyVisibility();
+    window.addEventListener('scroll', checkStickyVisibility, { passive: true });
+    window.addEventListener('resize', checkStickyVisibility);
+
+    return () => {
+      window.removeEventListener('scroll', checkStickyVisibility);
+      window.removeEventListener('resize', checkStickyVisibility);
+    };
+  }, [product, inStock]);
+
+  const openOrderModal = () => {
+    if (inStock) setShowOrderModal(true);
   };
 
   if (error) return (
@@ -516,27 +713,23 @@ const StoreProductPage = () => {
         <p style={{ fontSize: 48, margin: '0 0 16px' }}>😕</p>
         <h2 style={{ color: '#111', fontWeight: 700, margin: '0 0 8px' }}>Produit introuvable</h2>
         <p style={{ color: '#6B7280', fontSize: 15 }}>{error}</p>
-        <a href={`${prefix}/`} style={{ marginTop: 20, display: 'inline-block', color: 'var(--s-primary)', fontWeight: 600, fontSize: 14 }}>← Retour à la boutique</a>
+        <a href={`${prefix}/`} style={{ marginTop: 20, display: 'inline-block', color: 'var(--s-primary)', fontWeight: 600, fontSize: 14 }}>← Accueil</a>
       </div>
     </div>
   );
 
-  const images = product?.images?.length ? product.images : [];
-  const hasDiscount = product?.compareAtPrice && product.compareAtPrice > product.price;
-  const pct = hasDiscount ? Math.round((1 - product.price / product.compareAtPrice) * 100) : 0;
-  const inStock = !product || product.stock > 0;
-  const lowStock = product && product.stock > 0 && product.stock <= 5;
-
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--s-bg)', fontFamily: 'var(--s-font)', color: 'var(--s-text)' }}>
       <style>{`
-        @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
         *{box-sizing:border-box} body{margin:0;padding:0}
+        .sf-no-scrollbar { scrollbar-width:none; -ms-overflow-style:none; }
+        .sf-no-scrollbar::-webkit-scrollbar { display:none; }
+        @keyframes slide-up { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @media(max-width:768px){ .product-grid{ grid-template-columns: 1fr !important; } }
         .ai-desc h3 { font-size:20px; font-weight:800; color:var(--s-text); margin:0 0 12px; line-height:1.3; }
         .ai-desc h3 strong { font-weight:800; }
         .ai-desc p { font-size:15px; line-height:1.75; color:var(--s-text2); margin:0 0 14px; }
-        .ai-desc img { width:100%; max-width:680px; height:auto; display:block; border-radius:14px; margin:0 auto 16px; box-shadow:0 4px 20px rgba(0,0,0,0.10); }
+        .ai-desc img { width:100% !important; max-width:none !important; aspect-ratio:1 / 1; object-fit:cover; display:block; margin:0 0 0; }
         .ai-desc ul { margin:0; padding:0; list-style:none; }
         .ai-desc ul li { display:flex; align-items:flex-start; gap:10px; margin-bottom:10px; font-size:14px; }
         .ai-desc-testimonials { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; }
@@ -560,20 +753,6 @@ const StoreProductPage = () => {
 
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
 
-      {/* Breadcrumb */}
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 24px' }}>
-        <a href={`${prefix}/`} style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          color: 'var(--s-text2)', fontSize: 13.5, textDecoration: 'none',
-          fontWeight: 500, fontFamily: 'var(--s-font)',
-        }}
-        onMouseEnter={e => e.currentTarget.style.color = 'var(--s-primary)'}
-        onMouseLeave={e => e.currentTarget.style.color = 'var(--s-text2)'}
-        >
-          <ArrowLeft size={15} /> Retour à la boutique
-        </a>
-      </div>
-
       {/* Product Detail */}
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '8px 24px 0' }}>
         <div className="product-grid" style={{
@@ -581,40 +760,12 @@ const StoreProductPage = () => {
         }}>
           {/* ── Left: Gallery ─────────────────────────────────────────────── */}
           <div style={{ position: 'sticky', top: 80 }}>
-            {loading ? (
-              <div>
-                <div style={{ paddingBottom: '100%', position: 'relative', borderRadius: 20, overflow: 'hidden' }}>
-                  <div style={{
-                    position: 'absolute', inset: 0,
-                    background: 'linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%)',
-                    backgroundSize: '200% 100%', animation: 'shimmer 1.4s infinite',
-                  }} />
-                </div>
-                <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-                  {[0,1,2].map(i => <Sk key={i} h={68} w={68} r={12} />)}
-                </div>
-              </div>
-            ) : (
-              <ImageGallery images={images} />
-            )}
+            <ImageGallery images={images} />
           </div>
 
           {/* ── Right: Info ───────────────────────────────────────────────── */}
           <div style={{ paddingBottom: 48 }}>
-            {loading ? (
-              <div>
-                <Sk h={12} w="30%" r={6} mb={12} />
-                <Sk h={36} r={8} mb={8} />
-                <Sk h={36} w="70%" r={8} mb={24} />
-                <Sk h={28} w="40%" r={6} mb={8} />
-                <Sk h={20} w="25%" r={6} mb={32} />
-                <Sk h={54} r={12} mb={12} />
-                <Sk h={54} r={12} mb={24} />
-                <Sk h={16} r={6} mb={8} />
-                <Sk h={16} w="80%" r={6} mb={8} />
-                <Sk h={16} w="60%" r={6} />
-              </div>
-            ) : product ? (
+            {product ? (
               <>
                 {/* Category */}
                 {product.category && (
@@ -644,12 +795,12 @@ const StoreProductPage = () => {
                 {/* Price */}
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
                   <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--s-primary)', fontFamily: 'var(--s-font)', letterSpacing: '-0.02em' }}>
-                    {fmt(product.price, product.currency)}
+                    {fmt(product.price, product.currency || store?.currency || 'XAF')}
                   </span>
                   {hasDiscount && (
                     <>
                       <span style={{ fontSize: 17, color: 'var(--s-text2)', textDecoration: 'line-through', fontFamily: 'var(--s-font)' }}>
-                        {fmt(product.compareAtPrice, product.currency)}
+                        {fmt(product.compareAtPrice, product.currency || store?.currency || 'XAF')}
                       </span>
                       <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 9px', borderRadius: 20, backgroundColor: '#FEE2E2', color: '#EF4444' }}>
                         -{pct}%
@@ -676,9 +827,9 @@ const StoreProductPage = () => {
                 </div>
 
                 {/* CTA Buttons */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+                <div ref={ctaButtonsRef} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
                   <button
-                    onClick={inStock ? () => setShowOrderModal(true) : undefined}
+                    onClick={openOrderModal}
                     disabled={!inStock}
                     onMouseEnter={(e) => {
                       if (inStock) {
@@ -723,129 +874,41 @@ const StoreProductPage = () => {
                     </span>
                   </button>
 
-                  {store?.whatsapp && (
-                    <button
-                      onClick={() => setShowOrderModal(true)}
-                      style={{
-                        width: '100%', padding: '14px 24px', borderRadius: 40, border: '1.5px solid #25D366',
-                        backgroundColor: 'transparent', color: '#25D366',
-                        fontWeight: 700, fontSize: 15, cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9,
-                        fontFamily: 'var(--s-font)', transition: 'all 0.15s',
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#25D366'; e.currentTarget.style.color = '#fff'; }}
-                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#25D366'; }}
-                    >
-                      <MessageCircle size={17} /> Commander via WhatsApp
-                    </button>
-                  )}
                 </div>
 
                 {/* Messages de confiance */}
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'center', 
-                  gap: '24px', 
-                  marginTop: '24px',
-                  marginBottom: '16px',
-                  flexWrap: 'wrap'
-                }}>
-                  <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
-                    gap: '8px',
-                    textAlign: 'center'
-                  }}>
-                    <div style={{
-                      width: '48px',
-                      height: '48px',
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--s-primary)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'white'
-                    }}>
-                      <Truck size={20} />
-                    </div>
-                    <span style={{ 
-                      fontSize: '12px', 
-                      fontWeight: 600, 
-                      color: 'var(--s-text)',
-                      fontFamily: 'var(--s-font)'
-                    }}>
-                      Livraison rapide
-                    </span>
-                  </div>
-                  
-                  <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
-                    gap: '8px',
-                    textAlign: 'center'
-                  }}>
-                    <div style={{
-                      width: '48px',
-                      height: '48px',
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--s-primary)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'white'
-                    }}>
-                      <Shield size={20} />
-                    </div>
-                    <span style={{ 
-                      fontSize: '12px', 
-                      fontWeight: 600, 
-                      color: 'var(--s-text)',
-                      fontFamily: 'var(--s-font)'
-                    }}>
-                      Paiement sécurisé
-                    </span>
-                  </div>
-                  
-                  <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
-                    gap: '8px',
-                    textAlign: 'center'
-                  }}>
-                    <div style={{
-                      width: '48px',
-                      height: '48px',
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--s-primary)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'white'
-                    }}>
-                      <RotateCcw size={20} />
-                    </div>
-                    <span style={{ 
-                      fontSize: '12px', 
-                      fontWeight: 600, 
-                      color: 'var(--s-text)',
-                      fontFamily: 'var(--s-font)'
-                    }}>
-                      Retours acceptés
-                    </span>
-                  </div>
-                </div>
+                {showTrustBadges && <TrustBadges compact />}
 
-                {/* Description - affichage direct sans titre */}
-                {product.description?.toString().trim() && (
-                  <div style={{ marginBottom: 16, paddingTop: 16, borderTop: '1px solid var(--s-border)' }}>
-                    <ProductDescription content={product.description} />
-                  </div>
-                )}
+                {/* Description IA + FAQ — sections réductibles */}
+                {(() => {
+                  const raw = product.description?.toString().trim() || '';
+                  const hasHtml = raw && /<[^>]+>/.test(raw);
 
-                <TrustBadges />
+                  // FAQ : priorité product.faq, sinon extraction depuis HTML
+                  const faqItems = product.faq?.length > 0
+                    ? product.faq
+                    : (showFaq && hasHtml ? extractFaqItemsFromHtml(raw) : []);
+                  const hasFaq = showFaq && faqItems.length > 0;
+
+                  // Description nettoyée : retirer la section FAQ du HTML
+                  const descHtml = hasHtml ? removeFaqFromDescriptionHtml(raw) : '';
+                  const hasDesc = !!descHtml;
+
+                  return (
+                    <>
+                      {hasDesc && (
+                        <CollapsibleSection title="Description du produit" defaultOpen={true}>
+                          <ProductDescription content={descHtml} />
+                        </CollapsibleSection>
+                      )}
+                      {hasFaq && (
+                        <CollapsibleSection title="❓ Questions fréquentes" defaultOpen={false}>
+                          <ProductFaqAccordion items={faqItems} />
+                        </CollapsibleSection>
+                      )}
+                    </>
+                  );
+                })()}
               </>
             ) : null}
           </div>
@@ -853,7 +916,7 @@ const StoreProductPage = () => {
       </div>
 
       {/* ── Related Products ───────────────────────────────────────────────── */}
-      {related.length > 0 && (
+      {showRelatedProducts && related.length > 0 && (
         <section style={{ maxWidth: 1200, margin: '64px auto 0', padding: '0 24px' }}>
           <h2 style={{
             fontSize: 'clamp(20px, 3vw, 26px)', fontWeight: 800, color: 'var(--s-text)',
@@ -862,9 +925,42 @@ const StoreProductPage = () => {
             Vous aimerez aussi
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 16 }}>
-            {related.map(p => <RelatedCard key={p._id} product={p} prefix={prefix} />)}
+            {related.map(p => <RelatedCard key={p._id} product={p} prefix={prefix} store={store} />)}
           </div>
         </section>
+      )}
+
+      {showStickyOrderBar && product && (
+        <div style={{
+          position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 70,
+          padding: '10px 14px calc(env(safe-area-inset-bottom, 0px) + 10px)',
+          backgroundColor: 'rgba(255,255,255,0.96)',
+          borderTop: '1px solid var(--s-border)',
+          boxShadow: '0 -10px 30px rgba(0,0,0,0.08)',
+          backdropFilter: 'blur(10px)',
+          animation: 'slide-up 0.2s ease-out',
+        }}>
+          <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>{product.name}</p>
+              <p style={{ margin: '2px 0 0', fontSize: 16, fontWeight: 800, color: 'var(--s-primary)', fontFamily: 'var(--s-font)' }}>
+                {fmt(product.price, product.currency || store?.currency || 'XAF')}
+              </p>
+            </div>
+            <button
+              onClick={openOrderModal}
+              disabled={!inStock}
+              style={{
+                border: 'none', borderRadius: 999, padding: '14px 20px',
+                backgroundColor: inStock ? 'var(--s-primary)' : '#d1d5db', color: '#fff',
+                fontSize: 14, fontWeight: 800, fontFamily: 'var(--s-font)',
+                cursor: inStock ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap',
+              }}
+            >
+              Commander
+            </button>
+          </div>
+        </div>
       )}
 
       <StorefrontFooter store={store} />

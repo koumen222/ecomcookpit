@@ -65,13 +65,11 @@ function ImagePreview({ src, label, className = '' }) {
     </div>
   );
   return (
-    <div className={`relative rounded-xl overflow-hidden bg-gray-100 ${className}`}>
-      <img src={src} alt={label || 'Product image'} className="w-full h-full object-cover" />
-      {label && (
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2">
-          <p className="text-white text-xs font-medium">{label}</p>
-        </div>
-      )}
+    <div className="space-y-2">
+      <div className={`relative rounded-xl overflow-hidden bg-gray-100 border border-gray-200 ${className}`}>
+        <img src={src} alt={label || 'Product image'} className="w-full h-full object-cover" />
+      </div>
+      {label && <p className="text-xs font-medium text-gray-500 px-1">{label}</p>}
     </div>
   );
 }
@@ -229,18 +227,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     let descHtml = '';
 
     // ── Intro description (courte, sans images markdown) ─────────────────────
-    if (product.description) {
-      let desc = product.description
-        .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '') // Remove markdown images (handled per angle)
-        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/###\s*(.+)/g, '') // Remove markdown H3 headers (we'll use our own)
-        .replace(/\n\n+/g, '</p><p>')
-        .replace(/\n/g, ' ')
-        .trim();
-      if (desc && desc !== '<p></p>') {
-        descHtml += `<div style="margin-bottom:24px;line-height:1.7;color:#444;font-size:15px;"><p>${desc}</p></div>`;
-      }
-    }
 
     // ── 4 Arguments marketing : H3 gras + description 3-4 lignes + image ─────
     if (product.angles?.length) {
@@ -256,7 +242,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
         }
         // Image
         if (angle.poster_url) {
-          descHtml += `<img src="${angle.poster_url}" alt="${angle.titre_angle}" style="width:100%;max-width:680px;height:auto;display:block;border-radius:14px;margin:0 auto;box-shadow:0 4px 20px rgba(0,0,0,0.10);"/>`;
+          descHtml += `<img src="${angle.poster_url}" alt="${angle.titre_angle}" style="width:100%;aspect-ratio:1 / 1;object-fit:cover;display:block;margin:0;"/>`;
         }
         descHtml += `</div>`;
       });
@@ -323,22 +309,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
         });
         descHtml += `</ul>`;
       }
-      descHtml += `</div>`;
-    }
-
-    // ── FAQ détaillée ──────────────────────────────────────────────────────────
-    if (product.faq?.length) {
-      descHtml += `<div style="margin:48px 0;">`;
-      descHtml += `<h3 style="font-size:22px;font-weight:800;color:#111;margin:0 0 24px;"><strong>❓ Questions fréquentes</strong></h3>`;
-      product.faq.forEach((f, idx) => {
-        descHtml += `<div style="margin-bottom:16px;border:1px solid #e5e7eb;border-radius:14px;overflow:hidden;">`;
-        descHtml += `<div style="padding:16px 20px;background:#f9fafb;">`;
-        descHtml += `<p style="margin:0;font-size:15px;font-weight:700;color:#111;">${f.question}</p>`;
-        descHtml += `</div>`;
-        descHtml += `<div style="padding:16px 20px;background:#fff;">`;
-        descHtml += `<p style="margin:0;font-size:14px;line-height:1.7;color:#444;">${f.reponse}</p>`;
-        descHtml += `</div></div>`;
-      });
       descHtml += `</div>`;
     }
     
@@ -683,7 +653,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                   {/* Hero photo avec textes */}
                   {product.heroImage && (
                     <div className="border border-gray-200 rounded-xl overflow-hidden">
-                      <ImagePreview src={product.heroImage} label="Image HERO principale" className="w-full h-52" />
+                      <ImagePreview src={product.heroImage} label="Image HERO principale" className="w-full aspect-square" />
                       {(product.hero_headline || product.hero_slogan || product.hero_baseline) && (
                         <div className="p-4 bg-gradient-to-br from-violet-50 to-indigo-50 border-t border-gray-200">
                           {product.hero_headline && (
@@ -709,23 +679,13 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                   </div>
 
                   {/* Description */}
-                  {product.description && (
-                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">� Description</p>
-                        <CopyButton text={product.description} />
-                      </div>
-                      <p className="text-sm text-gray-700 whitespace-pre-line">{product.description?.replace(/\*\*(.+?)\*\*/g, '$1').slice(0, 500)}...</p>
-                    </div>
-                  )}
-
                   {/* 3 Angles marketing */}
                   <div>
                     <p className="text-xs font-bold text-violet-700 uppercase tracking-wide mb-3">🎯 4 ARGUMENTS MARKETING</p>
                     {(product.angles || []).map((angle, i) => (
                       <div key={i} className="mb-3 border border-gray-100 rounded-xl overflow-hidden">
                         {angle.poster_url && (
-                          <ImagePreview src={angle.poster_url} label={`Affiche ${i + 1}`} className="w-full h-40" />
+                          <ImagePreview src={angle.poster_url} label={`Visuel angle ${i + 1}`} className="w-full aspect-square" />
                         )}
                         <div className="p-4">
                           <h4 className="text-sm font-bold text-gray-800 mb-2">{angle.titre_angle}</h4>
@@ -761,16 +721,12 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               {/* Tab: Affiches publicitaires */}
               {activeTab === 'affiches' && (
                 <div className="space-y-4">
-                  <p className="text-xs text-gray-500 font-medium">4 affiches publicitaires professionnelles générées par IA</p>
+                  <p className="text-xs text-gray-500 font-medium">4 visuels d'angles marketing, simples et sans surcharge de texte</p>
                   {(product.angles || []).map((angle, i) => (
                     <div key={i} className="border border-gray-100 rounded-xl overflow-hidden">
                       {angle.poster_url ? (
-                        <div className="relative">
+                        <div className="bg-gray-50">
                           <img src={angle.poster_url} alt={angle.titre_angle} className="w-full aspect-square object-cover" />
-                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
-                            <p className="text-white font-bold text-sm">{angle.titre_angle}</p>
-                            <p className="text-white/80 text-xs">{angle.promesse}</p>
-                          </div>
                         </div>
                       ) : (
                         <div className="p-6 bg-gray-50 text-center">
@@ -779,6 +735,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                         </div>
                       )}
                       <div className="p-3 bg-violet-50">
+                        <p className="text-sm font-semibold text-gray-800 mb-1">{angle.titre_angle}</p>
                         <p className="text-xs text-violet-600 italic">{angle.message_principal}</p>
                       </div>
                     </div>

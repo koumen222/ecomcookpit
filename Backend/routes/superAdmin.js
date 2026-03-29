@@ -4,6 +4,7 @@ import Workspace from '../models/Workspace.js';
 import PlanPayment from '../models/PlanPayment.js';
 import WhatsAppLog from '../models/WhatsAppLog.js';
 import SupportConversation from '../models/SupportConversation.js';
+import StoreProduct from '../models/StoreProduct.js';
 import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
 import { logAudit, auditSensitiveAccess, AuditLog } from '../middleware/security.js';
 
@@ -900,6 +901,54 @@ router.get('/billing', requireEcomAuth, requireSuperAdmin, async (req, res) => {
   } catch (err) {
     console.error('[SuperAdmin] GET /billing error:', err.message, err.stack);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// ── Migration : nettoyer les descriptions HTML des produits ──────────────────
+function cleanProductHtml(html) {
+  if (!html || typeof html !== 'string') return html;
+  let s = html;
+
+  // Supprimer liens/boutons WhatsApp (wa.me)
+  s = s.replace(/<a[^>]*href=["'][^"']*wa\.me[^"']*["'][^>]*>[\s\S]*?<\/a>/gi, '');
+  // Supprimer boutons contenant "WhatsApp"
+  s = s.replace(/<a[^>]*>[\s\S]*?[Ww]hat[sS]?[Aa]pp[\s\S]*?<\/a>/gi, '');
+  s = s.replace(/<button[^>]*>[\s\S]*?[Ww]hat[sS]?[Aa]pp[\s\S]*?<\/button>/gi, '');
+  // Supprimer liens "Retour"
+  s = s.replace(/<a[^>]*>[^<]*[Rr]etour[^<]*<\/a>/gi, '');
+  s = s.replace(/<a[^>]*>[^<]*←[^<]*<\/a>/gi, '');
+  // Supprimer border-radius sur les images
+  s = s.replace(/(<img[^>]+style=["'][^"']*)border-radius\s*:\s*[^;'"]+;?\s*/gi, '$1');
+  // Ajouter aspect-ratio + object-fit si absent sur images
+  s = s.replace(/<img([^>]+style=["'])([^"']*)(["'][^>]*)>/gi, (match, before, styles, after) => {
+    let st = styles;
+    if (!st.includes('aspect-ratio')) st += ';aspect-ratio:1 / 1';
+    if (!st.includes('object-fit')) st += ';object-fit:cover';
+    st = st.replace(/border-radius\s*:\s*[^;]+;?/gi, '').replace(/;;+/g, ';').replace(/^;|;$/g, '');
+    return `<img${before}${st}${after}>`;
+  });
+
+  return s.trim();
+}
+
+router.post('/migrate-product-descriptions', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const products = await StoreProduct.find({
+      description: { $exists: true, $ne: '', $regex: /<[^>]+>/ }
+    }).select('_id name description').lean();
+
+    let updated = 0, skipped = 0;
+    for (const p of products) {
+      const cleaned = cleanProductHtml(p.description);
+      if (cleaned === p.description) { skipped++; continue; }
+      await StoreProduct.updateOne({ _id: p._id }, { $set: { description: cleaned } });
+      updated++;
+    }
+
+    res.json({ success: true, updated, skipped, total: products.length });
+  } catch (err) {
+    console.error('[SuperAdmin] migrate-product-descriptions error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 

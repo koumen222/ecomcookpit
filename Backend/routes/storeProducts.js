@@ -6,6 +6,7 @@ import Product from '../models/Product.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { requireStoreOwner } from '../middleware/storeAuth.js';
 import { uploadImage, isConfigured } from '../services/cloudflareImagesService.js';
+import imageOptimizer from '../services/imageOptimizer.js';
 import OpenAI from 'openai';
 
 let openai = null;
@@ -161,14 +162,27 @@ router.post(
       const uploadedImages = [];
 
       for (const file of files) {
+        // Optimize to WebP before upload — resize to max 1200px, compress
+        let uploadBuffer = file.buffer;
+        let uploadMime = file.mimetype;
+        let uploadName = file.originalname.replace(/\.[^.]+$/, '.webp');
+        try {
+          uploadBuffer = await imageOptimizer.optimizeImage(file.buffer, {
+            width: 1200, height: 1200, quality: 82
+          });
+          uploadMime = 'image/webp';
+        } catch {
+          // Fall back to original if Sharp fails
+        }
+
         const result = await uploadImage(
-          file.buffer,
-          file.originalname,
+          uploadBuffer,
+          uploadName,
           {
             workspaceId: req.workspaceId.toString(),
             uploadedBy: req.user.id,
-            filename: file.originalname,
-            mimeType: file.mimetype
+            filename: uploadName,
+            mimeType: uploadMime
           }
         );
 
@@ -176,8 +190,8 @@ router.post(
           id: result.id,
           url: result.url,
           key: result.key,
-          filename: file.originalname,
-          size: file.size
+          filename: uploadName,
+          size: uploadBuffer.length
         });
       }
 

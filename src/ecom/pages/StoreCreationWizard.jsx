@@ -88,11 +88,27 @@ const TONES = [
 const CURRENCIES = [
   { code: 'XAF', label: 'Franc CFA', symbol: 'FCFA', region: 'Afrique Centrale' },
   { code: 'XOF', label: 'Franc CFA', symbol: 'FCFA', region: 'Afrique Ouest' },
+  { code: 'NGN', label: 'Naira', symbol: '₦', region: 'Nigeria' },
+  { code: 'GHS', label: 'Cedi', symbol: 'GH₵', region: 'Ghana' },
+  { code: 'GNF', label: 'Franc Guinéen', symbol: 'GNF', region: 'Guinée' },
+  { code: 'MAD', label: 'Dirham', symbol: 'DH', region: 'Maroc' },
   { code: 'EUR', label: 'Euro', symbol: '€', region: 'Europe' },
   { code: 'USD', label: 'Dollar US', symbol: '$', region: 'International' },
-  { code: 'MAD', label: 'Dirham', symbol: 'DH', region: 'Maroc' },
-  { code: 'GNF', label: 'Franc Guinéen', symbol: 'GNF', region: 'Guinée' },
 ];
+
+const COUNTRY_CURRENCY = {
+  cameroun: 'XAF', gabon: 'XAF', congo: 'XAF', rdc: 'XAF',
+  centrafrique: 'XAF', tchad: 'XAF', 'guinee equatoriale': 'XAF',
+  senegal: 'XOF', mali: 'XOF', 'burkina faso': 'XOF', togo: 'XOF',
+  benin: 'XOF', niger: 'XOF', 'cote d ivoire': 'XOF', "cote d'ivoire": 'XOF',
+  'ivory coast': 'XOF', 'guinee bissau': 'XOF',
+  nigeria: 'NGN',
+  ghana: 'GHS',
+  guinee: 'GNF',
+  maroc: 'MAD',
+  france: 'EUR', belgique: 'EUR',
+  usa: 'USD', 'etats unis': 'USD', 'united states': 'USD',
+};
 
 const COLORS = [
   { value: '#0F6B4F', name: 'Émeraude' },
@@ -381,7 +397,19 @@ const StoreCreationWizard = ({ onComplete }) => {
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
   const set = (key, val) => {
-    setForm(p => ({ ...p, [key]: val }));
+    setForm(p => {
+      const next = { ...p, [key]: val };
+      if (key === 'country') {
+        const normalized = val.toLowerCase()
+          .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim();
+        const detectedCurrency = Object.entries(COUNTRY_CURRENCY).find(
+          ([k]) => normalized === k || normalized.includes(k) || k.includes(normalized)
+        )?.[1];
+        if (detectedCurrency) next.storeCurrency = detectedCurrency;
+      }
+      return next;
+    });
     setErrors(p => ({ ...p, [key]: '' }));
   };
 
@@ -534,7 +562,17 @@ const StoreCreationWizard = ({ onComplete }) => {
       if (!isEditMode || isResetMode) {
         setSavingStep("L'IA construit votre page d'accueil...");
         try {
-          const genRes = await storeManageApi.generateHomepage();
+          const genRes = await storeManageApi.generateHomepage({
+            storeName: form.storeName,
+            storeDescription: form.storeDescription,
+            productType: form.productType,
+            productDescription: form.productDescription,
+            tone: form.tone,
+            audience: form.audience,
+            city: form.city,
+            country: form.country,
+            storeWhatsApp: form.storeWhatsApp,
+          });
           const sections = genRes.data?.sections;
           if (Array.isArray(sections) && sections.length > 0) {
             await storeManageApi.updatePages({ sections });

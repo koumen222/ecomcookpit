@@ -1077,15 +1077,20 @@ router.post('/activate', async (req, res) => {
       }
     }
 
-    // Chercher l'instance spécifique OU toutes les instances actives
+    // Chercher UNIQUEMENT l'instance spécifique — si aucune instanceId fournie, refuser quand enabled=true
     let instances;
     if (instanceId) {
       const inst = await WhatsAppInstance.findOne({ _id: instanceId, userId: actualUserId, isActive: true });
       instances = inst ? [inst] : [];
       console.log(`🔧 [ACTIVATE] Instance ciblée: ${inst ? inst.instanceName : 'INTROUVABLE (id=' + instanceId + ')'}`);
+    } else if (enabled) {
+      // Activation sans instance sélectionnée → bloquer
+      console.log(`⛔ [ACTIVATE] Activation refusée : aucune instanceId fournie`);
+      return res.status(400).json({ success: false, error: 'Sélectionnez une instance WhatsApp avant d\'activer Rita.' });
     } else {
+      // Désactivation sans instanceId → désactiver toutes les instances du user
       instances = await WhatsAppInstance.find({ userId: actualUserId, isActive: true });
-      console.log(`🔧 [ACTIVATE] Toutes les instances: ${instances.map(i => i.instanceName).join(', ') || 'aucune'}`);
+      console.log(`🔧 [ACTIVATE] Désactivation de toutes les instances: ${instances.map(i => i.instanceName).join(', ') || 'aucune'}`);
     }
 
     if (!instances.length) {
@@ -1407,11 +1412,22 @@ router.post('/incoming', async (req, res) => {
           console.log(`💬 [RITA] userId résolu: ${userId} (instance.userId=${instanceDoc?.userId}, workspaceId=${instanceDoc?.workspaceId})`);
 
           // ─── Résoudre l'agentId via l'instanceId stocké dans RitaConfig ───
+          // IMPORTANT : seule une config avec instanceId correspondant à cette instance peut répondre.
+          // Si aucune config n'est liée à cette instance, Rita ne répond PAS (évite les réponses sur des instances non configurées).
           let agentId = null;
+          let ritaConfigForInstance = null;
           if (instanceDoc?._id) {
-            const instCfg = await RitaConfig.findOne({ instanceId: String(instanceDoc._id) }).select('agentId').lean();
-            agentId = instCfg?.agentId || null;
-            if (agentId) console.log(`🤖 [RITA] agentId résolu: ${agentId}`);
+            ritaConfigForInstance = await RitaConfig.findOne({ instanceId: String(instanceDoc._id) }).select('agentId enabled').lean();
+            if (ritaConfigForInstance) {
+              agentId = ritaConfigForInstance.agentId || null;
+              if (agentId) console.log(`🤖 [RITA] agentId résolu: ${agentId}`);
+            } else {
+              console.log(`⏩ [RITA] Aucune config Rita liée à l'instance "${instanceDoc.instanceName}" (id=${instanceDoc._id}) — message ignoré.`);
+              continue;
+            }
+          } else {
+            console.log(`⏩ [RITA] instanceDoc introuvable — message ignoré.`);
+            continue;
           }
 
           // ─── Enregistrer le contact dès qu'il écrit (avant tout traitement) ───
@@ -3002,6 +3018,46 @@ router.patch('/orders/:id', requireEcomAuth, async (req, res) => {
  * @route   GET /api/ecom/v1/external/whatsapp/orders/stats
  * @desc    Stats rapides des commandes
  */
+/**
+ * @route GET /api/ecom/v1/external/whatsapp/agent-dashboard-stats
+ * @desc  KPIs du dashboard Commercial IA : commandes du jour, CA du jour, messages traités
+ */
+router.get('/agent-dashboard-stats', requireEcomAuth, async (req, res) => {
+  try {
+    const userId = req.ecomUser._id.toString();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    const [ordersToday, messageStats] = await Promise.all([
+      WhatsAppOrder.find({ userId, createdAt: { $gte: today, $lt: tomorrow } }).lean(),
+      WhatsAppInstance.aggregate([
+        { $match: { userId, isActive: true } },
+        { $group: { _id: null, total: { $sum: '$messagesSentToday' } } }
+      ])
+    ]);
+
+    // Calculer le CA en parsant le champ productPrice (ex: "10000 XAF")
+    let revenueToday = 0;
+    for (const order of ordersToday) {
+      const num = parseInt((order.productPrice || '').replace(/[^0-9]/g, ''), 10);
+      if (!isNaN(num)) revenueToday += num * (order.quantity || 1);
+    }
+
+    res.json({
+      success: true,
+      stats: {
+        ordersToday: ordersToday.length,
+        revenueToday,
+        messagesToday: messageStats[0]?.total || 0,
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 router.get('/orders/stats', requireEcomAuth, async (req, res) => {
   try {
     const userId = req.ecomUser._id.toString();

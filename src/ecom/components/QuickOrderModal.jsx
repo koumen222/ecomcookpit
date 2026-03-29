@@ -1,53 +1,35 @@
 import React, { useState } from 'react';
-import { X, ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Minus, DollarSign, Truck } from 'lucide-react';
+import { X, ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Minus, Truck } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 
+const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
+
 /**
- * QuickOrderModal - Modal de commande rapide
- * S'ouvre directement depuis la page produit
- * Collecte: nom, téléphone, ville, lieu de livraison
+ * QuickOrderModal — Modal commande rapide depuis la page produit.
+ * Collecte nom, téléphone, ville, adresse, quantité.
+ * Après succès → affiche un bouton WhatsApp pré-rempli avec les détails de commande.
  */
 const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store }) => {
-  const [form, setForm] = useState({
-    customerName: '',
-    phone: '',
-    city: '',
-    address: '',
-    quantity: 1
-  });
+  const [form, setForm] = useState({ customerName: '', phone: '', city: '', address: '', quantity: 1 });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [orderResult, setOrderResult] = useState(null);
 
-  // Utiliser la couleur primaire du store (celle configurée dans les paramètres)
-  const themeColor = getComputedStyle(document.documentElement).getPropertyValue('--s-primary').trim() || store?.primaryColor || '#0066CC';
-  const currency = product?.currency || store?.storeSettings?.storeCurrency || 'XAF';
+  const themeColor = getComputedStyle(document.documentElement).getPropertyValue('--s-primary').trim() || store?.primaryColor || '#0F6B4F';
+  const currency = product?.currency || 'XAF';
+  const total = (product?.price || 0) * form.quantity;
 
-  const handleChange = (field, value) => {
-    setForm(prev => ({ ...prev, [field]: value }));
-    setError('');
-  };
+  const set = (field, value) => { setForm(prev => ({ ...prev, [field]: value })); setError(''); };
 
-  const formatPrice = (price) => new Intl.NumberFormat('fr-FR').format(price);
-  const total = product?.price * form.quantity || 0;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!form.customerName.trim() || !form.phone.trim()) {
-      setError('Nom et numéro de téléphone requis');
-      return;
-    }
-
-    if (!form.city.trim() || !form.address.trim()) {
-      setError('Ville et lieu de livraison requis');
-      return;
-    }
+    if (!form.customerName.trim() || !form.phone.trim()) { setError('Nom et téléphone requis'); return; }
+    if (!form.city.trim() || !form.address.trim()) { setError('Ville et lieu de livraison requis'); return; }
 
     setSubmitting(true);
     setError('');
-
     try {
       const res = await publicStoreApi.placeOrder(subdomain, {
         customerName: form.customerName.trim(),
@@ -56,69 +38,56 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store }) => {
         address: form.address.trim(),
         city: form.city.trim(),
         notes: '',
-        products: [{
-          productId: product._id,
-          quantity: quantity
-        }],
-        channel: 'store'
+        products: [{ productId: product._id, quantity: form.quantity }],
+        channel: 'store',
       });
-
       setOrderResult(res.data?.data);
       setSuccess(true);
     } catch (err) {
-      console.error('Erreur commande:', err);
-      setError(err.response?.data?.message || 'Erreur lors de la commande. Veuillez réessayer.');
+      setError(err.response?.data?.message || 'Erreur lors de la commande. Réessayez.');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleClose = () => {
-    setForm({ customerName: '', phone: '', city: '', address: '' });
-    setError('');
-    setSuccess(false);
-    setOrderResult(null);
+    setForm({ customerName: '', phone: '', city: '', address: '', quantity: 1 });
+    setError(''); setSuccess(false); setOrderResult(null);
     onClose();
   };
 
   if (!isOpen) return null;
 
-  // Écran de succès
+  // ── Écran de succès ──────────────────────────────────────────────────────────
   if (success && orderResult) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 text-center space-y-5">
-          <div className="w-16 h-16 rounded-full mx-auto flex items-center justify-center" style={{ backgroundColor: themeColor + '15' }}>
-            <CheckCircle className="w-8 h-8" style={{ color: themeColor }} />
+      <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}>
+        <div style={{ backgroundColor: '#fff', borderRadius: 20, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', width: '100%', maxWidth: 420, padding: 32, textAlign: 'center' }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', margin: '0 auto 20px', backgroundColor: themeColor + '18', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <CheckCircle size={32} color={themeColor} />
+          </div>
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: '0 0 6px' }}>Commande confirmée !</h2>
+          <p style={{ fontSize: 13.5, color: '#6B7280', margin: '0 0 24px' }}>Merci {form.customerName.split(' ')[0]} 🙏</p>
+
+          <div style={{ backgroundColor: '#F9FAFB', borderRadius: 14, padding: '16px 20px', marginBottom: 24, textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[
+              ['Référence', orderResult.orderNumber],
+              ['Produit', `${product?.name} x${form.quantity}`],
+              ['Total', fmt(orderResult.total, orderResult.currency)],
+              ['Statut', 'En attente de livraison'],
+            ].map(([label, value]) => (
+              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
+                <span style={{ color: '#6B7280' }}>{label}</span>
+                <span style={{ fontWeight: 700, color: '#111827' }}>{value}</span>
+              </div>
+            ))}
           </div>
 
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">Commande confirmée !</h2>
-            <p className="text-sm text-gray-500 mt-1">Merci pour votre commande</p>
-          </div>
-
-          <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-left">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">N° commande</span>
-              <span className="font-bold text-gray-900">{orderResult.orderNumber}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Total</span>
-              <span className="font-bold" style={{ color: themeColor }}>
-                {formatPrice(orderResult.total)} {orderResult.currency}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Statut</span>
-              <span className="text-amber-600 font-medium">En attente</span>
-            </div>
-          </div>
-
-          <button
-            onClick={handleClose}
-            className="w-full px-4 py-3 text-white rounded-xl font-medium text-sm transition hover:opacity-90"
-            style={{ backgroundColor: themeColor }}
-          >
+          <button onClick={handleClose} style={{
+            width: '100%', padding: '12px 20px', borderRadius: 40,
+            border: '1.5px solid #E5E7EB', backgroundColor: 'transparent',
+            color: '#6B7280', fontWeight: 600, fontSize: 14, cursor: 'pointer',
+          }}>
             Continuer les achats
           </button>
         </div>
@@ -126,183 +95,101 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store }) => {
     );
   }
 
-  // Formulaire de commande
+  // ── Formulaire ───────────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}>
+      <div style={{ backgroundColor: '#fff', borderRadius: 20, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', width: '100%', maxWidth: 440, maxHeight: '92vh', overflowY: 'auto' }}>
+
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-            <ShoppingCart className="w-5 h-5" style={{ color: themeColor }} />
-            Finaliser la commande
+        <div style={{ position: 'sticky', top: 0, backgroundColor: '#fff', borderBottom: '1px solid #F3F4F6', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: '20px 20px 0 0' }}>
+          <h2 style={{ fontSize: 16, fontWeight: 800, color: '#111827', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <ShoppingCart size={18} color={themeColor} /> Commander maintenant
           </h2>
-          <button
-            onClick={handleClose}
-            className="p-1.5 rounded-lg hover:bg-gray-100 transition"
-          >
-            <X className="w-5 h-5 text-gray-600" />
+          <button onClick={handleClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#9CA3AF', display: 'flex' }}>
+            <X size={20} />
           </button>
         </div>
 
-        {/* Récapitulatif produit */}
-        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            {product?.images?.[0]?.url && (
-              <img 
-                src={product.images[0].url} 
-                alt={product.name} 
-                className="w-16 h-16 rounded-lg object-cover border border-gray-200"
-              />
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900 truncate">{product?.name}</p>
-              <p className="text-xs text-gray-500">Quantité: {form.quantity}</p>
-            </div>
-            <span className="text-base font-bold" style={{ color: themeColor }}>
-              {formatPrice(total)} {currency}
-            </span>
+        {/* Récap produit */}
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid #F3F4F6', backgroundColor: '#FAFAFA', display: 'flex', alignItems: 'center', gap: 12 }}>
+          {product?.images?.[0]?.url && (
+            <img src={product.images[0].url} alt={product?.name} style={{ width: 60, height: 60, borderRadius: 10, objectFit: 'cover', border: '1px solid #E5E7EB' }} />
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product?.name}</p>
+            <p style={{ margin: '3px 0 0', fontSize: 12, color: '#6B7280' }}>Qté: {form.quantity}</p>
           </div>
+          <span style={{ fontSize: 15, fontWeight: 800, color: themeColor, flexShrink: 0 }}>{fmt(total, currency)}</span>
         </div>
 
         {/* Formulaire */}
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+        <form onSubmit={handleSubmit} style={{ padding: '20px 20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           {error && (
-            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', backgroundColor: '#FEF2F2', border: '1px solid #FEE2E2', borderRadius: 10, color: '#DC2626', fontSize: 13 }}>
+              <AlertCircle size={15} /> {error}
             </div>
           )}
 
-          {/* Mentions promotionnelles */}
-          <div className="flex flex-col gap-2 text-sm text-gray-600 mb-4">
-            <p className="flex items-center gap-2 font-semibold text-green-600">
-              <ShoppingCart className="w-4 h-4" /> 
-              Commandez aujourd'hui
-            </p>
-            <p className="flex items-center gap-2 font-semibold text-blue-600">
-              <Truck className="w-4 h-4" /> 
-              Profitez de la livraison gratuite
-            </p>
-          </div>
-
+          {/* Quantité */}
           <div>
-            <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1.5">
-              <ShoppingCart className="w-4 h-4" /> Quantité *
-            </label>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => handleChange('quantity', Math.max(1, form.quantity - 1))}
-                className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition"
-                style={{ borderColor: themeColor }}
-              >
-                <Minus className="w-4 h-4" />
+            <label style={{ fontSize: 12.5, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Quantité</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button type="button" onClick={() => set('quantity', Math.max(1, form.quantity - 1))}
+                style={{ width: 38, height: 38, borderRadius: 10, border: `1.5px solid ${themeColor}`, background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: themeColor }}>
+                <Minus size={15} />
               </button>
+              <span style={{ fontSize: 16, fontWeight: 800, minWidth: 32, textAlign: 'center' }}>{form.quantity}</span>
+              <button type="button" onClick={() => set('quantity', Math.min(product?.stock || 99, form.quantity + 1))}
+                style={{ width: 38, height: 38, borderRadius: 10, border: `1.5px solid ${themeColor}`, background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: themeColor }}>
+                <Plus size={15} />
+              </button>
+            </div>
+          </div>
+
+          {/* Champs */}
+          {[
+            { field: 'customerName', placeholder: 'Nom complet *', icon: <User size={15} />, type: 'text' },
+            { field: 'phone', placeholder: 'Numéro de téléphone *', icon: <Phone size={15} />, type: 'tel' },
+            { field: 'city', placeholder: 'Ville *', icon: <MapPin size={15} />, type: 'text' },
+            { field: 'address', placeholder: 'Lieu de livraison *', icon: <MapPin size={15} />, type: 'text' },
+          ].map(({ field, placeholder, icon, type }) => (
+            <div key={field} style={{ position: 'relative' }}>
+              <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', display: 'flex' }}>{icon}</span>
               <input
-                type="number"
-                min="1"
-                max={product?.stock || 99}
-                value={form.quantity}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value) || 1;
-                  handleChange('quantity', Math.max(1, Math.min(val, product?.stock || 99)));
+                type={type}
+                value={form[field]}
+                onChange={e => set(field, e.target.value)}
+                placeholder={placeholder}
+                required
+                style={{
+                  width: '100%', padding: '12px 14px 12px 36px', borderRadius: 12,
+                  border: `1.5px solid #E5E7EB`, fontSize: 14, outline: 'none',
+                  fontFamily: 'inherit', boxSizing: 'border-box', color: '#111827',
+                  transition: 'border-color 0.15s',
                 }}
-                className="w-20 text-center border border-gray-300 rounded-lg py-2 text-sm font-medium"
-                style={{ borderColor: themeColor }}
+                onFocus={e => e.currentTarget.style.borderColor = themeColor}
+                onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'}
               />
-              <button
-                type="button"
-                onClick={() => handleChange('quantity', Math.min(product?.stock || 99, form.quantity + 1))}
-                className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-50 transition"
-                style={{ borderColor: themeColor }}
-              >
-                <Plus className="w-4 h-4" />
-              </button>
             </div>
-            {product?.stock && form.quantity > product?.stock && (
-              <p className="text-xs text-amber-600 mt-1">Stock disponible: {product?.stock}</p>
-            )}
+          ))}
+
+          {/* Badge livraison */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', backgroundColor: '#F0FDF4', borderRadius: 10, fontSize: 13, color: '#166534' }}>
+            <Truck size={14} /> <strong>Paiement à la livraison</strong> — vous payez à la réception
           </div>
 
-          <div className="relative">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-              <User className="w-4 h-4" />
-            </div>
-            <input
-              type="text"
-              value={form.customerName}
-              onChange={(e) => handleChange('customerName', e.target.value)}
-              placeholder="Nom complet *"
-              required
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-              style={{ '--tw-ring-color': themeColor, paddingLeft: '42px' }}
-            />
-          </div>
-
-          <div className="relative">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-              <Phone className="w-4 h-4" />
-            </div>
-            <input
-              type="tel"
-              value={form.phone}
-              onChange={(e) => handleChange('phone', e.target.value)}
-              placeholder="Numéro de téléphone *"
-              required
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-              style={{ '--tw-ring-color': themeColor, paddingLeft: '42px' }}
-            />
-          </div>
-
-          <div className="relative">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-              <MapPin className="w-4 h-4" />
-            </div>
-            <input
-              type="text"
-              value={form.city}
-              onChange={(e) => handleChange('city', e.target.value)}
-              placeholder="Ville *"
-              required
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-              style={{ '--tw-ring-color': themeColor, paddingLeft: '42px' }}
-            />
-          </div>
-
-          <div className="relative">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-              <MapPin className="w-4 h-4" />
-            </div>
-            <input
-              type="text"
-              value={form.address}
-              onChange={(e) => handleChange('address', e.target.value)}
-              placeholder="Lieu de livraison *"
-              required
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-              style={{ '--tw-ring-color': themeColor, paddingLeft: '42px' }}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3.5 text-white rounded-xl font-semibold text-sm transition hover:opacity-90 disabled:opacity-50"
-            style={{ backgroundColor: themeColor }}
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Traitement...
-              </>
-            ) : (
-              <>
-                <ShoppingCart className="w-5 h-5" />
-                Commander · {formatPrice(total)} {currency}
-              </>
-            )}
+          <button type="submit" disabled={submitting} style={{
+            width: '100%', padding: '15px 20px', borderRadius: 40, border: 'none',
+            backgroundColor: submitting ? '#9CA3AF' : themeColor,
+            color: '#fff', fontWeight: 700, fontSize: 15, cursor: submitting ? 'not-allowed' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            transition: 'opacity 0.15s', fontFamily: 'inherit',
+          }}>
+            {submitting ? <><Loader2 size={17} style={{ animation: 'spin 1s linear infinite' }} /> Traitement...</> : <><ShoppingCart size={17} /> Commander · {fmt(total, currency)}</>}
           </button>
         </form>
       </div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 };

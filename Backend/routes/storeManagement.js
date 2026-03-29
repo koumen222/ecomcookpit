@@ -25,6 +25,104 @@ const PRODUCT_TYPE_LABELS = {
   autre: 'Produits divers',
 };
 
+// ─── Images hero — niche × région africaine (Unsplash CDN) ───────────────────
+// Priorité : niche+pays → niche seul → défaut
+// Clé région : 'central' (Cameroun/RDC/Congo) | 'west' (Sénégal/CI/Bénin/Togo/Mali)
+//              | 'nigeria' (Nigeria/Ghana) | 'default'
+
+const NICHE_REGION_IMAGES = {
+  // ── Beauté / Cosmétique ──────────────────────────────────────────────────────
+  beaute: {
+    // Femme africaine skincare — Cameroun / Afrique Centrale
+    central: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=1920&q=80&auto=format',
+    // Femme beauté Afrique de l'Ouest (Sénégal / CI)
+    west:    'https://images.unsplash.com/photo-1531123414780-f74242c2b052?w=1920&q=80&auto=format',
+    // Femme beauty Nigeria / Ghana
+    nigeria: 'https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=1920&q=80&auto=format',
+    default: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=1920&q=80&auto=format',
+  },
+  // ── Mode / Fashion ───────────────────────────────────────────────────────────
+  mode: {
+    // Tenue traditionnelle Cameroun / Afrique Centrale
+    central: 'https://images.unsplash.com/photo-1589802829985-817e51171b92?w=1920&q=80&auto=format',
+    // Wax / tissu africain Afrique de l'Ouest
+    west:    'https://images.unsplash.com/photo-1590736969955-71cc94901144?w=1920&q=80&auto=format',
+    nigeria: 'https://images.unsplash.com/photo-1590736969955-71cc94901144?w=1920&q=80&auto=format',
+    default: 'https://images.unsplash.com/photo-1590736969955-71cc94901144?w=1920&q=80&auto=format',
+  },
+  // ── Fitness / Sport ──────────────────────────────────────────────────────────
+  fitness: {
+    default: 'https://images.unsplash.com/photo-1594381898411-846e7d193883?w=1920&q=80&auto=format',
+  },
+  // ── Tech / Gadgets ───────────────────────────────────────────────────────────
+  tech: {
+    default: 'https://images.unsplash.com/photo-1531482615713-2afd69097998?w=1920&q=80&auto=format',
+  },
+  // ── Maison / Déco ────────────────────────────────────────────────────────────
+  maison: {
+    default: 'https://images.unsplash.com/photo-1540518614846-7eded433c457?w=1920&q=80&auto=format',
+  },
+  // ── Bien-être / Santé ────────────────────────────────────────────────────────
+  sante: {
+    default: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=1920&q=80&auto=format',
+  },
+  // ── Enfants ──────────────────────────────────────────────────────────────────
+  enfants: {
+    default: 'https://images.unsplash.com/photo-1516627145497-ae6968895b74?w=1920&q=80&auto=format',
+  },
+  // ── Autre / Général ──────────────────────────────────────────────────────────
+  autre: {
+    central: 'https://images.unsplash.com/photo-1589802829985-817e51171b92?w=1920&q=80&auto=format',
+    west:    'https://images.unsplash.com/photo-1531123414780-f74242c2b052?w=1920&q=80&auto=format',
+    nigeria: 'https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=1920&q=80&auto=format',
+    default: 'https://images.unsplash.com/photo-1489392191049-fc10c97e64b6?w=1920&q=80&auto=format',
+  },
+};
+
+// Pays → région
+const COUNTRY_TO_REGION = {
+  cameroun: 'central', gabon: 'central', rdc: 'central', congo: 'central',
+  centrafrique: 'central', tchad: 'central',
+  senegal: 'west', mali: 'west', burkina: 'west', togo: 'west',
+  benin: 'west', guinee: 'west', mauritanie: 'west',
+  // "côte d'ivoire" après normalisation → "cote d ivoire"
+  'cote d ivoire': 'west', 'ivory coast': 'west',
+  nigeria: 'nigeria', ghana: 'nigeria',
+};
+
+function normalizeCountryKey(country) {
+  if (!country) return '';
+  return country.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function injectHeroImage(sections, productType, country) {
+  const countryKey = normalizeCountryKey(country);
+
+  // Trouver la région à partir du pays (exact puis partiel)
+  let region = COUNTRY_TO_REGION[countryKey];
+  if (!region) {
+    const match = Object.keys(COUNTRY_TO_REGION).find(k =>
+      countryKey.includes(k) || k.includes(countryKey)
+    );
+    region = match ? COUNTRY_TO_REGION[match] : 'default';
+  }
+
+  const nicheMap = NICHE_REGION_IMAGES[productType] || NICHE_REGION_IMAGES.autre;
+
+  // Priorité : niche+région → niche défaut → défaut global
+  const img = nicheMap[region] || nicheMap.default
+    || NICHE_REGION_IMAGES.autre.default;
+
+  return sections.map(sec => {
+    if (sec.type === 'hero' && !sec.config?.backgroundImage) {
+      return { ...sec, config: { ...sec.config, backgroundImage: img } };
+    }
+    return sec;
+  });
+}
+
 const TONE_LABELS = {
   premium: 'Premium & Luxe — élégance, exclusivité, raffinement. Vocabulaire haut de gamme.',
   naturel: 'Naturel & Authentique — sincérité, bio, transparence. Ton doux et honnête.',
@@ -50,7 +148,7 @@ function buildFallbackSections(s) {
           : `Bienvenue chez ${storeName}`,
         subtitle: s.storeDescription || `Découvrez notre sélection exclusive. Qualité garantie, livraison rapide partout.`,
         ctaText: 'Découvrir nos produits',
-        ctaLink: '#products',
+        ctaLink: '/products',
         alignment: 'center',
         backgroundImage: '',
       }
@@ -210,7 +308,11 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
     if (storeBanner !== undefined) update['storeSettings.storeBanner'] = storeBanner;
     if (storePhone !== undefined) update['storeSettings.storePhone'] = storePhone;
     if (storeWhatsApp !== undefined) update['storeSettings.storeWhatsApp'] = storeWhatsApp;
-    if (storeThemeColor !== undefined) update['storeSettings.storeThemeColor'] = storeThemeColor;
+    if (storeThemeColor !== undefined) {
+      update['storeSettings.storeThemeColor'] = storeThemeColor;
+      // Sync primaryColor so it always takes priority over legacy storeThemeColor in the lookup chain
+      update['storeSettings.primaryColor'] = storeThemeColor;
+    }
     if (storeCurrency !== undefined) update['storeSettings.storeCurrency'] = storeCurrency;
     if (isStoreEnabled !== undefined) update['storeSettings.isStoreEnabled'] = isStoreEnabled;
     // Nouveaux champs
@@ -448,7 +550,8 @@ router.post('/generate-homepage', requireEcomAuth, requireWorkspace, async (req,
       return res.status(404).json({ success: false, message: 'Workspace introuvable' });
     }
 
-    const s = workspace.storeSettings || {};
+    // Merge req.body over DB settings so wizard data always takes priority
+    const s = { ...(workspace.storeSettings || {}), ...req.body };
     const groq = getGroq();
 
     if (!groq) {
@@ -463,50 +566,57 @@ router.post('/generate-homepage', requireEcomAuth, requireWorkspace, async (req,
     const regions = (s.audience?.region || []).join(', ') || 'international';
     const origins = (s.audience?.origin || []).join(', ') || '';
 
-    const prompt = `Tu es un expert en copywriting e-commerce et marketing digital. Tu génères des pages d'accueil pour boutiques en ligne vendant des produits physiques.
+    const prompt = `Tu es un expert en copywriting pour le e-commerce africain. Tu crées des pages de vente pour des boutiques en ligne qui s'adressent à des consommateurs africains (Cameroun, Côte d'Ivoire, Sénégal, RDC, Bénin, Togo, etc.).
 
-INFORMATIONS DE LA BOUTIQUE:
+BOUTIQUE:
 - Nom: ${s.storeName || 'Notre Boutique'}
 - Catégorie: ${productTypeLabel}
 - Produit phare: ${s.productDescription || ''}
-- Description boutique: ${s.storeDescription || ''}
-- Ton/Style: ${toneLabel}
-- Audience: Genre: ${genders} | Âge: ${ages} | Zone: ${regions}${origins ? ` | Origine: ${origins}` : ''}
-- Localisation: ${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}
-- Contact WhatsApp: ${s.storeWhatsApp || ''}
+- Description: ${s.storeDescription || ''}
+- Ton: ${toneLabel}
+- Audience: ${genders} | ${ages} | ${regions}
+- Ville/Pays: ${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}
+- WhatsApp: ${s.storeWhatsApp || ''}
 
-Génère une page d'accueil complète et persuasive en JSON: {"sections": [...]}
+CONTEXTE AFRICAIN OBLIGATOIRE:
+- Le copywriting doit résonner avec la culture africaine locale : valeurs familiales, communauté, fierté locale, beauté naturelle africaine, excellence
+- Références réalistes : livraison à domicile, paiement à la livraison ou Mobile Money (MTN, Orange), commande WhatsApp
+- Prénoms et noms africains authentiques pour les témoignages (ex: Amina, Fatou, Kouassi, Brice, etc.)
+- Villes africaines réelles pour les témoignages selon la zone: ${regions}
+- Aucune référence western générique — tout doit être ancré dans le quotidien africain
+- Le titre hero doit être percutant, différenciant, avec un angle émotionnel fort lié à la niche
 
-Génère exactement ces 7 sections dans cet ordre:
+Génère la page en JSON: {"sections": [...]}
+
+Sections dans cet ordre:
 
 1. TYPE "hero"
-config: { title (H1 percutant 5-10 mots, adapté niche+ton), subtitle (promesse convaincante 1-2 phrases), ctaText (texte bouton CTA actif), ctaLink: "#products", alignment: "center", backgroundImage: "" }
+config: { title (accroche puissante 5-10 mots, émotionnelle, liée à la transformation qu'apporte le produit), subtitle (1-2 phrases de promesse concrète, bénéfice client réel), ctaText (appel à l'action actif et engageant), ctaLink: "/products", alignment: "center", backgroundImage: "" }
 
 2. TYPE "badges"
-config: { items: [ exactement 4 objets {icon: "emoji", title: "titre court 3-4 mots", desc: "1 phrase"} pour: livraison rapide, qualité garantie, support WhatsApp, retours faciles ] }
+config: { items: [ 4 badges de confiance {icon: "emoji", title: "3-4 mots", desc: "1 phrase rassurante"} : livraison rapide (délais locaux), qualité certifiée, support WhatsApp réactif, retours acceptés ] }
 
 3. TYPE "products"
-config: { title (titre section produits adapté niche), subtitle (accroche engageante), layout: "grid", columns: 3, showPrice: true, showAddToCart: true, limit: 6 }
+config: { title (angle niche), subtitle (accroche produits), layout: "grid", columns: 3, showPrice: true, showAddToCart: true, limit: 6 }
 
 4. TYPE "features"
-config: { title (titre "Pourquoi nous choisir" adapté au ton), subtitle (sous-titre), items: [ exactement 4 objets {icon: "emoji", title: "titre avantage", desc: "2 phrases d'explication"} — avantages spécifiques à la niche et à la valeur de la boutique ] }
+config: { title (pourquoi nous, ancré dans la réalité africaine), subtitle, items: [ 4 avantages {icon: "emoji", title, desc (2 phrases spécifiques à la boutique et au marché local)} ] }
 
 5. TYPE "testimonials"
-config: { title: "Ce que disent nos clients", items: [ 3 objets {name: "Prénom Nom africain réaliste", location: "ville réaliste zone ${regions}", content: "témoignage naturel et enthousiaste de 40-70 mots", rating: 5} ], showRating: true }
+config: { title: "Ils nous font confiance", items: [ 3 {name: "prénom+nom africain authentique", location: "ville réelle ${regions}", content: "témoignage vivant 50-80 mots, ton naturel africain, mentionne un bénéfice concret", rating: 5} ] }
 
 6. TYPE "faq"
-config: { title: "Questions fréquentes", items: [ 4 objets {question: "question réaliste", answer: "réponse rassurante 2-3 phrases"} — spécifiques à la niche, aux commandes, à la livraison en ${regions || 'Afrique'} ] }
+config: { title: "Vos questions, nos réponses", items: [ 4 {question: "vraie question client africain", answer: "réponse claire, rassurante, mentionne Mobile Money/livraison locale si pertinent"} ] }
 
 7. TYPE "contact"
-config: { title: "Contactez-nous", subtitle: "Réponse garantie en moins de 30 minutes !", whatsapp: "${s.storeWhatsApp || ''}", address: "${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}", showForm: false }
+config: { title: "Parlons-en sur WhatsApp", subtitle: "On vous répond en moins de 10 minutes !", whatsapp: "${s.storeWhatsApp || ''}", address: "${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}", showForm: false }
 
-RÈGLES STRICTES:
-- Tout en français, zéro anglais
+RÈGLES:
+- 100% français, zéro anglais
 - Ton: ${toneLabel.split('—')[0].trim()}
-- Copy persuasif adapté: ${genders}, ${ages}, zone ${regions}
 - IDs: "hero-1", "badges-1", "products-1", "features-1", "testimonials-1", "faq-1", "contact-1"
-- visible: true pour toutes
-- JSON pur, rien d'autre`;
+- visible: true
+- JSON pur uniquement, sans markdown`;
 
     let sections;
     try {
@@ -535,6 +645,7 @@ RÈGLES STRICTES:
         id: sec.id || `${sec.type}-${i + 1}`,
         visible: true,
       }));
+      sections = injectHeroImage(sections, s.productType, s.country);
 
       console.log(`✅ AI homepage generated: ${sections.length} sections for workspace ${req.workspaceId}`);
     } catch (aiError) {
@@ -570,7 +681,8 @@ router.post('/regenerate-homepage', requireEcomAuth, requireWorkspace, async (re
       return res.status(404).json({ success: false, message: 'Workspace introuvable' });
     }
 
-    const s = workspace.storeSettings || {};
+    // Merge req.body over DB settings so caller data always takes priority
+    const s = { ...(workspace.storeSettings || {}), ...req.body };
     const groq = getGroq();
 
     if (!groq) {
@@ -584,50 +696,57 @@ router.post('/regenerate-homepage', requireEcomAuth, requireWorkspace, async (re
     const regions = (s.audience?.region || []).join(', ') || 'international';
     const origins = (s.audience?.origin || []).join(', ') || '';
 
-    const prompt = `Tu es un expert en copywriting e-commerce et marketing digital. Tu génères des pages d'accueil pour boutiques en ligne vendant des produits physiques.
+    const prompt = `Tu es un expert en copywriting pour le e-commerce africain. Tu crées des pages de vente pour des boutiques en ligne qui s'adressent à des consommateurs africains (Cameroun, Côte d'Ivoire, Sénégal, RDC, Bénin, Togo, etc.).
 
-INFORMATIONS DE LA BOUTIQUE:
+BOUTIQUE:
 - Nom: ${s.storeName || 'Notre Boutique'}
 - Catégorie: ${productTypeLabel}
 - Produit phare: ${s.productDescription || ''}
-- Description boutique: ${s.storeDescription || ''}
-- Ton/Style: ${toneLabel}
-- Audience: Genre: ${genders} | Âge: ${ages} | Zone: ${regions}${origins ? ` | Origine: ${origins}` : ''}
-- Localisation: ${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}
-- Contact WhatsApp: ${s.storeWhatsApp || ''}
+- Description: ${s.storeDescription || ''}
+- Ton: ${toneLabel}
+- Audience: ${genders} | ${ages} | ${regions}
+- Ville/Pays: ${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}
+- WhatsApp: ${s.storeWhatsApp || ''}
 
-Génère une page d'accueil complète et persuasive en JSON: {"sections": [...]}
+CONTEXTE AFRICAIN OBLIGATOIRE:
+- Le copywriting doit résonner avec la culture africaine locale : valeurs familiales, communauté, fierté locale, beauté naturelle africaine, excellence
+- Références réalistes : livraison à domicile, paiement à la livraison ou Mobile Money (MTN, Orange), commande WhatsApp
+- Prénoms et noms africains authentiques pour les témoignages (ex: Amina, Fatou, Kouassi, Brice, etc.)
+- Villes africaines réelles pour les témoignages selon la zone: ${regions}
+- Aucune référence western générique — tout doit être ancré dans le quotidien africain
+- Le titre hero doit être percutant, différenciant, avec un angle émotionnel fort lié à la niche
 
-Génère exactement ces 7 sections dans cet ordre:
+Génère la page en JSON: {"sections": [...]}
+
+Sections dans cet ordre:
 
 1. TYPE "hero"
-config: { title (H1 percutant 5-10 mots, adapté niche+ton), subtitle (promesse convaincante 1-2 phrases), ctaText (texte bouton CTA actif), ctaLink: "#products", alignment: "center", backgroundImage: "" }
+config: { title (accroche puissante 5-10 mots, émotionnelle, liée à la transformation qu'apporte le produit), subtitle (1-2 phrases de promesse concrète, bénéfice client réel), ctaText (appel à l'action actif et engageant), ctaLink: "/products", alignment: "center", backgroundImage: "" }
 
 2. TYPE "badges"
-config: { items: [ exactement 4 objets {icon: "emoji", title: "titre court 3-4 mots", desc: "1 phrase"} pour: livraison rapide, qualité garantie, support WhatsApp, retours faciles ] }
+config: { items: [ 4 badges de confiance {icon: "emoji", title: "3-4 mots", desc: "1 phrase rassurante"} : livraison rapide (délais locaux), qualité certifiée, support WhatsApp réactif, retours acceptés ] }
 
 3. TYPE "products"
-config: { title (titre section produits adapté niche), subtitle (accroche engageante), layout: "grid", columns: 3, showPrice: true, showAddToCart: true, limit: 6 }
+config: { title (angle niche), subtitle (accroche produits), layout: "grid", columns: 3, showPrice: true, showAddToCart: true, limit: 6 }
 
 4. TYPE "features"
-config: { title (titre "Pourquoi nous choisir" adapté au ton), subtitle (sous-titre), items: [ exactement 4 objets {icon: "emoji", title: "titre avantage", desc: "2 phrases d'explication"} — avantages spécifiques à la niche et à la valeur de la boutique ] }
+config: { title (pourquoi nous, ancré dans la réalité africaine), subtitle, items: [ 4 avantages {icon: "emoji", title, desc (2 phrases spécifiques à la boutique et au marché local)} ] }
 
 5. TYPE "testimonials"
-config: { title: "Ce que disent nos clients", items: [ 3 objets {name: "Prénom Nom africain réaliste", location: "ville réaliste zone ${regions}", content: "témoignage naturel et enthousiaste de 40-70 mots", rating: 5} ], showRating: true }
+config: { title: "Ils nous font confiance", items: [ 3 {name: "prénom+nom africain authentique", location: "ville réelle ${regions}", content: "témoignage vivant 50-80 mots, ton naturel africain, mentionne un bénéfice concret", rating: 5} ] }
 
 6. TYPE "faq"
-config: { title: "Questions fréquentes", items: [ 4 objets {question: "question réaliste", answer: "réponse rassurante 2-3 phrases"} — spécifiques à la niche, aux commandes, à la livraison en ${regions || 'Afrique'} ] }
+config: { title: "Vos questions, nos réponses", items: [ 4 {question: "vraie question client africain", answer: "réponse claire, rassurante, mentionne Mobile Money/livraison locale si pertinent"} ] }
 
 7. TYPE "contact"
-config: { title: "Contactez-nous", subtitle: "Réponse garantie en moins de 30 minutes !", whatsapp: "${s.storeWhatsApp || ''}", address: "${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}", showForm: false }
+config: { title: "Parlons-en sur WhatsApp", subtitle: "On vous répond en moins de 10 minutes !", whatsapp: "${s.storeWhatsApp || ''}", address: "${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}", showForm: false }
 
-RÈGLES STRICTES:
-- Tout en français, zéro anglais
+RÈGLES:
+- 100% français, zéro anglais
 - Ton: ${toneLabel.split('—')[0].trim()}
-- Copy persuasif adapté: ${genders}, ${ages}, zone ${regions}
 - IDs: "hero-1", "badges-1", "products-1", "features-1", "testimonials-1", "faq-1", "contact-1"
-- visible: true pour toutes
-- JSON pur, rien d'autre`;
+- visible: true
+- JSON pur uniquement, sans markdown`;
 
     let sections;
     try {
@@ -647,6 +766,7 @@ RÈGLES STRICTES:
       sections = parsed.sections;
       if (!Array.isArray(sections) || sections.length === 0) throw new Error('Sections invalides');
       sections = sections.map((sec, i) => ({ ...sec, id: sec.id || `${sec.type}-${i + 1}`, visible: true }));
+      sections = injectHeroImage(sections, s.productType, s.country);
     } catch (aiError) {
       console.warn('⚠️ Groq regenerate failed, using fallback:', aiError.message);
       sections = buildFallbackSections(s);
