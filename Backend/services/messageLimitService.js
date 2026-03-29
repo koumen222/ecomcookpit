@@ -6,9 +6,9 @@ import WhatsAppInstance from '../models/WhatsAppInstance.js';
  */
 
 const PLAN_LIMITS = {
-  free: { daily: 100, monthly: 5000 },
-  pro: { daily: 1000, monthly: 50000 },
-  plus: { daily: 5000, monthly: 200000 },
+  free: { daily: 1000, monthly: 5000 },
+  pro: { daily: 5000, monthly: 50000 },
+  plus: { daily: 10000, monthly: 200000 },
 };
 
 const LEGACY_PLAN_MAP = {
@@ -31,7 +31,7 @@ function ensureInstancePlanAndLimits(instance) {
   const expected = getPlanLimits(normalizedPlan);
 
   const invalidLimits = !Number.isFinite(instance.dailyLimit) || instance.dailyLimit <= 0 || !Number.isFinite(instance.monthlyLimit) || instance.monthlyLimit <= 0;
-  const legacyFreeLimits = normalizedPlan === 'free' && (instance.dailyLimit === 50 || instance.monthlyLimit === 100);
+  const legacyFreeLimits = normalizedPlan === 'free' && (instance.dailyLimit === 50 || instance.dailyLimit === 100 || instance.monthlyLimit === 100);
 
   if (instance.plan !== normalizedPlan) {
     instance.plan = normalizedPlan;
