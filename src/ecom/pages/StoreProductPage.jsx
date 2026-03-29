@@ -370,6 +370,49 @@ const removeFaqFromDescriptionHtml = (html = '') => {
   }
 };
 
+// Extraire les Q/R depuis le HTML de description (anciens produits sans product.faq)
+const extractFaqFromHtml = (html = '') => {
+  if (!html || typeof DOMParser === 'undefined') return [];
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<div id="sf-faq-root">${html}</div>`, 'text/html');
+    const root = doc.getElementById('sf-faq-root');
+    if (!root) return [];
+
+    // Trouver la section FAQ
+    const faqSection = Array.from(root.querySelectorAll('div')).find((el) => {
+      const h = el.querySelector('h1,h2,h3,h4,h5,h6');
+      return h && /questions fréquentes|faq/i.test(h.textContent?.trim() || '');
+    });
+    if (!faqSection) return [];
+
+    const items = [];
+    // Pattern 1 : <h4>question</h4><p>réponse</p>
+    const headings = Array.from(faqSection.querySelectorAll('h4, h3, strong, b, dt'));
+    headings.forEach((h) => {
+      const question = h.textContent?.trim();
+      if (!question || /questions fréquentes|faq/i.test(question)) return;
+      // La réponse est dans le prochain élément frère
+      let next = h.nextElementSibling;
+      while (next && !next.textContent?.trim()) next = next.nextElementSibling;
+      const reponse = next?.textContent?.trim() || '';
+      if (question && reponse) items.push({ question, reponse });
+    });
+
+    // Pattern 2 : suite de <p> où les impairs sont questions et pairs sont réponses
+    if (!items.length) {
+      const paras = Array.from(faqSection.querySelectorAll('p')).filter(p => p.textContent?.trim());
+      for (let i = 0; i + 1 < paras.length; i += 2) {
+        items.push({ question: paras[i].textContent?.trim(), reponse: paras[i + 1].textContent?.trim() });
+      }
+    }
+
+    return items;
+  } catch {
+    return [];
+  }
+};
+
 const removeIntroBeforeAngles = (html = '') => {
   // Supprimer tout contenu (paragraphes intro, titres "Description") avant le premier H3 marketing
   // Si le HTML contient des <h3>, on retire tout ce qui précède le premier <h3>
@@ -830,15 +873,25 @@ const StoreProductPage = () => {
                 {(() => {
                   const raw = product.description?.toString().trim() || '';
                   if (!raw || !/<[^>]+>/.test(raw)) return null;
+                  // Extraire FAQ du HTML si product.faq est vide
+                  const faqFromHtml = (!product.faq?.length && showFaq) ? extractFaqFromHtml(raw) : [];
+                  const hasFaq = product.faq?.length > 0 || faqFromHtml.length > 0;
                   return (
-                    <CollapsibleSection title="Description du produit" defaultOpen={true}>
-                      <ProductDescription content={raw} stripFaqSection={showFaq && product.faq?.length > 0} />
-                    </CollapsibleSection>
+                    <>
+                      <CollapsibleSection title="Description du produit" defaultOpen={true}>
+                        <ProductDescription content={raw} stripFaqSection={hasFaq} />
+                      </CollapsibleSection>
+                      {showFaq && hasFaq && (
+                        <CollapsibleSection title="❓ Questions fréquentes" defaultOpen={true}>
+                          <ProductFaqAccordion items={product.faq?.length > 0 ? product.faq : faqFromHtml} />
+                        </CollapsibleSection>
+                      )}
+                    </>
                   );
                 })()}
 
-                {/* FAQ — section réductible */}
-                {showFaq && product.faq?.length > 0 && (
+                {/* FAQ — si description sans HTML mais product.faq existe */}
+                {showFaq && product.faq?.length > 0 && !product.description && (
                   <CollapsibleSection title="❓ Questions fréquentes" defaultOpen={true}>
                     <ProductFaqAccordion items={product.faq} />
                   </CollapsibleSection>
