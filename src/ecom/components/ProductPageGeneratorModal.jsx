@@ -132,6 +132,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('page');
   const [dragOver, setDragOver] = useState(false);
+  const [generationsInfo, setGenerationsInfo] = useState(null); // { freeRemaining, paidRemaining, totalUsed }
+  const [limitReached, setLimitReached] = useState(false);
   const fileInputRef = useRef(null);
   const abortRef = useRef(null);
   const readerRef = useRef(null);
@@ -212,6 +214,23 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
         let errorMessage;
         try {
           const errorData = await resp.json();
+          
+          // Gérer le cas de limite atteinte
+          if (errorData.limitReached) {
+            setLimitReached(true);
+            setGenerationsInfo({
+              freeRemaining: 0,
+              paidRemaining: 0,
+              totalUsed: errorData.totalGenerations || 0
+            });
+            setError(errorData.message || 'Limite de générations atteinte');
+            setPhase('input');
+            clearTimeout(safetyTimer);
+            abortRef.current = null;
+            isGeneratingRef.current = false;
+            return;
+          }
+          
           errorMessage = errorData.message || errorData.error || `Erreur HTTP ${resp.status}`;
         } catch {
           errorMessage = `Erreur HTTP ${resp.status}: ${resp.statusText}`;
@@ -226,6 +245,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
         setProduct(result.product);
         setPhase('preview');
         setActiveTab('page');
+        
+        // Mettre à jour les infos de génération
+        if (result.generations) {
+          setGenerationsInfo(result.generations);
+        }
       } else {
         throw new Error(result.message || result.error || 'Erreur: Aucun produit généré');
       }
@@ -408,9 +432,25 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               <p className="text-xs text-gray-500">Photos réelles + Alibaba → Page complète en 60s</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-3">
+            {/* Compteur de générations */}
+            {generationsInfo && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-50 border border-violet-200">
+                <Zap className="w-4 h-4 text-violet-600" />
+                <span className="text-xs font-bold text-violet-700">
+                  {generationsInfo.freeRemaining > 0 
+                    ? `${generationsInfo.freeRemaining} gratuite${generationsInfo.freeRemaining > 1 ? 's' : ''}`
+                    : generationsInfo.paidRemaining > 0
+                    ? `${generationsInfo.paidRemaining} payante${generationsInfo.paidRemaining > 1 ? 's' : ''}`
+                    : '0 restante'
+                  }
+                </span>
+              </div>
+            )}
+            <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -612,8 +652,44 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               </div>
 
               {error && (
-                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
-                  <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+                <div className={`p-4 rounded-xl border ${
+                  limitReached 
+                    ? 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200' 
+                    : 'bg-red-50 border-red-200'
+                }`}>
+                  {limitReached ? (
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
+                          <Zap className="w-5 h-5 text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-sm font-bold text-gray-900 mb-1">🎯 Tu as utilisé tes 3 générations gratuites !</h3>
+                          <p className="text-sm text-gray-700 leading-relaxed">
+                            Pour continuer à générer des pages produit optimisées avec IA, débloque une nouvelle génération pour seulement <strong className="text-amber-700">1500 FCFA</strong>.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // TODO: Rediriger vers la page de paiement ou ouvrir un modal de paiement
+                          alert('🚀 Page de paiement bientôt disponible ! Contactez le support pour activer des générations supplémentaires.');
+                        }}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl hover:from-amber-600 hover:to-orange-600 transition shadow-lg"
+                      >
+                        <Zap className="w-4 h-4" />
+                        Débloquer une génération (1500 FCFA)
+                      </button>
+                      <p className="text-xs text-center text-gray-500">
+                        Tu as déjà généré {generationsInfo?.totalUsed || 0} page{(generationsInfo?.totalUsed || 0) > 1 ? 's' : ''} produit avec succès 🎉
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-red-700 text-sm">
+                      <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
