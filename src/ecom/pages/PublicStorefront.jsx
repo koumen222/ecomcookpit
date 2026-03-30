@@ -467,24 +467,105 @@ const HeroContentPremium = ({ cfg, prefix, store }) => (
   </div>
 );
 
-// ─── BADGES (trust strip) ──────────────────────────────────────────────────────
-const AiBadgesSection = ({ cfg }) => (
-  <section style={{ backgroundColor: '#fff', borderBottom: '1px solid #F3F4F6' }}>
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px' }}>
-      <div className="s-badges">
-        {(cfg.items || []).map((badge, i) => (
-          <div key={i} className="s-badge-item" style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '20px 20px' }}>
-            <IconBox emoji={badge.icon} size={20} boxSize={46} radius={14} />
-            <div>
-              <p style={{ margin: 0, fontWeight: 700, fontSize: 13.5, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{badge.title}</p>
-              <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--s-text2)', lineHeight: 1.4, fontFamily: 'var(--s-font)' }}>{badge.desc}</p>
+// ─── TRUST BADGES PREMIUM ─────────────────────────────────────────────────────
+const AiBadgesSection = ({ cfg }) => {
+  const [hoveredIdx, setHoveredIdx] = useState(null);
+  
+  return (
+    <section style={{
+      backgroundColor: '#fff',
+      borderBottom: '1px solid #F0F0F0',
+      padding: '32px 0',
+    }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px' }}>
+        {/* Mobile: horizontal scroll, Desktop: grid */}
+        <div style={{
+          display: 'flex',
+          gap: 20,
+          overflowX: 'auto',
+          scrollSnapType: 'x mandatory',
+          WebkitOverflowScrolling: 'touch',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        }}
+          className="hide-scrollbar"
+        >
+          {(cfg.items || []).map((badge, i) => (
+            <div
+              key={i}
+              onMouseEnter={() => setHoveredIdx(i)}
+              onMouseLeave={() => setHoveredIdx(null)}
+              style={{
+                minWidth: 240,
+                flex: '1 1 0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 18,
+                padding: '24px 28px',
+                borderRadius: 16,
+                backgroundColor: hoveredIdx === i ? '#F9FAFB' : '#fff',
+                border: `2px solid ${hoveredIdx === i ? 'var(--s-primary)' : '#F3F4F6'}`,
+                transition: 'all 0.3s ease',
+                scrollSnapAlign: 'start',
+                cursor: 'pointer',
+                transform: hoveredIdx === i ? 'translateY(-4px)' : 'none',
+                boxShadow: hoveredIdx === i ? '0 12px 32px rgba(15, 107, 79, 0.12)' : '0 2px 8px rgba(0,0,0,0.04)',
+              }}
+            >
+              {/* Icon with pulse animation */}
+              <div style={{
+                width: 56,
+                height: 56,
+                borderRadius: 14,
+                flexShrink: 0,
+                backgroundColor: 'color-mix(in srgb, var(--s-primary) 12%, white)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+              }}>
+                <IconBox emoji={badge.icon} size={24} boxSize={56} radius={14} bg="transparent" />
+                {/* Pulse ring on hover */}
+                {hoveredIdx === i && (
+                  <div style={{
+                    position: 'absolute',
+                    inset: -4,
+                    borderRadius: 18,
+                    border: '2px solid var(--s-primary)',
+                    opacity: 0.3,
+                    animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                  }} />
+                )}
+              </div>
+              
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{
+                  margin: 0,
+                  fontWeight: 800,
+                  fontSize: 14.5,
+                  color: 'var(--s-text)',
+                  fontFamily: 'var(--s-font)',
+                  letterSpacing: '-0.01em',
+                }}>
+                  {badge.title}
+                </p>
+                <p style={{
+                  margin: '4px 0 0',
+                  fontSize: 12.5,
+                  color: 'var(--s-text2)',
+                  lineHeight: 1.5,
+                  fontFamily: 'var(--s-font)',
+                }}>
+                  {badge.desc}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
 // ─── PRODUCTS (homepage: max 3 + see all) ─────────────────────────────────────
 const AiProductsSection = ({ cfg, products, prefix, store }) => {
@@ -556,34 +637,273 @@ const AiFeaturesSection = ({ cfg }) => (
 );
 
 // ─── TESTIMONIALS ──────────────────────────────────────────────────────────────
-const AiTestimonialsSection = ({ cfg }) => (
-  <section style={{ padding: 'clamp(56px, 9vw, 88px) 24px', backgroundColor: '#F9FAFB' }}>
-    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-      <h2 style={{ fontSize: 'clamp(22px, 3.2vw, 34px)', fontWeight: 900, textAlign: 'center', color: 'var(--s-text)', margin: '0 0 44px', letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>
-        {cfg.title || 'Ce que disent nos clients'}
-      </h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
-        {(cfg.items || []).map((t, i) => (
-          <div key={i} style={{ backgroundColor: '#fff', borderRadius: 20, padding: '28px 26px', border: '1px solid #EBEBEB', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
-            <div style={{ display: 'flex', gap: 3, marginBottom: 16 }}>
-              {Array.from({ length: t.rating || 5 }).map((_, j) => <Star key={j} size={15} fill="var(--s-primary)" color="var(--s-primary)" />)}
+// ─── TESTIMONIALS CAROUSEL PREMIUM ────────────────────────────────────────────
+const AiTestimonialsSection = ({ cfg }) => {
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const items = cfg.items || [];
+  
+  // Auto-rotation every 5 seconds (pauses on hover)
+  useEffect(() => {
+    if (items.length <= 1 || isPaused) return;
+    
+    const interval = setInterval(() => {
+      setCurrentIdx(prev => (prev + 1) % items.length);
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [items.length, isPaused]);
+
+  if (items.length === 0) return null;
+
+  const goTo = (idx) => setCurrentIdx(idx);
+  const goNext = () => setCurrentIdx((currentIdx + 1) % items.length);
+  const goPrev = () => setCurrentIdx((currentIdx - 1 + items.length) % items.length);
+
+  return (
+    <section style={{
+      padding: 'clamp(60px, 10vw, 96px) 24px',
+      background: 'linear-gradient(to bottom, #F9FAFB 0%, #FFFFFF 100%)',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      {/* Decorative blob */}
+      <div style={{
+        position: 'absolute',
+        top: -60,
+        right: -60,
+        width: 300,
+        height: 300,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(15, 107, 79, 0.06) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+      
+      <div style={{ maxWidth: 920, margin: '0 auto', position: 'relative' }}>
+        {/* Title */}
+        <h2 style={{
+          fontSize: 'clamp(26px, 4vw, 40px)',
+          fontWeight: 900,
+          textAlign: 'center',
+          color: 'var(--s-text)',
+          margin: '0 0 56px',
+          letterSpacing: '-0.03em',
+          fontFamily: 'var(--s-font)',
+        }}>
+          {cfg.title || 'Ce que disent nos clients'}
+        </h2>
+
+        {/* Carousel Container */}
+        <div
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
+          style={{
+            position: 'relative',
+            padding: '0 60px',
+          }}
+        >
+          {/* Testimonial Card */}
+          <div style={{
+            backgroundColor: '#fff',
+            borderRadius: 24,
+            padding: 'clamp(32px, 5vw, 48px)',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.08)',
+            border: '1px solid #F0F0F0',
+            minHeight: 280,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            transition: 'transform 0.3s ease',
+          }}>
+            {/* Stars */}
+            <div style={{
+              display: 'flex',
+              gap: 4,
+              marginBottom: 24,
+              justifyContent: 'center',
+            }}>
+              {Array.from({ length: items[currentIdx]?.rating || 5 }).map((_, j) => (
+                <Star
+                  key={j}
+                  size={20}
+                  fill="var(--s-primary)"
+                  color="var(--s-primary)"
+                  style={{
+                    animation: `fadeIn 0.3s ease-out ${j * 0.05}s both`,
+                  }}
+                />
+              ))}
             </div>
-            <p style={{ fontSize: 14.5, lineHeight: 1.7, color: '#374151', margin: '0 0 20px', fontFamily: 'var(--s-font)', fontStyle: 'italic' }}>"{t.content || t.text}"</p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 38, height: 38, borderRadius: '50%', flexShrink: 0, backgroundColor: 'var(--s-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, color: '#fff' }}>
-                {(t.name || '?')[0]}
+
+            {/* Quote */}
+            <p style={{
+              fontSize: 'clamp(16px, 2vw, 19px)',
+              lineHeight: 1.8,
+              color: '#374151',
+              margin: '0 0 32px',
+              fontFamily: 'var(--s-font)',
+              fontStyle: 'italic',
+              textAlign: 'center',
+              maxWidth: 680,
+              marginLeft: 'auto',
+              marginRight: 'auto',
+            }}>
+              "{items[currentIdx]?.content || items[currentIdx]?.text}"
+            </p>
+
+            {/* Author */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 16,
+            }}>
+              {/* Avatar */}
+              <div style={{
+                width: 52,
+                height: 52,
+                borderRadius: '50%',
+                flexShrink: 0,
+                background: 'linear-gradient(135deg, var(--s-primary) 0%, color-mix(in srgb, var(--s-primary) 70%, black) 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 800,
+                fontSize: 18,
+                color: '#fff',
+                border: '3px solid #F9FAFB',
+                boxShadow: '0 4px 12px rgba(15, 107, 79, 0.2)',
+              }}>
+                {(items[currentIdx]?.name || '?')[0].toUpperCase()}
               </div>
-              <div>
-                <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{t.name}</p>
-                {t.location && <p style={{ margin: '1px 0 0', fontSize: 11.5, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>📍 {t.location}</p>}
+              
+              <div style={{ textAlign: 'left' }}>
+                <p style={{
+                  margin: 0,
+                  fontSize: 15.5,
+                  fontWeight: 800,
+                  color: 'var(--s-text)',
+                  fontFamily: 'var(--s-font)',
+                }}>
+                  {items[currentIdx]?.name}
+                </p>
+                {items[currentIdx]?.location && (
+                  <p style={{
+                    margin: '2px 0 0',
+                    fontSize: 13,
+                    color: 'var(--s-text2)',
+                    fontFamily: 'var(--s-font)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}>
+                    <MapPin size={12} />
+                    {items[currentIdx].location}
+                  </p>
+                )}
               </div>
             </div>
           </div>
-        ))}
+
+          {/* Navigation Arrows */}
+          {items.length > 1 && (
+            <>
+              <button
+                onClick={goPrev}
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  width: 48,
+                  height: 48,
+                  borderRadius: '50%',
+                  border: '2px solid #E5E7EB',
+                  backgroundColor: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = 'var(--s-primary)';
+                  e.currentTarget.style.backgroundColor = 'var(--s-primary)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = '#E5E7EB';
+                  e.currentTarget.style.backgroundColor = '#fff';
+                }}
+              >
+                <ChevronRight size={20} color="currentColor" style={{ transform: 'rotate(180deg)' }} />
+              </button>
+              
+              <button
+                onClick={goNext}
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  width: 48,
+                  height: 48,
+                  borderRadius: '50%',
+                  border: '2px solid #E5E7EB',
+                  backgroundColor: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = 'var(--s-primary)';
+                  e.currentTarget.style.backgroundColor = 'var(--s-primary)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = '#E5E7EB';
+                  e.currentTarget.style.backgroundColor = '#fff';
+                }}
+              >
+                <ChevronRight size={20} color="currentColor" />
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Pagination Dots */}
+        {items.length > 1 && (
+          <div style={{
+            display: 'flex',
+            gap: 10,
+            justifyContent: 'center',
+            marginTop: 40,
+          }}>
+            {items.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => goTo(i)}
+                style={{
+                  width: i === currentIdx ? 32 : 10,
+                  height: 10,
+                  borderRadius: 5,
+                  border: 'none',
+                  backgroundColor: i === currentIdx ? 'var(--s-primary)' : '#D1D5DB',
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  padding: 0,
+                }}
+                aria-label={`Go to testimonial ${i + 1}`}
+              />
+            ))}
+          </div>
+        )}
       </div>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
 // ─── FAQ ──────────────────────────────────────────────────────────────────────
 const AiFaqSection = ({ cfg }) => {
