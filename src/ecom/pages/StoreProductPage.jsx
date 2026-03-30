@@ -121,7 +121,9 @@ const ImageGallery = ({ images = [] }) => {
           decoding="async"
           style={{
             position: 'absolute', inset: 0, width: '100%', height: '100%',
-            objectFit: 'cover', transition: 'opacity 0.2s',
+            // "Hero" doit afficher l'image complète (pas recadrée)
+            objectFit: 'contain', objectPosition: 'center',
+            transition: 'opacity 0.2s',
           }}
         />
         {/* Arrows */}
