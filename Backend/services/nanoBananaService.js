@@ -1,14 +1,14 @@
 /**
  * Google Imagen 3 / Gemini Image Generation Service
  * - Text-to-image  : imagen-3.0-generate-002 (Imagen 3)
- * - Image-to-image : gemini-2.0-flash-exp-image-generation (Gemini 2.0 Flash)
+ * - Image-to-image : gemini-2.5-flash-image (Gemini 2.5 Flash)
  */
 
 import axios from 'axios';
 
 const GEMINI_API_KEY = process.env.NANOBANANA_API_KEY || 'AIzaSyCXG6SYfRLYkM2NG5303Uf-AhHhRgq_G1A';
 const IMAGEN3_URL   = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict';
-const GEMINI_IMG_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent';
+const GEMINI_IMG_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent';
 
 /**
  * Generate image using Google Imagen 3 (text-to-image)
@@ -58,7 +58,7 @@ export async function generateNanoBananaImage(prompt, aspectRatio = '1:1', numIm
 }
 
 /**
- * Generate image using Gemini 2.0 Flash (image-to-image with product reference)
+ * Generate image using Gemini 2.5 Flash Image (image-to-image with product reference)
  * @param {string} prompt - Text description of the desired transformation
  * @param {string|Buffer} imageInput - Reference product image (base64 or buffer)
  * @param {string} aspectRatio - Unused (Gemini Flash outputs square by default)
@@ -71,7 +71,7 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
   }
 
   try {
-    console.log('🎨 Generating image-to-image with Gemini 2.0 Flash...');
+    console.log('🎨 Generating image-to-image with Gemini 2.5 Flash...');
 
     let base64Image;
     if (Buffer.isBuffer(imageInput)) {
@@ -97,7 +97,7 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
           ]
         }],
         generationConfig: {
-          responseModalities: ['TEXT', 'IMAGE']
+          responseModalities: ['IMAGE']
         }
       },
       {
