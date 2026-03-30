@@ -102,6 +102,14 @@ async function resolveCountry(req) {
 // POST /api/ecom/analytics/track
 // Public endpoint for tracking events from the frontend
 // ──────────────────────────────────────────────────────────
+const VALID_EVENT_TYPES = new Set([
+  'page_view', 'signup_started', 'signup_completed', 'email_verified',
+  'login', 'login_failed', 'logout', 'workspace_created', 'workspace_joined',
+  'order_created', 'order_updated', 'delivery_completed', 'transaction_created',
+  'invite_generated', 'invite_accepted', 'product_created', 'report_viewed',
+  'settings_changed', 'password_reset', 'custom'
+]);
+
 router.post('/track', async (req, res) => {
   try {
     const { sessionId, eventType, page, referrer, meta, userId, workspaceId, userRole } = req.body;
@@ -110,20 +118,25 @@ router.post('/track', async (req, res) => {
       return res.status(400).json({ success: false, message: 'sessionId and eventType required' });
     }
 
+    const safeEventType = VALID_EVENT_TYPES.has(eventType) ? eventType : 'custom';
+
     const ua = req.headers['user-agent'] || '';
     const { device, browser, os } = parseUserAgent(ua);
 
     // Geo: Cloudflare headers first, then IP lookup fallback
     const { country, city } = await resolveCountry(req);
 
+    // Validate ObjectIds to avoid Mongoose CastError → 500
+    const isObjectId = (v) => v && /^[a-f\d]{24}$/i.test(String(v));
+
     // Create event
     await AnalyticsEvent.create({
-      userId: userId || null,
+      userId: isObjectId(userId) ? userId : null,
       sessionId,
-      eventType,
+      eventType: safeEventType,
       page: page || null,
       referrer: referrer || null,
-      workspaceId: workspaceId || null,
+      workspaceId: isObjectId(workspaceId) ? workspaceId : null,
       userRole: userRole || null,
       country,
       city,
