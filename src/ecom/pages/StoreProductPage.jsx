@@ -372,12 +372,6 @@ const removeFaqFromDescriptionHtml = (html = '') => {
   }
 };
 
-const removeIntroBeforeAngles = (html = '') => {
-  const h3Index = html.search(/<h3[\s>]/i);
-  if (h3Index > 0) return html.slice(h3Index);
-  return html;
-};
-
 const optimizeDescriptionHtml = (html = '') => {
   if (!html || typeof DOMParser === 'undefined') return html;
 
@@ -399,18 +393,37 @@ const optimizeDescriptionHtml = (html = '') => {
 };
 
 const ProductDescription = ({ content }) => {
-  const ref = useRef(null);
   const rawContent = content?.toString().trim() || '';
-  const isHTML = /<[^>]+>/.test(rawContent);
-  if (!isHTML) return null;
+  if (!rawContent) return null;
 
-  const cleanContent = optimizeDescriptionHtml(removeIntroBeforeAngles(rawContent));
+  const isHTML = /<[^>]+>/.test(rawContent);
+  if (!isHTML) {
+    return (
+      <div
+        className="ai-desc"
+        style={{
+          fontSize: 15,
+          lineHeight: 1.75,
+          color: 'var(--s-text2)',
+          fontFamily: 'var(--s-font)',
+          whiteSpace: 'pre-wrap',
+        }}
+      >
+        {rawContent}
+      </div>
+    );
+  }
+
+  const cleanContent = optimizeDescriptionHtml(rawContent);
   if (!cleanContent) return null;
 
   return (
-    <div ref={ref}>
-      <div className="ai-desc" style={{ fontSize: 15, lineHeight: 1.75, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}
-        dangerouslySetInnerHTML={{ __html: cleanContent }} />
+    <div>
+      <div
+        className="ai-desc"
+        style={{ fontSize: 15, lineHeight: 1.75, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}
+        dangerouslySetInnerHTML={{ __html: cleanContent }}
+      />
     </div>
   );
 };
@@ -939,8 +952,8 @@ const StoreProductPage = () => {
                   const hasFaq = showFaq && faqItems.length > 0;
 
                   // Description nettoyée : retirer la section FAQ du HTML
-                  const descHtml = hasHtml ? removeFaqFromDescriptionHtml(raw) : '';
-                  const hasDesc = !!descHtml;
+                  const descHtml = hasHtml ? removeFaqFromDescriptionHtml(raw) : raw;
+                  const hasDesc = !!descHtml?.trim();
 
                   return (
                     <>
