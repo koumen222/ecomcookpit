@@ -5,7 +5,7 @@ import {
   ChevronDown, ChevronUp, Truck, ShieldCheck, Package, RotateCcw,
   Leaf, Heart, Sparkles, Zap, Gift, Users, Globe, Award, Clock,
   MapPin, Mail, X, ChevronRight, DollarSign, CheckCircle,
-  Search, Menu, Phone,
+  Search, Menu, Phone, Eye, Flame, Tag,
 } from 'lucide-react';
 import { useSubdomain } from '../hooks/useSubdomain';
 import { useStoreData } from '../hooks/useStoreData';
@@ -1198,39 +1198,678 @@ const StorefrontHeader = ({ store, cartCount, prefix }) => {
 };
 
 // ── Product Card ──────────────────────────────────────────────────────────────
+// ─── PRODUCT CARD PREMIUM ─────────────────────────────────────────────────────
 const ProductCard = ({ product, prefix, store }) => {
   const [hovered, setHovered] = useState(false);
+  const [quickViewOpen, setQuickViewOpen] = useState(false);
+  const [wishlist, setWishlist] = useState(false);
+  
   const hasDiscount = product.compareAtPrice && product.compareAtPrice > product.price;
   const pct = hasDiscount ? Math.round((1 - product.price / product.compareAtPrice) * 100) : 0;
+  
+  // Determine badge
+  const isNew = product.isNew || false;
+  const isHot = product.isHot || product.isFeatured || false;
+  
+  const handleQuickView = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setQuickViewOpen(true);
+  };
+  
+  const toggleWishlist = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setWishlist(!wishlist);
+  };
+  
   return (
-    <a href={`${prefix}/product/${product.slug}`} style={{ textDecoration: 'none' }}
-      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
-      <div style={{ backgroundColor: 'var(--s-bg)', overflow: 'hidden', border: '1px solid var(--s-border)', boxShadow: hovered ? '0 12px 36px rgba(0,0,0,0.1)' : '0 1px 4px rgba(0,0,0,0.05)', transform: hovered ? 'translateY(-3px)' : 'none', transition: 'box-shadow 0.25s, transform 0.25s' }}>
-        <div style={{ position: 'relative', paddingBottom: '100%', backgroundColor: '#f4f4f5', overflow: 'hidden' }}>
-          {product.image ? (
-            <img src={product.image} alt={product.name} loading="eager" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transform: hovered ? 'scale(1.05)' : 'scale(1)', transition: 'transform 0.4s ease' }} />
-          ) : (
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <ShoppingBag size={40} style={{ color: '#d1d5db' }} />
+    <>
+      <a
+        href={`${prefix}/product/${product.slug}`}
+        style={{ textDecoration: 'none', position: 'relative', display: 'block' }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        <div style={{
+          backgroundColor: '#fff',
+          borderRadius: 16,
+          overflow: 'hidden',
+          border: '1px solid #F0F0F0',
+          boxShadow: hovered ? '0 16px 48px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.04)',
+          transform: hovered ? 'translateY(-6px)' : 'none',
+          transition: 'box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        }}>
+          {/* Image Container */}
+          <div style={{
+            position: 'relative',
+            paddingBottom: '100%',
+            backgroundColor: '#F9FAFB',
+            overflow: 'hidden',
+          }}>
+            {product.image ? (
+              <img
+                src={product.image}
+                alt={product.name}
+                loading="lazy"
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  transform: hovered ? 'scale(1.08)' : 'scale(1)',
+                  transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+              />
+            ) : (
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <ShoppingBag size={48} style={{ color: '#D1D5DB' }} />
+              </div>
+            )}
+            
+            {/* Badges Container */}
+            <div style={{
+              position: 'absolute',
+              top: 12,
+              left: 12,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+            }}>
+              {hasDiscount && (
+                <span style={{
+                  backgroundColor: '#EF4444',
+                  color: '#fff',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  padding: '5px 11px',
+                  borderRadius: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)',
+                }}>
+                  <Tag size={12} /> -{pct}%
+                </span>
+              )}
+              
+              {isNew && (
+                <span style={{
+                  backgroundColor: '#10B981',
+                  color: '#fff',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  padding: '5px 11px',
+                  borderRadius: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
+                }}>
+                  <Sparkles size={12} /> NEW
+                </span>
+              )}
+              
+              {isHot && !isNew && (
+                <span style={{
+                  backgroundColor: '#F59E0B',
+                  color: '#fff',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  padding: '5px 11px',
+                  borderRadius: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)',
+                }}>
+                  <Flame size={12} /> HOT
+                </span>
+              )}
             </div>
-          )}
-          {hasDiscount && <span style={{ position: 'absolute', top: 10, left: 10, backgroundColor: '#EF4444', color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20 }}>-{pct}%</span>}
-          {product.stock === 0 && (
-            <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ color: '#fff', fontWeight: 700, fontSize: 13, backgroundColor: 'rgba(0,0,0,0.5)', padding: '4px 12px', borderRadius: 20 }}>Rupture de stock</span>
+            
+            {/* Out of stock overlay */}
+            {product.stock === 0 && (
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                backgroundColor: 'rgba(0,0,0,0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backdropFilter: 'blur(2px)',
+              }}>
+                <span style={{
+                  color: '#fff',
+                  fontWeight: 800,
+                  fontSize: 13,
+                  backgroundColor: 'rgba(0,0,0,0.7)',
+                  padding: '6px 16px',
+                  borderRadius: 8,
+                }}>
+                  Rupture de stock
+                </span>
+              </div>
+            )}
+            
+            {/* Hover Actions Overlay */}
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 50%)',
+              opacity: hovered ? 1 : 0,
+              transition: 'opacity 0.3s ease',
+              display: 'flex',
+              alignItems: 'flex-end',
+              justifyContent: 'center',
+              padding: 16,
+              gap: 12,
+              pointerEvents: hovered ? 'auto' : 'none',
+            }}>
+              {/* Quick View Button */}
+              <button
+                onClick={handleQuickView}
+                style={{
+                  backgroundColor: '#fff',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '10px 18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  color: 'var(--s-primary)',
+                  fontFamily: 'var(--s-font)',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  transition: 'transform 0.2s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                <Eye size={16} /> Aperçu rapide
+              </button>
+              
+              {/* Wishlist Button */}
+              <button
+                onClick={toggleWishlist}
+                style={{
+                  backgroundColor: wishlist ? '#EF4444' : '#fff',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: 40,
+                  height: 40,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                <Heart size={18} fill={wishlist ? '#fff' : 'none'} color={wishlist ? '#fff' : 'var(--s-primary)'} />
+              </button>
             </div>
-          )}
+          </div>
+          
+          {/* Product Info */}
+          <div style={{ padding: '16px 18px 20px' }}>
+            {product.category && (
+              <span style={{
+                fontSize: 10.5,
+                fontWeight: 800,
+                color: 'var(--s-primary)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+              }}>
+                {product.category}
+              </span>
+            )}
+            
+            <p style={{
+              margin: '6px 0 12px',
+              fontWeight: 700,
+              fontSize: 15,
+              color: 'var(--s-text)',
+              lineHeight: 1.4,
+              fontFamily: 'var(--s-font)',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              minHeight: 42,
+            }}>
+              {product.name}
+            </p>
+            
+            {/* Ratings (if available) */}
+            {product.rating && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                marginBottom: 10,
+              }}>
+                <div style={{ display: 'flex', gap: 2 }}>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star
+                      key={i}
+                      size={13}
+                      fill={i < Math.floor(product.rating) ? '#F59E0B' : 'none'}
+                      color={i < Math.floor(product.rating) ? '#F59E0B' : '#D1D5DB'}
+                    />
+                  ))}
+                </div>
+                {product.reviewCount && (
+                  <span style={{
+                    fontSize: 11,
+                    color: 'var(--s-text2)',
+                    fontFamily: 'var(--s-font)',
+                  }}>
+                    ({product.reviewCount})
+                  </span>
+                )}
+              </div>
+            )}
+            
+            {/* Price */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: 10,
+              flexWrap: 'wrap',
+            }}>
+              <span style={{
+                fontSize: 18,
+                fontWeight: 900,
+                color: 'var(--s-primary)',
+                fontFamily: 'var(--s-font)',
+              }}>
+                {fmt(product.price, product.currency || store?.currency || 'XAF')}
+              </span>
+              {hasDiscount && (
+                <span style={{
+                  fontSize: 13,
+                  color: '#9CA3AF',
+                  textDecoration: 'line-through',
+                  fontFamily: 'var(--s-font)',
+                }}>
+                  {fmt(product.compareAtPrice, product.currency || store?.currency || 'XAF')}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
-        <div style={{ padding: '14px 16px 18px' }}>
-          {product.category && <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--s-primary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{product.category}</span>}
-          <p style={{ margin: '5px 0 10px', fontWeight: 600, fontSize: 14.5, color: 'var(--s-text)', lineHeight: 1.35, fontFamily: 'var(--s-font)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{product.name}</p>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--s-primary)', fontFamily: 'var(--s-font)' }}>{fmt(product.price, product.currency || store?.currency || 'XAF')}</span>
-            {hasDiscount && <span style={{ fontSize: 12, color: 'var(--s-text2)', textDecoration: 'line-through' }}>{fmt(product.compareAtPrice, product.currency || store?.currency || 'XAF')}</span>}
+      </a>
+      
+      {/* Quick View Modal */}
+      {quickViewOpen && (
+        <QuickViewModal
+          product={product}
+          store={store}
+          prefix={prefix}
+          onClose={() => setQuickViewOpen(false)}
+        />
+      )}
+    </>
+  );
+};
+
+// ─── QUICK VIEW MODAL ─────────────────────────────────────────────────────────
+const QuickViewModal = ({ product, store, prefix, onClose }) => {
+  const { addToCart } = useStoreCart();
+  const [quantity, setQuantity] = useState(1);
+  
+  const hasDiscount = product.compareAtPrice && product.compareAtPrice > product.price;
+  
+  const handleAddToCart = () => {
+    addToCart(product, quantity);
+    onClose();
+  };
+  
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        padding: 24,
+        animation: 'fadeIn 0.2s ease-out',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          backgroundColor: '#fff',
+          borderRadius: 20,
+          maxWidth: 900,
+          width: '100%',
+          maxHeight: '90vh',
+          overflow: 'auto',
+          boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
+          position: 'relative',
+          animation: 'slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: 20,
+            right: 20,
+            width: 40,
+            height: 40,
+            borderRadius: '50%',
+            border: 'none',
+            backgroundColor: '#F3F4F6',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            zIndex: 10,
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={e => {
+            e.currentTarget.style.backgroundColor = '#E5E7EB';
+            e.currentTarget.style.transform = 'scale(1.1)';
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.backgroundColor = '#F3F4F6';
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
+        >
+          <X size={20} color="#374151" />
+        </button>
+        
+        {/* Content */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+          gap: 40,
+          padding: 40,
+        }}>
+          {/* Image */}
+          <div style={{
+            position: 'relative',
+            paddingBottom: '100%',
+            backgroundColor: '#F9FAFB',
+            borderRadius: 16,
+            overflow: 'hidden',
+          }}>
+            {product.image ? (
+              <img
+                src={product.image}
+                alt={product.name}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+              />
+            ) : (
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <ShoppingBag size={64} style={{ color: '#D1D5DB' }} />
+              </div>
+            )}
+          </div>
+          
+          {/* Details */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {product.category && (
+              <span style={{
+                fontSize: 11,
+                fontWeight: 800,
+                color: 'var(--s-primary)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+              }}>
+                {product.category}
+              </span>
+            )}
+            
+            <h2 style={{
+              fontSize: 'clamp(22px, 3vw, 28px)',
+              fontWeight: 900,
+              color: 'var(--s-text)',
+              margin: 0,
+              lineHeight: 1.3,
+              fontFamily: 'var(--s-font)',
+            }}>
+              {product.name}
+            </h2>
+            
+            {/* Price */}
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+              <span style={{
+                fontSize: 32,
+                fontWeight: 900,
+                color: 'var(--s-primary)',
+                fontFamily: 'var(--s-font)',
+              }}>
+                {fmt(product.price, product.currency || store?.currency || 'XAF')}
+              </span>
+              {hasDiscount && (
+                <span style={{
+                  fontSize: 18,
+                  color: '#9CA3AF',
+                  textDecoration: 'line-through',
+                  fontFamily: 'var(--s-font)',
+                }}>
+                  {fmt(product.compareAtPrice, product.currency || store?.currency || 'XAF')}
+                </span>
+              )}
+            </div>
+            
+            {/* Description */}
+            {product.description && (
+              <p style={{
+                fontSize: 15,
+                lineHeight: 1.7,
+                color: '#6B7280',
+                margin: 0,
+                fontFamily: 'var(--s-font)',
+              }}>
+                {product.description}
+              </p>
+            )}
+            
+            {/* Stock Status */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {product.stock > 0 ? (
+                <>
+                  <CheckCircle size={18} color="#10B981" />
+                  <span style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: '#10B981',
+                    fontFamily: 'var(--s-font)',
+                  }}>
+                    En stock ({product.stock} disponibles)
+                  </span>
+                </>
+              ) : (
+                <>
+                  <X size={18} color="#EF4444" />
+                  <span style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: '#EF4444',
+                    fontFamily: 'var(--s-font)',
+                  }}>
+                    Rupture de stock
+                  </span>
+                </>
+              )}
+            </div>
+            
+            {/* Quantity Selector */}
+            {product.stock > 0 && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16,
+                marginTop: 10,
+              }}>
+                <span style={{
+                  fontSize: 14,
+                  fontWeight: 700,
+                  color: 'var(--s-text)',
+                  fontFamily: 'var(--s-font)',
+                }}>
+                  Quantité:
+                </span>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  border: '2px solid #E5E7EB',
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                }}>
+                  <button
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    style={{
+                      border: 'none',
+                      backgroundColor: '#F9FAFB',
+                      padding: '8px 16px',
+                      cursor: 'pointer',
+                      fontSize: 18,
+                      fontWeight: 700,
+                      color: 'var(--s-text)',
+                      transition: 'background-color 0.2s',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#F3F4F6'}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = '#F9FAFB'}
+                  >
+                    −
+                  </button>
+                  <span style={{
+                    padding: '8px 24px',
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: 'var(--s-text)',
+                    minWidth: 60,
+                    textAlign: 'center',
+                    fontFamily: 'var(--s-font)',
+                  }}>
+                    {quantity}
+                  </span>
+                  <button
+                    onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
+                    style={{
+                      border: 'none',
+                      backgroundColor: '#F9FAFB',
+                      padding: '8px 16px',
+                      cursor: 'pointer',
+                      fontSize: 18,
+                      fontWeight: 700,
+                      color: 'var(--s-text)',
+                      transition: 'background-color 0.2s',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#F3F4F6'}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = '#F9FAFB'}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {/* Action Buttons */}
+            <div style={{
+              display: 'flex',
+              gap: 12,
+              marginTop: 20,
+            }}>
+              <button
+                onClick={handleAddToCart}
+                disabled={product.stock === 0}
+                style={{
+                  flex: 1,
+                  padding: '16px 24px',
+                  backgroundColor: product.stock === 0 ? '#D1D5DB' : 'var(--s-primary)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 12,
+                  fontWeight: 800,
+                  fontSize: 15,
+                  fontFamily: 'var(--s-font)',
+                  cursor: product.stock === 0 ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 10,
+                  transition: 'all 0.2s',
+                  boxShadow: product.stock === 0 ? 'none' : '0 4px 12px rgba(15, 107, 79, 0.25)',
+                }}
+                onMouseEnter={e => {
+                  if (product.stock > 0) {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 16px rgba(15, 107, 79, 0.3)';
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (product.stock > 0) {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(15, 107, 79, 0.25)';
+                  }
+                }}
+              >
+                <ShoppingCart size={18} />
+                {product.stock === 0 ? 'Rupture de stock' : 'Ajouter au panier'}
+              </button>
+              
+              <a
+                href={`${prefix}/product/${product.slug}`}
+                style={{
+                  padding: '16px 24px',
+                  backgroundColor: '#F3F4F6',
+                  color: 'var(--s-text)',
+                  border: 'none',
+                  borderRadius: 12,
+                  fontWeight: 700,
+                  fontSize: 15,
+                  fontFamily: 'var(--s-font)',
+                  textDecoration: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#E5E7EB'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = '#F3F4F6'}
+              >
+                Détails
+              </a>
+            </div>
           </div>
         </div>
       </div>
-    </a>
+    </div>
   );
 };
 
