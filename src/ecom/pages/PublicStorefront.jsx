@@ -131,76 +131,200 @@ const AnnouncementBar = ({ store }) => {
   );
 };
 
-// ─── HERO ─────────────────────────────────────────────────────────────────────
+// ─── HERO PREMIUM ─────────────────────────────────────────────────────────────
 const AiHeroSection = ({ cfg, store, prefix, products }) => {
-  const heroImg = cfg.backgroundImage || null;
-  const featuredProduct = products?.find(p => p.image) || null;
-  const isSplit = !heroImg && featuredProduct;
+  const [scrollY, setScrollY] = useState(0);
+  const [isVisible, setIsVisible] = useState(false);
 
-  if (heroImg) {
-    // Full-width image hero with flat dark overlay
+  useEffect(() => {
+    // Entrance animation
+    setIsVisible(true);
+    
+    // Parallax effect on scroll
+    const handleScroll = () => setScrollY(window.scrollY);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const heroImg = cfg.backgroundImage || null;
+  const heroVideo = cfg.backgroundVideo || null;
+  const featuredProduct = products?.find(p => p.image) || null;
+  const isSplit = !heroImg && !heroVideo && featuredProduct;
+  
+  // Dynamic gradient overlay based on theme color
+  const gradientOverlay = `linear-gradient(135deg, 
+    rgba(15, 107, 79, 0.85) 0%, 
+    rgba(15, 107, 79, 0.65) 50%,
+    rgba(0, 0, 0, 0.75) 100%
+  )`;
+
+  if (heroImg || heroVideo) {
+    // Full-width image/video hero with dynamic gradient overlay + parallax
     return (
       <section style={{
-        padding: 'clamp(80px, 14vw, 140px) 24px clamp(64px, 10vw, 110px)',
-        textAlign: cfg.alignment || 'center', position: 'relative', overflow: 'hidden',
-        backgroundImage: `url(${heroImg})`, backgroundSize: 'cover', backgroundPosition: 'center',
+        padding: 'clamp(100px, 16vw, 160px) 24px clamp(80px, 12vw, 130px)',
+        textAlign: cfg.alignment || 'center',
+        position: 'relative',
+        overflow: 'hidden',
+        minHeight: '85vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       }}>
-        {/* flat dark overlay — no gradient */}
-        <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.52)', zIndex: 0 }} />
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <HeroContent cfg={cfg} prefix={prefix} />
+        {/* Background Image/Video with Parallax */}
+        {heroVideo ? (
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              transform: `translateY(${scrollY * 0.5}px) scale(1.1)`,
+              transition: 'transform 0.1s ease-out',
+            }}
+          >
+            <source src={heroVideo} type="video/mp4" />
+          </video>
+        ) : (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            backgroundImage: `url(${heroImg})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            transform: `translateY(${scrollY * 0.5}px) scale(1.1)`,
+            transition: 'transform 0.1s ease-out',
+          }} />
+        )}
+
+        {/* Dynamic Gradient Overlay */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          background: gradientOverlay,
+          zIndex: 0,
+        }} />
+
+        {/* Trust Badge Floating */}
+        <div style={{
+          position: 'absolute',
+          top: 24,
+          right: 24,
+          zIndex: 2,
+          display: 'flex',
+          gap: 12,
+          flexWrap: 'wrap',
+          justifyContent: 'flex-end',
+        }}>
+          {(cfg.trustBadges || ['Livraison 24h', '+1000 clients']).map((badge, i) => (
+            <div key={i} style={{
+              backgroundColor: 'rgba(255,255,255,0.95)',
+              backdropFilter: 'blur(8px)',
+              padding: '8px 16px',
+              borderRadius: 50,
+              fontSize: 12,
+              fontWeight: 700,
+              color: 'var(--s-primary)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+              animation: 'fadeIn 0.6s ease-out forwards',
+              animationDelay: `${i * 0.1}s`,
+              opacity: 0,
+            }}>
+              {badge}
+            </div>
+          ))}
+        </div>
+
+        {/* Content with entrance animation */}
+        <div style={{
+          position: 'relative',
+          zIndex: 1,
+          maxWidth: 800,
+          opacity: isVisible ? 1 : 0,
+          transform: isVisible ? 'translateY(0)' : 'translateY(30px)',
+          transition: 'all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)',
+        }}>
+          <HeroContentPremium cfg={cfg} prefix={prefix} store={store} />
         </div>
       </section>
     );
   }
 
   if (isSplit) {
-    // Split: text left, product image right
+    // Split layout with product image
     return (
       <section style={{
         backgroundColor: 'var(--s-primary)',
-        position: 'relative', overflow: 'hidden',
-        padding: 'clamp(60px, 10vw, 100px) 24px',
+        position: 'relative',
+        overflow: 'hidden',
+        padding: 'clamp(70px, 12vw, 120px) 24px',
+        minHeight: '75vh',
+        display: 'flex',
+        alignItems: 'center',
       }}>
-        <div style={{ position: 'absolute', top: -80, left: -80, width: 320, height: 320, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.07)', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', bottom: -60, right: -60, width: 240, height: 240, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
-        <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 48, position: 'relative', zIndex: 1 }}>
+        {/* Decorative blobs */}
+        <div style={{ position: 'absolute', top: -80, left: -80, width: 380, height: 380, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.08)', pointerEvents: 'none', filter: 'blur(40px)' }} />
+        <div style={{ position: 'absolute', bottom: -60, right: -60, width: 280, height: 280, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.06)', pointerEvents: 'none', filter: 'blur(30px)' }} />
+        
+        <div style={{
+          maxWidth: 1200,
+          margin: '0 auto',
+          display: 'flex',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 60,
+          position: 'relative',
+          zIndex: 1,
+          opacity: isVisible ? 1 : 0,
+          transform: isVisible ? 'translateY(0)' : 'translateY(30px)',
+          transition: 'all 0.8s ease-out',
+        }}>
           {/* Text */}
-          <div style={{ flex: '1 1 280px' }}>
+          <div style={{ flex: '1 1 320px' }}>
             {store?.logo && (
-              <img src={store.logo} alt={store.name} style={{ height: 48, width: 'auto', objectFit: 'contain', marginBottom: 28, filter: 'brightness(0) invert(1)' }} />
+              <img src={store.logo} alt={store.name} style={{ height: 52, width: 'auto', objectFit: 'contain', marginBottom: 32, filter: 'brightness(0) invert(1)' }} />
             )}
             <h1 style={{
-              fontSize: 'clamp(36px, 6vw, 64px)', fontWeight: 900, lineHeight: 1.05,
-              margin: '0 0 20px', letterSpacing: '-0.035em', fontFamily: 'var(--s-font)',
-              color: '#fff', textShadow: '0 2px 24px rgba(0,0,0,0.15)',
+              fontSize: 'clamp(40px, 7vw, 72px)',
+              fontWeight: 900,
+              lineHeight: 1.05,
+              margin: '0 0 24px',
+              letterSpacing: '-0.04em',
+              fontFamily: 'var(--s-font)',
+              color: '#fff',
+              textShadow: '0 4px 32px rgba(0,0,0,0.2)',
             }}>{cfg.title}</h1>
             {cfg.subtitle && (
               <p style={{
-                fontSize: 'clamp(15px, 2vw, 19px)', lineHeight: 1.6, margin: '0 0 40px',
-                color: 'rgba(255,255,255,0.88)', fontFamily: 'var(--s-font)',
+                fontSize: 'clamp(16px, 2.2vw, 21px)',
+                lineHeight: 1.6,
+                margin: '0 0 48px',
+                color: 'rgba(255,255,255,0.90)',
+                fontFamily: 'var(--s-font)',
               }}>{cfg.subtitle}</p>
             )}
-            <a href={`${prefix}/products`}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 10,
-                padding: '16px 36px', borderRadius: 50,
-                backgroundColor: '#fff', color: 'var(--s-primary)',
-                fontWeight: 800, fontSize: 15, textDecoration: 'none',
-                letterSpacing: '-0.01em', fontFamily: 'var(--s-font)',
-                boxShadow: '0 6px 30px rgba(0,0,0,0.20)', transition: 'transform 0.15s, box-shadow 0.15s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 44px rgba(0,0,0,0.28)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 6px 30px rgba(0,0,0,0.20)'; }}
-            >{cfg.ctaText || 'Découvrir nos produits'} <ArrowRight size={17} /></a>
+            <HeroDoubleCTA cfg={cfg} prefix={prefix} />
           </div>
+          
           {/* Product image */}
-          <div style={{ flex: '1 1 260px', maxWidth: 420, margin: '0 auto' }}>
+          <div style={{ flex: '1 1 300px', maxWidth: 480, margin: '0 auto' }}>
             <div style={{
-              borderRadius: 24, overflow: 'hidden', aspectRatio: '1/1',
-              boxShadow: '0 24px 64px rgba(0,0,0,0.30)',
-              border: '4px solid rgba(255,255,255,0.25)',
-            }}>
+              borderRadius: 32,
+              overflow: 'hidden',
+              aspectRatio: '1/1',
+              boxShadow: '0 32px 80px rgba(0,0,0,0.35)',
+              border: '6px solid rgba(255,255,255,0.2)',
+              transform: 'rotate(-2deg)',
+              transition: 'transform 0.4s ease',
+            }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'rotate(0deg) scale(1.05)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'rotate(-2deg)'}
+            >
               <img src={featuredProduct.image} alt={featuredProduct.name}
                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             </div>
@@ -210,49 +334,136 @@ const AiHeroSection = ({ cfg, store, prefix, products }) => {
     );
   }
 
-  // Gradient only
+  // Gradient only - centered
   return (
     <section style={{
-      padding: 'clamp(80px, 13vw, 130px) 24px clamp(64px, 10vw, 110px)',
-      textAlign: cfg.alignment || 'center', position: 'relative', overflow: 'hidden',
-      backgroundColor: 'var(--s-primary)',
+      padding: 'clamp(100px, 15vw, 150px) 24px clamp(80px, 12vw, 130px)',
+      textAlign: cfg.alignment || 'center',
+      position: 'relative',
+      overflow: 'hidden',
+      background: `linear-gradient(135deg, var(--s-primary) 0%, color-mix(in srgb, var(--s-primary) 80%, black) 100%)`,
+      minHeight: '80vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
     }}>
-      <div style={{ position: 'absolute', top: -80, right: -80, width: 320, height: 320, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.07)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', bottom: -60, left: -60, width: 220, height: 220, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
-      <div style={{ maxWidth: 740, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+      {/* Animated blobs */}
+      <div style={{ position: 'absolute', top: -100, right: -100, width: 400, height: 400, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.08)', pointerEvents: 'none', filter: 'blur(60px)', animation: 'pulse 4s ease-in-out infinite' }} />
+      <div style={{ position: 'absolute', bottom: -80, left: -80, width: 300, height: 300, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.06)', pointerEvents: 'none', filter: 'blur(50px)', animation: 'pulse 5s ease-in-out infinite' }} />
+      
+      <div style={{
+        maxWidth: 820,
+        margin: '0 auto',
+        position: 'relative',
+        zIndex: 1,
+        opacity: isVisible ? 1 : 0,
+        transform: isVisible ? 'translateY(0)' : 'translateY(30px)',
+        transition: 'all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)',
+      }}>
         {store?.logo && (
-          <img src={store.logo} alt={store.name} style={{ height: 56, width: 'auto', objectFit: 'contain', display: 'block', margin: '0 auto 32px', filter: 'brightness(0) invert(1)' }} />
+          <img src={store.logo} alt={store.name} style={{ height: 60, width: 'auto', objectFit: 'contain', display: 'block', margin: '0 auto 36px', filter: 'brightness(0) invert(1)' }} />
         )}
-        <HeroContent cfg={cfg} prefix={prefix} />
+        <HeroContentPremium cfg={cfg} prefix={prefix} store={store} />
       </div>
     </section>
   );
 };
 
-const HeroContent = ({ cfg, prefix }) => (
-  <div style={{ position: 'relative', zIndex: 1 }}>
+// Double CTA Component
+const HeroDoubleCTA = ({ cfg, prefix }) => (
+  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+    {/* Primary CTA */}
+    <a href={`${prefix}/products`}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '18px 42px',
+        borderRadius: 50,
+        backgroundColor: '#fff',
+        color: 'var(--s-primary)',
+        fontWeight: 800,
+        fontSize: 16,
+        textDecoration: 'none',
+        letterSpacing: '-0.01em',
+        fontFamily: 'var(--s-font)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+        transition: 'all 0.2s ease',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.transform = 'translateY(-2px)';
+        e.currentTarget.style.boxShadow = '0 16px 48px rgba(0,0,0,0.35)';
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.transform = 'none';
+        e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.25)';
+      }}
+    >
+      {cfg.ctaText || 'Commander maintenant'}
+      <ArrowRight size={18} strokeWidth={3} />
+    </a>
+
+    {/* Secondary CTA */}
+    <a href={`${prefix}/`}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '18px 36px',
+        borderRadius: 50,
+        backgroundColor: 'transparent',
+        border: '2px solid rgba(255,255,255,0.4)',
+        color: '#fff',
+        fontWeight: 700,
+        fontSize: 15,
+        textDecoration: 'none',
+        fontFamily: 'var(--s-font)',
+        transition: 'all 0.2s ease',
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.15)';
+        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.6)';
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.backgroundColor = 'transparent';
+        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.4)';
+      }}
+    >
+      {cfg.secondaryCtaText || 'En savoir plus'}
+    </a>
+  </div>
+);
+
+// Premium Hero Content
+const HeroContentPremium = ({ cfg, prefix, store }) => (
+  <div>
     <h1 style={{
-      fontSize: 'clamp(38px, 7vw, 72px)', fontWeight: 900, lineHeight: 1.04,
-      margin: '0 0 22px', letterSpacing: '-0.035em', fontFamily: 'var(--s-font)',
-      color: '#fff', textShadow: '0 2px 24px rgba(0,0,0,0.18)',
-    }}>{cfg.title}</h1>
+      fontSize: 'clamp(42px, 8vw, 84px)',
+      fontWeight: 900,
+      lineHeight: 1.02,
+      margin: '0 0 26px',
+      letterSpacing: '-0.04em',
+      fontFamily: 'var(--s-font)',
+      color: '#fff',
+      textShadow: '0 4px 32px rgba(0,0,0,0.25)',
+    }}>
+      {cfg.title}
+    </h1>
     {cfg.subtitle && (
       <p style={{
-        fontSize: 'clamp(16px, 2.2vw, 20px)', lineHeight: 1.6, margin: '0 0 44px',
-        color: 'rgba(255,255,255,0.88)', fontFamily: 'var(--s-font)', maxWidth: 580, marginLeft: 'auto', marginRight: 'auto',
-      }}>{cfg.subtitle}</p>
+        fontSize: 'clamp(17px, 2.5vw, 22px)',
+        lineHeight: 1.6,
+        margin: '0 0 48px',
+        color: 'rgba(255,255,255,0.92)',
+        fontFamily: 'var(--s-font)',
+        maxWidth: 640,
+        marginLeft: 'auto',
+        marginRight: 'auto',
+      }}>
+        {cfg.subtitle}
+      </p>
     )}
-    <a href={`${prefix}/products`}
-      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 44px rgba(0,0,0,0.28)'; }}
-      onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 6px 30px rgba(0,0,0,0.22)'; }}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 10,
-        padding: '17px 40px', borderRadius: 50,
-        backgroundColor: '#fff', color: 'var(--s-primary)',
-        fontWeight: 800, fontSize: 15.5, textDecoration: 'none',
-        letterSpacing: '-0.01em', fontFamily: 'var(--s-font)',
-        boxShadow: '0 6px 30px rgba(0,0,0,0.22)', transition: 'transform 0.15s, box-shadow 0.15s',
-      }}>{cfg.ctaText || 'Découvrir'} <ArrowRight size={18} /></a>
+    <HeroDoubleCTA cfg={cfg} prefix={prefix} />
   </div>
 );
 

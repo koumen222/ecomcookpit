@@ -274,6 +274,17 @@
   to { transform: translateY(0); }
 }
 
+@keyframes slideDown {
+  from { 
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  to { 
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 .ios-slide-up {
   animation: iosSlideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards;
 }
