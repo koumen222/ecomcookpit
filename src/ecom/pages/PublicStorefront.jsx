@@ -5,6 +5,7 @@ import {
   ChevronDown, ChevronUp, Truck, ShieldCheck, Package, RotateCcw,
   Leaf, Heart, Sparkles, Zap, Gift, Users, Globe, Award, Clock,
   MapPin, Mail, X, ChevronRight, DollarSign, CheckCircle,
+  Search, Menu, Phone,
 } from 'lucide-react';
 import { useSubdomain } from '../hooks/useSubdomain';
 import { useStoreData } from '../hooks/useStoreData';
@@ -457,48 +458,213 @@ const SectionRenderer = ({ section, store, products, prefix }) => {
   }
 };
 
-// ── Header ────────────────────────────────────────────────────────────────────
-const StorefrontHeader = ({ store, cartCount, prefix }) => (
-  <header style={{ position: 'sticky', top: 0, zIndex: 50, backgroundColor: 'var(--s-bg)', borderBottom: '1px solid var(--s-border)', fontFamily: 'var(--s-font)' }}>
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-      <a href={`${prefix}/`} style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
-        {store?.logo ? (
-          <img src={store.logo} alt={store?.name} style={{ height: 36, width: 'auto', maxWidth: 120, objectFit: 'contain' }} />
-        ) : (
-          <span style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'var(--s-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 16, flexShrink: 0 }}>
-            {(store?.name || 'S')[0].toUpperCase()}
-          </span>
-        )}
-        <span style={{ fontWeight: 700, fontSize: 17, color: 'var(--s-text)', letterSpacing: '-0.01em' }}>{store?.name}</span>
-      </a>
-      <nav style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        {[
-          { label: 'Accueil', href: `${prefix}/` },
-          { label: 'Produits', href: `${prefix}/products` },
-        ].map(link => (
-          <a key={link.label} href={link.href} style={{
-            padding: '7px 14px', borderRadius: 8, fontSize: 13.5, fontWeight: 600,
-            color: 'var(--s-text2)', textDecoration: 'none', fontFamily: 'var(--s-font)',
-            transition: 'background 0.15s, color 0.15s',
-          }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; e.currentTarget.style.color = 'var(--s-text)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--s-text2)'; }}
-          >{link.label}</a>
-        ))}
-        <a href={`${prefix}/checkout`} style={{
-          display: 'flex', alignItems: 'center', gap: 7, padding: '8px 18px', borderRadius: 40,
-          border: '1.5px solid', borderColor: cartCount > 0 ? 'var(--s-primary)' : 'var(--s-border)',
-          backgroundColor: cartCount > 0 ? 'var(--s-primary)' : 'transparent',
-          color: cartCount > 0 ? '#fff' : 'var(--s-text)', textDecoration: 'none',
-          fontWeight: 600, fontSize: 14, transition: 'all 0.2s', fontFamily: 'var(--s-font)', marginLeft: 8,
-        }}>
-          <ShoppingCart size={17} />
-          {cartCount > 0 && <span>{cartCount}</span>}
-        </a>
-      </nav>
-    </div>
-  </header>
-);
+// ── Premium Header with glassmorphism ────────────────────────────────────────
+const StorefrontHeader = ({ store, cartCount, prefix }) => {
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const whatsapp = (store?.whatsapp || '').replace(/\D/g, '');
+  const waLink = whatsapp ? `https://wa.me/${whatsapp}` : null;
+
+  return (
+    <>
+      <header style={{
+        position: 'sticky', top: 0, zIndex: 50, fontFamily: 'var(--s-font)',
+        backgroundColor: scrolled ? 'rgba(255, 255, 255, 0.85)' : 'var(--s-bg)',
+        backdropFilter: scrolled ? 'blur(12px)' : 'none',
+        WebkitBackdropFilter: scrolled ? 'blur(12px)' : 'none',
+        borderBottom: `1px solid ${scrolled ? 'rgba(0,0,0,0.06)' : 'var(--s-border)'}`,
+        boxShadow: scrolled ? '0 4px 16px rgba(0,0,0,0.04)' : 'none',
+        transition: 'all 0.3s ease',
+      }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px', height: 70, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24 }}>
+          
+          {/* Logo + Store Name */}
+          <a href={`${prefix}/`} style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none', minWidth: 0 }}>
+            {store?.logo ? (
+              <img src={store.logo} alt={store?.name} style={{ height: 40, width: 'auto', maxWidth: 140, objectFit: 'contain' }} />
+            ) : (
+              <span style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: 'var(--s-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18, flexShrink: 0 }}>
+                {(store?.name || 'S')[0].toUpperCase()}
+              </span>
+            )}
+            <span style={{ fontWeight: 800, fontSize: 18, color: 'var(--s-text)', letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {store?.name}
+            </span>
+          </a>
+
+          {/* Desktop Navigation */}
+          <nav style={{ display: 'flex', alignItems: 'center', gap: 8 }} className="hidden md:flex">
+            {[
+              { label: 'Accueil', href: `${prefix}/` },
+              { label: 'Produits', href: `${prefix}/products` },
+              { label: 'Contact', href: waLink, external: true },
+            ].map(link => link.href ? (
+              <a key={link.label} href={link.href} target={link.external ? '_blank' : undefined} rel={link.external ? 'noopener noreferrer' : undefined}
+                style={{
+                  padding: '8px 16px', borderRadius: 10, fontSize: 14.5, fontWeight: 600,
+                  color: 'var(--s-text2)', textDecoration: 'none', fontFamily: 'var(--s-font)',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--s-primary)'; e.currentTarget.style.color = '#fff'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--s-text2)'; }}
+              >{link.label}</a>
+            ) : null)}
+          </nav>
+
+          {/* Right Actions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            
+            {/* Search Button (expandable) */}
+            <button
+              onClick={() => setSearchOpen(!searchOpen)}
+              style={{
+                width: searchOpen ? 200 : 40, height: 40,
+                borderRadius: searchOpen ? 20 : 10,
+                border: '1.5px solid var(--s-border)',
+                backgroundColor: searchOpen ? '#fff' : 'transparent',
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: searchOpen ? '0 12px' : 0,
+                justifyContent: searchOpen ? 'flex-start' : 'center',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+              }}
+              className="hidden md:flex"
+            >
+              <Search size={18} color="var(--s-text2)" />
+              {searchOpen && (
+                <input
+                  type="text"
+                  placeholder="Rechercher..."
+                  autoFocus
+                  style={{
+                    border: 'none', outline: 'none', flex: 1,
+                    fontSize: 14, color: 'var(--s-text)',
+                    backgroundColor: 'transparent',
+                  }}
+                />
+              )}
+            </button>
+
+            {/* Cart Button */}
+            <a href={`${prefix}/checkout`} style={{
+              position: 'relative',
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '10px 20px', borderRadius: 50,
+              border: '2px solid', borderColor: cartCount > 0 ? 'var(--s-primary)' : 'var(--s-border)',
+              backgroundColor: cartCount > 0 ? 'var(--s-primary)' : 'transparent',
+              color: cartCount > 0 ? '#fff' : 'var(--s-text)',
+              textDecoration: 'none',
+              fontWeight: 700, fontSize: 14, transition: 'all 0.25s',
+              fontFamily: 'var(--s-font)',
+              boxShadow: cartCount > 0 ? '0 4px 12px rgba(15, 107, 79, 0.25)' : 'none',
+            }}
+              onMouseEnter={e => {
+                if (cartCount === 0) {
+                  e.currentTarget.style.borderColor = 'var(--s-primary)';
+                  e.currentTarget.style.backgroundColor = 'rgba(15, 107, 79, 0.05)';
+                }
+              }}
+              onMouseLeave={e => {
+                if (cartCount === 0) {
+                  e.currentTarget.style.borderColor = 'var(--s-border)';
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }
+              }}
+            >
+              <ShoppingCart size={18} strokeWidth={2.5} />
+              {cartCount > 0 && (
+                <>
+                  <span style={{ display: 'none' }} className="hidden sm:inline">Panier</span>
+                  <span style={{
+                    position: 'absolute', top: -6, right: -6,
+                    width: 22, height: 22, borderRadius: '50%',
+                    backgroundColor: '#EF4444', color: '#fff',
+                    fontSize: 11, fontWeight: 800,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: '2px solid #fff',
+                  }}>{cartCount}</span>
+                </>
+              )}
+            </a>
+
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              style={{
+                width: 40, height: 40, borderRadius: 10,
+                border: '1.5px solid var(--s-border)',
+                backgroundColor: mobileMenuOpen ? 'var(--s-primary)' : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', transition: 'all 0.2s',
+              }}
+              className="flex md:hidden"
+            >
+              {mobileMenuOpen ? (
+                <X size={20} color={mobileMenuOpen ? '#fff' : 'var(--s-text)'} />
+              ) : (
+                <Menu size={20} color="var(--s-text)" />
+              )}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile Menu */}
+      {mobileMenuOpen && (
+        <div style={{
+          position: 'fixed', top: 70, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(4px)',
+          zIndex: 40,
+          animation: 'fadeIn 0.2s ease',
+        }}
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: '0 0 24px 24px',
+              padding: '24px 20px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              animation: 'slideDown 0.3s ease',
+            }}
+          >
+            {[
+              { label: 'Accueil', href: `${prefix}/`, icon: <Globe size={20} /> },
+              { label: 'Produits', href: `${prefix}/products`, icon: <ShoppingBag size={20} /> },
+              { label: 'Contact WhatsApp', href: waLink, icon: <Phone size={20} />, external: true },
+            ].map(link => link.href ? (
+              <a key={link.label} href={link.href} target={link.external ? '_blank' : undefined}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 16,
+                  padding: '16px', borderRadius: 12,
+                  textDecoration: 'none', color: 'var(--s-text)',
+                  fontSize: 16, fontWeight: 600,
+                  marginBottom: 8,
+                  transition: 'background 0.2s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#F3F4F6'}
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+              >
+                <span style={{ color: 'var(--s-primary)' }}>{link.icon}</span>
+                {link.label}
+              </a>
+            ) : null)}
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
 
 // ── Product Card ──────────────────────────────────────────────────────────────
 const ProductCard = ({ product, prefix, store }) => {
