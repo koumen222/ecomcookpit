@@ -983,7 +983,7 @@ const StoreProductPage = () => {
         .ai-desc h3 { font-size:20px; font-weight:800; color:var(--s-text); margin:0 0 12px; line-height:1.3; }
         .ai-desc h3 strong { font-weight:800; }
         .ai-desc p { font-size:15px; line-height:1.75; color:var(--s-text2); margin:0 0 14px; }
-        .ai-desc img { width:100% !important; max-width:none !important; height:auto !important; aspect-ratio:auto !important; object-fit:contain !important; display:block; margin:0 0 0; }
+        .ai-desc img { width:auto !important; max-width:100% !important; height:auto !important; aspect-ratio:auto !important; object-fit:contain !important; display:block; margin:0 0 0; }
         .ai-desc ul { margin:0; padding:0; list-style:none; }
         .ai-desc ul li { display:flex; align-items:flex-start; gap:10px; margin-bottom:10px; font-size:14px; }
         .ai-desc-testimonials { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; }
