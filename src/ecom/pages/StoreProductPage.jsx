@@ -350,28 +350,7 @@ const ProductFeatures = ({ features }) => {
   );
 };
 
-// ── Description (handles both HTML and markdown) ─────────────────────────────
-const removeFaqFromDescriptionHtml = (html = '') => {
-  if (!html || typeof DOMParser === 'undefined') return html;
-
-  try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(`<div id="sf-desc-root">${html}</div>`, 'text/html');
-    const root = doc.getElementById('sf-desc-root');
-    if (!root) return html;
-
-    const faqSections = Array.from(root.querySelectorAll('div')).filter((element) => {
-      const heading = element.querySelector('h1, h2, h3, h4, h5, h6');
-      return heading && /questions fréquentes|faq/i.test((heading.textContent || '').trim());
-    });
-
-    faqSections.forEach((section) => section.remove());
-    return root.innerHTML.trim();
-  } catch {
-    return html;
-  }
-};
-
+// ── Description ──────────────────────────────────────────────────────────────
 const optimizeDescriptionHtml = (html = '') => {
   if (!html || typeof DOMParser === 'undefined') return html;
 
@@ -415,14 +394,14 @@ const ProductDescription = ({ content }) => {
   }
 
   const cleanContent = optimizeDescriptionHtml(rawContent);
-  if (!cleanContent) return null;
+  const htmlToRender = (cleanContent && cleanContent.trim()) ? cleanContent : rawContent;
 
   return (
     <div>
       <div
         className="ai-desc"
         style={{ fontSize: 15, lineHeight: 1.75, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}
-        dangerouslySetInnerHTML={{ __html: cleanContent }}
+        dangerouslySetInnerHTML={{ __html: htmlToRender }}
       />
     </div>
   );
@@ -940,27 +919,26 @@ const StoreProductPage = () => {
                 {/* Messages de confiance */}
                 {showTrustBadges && <TrustBadges compact />}
 
-                {/* Description IA + FAQ — sections réductibles */}
                 {(() => {
                   const raw = product.description?.toString().trim() || '';
                   const hasHtml = raw && /<[^>]+>/.test(raw);
 
-                  // FAQ : priorité product.faq, sinon extraction depuis HTML
                   const faqItems = product.faq?.length > 0
                     ? product.faq
                     : (showFaq && hasHtml ? extractFaqItemsFromHtml(raw) : []);
                   const hasFaq = showFaq && faqItems.length > 0;
 
-                  // Description nettoyée : retirer la section FAQ du HTML
-                  const descHtml = hasHtml ? removeFaqFromDescriptionHtml(raw) : raw;
-                  const hasDesc = !!descHtml?.trim();
+                  const hasDesc = !!raw?.trim();
 
                   return (
                     <>
                       {hasDesc && (
-                        <CollapsibleSection title="Description du produit" defaultOpen={true}>
-                          <ProductDescription content={descHtml} />
-                        </CollapsibleSection>
+                        <div style={{ borderTop: '1px solid var(--s-border)', marginTop: 8, paddingTop: 16, paddingBottom: 8 }}>
+                          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)', marginBottom: 12 }}>
+                            Description du produit
+                          </div>
+                          <ProductDescription content={raw} />
+                        </div>
                       )}
                       {hasFaq && (
                         <CollapsibleSection title="❓ Questions fréquentes" defaultOpen={false}>
