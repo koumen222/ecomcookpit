@@ -780,7 +780,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     </div>
                   )}
 
-                  {/* 4 Angles marketing */
+                  {/* 4 Angles marketing */}
                   <div>
                     <p className="text-xs font-bold text-violet-700 uppercase tracking-wide mb-3">🎯 4 ARGUMENTS MARKETING</p>
                     {(product.angles || []).map((angle, i) => (
