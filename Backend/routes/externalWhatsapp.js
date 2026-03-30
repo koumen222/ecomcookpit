@@ -1818,6 +1818,16 @@ router.post('/incoming', async (req, res) => {
             try {
               const orderData = JSON.parse(orderTagExtracted.json);
               console.log(`📦 [RITA] Commande détectée:`, JSON.stringify(orderData));
+              
+              // Calculer la date programmée si fournie
+              let scheduledDate = null;
+              if (orderData.delivery_date && orderData.delivery_date !== 'dès que possible') {
+                try {
+                  scheduledDate = new Date(orderData.delivery_date);
+                  if (isNaN(scheduledDate.getTime())) scheduledDate = null;
+                } catch (e) { scheduledDate = null; }
+              }
+              
               await WhatsAppOrder.create({
                 userId,
                 instanceName: instanceDoc.instanceName,
@@ -1827,8 +1837,11 @@ router.post('/incoming', async (req, res) => {
                 pushName: pushName || '',
                 productName: orderData.product || '',
                 productPrice: orderData.price || '',
+                quantity: orderData.quantity || 1,
                 deliveryDate: orderData.delivery_date || '',
                 deliveryTime: orderData.delivery_time || '',
+                scheduledDeliveryDate: scheduledDate,
+                deliveryAddress: orderData.address || orderData.city || '',
                 status: 'pending',
                 conversationSummary: `${orderData.product} → ${orderData.name} (${orderData.city})`,
               });
@@ -1840,12 +1853,24 @@ router.post('/incoming', async (req, res) => {
                 await processFlows(userId, 'order_confirmed', { text: text || '', phone: cleanFrom, pushName });
               } catch (flowErr) { console.error('⚠️ [FlowEngine] order_confirmed:', flowErr.message); }
 
-              // Marquer le contact comme ayant commandé + enrichir avec nom/ville
+              // Marquer le contact comme ayant commandé + mettre à jour les stats
               try {
-                const contactUpdate = { hasOrdered: true };
+                const contactUpdate = { 
+                  hasOrdered: true,
+                  lastOrderDate: new Date(),
+                  $inc: { totalOrders: 1 }
+                };
                 if (orderData.name) contactUpdate.nom = orderData.name;
                 if (orderData.city) contactUpdate.ville = orderData.city;
                 if (orderData.address) contactUpdate.adresse = orderData.address;
+                
+                // Déterminer le statut
+                if (scheduledDate && scheduledDate > new Date()) {
+                  contactUpdate.status = 'scheduled';
+                } else {
+                  contactUpdate.status = 'prospect'; // Devient client seulement après livraison
+                }
+                
                 await RitaContact.findOneAndUpdate(
                   { userId, phone: cleanFrom },
                   contactUpdate
