@@ -16,8 +16,20 @@ const POSTHOG_HOST =
 // ─── Guards ───────────────────────────────────────────────────────────────────
 let _initialized = false;
 
+function isValidPosthogKey(key) {
+  return (
+    typeof key === 'string' &&
+    key.length > 20 &&
+    key.startsWith('phc_') &&
+    !key.toLowerCase().includes('votre') &&
+    !key.toLowerCase().includes('your_') &&
+    !key.toLowerCase().includes('_ici') &&
+    !key.toLowerCase().includes('placeholder')
+  );
+}
+
 function isEnabled() {
-  return _initialized && !!POSTHOG_KEY;
+  return _initialized && isValidPosthogKey(POSTHOG_KEY);
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -29,9 +41,9 @@ export function initAnalytics() {
     return;
   }
 
-  if (_initialized || !POSTHOG_KEY) {
-    if (!POSTHOG_KEY) {
-      console.warn('[PostHog] Missing POSTHOG key (VITE_POSTHOG_KEY or VITE_PUBLIC_POSTHOG_KEY) — analytics disabled.');
+  if (_initialized || !isValidPosthogKey(POSTHOG_KEY)) {
+    if (!isValidPosthogKey(POSTHOG_KEY)) {
+      console.warn('[PostHog] Missing or invalid POSTHOG key — analytics disabled.');
     }
     return;
   }

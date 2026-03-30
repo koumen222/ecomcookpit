@@ -313,19 +313,5 @@ window.addEventListener('load', () => {
   });
 });
 
-// Track errors
-window.addEventListener('error', (event) => {
-  analytics.trackError(event.error, {
-    filename: event.filename,
-    lineno: event.lineno,
-    colno: event.colno
-  });
-});
-
-window.addEventListener('unhandledrejection', (event) => {
-  analytics.trackError(event.reason, {
-    type: 'unhandled_promise_rejection'
-  });
-});
 
 export default analytics;
