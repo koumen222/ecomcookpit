@@ -125,6 +125,7 @@ import StoreFront from './pages/StoreFront.jsx';
 // Boutique
 import BoutiqueLayout from './components/BoutiqueLayout.jsx';
 import BoutiqueDashboard from './pages/BoutiqueDashboard.jsx';
+import BoutiquePages from './pages/BoutiquePages.jsx';
 import BoutiquePixel from './pages/BoutiquePixel.jsx';
 import BoutiquePayments from './pages/BoutiquePayments.jsx';
 import BoutiqueDomains from './pages/BoutiqueDomains.jsx';
@@ -577,6 +578,7 @@ const EcomApp = () => {
               <Route path="/ecom/boutique/products/new" element={<StoreProductForm />} />
               <Route path="/ecom/boutique/products/:id/edit" element={<StoreProductForm />} />
               <Route path="/ecom/boutique/orders" element={<StoreOrdersDashboard />} />
+              <Route path="/ecom/boutique/pages" element={<BoutiquePages />} />
               <Route path="/ecom/boutique/pixel" element={<BoutiquePixel />} />
               <Route path="/ecom/boutique/payments" element={<BoutiquePayments />} />
               <Route path="/ecom/boutique/domains" element={<BoutiqueDomains />} />

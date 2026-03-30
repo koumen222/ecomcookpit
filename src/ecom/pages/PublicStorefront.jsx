@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   ShoppingCart, MessageCircle, ArrowRight, ShoppingBag, Star,
@@ -2143,7 +2143,7 @@ const ProductCard = ({ product, prefix, store }) => {
 const QuickViewModal = ({ product, store, prefix, onClose }) => {
   const { addToCart } = useStoreCart();
   const [quantity, setQuantity] = useState(1);
-  const modalRef = React.useRef(null);
+  const modalRef = useRef(null);
   
   const hasDiscount = product.compareAtPrice && product.compareAtPrice > product.price;
   
