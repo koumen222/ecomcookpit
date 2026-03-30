@@ -3,6 +3,7 @@ import {
   X, Sparkles, Loader2, CheckCircle, AlertCircle, Upload,
   Image as ImageIcon, Copy, ExternalLink, Zap, Package, ArrowRight, Star
 } from 'lucide-react';
+import TestimonialsCarousel from './TestimonialsCarousel';
 
 // Product-generator is mounted at /api/ai/product-generator (outside /api/ecom).
 // We must always use API origin only, never a base path like /api/ecom.
@@ -294,25 +295,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       descHtml += `</div>`;
     }
 
-    // ── Témoignages clients avec étoiles ──────────────────────────────────────
-    if (product.testimonials?.length) {
-      const stars = (n) => '★'.repeat(Math.min(5, Math.max(0, n))) + '☆'.repeat(5 - Math.min(5, Math.max(0, n)));
-      descHtml += `<div style="margin:48px 0;padding:32px;background:#fafafa;border-radius:20px;border:1px solid #f0f0f0;">`;
-      descHtml += `<h3 style="font-size:22px;font-weight:800;color:#111;margin:0 0 8px;text-align:center;"><strong>⭐ Ce que disent nos clients</strong></h3>`;
-      descHtml += `<p style="text-align:center;color:#888;font-size:13px;margin:0 0 28px;">Avis vérifiés de clients satisfaits</p>`;
-      descHtml += `<div class="ai-desc-testimonials" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;">`;
-      product.testimonials.forEach(t => {
-        descHtml += `<div style="background:#fff;border-radius:14px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,0.06);border:1px solid #f0f0f0;">`;
-        descHtml += `<div style="color:#FFB800;font-size:18px;letter-spacing:2px;margin-bottom:10px;">${stars(t.rating || 5)}</div>`;
-        descHtml += `<p style="font-style:italic;color:#333;font-size:14px;line-height:1.65;margin:0 0 14px;">"${t.text}"</p>`;
-        descHtml += `<div style="display:flex;align-items:center;gap:8px;">`;
-        descHtml += `<div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;flex-shrink:0;">${(t.name || 'A')[0]}</div>`;
-        descHtml += `<div><p style="margin:0;font-weight:700;font-size:13px;color:#111;">${t.name}</p>`;
-        descHtml += `<p style="margin:0;font-size:11px;color:#888;">${t.location} ${t.verified ? '· ✅ Achat vérifié' : ''} · ${t.date || ''}</p></div>`;
-        descHtml += `</div></div>`;
-      });
-      descHtml += `</div></div>`;
-    }
+    // ── Témoignages clients ───────────────────────────────────────────────────
+    // NOTE: Les témoignages ne sont PAS inclus dans le HTML de description.
+    // Ils sont sauvegardés dans product.testimonials et seront automatiquement
+    // affichés en carrousel par StoreProductPage.jsx via VerifiedTestimonialsCarousel.
+    // Cela évite d'avoir du HTML statique et permet un affichage dynamique et interactif.
 
     // ── Raisons d'acheter ──────────────────────────────────────────────────────
     if (product.raisons_acheter?.length) {
@@ -847,23 +834,22 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               {/* Tab: FAQ + Avis */}
               {activeTab === 'faq' && (
                 <div className="space-y-4">
-                  {/* Témoignages */}
+                  {/* Témoignages en Carrousel */}
                   {product.testimonials?.length > 0 && (
                     <div>
-                      <p className="text-xs font-bold text-amber-600 uppercase tracking-wide mb-3">⭐ {product.testimonials.length} TÉMOIGNAGES CLIENTS</p>
-                      <div className="space-y-2">
-                        {product.testimonials.map((t, i) => (
-                          <div key={i} className="border border-amber-100 rounded-xl p-3 bg-amber-50">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-amber-400 text-sm">{'★'.repeat(t.rating || 5)}</span>
-                              <span className="text-xs font-bold text-gray-700">{t.name}</span>
-                              <span className="text-xs text-gray-400">{t.location}</span>
-                              {t.verified && <span className="text-xs text-emerald-600">✅</span>}
-                            </div>
-                            <p className="text-sm text-gray-600 italic">&ldquo;{t.text}&rdquo;</p>
-                            <p className="text-xs text-gray-400 mt-1">{t.date}</p>
-                          </div>
-                        ))}
+                      <p className="text-xs font-bold text-amber-600 uppercase tracking-wide mb-3">⭐ {product.testimonials.length} TÉMOIGNAGES CLIENTS (Carrousel)</p>
+                      <div className="-mx-2">
+                        <TestimonialsCarousel 
+                          testimonials={product.testimonials.map(t => ({
+                            name: t.name,
+                            location: t.location,
+                            text: t.text,
+                            rating: t.rating || 5,
+                            verified: t.verified !== false,
+                            date: t.date
+                          }))}
+                          autoPlay={false}
+                        />
                       </div>
                     </div>
                   )}
