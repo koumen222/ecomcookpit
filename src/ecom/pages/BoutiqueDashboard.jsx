@@ -30,35 +30,58 @@ const BoutiqueDashboard = () => {
   const currency = workspace?.storeSettings?.storeCurrency || 'XAF';
 
   useEffect(() => {
+    let isMounted = true;
+
     const load = async () => {
       try {
-        // Check if store exists
         const configRes = await storeManageApi.getStoreConfig().catch(() => null);
         const subdomain = configRes?.data?.data?.subdomain;
         const storeUrlFromApi = configRes?.data?.data?.storeUrl;
+
+        if (!isMounted) return;
+
         setHasStore(!!subdomain);
-        
+
         if (storeUrlFromApi) {
           setStoreUrl(storeUrlFromApi);
         } else if (subdomain) {
           setStoreUrl(`https://${subdomain}.scalor.net`);
+        } else {
+          setStoreUrl(null);
         }
 
-        if (!subdomain) { setLoading(false); return; }
+        if (!subdomain) {
+          if (isMounted) setLoading(false);
+          return;
+        }
 
         const [statsRes, ordersRes] = await Promise.all([
           api.get('/store/analytics/summary').catch(() => ({ data: {} })),
           api.get('/store/orders?limit=5&sort=-createdAt').catch(() => ({ data: { data: { orders: [] } } })),
         ]);
+
+        if (!isMounted) return;
+
         setStats(statsRes.data?.data || statsRes.data || {});
         setRecentOrders(ordersRes.data?.data?.orders || []);
       } catch {
-        setHasStore(true); // assume store exists on error to not block
+        if (isMounted) {
+          setHasStore(true);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
+
     load();
+    const intervalId = window.setInterval(load, 30000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
   }, []);
 
   // Show wizard if no store configured

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   ShoppingCart, MessageCircle, ArrowRight, ShoppingBag, Star,
   ChevronDown, ChevronUp, Truck, ShieldCheck, Package, RotateCcw,
@@ -7,9 +7,10 @@ import {
   MapPin, Mail, X, ChevronRight,
 } from 'lucide-react';
 import { useSubdomain } from '../hooks/useSubdomain';
-import { useStoreData } from '../hooks/useStoreData';
+import { prefetchStoreProduct, useStoreData } from '../hooks/useStoreData';
 import { useStoreCart } from '../hooks/useStoreCart';
 import { setDocumentMeta } from '../utils/pageMeta';
+import { preloadStoreCheckoutRoute, preloadStoreProductRoute } from '../utils/routePrefetch';
 
 const fmt = (n, cur = 'XAF') =>
   `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
@@ -143,7 +144,7 @@ const AiHeroSection = ({ cfg, store, prefix, products }) => {
                 color: 'rgba(255,255,255,0.88)', fontFamily: 'var(--s-font)',
               }}>{cfg.subtitle}</p>
             )}
-            <a href={`${prefix}/products`}
+            <Link to={`${prefix}/products`}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 10,
                 padding: '16px 36px', borderRadius: 50,
@@ -154,7 +155,7 @@ const AiHeroSection = ({ cfg, store, prefix, products }) => {
               }}
               onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 44px rgba(0,0,0,0.28)'; }}
               onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 6px 30px rgba(0,0,0,0.20)'; }}
-            >{cfg.ctaText || 'Découvrir nos produits'} <ArrowRight size={17} /></a>
+            >{cfg.ctaText || 'Découvrir nos produits'} <ArrowRight size={17} /></Link>
           </div>
           {/* Product image */}
           <div style={{ flex: '1 1 260px', maxWidth: 420, margin: '0 auto' }}>
@@ -204,7 +205,7 @@ const HeroContent = ({ cfg, prefix }) => (
         color: 'rgba(255,255,255,0.88)', fontFamily: 'var(--s-font)', maxWidth: 580, marginLeft: 'auto', marginRight: 'auto',
       }}>{cfg.subtitle}</p>
     )}
-    <a href={`${prefix}/products`}
+    <Link to={`${prefix}/products`}
       onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 44px rgba(0,0,0,0.28)'; }}
       onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 6px 30px rgba(0,0,0,0.22)'; }}
       style={{
@@ -214,7 +215,7 @@ const HeroContent = ({ cfg, prefix }) => (
         fontWeight: 800, fontSize: 15.5, textDecoration: 'none',
         letterSpacing: '-0.01em', fontFamily: 'var(--s-font)',
         boxShadow: '0 6px 30px rgba(0,0,0,0.22)', transition: 'transform 0.15s, box-shadow 0.15s',
-      }}>{cfg.ctaText || 'Découvrir'} <ArrowRight size={18} /></a>
+      }}>{cfg.ctaText || 'Découvrir'} <ArrowRight size={18} /></Link>
   </div>
 );
 
@@ -256,11 +257,11 @@ const AiProductsSection = ({ cfg, products, prefix, store }) => {
               <ShoppingBag size={40} style={{ marginBottom: 12, opacity: 0.3 }} />
               <p style={{ margin: 0, fontSize: 15 }}>Aucun produit pour l'instant.</p>
             </div>
-          ) : displayed.map(p => <ProductCard key={p._id} product={p} prefix={prefix} store={store} />)}
+          ) : displayed.map(p => <ProductCard key={p._id} product={p} prefix={prefix} store={store} subdomain={store?.subdomain} />)}
         </div>
         {products.length > limit && (
           <div style={{ textAlign: 'center', marginTop: 40 }}>
-            <a href={`${prefix}/products`} style={{
+            <Link to={`${prefix}/products`} style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
               padding: '13px 32px', borderRadius: 40,
               border: '2px solid var(--s-primary)', color: 'var(--s-primary)',
@@ -271,7 +272,7 @@ const AiProductsSection = ({ cfg, products, prefix, store }) => {
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--s-primary)'; }}
             >
               Voir tous les produits ({products.length}) <ChevronRight size={16} />
-            </a>
+            </Link>
           </div>
         )}
       </div>
@@ -424,7 +425,7 @@ const SectionRenderer = ({ section, store, products, prefix }) => {
 const StorefrontHeader = ({ store, cartCount, prefix }) => (
   <header style={{ position: 'sticky', top: 0, zIndex: 50, backgroundColor: 'var(--s-bg)', borderBottom: '1px solid var(--s-border)', fontFamily: 'var(--s-font)' }}>
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-      <a href={`${prefix}/`} style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
+      <Link to={`${prefix}/`} style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
         {store?.logo ? (
           <img src={store.logo} alt={store?.name} style={{ height: 36, width: 'auto', maxWidth: 120, objectFit: 'contain' }} />
         ) : (
@@ -433,48 +434,55 @@ const StorefrontHeader = ({ store, cartCount, prefix }) => (
           </span>
         )}
         <span style={{ fontWeight: 700, fontSize: 17, color: 'var(--s-text)', letterSpacing: '-0.01em' }}>{store?.name}</span>
-      </a>
+      </Link>
       <nav style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         {[
           { label: 'Accueil', href: `${prefix}/` },
           { label: 'Produits', href: `${prefix}/products` },
         ].map(link => (
-          <a key={link.label} href={link.href} style={{
+          <Link key={link.label} to={link.href} style={{
             padding: '7px 14px', borderRadius: 8, fontSize: 13.5, fontWeight: 600,
             color: 'var(--s-text2)', textDecoration: 'none', fontFamily: 'var(--s-font)',
             transition: 'background 0.15s, color 0.15s',
           }}
             onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; e.currentTarget.style.color = 'var(--s-text)'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--s-text2)'; }}
-          >{link.label}</a>
+          >{link.label}</Link>
         ))}
-        <a href={`${prefix}/checkout`} style={{
+        <Link to={`${prefix}/checkout`} style={{
           display: 'flex', alignItems: 'center', gap: 7, padding: '8px 18px', borderRadius: 40,
           border: '1.5px solid', borderColor: cartCount > 0 ? 'var(--s-primary)' : 'var(--s-border)',
           backgroundColor: cartCount > 0 ? 'var(--s-primary)' : 'transparent',
           color: cartCount > 0 ? '#fff' : 'var(--s-text)', textDecoration: 'none',
           fontWeight: 600, fontSize: 14, transition: 'all 0.2s', fontFamily: 'var(--s-font)', marginLeft: 8,
-        }}>
+        }} onMouseEnter={preloadStoreCheckoutRoute} onFocus={preloadStoreCheckoutRoute} onTouchStart={preloadStoreCheckoutRoute}>
           <ShoppingCart size={17} />
           {cartCount > 0 && <span>{cartCount}</span>}
-        </a>
+        </Link>
       </nav>
     </div>
   </header>
 );
 
 // ── Product Card ──────────────────────────────────────────────────────────────
-const ProductCard = ({ product, prefix, store }) => {
+const ProductCard = ({ product, prefix, store, subdomain }) => {
   const [hovered, setHovered] = useState(false);
   const hasDiscount = product.compareAtPrice && product.compareAtPrice > product.price;
   const pct = hasDiscount ? Math.round((1 - product.price / product.compareAtPrice) * 100) : 0;
+  const handlePrefetch = () => {
+    preloadStoreProductRoute();
+    if (subdomain && product?.slug) {
+      prefetchStoreProduct(subdomain, product.slug);
+    }
+  };
+
   return (
-    <a href={`${prefix}/product/${product.slug}`} style={{ textDecoration: 'none' }}
-      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+    <Link to={`${prefix}/product/${product.slug}`} style={{ textDecoration: 'none' }}
+      onMouseEnter={() => { setHovered(true); handlePrefetch(); }} onMouseLeave={() => setHovered(false)} onFocus={handlePrefetch} onTouchStart={handlePrefetch}>
       <div style={{ backgroundColor: 'var(--s-bg)', overflow: 'hidden', border: '1px solid var(--s-border)', boxShadow: hovered ? '0 12px 36px rgba(0,0,0,0.1)' : '0 1px 4px rgba(0,0,0,0.05)', transform: hovered ? 'translateY(-3px)' : 'none', transition: 'box-shadow 0.25s, transform 0.25s' }}>
         <div style={{ position: 'relative', paddingBottom: '100%', backgroundColor: '#f4f4f5', overflow: 'hidden' }}>
           {product.image ? (
-            <img src={product.image} alt={product.name} loading="eager" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transform: hovered ? 'scale(1.05)' : 'scale(1)', transition: 'transform 0.4s ease' }} />
+            <img src={product.image} alt={product.name} loading="lazy" decoding="async" sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transform: hovered ? 'scale(1.05)' : 'scale(1)', transition: 'transform 0.4s ease' }} />
           ) : (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <ShoppingBag size={40} style={{ color: '#d1d5db' }} />
@@ -496,7 +504,7 @@ const ProductCard = ({ product, prefix, store }) => {
           </div>
         </div>
       </div>
-    </a>
+    </Link>
   );
 };
 
@@ -530,11 +538,11 @@ const StorefrontFooter = ({ store, prefix }) => {
           <p style={{ fontWeight: 700, fontSize: 13, color: '#fff', margin: '0 0 18px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Navigation</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {navigationLinks.map(link => (
-              <a key={link.label} href={link.href} style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.7)', textDecoration: 'none', transition: 'color 0.15s' }}
+              <Link key={link.label} to={link.href} style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.7)', textDecoration: 'none', transition: 'color 0.15s' }}
                 onMouseEnter={e => e.currentTarget.style.color = '#fff'}
                 onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}>
                 {link.label}
-              </a>
+              </Link>
             ))}
           </div>
         </div>
@@ -666,7 +674,7 @@ export const StoreAllProducts = () => {
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 20 }}>
-            {filtered.map(p => <ProductCard key={p._id} product={p} prefix={prefix} store={store} />)}
+            {filtered.map(p => <ProductCard key={p._id} product={p} prefix={prefix} store={store} subdomain={store?.subdomain} />)}
           </div>
         )}
       </div>
@@ -748,9 +756,9 @@ const PublicStorefront = () => {
             <div style={{ maxWidth: 640, margin: '0 auto' }}>
               <h1 style={{ fontSize: 'clamp(36px, 7vw, 60px)', fontWeight: 900, lineHeight: 1.08, color: '#fff', margin: '0 0 18px', letterSpacing: '-0.03em', fontFamily: 'var(--s-font)' }}>{store?.name}</h1>
               {store?.description && <p style={{ fontSize: 'clamp(15px, 2vw, 18px)', color: 'rgba(255,255,255,0.85)', lineHeight: 1.65, margin: '0 0 40px', fontFamily: 'var(--s-font)' }}>{store.description}</p>}
-              <a href={`${prefix}/products`} style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '15px 34px', borderRadius: 40, backgroundColor: '#fff', color: 'var(--s-primary)', fontWeight: 700, fontSize: 15, textDecoration: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}>
+              <Link to={`${prefix}/products`} style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '15px 34px', borderRadius: 40, backgroundColor: '#fff', color: 'var(--s-primary)', fontWeight: 700, fontSize: 15, textDecoration: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}>
                 Découvrir nos produits <ArrowRight size={17} />
-              </a>
+              </Link>
             </div>
           </section>
 
@@ -769,7 +777,7 @@ const PublicStorefront = () => {
               )}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 20 }}>
-              {filtered.slice(0, 3).map(p => <ProductCard key={p._id} product={p} prefix={prefix} store={store} />)}
+              {filtered.slice(0, 3).map(p => <ProductCard key={p._id} product={p} prefix={prefix} store={store} subdomain={store?.subdomain} />)}
             </div>
             {filtered.length === 0 && (
               <div style={{ textAlign: 'center', padding: '72px 20px' }}>
@@ -779,9 +787,9 @@ const PublicStorefront = () => {
             )}
             {filtered.length > 3 && (
               <div style={{ textAlign: 'center', marginTop: 32 }}>
-                <a href={`${prefix}/products`} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 28px', borderRadius: 40, border: '2px solid var(--s-primary)', color: 'var(--s-primary)', fontWeight: 700, fontSize: 14, textDecoration: 'none', fontFamily: 'var(--s-font)' }}>
+                <Link to={`${prefix}/products`} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 28px', borderRadius: 40, border: '2px solid var(--s-primary)', color: 'var(--s-primary)', fontWeight: 700, fontSize: 14, textDecoration: 'none', fontFamily: 'var(--s-font)' }}>
                   Voir tous les produits <ChevronRight size={16} />
-                </a>
+                </Link>
               </div>
             )}
           </section>

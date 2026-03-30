@@ -5,7 +5,12 @@
       "Bash(git merge:*)",
       "Bash(node -c src/ecom/pages/AgentConfig.jsx)",
       "Bash(grep -r \"sendStatus\\\\|sendStory\\\\|story\" /Users/macbookpro/ecomcookpit/Backend --include=*.js --exclude-dir=node_modules)",
-      "Bash(grep -r \"Evolution API\\\\|evolution-api\\\\|/status\\\\|/story\" /Users/macbookpro/ecomcookpit/Backend --include=*.js --exclude-dir=node_modules)"
+      "Bash(grep -r \"Evolution API\\\\|evolution-api\\\\|/status\\\\|/story\" /Users/macbookpro/ecomcookpit/Backend --include=*.js --exclude-dir=node_modules)",
+      "Bash(git stash:*)",
+      "Bash(git -C /Users/macbookpro/ecomcookpit add Backend/server.js)",
+      "Bash(git -C:*)",
+      "Bash(git -C /Users/macbookpro/ecomcookpit push origin main)",
+      "Bash(git cherry-pick:*)"
     ]
   }
 }
