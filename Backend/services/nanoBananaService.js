@@ -1,15 +1,15 @@
 /**
- * NanoBanana API Service
- * Alternative to DALL-E for image generation
+ * Google Imagen API Service (via NanoBanana)
+ * Utilise le dernier modèle Google Imagen pour la génération d'images
  */
 
 import axios from 'axios';
 
 const NANOBANANA_API_URL = 'https://api.nanobananaapi.ai/api/v1/nanobanana';
-const NANOBANANA_API_KEY = process.env.NANOBANANA_API_KEY;
+const NANOBANANA_API_KEY = process.env.NANOBANANA_API_KEY || 'AIzaSyBMhUariTC0fSNx1b9mKGkXzcslGnyWDpk';
 
 /**
- * Generate image using NanoBanana API (text-to-image)
+ * Generate image using Google Imagen API (text-to-image)
  * @param {string} prompt - Text description of the image
  * @param {string} aspectRatio - Image aspect ratio (default: "1:1")
  * @param {number} numImages - Number of images to generate (1-4)
@@ -17,18 +17,19 @@ const NANOBANANA_API_KEY = process.env.NANOBANANA_API_KEY;
  */
 export async function generateNanoBananaImage(prompt, aspectRatio = '1:1', numImages = 1) {
   if (!NANOBANANA_API_KEY) {
-    throw new Error('NanoBanana API key not configured');
+    throw new Error('Google Imagen API key not configured');
   }
   
   try {
-    console.log('🎨 Generating image with NanoBanana API...');
+    console.log('🎨 Generating image with Google Imagen API (via NanoBanana)...');
     
     const response = await axios.post(`${NANOBANANA_API_URL}/generate`, {
       prompt: prompt.slice(0, 4000), // Limit prompt length
       numImages,
       type: 'TEXTTOIAMGE', // Text to Image generation
       image_size: aspectRatio,
-      watermark: 'NanoBanana'
+      watermark: 'NanoBanana',
+      model: 'google-imagen-3' // Utiliser le dernier modèle Google Imagen
     }, {
       headers: {
         'Authorization': `Bearer ${NANOBANANA_API_KEY}`,
@@ -116,7 +117,7 @@ async function pollNanoBananaTask(taskId, maxAttempts = 30, interval = 2000) {
 }
 
 /**
- * Generate image using NanoBanana API (image-to-image)
+ * Generate image using Google Imagen API (image-to-image)
  * @param {string} prompt - Text description of the desired edit/transformation
  * @param {string|Buffer} imageInput - Base64 image data or image buffer
  * @param {string} aspectRatio - Image aspect ratio (default: "1:1")
@@ -125,11 +126,11 @@ async function pollNanoBananaTask(taskId, maxAttempts = 30, interval = 2000) {
  */
 export async function generateNanoBananaImageToImage(prompt, imageInput, aspectRatio = '1:1', numImages = 1) {
   if (!NANOBANANA_API_KEY) {
-    throw new Error('NanoBanana API key not configured');
+    throw new Error('Google Imagen API key not configured');
   }
   
   try {
-    console.log('🎨 Generating image-to-image with NanoBanana API...');
+    console.log('🎨 Generating image-to-image with Google Imagen API (via NanoBanana)...');
     
     // Convert image to base64 if it's a buffer
     let base64Image;
@@ -151,7 +152,8 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
       type: 'IMAGETOIAMGE', // Image to Image generation
       image_size: aspectRatio,
       imageUrls: [imageUrl], // Array of input image URLs
-      watermark: 'NanoBanana'
+      watermark: 'NanoBanana',
+      model: 'google-imagen-3' // Utiliser le dernier modèle Google Imagen
     }, {
       headers: {
         'Authorization': `Bearer ${NANOBANANA_API_KEY}`,
