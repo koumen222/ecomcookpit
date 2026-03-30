@@ -123,6 +123,7 @@ const StoreSetup = lazy(() => import('./pages/StoreSetup.jsx'));
 const StoreProductsList = lazy(() => import('./pages/StoreProductsList.jsx'));
 const StoreProductForm = lazy(() => import('./pages/StoreProductForm.jsx'));
 const StoreAnalytics = lazy(() => import('./pages/StoreAnalytics.jsx'));
+const StoreDashboard = lazy(() => import('./pages/StoreDashboard.jsx'));
 const StoreOrdersDashboard = lazy(() => import('./pages/StoreOrdersDashboard.jsx'));
 const PublicStorefront = lazy(preloadPublicStorefrontRoute);
 const StoreAllProducts = lazy(() => preloadStoreAllProductsRoute().then((module) => ({ default: module.StoreAllProducts })));
@@ -619,11 +620,13 @@ const EcomApp = () => {
               {/* Routes boutique - Utilise sa propre sidebar via BoutiqueLayout */}
               <Route path="/ecom/boutique/wizard" element={<ProtectedRoute requiredRole="ecom_admin"><StoreCreationWizard /></ProtectedRoute>} />
               <Route element={<ProtectedRoute requiredRole="ecom_admin"><BoutiqueLayout /></ProtectedRoute>}>
-                <Route path="/ecom/boutique" element={<BoutiqueDashboard />} />
+                <Route path="/ecom/boutique" element={<StoreDashboard />} />
+                <Route path="/ecom/boutique/analytics" element={<StoreDashboard />} />
                 <Route path="/ecom/boutique/products" element={<StoreProductsList />} />
                 <Route path="/ecom/boutique/products/new" element={<StoreProductForm />} />
                 <Route path="/ecom/boutique/products/:id/edit" element={<StoreProductForm />} />
                 <Route path="/ecom/boutique/orders" element={<StoreOrdersDashboard />} />
+                <Route path="/ecom/boutique/old-analytics" element={<StoreAnalytics />} />
                 <Route path="/ecom/boutique/pages" element={<BoutiquePages />} />
                 <Route path="/ecom/boutique/pixel" element={<BoutiquePixel />} />
                 <Route path="/ecom/boutique/payments" element={<BoutiquePayments />} />
