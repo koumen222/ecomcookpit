@@ -28,6 +28,8 @@ import Workspace from '../models/Workspace.js';
 import StoreProduct from '../models/StoreProduct.js';
 import StoreOrder from '../models/StoreOrder.js';
 import Order from '../models/Order.js';
+import { notifyNewOrder } from '../services/notificationHelper.js';
+import { memCache } from '../services/memoryCache.js';
 
 const router = express.Router();
 
@@ -487,24 +489,36 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
     // Sync to main system orders (non-blocking — don't fail the response if this errors)
     try {
       const productSummary = orderProducts.map(p => `${p.name} x${p.quantity}`).join(', ');
+      const normalizedPhone = order.phone.replace(/\D/g, '');
       const mainOrder = new Order({
         workspaceId: workspace._id,
+        orderId: order.orderNumber,
         clientName: order.customerName,
         clientPhone: order.phone,
+        clientPhoneNormalized: normalizedPhone || order.phone,
         city: order.city,
         address: order.address,
         product: productSummary,
         quantity: orderProducts.reduce((sum, p) => sum + p.quantity, 0),
         price: order.total,
+        currency: order.currency,
         status: 'pending',
         source: 'boutique',
+        sheetRowId: `store_${order._id.toString()}`,
+        sheetRowIndex: 999999,
         storeOrderId: order._id,
         notes: [order.orderNumber, order.notes].filter(Boolean).join(' — '),
-        date: new Date()
+        date: order.createdAt || new Date()
       });
       await mainOrder.save();
       order.linkedOrderId = mainOrder._id;
       await order.save();
+      memCache.delByPrefix(`stats:${workspace._id.toString()}`);
+      memCache.delByPrefix(`filterOpts:${workspace._id.toString()}`);
+      notifyNewOrder(workspace._id, mainOrder)
+        .catch((notifErr) => {
+          console.warn('⚠️ Could not send new order notification for store order:', notifErr.message);
+        });
     } catch (syncErr) {
       console.error('⚠️ Could not sync store order to main orders:', syncErr.message);
     }

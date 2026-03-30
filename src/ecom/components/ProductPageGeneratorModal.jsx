@@ -34,6 +34,50 @@ const API_ORIGIN = (() => {
   return 'https://api.scalor.net';
 })();
 
+async function compressImageFile(file) {
+  if (!file || !file.type.startsWith('image/')) return file;
+
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const img = new Image();
+
+      img.onload = () => {
+        const maxSide = 1600;
+        const scale = Math.min(1, maxSide / Math.max(img.width || 1, img.height || 1));
+        const width = Math.max(1, Math.round((img.width || 1) * scale));
+        const height = Math.max(1, Math.round((img.height || 1) * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            resolve(file);
+            return;
+          }
+
+          const baseName = file.name.replace(/\.[^.]+$/, '') || `image-${Date.now()}`;
+          resolve(new File([blob], `${baseName}.webp`, { type: 'image/webp', lastModified: Date.now() }));
+        }, 'image/webp', 0.82);
+      };
+
+      img.onerror = () => resolve(file);
+      img.src = reader.result;
+    };
+
+    reader.onerror = () => resolve(file);
+    reader.readAsDataURL(file);
+  });
+}
 
 function CopyButton({ text }) {
   const [copied, setCopied] = useState(false);
@@ -95,10 +139,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const isValidUrl = url.trim().length > 10 && (url.includes('alibaba.com') || url.includes('aliexpress.com'));
   const isValidDescription = description.trim().length > 20 && photos.length > 0;
 
-  const addPhotos = useCallback((files) => {
-    const imgs = Array.from(files).filter(f => f.type.startsWith('image/'));
+  const addPhotos = useCallback(async (files) => {
+    const imgs = Array.from(files).filter(f => f.type.startsWith('image/')).slice(0, 8);
+    const optimized = await Promise.all(imgs.map((file) => compressImageFile(file)));
     setPhotos(prev => {
-      const combined = [...prev, ...imgs];
+      const combined = [...prev, ...optimized];
       return combined.slice(0, 8);
     });
   }, []);

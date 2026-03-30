@@ -11,8 +11,26 @@
 import { Upload } from '@aws-sdk/lib-storage';
 import { DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { s3Client, R2_CONFIG, getR2PublicUrl } from '../config/r2.js';
+import imageOptimizer from './imageOptimizer.js';
 import { randomUUID } from 'crypto';
 import path from 'path';
+
+function getOptimizationOptions(filename, metadata = {}, mimeType = '') {
+  const extNorm = path.extname(filename).replace('.', '').toLowerCase();
+  const lowerMimeType = String(mimeType || '').toLowerCase();
+  const isRasterImage = lowerMimeType.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'avif'].includes(extNorm);
+  const isUnsupportedAnimatedOrVector = extNorm === 'gif' || extNorm === 'svg' || lowerMimeType.includes('gif') || lowerMimeType.includes('svg');
+
+  if (!isRasterImage || isUnsupportedAnimatedOrVector || metadata.optimize === false) {
+    return null;
+  }
+
+  return {
+    width: metadata.width || metadata.maxWidth || 1200,
+    height: metadata.height || metadata.maxHeight || 1200,
+    quality: metadata.quality || 82,
+  };
+}
 
 /**
  * Upload a product image to Cloudflare R2
@@ -28,20 +46,33 @@ export async function uploadImage(fileBuffer, filename, metadata = {}) {
   }
 
   const workspaceId = metadata.workspaceId || 'unknown';
-  const ext = path.extname(filename) || '.jpg';
-  const storageKey = `ecom/${workspaceId}/store/products/${randomUUID()}${ext}`;
+  let ext = path.extname(filename) || '.jpg';
 
-  // Normalize extension to valid MIME type (jpg → jpeg)
-  const extNorm = ext.replace('.', '').toLowerCase();
-  const mimeType = metadata.mimeType
+  let extNorm = ext.replace('.', '').toLowerCase();
+  let mimeType = metadata.mimeType
     || `image/${extNorm === 'jpg' ? 'jpeg' : extNorm || 'jpeg'}`;
+  let uploadBuffer = fileBuffer;
+
+  const optimizationOptions = getOptimizationOptions(filename, metadata, mimeType);
+  if (optimizationOptions) {
+    try {
+      uploadBuffer = await imageOptimizer.optimizeImage(fileBuffer, optimizationOptions);
+      ext = '.webp';
+      extNorm = 'webp';
+      mimeType = 'image/webp';
+    } catch (error) {
+      console.warn('⚠️ Image optimization skipped:', error.message);
+    }
+  }
+
+  const storageKey = `ecom/${workspaceId}/store/products/${randomUUID()}${ext}`;
 
   const uploader = new Upload({
     client: s3Client,
     params: {
       Bucket: R2_CONFIG.bucket,
       Key: storageKey,
-      Body: fileBuffer,
+      Body: uploadBuffer,
       ContentType: mimeType,
       Metadata: {
         uploadedBy: String(metadata.uploadedBy || ''),
@@ -58,7 +89,10 @@ export async function uploadImage(fileBuffer, filename, metadata = {}) {
   return {
     id: storageKey,
     url: publicUrl,
-    key: storageKey
+    key: storageKey,
+    filename: path.basename(storageKey),
+    contentType: mimeType,
+    size: uploadBuffer.length
   };
 }
 

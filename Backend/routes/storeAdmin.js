@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import Workspace from '../models/Workspace.js';
 import StoreOrder from '../models/StoreOrder.js';
 import StoreProduct from '../models/StoreProduct.js';
@@ -61,7 +62,7 @@ router.get('/analytics/summary', requireEcomAuth, requireWorkspace, async (req, 
     const todayStats = await StoreOrder.aggregate([
       {
         $match: {
-          workspaceId: new (require('mongoose')).Types.ObjectId(workspaceId),
+          workspaceId: new mongoose.Types.ObjectId(workspaceId),
           createdAt: { $gte: today }
         }
       },

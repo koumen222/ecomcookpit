@@ -67,6 +67,66 @@ function writeCache(key, data) {
   try { sessionStorage.setItem(key, JSON.stringify({ d: data, t: Date.now() })); } catch {}
 }
 
+const productPrefetchRequests = new Map();
+
+function getProductCacheKey(subdomain, slug) {
+  if (!subdomain || !slug) return null;
+  return `sfp_${subdomain}_${slug}`;
+}
+
+function toProductPreview(product) {
+  if (!product) return null;
+
+  return {
+    _id: product._id,
+    name: product.name,
+    slug: product.slug,
+    description: product.description || '',
+    price: product.price,
+    compareAtPrice: product.compareAtPrice,
+    currency: product.currency,
+    stock: product.stock,
+    images: product.images?.length
+      ? product.images
+      : (product.image ? [{ url: product.image, alt: product.name }] : []),
+    category: product.category,
+    tags: product.tags || [],
+    seoTitle: product.seoTitle || '',
+    seoDescription: product.seoDescription || '',
+    features: product.features || [],
+    faq: product.faq || []
+  };
+}
+
+export async function prefetchStoreProduct(subdomain, slug) {
+  const cacheKey = getProductCacheKey(subdomain, slug);
+  if (!cacheKey) return null;
+
+  const cachedProduct = readCache(cacheKey);
+  if (cachedProduct) return cachedProduct;
+
+  const requestKey = `${subdomain}:${slug}`;
+  if (productPrefetchRequests.has(requestKey)) {
+    return productPrefetchRequests.get(requestKey);
+  }
+
+  const request = publicStoreApi.getProduct(subdomain, slug)
+    .then((res) => {
+      const productData = res.data?.data || null;
+      if (productData) {
+        writeCache(cacheKey, productData);
+      }
+      return productData;
+    })
+    .catch(() => null)
+    .finally(() => {
+      productPrefetchRequests.delete(requestKey);
+    });
+
+  productPrefetchRequests.set(requestKey, request);
+  return request;
+}
+
 // ─── useStoreData ─────────────────────────────────────────────────────────────
 export function useStoreData(subdomain) {
   const cacheKey = subdomain ? `sf_${subdomain}` : null;
@@ -128,12 +188,15 @@ export function useStoreData(subdomain) {
 export function useStoreProduct(subdomain, slug) {
   const storeCacheKey = subdomain ? `sf_${subdomain}` : null;
   const cachedStore = storeCacheKey ? readCache(storeCacheKey) : null;
+  const productCacheKey = getProductCacheKey(subdomain, slug);
+  const cachedProduct = productCacheKey ? readCache(productCacheKey) : null;
+  const previewProduct = cachedProduct || toProductPreview(cachedStore?.products?.find((item) => item.slug === slug));
 
   const [store, setStore] = useState(cachedStore?.store || null);
   const [pixels, setPixels] = useState(cachedStore?.pixels || null);
-  const [product, setProduct] = useState(null);
+  const [product, setProduct] = useState(previewProduct);
   const [related, setRelated] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!previewProduct);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -143,6 +206,11 @@ export function useStoreProduct(subdomain, slug) {
     if (cachedStore?.store) injectStoreCssVars(cachedStore.store);
 
     let cancelled = false;
+
+    setProduct(previewProduct);
+    setRelated([]);
+    setError(null);
+    setLoading(!previewProduct);
 
     async function load() {
       try {
@@ -155,6 +223,9 @@ export function useStoreProduct(subdomain, slug) {
         if (cancelled) return;
 
         const productData = productRes.data?.data || null;
+        if (productCacheKey && productData) {
+          writeCache(productCacheKey, productData);
+        }
 
         let storeData = cachedStore?.store;
         let pixelsData = cachedStore?.pixels || null;

@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, ShoppingCart, MessageCircle,
   ShoppingBag, Shield, RotateCcw, Truck, Check,
   ChevronDown, ChevronUp, Star,
 } from 'lucide-react';
 import { useSubdomain } from '../hooks/useSubdomain';
-import { useStoreProduct, injectStoreCssVars } from '../hooks/useStoreData';
+import { useStoreProduct, injectStoreCssVars, prefetchStoreProduct } from '../hooks/useStoreData';
 import { useStoreCart } from '../hooks/useStoreCart';
 import QuickOrderModal from '../components/QuickOrderModal';
 import { io } from 'socket.io-client';
 import { setDocumentMeta } from '../utils/pageMeta';
 import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking';
+import { preloadStoreCheckoutRoute, preloadStoreProductRoute } from '../utils/routePrefetch';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
 
@@ -36,7 +37,7 @@ const StorefrontHeader = ({ store, cartCount, prefix }) => (
       maxWidth: 1200, margin: '0 auto', padding: '0 24px',
       height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     }}>
-      <a href={`${prefix}/`} style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
+      <Link to={`${prefix}/`} style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
         {store?.logo ? (
           <img src={store.logo} alt={store?.name} style={{ height: 36, width: 'auto', maxWidth: 120, objectFit: 'contain' }} />
         ) : (
@@ -51,18 +52,18 @@ const StorefrontHeader = ({ store, cartCount, prefix }) => (
         <span style={{ fontWeight: 700, fontSize: 17, color: 'var(--s-text)', letterSpacing: '-0.01em' }}>
           {store?.name}
         </span>
-      </a>
-      <a href={`${prefix}/checkout`} style={{
+      </Link>
+      <Link to={`${prefix}/checkout`} style={{
         display: 'flex', alignItems: 'center', gap: 7,
         padding: '8px 18px', borderRadius: 40, border: '1.5px solid',
         borderColor: cartCount > 0 ? 'var(--s-primary)' : 'var(--s-border)',
         backgroundColor: cartCount > 0 ? 'var(--s-primary)' : 'transparent',
         color: cartCount > 0 ? '#fff' : 'var(--s-text)',
         textDecoration: 'none', fontWeight: 600, fontSize: 14, fontFamily: 'var(--s-font)',
-      }}>
+      }} onMouseEnter={preloadStoreCheckoutRoute} onFocus={preloadStoreCheckoutRoute} onTouchStart={preloadStoreCheckoutRoute}>
         <ShoppingCart size={17} />
         {cartCount > 0 && <span>{cartCount}</span>}
-      </a>
+      </Link>
     </div>
   </header>
 );
@@ -173,7 +174,7 @@ const ImageGallery = ({ images = [] }) => {
               backgroundColor: '#f4f4f5',
             }}>
               <img
-                src={img?.url || img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                src={img?.url || img} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
             </button>
           ))}
@@ -377,13 +378,33 @@ const removeIntroBeforeAngles = (html = '') => {
   return html;
 };
 
+const optimizeDescriptionHtml = (html = '') => {
+  if (!html || typeof DOMParser === 'undefined') return html;
+
+  try {
+    const doc = new DOMParser().parseFromString(`<div id="sf-desc-html">${html}</div>`, 'text/html');
+    const root = doc.getElementById('sf-desc-html');
+    if (!root) return html;
+
+    root.querySelectorAll('img').forEach((img) => {
+      img.setAttribute('loading', 'lazy');
+      img.setAttribute('decoding', 'async');
+      img.setAttribute('fetchpriority', 'low');
+    });
+
+    return root.innerHTML.trim();
+  } catch {
+    return html;
+  }
+};
+
 const ProductDescription = ({ content }) => {
   const ref = useRef(null);
   const rawContent = content?.toString().trim() || '';
   const isHTML = /<[^>]+>/.test(rawContent);
   if (!isHTML) return null;
 
-  const cleanContent = removeIntroBeforeAngles(rawContent);
+  const cleanContent = optimizeDescriptionHtml(removeIntroBeforeAngles(rawContent));
   if (!cleanContent) return null;
 
   return (
@@ -551,11 +572,18 @@ const TrustBadges = ({ compact = false }) => (
 );
 
 // ── Related Products ─────────────────────────────────────────────────────────
-const RelatedCard = ({ product, prefix, store }) => {
+const RelatedCard = ({ product, prefix, store, subdomain }) => {
   const [hovered, setHovered] = useState(false);
+  const handlePrefetch = () => {
+    preloadStoreProductRoute();
+    if (subdomain && product?.slug) {
+      prefetchStoreProduct(subdomain, product.slug);
+    }
+  };
+
   return (
-    <a href={`${prefix}/product/${product.slug}`} style={{ textDecoration: 'none' }}
-      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+    <Link to={`${prefix}/product/${product.slug}`} style={{ textDecoration: 'none' }}
+      onMouseEnter={() => { setHovered(true); handlePrefetch(); }} onMouseLeave={() => setHovered(false)} onFocus={handlePrefetch} onTouchStart={handlePrefetch}>
       <div style={{
         borderRadius: 14, overflow: 'hidden', border: '1px solid var(--s-border)',
         boxShadow: hovered ? '0 8px 24px rgba(0,0,0,0.1)' : '0 1px 4px rgba(0,0,0,0.04)',
@@ -563,7 +591,7 @@ const RelatedCard = ({ product, prefix, store }) => {
       }}>
         <div style={{ paddingBottom: '100%', position: 'relative', backgroundColor: '#f4f4f5', overflow: 'hidden' }}>
           {product.image ? (
-            <img src={product.image} alt={product.name} loading="eager"
+            <img src={product.image} alt={product.name} loading="lazy" decoding="async" sizes="(max-width: 640px) 45vw, (max-width: 1024px) 25vw, 160px"
               style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
                 transform: hovered ? 'scale(1.04)' : 'scale(1)', transition: 'transform 0.3s' }} />
           ) : (
@@ -585,7 +613,7 @@ const RelatedCard = ({ product, prefix, store }) => {
           </span>
         </div>
       </div>
-    </a>
+    </Link>
   );
 };
 
@@ -733,7 +761,7 @@ const StoreProductPage = () => {
         <p style={{ fontSize: 48, margin: '0 0 16px' }}>😕</p>
         <h2 style={{ color: '#111', fontWeight: 700, margin: '0 0 8px' }}>Produit introuvable</h2>
         <p style={{ color: '#6B7280', fontSize: 15 }}>{error}</p>
-        <a href={`${prefix}/`} style={{ marginTop: 20, display: 'inline-block', color: 'var(--s-primary)', fontWeight: 600, fontSize: 14 }}>← Accueil</a>
+        <Link to={`${prefix}/`} style={{ marginTop: 20, display: 'inline-block', color: 'var(--s-primary)', fontWeight: 600, fontSize: 14 }}>← Accueil</Link>
       </div>
     </div>
   );
@@ -945,7 +973,7 @@ const StoreProductPage = () => {
             Vous aimerez aussi
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 16 }}>
-            {related.map(p => <RelatedCard key={p._id} product={p} prefix={prefix} store={store} />)}
+            {related.map(p => <RelatedCard key={p._id} product={p} prefix={prefix} store={store} subdomain={store?.subdomain} />)}
           </div>
         </section>
       )}

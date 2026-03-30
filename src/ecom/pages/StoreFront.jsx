@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Search, ShoppingBag, ChevronLeft, ChevronRight, Loader2, Phone, MessageCircle, Filter } from 'lucide-react';
+import { Search, ShoppingBag, ChevronLeft, ChevronRight, Phone, MessageCircle, Filter } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
 import { injectStoreCssVars } from '../hooks/useStoreData.js';
@@ -120,15 +120,8 @@ const StoreFront = () => {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4">
         {/* Logo/Icon animation */}
-        <div className="relative mb-8">
-          <div className="w-16 h-16 rounded-full border-4 border-gray-100"></div>
-          <div 
-            className="absolute top-0 left-0 w-16 h-16 rounded-full border-4 border-t-transparent animate-spin"
-            style={{ borderColor: `${themeColor} transparent transparent transparent` }}
-          ></div>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <ShoppingBag className="w-6 h-6 text-gray-400" />
-          </div>
+        <div className="mb-8 w-16 h-16 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${themeColor}12` }}>
+          <ShoppingBag className="w-7 h-7" style={{ color: themeColor }} />
         </div>
         
         {/* Loading text */}
@@ -145,31 +138,12 @@ const StoreFront = () => {
         </div>
         
         {/* Animated dots */}
-        <div className="flex gap-1 mt-4">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="w-2 h-2 rounded-full animate-pulse"
-              style={{
-                backgroundColor: themeColor,
-                animationDelay: `${i * 0.2}s`,
-                animationDuration: loadingTimeout ? '1.5s' : '1s'
-              }}
-            ></div>
-          ))}
+        <div className="mt-4 px-3 py-1.5 rounded-full text-xs font-medium" style={{ backgroundColor: `${themeColor}12`, color: themeColor }}>
+          Chargement initial…
         </div>
         
         {/* Subtle progress bar */}
-        <div className="w-64 h-1 bg-gray-100 rounded-full overflow-hidden mt-6">
-          <div 
-            className="h-full rounded-full animate-pulse"
-            style={{ 
-              backgroundColor: themeColor,
-              width: loadingTimeout ? '80%' : '60%',
-              animation: `shimmer ${loadingTimeout ? '3s' : '2s'} infinite`
-            }}
-          ></div>
-        </div>
+        <div className="mt-6 text-xs text-gray-400">Préparation du catalogue…</div>
         
         {/* Retry button after timeout */}
         {loadingTimeout && (
@@ -343,10 +317,7 @@ const StoreFront = () => {
             </div>
             {/* Loading text */}
             <div className="text-center py-4">
-              <div className="flex items-center justify-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" style={{ color: themeColor }} />
-                <span className="text-sm text-gray-500">Chargement des produits...</span>
-              </div>
+              <span className="text-sm text-gray-500">Chargement des produits...</span>
             </div>
           </div>
         ) : products.length === 0 ? (
