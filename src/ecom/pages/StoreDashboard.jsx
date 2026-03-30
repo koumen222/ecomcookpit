@@ -5,12 +5,12 @@ import {
   Package, Clock, ExternalLink, Download, RefreshCw,
   Monitor, Smartphone, Tablet, ArrowUp, ArrowDown
 } from 'lucide-react';
-import api from '../services/api';
-import { useAuth } from '../contexts/AuthContext';
+import ecomApi from '../services/ecommApi';
+import { useEcomAuth } from '../hooks/useEcomAuth';
 
 export default function StoreDashboard() {
   const navigate = useNavigate();
-  const { currentWorkspace } = useAuth();
+  const { workspace } = useEcomAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
@@ -24,14 +24,14 @@ export default function StoreDashboard() {
     // Actualiser les stats temps réel toutes les 30 secondes
     const interval = setInterval(loadRealtime, 30000);
     return () => clearInterval(interval);
-  }, [period, currentWorkspace]);
+  }, [period, workspace]);
 
   const loadDashboard = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/ecom/store-analytics/dashboard', {
+      const response = await ecomApi.get('/store-analytics/dashboard', {
         params: { 
-          workspaceId: currentWorkspace?._id,
+          workspaceId: workspace?._id,
           period 
         }
       });
@@ -45,8 +45,8 @@ export default function StoreDashboard() {
 
   const loadRealtime = async () => {
     try {
-      const response = await api.get('/ecom/store-analytics/realtime', {
-        params: { workspaceId: currentWorkspace?._id }
+      const response = await ecomApi.get('/store-analytics/realtime', {
+        params: { workspaceId: workspace?._id }
       });
       setRealtimeData(response.data);
     } catch (error) {
@@ -62,8 +62,8 @@ export default function StoreDashboard() {
 
   const exportAnalytics = async () => {
     try {
-      const response = await api.get('/ecom/store-analytics/export', {
-        params: { workspaceId: currentWorkspace?._id },
+      const response = await ecomApi.get('/store-analytics/export', {
+        params: { workspaceId: workspace?._id },
         responseType: 'blob'
       });
       
@@ -150,13 +150,15 @@ export default function StoreDashboard() {
             Exporter
           </button>
 
-          <button
-            onClick={() => window.open(`https://${currentWorkspace?.storeSubdomain}.scalor.net`, '_blank')}
-            className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition flex items-center gap-2"
-          >
-            <ExternalLink size={18} />
-            Voir la boutique
-          </button>
+          {workspace?.storeSubdomain && (
+            <button
+              onClick={() => window.open(`https://${workspace.storeSubdomain}.scalor.net`, '_blank')}
+              className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition flex items-center gap-2"
+            >
+              <ExternalLink size={18} />
+              Voir la boutique
+            </button>
+          )}
         </div>
       </div>
 

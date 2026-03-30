@@ -9,6 +9,7 @@ import { useSubdomain } from '../hooks/useSubdomain';
 import { useStoreProduct, injectStoreCssVars, prefetchStoreProduct } from '../hooks/useStoreData';
 import { useStoreCart } from '../hooks/useStoreCart';
 import QuickOrderModal from '../components/QuickOrderModal';
+import TestimonialsCarousel from '../components/TestimonialsCarousel';
 import { io } from 'socket.io-client';
 import { setDocumentMeta } from '../utils/pageMeta';
 import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking';
@@ -944,6 +945,11 @@ const StoreProductPage = () => {
                         <CollapsibleSection title="❓ Questions fréquentes" defaultOpen={false}>
                           <ProductFaqAccordion items={faqItems} />
                         </CollapsibleSection>
+                      )}
+                      {product.testimonials && product.testimonials.length > 0 && (
+                        <div style={{ marginTop: 32, marginBottom: 32 }}>
+                          <TestimonialsCarousel testimonials={product.testimonials} autoPlay={true} />
+                        </div>
                       )}
                     </>
                   );
