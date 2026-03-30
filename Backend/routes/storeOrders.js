@@ -28,11 +28,21 @@ const router = express.Router();
  */
 router.get('/', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
+    // 🔒 SÉCURITÉ CRITIQUE : Vérification workspaceId
+    if (!req.workspaceId) {
+      console.error('🚨 SECURITY BREACH ATTEMPT: No workspaceId in request');
+      return res.status(403).json({ success: false, message: 'Workspace non identifié' });
+    }
+
     const { page = 1, limit = 20, status, search } = req.query;
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
 
+    // 🔒 ISOLATION : Filtrage strict par workspaceId
     const filter = { workspaceId: req.workspaceId };
+    
+    // Log de sécurité
+    console.log(`🔒 [STORE-ORDERS] User ${req.ecomUser?.email} accessing orders for workspace ${req.workspaceId}`);
     if (status) filter.status = status;
     if (search) {
       filter.$or = [
@@ -46,6 +56,15 @@ router.get('/', requireEcomAuth, requireWorkspace, async (req, res) => {
       StoreOrder.findPaginated(filter, { page: pageNum, limit: limitNum }),
       StoreOrder.countDocuments(filter)
     ]);
+
+    // 🔒 VÉRIFICATION POST-REQUÊTE : S'assurer qu'aucune commande d'un autre workspace n'a été retournée
+    const invalidOrders = orders.filter(o => String(o.workspaceId) !== String(req.workspaceId));
+    if (invalidOrders.length > 0) {
+      console.error('🚨 CRITICAL SECURITY ERROR: Cross-workspace data leak detected!');
+      console.error('Expected workspace:', req.workspaceId);
+      console.error('Invalid orders:', invalidOrders.map(o => ({ id: o._id, workspace: o.workspaceId })));
+      return res.status(500).json({ success: false, message: 'Erreur de sécurité détectée' });
+    }
 
     res.json({
       success: true,
@@ -72,6 +91,13 @@ router.get('/', requireEcomAuth, requireWorkspace, async (req, res) => {
  */
 router.get('/stats', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
+    // 🔒 SÉCURITÉ : Vérification workspaceId
+    if (!req.workspaceId) {
+      console.error('🚨 SECURITY: No workspaceId in stats request');
+      return res.status(403).json({ success: false, message: 'Workspace non identifié' });
+    }
+
+    console.log(`🔒 [STORE-STATS] User ${req.ecomUser?.email} accessing stats for workspace ${req.workspaceId}`);
     const stats = await StoreOrder.getQuickStats(req.workspaceId);
 
     // Also get product count for dashboard
@@ -105,14 +131,29 @@ router.get('/stats', requireEcomAuth, requireWorkspace, async (req, res) => {
  */
 router.get('/:id', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
+    // 🔒 SÉCURITÉ CRITIQUE : Vérifications
+    if (!req.workspaceId) {
+      console.error('🚨 SECURITY: No workspaceId in order detail request');
+      return res.status(403).json({ success: false, message: 'Workspace non identifié' });
+    }
+
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ success: false, message: 'ID invalide' });
     }
 
+    console.log(`🔒 [STORE-ORDER-DETAIL] User ${req.ecomUser?.email} accessing order ${req.params.id} for workspace ${req.workspaceId}`);
+
+    // 🔒 ISOLATION STRICTE : TOUJOURS filtrer par workspaceId
     const order = await StoreOrder.findOne({
       _id: req.params.id,
       workspaceId: req.workspaceId
     }).lean();
+
+    // 🔒 VÉRIFICATION DOUBLE : S'assurer que la commande appartient bien au workspace
+    if (order && String(order.workspaceId) !== String(req.workspaceId)) {
+      console.error(`🚨 SECURITY BREACH: Order ${req.params.id} does not belong to workspace ${req.workspaceId}`);
+      return res.status(403).json({ success: false, message: 'Accès non autorisé' });
+    }
 
     if (!order) {
       return res.status(404).json({ success: false, message: 'Commande introuvable' });
@@ -131,6 +172,12 @@ router.get('/:id', requireEcomAuth, requireWorkspace, async (req, res) => {
  */
 router.put('/:id/status', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
+    // 🔒 SÉCURITÉ CRITIQUE
+    if (!req.workspaceId) {
+      console.error('🚨 SECURITY: No workspaceId in status update request');
+      return res.status(403).json({ success: false, message: 'Workspace non identifié' });
+    }
+
     const { status } = req.body;
     const validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
 
@@ -141,11 +188,20 @@ router.put('/:id/status', requireEcomAuth, requireWorkspace, async (req, res) =>
       });
     }
 
+    console.log(`🔒 [STORE-ORDER-UPDATE] User ${req.ecomUser?.email} updating order ${req.params.id} status to ${status} for workspace ${req.workspaceId}`);
+
+    // 🔒 ISOLATION STRICTE : TOUJOURS filtrer par workspaceId
     const order = await StoreOrder.findOneAndUpdate(
       { _id: req.params.id, workspaceId: req.workspaceId },
       { $set: { status } },
       { new: true, lean: true }
     );
+
+    // 🔒 VÉRIFICATION : La commande existe ET appartient au workspace
+    if (order && String(order.workspaceId) !== String(req.workspaceId)) {
+      console.error(`🚨 SECURITY BREACH: Attempted to update order ${req.params.id} from different workspace`);
+      return res.status(403).json({ success: false, message: 'Accès non autorisé' });
+    }
 
     if (!order) {
       return res.status(404).json({ success: false, message: 'Commande introuvable' });
