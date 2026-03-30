@@ -36,6 +36,22 @@ const useIsMobile = () => {
   return { isMobile, isTouchDevice };
 };
 
+// ─── REDUCED MOTION HOOK ──────────────────────────────────────────────────────
+const usePrefersReducedMotion = () => {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setPrefersReducedMotion(mediaQuery.matches);
+    
+    const handleChange = (e) => setPrefersReducedMotion(e.matches);
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
+  
+  return prefersReducedMotion;
+};
+
 const normalizeMetaText = (value = '') => String(value || '')
   .replace(/<[^>]*>/g, ' ')
   .replace(/\s+/g, ' ')
@@ -103,6 +119,52 @@ const EMOJI_ICON_MAP = {
 
 // Single tint box — uses store primary color via CSS color-mix
 const ICON_BG = 'color-mix(in srgb, var(--s-primary) 12%, white)';
+
+// ─── LOADING SPINNER COMPONENT ────────────────────────────────────────────────
+const LoadingSpinner = ({ size = 40, color = 'var(--s-primary)', className = '' }) => {
+  const reducedMotion = usePrefersReducedMotion();
+  
+  return (
+    <div 
+      className={className}
+      style={{
+        width: size,
+        height: size,
+        border: `3px solid ${color}20`,
+        borderTop: `3px solid ${color}`,
+        borderRadius: '50%',
+        animation: reducedMotion ? 'none' : 'spin 1s linear infinite',
+      }}
+      role="status"
+      aria-label="Chargement en cours"
+    />
+  );
+};
+
+// ─── PRODUCT SKELETON LOADER ──────────────────────────────────────────────────
+const ProductSkeleton = () => {
+  const reducedMotion = usePrefersReducedMotion();
+  
+  const skeletonStyle = {
+    backgroundColor: '#e0e0e0',
+    borderRadius: '8px',
+    animation: reducedMotion ? 'none' : 'pulse 1.5s ease-in-out infinite',
+  };
+  
+  return (
+    <div style={{
+      backgroundColor: 'white',
+      borderRadius: '16px',
+      padding: '16px',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+    }}>
+      <div style={{ ...skeletonStyle, height: '240px', marginBottom: '16px' }} />
+      <div style={{ ...skeletonStyle, height: '24px', marginBottom: '12px', width: '70%' }} />
+      <div style={{ ...skeletonStyle, height: '20px', marginBottom: '8px', width: '40%' }} />
+      <div style={{ ...skeletonStyle, height: '32px', marginTop: '16px' }} />
+    </div>
+  );
+};
 
 function IconBox({ emoji, icon, size = 22, bg, boxSize = 52, radius = 16 }) {
   const boxBg = bg || ICON_BG;
@@ -1167,6 +1229,8 @@ const AiFaqSection = ({ cfg }) => {
                 {/* Question Button */}
                 <button
                   onClick={() => setOpen(isOpen ? null : i)}
+                  aria-expanded={isOpen}
+                  aria-controls={`faq-answer-${i}`}
                   style={{
                     width: '100%',
                     padding: '20px 24px',
@@ -1179,6 +1243,14 @@ const AiFaqSection = ({ cfg }) => {
                     textAlign: 'left',
                     gap: 16,
                     fontFamily: 'var(--s-font)',
+                    outline: 'none',
+                  }}
+                  onFocus={e => {
+                    e.currentTarget.style.outline = '2px solid var(--s-primary)';
+                    e.currentTarget.style.outlineOffset = '-2px';
+                  }}
+                  onBlur={e => {
+                    e.currentTarget.style.outline = 'none';
                   }}
                 >
                   <span style={{
@@ -1208,16 +1280,22 @@ const AiFaqSection = ({ cfg }) => {
                       size={18}
                       color={isOpen ? '#fff' : '#6B7280'}
                       style={{ transition: 'color 0.2s' }}
+                      aria-hidden="true"
                     />
                   </div>
                 </button>
                 
                 {/* Answer with smooth expand/collapse */}
-                <div style={{
-                  maxHeight: isOpen ? '1000px' : '0',
-                  overflow: 'hidden',
-                  transition: 'max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                }}>
+                <div 
+                  id={`faq-answer-${i}`}
+                  role="region"
+                  aria-labelledby={`faq-question-${i}`}
+                  style={{
+                    maxHeight: isOpen ? '1000px' : '0',
+                    overflow: 'hidden',
+                    transition: 'max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                  }}
+                >
                   <div style={{
                     padding: '0 24px 24px',
                     fontSize: 15,
@@ -1893,6 +1971,7 @@ const ProductCard = ({ product, prefix, store }) => {
               {/* Quick View Button */}
               <button
                 onClick={handleQuickView}
+                aria-label={`Aperçu rapide de ${product.name}`}
                 style={{
                   backgroundColor: '#fff',
                   border: 'none',
@@ -1908,9 +1987,17 @@ const ProductCard = ({ product, prefix, store }) => {
                   fontFamily: 'var(--s-font)',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                   transition: 'transform 0.2s',
+                  outline: 'none',
                 }}
                 onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
                 onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                onFocus={e => {
+                  e.currentTarget.style.outline = '2px solid var(--s-primary)';
+                  e.currentTarget.style.outlineOffset = '2px';
+                }}
+                onBlur={e => {
+                  e.currentTarget.style.outline = 'none';
+                }}
               >
                 <Eye size={16} /> Aperçu rapide
               </button>
@@ -1918,6 +2005,8 @@ const ProductCard = ({ product, prefix, store }) => {
               {/* Wishlist Button */}
               <button
                 onClick={toggleWishlist}
+                aria-label={wishlist ? `Retirer ${product.name} de la liste de souhaits` : `Ajouter ${product.name} à la liste de souhaits`}
+                aria-pressed={wishlist}
                 style={{
                   backgroundColor: wishlist ? '#EF4444' : '#fff',
                   border: 'none',
@@ -1930,9 +2019,17 @@ const ProductCard = ({ product, prefix, store }) => {
                   cursor: 'pointer',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
                   transition: 'all 0.2s',
+                  outline: 'none',
                 }}
                 onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
                 onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                onFocus={e => {
+                  e.currentTarget.style.outline = '2px solid var(--s-primary)';
+                  e.currentTarget.style.outlineOffset = '2px';
+                }}
+                onBlur={e => {
+                  e.currentTarget.style.outline = 'none';
+                }}
               >
                 <Heart size={18} fill={wishlist ? '#fff' : 'none'} color={wishlist ? '#fff' : 'var(--s-primary)'} />
               </button>
@@ -2046,8 +2143,52 @@ const ProductCard = ({ product, prefix, store }) => {
 const QuickViewModal = ({ product, store, prefix, onClose }) => {
   const { addToCart } = useStoreCart();
   const [quantity, setQuantity] = useState(1);
+  const modalRef = React.useRef(null);
   
   const hasDiscount = product.compareAtPrice && product.compareAtPrice > product.price;
+  
+  // Escape key to close
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+  
+  // Focus trap
+  useEffect(() => {
+    const modal = modalRef.current;
+    if (!modal) return;
+    
+    const focusableElements = modal.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+    
+    // Focus first element on mount
+    firstElement?.focus();
+    
+    const handleTab = (e) => {
+      if (e.key !== 'Tab') return;
+      
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          lastElement?.focus();
+          e.preventDefault();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          firstElement?.focus();
+          e.preventDefault();
+        }
+      }
+    };
+    
+    modal.addEventListener('keydown', handleTab);
+    return () => modal.removeEventListener('keydown', handleTab);
+  }, []);
   
   const handleAddToCart = () => {
     addToCart(product, quantity);
@@ -2069,8 +2210,12 @@ const QuickViewModal = ({ product, store, prefix, onClose }) => {
         animation: 'fadeIn 0.2s ease-out',
       }}
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
     >
       <div
+        ref={modalRef}
         style={{
           backgroundColor: '#fff',
           borderRadius: 20,
@@ -2087,6 +2232,7 @@ const QuickViewModal = ({ product, store, prefix, onClose }) => {
         {/* Close Button */}
         <button
           onClick={onClose}
+          aria-label="Fermer l'aperçu rapide"
           style={{
             position: 'absolute',
             top: 20,
@@ -2102,6 +2248,7 @@ const QuickViewModal = ({ product, store, prefix, onClose }) => {
             cursor: 'pointer',
             zIndex: 10,
             transition: 'all 0.2s',
+            outline: 'none',
           }}
           onMouseEnter={e => {
             e.currentTarget.style.backgroundColor = '#E5E7EB';
@@ -2110,6 +2257,13 @@ const QuickViewModal = ({ product, store, prefix, onClose }) => {
           onMouseLeave={e => {
             e.currentTarget.style.backgroundColor = '#F3F4F6';
             e.currentTarget.style.transform = 'scale(1)';
+          }}
+          onFocus={e => {
+            e.currentTarget.style.outline = '2px solid var(--s-primary)';
+            e.currentTarget.style.outlineOffset = '2px';
+          }}
+          onBlur={e => {
+            e.currentTarget.style.outline = 'none';
           }}
         >
           <X size={20} color="#374151" />
@@ -2325,6 +2479,7 @@ const QuickViewModal = ({ product, store, prefix, onClose }) => {
               <button
                 onClick={handleAddToCart}
                 disabled={product.stock === 0}
+                aria-label={`Ajouter ${quantity} ${product.name} au panier`}
                 style={{
                   flex: 1,
                   padding: '16px 24px',
@@ -2342,6 +2497,7 @@ const QuickViewModal = ({ product, store, prefix, onClose }) => {
                   gap: 10,
                   transition: 'all 0.2s',
                   boxShadow: product.stock === 0 ? 'none' : '0 4px 12px rgba(15, 107, 79, 0.25)',
+                  outline: 'none',
                 }}
                 onMouseEnter={e => {
                   if (product.stock > 0) {
@@ -2354,6 +2510,25 @@ const QuickViewModal = ({ product, store, prefix, onClose }) => {
                     e.currentTarget.style.transform = 'translateY(0)';
                     e.currentTarget.style.boxShadow = '0 4px 12px rgba(15, 107, 79, 0.25)';
                   }
+                }}
+                onMouseDown={e => {
+                  if (product.stock > 0) {
+                    e.currentTarget.style.transform = 'scale(0.95)';
+                  }
+                }}
+                onMouseUp={e => {
+                  if (product.stock > 0) {
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }
+                }}
+                onFocus={e => {
+                  if (product.stock > 0) {
+                    e.currentTarget.style.outline = '2px solid var(--s-primary)';
+                    e.currentTarget.style.outlineOffset = '2px';
+                  }
+                }}
+                onBlur={e => {
+                  e.currentTarget.style.outline = 'none';
                 }}
               >
                 <ShoppingCart size={18} />
@@ -2375,10 +2550,18 @@ const QuickViewModal = ({ product, store, prefix, onClose }) => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  transition: 'background-color 0.2s',
+                  transition: 'all 0.2s',
+                  outline: 'none',
                 }}
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = '#E5E7EB'}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = '#F3F4F6'}
+                onFocus={e => {
+                  e.currentTarget.style.outline = '2px solid var(--s-primary)';
+                  e.currentTarget.style.outlineOffset = '2px';
+                }}
+                onBlur={e => {
+                  e.currentTarget.style.outline = 'none';
+                }}
               >
                 Détails
               </a>
