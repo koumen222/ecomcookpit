@@ -1,7 +1,7 @@
 import express from 'express';
 import StoreAnalytics from '../models/StoreAnalytics.js';
 import StoreOrder from '../models/StoreOrder.js';
-import { requireEcomAuth } from '../middleware/auth.js';
+import { requireEcomAuth } from '../middleware/ecomAuth.js';
 
 const router = express.Router();
 

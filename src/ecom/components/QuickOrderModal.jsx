@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Minus, Truck } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
+import { firePixelEvent } from '../utils/pixelTracking';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
 
@@ -43,6 +44,15 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store }) => {
       });
       setOrderResult(res.data?.data);
       setSuccess(true);
+      
+      // Track Purchase conversion event for Facebook Pixel and other platforms
+      firePixelEvent('Purchase', {
+        content_ids: [product._id || product.slug || ''],
+        content_name: product.name || '',
+        value: total,
+        currency: currency,
+        num_items: form.quantity,
+      });
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur lors de la commande. Réessayez.');
     } finally {

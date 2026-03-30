@@ -10,6 +10,8 @@ import { useStoreProduct, injectStoreCssVars, prefetchStoreProduct } from '../ho
 import { useStoreCart } from '../hooks/useStoreCart';
 import QuickOrderModal from '../components/QuickOrderModal';
 import TestimonialsCarousel from '../components/TestimonialsCarousel';
+import ProductBenefits from '../components/ProductBenefits';
+import ConversionBlocks, { UrgencyBadge } from '../components/ConversionBlocks';
 import { io } from 'socket.io-client';
 import { setDocumentMeta } from '../utils/pageMeta';
 import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking';
@@ -851,7 +853,7 @@ const StoreProductPage = () => {
                 </div>
 
                 {/* Stock badge */}
-                <div style={{ marginBottom: 24 }}>
+                <div style={{ marginBottom: 16 }}>
                   {!inStock ? (
                     <span style={{ fontSize: 13, fontWeight: 600, color: '#EF4444', padding: '4px 12px', borderRadius: 20, backgroundColor: '#FEE2E2' }}>
                       Rupture de stock
@@ -866,6 +868,20 @@ const StoreProductPage = () => {
                     </span>
                   )}
                 </div>
+
+                {/* Urgency elements */}
+                {product._pageData?.urgency_elements && (
+                  <UrgencyBadge
+                    stockLimited={product._pageData.urgency_elements.stock_limited}
+                    socialProofCount={product._pageData.urgency_elements.social_proof_count}
+                    quickResult={product._pageData.urgency_elements.quick_result}
+                  />
+                )}
+
+                {/* Benefits bullets with emojis */}
+                {product._pageData?.benefits_bullets && product._pageData.benefits_bullets.length > 0 && (
+                  <ProductBenefits benefits={product._pageData.benefits_bullets} title="💥 Les bénéfices" />
+                )}
 
                 {/* CTA Buttons */}
                 <div ref={ctaButtonsRef} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
@@ -917,6 +933,11 @@ const StoreProductPage = () => {
 
                 </div>
 
+                {/* Conversion blocks */}
+                {product._pageData?.conversion_blocks && product._pageData.conversion_blocks.length > 0 && (
+                  <ConversionBlocks blocks={product._pageData.conversion_blocks} />
+                )}
+
                 {/* Messages de confiance */}
                 {showTrustBadges && <TrustBadges compact />}
 
@@ -942,9 +963,41 @@ const StoreProductPage = () => {
                         </div>
                       )}
                       {hasFaq && (
-                        <CollapsibleSection title="❓ Questions fréquentes" defaultOpen={false}>
-                          <ProductFaqAccordion items={faqItems} />
-                        </CollapsibleSection>
+                        <div style={{ marginTop: 32 }}>
+                          <h2 style={{ margin: '0 0 18px', fontSize: 20, fontWeight: 800, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>
+                            ❓ Questions fréquentes
+                          </h2>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            {faqItems.map((item, index) => (
+                              <div key={index} style={{ 
+                                padding: '20px', 
+                                backgroundColor: '#fff',
+                                border: '1px solid var(--s-border)',
+                                borderRadius: 12,
+                              }}>
+                                <h3 style={{ 
+                                  fontSize: 15, 
+                                  fontWeight: 700, 
+                                  color: 'var(--s-text)', 
+                                  margin: '0 0 12px',
+                                  lineHeight: 1.4,
+                                  fontFamily: 'var(--s-font)',
+                                }}>
+                                  {item.question}
+                                </h3>
+                                <p style={{ 
+                                  fontSize: 14, 
+                                  color: 'var(--s-text2)', 
+                                  lineHeight: 1.7, 
+                                  margin: 0,
+                                  fontFamily: 'var(--s-font)',
+                                }}>
+                                  {item.answer || item.reponse}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       )}
                       {product.testimonials && product.testimonials.length > 0 && (
                         <div style={{ marginTop: 32, marginBottom: 32 }}>
