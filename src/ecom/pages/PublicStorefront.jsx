@@ -11,6 +11,7 @@ import { prefetchStoreProduct, useStoreData } from '../hooks/useStoreData';
 import { useStoreCart } from '../hooks/useStoreCart';
 import { setDocumentMeta } from '../utils/pageMeta';
 import { preloadStoreCheckoutRoute, preloadStoreProductRoute } from '../utils/routePrefetch';
+import TestimonialsCarousel from '../components/TestimonialsCarousel';
 
 const fmt = (n, cur = 'XAF') =>
   `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
@@ -308,34 +309,27 @@ const AiFeaturesSection = ({ cfg }) => (
 );
 
 // ─── TESTIMONIALS ──────────────────────────────────────────────────────────────
-const AiTestimonialsSection = ({ cfg }) => (
-  <section style={{ padding: 'clamp(56px, 9vw, 88px) 24px', backgroundColor: '#F9FAFB' }}>
-    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-      <h2 style={{ fontSize: 'clamp(22px, 3.2vw, 34px)', fontWeight: 900, textAlign: 'center', color: 'var(--s-text)', margin: '0 0 44px', letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>
-        {cfg.title || 'Ce que disent nos clients'}
-      </h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
-        {(cfg.items || []).map((t, i) => (
-          <div key={i} style={{ backgroundColor: '#fff', borderRadius: 20, padding: '28px 26px', border: '1px solid #EBEBEB', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
-            <div style={{ display: 'flex', gap: 3, marginBottom: 16 }}>
-              {Array.from({ length: t.rating || 5 }).map((_, j) => <Star key={j} size={15} fill="var(--s-primary)" color="var(--s-primary)" />)}
-            </div>
-            <p style={{ fontSize: 14.5, lineHeight: 1.7, color: '#374151', margin: '0 0 20px', fontFamily: 'var(--s-font)', fontStyle: 'italic' }}>"{t.content || t.text}"</p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 38, height: 38, borderRadius: '50%', flexShrink: 0, backgroundColor: 'var(--s-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, color: '#fff' }}>
-                {(t.name || '?')[0]}
-              </div>
-              <div>
-                <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{t.name}</p>
-                {t.location && <p style={{ margin: '1px 0 0', fontSize: 11.5, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>📍 {t.location}</p>}
-              </div>
-            </div>
-          </div>
-        ))}
+const AiTestimonialsSection = ({ cfg }) => {
+  // Normaliser les données pour le composant TestimonialsCarousel
+  const testimonials = (cfg.items || []).map(t => ({
+    name: t.name,
+    location: t.location,
+    text: t.content || t.text,
+    comment: t.content || t.text,
+    rating: t.rating || 5,
+    image: t.image,
+    verified: t.verified !== false, // Par défaut vérifié
+    date: t.date
+  }));
+
+  return (
+    <section style={{ padding: 'clamp(56px, 9vw, 88px) 24px', backgroundColor: '#F9FAFB' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+        <TestimonialsCarousel testimonials={testimonials} autoPlay={true} />
       </div>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
 // ─── FAQ ──────────────────────────────────────────────────────────────────────
 const AiFaqSection = ({ cfg }) => {
