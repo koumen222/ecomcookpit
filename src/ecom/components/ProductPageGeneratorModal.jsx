@@ -723,22 +723,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     </div>
                   </div>
 
-                  {/* Hero Headlines */}
-                  {(product.hero_headline || product.hero_slogan || product.hero_baseline) && (
-                    <div className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl border border-emerald-200">
-                      <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide mb-2">🎯 HERO SECTION</p>
-                      {product.hero_headline && (
-                        <p className="text-base font-black text-gray-900 mb-2">{product.hero_headline}</p>
-                      )}
-                      {product.hero_slogan && (
-                        <p className="text-sm text-emerald-700 italic mb-1">{product.hero_slogan}</p>
-                      )}
-                      {product.hero_baseline && (
-                        <p className="text-xs text-gray-600">{product.hero_baseline}</p>
-                      )}
-                    </div>
-                  )}
-
                   {/* Benefits Bullets */}
                   {product.benefits_bullets?.length > 0 && (
                     <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
