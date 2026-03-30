@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import {
   X, Sparkles, Loader2, CheckCircle, AlertCircle, Upload,
-  Image, Copy, ExternalLink, Zap, Package, ArrowRight, Star
+  Image as ImageIcon, Copy, ExternalLink, Zap, Package, ArrowRight, Star
 } from 'lucide-react';
 
 // Product-generator is mounted at /api/ai/product-generator (outside /api/ecom).
@@ -103,7 +103,7 @@ function ImagePreview({ src, label, className = '' }) {
   if (!src) return (
     <div className={`flex items-center justify-center bg-gray-100 rounded-xl border border-dashed border-gray-300 ${className}`}>
       <div className="text-center text-gray-400 p-4">
-        <Image className="w-8 h-8 mx-auto mb-1 opacity-40" />
+        <ImageIcon className="w-8 h-8 mx-auto mb-1 opacity-40" />
         <p className="text-xs">Image non disponible</p>
       </div>
     </div>
