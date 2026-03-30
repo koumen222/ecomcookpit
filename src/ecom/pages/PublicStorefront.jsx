@@ -610,31 +610,155 @@ const AiProductsSection = ({ cfg, products, prefix, store }) => {
 };
 
 // ─── FEATURES (why us) ────────────────────────────────────────────────────────
-const AiFeaturesSection = ({ cfg }) => (
-  <section style={{ padding: 'clamp(56px, 9vw, 88px) 24px', backgroundColor: '#fff' }}>
-    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-      <div style={{ textAlign: 'center', marginBottom: 48 }}>
-        <h2 style={{ fontSize: 'clamp(22px, 3.2vw, 34px)', fontWeight: 900, color: 'var(--s-text)', margin: 0, letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>
-          {cfg.title || 'Pourquoi nous choisir ?'}
-        </h2>
-        {cfg.subtitle && <p style={{ fontSize: 15, color: 'var(--s-text2)', margin: '10px 0 0', fontFamily: 'var(--s-font)' }}>{cfg.subtitle}</p>}
+// ─── FEATURES PREMIUM (why us) ────────────────────────────────────────────────
+const AiFeaturesSection = ({ cfg }) => {
+  const [hoveredIdx, setHoveredIdx] = useState(null);
+  
+  return (
+    <section style={{
+      padding: 'clamp(60px, 10vw, 96px) 24px',
+      background: 'linear-gradient(135deg, #FAFAFA 0%, #FFFFFF 50%, #F9FAFB 100%)',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      {/* Decorative elements */}
+      <div style={{
+        position: 'absolute',
+        top: -100,
+        left: -100,
+        width: 300,
+        height: 300,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(15, 107, 79, 0.04) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+      <div style={{
+        position: 'absolute',
+        bottom: -80,
+        right: -80,
+        width: 250,
+        height: 250,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(15, 107, 79, 0.03) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+      
+      <div style={{ maxWidth: 1160, margin: '0 auto', position: 'relative' }}>
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: 56 }}>
+          <h2 style={{
+            fontSize: 'clamp(26px, 4vw, 40px)',
+            fontWeight: 900,
+            color: 'var(--s-text)',
+            margin: '0 0 16px',
+            letterSpacing: '-0.03em',
+            fontFamily: 'var(--s-font)',
+          }}>
+            {cfg.title || 'Pourquoi nous choisir ?'}
+          </h2>
+          {cfg.subtitle && (
+            <p style={{
+              fontSize: 'clamp(15px, 2vw, 17px)',
+              color: 'var(--s-text2)',
+              margin: 0,
+              fontFamily: 'var(--s-font)',
+              maxWidth: 640,
+              marginLeft: 'auto',
+              marginRight: 'auto',
+              lineHeight: 1.6,
+            }}>
+              {cfg.subtitle}
+            </p>
+          )}
+        </div>
+        
+        {/* Features Grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+          gap: 24,
+        }}>
+          {(cfg.items || []).map((f, i) => (
+            <div
+              key={i}
+              onMouseEnter={() => setHoveredIdx(i)}
+              onMouseLeave={() => setHoveredIdx(null)}
+              style={{
+                backgroundColor: '#fff',
+                borderRadius: 20,
+                padding: '32px 28px',
+                border: '1px solid',
+                borderColor: hoveredIdx === i ? 'var(--s-primary)' : '#F0F0F0',
+                boxShadow: hoveredIdx === i ? '0 16px 48px rgba(15, 107, 79, 0.15)' : '0 4px 12px rgba(0,0,0,0.04)',
+                transform: hoveredIdx === i ? 'translateY(-6px)' : 'none',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              {/* Gradient overlay on hover */}
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 4,
+                background: 'linear-gradient(90deg, var(--s-primary) 0%, color-mix(in srgb, var(--s-primary) 70%, black) 100%)',
+                opacity: hoveredIdx === i ? 1 : 0,
+                transition: 'opacity 0.3s ease',
+              }} />
+              
+              {/* Icon with gradient background */}
+              <div style={{
+                width: 64,
+                height: 64,
+                borderRadius: 16,
+                background: hoveredIdx === i
+                  ? 'linear-gradient(135deg, var(--s-primary) 0%, color-mix(in srgb, var(--s-primary) 80%, black) 100%)'
+                  : 'linear-gradient(135deg, #F3F4F6 0%, #E5E7EB 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 20,
+                transition: 'all 0.3s ease',
+                boxShadow: hoveredIdx === i ? '0 8px 20px rgba(15, 107, 79, 0.25)' : 'none',
+              }}>
+                <IconBox
+                  emoji={f.icon}
+                  size={28}
+                  color={hoveredIdx === i ? '#fff' : 'var(--s-primary)'}
+                />
+              </div>
+              
+              {/* Title */}
+              <h3 style={{
+                margin: '0 0 12px',
+                fontSize: 17.5,
+                fontWeight: 800,
+                color: 'var(--s-text)',
+                fontFamily: 'var(--s-font)',
+                lineHeight: 1.3,
+              }}>
+                {f.title}
+              </h3>
+              
+              {/* Description */}
+              <p style={{
+                margin: 0,
+                fontSize: 14.5,
+                color: '#6B7280',
+                lineHeight: 1.7,
+                fontFamily: 'var(--s-font)',
+              }}>
+                {f.desc}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 20 }}>
-        {(cfg.items || []).map((f, i) => (
-          <div key={i}
-            style={{ backgroundColor: '#FAFAFA', borderRadius: 20, padding: '28px 24px', border: '1px solid #F0F0F0', transition: 'box-shadow 0.2s, transform 0.2s' }}
-            onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
-            onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}
-          >
-            <IconBox emoji={f.icon} size={22} boxSize={52} radius={16} />
-            <h3 style={{ margin: '18px 0 10px', fontSize: 15.5, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{f.title}</h3>
-            <p style={{ margin: 0, fontSize: 13.5, color: 'var(--s-text2)', lineHeight: 1.65, fontFamily: 'var(--s-font)' }}>{f.desc}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
 // ─── TESTIMONIALS ──────────────────────────────────────────────────────────────
 // ─── TESTIMONIALS CAROUSEL PREMIUM ────────────────────────────────────────────
@@ -905,32 +1029,160 @@ const AiTestimonialsSection = ({ cfg }) => {
   );
 };
 
-// ─── FAQ ──────────────────────────────────────────────────────────────────────
+// ─── FAQ PREMIUM ACCORDION ────────────────────────────────────────────────────
 const AiFaqSection = ({ cfg }) => {
   const [open, setOpen] = useState(null);
+  
   return (
-    <section style={{ padding: 'clamp(56px, 9vw, 88px) 24px', backgroundColor: '#fff' }}>
-      <div style={{ maxWidth: 740, margin: '0 auto' }}>
-        <h2 style={{ fontSize: 'clamp(22px, 3.2vw, 34px)', fontWeight: 900, textAlign: 'center', color: 'var(--s-text)', margin: '0 0 40px', letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>
-          {cfg.title || 'Questions fréquentes'}
-        </h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {(cfg.items || []).map((item, i) => (
-            <div key={i} style={{ borderRadius: 14, border: '1.5px solid', overflow: 'hidden', borderColor: open === i ? 'var(--s-primary)' : '#E5E7EB', backgroundColor: open === i ? '#FAFFFE' : '#fff', transition: 'border-color 0.15s, background-color 0.15s' }}>
-              <button onClick={() => setOpen(open === i ? null : i)} style={{ width: '100%', padding: '18px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', gap: 12 }}>
-                <span style={{ fontWeight: 600, fontSize: 14.5, color: 'var(--s-text)', fontFamily: 'var(--s-font)', lineHeight: 1.4 }}>{item.question}</span>
-                <span style={{ flexShrink: 0 }}>
-                  {open === i ? <ChevronUp size={17} color="var(--s-primary)" /> : <ChevronDown size={17} color="#9CA3AF" />}
-                </span>
-              </button>
-              {open === i && (
-                <div style={{ padding: '0 22px 20px', fontSize: 14, color: '#4B5563', lineHeight: 1.7, fontFamily: 'var(--s-font)' }}>
-                  {item.answer || item.reponse}
-                </div>
-              )}
-            </div>
-          ))}
+    <section style={{
+      padding: 'clamp(60px, 10vw, 96px) 24px',
+      backgroundColor: '#fff',
+      position: 'relative',
+    }}>
+      <div style={{ maxWidth: 820, margin: '0 auto' }}>
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+          <h2 style={{
+            fontSize: 'clamp(26px, 4vw, 40px)',
+            fontWeight: 900,
+            color: 'var(--s-text)',
+            margin: '0 0 16px',
+            letterSpacing: '-0.03em',
+            fontFamily: 'var(--s-font)',
+          }}>
+            {cfg.title || 'Questions fréquentes'}
+          </h2>
+          {cfg.subtitle && (
+            <p style={{
+              fontSize: 16,
+              color: 'var(--s-text2)',
+              margin: 0,
+              fontFamily: 'var(--s-font)',
+              lineHeight: 1.6,
+            }}>
+              {cfg.subtitle}
+            </p>
+          )}
         </div>
+        
+        {/* FAQ Items */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {(cfg.items || []).map((item, i) => {
+            const isOpen = open === i;
+            
+            return (
+              <div
+                key={i}
+                style={{
+                  borderRadius: 16,
+                  border: '2px solid',
+                  borderColor: isOpen ? 'var(--s-primary)' : '#E5E7EB',
+                  backgroundColor: isOpen ? '#FAFFFE' : '#fff',
+                  overflow: 'hidden',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: isOpen ? '0 8px 24px rgba(15, 107, 79, 0.1)' : '0 2px 4px rgba(0,0,0,0.02)',
+                }}
+              >
+                {/* Question Button */}
+                <button
+                  onClick={() => setOpen(isOpen ? null : i)}
+                  style={{
+                    width: '100%',
+                    padding: '20px 24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    gap: 16,
+                    fontFamily: 'var(--s-font)',
+                  }}
+                >
+                  <span style={{
+                    fontWeight: 700,
+                    fontSize: 'clamp(14.5px, 2vw, 16px)',
+                    color: isOpen ? 'var(--s-primary)' : 'var(--s-text)',
+                    lineHeight: 1.5,
+                    transition: 'color 0.2s',
+                  }}>
+                    {item.question}
+                  </span>
+                  
+                  {/* Icon with rotation */}
+                  <div style={{
+                    flexShrink: 0,
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    backgroundColor: isOpen ? 'var(--s-primary)' : '#F3F4F6',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.3s ease',
+                    transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                  }}>
+                    <ChevronDown
+                      size={18}
+                      color={isOpen ? '#fff' : '#6B7280'}
+                      style={{ transition: 'color 0.2s' }}
+                    />
+                  </div>
+                </button>
+                
+                {/* Answer with smooth expand/collapse */}
+                <div style={{
+                  maxHeight: isOpen ? '1000px' : '0',
+                  overflow: 'hidden',
+                  transition: 'max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}>
+                  <div style={{
+                    padding: '0 24px 24px',
+                    fontSize: 15,
+                    color: '#4B5563',
+                    lineHeight: 1.75,
+                    fontFamily: 'var(--s-font)',
+                    borderTop: '1px solid #F3F4F6',
+                    paddingTop: 20,
+                  }}>
+                    {item.answer || item.reponse}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        
+        {/* Help CTA */}
+        {(cfg.items || []).length > 0 && (
+          <div style={{
+            marginTop: 48,
+            textAlign: 'center',
+            padding: '32px 24px',
+            backgroundColor: '#F9FAFB',
+            borderRadius: 16,
+            border: '1px solid #E5E7EB',
+          }}>
+            <p style={{
+              margin: '0 0 16px',
+              fontSize: 16,
+              fontWeight: 700,
+              color: 'var(--s-text)',
+              fontFamily: 'var(--s-font)',
+            }}>
+              Vous avez d'autres questions ?
+            </p>
+            <p style={{
+              margin: 0,
+              fontSize: 14,
+              color: 'var(--s-text2)',
+              fontFamily: 'var(--s-font)',
+            }}>
+              N'hésitez pas à nous contacter, nous sommes là pour vous aider !
+            </p>
+          </div>
+        )}
       </div>
     </section>
   );
