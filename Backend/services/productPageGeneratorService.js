@@ -176,11 +176,13 @@ export async function analyzeWithVision(scrapedData, imageBuffers = [], marketin
 
   const approachGuide = approachGuides[marketingApproach] || approachGuides.AIDA;
 
-  const userPrompt = `Tu es expert e-commerce et copywriting SPÉCIALISTE du marché africain. Tu dois générer une page produit professionnelle, persuasive et optimisée pour la conversion.
+  const userPrompt = `Tu es expert e-commerce et copywriting SPÉCIALISTE du marché africain francophone (Cameroun, Côte d'Ivoire, Sénégal, etc.). Tu dois générer une page produit ULTRA PERSUASIVE, optimisée mobile-first, qui capte l'attention en moins de 3 secondes et pousse à l'achat sans friction.
 
 PRODUIT À ANALYSER :
 TITRE : ${title || 'Non disponible'}
 DESCRIPTION : ${description || 'Non disponible'}
+
+🎯 OBJECTIF : Créer une page qui capte l'attention immédiatement, donne confiance, et pousse à l'achat sans friction.
 
 ═══ ÉTAPE 1 : ANALYSE INTELLIGENTE DU PRODUIT ═══
 Avant de générer quoi que ce soit, réponds mentalement à ces questions :
@@ -189,15 +191,18 @@ Avant de générer quoi que ce soit, réponds mentalement à ces questions :
 - Qui est la cible idéale (homme, femme, âge, contexte) ?
 - Pourquoi quelqu'un l'achèterait aujourd'hui ?
 - Quelles sont les objections possibles ?
+- Quel résultat concret et rapide peut-on promettre ?
 Utilise ces réponses pour personnaliser TOUT le contenu.
 
 ═══ RÈGLES FONDAMENTALES ═══
-1. 🇫🇷 100% FRANÇAIS dans tout le contenu (sauf prompt_image qui est en anglais)
-2. 🚫 PAS de promesses irréalistes — seulement des bénéfices concrets et crédibles
-3. 🚫 PAS de généricité — chaque mot doit être spécifique à CE produit
-4. ✅ Angles basés sur la FONCTION RÉELLE du produit, les résultats réels, l'expérience utilisateur
-5. ✅ FAQ basée sur les vraies questions que se pose l'acheteur
-6. ✅ Témoignages localisés selon la boutique et son marché réel
+1. 🇫🇷 100% FRANÇAIS SIMPLE ET NATUREL (comme une vendeuse WhatsApp) — sauf prompt_image en anglais
+2. 🚫 PAS de ton médical ou compliqué — langage simple, direct, compréhensible localement
+3. 🚫 PAS de promesses irréalistes — seulement des bénéfices concrets et crédibles
+4. 🚫 PAS de généricité — chaque mot doit être spécifique à CE produit
+5. ✅ Focus sur RÉSULTATS CONCRETS et TRANSFORMATION visible
+6. ✅ Adaptation au marché africain : contexte local, peaux noires, climat, culture
+7. ✅ Témoignages localisés avec noms africains et villes du pays cible
+8. ✅ Urgence psychologique : stock limité, preuve sociale, résultats rapides
 
 ${storeLocaleInstruction}
 
@@ -313,10 +318,19 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
 
 ═══ FORMAT JSON STRICT ═══
 {
-  "title": "Titre produit professionnel (8-15 mots) basé sur la promesse principale + bénéfice clé",
-  "hero_headline": "PROMESSE PRINCIPALE EN MAJUSCULES (4-6 mots)",
-  "hero_slogan": "Sous-titre accrocheur orienté bénéfice spécifique au produit",
-  "hero_baseline": "Phrase de réassurance courte spécifique au produit",
+  "title": "Titre produit TRÈS GRAND et dominant visuellement (8-15 mots) basé sur la promesse principale + bénéfice clé",
+  "hero_headline": "PROMESSE PRINCIPALE ULTRA FORTE EN MAJUSCULES (4-6 mots max) — Ex: MOINS D'ODEURS, PLUS DE CONFIANCE",
+  "hero_slogan": "Sous-titre orienté TRANSFORMATION + bénéfice émotionnel — Ex: Une vie intime libérée et sereine",
+  "hero_baseline": "Phrase de réassurance courte avec résultat rapide — Ex: Résultats visibles en quelques jours",
+  "benefits_bullets": [
+    "💐 Bénéfice concret 1 avec emoji pertinent",
+    "💖 Bénéfice concret 2 avec emoji pertinent",
+    "👩‍⚕️ Bénéfice concret 3 avec emoji pertinent",
+    "💧 Bénéfice concret 4 avec emoji pertinent",
+    "🛡️ Bénéfice concret 5 avec emoji pertinent",
+    "⏱️ Bénéfice concret 6 avec emoji pertinent",
+    "✅ Bénéfice concret 7 avec emoji pertinent"
+  ],
   "prompt_affiche_hero": "[Generate in English: High-converting ecommerce hero image for THIS specific product. Ultra realistic, 4K, advertising photography. Product clearly visible center/foreground. If used by a person: include authentic Black African model (dark brown skin, natural hair, African features) with confident/satisfied expression. Clean premium background (white, beige, or warm contextual). Professional studio lighting, soft shadows, depth of field. Optional short French badge (3 words max, bold font). No paragraphs, no CTA, no price. Scroll-stopping, trustworthy, premium mood.]",
   "prompt_avant_apres": "[Generate in English: Square 1:1 split-screen before/after transformation for THIS product. MANDATORY: authentic Black African person (dark brown skin, natural hair, African features, realistic skin). LEFT = BEFORE: person showing the problem/frustration this product solves. RIGHT = AFTER: same person showing the result — improvement, confidence, glow. Professional lighting, clean premium aesthetic, 4K quality. Small bold 'Avant'/'Après' label if helpful. No arrows, no heavy overlays. Convincing, high-conversion, scroll-stopping.]",
   "angles": [
@@ -354,23 +368,39 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   ],
   "testimonials": [
     {
-      "name": "Prénom N.",
+      "name": "Prénom N. (nom africain crédible)",
       "location": "${testimonialLocationTemplate}",
       "rating": 5,
-      "text": "Témoignage réaliste et spécifique (2-3 phrases). Bénéfice concret ressenti. Ton naturel.",
+      "text": "Témoignage réaliste et spécifique (2-3 phrases). Bénéfice concret ressenti. Langage local naturel (comme WhatsApp). Résultat concret mentionné.",
       "verified": true,
-      "date": "Il y a X jours/semaines"
+      "date": "Il y a X jours/semaines",
+      "image_type": "ugc"
     }
   ],
+  "conversion_blocks": [
+    {"icon": "✅", "text": "Paiement à la livraison"},
+    {"icon": "🚚", "text": "Livraison rapide"},
+    {"icon": "📞", "text": "Support WhatsApp"},
+    {"icon": "🔒", "text": "Garantie satisfaction"}
+  ],
+  "urgency_elements": {
+    "stock_limited": true,
+    "social_proof_count": "Nombre d'avis réels ou estimé",
+    "quick_result": "Ex: 7 jours pour voir les premiers résultats"
+  },
   "description_optimisee": ""
 }
 
-⚠️ EXACTEMENT 4 angles, 4 raisons, 5 questions FAQ, 4 témoignages.
+⚠️ EXACTEMENT 4 angles, 7 bénéfices avec emojis, 4 raisons, 7 questions FAQ (avec réponses VISIBLES directement), 4 témoignages.
+⚠️ benefits_bullets : 7 bénéfices DIRECTS avec emojis pertinents — texte simple, compréhensible, sans jargon.
+⚠️ FAQ : Les questions doivent couvrir : Quand voir résultats ? Est-ce naturel ? Effets secondaires ? Peut-on combiner ? Livraison ? Paiement à la livraison ? + 1 question spécifique au produit.
+⚠️ FAQ : Les réponses doivent être SIMPLES, RASSURANTES, SANS JARGON — affichées directement (pas de dropdown fermé).
 ⚠️ guide_utilisation.applicable = false si le produit n'a pas besoin d'explication.
 ⚠️ Adapte prompt_avant_apres au PROBLÈME RÉEL que résout CE produit spécifique.
 ⚠️ description_optimisee doit toujours être une chaîne vide car la page commence directement par les angles marketing.
 ⚠️ ORTHOGRAPHE PARFAITE : zéro faute d'orthographe, zéro faute de grammaire, zéro faute de conjugaison dans TOUT le contenu français.
-⚠️ TÉMOIGNAGES : prénoms et villes doivent correspondre au pays de la boutique (${storeCountry || 'Afrique de l\'Ouest'}).
+⚠️ TÉMOIGNAGES : prénoms africains et villes doivent correspondre au pays de la boutique (${storeCountry || 'Afrique de l\'Ouest'}). Langage naturel local.
+⚠️ URGENCE : Intégrer éléments psychologiques (stock limité, preuve sociale, résultats rapides).
 ⚠️ JSON uniquement. Pas d'explication. Pas de texte avant/après.`;
 
   const messages = [

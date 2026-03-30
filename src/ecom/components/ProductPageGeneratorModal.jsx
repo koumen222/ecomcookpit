@@ -723,8 +723,80 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     </div>
                   </div>
 
-                  {/* Description */}
-                  {/* 3 Angles marketing */}
+                  {/* Hero Headlines */}
+                  {(product.hero_headline || product.hero_slogan || product.hero_baseline) && (
+                    <div className="p-4 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl border border-emerald-200">
+                      <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide mb-2">🎯 HERO SECTION</p>
+                      {product.hero_headline && (
+                        <p className="text-base font-black text-gray-900 mb-2">{product.hero_headline}</p>
+                      )}
+                      {product.hero_slogan && (
+                        <p className="text-sm text-emerald-700 italic mb-1">{product.hero_slogan}</p>
+                      )}
+                      {product.hero_baseline && (
+                        <p className="text-xs text-gray-600">{product.hero_baseline}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Benefits Bullets */}
+                  {product.benefits_bullets?.length > 0 && (
+                    <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                      <p className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-3">💥 BÉNÉFICES ({product.benefits_bullets.length})</p>
+                      <div className="space-y-2">
+                        {product.benefits_bullets.map((benefit, i) => (
+                          <div key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                            <span className="text-base flex-shrink-0">{benefit.match(/^[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u)?.[0] || '✅'}</span>
+                            <span>{benefit.replace(/^[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]\s*/u, '')}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Urgency Elements */}
+                  {product.urgency_elements && (
+                    <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
+                      <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-2">⚡ URGENCE PSYCHOLOGIQUE</p>
+                      <div className="space-y-2 text-sm">
+                        {product.urgency_elements.stock_limited && (
+                          <div className="flex items-center gap-2 text-amber-800">
+                            <span>📦</span>
+                            <span>Stock limité activé</span>
+                          </div>
+                        )}
+                        {product.urgency_elements.social_proof_count && (
+                          <div className="flex items-center gap-2 text-amber-800">
+                            <span>⭐</span>
+                            <span>{product.urgency_elements.social_proof_count}</span>
+                          </div>
+                        )}
+                        {product.urgency_elements.quick_result && (
+                          <div className="flex items-center gap-2 text-amber-800">
+                            <span>⏱️</span>
+                            <span>{product.urgency_elements.quick_result}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Conversion Blocks */}
+                  {product.conversion_blocks?.length > 0 && (
+                    <div className="p-4 bg-green-50 rounded-xl border border-green-200">
+                      <p className="text-xs font-bold text-green-700 uppercase tracking-wide mb-3">🔥 BLOCS CONVERSION ({product.conversion_blocks.length})</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {product.conversion_blocks.map((block, i) => (
+                          <div key={i} className="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100">
+                            <span className="text-lg">{block.icon}</span>
+                            <span className="text-xs font-medium text-gray-700">{block.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 4 Angles marketing */
                   <div>
                     <p className="text-xs font-bold text-violet-700 uppercase tracking-wide mb-3">🎯 4 ARGUMENTS MARKETING</p>
                     {(product.angles || []).map((angle, i) => (
