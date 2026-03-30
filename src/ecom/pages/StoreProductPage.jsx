@@ -9,7 +9,6 @@ import { useSubdomain } from '../hooks/useSubdomain';
 import { useStoreProduct, injectStoreCssVars, prefetchStoreProduct } from '../hooks/useStoreData';
 import { useStoreCart } from '../hooks/useStoreCart';
 import QuickOrderModal from '../components/QuickOrderModal';
-import TestimonialsCarousel from '../components/TestimonialsCarousel';
 import ProductBenefits from '../components/ProductBenefits';
 import ConversionBlocks, { UrgencyBadge } from '../components/ConversionBlocks';
 import { io } from 'socket.io-client';
@@ -107,7 +106,7 @@ const ImageGallery = ({ images = [] }) => {
       {/* Main image */}
       <div
         style={{
-          position: 'relative', paddingBottom: '100%',
+          position: 'relative', paddingBottom: '85%',
           backgroundColor: '#f4f4f5', overflow: 'hidden', cursor: 'zoom-in',
         }}
         onClick={() => setZoomed(true)}
@@ -534,6 +533,218 @@ const ProductFaqAccordion = ({ items = [] }) => {
   );
 };
 
+// ── Avis Clients (carrousel) ──────────────────────────────────────────────
+const VerifiedTestimonialsCarousel = ({ testimonials = [], autoPlay = true }) => {
+  const verifiedSlides = (testimonials || []).filter((t) => !!t?.verified);
+  const slides = verifiedSlides.length ? verifiedSlides : (testimonials || []);
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isAutoPlaying, setIsAutoPlaying] = useState(autoPlay);
+
+  useEffect(() => {
+    if (!isAutoPlaying || slides.length <= 1) return;
+
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % slides.length);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [isAutoPlaying, slides.length]);
+
+  if (!slides || slides.length === 0) return null;
+
+  const goToPrevious = () => {
+    setIsAutoPlaying(false);
+    setCurrentIndex((prev) => (prev - 1 + slides.length) % slides.length);
+  };
+
+  const goToNext = () => {
+    setIsAutoPlaying(false);
+    setCurrentIndex((prev) => (prev + 1) % slides.length);
+  };
+
+  const goToSlide = (index) => {
+    setIsAutoPlaying(false);
+    setCurrentIndex(index);
+  };
+
+  const current = slides[currentIndex];
+  const ratingNum = Number(current?.rating || 5);
+  const fullStars = Math.max(0, Math.min(5, Math.round(ratingNum)));
+
+  const safeText = current?.text || current?.comment || '';
+  const displayDate = (() => {
+    if (!current?.date) return null;
+    const d = new Date(current.date);
+    if (Number.isNaN(d.getTime())) return String(current.date);
+    return d.toLocaleDateString('fr-FR');
+  })();
+
+  return (
+    <div
+      style={{
+        width: '100%',
+        background: 'linear-gradient(135deg, #ecfdf5 0%, #cffafe 100%)',
+        borderRadius: 18,
+        padding: '22px 18px',
+        border: '1px solid rgba(13, 148, 136, 0.18)',
+      }}
+    >
+      <div style={{ textAlign: 'center', marginBottom: 14 }}>
+        <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--s-text)', marginBottom: 2 }}>
+          ⭐ Ce que disent nos clients
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--s-text2)' }}>
+          Avis vérifiés de clients satisfaits
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button
+          onClick={goToPrevious}
+          disabled={slides.length <= 1}
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 999,
+            border: '1px solid var(--s-border)',
+            backgroundColor: '#fff',
+            cursor: slides.length > 1 ? 'pointer' : 'not-allowed',
+            opacity: slides.length > 1 ? 1 : 0.6,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+          }}
+          aria-label="Avis précédent"
+        >
+          <ChevronLeft size={20} color="var(--s-text)" />
+        </button>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              backgroundColor: '#fff',
+              border: '1px solid rgba(229, 231, 235, 0.9)',
+              borderRadius: 16,
+              padding: 18,
+              boxShadow: '0 10px 30px rgba(0,0,0,0.06)',
+            }}
+          >
+            {/* Étoiles */}
+            <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 10 }}>
+              {[...Array(5)].map((_, i) => (
+                <Star
+                  // eslint-disable-next-line react/no-array-index-key
+                  key={i}
+                  size={18}
+                  fill={i < fullStars ? '#F59E0B' : 'transparent'}
+                  color={i < fullStars ? '#F59E0B' : '#D1D5DB'}
+                />
+              ))}
+            </div>
+
+            {/* Texte */}
+            <p
+              style={{
+                margin: '0 0 14px',
+                color: 'var(--s-text2)',
+                fontStyle: 'italic',
+                fontSize: 14.5,
+                lineHeight: 1.7,
+                textAlign: 'center',
+                fontFamily: 'var(--s-font)',
+              }}
+            >
+              "{safeText}"
+            </p>
+
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--s-text)', marginBottom: 2 }}>
+                {current?.name || 'Client vérifié'}
+              </div>
+              {current?.location && (
+                <div style={{ fontSize: 12, color: 'var(--s-text2)', fontWeight: 700, marginBottom: 2 }}>
+                  📍 {current.location}
+                </div>
+              )}
+              {displayDate && (
+                <div style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 700 }}>
+                  {displayDate}
+                </div>
+              )}
+              {current?.verified && (
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    marginTop: 8,
+                    padding: '6px 12px',
+                    borderRadius: 999,
+                    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+                    color: '#059669',
+                    fontSize: 12,
+                    fontWeight: 900,
+                    border: '1px solid rgba(16, 185, 129, 0.16)',
+                  }}
+                >
+                  ✓ Achat vérifié
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={goToNext}
+          disabled={slides.length <= 1}
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 999,
+            border: '1px solid var(--s-border)',
+            backgroundColor: '#fff',
+            cursor: slides.length > 1 ? 'pointer' : 'not-allowed',
+            opacity: slides.length > 1 ? 1 : 0.6,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+          }}
+          aria-label="Avis suivant"
+        >
+          <ChevronRight size={20} color="var(--s-text)" />
+        </button>
+      </div>
+
+      {slides.length > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12 }}>
+          {slides.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => goToSlide(index)}
+              style={{
+                width: index === currentIndex ? 30 : 8,
+                height: 8,
+                borderRadius: 999,
+                border: 'none',
+                cursor: 'pointer',
+                backgroundColor:
+                  index === currentIndex ? 'var(--s-primary)' : 'rgba(107, 114, 128, 0.35)',
+                transition: 'width 0.2s ease, background-color 0.2s ease',
+              }}
+              aria-label={`Aller au témoignage ${index + 1}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Trust Badges ─────────────────────────────────────────────────────────────
 const TrustBadges = ({ compact = false }) => (
   <div className="sf-no-scrollbar" style={{
@@ -797,7 +1008,7 @@ const StoreProductPage = () => {
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
 
       {/* Product Detail */}
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '8px 24px 0' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '8px 0 0' }}>
         <div className="product-grid" style={{
           display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'start',
         }}>
@@ -807,7 +1018,7 @@ const StoreProductPage = () => {
           </div>
 
           {/* ── Right: Info ───────────────────────────────────────────────── */}
-          <div style={{ paddingBottom: 48 }}>
+          <div style={{ padding: '0 24px 48px 24px' }}>
             {product ? (
               <>
                 {/* Category */}
@@ -963,45 +1174,11 @@ const StoreProductPage = () => {
                         </div>
                       )}
                       {hasFaq && (
-                        <div style={{ marginTop: 32 }}>
-                          <h2 style={{ margin: '0 0 18px', fontSize: 20, fontWeight: 800, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>
-                            ❓ Questions fréquentes
-                          </h2>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                            {faqItems.map((item, index) => (
-                              <div key={index} style={{ 
-                                padding: '20px', 
-                                backgroundColor: '#fff',
-                                border: '1px solid var(--s-border)',
-                                borderRadius: 12,
-                              }}>
-                                <h3 style={{ 
-                                  fontSize: 15, 
-                                  fontWeight: 700, 
-                                  color: 'var(--s-text)', 
-                                  margin: '0 0 12px',
-                                  lineHeight: 1.4,
-                                  fontFamily: 'var(--s-font)',
-                                }}>
-                                  {item.question}
-                                </h3>
-                                <p style={{ 
-                                  fontSize: 14, 
-                                  color: 'var(--s-text2)', 
-                                  lineHeight: 1.7, 
-                                  margin: 0,
-                                  fontFamily: 'var(--s-font)',
-                                }}>
-                                  {item.answer || item.reponse}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                        <ProductFaqAccordion items={faqItems} />
                       )}
                       {product.testimonials && product.testimonials.length > 0 && (
                         <div style={{ marginTop: 32, marginBottom: 32 }}>
-                          <TestimonialsCarousel testimonials={product.testimonials} autoPlay={true} />
+                          <VerifiedTestimonialsCarousel testimonials={product.testimonials} autoPlay={true} />
                         </div>
                       )}
                     </>
