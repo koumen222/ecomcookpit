@@ -674,9 +674,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
                 {[
                   { id: 'page', label: 'Page', icon: Package },
-                  { id: 'affiches', label: 'Affiches', icon: Image },
+                  { id: 'affiches', label: 'Affiches', icon: ImageIcon },
                   { id: 'faq', label: 'FAQ + Avis', icon: Star },
-                  { id: 'images', label: 'Photos', icon: Image }
+                  { id: 'images', label: 'Photos', icon: ImageIcon }
                 ].map(({ id, label, icon: Icon }) => (
                   <button
                     key={id}
@@ -831,7 +831,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                         </div>
                       ) : (
                         <div className="p-6 bg-gray-50 text-center">
-                          <Image className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                          <ImageIcon className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                           <p className="text-xs text-gray-400">Affiche non générée</p>
                         </div>
                       )}
