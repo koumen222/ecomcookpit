@@ -1189,21 +1189,205 @@ const AiFaqSection = ({ cfg }) => {
 };
 
 // ─── CONTACT CTA ──────────────────────────────────────────────────────────────
+// ─── CONTACT CTA PREMIUM ──────────────────────────────────────────────────────
 const AiContactSection = ({ cfg, store }) => {
   const whatsapp = (cfg.whatsapp || store?.whatsapp || '').replace(/\D/g, '');
   const storeName = store?.name || 'la boutique';
-  // Pre-filled WhatsApp message — user can add details after opening
   const waMessage = encodeURIComponent(`Bonjour ${storeName} ! 👋 Je suis intéressé(e) par vos produits et j'aimerais passer une commande.`);
   const waLink = whatsapp ? `https://wa.me/${whatsapp}?text=${waMessage}` : null;
+  
   return (
-    <section style={{ padding: 'clamp(64px, 10vw, 100px) 24px', textAlign: 'center', position: 'relative', overflow: 'hidden', backgroundColor: 'var(--s-primary)' }}>
-      <div style={{ position: 'absolute', top: -40, right: -40, width: 200, height: 200, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.06)', pointerEvents: 'none' }} />
-      <div style={{ maxWidth: 600, margin: '0 auto', position: 'relative', zIndex: 1 }}>
-        <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 40px)', fontWeight: 900, color: '#fff', margin: '0 0 12px', letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>
-          {cfg.title || 'Parlez-nous maintenant'}
+    <section style={{
+      padding: 'clamp(72px, 12vw, 120px) 24px',
+      textAlign: 'center',
+      position: 'relative',
+      overflow: 'hidden',
+      background: 'linear-gradient(135deg, var(--s-primary) 0%, color-mix(in srgb, var(--s-primary) 88%, black) 100%)',
+    }}>
+      {/* Animated decorative elements */}
+      <div style={{
+        position: 'absolute',
+        top: -80,
+        right: -80,
+        width: 300,
+        height: 300,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+      <div style={{
+        position: 'absolute',
+        bottom: -60,
+        left: -60,
+        width: 250,
+        height: 250,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+      
+      {/* Pattern overlay */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.03) 1px, transparent 1px)',
+        backgroundSize: '24px 24px',
+        pointerEvents: 'none',
+      }} />
+      
+      <div style={{
+        maxWidth: 720,
+        margin: '0 auto',
+        position: 'relative',
+        zIndex: 1,
+      }}>
+        {/* Icon Badge */}
+        <div style={{
+          width: 72,
+          height: 72,
+          borderRadius: '50%',
+          background: 'rgba(255,255,255,0.15)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          margin: '0 auto 28px',
+          border: '2px solid rgba(255,255,255,0.2)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+        }}>
+          <MessageCircle size={32} color="#fff" strokeWidth={2.5} />
+        </div>
+        
+        {/* Title */}
+        <h2 style={{
+          fontSize: 'clamp(28px, 5vw, 48px)',
+          fontWeight: 900,
+          color: '#fff',
+          margin: '0 0 16px',
+          letterSpacing: '-0.03em',
+          fontFamily: 'var(--s-font)',
+          lineHeight: 1.2,
+        }}>
+          {cfg.title || 'Prêt à commander ?'}
         </h2>
-        {cfg.subtitle && <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.85)', margin: '0 0 36px', lineHeight: 1.6, fontFamily: 'var(--s-font)' }}>{cfg.subtitle}</p>}
-        {cfg.address && <p style={{ marginTop: 20, fontSize: 13, color: 'rgba(255,255,255,0.65)', fontFamily: 'var(--s-font)' }}>📍 {cfg.address}</p>}
+        
+        {/* Subtitle */}
+        <p style={{
+          fontSize: 'clamp(16px, 2.5vw, 19px)',
+          color: 'rgba(255,255,255,0.9)',
+          margin: '0 0 40px',
+          lineHeight: 1.6,
+          fontFamily: 'var(--s-font)',
+          maxWidth: 560,
+          marginLeft: 'auto',
+          marginRight: 'auto',
+        }}>
+          {cfg.subtitle || 'Contactez-nous maintenant et passez votre commande en quelques clics !'}
+        </p>
+        
+        {/* Action Buttons */}
+        <div style={{
+          display: 'flex',
+          gap: 16,
+          justifyContent: 'center',
+          flexWrap: 'wrap',
+          marginBottom: cfg.address ? 48 : 0,
+        }}>
+          {waLink && (
+            <a
+              href={waLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '18px 36px',
+                backgroundColor: '#fff',
+                color: 'var(--s-primary)',
+                borderRadius: 12,
+                fontSize: 16,
+                fontWeight: 800,
+                textDecoration: 'none',
+                fontFamily: 'var(--s-font)',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                border: '2px solid transparent',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 12px 32px rgba(0,0,0,0.2)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.15)';
+              }}
+            >
+              <MessageCircle size={20} />
+              Contactez-nous sur WhatsApp
+            </a>
+          )}
+          
+          {store?.email && (
+            <a
+              href={`mailto:${store.email}`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '18px 36px',
+                backgroundColor: 'rgba(255,255,255,0.15)',
+                color: '#fff',
+                borderRadius: 12,
+                fontSize: 16,
+                fontWeight: 700,
+                textDecoration: 'none',
+                fontFamily: 'var(--s-font)',
+                border: '2px solid rgba(255,255,255,0.3)',
+                backdropFilter: 'blur(8px)',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.25)';
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.5)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.15)';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)';
+              }}
+            >
+              <Mail size={20} />
+              Envoyez-nous un email
+            </a>
+          )}
+        </div>
+        
+        {/* Address */}
+        {cfg.address && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+            marginTop: 32,
+            padding: '16px 24px',
+            backgroundColor: 'rgba(255,255,255,0.1)',
+            borderRadius: 12,
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255,255,255,0.15)',
+          }}>
+            <MapPin size={18} color="rgba(255,255,255,0.8)" />
+            <span style={{
+              fontSize: 14.5,
+              color: 'rgba(255,255,255,0.8)',
+              fontFamily: 'var(--s-font)',
+            }}>
+              {cfg.address}
+            </span>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -2126,75 +2310,325 @@ const QuickViewModal = ({ product, store, prefix, onClose }) => {
 };
 
 // ── Footer ────────────────────────────────────────────────────────────────────
+// ── FOOTER PREMIUM ────────────────────────────────────────────────────────────
 const StorefrontFooter = ({ store, prefix }) => {
   const navigationLinks = [
     { label: 'Accueil', href: `${prefix}/` },
     { label: 'Tous nos produits', href: `${prefix}/products` },
   ];
+  
+  const whatsapp = (store?.whatsapp || '').replace(/\D/g, '');
+  const waLink = whatsapp ? `https://wa.me/${whatsapp}` : null;
 
   return (
-    <footer style={{ backgroundColor: 'var(--s-primary)', color: 'rgba(255,255,255,0.7)', fontFamily: 'var(--s-font)', marginTop: 0 }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '64px 24px 48px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 48 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+    <footer style={{
+      background: 'linear-gradient(135deg, var(--s-primary) 0%, color-mix(in srgb, var(--s-primary) 85%, black) 100%)',
+      color: 'rgba(255,255,255,0.7)',
+      fontFamily: 'var(--s-font)',
+      marginTop: 0,
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      {/* Decorative patterns */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        width: '40%',
+        height: '100%',
+        background: 'radial-gradient(circle at top right, rgba(255,255,255,0.08) 0%, transparent 60%)',
+        pointerEvents: 'none',
+      }} />
+      
+      {/* Main footer content */}
+      <div style={{
+        maxWidth: 1200,
+        margin: '0 auto',
+        padding: 'clamp(56px, 8vw, 80px) 24px clamp(40px, 6vw, 56px)',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: 48,
+        position: 'relative',
+      }}>
+        {/* Brand Column */}
+        <div style={{ gridColumn: 'span 1' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
             {store?.logo ? (
-              <img src={store.logo} alt={store?.name} style={{ height: 32, width: 'auto', objectFit: 'contain', filter: 'brightness(0) invert(1)', opacity: 0.9 }} />
+              <img
+                src={store.logo}
+                alt={store?.name}
+                style={{
+                  height: 40,
+                  width: 'auto',
+                  maxWidth: 160,
+                  objectFit: 'contain',
+                  filter: 'brightness(0) invert(1)',
+                  opacity: 0.95,
+                }}
+              />
             ) : (
-              <span style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.2)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14 }}>
-                {(store?.name || 'S')[0]}
-              </span>
+              <>
+                <span style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  background: 'linear-gradient(135deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.15) 100%)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 900,
+                  fontSize: 18,
+                  flexShrink: 0,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                }}>
+                  {(store?.name || 'S')[0].toUpperCase()}
+                </span>
+                <span style={{
+                  fontWeight: 800,
+                  fontSize: 18,
+                  color: '#fff',
+                  letterSpacing: '-0.01em',
+                }}>
+                  {store?.name}
+                </span>
+              </>
             )}
-            <span style={{ fontWeight: 700, fontSize: 16, color: '#fff' }}>{store?.name}</span>
           </div>
+          
           {store?.description && (
-            <p style={{ fontSize: 13, lineHeight: 1.65, margin: '0 0 20px', maxWidth: 260, color: 'rgba(255,255,255,0.6)' }}>{store.description}</p>
+            <p style={{
+              fontSize: 14,
+              lineHeight: 1.7,
+              margin: '0 0 24px',
+              maxWidth: 280,
+              color: 'rgba(255,255,255,0.65)',
+            }}>
+              {store.description}
+            </p>
+          )}
+          
+          {/* WhatsApp CTA */}
+          {waLink && (
+            <a
+              href={waLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '10px 20px',
+                backgroundColor: 'rgba(255,255,255,0.15)',
+                border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: 10,
+                color: '#fff',
+                textDecoration: 'none',
+                fontSize: 14,
+                fontWeight: 600,
+                transition: 'all 0.2s',
+                backdropFilter: 'blur(8px)',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.25)';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.15)';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}
+            >
+              <MessageCircle size={16} />
+              Contactez-nous
+            </a>
           )}
         </div>
 
+        {/* Navigation Column */}
         <div>
-          <p style={{ fontWeight: 700, fontSize: 13, color: '#fff', margin: '0 0 18px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Navigation</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <p style={{
+            fontWeight: 800,
+            fontSize: 13,
+            color: '#fff',
+            margin: '0 0 20px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+          }}>
+            Navigation
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {navigationLinks.map(link => (
-              <a key={link.label} href={link.href} style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.7)', textDecoration: 'none', transition: 'color 0.15s' }}
-                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}>
+              <a
+                key={link.label}
+                href={link.href}
+                style={{
+                  fontSize: 14.5,
+                  color: 'rgba(255,255,255,0.7)',
+                  textDecoration: 'none',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.color = '#fff';
+                  e.currentTarget.style.transform = 'translateX(4px)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.color = 'rgba(255,255,255,0.7)';
+                  e.currentTarget.style.transform = 'translateX(0)';
+                }}
+              >
+                <ChevronRight size={14} style={{ opacity: 0.5 }} />
                 {link.label}
               </a>
             ))}
           </div>
         </div>
 
+        {/* Contact Column */}
         <div>
-          <p style={{ fontWeight: 700, fontSize: 13, color: '#fff', margin: '0 0 18px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Contact</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <p style={{
+            fontWeight: 800,
+            fontSize: 13,
+            color: '#fff',
+            margin: '0 0 20px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+          }}>
+            Contact
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {store?.city && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: 'rgba(255,255,255,0.6)' }}>
-                <MapPin size={14} style={{ flexShrink: 0 }} /> {store.city}{store.country ? `, ${store.country}` : ''}
-              </span>
+              <div style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+                fontSize: 14,
+                color: 'rgba(255,255,255,0.65)',
+                lineHeight: 1.6,
+              }}>
+                <MapPin size={16} style={{ flexShrink: 0, marginTop: 2, opacity: 0.8 }} />
+                <span>
+                  {store.city}{store.country ? `, ${store.country}` : ''}
+                </span>
+              </div>
+            )}
+            
+            {store?.email && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                fontSize: 14,
+                color: 'rgba(255,255,255,0.65)',
+              }}>
+                <Mail size={16} style={{ flexShrink: 0, opacity: 0.8 }} />
+                <a
+                  href={`mailto:${store.email}`}
+                  style={{
+                    color: 'rgba(255,255,255,0.65)',
+                    textDecoration: 'none',
+                    transition: 'color 0.2s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.65)'}
+                >
+                  {store.email}
+                </a>
+              </div>
+            )}
+            
+            {whatsapp && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                fontSize: 14,
+                color: 'rgba(255,255,255,0.65)',
+              }}>
+                <Phone size={16} style={{ flexShrink: 0, opacity: 0.8 }} />
+                <span>+{whatsapp}</span>
+              </div>
             )}
           </div>
         </div>
       </div>
 
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.15)', padding: '20px 24px' }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-          <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
+      {/* Footer Bottom */}
+      <div style={{
+        borderTop: '1px solid rgba(255,255,255,0.15)',
+        padding: '24px 24px',
+        position: 'relative',
+      }}>
+        <div style={{
+          maxWidth: 1200,
+          margin: '0 auto',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 16,
+        }}>
+          <p style={{
+            margin: 0,
+            fontSize: 13,
+            color: 'rgba(255,255,255,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}>
             © {new Date().getFullYear()} {store?.name}. Tous droits réservés.
           </p>
-          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+          
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 20,
+            flexWrap: 'wrap',
+          }}>
             {[
               { label: 'Politique de confidentialité', href: '#' },
               { label: "Conditions d'utilisation", href: '#' },
             ].map(link => (
-              <a key={link.label} href={link.href} style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', textDecoration: 'none', transition: 'color 0.15s' }}
+              <a
+                key={link.label}
+                href={link.href}
+                style={{
+                  fontSize: 12,
+                  color: 'rgba(255,255,255,0.5)',
+                  textDecoration: 'none',
+                  transition: 'color 0.15s',
+                }}
                 onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}>
+                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
+              >
                 {link.label}
               </a>
             ))}
-            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+            
+            <span style={{
+              fontSize: 12,
+              color: 'rgba(255,255,255,0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}>
               Propulsé par{' '}
-              <a href="https://scalor.net" target="_blank" rel="noreferrer" style={{ color: '#fff', fontWeight: 600, textDecoration: 'none' }}>
+              <a
+                href="https://scalor.net"
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  color: '#fff',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <Zap size={12} fill="#fff" />
                 Scalor
               </a>
             </span>
