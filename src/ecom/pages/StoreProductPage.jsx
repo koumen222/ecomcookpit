@@ -74,6 +74,7 @@ const StorefrontHeader = ({ store, cartCount, prefix }) => (
 const ImageGallery = ({ images = [] }) => {
   const [active, setActive] = useState(0);
   const [zoomed, setZoomed] = useState(false);
+  const [ratios, setRatios] = useState({});
 
   const go = (dir) => setActive(i => Math.max(0, Math.min(images.length - 1, i + dir)));
 
@@ -101,12 +102,18 @@ const ImageGallery = ({ images = [] }) => {
     </div>
   );
 
+  const activeSrc = images[active]?.url || images[active];
+  const activeRatio = ratios[activeSrc] || 1; // width / height
+  // Padding-bottom fallback pour gérer le ratio sans layout shift violent.
+  // Clamp pour éviter des héros trop plats ou trop hauts sur des images extrêmes.
+  const heroPaddingBottomPct = `${Math.max(45, Math.min(130, (1 / activeRatio) * 100))}%`;
+
   return (
     <div>
       {/* Main image */}
       <div
         style={{
-          position: 'relative', paddingBottom: '85%',
+          position: 'relative', paddingBottom: heroPaddingBottomPct,
           backgroundColor: '#f4f4f5', overflow: 'hidden', cursor: 'zoom-in',
         }}
         onClick={() => setZoomed(true)}
@@ -114,11 +121,20 @@ const ImageGallery = ({ images = [] }) => {
         onTouchEnd={onTouchEnd}
       >
         <img
-          src={images[active]?.url || images[active]}
+          src={activeSrc}
           alt={images[active]?.alt || ''}
           loading="eager"
           fetchpriority="high"
           decoding="async"
+          onLoad={(e) => {
+            const img = e.currentTarget;
+            const w = img.naturalWidth || 0;
+            const h = img.naturalHeight || 0;
+            if (!activeSrc || !w || !h) return;
+            const r = w / h;
+            if (!Number.isFinite(r) || r <= 0) return;
+            setRatios((prev) => (prev[activeSrc] ? prev : { ...prev, [activeSrc]: r }));
+          }}
           style={{
             position: 'absolute', inset: 0, width: '100%', height: '100%',
             // "Hero" doit afficher l'image complète (pas recadrée)
