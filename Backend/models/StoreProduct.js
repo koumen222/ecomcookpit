@@ -103,6 +103,37 @@ const storeProductSchema = new mongoose.Schema({
       text: { type: String, required: true, maxlength: 50 }
     }],
     default: []
+  },
+  // Vidéos du produit
+  videos: {
+    type: [{
+      url: { type: String, required: true },
+      type: { type: String, enum: ['youtube', 'vimeo', 'direct'], default: 'direct' },
+      thumbnail: { type: String, default: '' },
+      title: { type: String, default: '' },
+      order: { type: Number, default: 0 }
+    }],
+    default: []
+  },
+  // Témoignages
+  testimonials: {
+    type: [{
+      name: { type: String, required: true },
+      text: { type: String, required: true, maxlength: 500 },
+      rating: { type: Number, min: 1, max: 5, default: 5 },
+      image: { type: String, default: '' },
+      location: { type: String, default: '' },
+      date: { type: Date, default: Date.now },
+      verified: { type: Boolean, default: false },
+      source: { type: String, enum: ['manual', 'ai'], default: 'manual' }
+    }],
+    default: []
+  },
+  // Configuration de génération des témoignages
+  testimonialsConfig: {
+    autoGenerate: { type: Boolean, default: false },
+    generatedCount: { type: Number, default: 3 },
+    lastGenerated: { type: Date, default: null }
   }
 }, {
   collection: 'store_products',

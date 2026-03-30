@@ -326,6 +326,7 @@ const startServer = async () => {
       ['./routes/storeOrders.js',             '/api/ecom/store-orders'],
       ['./routes/storeManagement.js',         '/api/ecom/store-manage'],
       ['./routes/storeAdmin.js',              '/api/ecom/store'],
+      ['./routes/storeAnalytics.js',          '/api/ecom/store-analytics'],
       ['./routes/publicStore.js',             '/api/public/store'],
       // ─── New unified Store API (called by SPA on *.scalor.net via api.scalor.net) ──
       ['./routes/storeApi.js',                '/api/store'],
