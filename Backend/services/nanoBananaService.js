@@ -6,7 +6,7 @@
 
 import axios from 'axios';
 
-const GEMINI_API_KEY = process.env.NANOBANANA_API_KEY || 'AIzaSyCXG6SYfRLYkM2NG5303Uf-AhHhRgq_G1A';
+const GEMINI_API_KEY = process.env.NANOBANANA_API_KEY;
 const IMAGEN3_URL   = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict';
 const GEMINI_IMG_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent';
 
