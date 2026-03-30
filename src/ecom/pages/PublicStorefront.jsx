@@ -4,7 +4,7 @@ import {
   ShoppingCart, MessageCircle, ArrowRight, ShoppingBag, Star,
   ChevronDown, ChevronUp, Truck, ShieldCheck, Package, RotateCcw,
   Leaf, Heart, Sparkles, Zap, Gift, Users, Globe, Award, Clock,
-  MapPin, Mail, X, ChevronRight,
+  MapPin, Mail, X, ChevronRight, DollarSign, CheckCircle,
 } from 'lucide-react';
 import { useSubdomain } from '../hooks/useSubdomain';
 import { useStoreData } from '../hooks/useStoreData';
@@ -31,7 +31,32 @@ const getStoreMetaDescription = (store, fallback = '') => truncateMetaText(
   180,
 );
 
-// ─── EMOJI → LUCIDE mapping ───────────────────────────────────────────────────
+// ─── ICON COMPONENTS mapping (string → Lucide Component) ─────────────────────
+const ICON_COMPONENTS = {
+  'truck': Truck,
+  'check-circle': CheckCircle,
+  'shield-check': ShieldCheck,
+  'message-circle': MessageCircle,
+  'rotate-ccw': RotateCcw,
+  'star': Star,
+  'dollar-sign': DollarSign,
+  'heart': Heart,
+  'package': Package,
+  'leaf': Leaf,
+  'sparkles': Sparkles,
+  'zap': Zap,
+  'gift': Gift,
+  'users': Users,
+  'globe': Globe,
+  'award': Award,
+  'clock': Clock,
+  'map-pin': MapPin,
+  'mail': Mail,
+  'shopping-bag': ShoppingBag,
+  'shopping-cart': ShoppingCart,
+};
+
+// Legacy emoji support (for backward compatibility - will be removed later)
 const EMOJI_ICON_MAP = {
   '🚚': Truck, '🚛': Truck, '🚀': Zap,
   '💯': ShieldCheck, '✅': ShieldCheck, '🔒': ShieldCheck,
@@ -50,14 +75,26 @@ const EMOJI_ICON_MAP = {
   '⏰': Clock, '🕐': Clock, '⏱️': Clock,
   '📍': MapPin, '🗺': MapPin,
   '📧': Mail, '✉️': Mail,
+  '💰': DollarSign,
+  '🛡️': ShieldCheck,
 };
 
 // Single tint box — uses store primary color via CSS color-mix
 const ICON_BG = 'color-mix(in srgb, var(--s-primary) 12%, white)';
 
-function IconBox({ emoji, size = 22, bg, boxSize = 52, radius = 16 }) {
+function IconBox({ emoji, icon, size = 22, bg, boxSize = 52, radius = 16 }) {
   const boxBg = bg || ICON_BG;
-  const Icon = EMOJI_ICON_MAP[emoji] || EMOJI_ICON_MAP[emoji?.trim()];
+  
+  // Priority: 1) icon prop (string), 2) emoji (legacy)
+  let Icon = null;
+  if (icon && typeof icon === 'string') {
+    // New way: string icon name like "truck", "shield-check"
+    Icon = ICON_COMPONENTS[icon];
+  } else if (emoji) {
+    // Legacy way: emoji characters
+    Icon = EMOJI_ICON_MAP[emoji] || EMOJI_ICON_MAP[emoji?.trim()];
+  }
+  
   return (
     <div style={{
       width: boxSize, height: boxSize, borderRadius: radius, flexShrink: 0,
@@ -65,7 +102,7 @@ function IconBox({ emoji, size = 22, bg, boxSize = 52, radius = 16 }) {
     }}>
       {Icon
         ? <Icon size={size} color="var(--s-primary)" strokeWidth={2} />
-        : <span style={{ fontSize: size * 0.9, lineHeight: 1 }}>{emoji}</span>}
+        : <span style={{ fontSize: size * 0.9, lineHeight: 1 }}>{emoji || icon}</span>}
     </div>
   );
 }

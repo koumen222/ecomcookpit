@@ -157,10 +157,10 @@ function buildFallbackSections(s) {
       id: 'badges-1', type: 'badges', visible: true,
       config: {
         items: [
-          { icon: '🚚', title: 'Livraison Rapide', desc: 'Expédition sous 24-48h dans toute la région' },
-          { icon: '✅', title: 'Qualité Garantie', desc: 'Produits authentiques et certifiés' },
-          { icon: '💬', title: 'Support WhatsApp', desc: 'Réponse rapide à toutes vos questions' },
-          { icon: '🔄', title: 'Retours Faciles', desc: 'Satisfait ou remboursé sous 7 jours' },
+          { icon: 'truck', title: 'Livraison Rapide', desc: 'Expédition sous 24-48h dans toute la région' },
+          { icon: 'check-circle', title: 'Qualité Garantie', desc: 'Produits authentiques et certifiés' },
+          { icon: 'message-circle', title: 'Support WhatsApp', desc: 'Réponse rapide à toutes vos questions' },
+          { icon: 'rotate-ccw', title: 'Retours Faciles', desc: 'Satisfait ou remboursé sous 7 jours' },
         ]
       }
     },
@@ -182,10 +182,10 @@ function buildFallbackSections(s) {
         title: 'Pourquoi nous choisir ?',
         subtitle: 'Des avantages qui font la différence',
         items: [
-          { icon: '⭐', title: 'Qualité Premium', desc: 'Nous sélectionnons uniquement les meilleurs produits pour vous garantir une satisfaction totale.' },
-          { icon: '💰', title: 'Prix Compétitifs', desc: 'Des tarifs justes et transparents, sans surprise. Le meilleur rapport qualité-prix.' },
-          { icon: '🛡️', title: 'Paiement Sécurisé', desc: 'Vos transactions sont protégées. Payez en toute confiance.' },
-          { icon: '❤️', title: 'Service Client Dédié', desc: 'Une équipe à votre écoute pour vous accompagner avant et après votre achat.' },
+          { icon: 'star', title: 'Qualité Premium', desc: 'Nous sélectionnons uniquement les meilleurs produits pour vous garantir une satisfaction totale.' },
+          { icon: 'dollar-sign', title: 'Prix Compétitifs', desc: 'Des tarifs justes et transparents, sans surprise. Le meilleur rapport qualité-prix.' },
+          { icon: 'shield-check', title: 'Paiement Sécurisé', desc: 'Vos transactions sont protégées. Payez en toute confiance.' },
+          { icon: 'heart', title: 'Service Client Dédié', desc: 'Une équipe à votre écoute pour vous accompagner avant et après votre achat.' },
         ]
       }
     },
