@@ -15,6 +15,27 @@ import { setDocumentMeta } from '../utils/pageMeta';
 const fmt = (n, cur = 'XAF') =>
   `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
 
+// ─── MOBILE DETECTION HOOK ────────────────────────────────────────────────────
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      setIsMobile(mobile);
+      setIsTouchDevice(touch);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
+  return { isMobile, isTouchDevice };
+};
+
 const normalizeMetaText = (value = '') => String(value || '')
   .replace(/<[^>]*>/g, ' ')
   .replace(/\s+/g, ' ')
@@ -765,7 +786,10 @@ const AiFeaturesSection = ({ cfg }) => {
 const AiTestimonialsSection = ({ cfg }) => {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [touchStart, setTouchStart] = useState(0);
+  const [touchEnd, setTouchEnd] = useState(0);
   const items = cfg.items || [];
+  const { isMobile } = useIsMobile();
   
   // Auto-rotation every 5 seconds (pauses on hover)
   useEffect(() => {
@@ -783,6 +807,34 @@ const AiTestimonialsSection = ({ cfg }) => {
   const goTo = (idx) => setCurrentIdx(idx);
   const goNext = () => setCurrentIdx((currentIdx + 1) % items.length);
   const goPrev = () => setCurrentIdx((currentIdx - 1 + items.length) % items.length);
+  
+  // Touch handlers for swipe
+  const handleTouchStart = (e) => {
+    setTouchStart(e.touches[0].clientX);
+    setIsPaused(true);
+  };
+  
+  const handleTouchMove = (e) => {
+    setTouchEnd(e.touches[0].clientX);
+  };
+  
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > 50;
+    const isRightSwipe = distance < -50;
+    
+    if (isLeftSwipe) {
+      goNext();
+    } else if (isRightSwipe) {
+      goPrev();
+    }
+    
+    setTouchStart(0);
+    setTouchEnd(0);
+    setTimeout(() => setIsPaused(false), 500);
+  };
 
   return (
     <section style={{
@@ -819,37 +871,42 @@ const AiTestimonialsSection = ({ cfg }) => {
 
         {/* Carousel Container */}
         <div
-          onMouseEnter={() => setIsPaused(true)}
-          onMouseLeave={() => setIsPaused(false)}
+          onMouseEnter={() => !isMobile && setIsPaused(true)}
+          onMouseLeave={() => !isMobile && setIsPaused(false)}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
           style={{
             position: 'relative',
-            padding: '0 60px',
+            padding: isMobile ? '0 16px' : '0 60px',
+            touchAction: 'pan-y pinch-zoom', // Allow vertical scroll but capture horizontal
           }}
         >
           {/* Testimonial Card */}
           <div style={{
             backgroundColor: '#fff',
-            borderRadius: 24,
-            padding: 'clamp(32px, 5vw, 48px)',
+            borderRadius: isMobile ? 20 : 24,
+            padding: isMobile ? 'clamp(24px, 6vw, 32px)' : 'clamp(32px, 5vw, 48px)',
             boxShadow: '0 20px 60px rgba(0,0,0,0.08)',
             border: '1px solid #F0F0F0',
-            minHeight: 280,
+            minHeight: isMobile ? 240 : 280,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
             transition: 'transform 0.3s ease',
+            userSelect: 'none', // Prevent text selection during swipe
           }}>
             {/* Stars */}
             <div style={{
               display: 'flex',
               gap: 4,
-              marginBottom: 24,
+              marginBottom: isMobile ? 20 : 24,
               justifyContent: 'center',
             }}>
               {Array.from({ length: items[currentIdx]?.rating || 5 }).map((_, j) => (
                 <Star
                   key={j}
-                  size={20}
+                  size={isMobile ? 18 : 20}
                   fill="var(--s-primary)"
                   color="var(--s-primary)"
                   style={{
@@ -861,10 +918,10 @@ const AiTestimonialsSection = ({ cfg }) => {
 
             {/* Quote */}
             <p style={{
-              fontSize: 'clamp(16px, 2vw, 19px)',
+              fontSize: 'clamp(15px, 2vw, 19px)',
               lineHeight: 1.8,
               color: '#374151',
-              margin: '0 0 32px',
+              margin: '0 0 28px',
               fontFamily: 'var(--s-font)',
               fontStyle: 'italic',
               textAlign: 'center',
@@ -880,12 +937,12 @@ const AiTestimonialsSection = ({ cfg }) => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 16,
+              gap: isMobile ? 12 : 16,
             }}>
               {/* Avatar */}
               <div style={{
-                width: 52,
-                height: 52,
+                width: isMobile ? 44 : 52,
+                height: isMobile ? 44 : 52,
                 borderRadius: '50%',
                 flexShrink: 0,
                 background: 'linear-gradient(135deg, var(--s-primary) 0%, color-mix(in srgb, var(--s-primary) 70%, black) 100%)',
@@ -893,7 +950,7 @@ const AiTestimonialsSection = ({ cfg }) => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontWeight: 800,
-                fontSize: 18,
+                fontSize: isMobile ? 16 : 18,
                 color: '#fff',
                 border: '3px solid #F9FAFB',
                 boxShadow: '0 4px 12px rgba(15, 107, 79, 0.2)',
@@ -904,7 +961,7 @@ const AiTestimonialsSection = ({ cfg }) => {
               <div style={{ textAlign: 'left' }}>
                 <p style={{
                   margin: 0,
-                  fontSize: 15.5,
+                  fontSize: isMobile ? 14.5 : 15.5,
                   fontWeight: 800,
                   color: 'var(--s-text)',
                   fontFamily: 'var(--s-font)',
@@ -914,14 +971,14 @@ const AiTestimonialsSection = ({ cfg }) => {
                 {items[currentIdx]?.location && (
                   <p style={{
                     margin: '2px 0 0',
-                    fontSize: 13,
+                    fontSize: isMobile ? 12 : 13,
                     color: 'var(--s-text2)',
                     fontFamily: 'var(--s-font)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 4,
                   }}>
-                    <MapPin size={12} />
+                    <MapPin size={isMobile ? 11 : 12} />
                     {items[currentIdx].location}
                   </p>
                 )}
@@ -929,11 +986,12 @@ const AiTestimonialsSection = ({ cfg }) => {
             </div>
           </div>
 
-          {/* Navigation Arrows */}
-          {items.length > 1 && (
+          {/* Navigation Arrows - Hidden on mobile (swipe instead) */}
+          {items.length > 1 && !isMobile && (
             <>
               <button
                 onClick={goPrev}
+                aria-label="Testimonial précédent"
                 style={{
                   position: 'absolute',
                   left: 0,
@@ -965,6 +1023,7 @@ const AiTestimonialsSection = ({ cfg }) => {
               
               <button
                 onClick={goNext}
+                aria-label="Testimonial suivant"
                 style={{
                   position: 'absolute',
                   right: 0,
@@ -1009,6 +1068,7 @@ const AiTestimonialsSection = ({ cfg }) => {
               <button
                 key={i}
                 onClick={() => goTo(i)}
+                aria-label={`Aller au témoignage ${i + 1}`}
                 style={{
                   width: i === currentIdx ? 32 : 10,
                   height: 10,
@@ -1018,10 +1078,31 @@ const AiTestimonialsSection = ({ cfg }) => {
                   cursor: 'pointer',
                   transition: 'all 0.3s ease',
                   padding: 0,
+                  minWidth: i === currentIdx ? 32 : 44, // Larger touch target
+                  minHeight: 44,
                 }}
-                aria-label={`Go to testimonial ${i + 1}`}
               />
             ))}
+          </div>
+        )}
+        
+        {/* Swipe hint for mobile */}
+        {isMobile && items.length > 1 && (
+          <div style={{
+            marginTop: 24,
+            textAlign: 'center',
+            fontSize: 13,
+            color: 'var(--s-text2)',
+            fontFamily: 'var(--s-font)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            opacity: 0.7,
+          }}>
+            <ChevronRight size={14} style={{ transform: 'translateX(-2px)' }} />
+            Glissez pour naviguer
+            <ChevronRight size={14} style={{ transform: 'translateX(2px)' }} />
           </div>
         )}
       </div>
