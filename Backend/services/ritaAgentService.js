@@ -2499,14 +2499,65 @@ Exemple TEXTE (question simple) :
   }
 
   // ─── LIVRAISON — tarifs, zones, délais ───
-  if (config.deliveryInfo || config.deliveryZones?.length || config.deliveryFee) {
+  if (config.deliveryInfo || config.deliveryZones?.length || config.deliveryFee || config.deliveryCountries?.length) {
     prompt += `\n\n## 🚚 LIVRAISON — ZONES ET POLITIQUE DE LIVRAISON`;
+    
+    // Liste des pays couverts
+    if (config.deliveryCountries?.length) {
+      prompt += `\n\n### 🌍 Pays couverts par la livraison :`;
+      prompt += `\n${config.deliveryCountries.join(', ')}`;
+      prompt += `\n\n⚠️ Tu DOIS respecter cette liste de pays. Si le client est dans un pays NON listé ci-dessus, tu l'informes poliment que la livraison n'est pas encore disponible dans son pays.`;
+    }
     
     if (config.deliveryZones?.length) {
       const zones = config.deliveryZones.map(z => z.city || z.zone).filter(Boolean);
-      prompt += `\n\n### Zones de livraison couvertes (livraison standard) :`;
+      prompt += `\n\n### 📍 Zones de livraison couvertes (livraison standard) :`;
+      
+      // Grouper par pays si disponible
+      const zonesByCountry = {};
       for (const z of config.deliveryZones) {
-        prompt += `\n  • ${z.city || z.zone}${z.fee ? ` → ${z.fee}` : ''}${z.delay ? ` (${z.delay})` : ''}`;
+        const country = z.country || 'Non spécifié';
+        if (!zonesByCountry[country]) zonesByCountry[country] = [];
+        zonesByCountry[country].push(z);
+      }
+      
+      for (const [country, countryZones] of Object.entries(zonesByCountry)) {
+        if (country !== 'Non spécifié') {
+          prompt += `\n\n**${country} :**`;
+        }
+        for (const z of countryZones) {
+          const cityName = z.city || z.zone;
+          let feeText = '';
+          
+          // Gestion des frais de livraison
+          if (z.fee === '0' || z.fee === '0 FCFA' || z.fee === 0) {
+            feeText = ' → Livraison GRATUITE 🎉';
+          } else if (z.fee) {
+            feeText = ` → ${z.fee}`;
+          }
+          
+          const delayText = z.delay ? ` (${z.delay})` : '';
+          prompt += `\n  • ${cityName}${feeText}${delayText}`;
+        }
+      }
+      
+      prompt += `\n\n### 💰 RÈGLE FRAIS DE LIVRAISON (TRÈS IMPORTANT)`;
+      prompt += `\n⚠️ Tu DOIS respecter les frais de livraison configurés pour chaque zone :`;
+      prompt += `\n- Si une zone affiche "Livraison GRATUITE" ou "0 FCFA" → tu dis au client que la livraison est GRATUITE pour cette ville`;
+      prompt += `\n- Si une zone affiche un montant (ex: "2000 FCFA") → tu informes le client du coût de livraison`;
+      prompt += `\n- Ne JAMAIS inventer ou modifier les frais de livraison`;
+      
+      const isVous = (config.toneStyle === 'formal' || config.toneStyle === 'luxury' || config.toneStyle === 'vouvoiement' || config.toneStyle === 'respectful');
+      
+      prompt += `\n\n**Exemples de formulation :**`;
+      if (isVous) {
+        prompt += `\n- Zone gratuite : "Super ! La livraison est gratuite pour Douala 🎉"`;
+        prompt += `\n- Zone payante : "La livraison pour Yaoundé est à 2000 FCFA"`;
+        prompt += `\n- Calcul total : "Donc au total : 15000 FCFA (produit) + 2000 FCFA (livraison) = 17000 FCFA"`;
+      } else {
+        prompt += `\n- Zone gratuite : "Super ! La livraison est gratuite pour Douala 🎉"`;
+        prompt += `\n- Zone payante : "La livraison pour Yaoundé est à 2000 FCFA"`;
+        prompt += `\n- Calcul total : "Donc au total : 15000 FCFA (produit) + 2000 FCFA (livraison) = 17000 FCFA"`;
       }
       
       prompt += `\n\n### 🚨 RÈGLE CRITIQUE — VILLES NON COUVERTES (GESTION AUTOMATIQUE)`;
@@ -2519,7 +2570,6 @@ Exemple TEXTE (question simple) :
       prompt += `\n5. Tu ne mentionnes JAMAIS "je vais demander au boss" ou "je vais vérifier"`;
       
       prompt += `\n\n**Formulation exacte à utiliser :**`;
-      const isVous = (config.toneStyle === 'formal' || config.toneStyle === 'luxury' || config.toneStyle === 'vouvoiement' || config.toneStyle === 'respectful');
       if (isVous) {
         prompt += `\n"Pour [Ville non couverte], nous n'avons pas encore la livraison directe. Mais on peut vous expédier le produit — dans ce cas vous payez en avance. Vous êtes d'accord ?"`;
       } else {
@@ -2539,7 +2589,7 @@ Exemple TEXTE (question simple) :
     }
     
     if (config.deliveryFee) {
-      prompt += `\n\n- Frais de livraison (zones couvertes) : ${config.deliveryFee}`;
+      prompt += `\n\n- Frais de livraison par défaut (zones non spécifiées) : ${config.deliveryFee}`;
     }
     if (config.deliveryDelay) {
       prompt += `\n- Délai estimé (zones couvertes) : ${config.deliveryDelay}`;
