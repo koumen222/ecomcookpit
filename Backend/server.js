@@ -319,6 +319,8 @@ const startServer = async () => {
       ['./routes/agentCommands.js',           '/api/ecom/agent/commands'],
       ['./routes/agents.js',                  '/api/ecom/agents'],
       ['./routes/ritaConfig.js',              '/api/ecom/rita'],
+      ['./routes/ritaFollowUp.js',            '/api/ecom/rita'],
+      ['./routes/whatsappOrders.js',          '/api/ecom/whatsapp-orders'],
       // ─── Store / Storefront routes ──────────────────────────────────
       ['./routes/storeProducts.js',           '/api/ecom/store-products'],
       ['./routes/storeOrders.js',             '/api/ecom/store-orders'],

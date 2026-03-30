@@ -241,8 +241,9 @@ function buildClientStateSection(state, askedQs) {
   const confirmLabel = state.statut === 'commande' ? '❓ à confirmer' : '— (PAS ENCORE)';
   lines.push(`- Quantité     : ${state.quantite ? `✅ ${state.quantite}` : readyLabel}`);
   lines.push(`- Ville        : ${state.ville ? `✅ ${state.ville}` : readyLabel}`);
-  lines.push(`- Adresse      : ${state.adresse ? `✅ ${state.adresse}` : readyLabel}`);
+  lines.push(`- Lieu livraison: ${state.adresse ? `✅ ${state.adresse}` : readyLabel}`);
   lines.push(`- Tél livraison: ${state.telephoneAppel ? `✅ ${state.telephoneAppel}` : confirmLabel}`);
+  lines.push(`- Date livraison: ${state.dateLivraison ? `✅ ${state.dateLivraison}` : '— (optionnel, demander si programmé)'}`);
   lines.push(`- Produit      : ${state.produit ? `✅ ${state.produit}` : '❓ non identifié'}`);
   lines.push(`- Prix         : ${state.prix ? `✅ ${state.prix}` : '— à déterminer selon quantité'}`);
   lines.push(`- Statut       : ${state.statut}`);
@@ -273,7 +274,7 @@ Exemples de comportement correct :
   } else if (!state.ville) {
     deliveryRule = `✅ MODE COMMANDE — quantité OK. 👉 PROCHAINE : demande la ville de livraison`;
   } else if (!state.adresse) {
-    deliveryRule = `✅ MODE COMMANDE — ville OK. 👉 PROCHAINE : demande l'adresse/quartier précis`;
+    deliveryRule = `✅ MODE COMMANDE — ville OK. 👉 PROCHAINE : demande le lieu de livraison (quartier/zone), PAS l'adresse exacte avec numéro de rue`;
   } else if (!state.telephoneAppel) {
     deliveryRule = `✅ MODE COMMANDE — presque fini. 👉 PROCHAINE : confirme le numéro pour la livraison (ce WhatsApp ou un autre ?)`;
   } else {
@@ -289,7 +290,7 @@ ${lines.join('\n')}
 1. ⛔ JAMAIS demander le téléphone WhatsApp — auto-détecté
 2. ⛔ JAMAIS demander le nom — s'il est null c'est OK, utilise-le seulement s'il est connu
 3. ✅ Si le client donne son nom → l'utiliser dans la conversation et le récap
-4. ✅ Ordre de collecte : quantité → ville → adresse → confirmation numéro d'appel
+4. ✅ Ordre de collecte : quantité → ville → lieu de livraison (pas adresse exacte) → confirmation numéro d'appel
 
 ⚠️ RÈGLE RÉPONSE D'ABORD : Si le client pose une question ou exprime un doute → réponds COMPLÈTEMENT à sa question EN PREMIER.
 - Si le client N'EST PAS en mode commande → réponds et c'est tout. AUCUNE question de collecte.
@@ -331,6 +332,33 @@ function extractProductFromOrderTag(text = '') {
     || payload.match(/product\s*:\s*"?([^",}]+)"?/i);
 
   return productMatch?.[1]?.trim() || null;
+}
+
+/**
+ * Extrait toutes les données de commande depuis le tag ORDER_DATA
+ */
+function extractOrderData(text = '') {
+  const match = text.match(/\[ORDER_DATA:([^\]]+)\]/i);
+  if (!match) return null;
+
+  try {
+    const jsonStr = match[1];
+    const data = JSON.parse(jsonStr);
+    return {
+      name: data.name || '',
+      city: data.city || '',
+      phone: data.phone || '',
+      product: data.product || '',
+      price: data.price || '',
+      delivery_date: data.delivery_date || '',
+      delivery_time: data.delivery_time || '',
+      quantity: data.quantity || 1,
+      address: data.address || data.city || '' // Lieu de livraison
+    };
+  } catch (error) {
+    console.error('Erreur parsing ORDER_DATA:', error);
+    return null;
+  }
 }
 
 function findActiveProduct(catalog = [], history = []) {
@@ -1121,7 +1149,13 @@ Exemple interdit:
 "Merci de votre intérêt. Quel produit souhaitez-vous ?"` : ''}
 
 ## 🔍 PREMIER MESSAGE — ACCUEIL NATUREL
-Quand un prospect t'écrit pour la première fois avec un simple salut ou un premier contact vague :
+Quand un prospect t'écrit pour la première fois :
+
+**RÈGLE CRITIQUE — DÉTECTION D'INTENTION :**
+- Si le client dit "Bonjour", "Bonsoir", "Hello", "Salut" (simple salut) → utilise le message de bienvenue configuré
+- Si le client dit "Je suis intéressé", "Je veux commander", "C'est combien", "Montrez-moi" → NE PAS utiliser le message de bienvenue, réponds DIRECTEMENT à son intention
+
+**Pour les simples saluts :**
 - Tu réponds chaleureusement et naturellement — PAS de formule robotique figée
 - Tu varies ton accueil à chaque fois (ne répète JAMAIS la même phrase)
 - Tu ne donnes JAMAIS le prix au premier message
@@ -1375,7 +1409,9 @@ Quand le client montre une intention d'achat, tu ACCÉLÈRES. Tu ne ralentis JAM
 Tu collectes les infos dans cet ordre, SEULEMENT ce qui manque. UNE question à la fois :
 1. Quantité (si pas encore donnée) → "C'est combien que tu veux ?"
 2. Ville → "Tu es où ? Douala, Yaoundé ?"
-3. Quartier/adresse → "Quel quartier ?"
+3. Lieu de livraison (PAS l'adresse exacte) → "On livre où à [Ville] ?" ou "Quel quartier ?"
+   ⚠️ IMPORTANT : Tu demandes le LIEU DE LIVRAISON, pas "l'adresse exacte" ou "le numéro de la rue"
+   Exemples : "Bastos", "Akwa", "Bonamoussadi" — c'est SUFFISANT. N'insiste JAMAIS pour avoir plus de détails.
 4. Moment de livraison → "Tu veux ça pour quand ?"
 
 ⚠️ Si le client donne PLUSIEURS infos d'un coup (ex: "1, Douala, Akwa, maintenant") → tu prends TOUT et tu passes direct au close.
@@ -1385,14 +1421,14 @@ Tu collectes les infos dans cet ordre, SEULEMENT ce qui manque. UNE question à 
 ${usesVous
 ? `Client: "je veux les gummies" → "Parfait 👌 C'est pour vous ou pour offrir ?"
 Client: "1" → "Ok 👍 Vous êtes à Douala ou Yaoundé ?"
-Client: "douala" → "Top 👌 Quel quartier ?"
-Client: "akwa" → "Parfait, c'est noté ! On peut vous livrer rapidement là-bas 👍"
+Client: "douala" → "Top 👌 On livre où à Douala ?"
+Client: "akwa" → "Parfait, Akwa c'est noté ! On peut vous livrer rapidement là-bas 👍"
 Client: "maintenant" → "C'est bon, je lance votre livraison tout de suite 👌"
 → BOOM, CLOSE. Pas de "vous confirmez ?" → direct [ORDER_DATA:...]`
 : `Client: "je veux les gummies" → "Parfait 👌 C'est pour toi ou pour offrir ?"
 Client: "1" → "Ok 👍 Tu es à Douala ou Yaoundé ?"
-Client: "douala" → "Top 👌 Quel quartier ?"
-Client: "akwa" → "Parfait, c'est noté ! On peut te livrer rapidement là-bas 👍"
+Client: "douala" → "Top 👌 On livre où à Douala ?"
+Client: "akwa" → "Parfait, Akwa c'est noté ! On peut te livrer rapidement là-bas 👍"
 Client: "maintenant" → "C'est bon, je lance ta livraison tout de suite 👌"
 → BOOM, CLOSE. Pas de "tu confirmes ?" → direct [ORDER_DATA:...]`}
 
@@ -1408,15 +1444,22 @@ ${usesVous
 ? `"[VOICE] C'est bon, votre commande est enregistrée ! On vous contacte pour la livraison. Merci beaucoup !"`
 : `"[VOICE] C'est bon, ta commande est enregistrée ! On te contacte pour la livraison. Merci beaucoup !"`}
 Ajoute le tag [VOICE] au début et OBLIGATOIREMENT [ORDER_DATA:{...}] à la FIN.
-[ORDER_DATA:{"name":"...","city":"...","phone":"...","product":"...","price":"...","delivery_date":"...","delivery_time":"..."}]
+[ORDER_DATA:{"name":"...","city":"...","phone":"...","product":"...","price":"...","quantity":1,"delivery_date":"2026-03-30","delivery_time":"14:00"}]
 
-Le tag [ORDER_DATA:...] doit contenir un JSON valide. Il ne sera PAS visible par le client.
+⚠️ RÈGLES IMPORTANTES pour ORDER_DATA :
+- Le tag [ORDER_DATA:...] doit contenir un JSON valide. Il ne sera PAS visible par le client.
+- "delivery_date" : Format ISO (YYYY-MM-DD) ou texte naturel si le client programme une livraison future
+- "delivery_time" : Heure si précisée (ex: "14:00", "matin", "après-midi")
+- Si le client dit "maintenant", "aujourd'hui", "ce soir" → mets la date du jour
+- Si le client dit "demain", "lundi prochain", "dans 3 jours" → calcule et mets la date future appropriée
+- Si pas de date précise → mets "dès que possible" dans delivery_date
+- "quantity" : Toujours inclure la quantité commandée (défaut = 1)
 
 ${usesVous
 ? `Exemple complet :
-"[VOICE] C'est bon, votre commande est enregistrée ! On va vous appeler pour organiser la livraison à Douala. Merci beaucoup ! [ORDER_DATA:{"name":"Morgan","city":"Douala Akwa","phone":"676778377","product":"Ventilateur 48W","price":"15000 FCFA","delivery_date":"2026-03-18","delivery_time":"18:00"}]"`
+"[VOICE] C'est bon, votre commande est enregistrée ! On va vous appeler pour organiser la livraison à Douala. Merci beaucoup ! [ORDER_DATA:{"name":"Morgan","city":"Douala Akwa","phone":"676778377","product":"Ventilateur 48W","price":"15000 FCFA","quantity":1,"delivery_date":"2026-03-30","delivery_time":"14:00"}]"`
 : `Exemple complet :
-"[VOICE] C'est bon, ta commande est enregistrée ! On va t'appeler pour organiser ta livraison à Douala. Merci ! [ORDER_DATA:{"name":"Morgan","city":"Douala Akwa","phone":"676778377","product":"Ventilateur 48W","price":"15000 FCFA","delivery_date":"2026-03-18","delivery_time":"18:00"}]"`}
+"[VOICE] C'est bon, ta commande est enregistrée ! On va t'appeler pour organiser ta livraison à Douala. Merci ! [ORDER_DATA:{"name":"Morgan","city":"Douala Akwa","phone":"676778377","product":"Ventilateur 48W","price":"15000 FCFA","quantity":1,"delivery_date":"2026-03-30","delivery_time":"14:00"}]"`}
 
 ## 🔄 CROSS-SELLING — APRÈS COMMANDE CONFIRMÉE
 Après que la commande est confirmée (étape 5 terminée), tu peux proposer UN produit complémentaire si ton catalogue en contient.
@@ -1964,12 +2007,21 @@ ${usesVous
 ✅ Si le produit a "🎬 Vidéo disponible" dans le catalogue → ENVOIE LA VIDÉO DIRECTEMENT avec [VIDEO:Nom exact du catalogue].
 ⚠️ PRIORITÉ ABSOLUE : Si la vidéo existe → tu l'envoies. Point final. Pas de question, pas d'hésitation.
 
-Quand envoyer la vidéo :
-- Le client demande "la vidéo", "montre-moi", "je veux voir"
-- Le client hésite ou doute → la vidéo est ta MEILLEURE arme de persuasion
-- Le client veut "voir le produit en action"
-- Après l'image si le client veut plus d'infos
-- PROACTIVEMENT quand le client hésite et que la vidéo existe
+🎯 **ENVOI PROACTIF MAXIMAL DES VIDÉOS** :
+La vidéo est ton ARME DE PERSUASION ULTIME. Envoie-la dans TOUS ces cas :
+
+✅ TOUJOURS envoyer la vidéo quand :
+- Le client demande "la vidéo", "montre-moi", "je veux voir", "tu as une vidéo"
+- Le client demande des informations sur le produit → envoie l'image ET propose la vidéo immédiatement
+- Le client hésite ou doute ("ça marche vraiment?", "c'est vrai?", "je ne sais pas")
+- Le client dit "c'est cher" → montre la vidéo pour justifier le prix
+- Le client veut "voir le produit en action" ou "comment ça marche"
+- Après l'image, si le client continue à poser des questions
+- PROACTIVEMENT dès que le client montre de l'intérêt pour un produit qui a une vidéo
+- Le client ne répond pas après avoir reçu le prix → relance avec la vidéo
+
+⚠️ NE DEMANDE JAMAIS "Tu veux voir la vidéo?" — ENVOIE-LA DIRECTEMENT avec [VIDEO:NomProduit]
+⚠️ La vidéo convertit BEAUCOUP mieux que le texte — utilise-la au MAXIMUM
 
 ${usesVous
 ? `Exemple : "Regardez ça 👇 [VIDEO:Ventilateur 48W]\n\nC'est ce qui permet d'avoir un air frais toute la journée 👌"`
@@ -2244,23 +2296,53 @@ Exemple TEXTE (question simple) :
 
   // ─── LIVRAISON — tarifs, zones, délais ───
   if (config.deliveryInfo || config.deliveryZones?.length || config.deliveryFee) {
-    prompt += `\n\n## 🚚 LIVRAISON — DONNÉES CONFIGURÉES`;
-    if (config.deliveryFee) {
-      prompt += `\n- Frais de livraison : ${config.deliveryFee}`;
-    }
-    if (config.deliveryDelay) {
-      prompt += `\n- Délai estimé : ${config.deliveryDelay}`;
-    }
+    prompt += `\n\n## 🚚 LIVRAISON — ZONES ET POLITIQUE DE LIVRAISON`;
+    
     if (config.deliveryZones?.length) {
-      prompt += `\n- Zones couvertes :`;
+      const zones = config.deliveryZones.map(z => z.city || z.zone).filter(Boolean);
+      prompt += `\n\n### Zones de livraison couvertes (livraison standard) :`;
       for (const z of config.deliveryZones) {
         prompt += `\n  • ${z.city || z.zone}${z.fee ? ` → ${z.fee}` : ''}${z.delay ? ` (${z.delay})` : ''}`;
       }
+      
+      prompt += `\n\n### 🚨 RÈGLE CRITIQUE — VILLES NON COUVERTES (GESTION AUTOMATIQUE)`;
+      prompt += `\nSi le client indique une ville QUI N'EST PAS dans la liste ci-dessus :`;
+      prompt += `\n\n**TU NE DEMANDES PLUS AU BOSS. Tu gères automatiquement :**`;
+      prompt += `\n1. Tu confirmes que vous ne livrez pas encore directement dans cette ville`;
+      prompt += `\n2. Tu proposes IMMÉDIATEMENT l'expédition avec paiement en avance`;
+      prompt += `\n3. Tu demandes si le client est d'accord avec ce mode`;
+      prompt += `\n4. Si le client dit OUI → tu collectes les coordonnées et tu continues la commande normalement`;
+      prompt += `\n5. Tu ne mentionnes JAMAIS "je vais demander au boss" ou "je vais vérifier"`;
+      
+      prompt += `\n\n**Formulation exacte à utiliser :**`;
+      const isVous = (config.toneStyle === 'formal' || config.toneStyle === 'luxury' || config.toneStyle === 'vouvoiement' || config.toneStyle === 'respectful');
+      if (isVous) {
+        prompt += `\n"Pour [Ville non couverte], nous n'avons pas encore la livraison directe. Mais on peut vous expédier le produit — dans ce cas vous payez en avance. Vous êtes d'accord ?"`;
+      } else {
+        prompt += `\n"Pour [Ville non couverte], on n'a pas encore la livraison directe. Mais on peut t'expédier le produit — dans ce cas tu paies en avance. Tu es d'accord ?"`;
+      }
+      
+      prompt += `\n\n**Exemples concrets :**`;
+      if (isVous) {
+        prompt += `\n- Client: "Je suis à Bétois" → "Pour Bétois, on n'a pas encore la livraison directe. Mais on peut vous expédier — vous payez en avance dans ce cas. Vous êtes d'accord ?"`;
+        prompt += `\n- Client: "Oui ça marche" → "Parfait 👍 Donnez-moi votre nom complet et votre numéro de téléphone pour l'expédition"`;
+      } else {
+        prompt += `\n- Client: "Je suis à Bétois" → "Pour Bétois, on n'a pas encore la livraison directe. Mais on peut t'expédier — tu paies en avance dans ce cas. Tu es d'accord ?"`;
+        prompt += `\n- Client: "Oui ça marche" → "Parfait 👍 Donne-moi ton nom complet et ton numéro pour l'expédition"`;
+      }
+      
+      prompt += `\n\n⚠️ IMPORTANT : Cette règle s'applique pour TOUTE ville non listée ci-dessus. Pas d'exception, pas de demande au boss.`;
+    }
+    
+    if (config.deliveryFee) {
+      prompt += `\n\n- Frais de livraison (zones couvertes) : ${config.deliveryFee}`;
+    }
+    if (config.deliveryDelay) {
+      prompt += `\n- Délai estimé (zones couvertes) : ${config.deliveryDelay}`;
     }
     if (config.deliveryInfo) {
       prompt += `\n- Infos complémentaires : ${config.deliveryInfo}`;
     }
-    prompt += `\n\nSi le client demande des infos de livraison non configurées → ${config.bossEscalationEnabled ? 'utilise [ASK_BOSS:Question livraison du client]' : 'dis que tu vérifies et que tu reviens vers lui'}`;
   }
 
   // ─── LIEN GROUPE WHATSAPP ───
@@ -2312,10 +2394,12 @@ Quand le client hésite et qu'un produit a une vidéo configurée (🎬) → ENV
 ${usesVous
 ? `- "Regardez ça 👇 [VIDEO:NomProduit]\n\nC'est ce qui fait toute la différence 👌"`
 : `- "Regarde ça 👇 [VIDEO:NomProduit]\n\nC'est ce qui fait toute la différence 👌"`}
-- La vidéo est ton MEILLEUR outil — envoie-la PROACTIVEMENT
+- La vidéo est ton MEILLEUR outil — envoie-la PROACTIVEMENT et SYSTÉMATIQUEMENT
+- Dès que le client demande des infos sur un produit qui a une vidéo → ENVOIE LA VIDÉO
 - Utilise-la AVANT de baisser le prix ou d'abandonner
 - APRÈS la vidéo → enchaîne IMMÉDIATEMENT avec le close, pas de blabla
-- Jamais de "je vais vérifier" ou "je check avec mon responsable" pour une vidéo qui existe`;
+- Jamais de "je vais vérifier" ou "je check avec mon responsable" pour une vidéo qui existe
+- RÈGLE D'OR : Si la vidéo existe, tu dois l'envoyer au moins une fois dans la conversation avant de closer`;
 
   prompt += `\n\n## ✅ Rappel final — RÈGLES ABSOLUES
 - Le prospect vient d'une publicité → il a déjà vu un produit → ton job c'est de l'identifier et le vendre
@@ -2733,14 +2817,23 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
   conversationLastActivity.set(historyKey, Date.now());
 
   // ── Message de bienvenue configuré : retourner directement au 1er message ──
+  // SAUF si le client montre une intention directe (intéressé, commander, acheter, etc.)
   if (isNewConversation && config.welcomeMessage?.trim()) {
-    const welcomeReply = config.welcomeMessage.trim();
-    // Ajouter user + welcome dans l'historique pour la continuité
-    history.push({ role: 'user', content: text });
-    history.push({ role: 'assistant', content: welcomeReply });
-    conversationLastActivity.set(historyKey, Date.now());
-    console.log(`🎉 [RITA] Message de bienvenue envoyé à ${from}`);
-    return welcomeReply;
+    const normalizedMsg = normalizeForMatch(text);
+    // Détecter les intentions directes qui court-circuitent le message de bienvenue
+    const hasDirectIntent = /(?:interesse|interessee|interet|je veux|je souhaite|commander|commande|acheter|achat|prix|combien|disponible|livraison|livrer|montrez|montre moi|voir|regarder|produit|article)/.test(normalizedMsg);
+    
+    if (!hasDirectIntent) {
+      // Simple salut sans intention → utiliser le message de bienvenue configuré
+      const welcomeReply = config.welcomeMessage.trim();
+      history.push({ role: 'user', content: text });
+      history.push({ role: 'assistant', content: welcomeReply });
+      conversationLastActivity.set(historyKey, Date.now());
+      console.log(`🎉 [RITA] Message de bienvenue envoyé à ${from}`);
+      return welcomeReply;
+    }
+    // Si intention directe détectée → continuer avec le flow normal (pas de welcomeMessage)
+    console.log(`🎯 [RITA] Intention directe détectée au 1er message de ${from}, skip welcomeMessage`);
   }
 
   // ── State management : créer/récupérer état + extraire entités du message ──

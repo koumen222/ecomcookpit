@@ -1,0 +1,236 @@
+import express from 'express';
+import { 
+  createFollowUpCampaign, 
+  startFollowUpCampaign, 
+  pauseFollowUpCampaign,
+  getEligibleContactsForCampaign,
+  getRitaPerformanceStats 
+} from '../services/ritaFollowUpService.js';
+import RitaFollowUpCampaign from '../models/RitaFollowUpCampaign.js';
+import RitaContact from '../models/RitaContact.js';
+
+const router = express.Router();
+
+/**
+ * GET /api/rita/performance
+ * Obtenir les statistiques de performance du chatbot
+ */
+router.get('/performance', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    const { startDate, endDate } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId requis' });
+    }
+
+    const stats = await getRitaPerformanceStats(userId, startDate, endDate);
+    res.json(stats);
+  } catch (error) {
+    console.error('Erreur récupération stats performance:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/rita/contacts
+ * Obtenir la liste des contacts avec filtres
+ */
+router.get('/contacts', async (req, res) => {
+  try {
+    const { userId, status, hasOrdered, limit = 50, skip = 0 } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId requis' });
+    }
+
+    const query = { userId };
+    if (status) query.status = status;
+    if (hasOrdered !== undefined) query.hasOrdered = hasOrdered === 'true';
+
+    const contacts = await RitaContact.find(query)
+      .sort({ lastMessageAt: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(skip))
+      .lean();
+
+    const total = await RitaContact.countDocuments(query);
+
+    res.json({ contacts, total });
+  } catch (error) {
+    console.error('Erreur récupération contacts:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/rita/followup/campaigns
+ * Créer une nouvelle campagne de relance
+ */
+router.post('/followup/campaigns', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'userId requis' });
+    }
+
+    const campaign = await createFollowUpCampaign(userId, req.body);
+    res.json(campaign);
+  } catch (error) {
+    console.error('Erreur création campagne:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/rita/followup/campaigns
+ * Obtenir les campagnes de relance
+ */
+router.get('/followup/campaigns', async (req, res) => {
+  try {
+    const { userId, status } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId requis' });
+    }
+
+    const query = { userId };
+    if (status) query.status = status;
+
+    const campaigns = await RitaFollowUpCampaign.find(query)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json(campaigns);
+  } catch (error) {
+    console.error('Erreur récupération campagnes:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/rita/followup/campaigns/:id
+ * Obtenir une campagne spécifique
+ */
+router.get('/followup/campaigns/:id', async (req, res) => {
+  try {
+    const campaign = await RitaFollowUpCampaign.findById(req.params.id).lean();
+    
+    if (!campaign) {
+      return res.status(404).json({ error: 'Campagne introuvable' });
+    }
+
+    res.json(campaign);
+  } catch (error) {
+    console.error('Erreur récupération campagne:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/rita/followup/campaigns/:id/start
+ * Démarrer une campagne de relance
+ */
+router.post('/followup/campaigns/:id/start', async (req, res) => {
+  try {
+    const campaign = await startFollowUpCampaign(req.params.id);
+    res.json(campaign);
+  } catch (error) {
+    console.error('Erreur démarrage campagne:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/rita/followup/campaigns/:id/pause
+ * Mettre en pause une campagne de relance
+ */
+router.post('/followup/campaigns/:id/pause', async (req, res) => {
+  try {
+    const campaign = await pauseFollowUpCampaign(req.params.id);
+    res.json(campaign);
+  } catch (error) {
+    console.error('Erreur pause campagne:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/rita/followup/campaigns/:id
+ * Supprimer une campagne
+ */
+router.delete('/followup/campaigns/:id', async (req, res) => {
+  try {
+    const campaign = await RitaFollowUpCampaign.findById(req.params.id);
+    
+    if (!campaign) {
+      return res.status(404).json({ error: 'Campagne introuvable' });
+    }
+
+    if (campaign.status === 'active') {
+      return res.status(400).json({ error: 'Impossible de supprimer une campagne active. Mettez-la en pause d\'abord.' });
+    }
+
+    await RitaFollowUpCampaign.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erreur suppression campagne:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/rita/followup/preview
+ * Prévisualiser les contacts qui seront ciblés par une campagne
+ */
+router.post('/followup/preview', async (req, res) => {
+  try {
+    const { userId, filters } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId requis' });
+    }
+
+    const contacts = await getEligibleContactsForCampaign(userId, filters);
+    res.json({ 
+      count: contacts.length,
+      contacts: contacts.slice(0, 10) // Retourner seulement les 10 premiers pour preview
+    });
+  } catch (error) {
+    console.error('Erreur preview campagne:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * PUT /api/rita/contacts/:phone/status
+ * Mettre à jour le statut d'un contact manuellement
+ */
+router.put('/contacts/:phone/status', async (req, res) => {
+  try {
+    const { userId, status } = req.body;
+    const { phone } = req.params;
+
+    if (!userId || !status) {
+      return res.status(400).json({ error: 'userId et status requis' });
+    }
+
+    const contact = await RitaContact.findOneAndUpdate(
+      { userId, phone },
+      { status },
+      { new: true }
+    );
+
+    if (!contact) {
+      return res.status(404).json({ error: 'Contact introuvable' });
+    }
+
+    res.json(contact);
+  } catch (error) {
+    console.error('Erreur mise à jour statut contact:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+export default router;
