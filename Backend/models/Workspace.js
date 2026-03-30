@@ -191,6 +191,31 @@ const workspaceSchema = new mongoose.Schema({
     default: false
   },
 
+  // ─── Product Page Generator Tracking ─────────────────────────────────────
+  // Free generations remaining (default 3)
+  freeGenerationsRemaining: {
+    type: Number,
+    default: 3,
+    min: 0
+  },
+  // Total number of generations performed (for analytics)
+  totalGenerations: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  // Paid generations remaining (purchased with 1500 FCFA each)
+  paidGenerationsRemaining: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  // Last generation date (for tracking)
+  lastGenerationAt: {
+    type: Date,
+    default: null
+  },
+
   invites: [{
     token: {
       type: String,

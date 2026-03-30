@@ -93,14 +93,54 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   let storeContext = {};
 
   try {
+    let workspace;
     if (req.workspaceId) {
-      const workspace = await EcomWorkspace.findById(req.workspaceId)
-        .select('storeSettings.country storeSettings.city')
-        .lean();
+      workspace = await EcomWorkspace.findById(req.workspaceId)
+        .select('storeSettings.country storeSettings.city freeGenerationsRemaining paidGenerationsRemaining totalGenerations');
+      
+      if (!workspace) {
+        releaseLock(userId);
+        return res.status(404).json({ success: false, message: 'Workspace introuvable' });
+      }
+
       storeContext = {
         country: workspace?.storeSettings?.country || '',
         city: workspace?.storeSettings?.city || '',
       };
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // VÉRIFICATION DES LIMITES DE GÉNÉRATION
+    // ══════════════════════════════════════════════════════════════════════════
+    if (workspace) {
+      const freeRemaining = workspace.freeGenerationsRemaining || 0;
+      const paidRemaining = workspace.paidGenerationsRemaining || 0;
+      const totalRemaining = freeRemaining + paidRemaining;
+
+      if (totalRemaining <= 0) {
+        releaseLock(userId);
+        return res.status(403).json({ 
+          success: false, 
+          limitReached: true,
+          message: '🎯 Tu as utilisé tes 3 générations gratuites !\n\nPour continuer à générer des pages produit optimisées, débloque une nouvelle génération pour seulement 1500 FCFA.',
+          freeRemaining: 0,
+          paidRemaining: 0,
+          totalGenerations: workspace.totalGenerations || 0
+        });
+      }
+
+      // Décrémenter le compteur (priorité : gratuit d'abord, puis payant)
+      if (freeRemaining > 0) {
+        workspace.freeGenerationsRemaining = freeRemaining - 1;
+      } else if (paidRemaining > 0) {
+        workspace.paidGenerationsRemaining = paidRemaining - 1;
+      }
+      
+      workspace.totalGenerations = (workspace.totalGenerations || 0) + 1;
+      workspace.lastGenerationAt = new Date();
+      await workspace.save();
+
+      console.log(`✅ Génération autorisée. Reste: ${workspace.freeGenerationsRemaining} gratuite(s) + ${workspace.paidGenerationsRemaining} payante(s)`);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -291,7 +331,23 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     releaseLock(userId);
     console.log('✅ Page produit générée avec succès');
-    return res.json({ success: true, product: productPage });
+    
+    // Récupérer le nombre de générations restantes pour l'inclure dans la réponse
+    const updatedWorkspace = workspace ? await EcomWorkspace.findById(workspace._id)
+      .select('freeGenerationsRemaining paidGenerationsRemaining totalGenerations')
+      .lean() : null;
+    
+    const generationsInfo = updatedWorkspace ? {
+      freeRemaining: updatedWorkspace.freeGenerationsRemaining || 0,
+      paidRemaining: updatedWorkspace.paidGenerationsRemaining || 0,
+      totalUsed: updatedWorkspace.totalGenerations || 0
+    } : null;
+
+    return res.json({ 
+      success: true, 
+      product: productPage,
+      generations: generationsInfo
+    });
 
   } catch (error) {
     console.error('❌ Erreur génération:', error.message);
