@@ -17,7 +17,7 @@ import sharp from 'sharp';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { analyzeWithVision, generatePosterImage } from '../services/productPageGeneratorService.js';
 import { uploadImage } from '../services/cloudflareImagesService.js';
-import { scrapeAlibaba } from '../services/alibabaScraper.js';
+import { extractProductInfo } from '../services/geminiProductExtractor.js';
 import EcomWorkspace from '../models/Workspace.js';
 
 const router = express.Router();
@@ -56,9 +56,37 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   lock.userId = userId;
   lock.startedAt = Date.now();
 
-  const { url, description: userDescription, skipScraping, marketingApproach } = req.body || {};
+  const { 
+    url, 
+    description: userDescription, 
+    skipScraping, 
+    marketingApproach,
+    // Nouveaux paramètres copywriting avancés
+    copywritingAngle,
+    targetAudience,
+    customerReviews,
+    socialProofLinks,
+    mainOffer,
+    objections,
+    keyBenefits,
+    tone,
+    language
+  } = req.body || {};
   const imageFiles = req.files || [];
   const approach = marketingApproach || 'AIDA'; // Default to AIDA if not specified
+  
+  // Préparer le contexte copywriting avancé
+  const copywritingContext = {
+    angle: copywritingAngle || 'PROBLEME_SOLUTION',
+    audience: targetAudience || '',
+    reviews: customerReviews || '',
+    socialProof: socialProofLinks || '',
+    offer: mainOffer || '',
+    objections: objections || '',
+    benefits: keyBenefits || '',
+    tone: tone || 'urgence',
+    language: language || 'français'
+  };
 
   // ── Validation selon le mode ──────────────────────────────────────────────
   const isDescriptionMode = skipScraping === 'true' || skipScraping === true;
@@ -74,15 +102,16 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       return res.status(400).json({ success: false, message: 'Au moins une photo requise en mode description' });
     }
   } else {
-    // Mode URL Alibaba
+    // Mode URL produit
     if (!url || typeof url !== 'string' || url.trim().length < 10) {
       releaseLock(userId);
-      return res.status(400).json({ success: false, message: 'URL Alibaba requise' });
+      return res.status(400).json({ success: false, message: 'URL du produit requise' });
     }
     const cleanUrl = url.trim();
-    if (!cleanUrl.includes('alibaba.com') && !cleanUrl.includes('aliexpress.com')) {
+    // Validation basique de l'URL
+    if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
       releaseLock(userId);
-      return res.status(400).json({ success: false, message: 'URL Alibaba ou AliExpress requise' });
+      return res.status(400).json({ success: false, message: 'URL invalide - doit commencer par http:// ou https://' });
     }
   }
 
@@ -146,10 +175,10 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // ÉTAPE 1 : Scraping minimal OU utilisation de la description directe
+    // ÉTAPE 1 : Extraction des infos produit avec Gemini OU utilisation de la description directe
     // ══════════════════════════════════════════════════════════════════════════
     if (isDescriptionMode) {
-      console.log('📝 Étape 1: Mode description directe (skip scraping)');
+      console.log('📝 Étape 1: Mode description directe (skip extraction Gemini)');
       scraped = {
         title: 'Produit',
         description: userDescription.trim(),
@@ -157,9 +186,9 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       };
       console.log('✅ Description utilisée:', userDescription.slice(0, 100));
     } else {
-      console.log('📡 Étape 1: Scraping', cleanUrl);
-      scraped = await scrapeAlibaba(cleanUrl);
-      console.log('✅ Scraping OK:', { title: scraped.title?.slice(0, 50) });
+      console.log('🤖 Étape 1: Extraction Gemini depuis', cleanUrl);
+      scraped = await extractProductInfo(cleanUrl);
+      console.log('✅ Extraction Gemini OK:', { title: scraped.title?.slice(0, 50) });
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -169,7 +198,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     
     const imageBuffers = (imageFiles || []).map(f => f.buffer);
     
-    gptResult = await analyzeWithVision(scraped, imageBuffers, approach, storeContext);
+    gptResult = await analyzeWithVision(scraped, imageBuffers, approach, storeContext, copywritingContext);
     
     console.log('✅ GPT OK:', {
       title: gptResult.title?.slice(0, 40),
