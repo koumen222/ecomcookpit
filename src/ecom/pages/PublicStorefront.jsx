@@ -870,22 +870,234 @@ const AiFaqSection = ({ cfg }) => {
 // ─── CONTACT CTA ──────────────────────────────────────────────────────────────
 const AiContactSection = ({ cfg, store }) => {
   const whatsapp = (cfg.whatsapp || store?.whatsapp || '').replace(/\D/g, '');
+  const phone = cfg.phone || store?.phone || '';
+  const email = cfg.email || store?.email || '';
   const storeName = store?.name || 'la boutique';
+  
   // Pre-filled WhatsApp message
   const waMessage = encodeURIComponent(`Bonjour ${storeName} ! Je suis intéressé(e) par vos produits et j'aimerais passer une commande.`);
   const waLink = whatsapp ? `https://wa.me/${whatsapp}?text=${waMessage}` : null;
+  
   return (
-    <section style={{ padding: 'clamp(64px, 10vw, 100px) 24px', textAlign: 'center', position: 'relative', overflow: 'hidden', backgroundColor: 'var(--s-primary)' }}>
-      <div style={{ position: 'absolute', top: -40, right: -40, width: 200, height: 200, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.06)', pointerEvents: 'none' }} />
-      <div style={{ maxWidth: 600, margin: '0 auto', position: 'relative', zIndex: 1 }}>
-        <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 40px)', fontWeight: 900, color: '#fff', margin: '0 0 12px', letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>
-          {cfg.title || 'Parlez-nous maintenant'}
+    <section style={{ 
+      padding: 'clamp(72px, 11vw, 120px) 24px', 
+      textAlign: 'center', 
+      position: 'relative', 
+      overflow: 'hidden', 
+      background: 'linear-gradient(135deg, var(--s-primary) 0%, color-mix(in srgb, var(--s-primary) 85%, black) 100%)',
+    }}>
+      <style>
+        {`
+          @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+          }
+          
+          .wa-button {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          }
+          
+          .wa-button:hover {
+            transform: translateY(-4px) scale(1.02);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+          }
+          
+          .wa-button:active {
+            transform: translateY(-2px) scale(1);
+          }
+          
+          .contact-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          }
+          
+          .contact-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+          }
+        `}
+      </style>
+      
+      {/* Background decorations */}
+      <div style={{ position: 'absolute', top: -80, right: -80, width: 300, height: 300, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: -60, left: -60, width: 250, height: 250, borderRadius: '50%', backgroundColor: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
+      
+      <div style={{ maxWidth: 680, margin: '0 auto', position: 'relative', zIndex: 1 }}>
+        <h2 style={{ 
+          fontSize: 'clamp(28px, 4vw, 44px)', 
+          fontWeight: 900, 
+          color: '#fff', 
+          margin: '0 0 14px', 
+          letterSpacing: '-0.03em', 
+          fontFamily: 'var(--s-font)',
+          textShadow: '0 2px 20px rgba(0,0,0,0.15)',
+        }}>
+          {cfg.title || 'Contactez-nous'}
         </h2>
-        {cfg.subtitle && <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.85)', margin: '0 0 36px', lineHeight: 1.6, fontFamily: 'var(--s-font)' }}>{cfg.subtitle}</p>}
-        {cfg.address && (
-          <p style={{ marginTop: 20, fontSize: 13, color: 'rgba(255,255,255,0.65)', fontFamily: 'var(--s-font)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            <MapPin size={14} /> {cfg.address}
+        
+        {cfg.subtitle && (
+          <p style={{ 
+            fontSize: 17, 
+            color: 'rgba(255,255,255,0.9)', 
+            margin: '0 0 44px', 
+            lineHeight: 1.6, 
+            fontFamily: 'var(--s-font)',
+            maxWidth: 520,
+            marginLeft: 'auto',
+            marginRight: 'auto',
+          }}>
+            {cfg.subtitle}
           </p>
+        )}
+        
+        {/* Main WhatsApp CTA */}
+        {waLink && (
+          <a 
+            href={waLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="wa-button"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 14,
+              padding: '20px 48px',
+              borderRadius: 50,
+              backgroundColor: '#25D366',
+              color: '#fff',
+              fontSize: 17,
+              fontWeight: 800,
+              textDecoration: 'none',
+              fontFamily: 'var(--s-font)',
+              boxShadow: '0 8px 32px rgba(37, 211, 102, 0.4)',
+              border: 'none',
+              cursor: 'pointer',
+              marginBottom: 48,
+            }}
+          >
+            <MessageCircle size={24} strokeWidth={2.5} />
+            <span>Discuter sur WhatsApp</span>
+          </a>
+        )}
+        
+        {/* Alternative contact methods */}
+        {(phone || email || cfg.address) && (
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+            gap: 16,
+            marginTop: 40,
+          }}>
+            {phone && (
+              <a 
+                href={`tel:${phone.replace(/\s/g, '')}`}
+                className="contact-card"
+                style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                  backdropFilter: 'blur(10px)',
+                  borderRadius: 16,
+                  padding: '24px 20px',
+                  textDecoration: 'none',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                }}
+              >
+                <Phone size={24} color="#fff" style={{ marginBottom: 12 }} />
+                <p style={{ 
+                  margin: '0 0 4px', 
+                  fontSize: 12, 
+                  color: 'rgba(255,255,255,0.7)', 
+                  fontFamily: 'var(--s-font)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  fontWeight: 600,
+                }}>
+                  Téléphone
+                </p>
+                <p style={{ 
+                  margin: 0, 
+                  fontSize: 15, 
+                  color: '#fff', 
+                  fontWeight: 600,
+                  fontFamily: 'var(--s-font)',
+                }}>
+                  {phone}
+                </p>
+              </a>
+            )}
+            
+            {email && (
+              <a 
+                href={`mailto:${email}`}
+                className="contact-card"
+                style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                  backdropFilter: 'blur(10px)',
+                  borderRadius: 16,
+                  padding: '24px 20px',
+                  textDecoration: 'none',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                }}
+              >
+                <Mail size={24} color="#fff" style={{ marginBottom: 12 }} />
+                <p style={{ 
+                  margin: '0 0 4px', 
+                  fontSize: 12, 
+                  color: 'rgba(255,255,255,0.7)', 
+                  fontFamily: 'var(--s-font)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  fontWeight: 600,
+                }}>
+                  Email
+                </p>
+                <p style={{ 
+                  margin: 0, 
+                  fontSize: 14, 
+                  color: '#fff', 
+                  fontWeight: 600,
+                  fontFamily: 'var(--s-font)',
+                  wordBreak: 'break-all',
+                }}>
+                  {email}
+                </p>
+              </a>
+            )}
+            
+            {cfg.address && (
+              <div 
+                className="contact-card"
+                style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                  backdropFilter: 'blur(10px)',
+                  borderRadius: 16,
+                  padding: '24px 20px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                }}
+              >
+                <MapPin size={24} color="#fff" style={{ marginBottom: 12 }} />
+                <p style={{ 
+                  margin: '0 0 4px', 
+                  fontSize: 12, 
+                  color: 'rgba(255,255,255,0.7)', 
+                  fontFamily: 'var(--s-font)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  fontWeight: 600,
+                }}>
+                  Adresse
+                </p>
+                <p style={{ 
+                  margin: 0, 
+                  fontSize: 14, 
+                  color: '#fff', 
+                  fontWeight: 600,
+                  fontFamily: 'var(--s-font)',
+                  lineHeight: 1.4,
+                }}>
+                  {cfg.address}
+                </p>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </section>
