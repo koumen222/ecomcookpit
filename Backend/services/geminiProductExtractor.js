@@ -16,10 +16,10 @@ if (!GEMINI_API_KEY) {
 
 // Modèles par ordre de priorité (sans grounding qui nécessite des permissions spéciales)
 const GEMINI_MODELS = [
-  'gemini-3-flash-preview',
-  'gemini-pro',
-  'gemini-1.5-pro',
+  'gemini-2.0-flash',
   'gemini-1.5-flash',
+  'gemini-1.5-pro',
+  'gemini-pro',
 ];
 
 export async function extractProductInfo(url) {
@@ -116,11 +116,13 @@ IMPORTANT:
     } catch (err) {
       console.warn(`⚠️ Modèle ${modelName} échoué: ${err.message}`);
       lastError = err;
-      
-      // Si c'est pas une erreur de modèle introuvable (404), on arrête la boucle
-      if (!err.message.includes('not found') && !err.message.includes('404')) {
-        break;
-      }
+
+      // Arrêter uniquement sur erreurs auth/quota (inutile d'essayer d'autres modèles)
+      const isAuthError = err.message.includes('API key') || err.message.includes('401') || err.message.includes('403');
+      const isQuotaError = err.message.includes('quota') || err.message.includes('429');
+      if (isAuthError || isQuotaError) break;
+
+      // Pour les erreurs 404 / modèle introuvable ou erreurs JSON → on continue avec le prochain modèle
     }
   }
 
