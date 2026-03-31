@@ -125,6 +125,7 @@ router.get('/workspaces',
 
       const workspaces = await Workspace.find()
         .populate('owner', 'email role')
+        .select('+freeGenerationsRemaining +paidGenerationsRemaining +totalGenerations')
         .sort({ createdAt: -1 });
 
       console.log(`📊 [SuperAdmin] ${workspaces.length} workspaces trouvés dans la base`);
@@ -694,7 +695,7 @@ router.get('/workspaces', requireEcomAuth, requireSuperAdmin, async (req, res) =
     if (search) filter.name = { $regex: search, $options: 'i' };
 
     const workspaces = await Workspace.find(filter)
-      .select('name slug plan planExpiresAt trialStartedAt trialEndsAt trialUsed owner')
+      .select('name slug plan planExpiresAt trialStartedAt trialEndsAt trialUsed owner freeGenerationsRemaining paidGenerationsRemaining totalGenerations')
       .populate('owner', 'email name')
       .sort({ createdAt: -1 })
       .limit(limit * 1)
@@ -738,6 +739,46 @@ router.patch('/workspaces/:id/plan', requireEcomAuth, requireSuperAdmin, async (
     res.json({ success: true, workspace: { _id: workspace._id, plan: workspace.plan, planExpiresAt: workspace.planExpiresAt } });
   } catch (err) {
     console.error('[SuperAdmin] PATCH /workspaces/:id/plan error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// PATCH /api/ecom/super-admin/workspaces/:id/generations — manually update generations
+router.patch('/workspaces/:id/generations', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { freeGenerations, paidGenerations } = req.body;
+    
+    if (typeof freeGenerations !== 'number' || typeof paidGenerations !== 'number') {
+      return res.status(400).json({ success: false, message: 'Les valeurs doivent être des nombres' });
+    }
+
+    if (freeGenerations < 0 || paidGenerations < 0) {
+      return res.status(400).json({ success: false, message: 'Les valeurs doivent être positives' });
+    }
+
+    const workspace = await Workspace.findById(req.params.id);
+    if (!workspace) return res.status(404).json({ success: false, message: 'Workspace introuvable' });
+
+    await logAudit(req, 'UPDATE_GENERATIONS', 
+      `Updated generations for workspace ${workspace.name}: free ${workspace.freeGenerationsRemaining || 0} → ${freeGenerations}, paid ${workspace.paidGenerationsRemaining || 0} → ${paidGenerations}`, 
+      'workspace', workspace._id);
+
+    workspace.freeGenerationsRemaining = freeGenerations;
+    workspace.paidGenerationsRemaining = paidGenerations;
+    await workspace.save();
+
+    res.json({ 
+      success: true, 
+      message: 'Générations mises à jour avec succès',
+      workspace: { 
+        _id: workspace._id, 
+        freeGenerationsRemaining: workspace.freeGenerationsRemaining,
+        paidGenerationsRemaining: workspace.paidGenerationsRemaining,
+        totalGenerations: workspace.totalGenerations || 0
+      } 
+    });
+  } catch (err) {
+    console.error('[SuperAdmin] PATCH /workspaces/:id/generations error:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });

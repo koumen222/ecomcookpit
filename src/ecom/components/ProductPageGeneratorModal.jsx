@@ -206,7 +206,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
           'Identification des angles marketing…'
         ],
         progressRange: [0, 30],
-        duration: 8000
+        duration: 15000 // 15s
       },
       {
         step: 1,
@@ -217,8 +217,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
           'Optimisation pour la conversion…',
           'Génération des témoignages clients…'
         ],
-        progressRange: [30, 65],
-        duration: 12000
+        progressRange: [30, 60],
+        duration: 25000 // 25s
       },
       {
         step: 2,
@@ -229,8 +229,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
           'Génération des visuels marketing…',
           'Optimisation mobile…'
         ],
-        progressRange: [65, 90],
-        duration: 15000
+        progressRange: [60, 85],
+        duration: 30000 // 30s
       },
       {
         step: 3,
@@ -238,10 +238,10 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
         messages: [
           'Assemblage final…',
           'Vérification qualité…',
-          'Votre page est prête !'
+          'Préparation de votre page…'
         ],
-        progressRange: [90, 100],
-        duration: 5000
+        progressRange: [85, 95],
+        duration: 20000 // 20s - ne va jamais à 100% pour laisser l'API finir
       }
     ];
 
@@ -271,10 +271,10 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
         setBuildStep(buildStep + 1);
         setBuildProgress(endProgress);
       } else {
-        // Dernière étape terminée
-        setBuildProgress(100);
-        setShowConfetti(true);
-        setTimeout(() => setShowConfetti(false), 3000);
+        // Dernière étape - on reste à 95% en attendant que l'API finisse
+        setBuildProgress(95);
+        setBuildMessage('Presque terminé...');
+        // Pas de confetti ici - il apparaîtra quand l'API répondra
       }
     }, currentStepData.duration);
 
@@ -377,14 +377,24 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       
       if (result.success && result.product) {
         console.log('✅ Product generated successfully');
-        setProduct(result.product);
-        setPhase('preview');
-        setActiveTab('page');
         
-        // Mettre à jour les infos de génération
-        if (result.generations) {
-          setGenerationsInfo(result.generations);
-        }
+        // Animation finale : 100% + confetti avant de montrer le résultat
+        setBuildProgress(100);
+        setBuildMessage('Votre page est prête ! 🎉');
+        setShowConfetti(true);
+        
+        // Attendre 2 secondes pour que l'utilisateur voie les confettis
+        setTimeout(() => {
+          setShowConfetti(false);
+          setProduct(result.product);
+          setPhase('preview');
+          setActiveTab('page');
+          
+          // Mettre à jour les infos de génération
+          if (result.generations) {
+            setGenerationsInfo(result.generations);
+          }
+        }, 2000);
       } else {
         throw new Error(result.message || result.error || 'Erreur: Aucun produit généré');
       }
@@ -395,6 +405,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
         if (!error.message.includes('Timeout')) {
           setError('Génération annulée');
           setPhase('input');
+          // Réinitialiser les states d'animation
+          setBuildStep(0);
+          setBuildProgress(0);
+          setBuildMessage('');
+          setShowConfetti(false);
         }
         return;
       }
@@ -418,6 +433,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       
       setError(errorMessage);
       setPhase('input');
+      // Réinitialiser les states d'animation
+      setBuildStep(0);
+      setBuildProgress(0);
+      setBuildMessage('');
+      setShowConfetti(false);
     } finally {
       clearTimeout(safetyTimer);
       abortRef.current = null;
@@ -1000,7 +1020,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     '✍️ Génération du contenu marketing',
                     '🎨 Design de la page',
                     '🚀 Finalisation'
-                  ][buildStep]}
+                  ][Math.min(buildStep, 3)] || '🚀 Finalisation'}
                 </h3>
                 
                 {/* Typing effect message */}
@@ -1072,6 +1092,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                   setPhase('input');
                   setBuildStep(0);
                   setBuildProgress(0);
+                  setBuildMessage('');
+                  setShowConfetti(false);
                 }}
                 className="text-sm text-gray-400 hover:text-gray-600 underline transition mt-4"
               >
@@ -1083,6 +1105,23 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
           {/* ─── PREVIEW PHASE ─── */}
           {phase === 'preview' && product && (
             <div className="p-6 space-y-5">
+
+              {/* Success Banner */}
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-200 rounded-xl p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                    <CheckCircle className="w-7 h-7 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-base font-bold text-emerald-900 mb-1">
+                      🎉 Génération terminée avec succès !
+                    </h3>
+                    <p className="text-sm text-emerald-700">
+                      Voici l'aperçu de votre page produit générée par IA. Explorez les onglets ci-dessous puis cliquez sur <strong>"Appliquer"</strong> pour l'utiliser.
+                    </p>
+                  </div>
+                </div>
+              </div>
 
               {/* Tabs */}
               <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
@@ -1428,22 +1467,32 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
           )}
 
           {phase === 'preview' && (
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => { setPhase('input'); setProduct(null); }}
-                className="flex-1 py-3 border border-gray-200 text-gray-600 rounded-xl font-medium text-sm hover:bg-gray-50 transition"
-              >
-                Recommencer
-              </button>
-              <button
-                type="button"
-                onClick={handleApply}
-                className="flex-2 flex-grow py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-semibold text-sm hover:from-violet-700 hover:to-purple-700 transition flex items-center justify-center gap-2"
-              >
-                <CheckCircle className="w-4 h-4" />
-                Appliquer au formulaire
-              </button>
+            <div className="space-y-3">
+              {/* Info message */}
+              <div className="px-4 py-2 bg-violet-50 border border-violet-200 rounded-lg">
+                <p className="text-xs text-violet-700 text-center">
+                  👉 Explorez l'aperçu ci-dessus, puis cliquez sur <strong>"Utiliser cette page"</strong> pour l'ajouter à votre boutique
+                </p>
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setPhase('input'); setProduct(null); }}
+                  className="flex-1 py-3 border-2 border-gray-200 text-gray-600 rounded-xl font-medium text-sm hover:bg-gray-50 hover:border-gray-300 transition"
+                >
+                  🔄 Recommencer
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApply}
+                  className="flex-[2] py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold text-sm hover:from-emerald-600 hover:to-teal-600 transition flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  ✨ Utiliser cette page
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           )}
         </div>
