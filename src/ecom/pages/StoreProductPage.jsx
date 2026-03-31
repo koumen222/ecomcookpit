@@ -513,6 +513,96 @@ const CollapsibleSection = ({ title, children, defaultOpen = false }) => {
   );
 };
 
+// ── Stats Bar (social proof numbers) ─────────────────────────────────────────
+const StatsBar = ({ stats = [] }) => {
+  if (!stats || stats.length === 0) return null;
+  return (
+    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+      {stats.map((stat, i) => (
+        <div key={i} style={{
+          flex: '1 1 auto', minWidth: 90,
+          padding: '12px 14px', borderRadius: 14,
+          backgroundColor: 'var(--s-primary)', color: '#fff',
+          textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 22, fontWeight: 900, lineHeight: 1.1, fontFamily: 'var(--s-font)' }}>
+            {stat.value}
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.85, marginTop: 3, lineHeight: 1.3, fontFamily: 'var(--s-font)' }}>
+            {stat.label}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ── Problem / Solution sections ───────────────────────────────────────────────
+const ProblemSection = ({ section }) => {
+  if (!section?.title && !section?.pain_points?.length) return null;
+  return (
+    <div style={{
+      margin: '24px 0', padding: '22px 20px', borderRadius: 16,
+      backgroundColor: '#FFF7F7', border: '1px solid #FECACA',
+    }}>
+      {section.title && (
+        <h3 style={{ margin: '0 0 14px', fontSize: 17, fontWeight: 800, color: '#991B1B', fontFamily: 'var(--s-font)', lineHeight: 1.3 }}>
+          {section.title}
+        </h3>
+      )}
+      {section.pain_points?.length > 0 && (
+        <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 9 }}>
+          {section.pain_points.map((point, i) => (
+            <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 14, color: '#7F1D1D', lineHeight: 1.6, fontFamily: 'var(--s-font)' }}>
+              <span style={{ flexShrink: 0, marginTop: 2 }}>😔</span>
+              <span>{point}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
+const SolutionSection = ({ section }) => {
+  if (!section?.title && !section?.description) return null;
+  return (
+    <div style={{
+      margin: '16px 0 24px', padding: '22px 20px', borderRadius: 16,
+      backgroundColor: '#F0FDF4', border: '1px solid #A7F3D0',
+    }}>
+      {section.title && (
+        <h3 style={{ margin: '0 0 10px', fontSize: 17, fontWeight: 800, color: '#14532D', fontFamily: 'var(--s-font)', lineHeight: 1.3 }}>
+          {section.title}
+        </h3>
+      )}
+      {section.description && (
+        <p style={{ margin: 0, fontSize: 14.5, color: '#166534', lineHeight: 1.75, fontFamily: 'var(--s-font)' }}>
+          {section.description}
+        </p>
+      )}
+    </div>
+  );
+};
+
+// ── Offer / Guarantee Block ────────────────────────────────────────────────────
+const OfferBlock = ({ block }) => {
+  const text = block?.guarantee_text || block?.hook;
+  if (!text) return null;
+  return (
+    <div style={{
+      margin: '16px 0', padding: '14px 16px', borderRadius: 12,
+      backgroundColor: '#FFFBEB', border: '1px solid #FDE68A',
+      display: 'flex', alignItems: 'flex-start', gap: 12,
+    }}>
+      <span style={{ fontSize: 22, flexShrink: 0 }}>🛡️</span>
+      <p style={{ margin: 0, fontSize: 13.5, color: '#78350F', lineHeight: 1.65, fontWeight: 600, fontFamily: 'var(--s-font)' }}>
+        {text}
+      </p>
+    </div>
+  );
+};
+
 const ProductFaqAccordion = ({ items = [] }) => {
   const [openIndex, setOpenIndex] = useState(null);
 
@@ -1064,11 +1154,28 @@ const StoreProductPage = () => {
                   {product.name}
                 </h1>
 
+                {/* Hero slogan / baseline from AI */}
+                {product._pageData?.hero_slogan && (
+                  <p style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 600, color: 'var(--s-text2)', fontFamily: 'var(--s-font)', lineHeight: 1.5 }}>
+                    {product._pageData.hero_slogan}
+                  </p>
+                )}
+                {product._pageData?.hero_baseline && (
+                  <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--s-primary)', fontWeight: 700, fontFamily: 'var(--s-font)' }}>
+                    ✅ {product._pageData.hero_baseline}
+                  </p>
+                )}
+
                 {/* Features/Badges - scrolling list */}
                 <ProductFeatures features={product.features} />
 
                 {/* Reviews */}
                 <ProductReviews rating={product.rating || 4.5} reviewCount={product.reviewCount || 0} />
+
+                {/* Stats bar — social proof numbers */}
+                {product._pageData?.stats_bar?.length > 0 && (
+                  <StatsBar stats={product._pageData.stats_bar} />
+                )}
 
                 {/* Price */}
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
@@ -1088,7 +1195,7 @@ const StoreProductPage = () => {
                 </div>
 
                 {/* Stock badge */}
-                <div style={{ marginBottom: 16 }}>
+                <div style={{ marginBottom: 10, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
                   {!inStock ? (
                     <span style={{ fontSize: 13, fontWeight: 600, color: '#EF4444', padding: '4px 12px', borderRadius: 20, backgroundColor: '#FEE2E2' }}>
                       Rupture de stock
@@ -1100,6 +1207,12 @@ const StoreProductPage = () => {
                   ) : (
                     <span style={{ fontSize: 13, fontWeight: 600, color: '#10B981', display: 'flex', alignItems: 'center', gap: 5 }}>
                       <Check size={14} /> En stock
+                    </span>
+                  )}
+                  {/* AI urgency badge */}
+                  {product._pageData?.urgency_badge && inStock && (
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#DC2626', padding: '4px 12px', borderRadius: 20, backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
+                      {product._pageData.urgency_badge}
                     </span>
                   )}
                 </div>
@@ -1173,6 +1286,11 @@ const StoreProductPage = () => {
                   <ConversionBlocks blocks={product._pageData.conversion_blocks} />
                 )}
 
+                {/* Offer / Guarantee block */}
+                {product._pageData?.offer_block && (
+                  <OfferBlock block={product._pageData.offer_block} />
+                )}
+
                 {/* Messages de confiance */}
                 {showTrustBadges && <TrustBadges compact />}
 
@@ -1203,6 +1321,13 @@ const StoreProductPage = () => {
                           </div>
                           <ProductDescription content={raw} />
                         </div>
+                      )}
+                      {/* Problem / Solution sections from AI */}
+                      {product._pageData?.problem_section && (
+                        <ProblemSection section={product._pageData.problem_section} />
+                      )}
+                      {product._pageData?.solution_section && (
+                        <SolutionSection section={product._pageData.solution_section} />
                       )}
                       {hasFaq && (
                         <ProductFaqAccordion items={faqItems} />
