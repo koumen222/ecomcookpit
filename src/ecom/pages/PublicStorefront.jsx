@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   ShoppingCart, MessageCircle, ArrowRight, ShoppingBag, Star,
   ChevronDown, ChevronUp, Truck, ShieldCheck, Package, RotateCcw,
   Leaf, Heart, Sparkles, Zap, Gift, Users, Globe, Award, Clock,
-  MapPin, Mail, X, ChevronRight,
+  MapPin, Mail, X, ChevronRight, Pencil, Phone, CreditCard, Headphones,
+  ThumbsUp, BadgeCheck, Timer, Percent, RefreshCw, Shield, CheckCircle,
 } from 'lucide-react';
 import { useSubdomain } from '../hooks/useSubdomain';
 import { prefetchStoreProduct, useStoreData } from '../hooks/useStoreData';
@@ -12,6 +13,8 @@ import { useStoreCart } from '../hooks/useStoreCart';
 import { setDocumentMeta } from '../utils/pageMeta';
 import { preloadStoreCheckoutRoute, preloadStoreProductRoute } from '../utils/routePrefetch';
 import TestimonialsCarousel from '../components/TestimonialsCarousel';
+import { EditModeProvider, useEditMode } from '../contexts/EditModeContext';
+import { EditableWrapper, EditToolbar } from '../components/storefront/EditableWrapper';
 
 const fmt = (n, cur = 'XAF') =>
   `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
@@ -33,41 +36,122 @@ const getStoreMetaDescription = (store, fallback = '') => truncateMetaText(
   180,
 );
 
-// ─── EMOJI → LUCIDE mapping ───────────────────────────────────────────────────
-const EMOJI_ICON_MAP = {
-  '🚚': Truck, '🚛': Truck, '🚀': Zap,
-  '💯': ShieldCheck, '✅': ShieldCheck, '🔒': ShieldCheck,
-  '📱': MessageCircle, '💬': MessageCircle, '📞': MessageCircle,
-  '📦': Package, '🛍️': Package, '📫': Package,
-  '🔄': RotateCcw, '↩️': RotateCcw, '🔃': RotateCcw,
-  '🌿': Leaf, '🌱': Leaf, '🍃': Leaf,
-  '💆': Heart, '💆‍♀️': Heart, '❤️': Heart, '💕': Heart,
-  '🌸': Sparkles, '✨': Sparkles, '💫': Sparkles,
-  '🌟': Star, '⭐': Star, '🏅': Award,
-  '⚡': Zap, '💡': Zap,
-  '🎁': Gift, '🎀': Gift,
-  '👥': Users, '👤': Users, '🤝': Users,
-  '🌍': Globe, '🌐': Globe, '🗺️': Globe,
-  '🏆': Award, '🥇': Award,
-  '⏰': Clock, '🕐': Clock, '⏱️': Clock,
-  '📍': MapPin, '🗺': MapPin,
-  '📧': Mail, '✉️': Mail,
+// ─── ICON SYSTEM ────────────────────────────────────────────────────────────────
+// Mapping d'identifiants d'icônes vers les composants Lucide
+// Utilisé par le backend pour générer les sections sans emojis
+const ICON_COMPONENTS = {
+  // Livraison & Expédition
+  truck: Truck,
+  package: Package,
+  timer: Timer,
+  clock: Clock,
+  
+  // Confiance & Sécurité
+  shield: Shield,
+  'shield-check': ShieldCheck,
+  'badge-check': BadgeCheck,
+  'check-circle': CheckCircle,
+  'thumbs-up': ThumbsUp,
+  award: Award,
+  
+  // Communication
+  phone: Phone,
+  'message-circle': MessageCircle,
+  mail: Mail,
+  headphones: Headphones,
+  
+  // Paiement & Commerce
+  'credit-card': CreditCard,
+  percent: Percent,
+  gift: Gift,
+  'shopping-bag': ShoppingBag,
+  
+  // Nature & Bien-être
+  leaf: Leaf,
+  heart: Heart,
+  sparkles: Sparkles,
+  
+  // Général
+  zap: Zap,
+  star: Star,
+  users: Users,
+  globe: Globe,
+  'map-pin': MapPin,
+  'rotate-ccw': RotateCcw,
+  'refresh-cw': RefreshCw,
 };
+
+// Fallback: conversion emoji → icône (pour compatibilité avec les anciennes données)
+const EMOJI_TO_ICON = {
+  '🚚': 'truck', '🚛': 'truck', '🚀': 'zap',
+  '💯': 'shield-check', '✅': 'check-circle', '🔒': 'shield',
+  '📱': 'phone', '💬': 'message-circle', '📞': 'phone',
+  '📦': 'package', '🛍️': 'shopping-bag', '📫': 'package',
+  '🔄': 'rotate-ccw', '↩️': 'rotate-ccw', '🔃': 'refresh-cw',
+  '🌿': 'leaf', '🌱': 'leaf', '🍃': 'leaf',
+  '💆': 'heart', '💆‍♀️': 'heart', '❤️': 'heart', '💕': 'heart',
+  '🌸': 'sparkles', '✨': 'sparkles', '💫': 'sparkles',
+  '🌟': 'star', '⭐': 'star', '🏅': 'award',
+  '⚡': 'zap', '💡': 'zap',
+  '🎁': 'gift', '🎀': 'gift',
+  '👥': 'users', '👤': 'users', '🤝': 'users',
+  '🌍': 'globe', '🌐': 'globe', '🗺️': 'globe',
+  '🏆': 'award', '🥇': 'award',
+  '⏰': 'clock', '🕐': 'clock', '⏱️': 'timer',
+  '📍': 'map-pin', '🗺': 'map-pin',
+  '📧': 'mail', '✉️': 'mail',
+  '💳': 'credit-card', '💰': 'credit-card',
+  '👍': 'thumbs-up', '🤙': 'phone',
+  '🎧': 'headphones', '📞': 'phone',
+  '🔥': 'zap', '💥': 'sparkles',
+  '%': 'percent', '🏷️': 'percent',
+};
+
+// Résoudre une icône (accepte emoji, identifiant, ou composant)
+function resolveIcon(iconValue) {
+  if (!iconValue) return null;
+  
+  // Si c'est déjà un composant React
+  if (typeof iconValue === 'function') return iconValue;
+  
+  // Si c'est un identifiant d'icône
+  if (ICON_COMPONENTS[iconValue]) return ICON_COMPONENTS[iconValue];
+  
+  // Si c'est un emoji, convertir en identifiant puis en composant
+  const iconId = EMOJI_TO_ICON[iconValue] || EMOJI_TO_ICON[iconValue?.trim()];
+  if (iconId) return ICON_COMPONENTS[iconId];
+  
+  return null;
+}
 
 // Single tint box — uses store primary color via CSS color-mix
 const ICON_BG = 'color-mix(in srgb, var(--s-primary) 12%, white)';
 
-function IconBox({ emoji, size = 22, bg, boxSize = 52, radius = 16 }) {
+/**
+ * IconBox - Affiche une icône dans une boîte stylée
+ * @param {string|function} icon - Identifiant d'icône, emoji (legacy), ou composant Lucide
+ * @param {number} size - Taille de l'icône (défaut: 22)
+ * @param {string} bg - Couleur de fond (défaut: teinte de la couleur primaire)
+ * @param {number} boxSize - Taille de la boîte (défaut: 52)
+ * @param {number} radius - Border radius (défaut: 16)
+ */
+function IconBox({ icon, emoji, size = 22, bg, boxSize = 52, radius = 16 }) {
   const boxBg = bg || ICON_BG;
-  const Icon = EMOJI_ICON_MAP[emoji] || EMOJI_ICON_MAP[emoji?.trim()];
+  // Supporter l'ancienne prop "emoji" pour compatibilité
+  const iconValue = icon || emoji;
+  const Icon = resolveIcon(iconValue);
+  
   return (
     <div style={{
       width: boxSize, height: boxSize, borderRadius: radius, flexShrink: 0,
       backgroundColor: boxBg, display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
-      {Icon
-        ? <Icon size={size} color="var(--s-primary)" strokeWidth={2} />
-        : <span style={{ fontSize: size * 0.9, lineHeight: 1 }}>{emoji}</span>}
+      {Icon ? (
+        <Icon size={size} color="var(--s-primary)" strokeWidth={2} />
+      ) : (
+        // Fallback: afficher le texte brut si aucune icône trouvée
+        <span style={{ fontSize: size * 0.9, lineHeight: 1 }}>{iconValue}</span>
+      )}
     </div>
   );
 }
@@ -75,16 +159,19 @@ function IconBox({ emoji, size = 22, bg, boxSize = 52, radius = 16 }) {
 // ─── ANNOUNCEMENT BAR ─────────────────────────────────────────────────────────
 const AnnouncementBar = ({ store }) => {
   const [visible, setVisible] = useState(true);
-  const msg = store?.announcementText || '🚚 Livraison rapide · 💳 Paiement à la livraison · 🔄 Retours faciles';
+  // Default announcement sans emojis - utilise des icônes intégrées
+  const defaultAnnouncement = 'Livraison rapide · Paiement à la livraison · Retours faciles';
+  const msg = store?.announcementText || defaultAnnouncement;
   if (!visible) return null;
   return (
     <div style={{
       background: 'var(--s-primary)', color: '#fff',
       fontSize: 13, fontWeight: 500, fontFamily: 'var(--s-font)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
       padding: '9px 48px 9px 16px', textAlign: 'center',
       position: 'relative', lineHeight: 1.4, letterSpacing: '0.01em',
     }}>
+      <Truck size={14} style={{ opacity: 0.9 }} />
       <span>{msg}</span>
       <button onClick={() => setVisible(false)} style={{
         position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
@@ -227,7 +314,7 @@ const AiBadgesSection = ({ cfg }) => (
       <div className="s-badges">
         {(cfg.items || []).map((badge, i) => (
           <div key={i} className="s-badge-item" style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '20px 20px' }}>
-            <IconBox emoji={badge.icon} size={20} boxSize={46} radius={14} />
+            <IconBox icon={badge.icon} size={20} boxSize={46} radius={14} />
             <div>
               <p style={{ margin: 0, fontWeight: 700, fontSize: 13.5, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{badge.title}</p>
               <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--s-text2)', lineHeight: 1.4, fontFamily: 'var(--s-font)' }}>{badge.desc}</p>
@@ -298,7 +385,7 @@ const AiFeaturesSection = ({ cfg }) => (
             onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
             onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}
           >
-            <IconBox emoji={f.icon} size={22} boxSize={52} radius={16} />
+            <IconBox icon={f.icon} size={22} boxSize={52} radius={16} />
             <h3 style={{ margin: '18px 0 10px', fontSize: 15.5, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{f.title}</h3>
             <p style={{ margin: 0, fontSize: 13.5, color: 'var(--s-text2)', lineHeight: 1.65, fontFamily: 'var(--s-font)' }}>{f.desc}</p>
           </div>
@@ -366,8 +453,8 @@ const AiFaqSection = ({ cfg }) => {
 const AiContactSection = ({ cfg, store }) => {
   const whatsapp = (cfg.whatsapp || store?.whatsapp || '').replace(/\D/g, '');
   const storeName = store?.name || 'la boutique';
-  // Pre-filled WhatsApp message — user can add details after opening
-  const waMessage = encodeURIComponent(`Bonjour ${storeName} ! 👋 Je suis intéressé(e) par vos produits et j'aimerais passer une commande.`);
+  // Pre-filled WhatsApp message
+  const waMessage = encodeURIComponent(`Bonjour ${storeName} ! Je suis intéressé(e) par vos produits et j'aimerais passer une commande.`);
   const waLink = whatsapp ? `https://wa.me/${whatsapp}?text=${waMessage}` : null;
   return (
     <section style={{ padding: 'clamp(64px, 10vw, 100px) 24px', textAlign: 'center', position: 'relative', overflow: 'hidden', backgroundColor: 'var(--s-primary)' }}>
@@ -377,7 +464,11 @@ const AiContactSection = ({ cfg, store }) => {
           {cfg.title || 'Parlez-nous maintenant'}
         </h2>
         {cfg.subtitle && <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.85)', margin: '0 0 36px', lineHeight: 1.6, fontFamily: 'var(--s-font)' }}>{cfg.subtitle}</p>}
-        {cfg.address && <p style={{ marginTop: 20, fontSize: 13, color: 'rgba(255,255,255,0.65)', fontFamily: 'var(--s-font)' }}>📍 {cfg.address}</p>}
+        {cfg.address && (
+          <p style={{ marginTop: 20, fontSize: 13, color: 'rgba(255,255,255,0.65)', fontFamily: 'var(--s-font)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <MapPin size={14} /> {cfg.address}
+          </p>
+        )}
       </div>
     </section>
   );
@@ -397,66 +488,470 @@ const AiSpacerSection = ({ cfg }) => (
   <div style={{ height: cfg.height || 40, backgroundColor: cfg.backgroundColor || 'transparent' }} />
 );
 
+// Labels lisibles pour les types de sections
+const SECTION_TYPE_LABELS = {
+  hero: 'Hero',
+  badges: 'Badges',
+  features: 'Avantages',
+  text: 'Texte',
+  products: 'Produits',
+  testimonials: 'Témoignages',
+  faq: 'FAQ',
+  contact: 'Contact',
+  spacer: 'Espacement',
+};
+
 // ─── Section Renderer ─────────────────────────────────────────────────────────
 const SectionRenderer = ({ section, store, products, prefix }) => {
   if (!section?.type) return null;
   const cfg = section.config || {};
-  switch (section.type) {
-    case 'hero':         return <AiHeroSection cfg={cfg} store={store} prefix={prefix} products={products} />;
-    case 'badges':       return <AiBadgesSection cfg={cfg} />;
-    case 'features':     return <AiFeaturesSection cfg={cfg} />;
-    case 'text':         return <AiTextSection cfg={cfg} />;
-    case 'products':     return <AiProductsSection cfg={cfg} products={products} prefix={prefix} store={store} />;
-    case 'testimonials': return <AiTestimonialsSection cfg={cfg} />;
-    case 'faq':          return <AiFaqSection cfg={cfg} />;
-    case 'contact':      return <AiContactSection cfg={cfg} store={store} />;
-    case 'spacer':       return <AiSpacerSection cfg={cfg} />;
-    default:             return null;
-  }
+  const sectionId = section.id || section.type;
+  const sectionLabel = SECTION_TYPE_LABELS[section.type] || section.type;
+
+  const renderSection = () => {
+    switch (section.type) {
+      case 'hero':         return <AiHeroSection cfg={cfg} store={store} prefix={prefix} products={products} />;
+      case 'badges':       return <AiBadgesSection cfg={cfg} />;
+      case 'features':     return <AiFeaturesSection cfg={cfg} />;
+      case 'text':         return <AiTextSection cfg={cfg} />;
+      case 'products':     return <AiProductsSection cfg={cfg} products={products} prefix={prefix} store={store} />;
+      case 'testimonials': return <AiTestimonialsSection cfg={cfg} />;
+      case 'faq':          return <AiFaqSection cfg={cfg} />;
+      case 'contact':      return <AiContactSection cfg={cfg} store={store} />;
+      case 'spacer':       return <AiSpacerSection cfg={cfg} />;
+      default:             return null;
+    }
+  };
+
+  return (
+    <EditableWrapper
+      sectionId={sectionId}
+      sectionType={sectionLabel}
+      sectionData={section}
+      canReorder={section.type !== 'hero'}
+      canDelete={section.type !== 'hero' && section.type !== 'products'}
+      canHide={section.type !== 'hero'}
+    >
+      {renderSection()}
+    </EditableWrapper>
+  );
 };
 
-// ── Header ────────────────────────────────────────────────────────────────────
-const StorefrontHeader = ({ store, cartCount, prefix }) => (
-  <header style={{ position: 'sticky', top: 0, zIndex: 50, backgroundColor: 'var(--s-bg)', borderBottom: '1px solid var(--s-border)', fontFamily: 'var(--s-font)' }}>
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-      <Link to={`${prefix}/`} style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
-        {store?.logo ? (
-          <img src={store.logo} alt={store?.name} style={{ height: 36, width: 'auto', maxWidth: 120, objectFit: 'contain' }} />
-        ) : (
-          <span style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'var(--s-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 16, flexShrink: 0 }}>
-            {(store?.name || 'S')[0].toUpperCase()}
-          </span>
+// ── Header Premium avec Glassmorphism ─────────────────────────────────────────
+const StorefrontHeader = ({ store, cartCount, prefix }) => {
+  const { isEditMode, canEdit, toggleEditMode } = useEditMode();
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [cartBounce, setCartBounce] = useState(false);
+  const prevCartCount = React.useRef(cartCount);
+
+  // Détecter le scroll pour l'effet glassmorphism
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Animation du panier quand le nombre change
+  useEffect(() => {
+    if (cartCount > prevCartCount.current) {
+      setCartBounce(true);
+      const timer = setTimeout(() => setCartBounce(false), 300);
+      return () => clearTimeout(timer);
+    }
+    prevCartCount.current = cartCount;
+  }, [cartCount]);
+
+  const navLinks = [
+    { label: 'Accueil', href: `${prefix}/` },
+    { label: 'Produits', href: `${prefix}/products` },
+  ];
+
+  return (
+    <>
+      <header 
+        style={{ 
+          position: 'sticky', 
+          top: 0, 
+          zIndex: 50, 
+          fontFamily: 'var(--s-font)',
+          transition: 'all 0.3s ease',
+          backgroundColor: scrolled ? 'rgba(255, 255, 255, 0.85)' : 'var(--s-bg)',
+          backdropFilter: scrolled ? 'blur(12px) saturate(180%)' : 'none',
+          WebkitBackdropFilter: scrolled ? 'blur(12px) saturate(180%)' : 'none',
+          borderBottom: scrolled ? '1px solid rgba(0,0,0,0.06)' : '1px solid var(--s-border)',
+          boxShadow: scrolled ? '0 4px 20px rgba(0,0,0,0.06)' : 'none',
+        }}
+      >
+        {/* Bannière Mode Édition */}
+        {isEditMode && (
+          <div style={{
+            backgroundColor: '#3B82F6',
+            color: '#fff',
+            padding: '8px 24px',
+            fontSize: 13,
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+          }}>
+            <Pencil size={14} />
+            Mode Édition actif — Survolez une section pour la modifier
+          </div>
         )}
-        <span style={{ fontWeight: 700, fontSize: 17, color: 'var(--s-text)', letterSpacing: '-0.01em' }}>{store?.name}</span>
-      </Link>
-      <nav style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        {[
-          { label: 'Accueil', href: `${prefix}/` },
-          { label: 'Produits', href: `${prefix}/products` },
-        ].map(link => (
-          <Link key={link.label} to={link.href} style={{
-            padding: '7px 14px', borderRadius: 8, fontSize: 13.5, fontWeight: 600,
-            color: 'var(--s-text2)', textDecoration: 'none', fontFamily: 'var(--s-font)',
-            transition: 'background 0.15s, color 0.15s',
+
+        <div style={{ 
+          maxWidth: 1200, 
+          margin: '0 auto', 
+          padding: '0 24px', 
+          height: scrolled ? 56 : 64, 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          transition: 'height 0.3s ease',
+        }}>
+          {/* Logo */}
+          <Link 
+            to={`${prefix}/`} 
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 12, 
+              textDecoration: 'none',
+              transition: 'transform 0.2s ease',
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            {store?.logo ? (
+              <img 
+                src={store.logo} 
+                alt={store?.name} 
+                style={{ 
+                  height: scrolled ? 32 : 36, 
+                  width: 'auto', 
+                  maxWidth: 120, 
+                  objectFit: 'contain',
+                  transition: 'height 0.3s ease',
+                }} 
+              />
+            ) : (
+              <span style={{ 
+                width: scrolled ? 32 : 36, 
+                height: scrolled ? 32 : 36, 
+                borderRadius: 10, 
+                backgroundColor: 'var(--s-primary)', 
+                color: '#fff', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                fontWeight: 800, 
+                fontSize: scrolled ? 14 : 16, 
+                flexShrink: 0,
+                transition: 'all 0.3s ease',
+              }}>
+                {(store?.name || 'S')[0].toUpperCase()}
+              </span>
+            )}
+            <span style={{ 
+              fontWeight: 700, 
+              fontSize: scrolled ? 16 : 17, 
+              color: 'var(--s-text)', 
+              letterSpacing: '-0.01em',
+              transition: 'font-size 0.3s ease',
+            }}>
+              {store?.name}
+            </span>
+          </Link>
+
+          {/* Navigation Desktop */}
+          <nav className="desktop-nav" style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 6,
+          }}>
+            {navLinks.map(link => (
+              <Link 
+                key={link.label} 
+                to={link.href} 
+                style={{
+                  padding: '8px 16px', 
+                  borderRadius: 8, 
+                  fontSize: 14, 
+                  fontWeight: 600,
+                  color: 'var(--s-text2)', 
+                  textDecoration: 'none', 
+                  fontFamily: 'var(--s-font)',
+                  transition: 'all 0.2s ease',
+                  position: 'relative',
+                }}
+                onMouseEnter={e => { 
+                  e.currentTarget.style.background = 'rgba(0,0,0,0.04)'; 
+                  e.currentTarget.style.color = 'var(--s-text)'; 
+                }}
+                onMouseLeave={e => { 
+                  e.currentTarget.style.background = 'transparent'; 
+                  e.currentTarget.style.color = 'var(--s-text2)'; 
+                }}
+              >
+                {link.label}
+              </Link>
+            ))}
+            
+            {/* Bouton Mode Édition (visible pour owner) */}
+            {canEdit && (
+              <button
+                onClick={toggleEditMode}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '8px 16px',
+                  borderRadius: 8,
+                  border: isEditMode ? '2px solid #3B82F6' : '1.5px solid var(--s-border)',
+                  backgroundColor: isEditMode ? '#EFF6FF' : 'transparent',
+                  color: isEditMode ? '#3B82F6' : 'var(--s-text2)',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--s-font)',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={e => {
+                  if (!isEditMode) {
+                    e.currentTarget.style.backgroundColor = '#F3F4F6';
+                    e.currentTarget.style.borderColor = '#D1D5DB';
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!isEditMode) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.borderColor = 'var(--s-border)';
+                  }
+                }}
+              >
+                <Pencil size={14} />
+                {isEditMode ? 'Édition' : 'Modifier'}
+              </button>
+            )}
+            
+            {/* Panier avec animation */}
+            <Link 
+              to={`${prefix}/checkout`} 
+              style={{
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 7, 
+                padding: '8px 18px', 
+                borderRadius: 40,
+                border: '1.5px solid', 
+                borderColor: cartCount > 0 ? 'var(--s-primary)' : 'var(--s-border)',
+                backgroundColor: cartCount > 0 ? 'var(--s-primary)' : 'transparent',
+                color: cartCount > 0 ? '#fff' : 'var(--s-text)', 
+                textDecoration: 'none',
+                fontWeight: 600, 
+                fontSize: 14, 
+                transition: 'all 0.2s ease', 
+                fontFamily: 'var(--s-font)', 
+                marginLeft: 8,
+                transform: cartBounce ? 'scale(1.1)' : 'scale(1)',
+              }} 
+              onMouseEnter={e => {
+                if (cartCount === 0) {
+                  e.currentTarget.style.backgroundColor = '#F3F4F6';
+                  e.currentTarget.style.borderColor = '#D1D5DB';
+                } else {
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                }
+              }}
+              onMouseLeave={e => {
+                if (cartCount === 0) {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.borderColor = 'var(--s-border)';
+                } else {
+                  e.currentTarget.style.transform = 'scale(1)';
+                }
+              }}
+              onFocus={preloadStoreCheckoutRoute} 
+              onTouchStart={preloadStoreCheckoutRoute}
+            >
+              <ShoppingCart size={17} />
+              {cartCount > 0 && (
+                <span style={{ 
+                  minWidth: 18, 
+                  textAlign: 'center',
+                  animation: cartBounce ? 'cartPop 0.3s ease' : 'none',
+                }}>
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+
+            {/* Menu Hamburger Mobile */}
+            <button
+              className="mobile-menu-btn"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              style={{
+                display: 'none',
+                padding: 8,
+                borderRadius: 8,
+                border: 'none',
+                backgroundColor: mobileMenuOpen ? '#F3F4F6' : 'transparent',
+                cursor: 'pointer',
+                marginLeft: 8,
+              }}
+              aria-label="Menu"
+            >
+              <div style={{
+                width: 20,
+                height: 14,
+                position: 'relative',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+              }}>
+                <span style={{
+                  display: 'block',
+                  width: '100%',
+                  height: 2,
+                  backgroundColor: 'var(--s-text)',
+                  borderRadius: 2,
+                  transition: 'all 0.3s ease',
+                  transform: mobileMenuOpen ? 'rotate(45deg) translateY(6px)' : 'none',
+                }} />
+                <span style={{
+                  display: 'block',
+                  width: '100%',
+                  height: 2,
+                  backgroundColor: 'var(--s-text)',
+                  borderRadius: 2,
+                  transition: 'all 0.3s ease',
+                  opacity: mobileMenuOpen ? 0 : 1,
+                }} />
+                <span style={{
+                  display: 'block',
+                  width: '100%',
+                  height: 2,
+                  backgroundColor: 'var(--s-text)',
+                  borderRadius: 2,
+                  transition: 'all 0.3s ease',
+                  transform: mobileMenuOpen ? 'rotate(-45deg) translateY(-6px)' : 'none',
+                }} />
+              </div>
+            </button>
+          </nav>
+        </div>
+      </header>
+
+      {/* Menu Mobile Drawer */}
+      {mobileMenuOpen && (
+        <div 
+          className="mobile-menu-overlay"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            top: isEditMode ? 108 : 64,
+            backgroundColor: 'rgba(0,0,0,0.4)',
+            zIndex: 40,
+            animation: 'fadeIn 0.2s ease',
           }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#F3F4F6'; e.currentTarget.style.color = 'var(--s-text)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--s-text2)'; }}
-          >{link.label}</Link>
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+      <div 
+        className="mobile-menu-drawer"
+        style={{
+          position: 'fixed',
+          top: isEditMode ? 108 : 64,
+          right: 0,
+          width: '280px',
+          maxWidth: '80vw',
+          height: `calc(100vh - ${isEditMode ? 108 : 64}px)`,
+          backgroundColor: '#fff',
+          boxShadow: '-4px 0 20px rgba(0,0,0,0.1)',
+          zIndex: 45,
+          transform: mobileMenuOpen ? 'translateX(0)' : 'translateX(100%)',
+          transition: 'transform 0.3s ease',
+          padding: '24px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+        }}
+      >
+        {navLinks.map(link => (
+          <Link 
+            key={link.label} 
+            to={link.href} 
+            onClick={() => setMobileMenuOpen(false)}
+            style={{
+              padding: '14px 16px', 
+              borderRadius: 12, 
+              fontSize: 16, 
+              fontWeight: 600,
+              color: 'var(--s-text)', 
+              textDecoration: 'none', 
+              fontFamily: 'var(--s-font)',
+              backgroundColor: '#F9FAFB',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+            }}
+          >
+            {link.label}
+          </Link>
         ))}
-        <Link to={`${prefix}/checkout`} style={{
-          display: 'flex', alignItems: 'center', gap: 7, padding: '8px 18px', borderRadius: 40,
-          border: '1.5px solid', borderColor: cartCount > 0 ? 'var(--s-primary)' : 'var(--s-border)',
-          backgroundColor: cartCount > 0 ? 'var(--s-primary)' : 'transparent',
-          color: cartCount > 0 ? '#fff' : 'var(--s-text)', textDecoration: 'none',
-          fontWeight: 600, fontSize: 14, transition: 'all 0.2s', fontFamily: 'var(--s-font)', marginLeft: 8,
-        }} onMouseEnter={preloadStoreCheckoutRoute} onFocus={preloadStoreCheckoutRoute} onTouchStart={preloadStoreCheckoutRoute}>
-          <ShoppingCart size={17} />
-          {cartCount > 0 && <span>{cartCount}</span>}
-        </Link>
-      </nav>
-    </div>
-  </header>
-);
+        
+        <div style={{ marginTop: 'auto', paddingTop: 24, borderTop: '1px solid #E5E7EB' }}>
+          <Link 
+            to={`${prefix}/checkout`}
+            onClick={() => setMobileMenuOpen(false)}
+            style={{
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              gap: 10, 
+              padding: '14px 20px', 
+              borderRadius: 40,
+              backgroundColor: 'var(--s-primary)',
+              color: '#fff', 
+              textDecoration: 'none',
+              fontWeight: 700, 
+              fontSize: 15, 
+              fontFamily: 'var(--s-font)',
+            }}
+          >
+            <ShoppingCart size={18} />
+            Voir mon panier {cartCount > 0 && `(${cartCount})`}
+          </Link>
+        </div>
+      </div>
+
+      {/* Styles CSS pour responsive et animations */}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes cartPop {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.3); }
+          100% { transform: scale(1); }
+        }
+        @media (max-width: 768px) {
+          .desktop-nav > a:not([href*="checkout"]) { display: none !important; }
+          .desktop-nav > button { display: none !important; }
+          .mobile-menu-btn { display: flex !important; }
+        }
+        @media (min-width: 769px) {
+          .mobile-menu-overlay, .mobile-menu-drawer { display: none !important; }
+        }
+      `}</style>
+    </>
+  );
+};
 
 // ── Product Card ──────────────────────────────────────────────────────────────
 const ProductCard = ({ product, prefix, store, subdomain }) => {
@@ -617,7 +1112,9 @@ export const StoreAllProducts = () => {
   if (error) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ textAlign: 'center', padding: 40 }}>
-        <p style={{ fontSize: 48, margin: '0 0 16px' }}>🛍️</p>
+        <div style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+          <ShoppingBag size={32} color="#9CA3AF" />
+        </div>
         <h2 style={{ color: '#111', fontWeight: 700, margin: '0 0 8px' }}>Boutique introuvable</h2>
         <p style={{ color: '#6B7280', fontSize: 15 }}>{error}</p>
       </div>
@@ -678,14 +1175,16 @@ export const StoreAllProducts = () => {
 };
 
 // ── Main Storefront ───────────────────────────────────────────────────────────
-const PublicStorefront = () => {
+const PublicStorefrontInner = () => {
   const { subdomain: paramSubdomain } = useParams();
+  const [searchParams] = useSearchParams();
   const { subdomain: detectedSubdomain, isStoreDomain } = useSubdomain();
   const subdomain = paramSubdomain || detectedSubdomain;
   const prefix = isStoreDomain ? '' : (subdomain ? `/store/${subdomain}` : '');
 
   const { store, sections, products, loading, error } = useStoreData(subdomain);
   const { cartCount } = useStoreCart(subdomain);
+  const { isEditMode } = useEditMode();
   const [activeCategory, setActiveCategory] = useState('all');
 
   const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
@@ -709,7 +1208,9 @@ const PublicStorefront = () => {
   if (error) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ textAlign: 'center', padding: 40 }}>
-        <p style={{ fontSize: 48, margin: '0 0 16px' }}>🛍️</p>
+        <div style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+          <ShoppingBag size={32} color="#9CA3AF" />
+        </div>
         <h2 style={{ color: '#111', fontWeight: 700, margin: '0 0 8px' }}>Boutique introuvable</h2>
         <p style={{ color: '#6B7280', fontSize: 15 }}>{error}</p>
       </div>
@@ -740,7 +1241,7 @@ const PublicStorefront = () => {
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
 
       {hasSections ? (
-        sections.filter(s => s.visible !== false).map(section => (
+        sections.filter(s => isEditMode || s.visible !== false).map(section => (
           <SectionRenderer key={section.id || section.type} section={section} store={store} products={products} prefix={prefix} />
         ))
       ) : (
@@ -775,7 +1276,9 @@ const PublicStorefront = () => {
             </div>
             {filtered.length === 0 && (
               <div style={{ textAlign: 'center', padding: '72px 20px' }}>
-                <p style={{ fontSize: 40, margin: '0 0 14px' }}>🛍️</p>
+                <div style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+                  <ShoppingBag size={28} color="#9CA3AF" />
+                </div>
                 <p style={{ color: 'var(--s-text2)', fontSize: 16 }}>Aucun produit disponible pour l'instant.</p>
               </div>
             )}
@@ -791,7 +1294,36 @@ const PublicStorefront = () => {
       )}
 
       <StorefrontFooter store={store} prefix={prefix} />
+      
+      {/* Toolbar d'édition (visible quand mode édition actif) */}
+      <EditToolbar />
     </div>
+  );
+};
+
+/**
+ * PublicStorefront - Composant principal avec EditModeProvider
+ * 
+ * Le mode édition est activé via le paramètre URL ?edit=true
+ * ou si l'utilisateur est authentifié comme propriétaire.
+ */
+const PublicStorefront = () => {
+  const { subdomain: paramSubdomain } = useParams();
+  const [searchParams] = useSearchParams();
+  const { subdomain: detectedSubdomain } = useSubdomain();
+  const subdomain = paramSubdomain || detectedSubdomain;
+  
+  // Vérifier si on est en mode édition via URL (pour le propriétaire connecté)
+  const editParam = searchParams.get('edit') === 'true';
+  
+  // TODO: Intégrer avec useEcomAuth pour vérifier si l'utilisateur est le propriétaire
+  // Pour l'instant, on permet l'édition si le paramètre ?edit=true est présent
+  const isOwner = editParam;
+
+  return (
+    <EditModeProvider storeId={subdomain} isOwner={isOwner}>
+      <PublicStorefrontInner />
+    </EditModeProvider>
   );
 };
 
