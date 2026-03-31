@@ -16,6 +16,7 @@ if (!GEMINI_API_KEY) {
 
 // Modèles par ordre de priorité (sans grounding qui nécessite des permissions spéciales)
 const GEMINI_MODELS = [
+  'gemini-3-pro',
   'gemini-2.0-flash',
   'gemini-1.5-flash',
   'gemini-1.5-pro',
