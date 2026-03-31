@@ -1821,6 +1821,210 @@ const ProductCard = ({ product, prefix, store, subdomain }) => {
   );
 };
 
+// ── Mobile Bottom Navigation ──────────────────────────────────────────────────
+const MobileBottomNav = ({ prefix, cartCount, store }) => {
+  return (
+    <>
+      <style>
+        {`
+          .mobile-bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 40;
+            background: #fff;
+            border-top: 1px solid #E5E7EB;
+            box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.08);
+            display: none;
+          }
+          
+          @media (max-width: 768px) {
+            .mobile-bottom-nav {
+              display: block;
+            }
+          }
+          
+          .mobile-nav-item {
+            transition: all 0.2s;
+          }
+          
+          .mobile-nav-item:active {
+            transform: scale(0.95);
+          }
+        `}
+      </style>
+      
+      <nav className="mobile-bottom-nav">
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          height: 64,
+          padding: '0 8px',
+        }}>
+          {/* Home */}
+          <Link 
+            to={`${prefix}/`}
+            className="mobile-nav-item"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              textDecoration: 'none',
+              color: '#6B7280',
+            }}
+          >
+            <div style={{ position: 'relative' }}>
+              <ShoppingBag size={22} strokeWidth={2} />
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 600, fontFamily: 'var(--s-font)' }}>
+              Accueil
+            </span>
+          </Link>
+          
+          {/* Products */}
+          <Link 
+            to={`${prefix}/products`}
+            className="mobile-nav-item"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              textDecoration: 'none',
+              color: '#6B7280',
+            }}
+          >
+            <Package size={22} strokeWidth={2} />
+            <span style={{ fontSize: 11, fontWeight: 600, fontFamily: 'var(--s-font)' }}>
+              Produits
+            </span>
+          </Link>
+          
+          {/* Cart */}
+          <Link 
+            to={`${prefix}/cart`}
+            className="mobile-nav-item"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              textDecoration: 'none',
+              color: '#6B7280',
+            }}
+          >
+            <div style={{ position: 'relative' }}>
+              <ShoppingCart size={22} strokeWidth={2} />
+              {cartCount > 0 && (
+                <span style={{
+                  position: 'absolute',
+                  top: -6,
+                  right: -8,
+                  backgroundColor: 'var(--s-primary)',
+                  color: '#fff',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  borderRadius: '50%',
+                  minWidth: 18,
+                  height: 18,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 4px',
+                  border: '2px solid #fff',
+                }}>
+                  {cartCount > 99 ? '99+' : cartCount}
+                </span>
+              )}
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 600, fontFamily: 'var(--s-font)' }}>
+              Panier
+            </span>
+          </Link>
+        </div>
+      </nav>
+    </>
+  );
+};
+
+// ── Floating WhatsApp Button ──────────────────────────────────────────────────
+const FloatingWhatsAppButton = ({ store }) => {
+  const whatsapp = (store?.whatsapp || '').replace(/\D/g, '');
+  if (!whatsapp) return null;
+  
+  const storeName = store?.name || 'la boutique';
+  const waMessage = encodeURIComponent(`Bonjour ${storeName} ! Je suis intéressé(e) par vos produits.`);
+  const waLink = `https://wa.me/${whatsapp}?text=${waMessage}`;
+  
+  return (
+    <>
+      <style>
+        {`
+          @keyframes whatsapp-pulse {
+            0%, 100% {
+              box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.7);
+            }
+            50% {
+              box-shadow: 0 0 0 12px rgba(37, 211, 102, 0);
+            }
+          }
+          
+          .whatsapp-float {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            z-index: 30;
+            animation: whatsapp-pulse 2s infinite;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          }
+          
+          .whatsapp-float:hover {
+            transform: scale(1.1) translateY(-4px);
+            box-shadow: 0 8px 32px rgba(37, 211, 102, 0.5);
+          }
+          
+          .whatsapp-float:active {
+            transform: scale(1.05);
+          }
+          
+          @media (max-width: 768px) {
+            .whatsapp-float {
+              bottom: 88px;
+              right: 16px;
+            }
+          }
+        `}
+      </style>
+      
+      <a 
+        href={waLink}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="whatsapp-float"
+        style={{
+          width: 56,
+          height: 56,
+          borderRadius: '50%',
+          backgroundColor: '#25D366',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textDecoration: 'none',
+          boxShadow: '0 4px 24px rgba(37, 211, 102, 0.4)',
+        }}
+        aria-label="Contactez-nous sur WhatsApp"
+      >
+        <MessageCircle size={28} color="#fff" strokeWidth={2} />
+      </a>
+    </>
+  );
+};
+
 // ── Footer ────────────────────────────────────────────────────────────────────
 const StorefrontFooter = ({ store, prefix }) => {
   const navigationLinks = [
@@ -2372,6 +2576,12 @@ const PublicStorefrontInner = () => {
       )}
 
       <StorefrontFooter store={store} prefix={prefix} />
+      
+      {/* Mobile Bottom Navigation (visible uniquement sur mobile) */}
+      <MobileBottomNav prefix={prefix} cartCount={cartCount} store={store} />
+      
+      {/* Floating WhatsApp Button */}
+      <FloatingWhatsAppButton store={store} />
       
       {/* Toolbar d'édition (visible quand mode édition actif) */}
       <EditToolbar />
