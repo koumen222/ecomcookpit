@@ -289,7 +289,23 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     // Préparer toutes les tâches de génération
     const imagePromises = [];
-    const baseImageBuffer = imageFiles[0]?.buffer || null;
+
+    // Normaliser l'image de référence produit : JPEG 768px max, pour que Gemini
+    // reçoive un format cohérent (mimeType + taille raisonnable pour inline data).
+    // Sans ça : PNG brut envoyé comme "image/jpeg" → Gemini ignore la référence.
+    let baseImageBuffer = null;
+    if (imageFiles[0]?.buffer) {
+      try {
+        baseImageBuffer = await sharp(imageFiles[0].buffer)
+          .resize(768, 768, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 88 })
+          .toBuffer();
+        console.log(`📐 Image de référence normalisée: ${Math.round(baseImageBuffer.length / 1024)}Ko JPEG 768px`);
+      } catch (sharpErr) {
+        console.warn('⚠️ Normalisation image échouée, utilisation du buffer brut:', sharpErr.message);
+        baseImageBuffer = imageFiles[0].buffer;
+      }
+    }
 
     // Hero
     imagePromises.push(
