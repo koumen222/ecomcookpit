@@ -1128,6 +1128,10 @@ const ProductCard = ({ product, prefix, store, subdomain }) => {
   const [hovered, setHovered] = useState(false);
   const hasDiscount = product.compareAtPrice && product.compareAtPrice > product.price;
   const pct = hasDiscount ? Math.round((1 - product.price / product.compareAtPrice) * 100) : 0;
+  
+  // Check if product is new (created within last 7 days)
+  const isNew = product.createdAt && (Date.now() - new Date(product.createdAt).getTime()) < 7 * 24 * 60 * 60 * 1000;
+  
   const handlePrefetch = () => {
     preloadStoreProductRoute();
     if (subdomain && product?.slug) {
@@ -1135,31 +1139,221 @@ const ProductCard = ({ product, prefix, store, subdomain }) => {
     }
   };
 
+  const cardStyle = {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    overflow: 'hidden',
+    border: '1px solid #F0F0F0',
+    boxShadow: hovered ? '0 20px 60px rgba(0,0,0,0.12)' : '0 2px 12px rgba(0,0,0,0.04)',
+    transform: hovered ? 'translateY(-6px)' : 'none',
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  };
+
+  const imageContainerStyle = {
+    position: 'relative',
+    paddingBottom: '100%',
+    backgroundColor: '#F9FAFB',
+    overflow: 'hidden',
+  };
+
+  const imageStyle = {
+    position: 'absolute',
+    inset: 0,
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    transform: hovered ? 'scale(1.08)' : 'scale(1)',
+    transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+  };
+
+  const overlayStyle = {
+    position: 'absolute',
+    inset: 0,
+    background: 'linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 40%)',
+    opacity: hovered ? 1 : 0,
+    transition: 'opacity 0.3s',
+    pointerEvents: 'none',
+  };
+
+  const quickViewStyle = {
+    position: 'absolute',
+    bottom: hovered ? 16 : -40,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    backgroundColor: '#fff',
+    color: 'var(--s-primary)',
+    padding: '10px 24px',
+    borderRadius: 25,
+    fontSize: 13,
+    fontWeight: 700,
+    fontFamily: 'var(--s-font)',
+    border: 'none',
+    cursor: 'pointer',
+    opacity: hovered ? 1 : 0,
+    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+    whiteSpace: 'nowrap',
+  };
+
   return (
-    <Link to={`${prefix}/product/${product.slug}`} style={{ textDecoration: 'none' }}
-      onMouseEnter={() => { setHovered(true); handlePrefetch(); }} onMouseLeave={() => setHovered(false)} onFocus={handlePrefetch} onTouchStart={handlePrefetch}>
-      <div style={{ backgroundColor: 'var(--s-bg)', overflow: 'hidden', border: '1px solid var(--s-border)', boxShadow: hovered ? '0 12px 36px rgba(0,0,0,0.1)' : '0 1px 4px rgba(0,0,0,0.05)', transform: hovered ? 'translateY(-3px)' : 'none', transition: 'box-shadow 0.25s, transform 0.25s' }}>
-        <div style={{ position: 'relative', paddingBottom: '100%', backgroundColor: '#f4f4f5', overflow: 'hidden' }}>
+    <Link 
+      to={`${prefix}/product/${product.slug}`} 
+      style={{ textDecoration: 'none', display: 'block' }}
+      onMouseEnter={() => { setHovered(true); handlePrefetch(); }} 
+      onMouseLeave={() => setHovered(false)} 
+      onFocus={handlePrefetch} 
+      onTouchStart={handlePrefetch}
+    >
+      <div style={cardStyle}>
+        <div style={imageContainerStyle}>
           {product.image ? (
-            <img src={product.image} alt={product.name} loading="lazy" decoding="async" sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transform: hovered ? 'scale(1.05)' : 'scale(1)', transition: 'transform 0.4s ease' }} />
+            <img 
+              src={product.image} 
+              alt={product.name} 
+              loading="lazy" 
+              decoding="async" 
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw" 
+              style={imageStyle} 
+            />
           ) : (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <ShoppingBag size={40} style={{ color: '#d1d5db' }} />
+              <ShoppingBag size={40} style={{ color: '#D1D5DB' }} />
             </div>
           )}
-          {hasDiscount && <span style={{ position: 'absolute', top: 10, left: 10, backgroundColor: '#EF4444', color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20 }}>-{pct}%</span>}
+          
+          {/* Gradient overlay on hover */}
+          <div style={overlayStyle} />
+          
+          {/* Badges */}
+          <div style={{ position: 'absolute', top: 12, left: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {hasDiscount && (
+              <span style={{ 
+                backgroundColor: '#EF4444', 
+                color: '#fff', 
+                fontSize: 11, 
+                fontWeight: 700, 
+                padding: '4px 10px', 
+                borderRadius: 20,
+                boxShadow: '0 2px 8px rgba(239, 68, 68, 0.3)',
+              }}>
+                -{pct}%
+              </span>
+            )}
+            {isNew && !hasDiscount && (
+              <span style={{ 
+                backgroundColor: 'var(--s-primary)', 
+                color: '#fff', 
+                fontSize: 11, 
+                fontWeight: 700, 
+                padding: '4px 10px', 
+                borderRadius: 20,
+                boxShadow: '0 2px 8px rgba(0, 122, 255, 0.3)',
+              }}>
+                Nouveau
+              </span>
+            )}
+          </div>
+          
+          {/* Stock overlay */}
           {product.stock === 0 && (
-            <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ color: '#fff', fontWeight: 700, fontSize: 13, backgroundColor: 'rgba(0,0,0,0.5)', padding: '4px 12px', borderRadius: 20 }}>Rupture de stock</span>
+            <div style={{ 
+              position: 'absolute', 
+              inset: 0, 
+              backgroundColor: 'rgba(0,0,0,0.4)', 
+              backdropFilter: 'blur(2px)',
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center' 
+            }}>
+              <span style={{ 
+                color: '#fff', 
+                fontWeight: 700, 
+                fontSize: 13, 
+                backgroundColor: 'rgba(0,0,0,0.6)', 
+                padding: '6px 16px', 
+                borderRadius: 25 
+              }}>
+                Rupture de stock
+              </span>
+            </div>
+          )}
+          
+          {/* Quick view button */}
+          {product.stock > 0 && (
+            <div style={quickViewStyle}>
+              Voir le produit
             </div>
           )}
         </div>
-        <div style={{ padding: '14px 16px 18px' }}>
-          {product.category && <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--s-primary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{product.category}</span>}
-          <p style={{ margin: '5px 0 10px', fontWeight: 600, fontSize: 14.5, color: 'var(--s-text)', lineHeight: 1.35, fontFamily: 'var(--s-font)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{product.name}</p>
+        
+        {/* Content */}
+        <div style={{ padding: '16px 18px 20px' }}>
+          {product.category && (
+            <span style={{ 
+              fontSize: 10.5, 
+              fontWeight: 700, 
+              color: 'var(--s-primary)', 
+              textTransform: 'uppercase', 
+              letterSpacing: '0.08em',
+              fontFamily: 'var(--s-font)',
+            }}>
+              {product.category}
+            </span>
+          )}
+          
+          <p style={{ 
+            margin: '6px 0 12px', 
+            fontWeight: 600, 
+            fontSize: 15, 
+            color: 'var(--s-text)', 
+            lineHeight: 1.4, 
+            fontFamily: 'var(--s-font)', 
+            display: '-webkit-box', 
+            WebkitLineClamp: 2, 
+            WebkitBoxOrient: 'vertical', 
+            overflow: 'hidden',
+            minHeight: 42,
+          }}>
+            {product.name}
+          </p>
+          
+          {/* Rating (if available) */}
+          {product.rating && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 10 }}>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Star 
+                  key={i} 
+                  size={12} 
+                  fill={i < Math.floor(product.rating) ? 'var(--s-primary)' : 'none'}
+                  color={i < Math.floor(product.rating) ? 'var(--s-primary)' : '#D1D5DB'}
+                  strokeWidth={2}
+                />
+              ))}
+              <span style={{ fontSize: 11, color: 'var(--s-text2)', marginLeft: 2 }}>
+                ({product.reviewCount || 0})
+              </span>
+            </div>
+          )}
+          
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--s-primary)', fontFamily: 'var(--s-font)' }}>{fmt(product.price, product.currency || store?.currency || 'XAF')}</span>
-            {hasDiscount && <span style={{ fontSize: 12, color: 'var(--s-text2)', textDecoration: 'line-through' }}>{fmt(product.compareAtPrice, product.currency || store?.currency || 'XAF')}</span>}
+            <span style={{ 
+              fontSize: 17, 
+              fontWeight: 800, 
+              color: 'var(--s-primary)', 
+              fontFamily: 'var(--s-font)' 
+            }}>
+              {fmt(product.price, product.currency || store?.currency || 'XAF')}
+            </span>
+            {hasDiscount && (
+              <span style={{ 
+                fontSize: 13, 
+                color: '#9CA3AF', 
+                textDecoration: 'line-through',
+                fontFamily: 'var(--s-font)',
+              }}>
+                {fmt(product.compareAtPrice, product.currency || store?.currency || 'XAF')}
+              </span>
+            )}
           </div>
         </div>
       </div>
