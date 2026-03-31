@@ -94,9 +94,16 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
   if (!GEMINI_API_KEY) throw new Error('Google Gemini API key not configured');
 
   let base64Image;
+  let imageMimeType = 'image/jpeg'; // défaut
   if (Buffer.isBuffer(imageInput)) {
+    // Détecter le vrai format d'après les magic bytes du buffer
+    if (imageInput[0] === 0x89 && imageInput[1] === 0x50) imageMimeType = 'image/png';
+    else if (imageInput[0] === 0x47 && imageInput[1] === 0x49) imageMimeType = 'image/gif';
+    else if (imageInput[0] === 0x52 && imageInput[1] === 0x49) imageMimeType = 'image/webp';
     base64Image = imageInput.toString('base64');
   } else if (typeof imageInput === 'string' && imageInput.startsWith('data:')) {
+    const match = imageInput.match(/^data:(image\/[a-z+]+);base64,/);
+    if (match) imageMimeType = match[1];
     base64Image = imageInput.split(',')[1];
   } else {
     base64Image = imageInput;
@@ -105,13 +112,13 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
   // Gemini 3 Pro Image supporte image-to-image via inlineData
   for (const model of GEMINI_IMAGE_MODELS) {
     try {
-      console.log(`🎨 Image-to-image with ${model}...`);
+      console.log(`🎨 Image-to-image with ${model} (ref: ${imageMimeType}, ${Math.round((base64Image?.length || 0) * 0.75 / 1024)}Ko)...`);
       const response = await axios.post(
         `${GEMINI_BASE_URL}/${model}:generateContent?key=${GEMINI_API_KEY}`,
         {
           contents: [{ parts: [
             { text: prompt.slice(0, 4000) },
-            { inlineData: { mimeType: 'image/jpeg', data: base64Image } }
+            { inlineData: { mimeType: imageMimeType, data: base64Image } }
           ]}],
           generationConfig: { responseModalities: ['IMAGE', 'TEXT'], temperature: 1.0 }
         },
