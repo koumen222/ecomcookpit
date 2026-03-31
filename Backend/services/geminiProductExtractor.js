@@ -76,16 +76,29 @@ IMPORTANT:
       const text = result.response.text();
       console.log('✅ Réponse Gemini reçue, longueur:', text.length);
 
-      // Parse JSON de la réponse
-      let jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        const codeMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
-        if (codeMatch) jsonMatch = [codeMatch[1]];
+      // Parse JSON de la réponse - essayer plusieurs formats
+      let data = null;
+      const candidates = [];
+
+      // Format 1 : bloc ```json ... ``` ou ``` ... ```
+      const codeMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (codeMatch) candidates.push(codeMatch[1]);
+
+      // Format 2 : premier objet JSON brut dans le texte
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) candidates.push(jsonMatch[0]);
+
+      for (const candidate of candidates) {
+        try {
+          data = JSON.parse(candidate);
+          break;
+        } catch (_) { /* essayer le suivant */ }
       }
 
-      if (!jsonMatch) throw new Error('Format de réponse JSON invalide de Gemini');
-
-      const data = JSON.parse(jsonMatch[0]);
+      if (!data) {
+        console.warn('⚠️ Réponse brute Gemini:', text.slice(0, 300));
+        throw new Error('Format de réponse JSON invalide de Gemini');
+      }
 
       if (!data.title || !data.description) {
         throw new Error('Données incomplètes (title ou description manquant)');
@@ -132,10 +145,8 @@ IMPORTANT:
   if (lastError?.message.includes('quota')) {
     throw new Error('Quota API Gemini dépassé - attendez ou utilisez une autre clé');
   }
-  if (lastError?.message.includes('JSON')) {
-    throw new Error('Impossible de parser la réponse de Gemini - format invalide');
-  }
 
+  // Propager le dernier message d'erreur tel quel pour faciliter le débogage
   throw new Error(`Extraction Gemini échouée: ${lastError?.message}`);
 }
 
