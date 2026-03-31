@@ -478,23 +478,115 @@ const HeroContent = ({ cfg, prefix, sectionId = 'hero' }) => {
 };
 
 // ─── BADGES (trust strip) ──────────────────────────────────────────────────────
-const AiBadgesSection = ({ cfg }) => (
-  <section style={{ backgroundColor: '#fff', borderBottom: '1px solid #F3F4F6' }}>
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 24px' }}>
-      <div className="s-badges">
-        {(cfg.items || []).map((badge, i) => (
-          <div key={i} className="s-badge-item" style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '20px 20px' }}>
-            <IconBox icon={badge.icon} size={20} boxSize={46} radius={14} />
-            <div>
-              <p style={{ margin: 0, fontWeight: 700, fontSize: 13.5, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{badge.title}</p>
-              <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--s-text2)', lineHeight: 1.4, fontFamily: 'var(--s-font)' }}>{badge.desc}</p>
-            </div>
+const AiBadgesSection = ({ cfg }) => {
+  const badges = cfg.items || [];
+  
+  return (
+    <section style={{ 
+      backgroundColor: '#fff', 
+      borderTop: '1px solid #F3F4F6',
+      borderBottom: '1px solid #F3F4F6',
+      padding: '32px 0',
+      overflow: 'hidden',
+    }}>
+      <style>
+        {`
+          @keyframes scrollBadges {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+          }
+          
+          .s-badges-container {
+            display: flex;
+            animation: scrollBadges 30s linear infinite;
+            width: fit-content;
+          }
+          
+          .s-badges-container:hover {
+            animation-play-state: paused;
+          }
+          
+          .s-badge-item {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 0 32px;
+            border-right: 1px solid #F0F0F0;
+            transition: transform 0.2s;
+          }
+          
+          .s-badge-item:hover {
+            transform: scale(1.05);
+          }
+          
+          @media (max-width: 768px) {
+            .s-badge-item {
+              padding: 0 24px;
+            }
+          }
+        `}
+      </style>
+      
+      <div style={{ position: 'relative' }}>
+        {/* Gradient fade on edges */}
+        <div style={{ 
+          position: 'absolute', 
+          left: 0, 
+          top: 0, 
+          bottom: 0, 
+          width: 100, 
+          background: 'linear-gradient(to right, #fff, transparent)',
+          zIndex: 1,
+          pointerEvents: 'none',
+        }} />
+        <div style={{ 
+          position: 'absolute', 
+          right: 0, 
+          top: 0, 
+          bottom: 0, 
+          width: 100, 
+          background: 'linear-gradient(to left, #fff, transparent)',
+          zIndex: 1,
+          pointerEvents: 'none',
+        }} />
+        
+        <div style={{ overflow: 'hidden' }}>
+          <div className="s-badges-container">
+            {/* Duplicate badges for infinite scroll effect */}
+            {[...badges, ...badges].map((badge, i) => (
+              <div key={i} className="s-badge-item">
+                <IconBox icon={badge.icon} size={20} boxSize={46} radius={14} />
+                <div>
+                  <p style={{ 
+                    margin: 0, 
+                    fontWeight: 700, 
+                    fontSize: 13.5, 
+                    color: 'var(--s-text)', 
+                    fontFamily: 'var(--s-font)',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {badge.title}
+                  </p>
+                  <p style={{ 
+                    margin: '2px 0 0', 
+                    fontSize: 12, 
+                    color: 'var(--s-text2)', 
+                    lineHeight: 1.4, 
+                    fontFamily: 'var(--s-font)',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {badge.desc}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
 // ─── PRODUCTS (homepage: max 3 + see all) ─────────────────────────────────────
 const AiProductsSection = ({ cfg, products, prefix, store }) => {
