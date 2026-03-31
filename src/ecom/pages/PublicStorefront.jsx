@@ -156,6 +156,129 @@ function IconBox({ icon, emoji, size = 22, bg, boxSize = 52, radius = 16 }) {
   );
 }
 
+// ─── EDITABLE TEXT ───────────────────────────────────────────────────────────
+/**
+ * EditableText - Texte éditable en mode édition
+ * En mode normal: affiche le texte
+ * En mode édition: affiche un input/textarea inline
+ */
+const EditableText = ({ 
+  value, 
+  onChange, 
+  sectionId, 
+  field,
+  as = 'span', 
+  multiline = false,
+  placeholder = 'Cliquez pour éditer...',
+  style = {},
+  className = '',
+}) => {
+  const { isEditMode, updateSection } = useEditMode();
+  const [localValue, setLocalValue] = useState(value);
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Sync local value when prop changes
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  const handleChange = (e) => {
+    const newValue = e.target.value;
+    setLocalValue(newValue);
+    if (onChange) onChange(newValue);
+    if (sectionId && field) {
+      updateSection(sectionId, { [field]: newValue });
+    }
+  };
+
+  const handleBlur = () => {
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e) => {
+    if (!multiline && e.key === 'Enter') {
+      e.preventDefault();
+      setIsEditing(false);
+    }
+    if (e.key === 'Escape') {
+      setLocalValue(value);
+      setIsEditing(false);
+    }
+  };
+
+  // Mode lecture
+  if (!isEditMode) {
+    const Tag = as;
+    return <Tag style={style} className={className}>{value}</Tag>;
+  }
+
+  // Mode édition - afficher input inline
+  const editStyle = {
+    ...style,
+    cursor: 'text',
+    outline: isEditing ? '2px solid var(--s-primary)' : '2px dashed rgba(0, 122, 255, 0.5)',
+    outlineOffset: 4,
+    borderRadius: 4,
+    transition: 'outline-color 0.15s',
+    minWidth: 50,
+  };
+
+  if (isEditing) {
+    const inputStyle = {
+      ...style,
+      background: 'transparent',
+      border: 'none',
+      outline: 'none',
+      width: '100%',
+      resize: multiline ? 'vertical' : 'none',
+      fontFamily: 'inherit',
+    };
+
+    if (multiline) {
+      return (
+        <textarea
+          value={localValue}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          onKeyDown={handleKeyDown}
+          style={{ ...inputStyle, minHeight: 60 }}
+          className={className}
+          autoFocus
+        />
+      );
+    }
+
+    return (
+      <input
+        type="text"
+        value={localValue}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        style={inputStyle}
+        className={className}
+        placeholder={placeholder}
+        autoFocus
+      />
+    );
+  }
+
+  // Mode édition mais pas actif - clickable
+  const Tag = as;
+  return (
+    <Tag 
+      style={editStyle} 
+      className={className}
+      onClick={() => setIsEditing(true)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === 'Enter' && setIsEditing(true)}
+    >
+      {localValue || <span style={{ opacity: 0.5 }}>{placeholder}</span>}
+    </Tag>
+  );
+};
+
 // ─── ANNOUNCEMENT BAR ─────────────────────────────────────────────────────────
 const AnnouncementBar = ({ store }) => {
   const [visible, setVisible] = useState(true);
@@ -280,32 +403,79 @@ const AiHeroSection = ({ cfg, store, prefix, products }) => {
   );
 };
 
-const HeroContent = ({ cfg, prefix }) => (
-  <div style={{ position: 'relative', zIndex: 1 }}>
-    <h1 style={{
-      fontSize: 'clamp(38px, 7vw, 72px)', fontWeight: 900, lineHeight: 1.04,
-      margin: '0 0 22px', letterSpacing: '-0.035em', fontFamily: 'var(--s-font)',
-      color: '#fff', textShadow: '0 2px 24px rgba(0,0,0,0.18)',
-    }}>{cfg.title}</h1>
-    {cfg.subtitle && (
-      <p style={{
-        fontSize: 'clamp(16px, 2.2vw, 20px)', lineHeight: 1.6, margin: '0 0 44px',
-        color: 'rgba(255,255,255,0.88)', fontFamily: 'var(--s-font)', maxWidth: 580, marginLeft: 'auto', marginRight: 'auto',
-      }}>{cfg.subtitle}</p>
-    )}
-    <Link to={`${prefix}/products`}
-      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 44px rgba(0,0,0,0.28)'; }}
-      onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 6px 30px rgba(0,0,0,0.22)'; }}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 10,
-        padding: '17px 40px', borderRadius: 50,
-        backgroundColor: '#fff', color: 'var(--s-primary)',
-        fontWeight: 800, fontSize: 15.5, textDecoration: 'none',
-        letterSpacing: '-0.01em', fontFamily: 'var(--s-font)',
-        boxShadow: '0 6px 30px rgba(0,0,0,0.22)', transition: 'transform 0.15s, box-shadow 0.15s',
-      }}>{cfg.ctaText || 'Découvrir'} <ArrowRight size={18} /></Link>
-  </div>
-);
+const HeroContent = ({ cfg, prefix, sectionId = 'hero' }) => {
+  const { isEditMode, getSectionData } = useEditMode();
+  
+  // Obtenir les données avec les modifications en attente
+  const data = getSectionData(sectionId, cfg);
+  
+  const titleStyle = {
+    fontSize: 'clamp(38px, 7vw, 72px)', fontWeight: 900, lineHeight: 1.04,
+    margin: '0 0 22px', letterSpacing: '-0.035em', fontFamily: 'var(--s-font)',
+    color: '#fff', textShadow: '0 2px 24px rgba(0,0,0,0.18)',
+  };
+  
+  const subtitleStyle = {
+    fontSize: 'clamp(16px, 2.2vw, 20px)', lineHeight: 1.6, margin: '0 0 44px',
+    color: 'rgba(255,255,255,0.88)', fontFamily: 'var(--s-font)', 
+    maxWidth: 580, marginLeft: 'auto', marginRight: 'auto',
+  };
+  
+  const ctaStyle = {
+    display: 'inline-flex', alignItems: 'center', gap: 10,
+    padding: '17px 40px', borderRadius: 50,
+    backgroundColor: '#fff', color: 'var(--s-primary)',
+    fontWeight: 800, fontSize: 15.5, textDecoration: 'none',
+    letterSpacing: '-0.01em', fontFamily: 'var(--s-font)',
+    boxShadow: '0 6px 30px rgba(0,0,0,0.22)', transition: 'transform 0.15s, box-shadow 0.15s',
+  };
+  
+  return (
+    <div style={{ position: 'relative', zIndex: 1 }}>
+      <EditableText
+        value={data.title}
+        sectionId={sectionId}
+        field="title"
+        as="h1"
+        style={titleStyle}
+        placeholder="Titre du hero..."
+      />
+      
+      {(data.subtitle || isEditMode) && (
+        <EditableText
+          value={data.subtitle || ''}
+          sectionId={sectionId}
+          field="subtitle"
+          as="p"
+          style={subtitleStyle}
+          placeholder="Sous-titre (optionnel)..."
+          multiline
+        />
+      )}
+      
+      <Link 
+        to={`${prefix}/products`}
+        onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 44px rgba(0,0,0,0.28)'; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 6px 30px rgba(0,0,0,0.22)'; }}
+        style={ctaStyle}
+      >
+        {isEditMode ? (
+          <EditableText
+            value={data.ctaText || 'Découvrir'}
+            sectionId={sectionId}
+            field="ctaText"
+            as="span"
+            style={{ fontWeight: 800, fontSize: 15.5 }}
+            placeholder="Texte du bouton..."
+          />
+        ) : (
+          data.ctaText || 'Découvrir'
+        )}
+        <ArrowRight size={18} />
+      </Link>
+    </div>
+  );
+};
 
 // ─── BADGES (trust strip) ──────────────────────────────────────────────────────
 const AiBadgesSection = ({ cfg }) => (
