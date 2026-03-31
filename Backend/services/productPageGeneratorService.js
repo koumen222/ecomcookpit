@@ -289,16 +289,25 @@ Avant de générer quoi que ce soit, réponds mentalement à ces questions :
 Cette ZONE CORPORELLE est CRITIQUE — elle détermine ce que montrent TOUTES les images.
 Utilise ces réponses pour personnaliser TOUT le contenu.
 
-⚠️ RÈGLE ABSOLUE POUR TOUTES LES IMAGES :
+⚠️ RÈGLE ABSOLUE POUR TOUTES LES IMAGES — 2 critères à respecter toujours :
+
+━━ CRITÈRE 1 : GENRE DE LA PERSONNE (adapte au produit, ne mets PAS toujours une femme) ━━
+- Produit FEMME (crème féminité, soin intime féminin, rouge à lèvres, soin cheveux femme, minceur ventre femme, lingerie, etc.) → personne africaine FEMME
+- Produit HOMME (gel rasage, soin barbe, parfum homme, déodorant homme, virilité, etc.) → personne africaine HOMME
+- Produit MIXTE / UNISEXE (shampoing neutre, complément alimentaire, sport, tech, nettoyage, etc.) → homme OU femme africain(e) selon le contexte — varie entre les 4 images d'angles
+- Produit ENFANT → enfant africain avec parent si nécessaire
+- Si le produit est un OBJET (appareil, flacon, complément en gélules, etc.) sans usage corporel évident → montrer le PRODUIT LUI-MÊME au premier plan, très grand, net, dominant, avec la personne en arrière-plan ou absente
+
+━━ CRITÈRE 2 : ZONE CORPORELLE (adapte le cadrage à la zone du produit) ━━
 Identifie la zone corporelle exacte de ce produit et montre UNIQUEMENT cette zone dans les images.
-- Produit CHEVEUX (shampoing, huile cheveux, masque capillaire, sérum cheveux, lissant, etc.) → images = cheveux d'une personne africaine, chevelure, application sur les cheveux ou résultat sur les cheveux. JAMAIS le visage à la place.
-- Produit VISAGE / PEAU (crème visage, sérum anti-taches, contour des yeux, etc.) → images = visage, peau du visage, teint.
-- Produit CORPS / PEAU CORPS (lait corps, lotion, beurre de karité, etc.) → images = bras, jambes, épaules, peau du corps. Pas uniquement le visage.
-- Produit MINCEUR / VENTRE (ceinture minceur, thé minceur, programme fitness, etc.) → images = ventre, silhouette, taille.
-- Produit INTIME / DÉODORANT → images = zone concernée ou résultat figuré (fraîcheur, légèreté, confiance).
-- Produit DENTS / BOUCHE → images = sourire, dents, bouche.
-- Produit ÉNERGIE / SUPPLEMENT / MINCEUR INTERNE → images = personne entière dynamique, active, souriante. Pas de focus sur le visage uniquement.
-- Produit TECH / OBJET → images = l'objet utilisé dans son contexte naturel.
+- Produit CHEVEUX (shampoing, huile cheveux, masque capillaire, sérum cheveux, lissant, etc.) → cheveux, chevelure, application sur les cheveux ou résultat. JAMAIS le visage à la place.
+- Produit VISAGE / PEAU VISAGE (crème visage, sérum anti-taches, contour des yeux, etc.) → visage, peau du visage, teint.
+- Produit CORPS / PEAU CORPS (lait corps, lotion, beurre de karité, etc.) → bras, jambes, épaules, peau du corps. Pas uniquement le visage.
+- Produit MINCEUR / VENTRE → ventre, silhouette, taille.
+- Produit INTIME / DÉODORANT → zone concernée ou résultat figuré (fraîcheur, légèreté, confiance).
+- Produit DENTS / BOUCHE → sourire, dents, bouche.
+- Produit ÉNERGIE / SUPPLEMENT / MINCEUR INTERNE → personne entière dynamique, active, souriante. Pas de focus visage uniquement.
+- Produit TECH / OBJET → l'objet très grand et net au premier plan, utilisé dans son contexte naturel.
 
 ═══ RÈGLES FONDAMENTALES ═══
 1. 🇫🇷 100% ${language.toUpperCase()} SIMPLE ET NATUREL (comme une vendeuse WhatsApp) — sauf prompt_image en anglais
@@ -403,18 +412,20 @@ Les 4 images d'angles sont des visuels marketing illustratifs avec des personnes
 ☝️ Les deux prompts doivent être entièrement basés sur CE produit spécifique — jamais générique, jamais copié des exemples.
 
 Le HERO doit être :
-✅ Le produit réel visible au premier plan (EXACT, jamais recréé), grand, net, dominant
-✅ RÈGLE CRITIQUE DE ZONE : adapte ce que montre la personne africaine à la zone exacte du produit :
-   - Produit CHEVEUX → personne africaine appliquant le produit sur SES CHEVEUX ou montrant ses cheveux soignés/brillants/lissés. Cadre sur les cheveux, pas sur le visage.
-   - Produit VISAGE → personne africaine appliquant sur le visage, peau du visage, teint unifié.
-   - Produit CORPS → personne africaine appliquant sur bras/jambes/corps, pas un close-up visage.
-   - Produit MINCEUR → silhouette africaine, ventre ou taille visible.
-   - Produit DENTS → sourire africain éclatant, gros plan sur les dents.
-   - Produit TECH/OBJET → produit en contexte d'utilisation naturel avec fond africain.
+✅ Le produit réel visible au premier plan (EXACT, jamais recréé), grand, net, dominant — le produit doit occuper minimum 50% du cadre
+✅ RÈGLE GENRE : adapte le genre de la personne africaine au produit : produit femme → femme africaine ; produit homme → homme africain ; produit mixte → au choix selon ce qui est le plus naturel ; produit objet/tech → produit seul au premier plan sans obligation de personne
+✅ RÈGLE CRITIQUE DE ZONE : adapte le cadrage à la zone exacte du produit :
+   - Produit CHEVEUX → chevelure soignée/brillante ou application sur les cheveux. Cadre sur les cheveux, pas sur le visage.
+   - Produit VISAGE → application sur le visage, peau du visage, teint unifié.
+   - Produit CORPS → application sur bras/jambes/corps, pas un close-up visage.
+   - Produit MINCEUR → silhouette, ventre ou taille visible.
+   - Produit DENTS → sourire éclatant, gros plan sur les dents.
+   - Produit TECH/OBJET → produit SEUL, très grand, net, dominant, fond africain ou fond épuré.
 ✅ Cadrage carré 1:1 tight crop, ZÉRO espace vide, lumière propre
 ✅ Au maximum un badge TRÈS court (3 mots max) OU absent
 
-❌ PAS de template beauté imposé pour un produit tech
+❌ PAS de template beauté imposé pour un produit tech ou homme
+❌ PAS de femme systématique si le produit est pour homme ou mixte
 ❌ PAS de visage/personne non africain si des humains sont montrés
 ❌ PAS de cadrage trop large avec marges vides
 
@@ -425,6 +436,8 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
 ✅ Split-screen : côté gauche = AVANT (le problème concret que CE produit résout, personne africaine)
 ✅ Côté droit = APRÈS (le résultat réel et crédible après utilisation, même personne africaine)
 ✅ Personne africaine OBLIGATOIRE : peau noire/marron, traits africains authentiques
+✅ RÈGLE GENRE : FEMME africaine si produit féminin ; HOMME africain si produit masculin ; adapte si mixte
+✅ Le PRODUIT LUI-MÊME doit être clairement visible sur le côté APRÈS (flacon, boîte, packaging exact)
 ✅ Cadrage carré 1:1, serré, transformation réaliste (pas exagérée)
 ✅ Petit label "Avant" / "Après" accepté si utile à la lecture
 
@@ -452,16 +465,16 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     "⏱️ Bénéfice concret 6 avec emoji pertinent",
     "✅ Bénéfice concret 7 avec emoji pertinent"
   ],
-  "prompt_affiche_hero": "[Generate in English: HIGH-IMPACT ecommerce hero image for THIS SPECIFIC product (describe its exact name, type, color, packaging). Ultra realistic, 4K, advertising photography. The product is the STAR — show it LARGE, sharp, dominant in the frame (minimum 60% of the frame). Include authentic Black African model (dark brown skin, natural African hair, African features) — CRITICAL ZONE RULE: show the person using/applying the product on THE CORRECT BODY ZONE for this specific product: HAIR product (shampoo, hair oil, mask, serum, relaxer) → Black African woman/man with natural African hair, frame on hair and scalp being treated or showing great healthy hair result — NEVER a face-focused skincare scene; FACE product → face application, glowing skin; BODY LOTION → arms/legs/body; SLIMMING → waist/silhouette; TEETH → bright smile. Always match the body zone to the actual product purpose. Clean premium background (pure white or soft beige). Professional softbox lighting, crisp shadows, depth of field. Optional short French benefit badge (3 words max, bold font) — CRITICAL: any French text MUST have PERFECT spelling and accents (é, è, ê, à, ç, ù). No paragraphs, no CTA, no price. Premium catalog quality, scroll-stopping.]",
+  "prompt_affiche_hero": "[Generate in English: HIGH-IMPACT ecommerce hero image for THIS SPECIFIC product (describe its exact name, type, color, packaging). Ultra realistic, 4K, advertising photography. The product is the STAR — show it LARGE, sharp, dominant in the frame (minimum 60% of the frame). GENDER RULE: if this is a women's product → authentic Black AFRICAN WOMAN; if men's product → authentic Black AFRICAN MAN; if unisex → choose the most natural fit; if it's an object/tech → product alone as hero, no person required. ZONE RULE: HAIR product → frame on hair/scalp being treated or showing great results — NEVER face-focused; FACE product → face/skin close-up; BODY LOTION → arms/legs/body; SLIMMING → waist/silhouette; TEETH → bright smile. The product packaging MUST be clearly visible and recognizable. Clean premium background (pure white or soft beige). Professional softbox lighting, depth of field. Optional short French benefit badge (3 words max) — CRITICAL: PERFECT French spelling with all accents. No CTA, no price. Scroll-stopping catalog quality.]",
   "prompt_hero_poster": "[Generate in English: BOLD ADVERTISING POSTER for THIS SPECIFIC product (describe its exact name, type, color, packaging). Square 1:1 graphic-design meets product photography. The product shown LARGE, dominant, perfectly sharp (min 50% of frame), exact same packaging/color/shape. Premium dark gradient background (deep midnight blue to black, OR deep forest green to charcoal, or deep burgundy — choose what contrasts best with product colors). Dramatic cinematic lighting with product glow. MANDATORY: 1 bold French headline in large modern sans-serif font at top or bottom — CRITICAL: French text MUST be 100% perfectly spelled with all accents. Optional thin accent line or minimal graphic element. NO price, NO phone, NO fake button, NO URL. Mood: aspirational, premium brand launch poster, scroll-stopping. Think Apple product launch. Adapted for African market.]",
-  "prompt_avant_apres": "[Generate in English: Square 1:1 split-screen before/after transformation for THIS SPECIFIC product (name it, describe what it does). MANDATORY: authentic Black African person (dark brown skin, natural African hair, African features, realistic skin). CRITICAL ZONE RULE — the before/after MUST focus on the CORRECT body zone: HAIR product → LEFT = dry/damaged/dull African hair (close-up on hair/scalp), RIGHT = same African hair healthy, shiny, moisturized, well-styled — frame on hair, NOT a face skincare concept; FACE/SKIN product → LEFT = dull skin/dark spots/acne (close-up face), RIGHT = clear glowing skin; BODY LOTION → LEFT = dry skin on arms or legs, RIGHT = smooth glowing skin on same area; SLIMMING → LEFT = rounded belly silhouette, RIGHT = toned waist; ENERGY/SUPPLEMENT → LEFT = tired sluggish African person, RIGHT = same person energetic, smiling tall. Always identify the product's body zone and use it for both sides. LEFT = BEFORE: showing the EXACT problem/frustration. RIGHT = AFTER: the visible result. PRODUCT clearly visible on the RIGHT side. Professional lighting, clean premium aesthetic, 4K quality. Small bold 'Avant'/'Après' label if helpful — CRITICAL: spell 'Après' CORRECTLY with accent grave, NEVER 'Apres'. Perfect French spelling MANDATORY. No arrows, no heavy overlays. Convincing, high-conversion, scroll-stopping.]",
+  "prompt_avant_apres": "[Generate in English: Square 1:1 split-screen before/after transformation for THIS SPECIFIC product (name it exactly, describe what it does). GENDER RULE: use an African WOMAN for women's products, an African MAN for men's products, or the most fitting gender for unisex. MANDATORY: authentic Black African person (dark brown skin, natural African hair, African features, realistic skin). ZONE RULE — focus on the CORRECT body zone: HAIR product → LEFT = dry/damaged/dull African hair (close-up on hair), RIGHT = same African hair healthy, shiny, well-styled — NEVER a face skincare concept; FACE/SKIN product → close-up face before/after; BODY LOTION → arms or legs before/after; SLIMMING → belly/waist silhouette before/after; ENERGY → full body tired vs energetic. The PRODUCT (exact packaging, bottle, box) MUST be clearly visible on the RIGHT side (AFTER). Professional lighting, 4K quality. Small bold 'Avant'/'Après' labels if helpful — CRITICAL: 'Après' with accent always. No arrows, no heavy overlays. High-conversion, scroll-stopping.]",
   "angles": [
     {
       "titre_angle": "Phrase complète de 10-15 mots expliquant concrètement le bénéfice (PAS de titre court, PAS de slogan de 2-3 mots)",
       "explication": "3-4 phrases concrètes et persuasives. Décris comment ce bénéfice spécifique se manifeste dans la vie réelle. Reste crédible et factuel, sans exagération.",
       "message_principal": "1 phrase d'accroche mémorable spécifique à ce bénéfice",
       "promesse": "La transformation concrète que l'utilisateur va vivre",
-      "prompt_affiche": "Scroll-stopping ecommerce ad image, square 1:1, ultra realistic, 4K, advertising photography: [Describe in English: authentic Black African model (dark brown skin, natural hair, African features, realistic skin, confident/satisfied expression) ACTIVELY using or directly benefiting from THIS specific product — the product MUST be clearly visible, large and sharp in the frame (at least 40% of the image). CRITICAL BODY ZONE RULE: if it's a HAIR product (shampoo, hair oil, hair mask, hair serum, relaxer, etc.) → show the person's HAIR being treated or styled, frame on the hair/scalp — NEVER show a face-centric skincare scene for a hair product. If it's a FACE/SKIN product → show the face. If it's a BODY LOTION → show arms/legs/body. If it's a SLIMMING product → show waist/silhouette. If it's a TEETH product → show smile/teeth. Always match the body zone to the actual product use. Real-life or studio scene with contextual African setting. Product dominates alongside the person. Clean premium background, professional lighting, soft shadows, depth of field. Visual storytelling: specific problem this product solves → product clearly shown → result on the person. Bold French headline (4-5 words max, modern font) at top or bottom — CRITICAL: French text MUST have PERFECT spelling with all accents (é, è, ê, à, ç, ù). ZERO spelling errors allowed. Optional supporting line (8 words max). No price, no phone, no CTA, no URL. Trustworthy, premium, high-conversion mood.]"
+      "prompt_affiche": "Scroll-stopping ecommerce ad image, square 1:1, ultra realistic, 4K: [Describe in English: GENDER RULE — authentic Black African WOMAN if women's product, authentic Black African MAN if men's product, or most natural fit if unisex; if object/tech product show the product alone without person. The person (if present) ACTIVELY using or directly benefiting from THIS specific product. ZONE RULE: HAIR product → frame on hair/scalp — NEVER face scene; FACE/SKIN → close-up face; BODY LOTION → arms/legs/body; SLIMMING → waist/silhouette; TEETH → smile. THE PRODUCT itself (exact packaging/bottle/box) MUST be clearly visible and large in the frame (at least 40% of the image). Clean premium African studio setting, professional lighting, soft shadows, depth of field. Bold French headline (4-5 words max) at top or bottom — CRITICAL: PERFECT French spelling with all accents. ZERO spelling errors. No price, no phone, no CTA, no URL. Premium, high-conversion mood.]"
     }
   ],
   "raisons_acheter": [
@@ -566,7 +579,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   const messages = [
     {
       role: "system",
-      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit complète et optimisée pour la conversion avec des visuels représentant des personnes africaines authentiques. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS PARFAIT (sauf prompts images en anglais) — zéro faute d'orthographe, zéro faute de grammaire, zéro faute de conjugaison. 3) ZÉRO généricité — tout doit être spécifique à CE produit et à sa niche. 4) ZÉRO exagération — bénéfices réels et crédibles. 5) CRITIQUE problem_section : 3 vraies douleurs SPÉCIFIQUES à ce produit, pas génériques. 6) CRITIQUE solution_section : paragraphe persuasif reliant chaque douleur au produit. 7) CRITIQUE hero_cta : bouton d'achat percutant 3-5 mots. 8) CRITIQUE stats_bar : 3 stats crédibles adaptées au produit. 9) CRITIQUE seo : meta_title max 60 chars, meta_description max 155 chars, slug kebab-case sans accents. 10) RÈGLE CRITIQUE ZONE CORPORELLE : avant de générer tout prompt image, identifie la zone exacte du produit (cheveux, visage, corps, ventre, dents, etc.) et tous les prompts images doivent IMPÉRATIVEMENT montrer cette zone — jamais le visage par défaut si le produit est pour les cheveux ou le corps. 11) CRITIQUE hero (2 prompts) : a) prompt_affiche_hero = photo lifestyle premium, produit dominant (60%+ du cadre) + personne africaine montrant la BONNE ZONE DU PRODUIT (cheveux si produit cheveux, visage si produit visage, etc.), fond épuré. b) prompt_hero_poster = affiche graphique publicitaire, produit grand et net sur fond sombre dramatique, titre français gras, style lancement de marque premium. 12) CRITIQUE avant/après : split-screen carré, personne africaine obligatoire, transformation réaliste ciblée sur la BONNE ZONE DU PRODUIT, produit visible. 13) CRITIQUE angles : 4 visuels, produit VISIBLE et GRAND (40%+ du cadre) + texte overlay français + cadrage sur la zone exacte du produit. 14) Témoignages : prénoms, villes et contexte adaptés au pays de la boutique. 15) description_optimisee = chaîne vide toujours. 16) JSON uniquement."
+      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit complète et optimisée pour la conversion avec des visuels représentant des personnes africaines authentiques. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS PARFAIT (sauf prompts images en anglais) — zéro faute d'orthographe, zéro faute de grammaire. 3) ZÉRO généricité. 4) ZÉRO exagération. 5) CRITIQUE problem_section : 3 vraies douleurs SPÉCIFIQUES. 6) CRITIQUE solution_section : paragraphe persuasif reliant chaque douleur au produit. 7) CRITIQUE hero_cta : bouton d'achat percutant 3-5 mots. 8) CRITIQUE stats_bar : 3 stats crédibles. 9) CRITIQUE seo : meta_title max 60 chars, meta_description max 155 chars, slug kebab-case. 10) RÈGLE GENRE OBLIGATOIRE pour toutes les images : produit FEMME → femme africaine ; produit HOMME → homme africain ; produit MIXTE → genre le plus naturel selon contexte — JAMAIS de femme par défaut pour un produit masculin ou neutre. 11) RÈGLE ZONE CORPORELLE pour toutes les images : identifier la zone exacte (cheveux, visage, corps, ventre, dents, etc.) et cadrer sur cette zone — JAMAIS le visage par défaut si le produit est pour les cheveux ou le corps. 12) LE PRODUIT LUI-MÊME (packaging, flacon, boîte) doit être visible et grand dans chaque image. 13) prompt_hero_poster = affiche graphique, produit grand sur fond sombre dramatique, titre français gras. 14) avant/après : zone correcte + genre correct + produit visible côté APRÈS. 15) angles : 4 visuels, produit visible (40%+) + texte overlay français + zone et genre corrects. 16) Témoignages : noms et villes adaptés au pays. 17) description_optimisee = chaîne vide. 18) JSON uniquement."
     },
     {
       role: "user",
@@ -597,7 +610,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     const response = await groq.chat.completions.create({
       model: imageBuffers.length > 0 ? 'meta-llama/llama-4-scout-17b-16e-instruct' : 'llama-3.3-70b-versatile',
       messages,
-      max_tokens: 4000,
+      max_tokens: 6000,
       temperature: 0.7,
       response_format: { type: "json_object" }
     });
