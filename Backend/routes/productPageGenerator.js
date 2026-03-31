@@ -301,21 +301,30 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       }
     }
 
-    // Exécuter toutes les générations en parallèle
-    const imageResults = await Promise.all(imagePromises);
+    // Exécuter toutes les générations en parallèle avec timeout global de 90s
+    const IMAGE_TIMEOUT_MS = 90000;
+    const withTimeout = (promise, fallback) =>
+      Promise.race([
+        promise,
+        new Promise(resolve => setTimeout(() => resolve(fallback), IMAGE_TIMEOUT_MS))
+      ]);
 
-    // Extraire les résultats
-    let heroImageUrl = imageResults.find(r => r.type === 'hero')?.url || realPhotos[0] || null;
-    let heroPosterImageUrl = imageResults.find(r => r.type === 'heroPoster')?.url || null;
-    let beforeAfterImageUrl = imageResults.find(r => r.type === 'beforeAfter')?.url || null;
+    const imageResults = await Promise.allSettled(
+      imagePromises.map(p => withTimeout(p, null))
+    ).then(results => results.map(r => (r.status === 'fulfilled' ? r.value : null)));
+
+    // Extraire les résultats (nulls possibles si timeout)
+    let heroImageUrl = imageResults.find(r => r?.type === 'hero')?.url || realPhotos[0] || null;
+    let heroPosterImageUrl = imageResults.find(r => r?.type === 'heroPoster')?.url || null;
+    let beforeAfterImageUrl = imageResults.find(r => r?.type === 'beforeAfter')?.url || null;
 
     const posterImages = imageResults
-      .filter(r => r.type === 'poster')
-      .sort((a, b) => a.index - b.index)
+      .filter(r => r?.type === 'poster')
+      .sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0))
       .map(r => ({
-        ...r.angle,
-        poster_url: r.url || realPhotos[r.index] || realPhotos[0] || null,
-        index: r.index + 1
+        ...r?.angle,
+        poster_url: r?.url || realPhotos[r?.index] || realPhotos[0] || null,
+        index: (r?.index ?? 0) + 1
       }));
 
     console.log('✅ Images générées:', {

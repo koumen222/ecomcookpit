@@ -38,7 +38,7 @@ export async function generateNanoBananaImage(prompt, aspectRatio = '1:1', numIm
       },
       {
         headers: { 'Content-Type': 'application/json' },
-        timeout: 60000
+        timeout: 30000
       }
     );
 
@@ -102,7 +102,7 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
       },
       {
         headers: { 'Content-Type': 'application/json' },
-        timeout: 60000
+        timeout: 30000
       }
     );
 
