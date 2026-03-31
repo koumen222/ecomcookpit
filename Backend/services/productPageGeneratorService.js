@@ -134,7 +134,7 @@ function buildDefaultTestimonials(productName, country = '', city = '') {
 
 // ─── Étape 2 : Groq → JSON structuré ultra fiable ──────────────────
 
-export async function analyzeWithVision(scrapedData, imageBuffers = [], marketingApproach = 'AIDA', storeContext = {}) {
+export async function analyzeWithVision(scrapedData, imageBuffers = [], marketingApproach = 'AIDA', storeContext = {}, copywritingContext = {}) {
   const groq = getGroq();
   if (!groq) throw new Error('Clé Groq API non configurée.');
 
@@ -147,6 +147,19 @@ export async function analyzeWithVision(scrapedData, imageBuffers = [], marketin
   const testimonialLocationTemplate = storeCountry
     ? `${storeCity ? `${storeCity}, ` : 'Ville crédible, '}${storeCountry}`
     : 'Ville, Pays africain';
+  
+  // Extraction du contexte copywriting avancé
+  const {
+    angle = 'PROBLEME_SOLUTION',
+    audience = '',
+    reviews = '',
+    socialProof = '',
+    offer = '',
+    objections = '',
+    benefits = '',
+    tone = 'urgence',
+    language = 'français'
+  } = copywritingContext;
 
   // Marketing approach definitions
   const approachGuides = {
@@ -176,20 +189,93 @@ export async function analyzeWithVision(scrapedData, imageBuffers = [], marketin
   };
 
   const approachGuide = approachGuides[marketingApproach] || approachGuides.AIDA;
+  
+  // Définition des angles copywriting avancés
+  const copywritingAngles = {
+    PROBLEME_SOLUTION: {
+      nom: 'PROBLÈME → SOLUTION',
+      description: 'Empathie avec la douleur du client, puis présentation du produit comme LA solution évidente',
+      structure: 'Identifier le problème → Aggraver la douleur → Présenter la solution → Preuves et garanties'
+    },
+    PREUVE_SOCIALE: {
+      nom: 'PREUVE SOCIALE',
+      description: 'Mise en avant des résultats, avis clients, mentions virales pour créer la confiance FOMO',
+      structure: 'Résultats clients → Témoignages détaillés → Stats impressionnantes → Rejoindre la communauté'
+    },
+    URGENCE: {
+      nom: 'URGENCE / RARETÉ',
+      description: 'Stock limité, offre temporaire, effet de rareté pour déclencher l\'achat immédiat',
+      structure: 'Offre limitée → Compteur urgence → Bénéfices clés → Appel à l\'action immédiat'
+    },
+    TRANSFORMATION: {
+      nom: 'TRANSFORMATION',
+      description: 'Avant/après émotionnel et visuel, projection dans un nouveau style de vie',
+      structure: 'Vie avant (frustration) → Découverte produit → Résultats obtenus → Nouvelle vie transformée'
+    },
+    AUTORITE: {
+      nom: 'AUTORITÉ',
+      description: 'Expertise, certifications, études, recommandations d\'experts pour établir la crédibilité',
+      structure: 'Expertise prouvée → Certifications/études → Recommandations pros → Pourquoi nous faire confiance'
+    }
+  };
+  
+  const selectedAngle = copywritingAngles[angle] || copywritingAngles.PROBLEME_SOLUTION;
+  
+  // Construction des sections d\'informations supplémentaires
+  let additionalInfo = '';
+  
+  if (audience) {
+    additionalInfo += `\n\n🎯 CIBLE CLIENT PRIORITAIRE :\n${audience}\n`;
+  }
+  
+  if (reviews) {
+    additionalInfo += `\n\n⭐ AVIS CLIENTS À INTÉGRER :\n${reviews}\nFormate et optimise ces avis pour les rendre encore plus persuasifs.\n`;
+  }
+  
+  if (socialProof) {
+    additionalInfo += `\n\n🔗 PREUVES SOCIALES / LIENS DE RÉASSURANCE :\n${socialProof}\nUtilise ces éléments pour renforcer la crédibilité.\n`;
+  }
+  
+  if (offer) {
+    additionalInfo += `\n\n🎁 OFFRE PRINCIPALE :\n${offer}\nMets en avant cette offre de manière stratégique dans toute la page.\n`;
+  }
+  
+  if (objections) {
+    additionalInfo += `\n\n🚫 OBJECTIONS À LEVER :\n${objections}\nChaque objection doit être adressée dans la FAQ ou dans les sections de réassurance.\n`;
+  }
+  
+  if (benefits) {
+    additionalInfo += `\n\n✨ POINTS FORTS À METTRE EN AVANT :\n${benefits}\nIntègre ces bénéfices de manière naturelle dans les angles et sections.\n`;
+  }
 
   const userPrompt = `Tu es expert e-commerce et copywriting SPÉCIALISTE du marché africain francophone (Cameroun, Côte d'Ivoire, Sénégal, etc.). Tu dois générer une page produit ULTRA PERSUASIVE, optimisée mobile-first, qui capte l'attention en moins de 3 secondes et pousse à l'achat sans friction.
 
-CONTEXTE BOUTIQUE :
+═══════════════════════════════════════════════
+DONNÉES DE LA BOUTIQUE
+═══════════════════════════════════════════════
 ${shopName ? `- Nom de la boutique : ${shopName}` : ''}
 ${storeCountry ? `- Pays / Marché cible : ${storeCountry}` : ''}
 ${storeCity ? `- Ville principale : ${storeCity}` : ''}
-- Approche copywriting : ${marketingApproach}
+- Langue : ${language}
+- Ton de communication : ${tone} (urgent, fun, premium, sérieux)
+- Approche marketing : ${marketingApproach}
+- Angle copywriting choisi : ${selectedAngle.nom}
 
-PRODUIT À ANALYSER :
+═══════════════════════════════════════════════
+SOURCE DE CONTENU DU PRODUIT
+═══════════════════════════════════════════════
 TITRE : ${title || 'Non disponible'}
 DESCRIPTION : ${description || 'Non disponible'}
+${additionalInfo}
 
-🎯 OBJECTIF : Créer une page qui capte l'attention immédiatement, donne confiance, et pousse à l'achat sans friction.
+═══════════════════════════════════════════════
+ANGLE COPYWRITING PRINCIPAL
+═══════════════════════════════════════════════
+🎯 ${selectedAngle.nom}
+📖 ${selectedAngle.description}
+📋 Structure à suivre : ${selectedAngle.structure}
+
+🎯 OBJECTIF : Créer une page qui capte l'attention immédiatement, donne confiance, et pousse à l'achat sans friction en suivant l'angle copywriting "${selectedAngle.nom}".
 
 ═══ ÉTAPE 1 : ANALYSE INTELLIGENTE DU PRODUIT ═══
 Avant de générer quoi que ce soit, réponds mentalement à ces questions :
@@ -202,14 +288,14 @@ Avant de générer quoi que ce soit, réponds mentalement à ces questions :
 Utilise ces réponses pour personnaliser TOUT le contenu.
 
 ═══ RÈGLES FONDAMENTALES ═══
-1. 🇫🇷 100% FRANÇAIS SIMPLE ET NATUREL (comme une vendeuse WhatsApp) — sauf prompt_image en anglais
+1. 🇫🇷 100% ${language.toUpperCase()} SIMPLE ET NATUREL (comme une vendeuse WhatsApp) — sauf prompt_image en anglais
 2. 🚫 PAS de ton médical ou compliqué — langage simple, direct, compréhensible localement
 3. 🚫 PAS de promesses irréalistes — seulement des bénéfices concrets et crédibles
 4. 🚫 PAS de généricité — chaque mot doit être spécifique à CE produit
 5. ✅ Focus sur RÉSULTATS CONCRETS et TRANSFORMATION visible
 6. ✅ Adaptation au marché africain : contexte local, peaux noires, climat, culture
 7. ✅ Témoignages localisés avec noms africains et villes du pays cible
-8. ✅ Urgence psychologique : stock limité, preuve sociale, résultats rapides
+8. ✅ ${tone === 'urgence' ? 'Urgence psychologique : stock limité, preuve sociale, résultats rapides' : tone === 'premium' ? 'Ton premium et exclusif : qualité exceptionnelle, attention aux détails' : tone === 'fun' ? 'Ton enjoué et dynamique : énergie positive, émojis, phrases courtes' : 'Ton sérieux et professionnel : crédibilité, faits, confiance'}
 
 ${storeLocaleInstruction}
 

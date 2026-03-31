@@ -150,6 +150,7 @@ function TypingText({ text }) {
 
 const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const [phase, setPhase] = useState('input');
+  const [step, setStep] = useState(1); // 1: Base info, 2: Copywriting, 3: Advanced (optional)
   const [inputMode, setInputMode] = useState('url'); // 'url' ou 'description'
   const [url, setUrl] = useState('');
   const [description, setDescription] = useState('');
@@ -168,6 +169,17 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const [paymentName, setPaymentName] = useState('');
   const [paymentLoading, setPaymentLoading] = useState(false);
   
+  // Nouveaux états copywriting avancés
+  const [copywritingAngle, setCopywritingAngle] = useState('PROBLEME_SOLUTION');
+  const [tone, setTone] = useState('urgence');
+  const [targetAudience, setTargetAudience] = useState('');
+  const [customerReviews, setCustomerReviews] = useState('');
+  const [socialProofLinks, setSocialProofLinks] = useState('');
+  const [mainOffer, setMainOffer] = useState('');
+  const [objections, setObjections] = useState('');
+  const [keyBenefits, setKeyBenefits] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  
   // AI Store Builder states
   const [buildStep, setBuildStep] = useState(0); // 0-4
   const [buildProgress, setBuildProgress] = useState(0); // 0-100
@@ -178,8 +190,54 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const readerRef = useRef(null);
   const isGeneratingRef = useRef(false);
 
-  const isValidUrl = url.trim().length > 10 && (url.includes('alibaba.com') || url.includes('aliexpress.com'));
+  const isValidUrl = url.trim().length > 10 && (url.startsWith('http://') || url.startsWith('https://'));
   const isValidDescription = description.trim().length > 20 && photos.length > 0;
+
+  // Bloquer le scroll du body quand le modal est ouvert
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
+
+  // Validation des étapes
+  const isStep1Valid = () => {
+    if (inputMode === 'url') {
+      return isValidUrl && photos.length > 0;
+    } else {
+      return isValidDescription;
+    }
+  };
+
+  const isStep2Valid = () => {
+    return true; // Copywriting angle et tone ont des valeurs par défaut
+  };
+
+  const isStep3Valid = () => {
+    return true; // Étape 3 est optionnelle
+  };
+
+  const canGenerate = () => {
+    return isStep1Valid() && isStep2Valid();
+  };
+
+  const handleNextStep = () => {
+    if (step === 1 && isStep1Valid()) {
+      setStep(2);
+    } else if (step === 2 && isStep2Valid()) {
+      setStep(3);
+    } else if (step === 3) {
+      handleGenerate();
+    }
+  };
+
+  const handlePrevStep = () => {
+    if (step > 1) {
+      setStep(step - 1);
+    }
+  };
 
   const addPhotos = useCallback(async (files) => {
     const imgs = Array.from(files).filter(f => f.type.startsWith('image/')).slice(0, 8);
@@ -310,7 +368,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
 
     const formData = new FormData();
     
-    // Mode URL Alibaba
+    // Mode URL Produit (Amazon, Alibaba, AliExpress, etc.)
     if (inputMode === 'url') {
       formData.append('url', url.trim());
     }
@@ -322,6 +380,19 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     
     formData.append('withImages', 'true');
     formData.append('marketingApproach', marketingApproach);
+    
+    // Nouveaux paramètres copywriting avancés
+    formData.append('copywritingAngle', copywritingAngle);
+    formData.append('tone', tone);
+    formData.append('language', 'français');
+    
+    if (targetAudience.trim()) formData.append('targetAudience', targetAudience.trim());
+    if (customerReviews.trim()) formData.append('customerReviews', customerReviews.trim());
+    if (socialProofLinks.trim()) formData.append('socialProofLinks', socialProofLinks.trim());
+    if (mainOffer.trim()) formData.append('mainOffer', mainOffer.trim());
+    if (objections.trim()) formData.append('objections', objections.trim());
+    if (keyBenefits.trim()) formData.append('keyBenefits', keyBenefits.trim());
+    
     photos.forEach(f => formData.append('images', f));
     
     const controller = new AbortController();
@@ -635,21 +706,61 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm">
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shrink-0">
-              <Sparkles className="w-5 h-5 text-white" />
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 shrink-0">
+          <div className="flex-1">
+            <div className="flex items-center gap-4 mb-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg">
+                <Sparkles className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-2xl font-black text-gray-900 leading-tight">Générateur de Page Produit IA</h2>
+                <p className="text-sm text-gray-600 mt-0.5">Page produit + Copywriting + SEO en 60 secondes</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-base font-bold text-gray-900">Générateur de Page Produit IA</h2>
-              <p className="text-xs text-gray-500">Photos réelles + Alibaba → Page complète en 60s</p>
-            </div>
+            
+            {/* Stepper Progress */}
+            {phase === 'input' && (
+              <div className="flex items-center gap-2">
+                {[
+                  { num: 1, label: 'Produit' },
+                  { num: 2, label: 'Copywriting' }
+                ].map((s, idx) => (
+                  <React.Fragment key={s.num}>
+                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition ${
+                      step === s.num 
+                        ? 'bg-violet-100 text-violet-700' 
+                        : step > s.num 
+                        ? 'bg-emerald-100 text-emerald-700' 
+                        : 'bg-gray-100 text-gray-400'
+                    }`}>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                        step === s.num 
+                          ? 'bg-violet-600 text-white' 
+                          : step > s.num 
+                          ? 'bg-emerald-600 text-white' 
+                          : 'bg-gray-300 text-gray-500'
+                      }`}>
+                        {step > s.num ? '✓' : s.num}
+                      </div>
+                      <span className="text-sm font-semibold">{s.label}</span>
+                    </div>
+                    {idx < 1 && (
+                      <div className={`flex-1 h-1 rounded-full max-w-[40px] ${
+                        step > s.num ? 'bg-emerald-400' : 'bg-gray-200'
+                      }`} />
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-3">
+          
+          <div className="flex items-center gap-3 ml-4">
             {/* Compteur de générations - Affichage détaillé */}
             {generationsInfo && (
               <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 shadow-sm">
@@ -679,189 +790,426 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
           {phase === 'input' && (
             <div className="p-6 space-y-5">
 
-              {/* Mode Selection Tabs */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  📝 Mode de génération
-                </label>
-                <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => setInputMode('url')}
-                    className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition ${
-                      inputMode === 'url'
-                        ? 'bg-white text-violet-700 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    🔗 URL Alibaba
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setInputMode('description')}
-                    className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition ${
-                      inputMode === 'description'
-                        ? 'bg-white text-violet-700 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    ✍️ Description directe
-                  </button>
-                </div>
-              </div>
-
-              {/* URL Input (mode URL) */}
-              {inputMode === 'url' && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    🔗 Lien Alibaba ou AliExpress
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="url"
-                      value={url}
-                      onChange={e => setUrl(e.target.value)}
-                      placeholder="https://www.alibaba.com/product-detail/..."
-                      className="w-full px-4 py-3 pr-10 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                    />
-                    {url && (
-                      <a href={url} target="_blank" rel="noopener noreferrer" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-violet-600">
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Description Input (mode description) */}
-              {inputMode === 'description' && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    ✍️ Description du produit
-                  </label>
-                  <textarea
-                    value={description}
-                    onChange={e => setDescription(e.target.value)}
-                    placeholder="Décris ton produit ici... (ex: Gélules de Graviola bio, 60 capsules de 600mg, extrait naturel de feuilles de corossol, riche en antioxydants, aide à renforcer le système immunitaire...)"
-                    rows={5}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Minimum 20 caractères • Décris les bénéfices, caractéristiques et usages du produit
-                  </p>
-                </div>
-              )}
-
-              {/* Photo Upload */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  📸 Tes vraies photos du produit <span className="font-normal text-gray-500">(3–8 recommandées)</span>
-                </label>
-                <div
-                  onDrop={handleDrop}
-                  onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-                  onDragLeave={() => setDragOver(false)}
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`relative border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition ${
-                    dragOver ? 'border-violet-400 bg-violet-50' : 'border-gray-200 hover:border-violet-300 hover:bg-violet-50/50'
-                  }`}
-                >
-                  <Upload className="w-7 h-7 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm font-medium text-gray-600">Glisse tes photos ici ou <span className="text-violet-600">clique pour sélectionner</span></p>
-                  <p className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP — max 10MB chaque — jusqu'à 8 photos</p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    className="hidden"
-                    onChange={e => addPhotos(e.target.files)}
-                  />
-                </div>
-
-                {photos.length > 0 && (
-                  <div className="mt-3 grid grid-cols-4 gap-2">
-                    {photos.map((photo, i) => (
-                      <div key={i} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
-                        <img
-                          src={URL.createObjectURL(photo)}
-                          alt={`Photo ${i + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={e => { e.stopPropagation(); removePhoto(i); }}
-                          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                        {i === 0 && (
-                          <div className="absolute bottom-0 left-0 right-0 bg-violet-600/80 text-white text-xs text-center py-0.5">Hero</div>
-                        )}
-                      </div>
-                    ))}
-                    {photos.length < 8 && (
+              {/* ÉTAPE 1: Informations produit */}
+              {step === 1 && (
+                <>
+                  {/* Mode Selection Tabs */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      📝 Mode de génération
+                    </label>
+                    <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
                       <button
                         type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="aspect-square rounded-lg border-2 border-dashed border-gray-200 hover:border-violet-300 flex items-center justify-center text-gray-400 hover:text-violet-500 transition"
+                        onClick={() => setInputMode('url')}
+                        className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition ${
+                          inputMode === 'url'
+                            ? 'bg-white text-violet-700 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
                       >
-                        <Upload className="w-5 h-5" />
+                        🔗 Lien du produit
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => setInputMode('description')}
+                        className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition ${
+                          inputMode === 'description'
+                            ? 'bg-white text-violet-700 shadow-sm'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        ✍️ Description directe
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* URL Input (mode URL) */}
+                  {inputMode === 'url' && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                        🔗 Lien du produit (Amazon, Alibaba, AliExpress, etc.)
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="url"
+                          value={url}
+                          onChange={e => setUrl(e.target.value)}
+                          placeholder="https://www.amazon.com/.../... ou https://www.alibaba.com/..."
+                          className="w-full px-4 py-3 pr-10 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                        />
+                        {url && (
+                          <a href={url} target="_blank" rel="noopener noreferrer" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-violet-600">
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Description Input (mode description) */}
+                  {inputMode === 'description' && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                        ✍️ Description du produit
+                      </label>
+                      <textarea
+                        value={description}
+                        onChange={e => setDescription(e.target.value)}
+                        placeholder="Décris ton produit ici... (ex: Gélules de Graviola bio, 60 capsules de 600mg, extrait naturel de feuilles de corossol, riche en antioxydants, aide à renforcer le système immunitaire...)"
+                        rows={5}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Minimum 20 caractères • Décris les bénéfices, caractéristiques et usages du produit
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Photo Upload */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                      📸 Tes vraies photos du produit <span className="font-normal text-gray-500">(3–8 recommandées)</span>
+                    </label>
+                    <div
+                      onDrop={handleDrop}
+                      onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                      onDragLeave={() => setDragOver(false)}
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`relative border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition ${
+                        dragOver ? 'border-violet-400 bg-violet-50' : 'border-gray-200 hover:border-violet-300 hover:bg-violet-50/50'
+                      }`}
+                    >
+                      <Upload className="w-7 h-7 text-gray-400 mx-auto mb-2" />
+                      <p className="text-sm font-medium text-gray-600">Glisse tes photos ici ou <span className="text-violet-600">clique pour sélectionner</span></p>
+                      <p className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP — max 10MB chaque — jusqu'à 8 photos</p>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        className="hidden"
+                        onChange={e => addPhotos(e.target.files)}
+                      />
+                    </div>
+
+                    {photos.length > 0 && (
+                      <div className="mt-3 grid grid-cols-4 gap-2">
+                        {photos.map((photo, i) => (
+                          <div key={i} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+                            <img
+                              src={URL.createObjectURL(photo)}
+                              alt={`Photo ${i + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={e => { e.stopPropagation(); removePhoto(i); }}
+                              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                            {i === 0 && (
+                              <div className="absolute bottom-0 left-0 right-0 bg-violet-600/80 text-white text-xs text-center py-0.5">Hero</div>
+                            )}
+                          </div>
+                        ))}
+                        {photos.length < 8 && (
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="aspect-square rounded-lg border-2 border-dashed border-gray-200 hover:border-violet-300 flex items-center justify-center text-gray-400 hover:text-violet-500 transition"
+                          >
+                            <Upload className="w-5 h-5" />
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
+                </>
+              )}
 
-              {/* Marketing Approach Selection */}
+              {/* ÉTAPE 2: Copywriting */}
+              {step === 2 && (
+                <>
+                  {/* Marketing Approach Selection */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      🎯 Approche marketing
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { value: 'AIDA', label: 'AIDA', desc: 'Attention → Intérêt → Désir → Action' },
+                        { value: 'PAS', label: 'PAS', desc: 'Problème → Agitation → Solution' },
+                        { value: 'BAB', label: 'BAB', desc: 'Avant → Après → Pont' },
+                        { value: 'FAB', label: 'FAB', desc: 'Caractéristiques → Avantages → Bénéfices' }
+                      ].map(approach => (
+                        <button
+                          key={approach.value}
+                          type="button"
+                          onClick={() => setMarketingApproach(approach.value)}
+                          className={`p-3 rounded-xl border-2 text-left transition ${
+                            marketingApproach === approach.value
+                              ? 'border-violet-500 bg-violet-50'
+                              : 'border-gray-200 hover:border-violet-300 bg-white'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className={`text-sm font-bold ${
+                              marketingApproach === approach.value ? 'text-violet-700' : 'text-gray-900'
+                            }`}>
+                              {approach.label}
+                            </span>
+                            {marketingApproach === approach.value && (
+                              <CheckCircle className="w-4 h-4 text-violet-600" />
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 leading-tight">{approach.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+              {/* Copywriting Angle Selection */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  🎯 Approche marketing
+                  ✨ Angle copywriting principal
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-2">
                   {[
-                    { value: 'AIDA', label: 'AIDA', desc: 'Attention → Intérêt → Désir → Action' },
-                    { value: 'PAS', label: 'PAS', desc: 'Problème → Agitation → Solution' },
-                    { value: 'BAB', label: 'BAB', desc: 'Avant → Après → Pont' },
-                    { value: 'FAB', label: 'FAB', desc: 'Caractéristiques → Avantages → Bénéfices' }
-                  ].map(approach => (
+                    { value: 'PROBLEME_SOLUTION', label: 'Problème → Solution', icon: '🎯', desc: 'Empathie + résolution' },
+                    { value: 'PREUVE_SOCIALE', label: 'Preuve sociale', icon: '⭐', desc: 'Résultats, avis, viral' },
+                    { value: 'URGENCE', label: 'Urgence / Rareté', icon: '⚡', desc: 'Stock limité, offre temporaire' },
+                    { value: 'TRANSFORMATION', label: 'Transformation', icon: '✨', desc: 'Avant/après, lifestyle' },
+                    { value: 'AUTORITE', label: 'Autorité', icon: '🏆', desc: 'Expertise, certifications' }
+                  ].map(angle => (
                     <button
-                      key={approach.value}
+                      key={angle.value}
                       type="button"
-                      onClick={() => setMarketingApproach(approach.value)}
-                      className={`p-3 rounded-xl border-2 text-left transition ${
-                        marketingApproach === approach.value
+                      onClick={() => setCopywritingAngle(angle.value)}
+                      className={`p-3 rounded-xl border-2 text-left transition flex items-center gap-3 ${
+                        copywritingAngle === angle.value
                           ? 'border-violet-500 bg-violet-50'
                           : 'border-gray-200 hover:border-violet-300 bg-white'
                       }`}
                     >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className={`text-sm font-bold ${
-                          marketingApproach === approach.value ? 'text-violet-700' : 'text-gray-900'
-                        }`}>
-                          {approach.label}
-                        </span>
-                        {marketingApproach === approach.value && (
-                          <CheckCircle className="w-4 h-4 text-violet-600" />
-                        )}
+                      <span className="text-2xl">{angle.icon}</span>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-sm font-bold ${
+                            copywritingAngle === angle.value ? 'text-violet-700' : 'text-gray-900'
+                          }`}>
+                            {angle.label}
+                          </span>
+                          {copywritingAngle === angle.value && (
+                            <CheckCircle className="w-4 h-4 text-violet-600" />
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 leading-tight">{angle.desc}</p>
                       </div>
-                      <p className="text-xs text-gray-500 leading-tight">{approach.desc}</p>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* What gets generated */}
+                  {/* Tone Selection */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      🎨 Ton de communication
+                    </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { value: 'urgence', label: 'Urgence', emoji: '🔥', desc: 'Stock limité, action immédiate' },
+                    { value: 'premium', label: 'Premium', emoji: '💎', desc: 'Qualité exceptionnelle' },
+                    { value: 'fun', label: 'Fun', emoji: '🎉', desc: 'Enjoué, dynamique' },
+                    { value: 'serieux', label: 'Sérieux', emoji: '🎓', desc: 'Professionnel, crédible' }
+                  ].map(t => (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => setTone(t.value)}
+                      className={`p-3 rounded-xl border-2 text-left transition ${
+                        tone === t.value
+                          ? 'border-violet-500 bg-violet-50'
+                          : 'border-gray-200 hover:border-violet-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">{t.emoji}</span>
+                          <span className={`text-sm font-bold ${
+                            tone === t.value ? 'text-violet-700' : 'text-gray-900'
+                          }`}>
+                            {t.label}
+                          </span>
+                        </div>
+                        {tone === t.value && (
+                          <CheckCircle className="w-4 h-4 text-violet-600" />
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 leading-tight">{t.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+                </>
+              )}
+
+              {/* ÉTAPE 3: Paramètres avancés */}
+              {step === 3 && (
+                <>
+                  {/* Header Section */}
+                  <div className="text-center space-y-3 mb-5">
+                    <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-full shadow-sm">
+                      <Star className="w-5 h-5 text-amber-600" />
+                      <span className="text-sm font-bold text-amber-900">Paramètres Avancés</span>
+                    </div>
+                    <p className="text-sm text-gray-600 max-w-md mx-auto">
+                      Ces champs sont <strong>optionnels</strong> mais fortement recommandés pour maximiser les conversions de ta page produit
+                    </p>
+                  </div>
+
+                  {/* Section 1: Ciblage */}
+                  <div className="space-y-4 p-4 bg-gradient-to-br from-violet-50/50 to-purple-50/50 rounded-xl border border-violet-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-6 h-6 rounded-full bg-violet-600 text-white flex items-center justify-center text-xs font-bold">1</div>
+                      <h4 className="text-sm font-bold text-gray-800">Ciblage & Positionnement</h4>
+                    </div>
+                    
+                    {/* Target Audience */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
+                        🎯 Cible client
+                        <span className="text-emerald-600 text-[10px] font-bold uppercase px-1.5 py-0.5 bg-emerald-50 rounded">Recommandé</span>
+                      </label>
+                      <textarea
+                        value={targetAudience}
+                        onChange={(e) => setTargetAudience(e.target.value)}
+                        placeholder="Ex: Femmes 28-45 ans, mamans actives qui manquent de temps, sensibles au naturel, pouvoir d'achat moyen, zone urbaine Douala/Yaoundé..."
+                        rows={3}
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Plus c'est précis, meilleure sera la conversion ✨</p>
+                    </div>
+
+                    {/* Main Offer */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
+                        🎁 Offre principale
+                        <span className="text-emerald-600 text-[10px] font-bold uppercase px-1.5 py-0.5 bg-emerald-50 rounded">Recommandé</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={mainOffer}
+                        onChange={(e) => setMainOffer(e.target.value)}
+                        placeholder="Ex: -40% aujourd'hui seulement | Livraison gratuite sous 48h | Cadeau surprise pour 2 achetés"
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">L'offre sera mise en avant stratégiquement sur la page 🎯</p>
+                    </div>
+                  </div>
+
+                  {/* Section 2: Arguments de vente */}
+                  <div className="space-y-4 p-4 bg-gradient-to-br from-blue-50/50 to-cyan-50/50 rounded-xl border border-blue-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold">2</div>
+                      <h4 className="text-sm font-bold text-gray-800">Arguments de Vente</h4>
+                    </div>
+
+                    {/* Key Benefits */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                        ✨ Points forts à mettre en avant
+                      </label>
+                      <textarea
+                        value={keyBenefits}
+                        onChange={(e) => setKeyBenefits(e.target.value)}
+                        placeholder="Ex: Sans BPA | Certifié CE | Garantie 2 ans | Support WhatsApp 7j/7 | Adapté peaux noires | Résultats en 7 jours"
+                        rows={2}
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                      />
+                    </div>
+
+                    {/* Objections */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                        🚫 Objections à lever
+                      </label>
+                      <textarea
+                        value={objections}
+                        onChange={(e) => setObjections(e.target.value)}
+                        placeholder="Ex: Ça va tenir dans le temps ? | Est-ce que ça fonctionne vraiment ? | C'est adapté pour ma peau noire ? | Et si ça ne me convient pas ?"
+                        rows={2}
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Chaque objection sera traitée dans la FAQ 💡</p>
+                    </div>
+                  </div>
+
+                  {/* Section 3: Preuve sociale */}
+                  <div className="space-y-4 p-4 bg-gradient-to-br from-emerald-50/50 to-teal-50/50 rounded-xl border border-emerald-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold">3</div>
+                      <h4 className="text-sm font-bold text-gray-800">Preuve Sociale & Crédibilité</h4>
+                    </div>
+
+                    {/* Customer Reviews */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                        ⭐ Avis clients à intégrer
+                      </label>
+                      <textarea
+                        value={customerReviews}
+                        onChange={(e) => setCustomerReviews(e.target.value)}
+                        placeholder="Colle ici les vrais avis clients (bruts), l'IA les reformatera et optimisera automatiquement...&#10;&#10;Ex:&#10;- Super produit, je l'adore !&#10;- Résultats visibles en 5 jours&#10;- Je recommande à 100%, livraison rapide"
+                        rows={3}
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">L'IA reformatera les avis pour les rendre plus persuasifs ✨</p>
+                    </div>
+
+                    {/* Social Proof Links */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                        🔗 Preuves sociales / Liens
+                      </label>
+                      <textarea
+                        value={socialProofLinks}
+                        onChange={(e) => setSocialProofLinks(e.target.value)}
+                        placeholder="Ex:&#10;- TikTok viral (2M vues): https://tiktok.com/@user/video/123&#10;- Article blog beauté: https://blog.com/mon-avis&#10;- Instagram @influenceur (50k followers)&#10;- Vu dans Magazine Elle Cameroun"
+                        rows={3}
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Mentions virales, influenceurs, articles de presse... 🚀</p>
+                    </div>
+                  </div>
+
+                  {/* Info box */}
+                  <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                    <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
+                      <span className="text-white text-lg">💡</span>
+                    </div>
+                    <div className="flex-1 text-xs text-amber-900">
+                      <p className="font-semibold mb-1">Conseil Pro</p>
+                      <p className="leading-relaxed">Plus tu remplis de champs, plus ta page produit sera personnalisée et convaincante. Un ciblage précis peut <strong>doubler ton taux de conversion</strong> !</p>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* What gets generated - Affiché sur toutes les étapes */}
               <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl p-4 border border-violet-100">
-                <p className="text-xs font-bold text-violet-700 mb-3 uppercase tracking-wide">CE QUI SERA GÉNÉRÉ</p>
+                <p className="text-xs font-bold text-violet-700 mb-3 uppercase tracking-wide">🎨 PAGE PRODUIT GÉNÉRÉE</p>
                 <div className="grid grid-cols-2 gap-2 text-xs text-gray-700">
                   {[
-                    ['🎯', 'Titre percutant en français'],
-                    ['🎨', '4 arguments marketing + 4 affiches IA'],
-                    ['✅', '3 raisons d\'acheter persuasives'],
-                    ['❓', 'FAQ professionnelle (5 questions)'],
-                    ['📝', 'Description e-commerce optimisée'],
-                    ['🖼️', 'Affiches publicitaires complètes']
+                    ['📸', 'Hero affiche lifestyle premium'],
+                    ['🎭', 'Affiche graphique publicitaire'],
+                    ['✨', 'Visuel avant/après transformation'],
+                    ['🎯', '4 affiches marketing angles'],
+                    ['📝', 'Copywriting persuasif optimisé'],
+                    ['⭐', '4 témoignages clients vérifiés'],
+                    ['❓', 'FAQ professionnelle complète'],
+                    ['🔍', 'SEO : meta title + description']
                   ].map(([icon, label]) => (
                     <div key={label} className="flex items-center gap-1.5">
                       <span>{icon}</span>
@@ -1601,16 +1949,47 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                 </div>
               )}
               
-              <button
-                type="button"
-                onClick={handleGenerate}
-                disabled={inputMode === 'url' ? !isValidUrl || photos.length === 0 : !isValidDescription}
-                className="w-full py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-semibold text-sm hover:from-violet-700 hover:to-purple-700 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                <Sparkles className="w-4 h-4" />
-                Générer la page produit avec l'IA
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              {/* Navigation buttons */}
+              <div className="flex items-center gap-3">
+                {step > 1 && (
+                  <button
+                    type="button"
+                    onClick={handlePrevStep}
+                    className="flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold text-sm hover:bg-gray-50 transition flex items-center justify-center gap-2"
+                  >
+                    ← Précédent
+                  </button>
+                )}
+                
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (step < 3) {
+                      handleNextStep();
+                    } else {
+                      handleGenerate();
+                    }
+                  }}
+                  disabled={step === 1 && !isStep1Valid()}
+                  className={`py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-bold text-sm hover:from-violet-700 hover:to-purple-700 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg ${step === 1 ? 'w-full' : 'flex-[2]'}`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {step === 1 && 'Suivant : Stratégie copywriting'}
+                  {step === 2 && 'Suivant : Paramètres avancés'}
+                  {step === 3 && 'Générer la page produit ✨'}
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+              
+              {step === 3 && (
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  className="w-full py-2.5 text-sm text-violet-600 hover:text-violet-700 font-medium hover:bg-violet-50 rounded-lg transition"
+                >
+                  Ou générer directement sans paramètres avancés
+                </button>
+              )}
             </>
           )}
 
@@ -1646,6 +2025,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
         </div>
       </div>
     </div>
+  </div>
   );
 };
 
