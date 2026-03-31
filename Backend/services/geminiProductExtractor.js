@@ -14,10 +14,86 @@ if (!GEMINI_API_KEY) {
   console.warn('⚠️ GEMINI_API_KEY non configuré - l\'extraction de produit ne fonctionnera pas');
 }
 
-// Modèles par ordre de priorité (sans grounding qui nécessite des permissions spéciales)
+// Modèles standard par ordre de priorité (v1beta compatible)
 const GEMINI_MODELS = [
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-8b',
   'gemini-3-flash-preview',
 ];
+
+// Pour Alibaba : même liste que standard
+const GEMINI_MODELS_ALIBABA = GEMINI_MODELS;
+
+function isAlibabaUrl(url) {
+  return /alibaba\.com|1688\.com/i.test(url);
+}
+
+/**
+ * Extrait et parse robustement un objet JSON d'une réponse Gemini.
+ * Gère : blocs markdown, texte parasite, newlines littéraux, virgules traînantes,
+ * guillemets non échappés dans les valeurs.
+ */
+function parseGeminiJSON(text) {
+  // 1. Supprimer les blocs markdown ```json ... ```
+  let cleaned = text.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
+
+  // 2. Isoler du premier { au dernier }
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start === -1 || end === -1) return null;
+  cleaned = cleaned.slice(start, end + 1);
+
+  // 3. Tentative directe
+  try { return JSON.parse(cleaned); } catch (_) {}
+
+  // 4. Échapper les newlines/tabs littéraux à l'intérieur des valeurs de chaînes
+  //    On remplace les \n \r \t qui tombent entre des guillemets
+  let fixed = cleaned.replace(/"((?:[^"\\]|\\.)*)"/gs, (match, inner) =>
+    '"' + inner.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t') + '"'
+  );
+  try { return JSON.parse(fixed); } catch (_) {}
+
+  // 5. Supprimer les virgules traînantes (,} ou ,])
+  fixed = fixed.replace(/,\s*([}\]])/g, '$1');
+  try { return JSON.parse(fixed); } catch (_) {}
+
+  // 6. Fallback regex : extraire title et description directement du texte brut
+  const titleMatch = cleaned.match(/"title"\s*:\s*"([\s\S]*?)"\s*[,}]/);
+  const descMatch  = cleaned.match(/"description"\s*:\s*"([\s\S]*?)"\s*[,}]/);
+  if (titleMatch && descMatch) {
+    return {
+      title: titleMatch[1].replace(/\\n/g, ' ').replace(/\\"/g, '"').trim(),
+      description: descMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').trim(),
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Fallback : extrait title + description depuis du texte brut non-JSON.
+ */
+function extractFromPlainText(text, url) {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length === 0) return null;
+
+  // Titre = première ligne non vide (nettoyée des #, *, etc.)
+  let title = lines[0].replace(/^#+\s*/, '').replace(/\*+/g, '').trim();
+
+  // Si la première ligne ressemble à du JSON cassé, prendre le nom du produit depuis l'URL
+  if (title.startsWith('{') || title.length < 3) {
+    const urlParts = url.split('/').pop()?.replace(/[-_]/g, ' ').replace(/\.html?$/i, '') || 'Produit';
+    title = urlParts.slice(0, 150);
+  }
+
+  // Description = tout le reste
+  const description = lines.slice(1).join(' ').replace(/\s+/g, ' ').trim() || title;
+
+  if (title.length < 3 || description.length < 10) return null;
+  return { title, description };
+}
 
 export async function extractProductInfo(url) {
   if (!GEMINI_API_KEY) {
@@ -27,6 +103,8 @@ export async function extractProductInfo(url) {
   console.log('🤖 Gemini extraction pour:', url);
 
   const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  const modelsToTry = isAlibabaUrl(url) ? GEMINI_MODELS_ALIBABA : GEMINI_MODELS;
+  console.log(`📋 Liste de modèles sélectionnée: [${modelsToTry.join(', ')}]`);
 
   // Prompt optimisé pour générer du contenu réaliste sans accès direct à l'URL
   const prompt = `Tu es un assistant e-commerce expert. Analyse cette URL de produit et génère une fiche produit professionnelle et réaliste en français :
@@ -58,46 +136,31 @@ IMPORTANT:
   let lastError = null;
 
   // Essayer chaque modèle jusqu'à en trouver un qui fonctionne
-  for (const modelName of GEMINI_MODELS) {
+  for (const modelName of modelsToTry) {
     try {
       console.log(`🔍 Tentative avec modèle: ${modelName}`);
 
-      const model = genAI.getGenerativeModel({
+      // Essayer d'abord avec mode JSON natif (plus fiable)
+      let model = genAI.getGenerativeModel({
         model: modelName,
         generationConfig: {
           temperature: 0.4,
           maxOutputTokens: 2000,
+          responseMimeType: 'application/json',
         },
       });
 
-      // Appel simple sans grounding (pas besoin de permissions spéciales)
       const result = await model.generateContent(prompt);
-
       const text = result.response.text();
       console.log('✅ Réponse Gemini reçue, longueur:', text.length);
 
-      // Parse JSON de la réponse - essayer plusieurs formats
-      let data = null;
-      const candidates = [];
+      // Parse JSON de la réponse - extraction robuste
+      let data = parseGeminiJSON(text);
 
-      // Format 1 : bloc ```json ... ``` ou ``` ... ```
-      const codeMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-      if (codeMatch) candidates.push(codeMatch[1]);
-
-      // Format 2 : premier objet JSON brut dans le texte
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) candidates.push(jsonMatch[0]);
-
-      for (const candidate of candidates) {
-        try {
-          data = JSON.parse(candidate);
-          break;
-        } catch (_) { /* essayer le suivant */ }
-      }
-
+      // Dernier recours : extraire titre (1ère ligne) + reste comme description
       if (!data) {
-        console.warn('⚠️ Réponse brute Gemini:', text.slice(0, 300));
-        throw new Error('Format de réponse JSON invalide de Gemini');
+        console.warn('⚠️ JSON invalide, fallback extraction texte brut. Début:', text.slice(0, 200));
+        data = extractFromPlainText(text, url);
       }
 
       if (!data.title || !data.description) {

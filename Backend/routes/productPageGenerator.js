@@ -211,13 +211,21 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     // ÉTAPE 3 : Upload des photos utilisateur → R2
     // ══════════════════════════════════════════════════════════════════════════
     console.log('📸 Étape 3: Upload', imageFiles.length, 'photos');
+    const UPLOAD_TIMEOUT_MS = 30000; // 30s max par photo
+    const uploadWithTimeout = (uploadPromise) =>
+      Promise.race([
+        uploadPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Upload timeout')), UPLOAD_TIMEOUT_MS))
+      ]);
     for (const f of imageFiles.slice(0, 8)) {
       try {
-        const uploaded = await uploadImage(f.buffer, f.originalname || `photo-${Date.now()}.jpg`, {
-          workspaceId: req.workspaceId,
-          uploadedBy: userId,
-          mimeType: f.mimetype
-        });
+        const uploaded = await uploadWithTimeout(
+          uploadImage(f.buffer, f.originalname || `photo-${Date.now()}.jpg`, {
+            workspaceId: req.workspaceId,
+            uploadedBy: userId,
+            mimeType: f.mimetype
+          })
+        );
         if (uploaded?.url) realPhotos.push(uploaded.url);
       } catch (uploadErr) {
         console.warn('⚠️ Upload photo échoué:', uploadErr.message);
@@ -232,12 +240,13 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     const axios = (await import('axios')).default;
 
-    // Helper pour générer et uploader une image
+    // Helper pour générer et uploader une image — avec 1 retry automatique
     const generateAndUpload = async (prompt, baseBuffer, filename, mode = 'scene') => {
       if (!prompt) return null;
-      try {
+
+      const attempt = async () => {
         const generatedDataUrl = await generatePosterImage(prompt, baseBuffer, { mode });
-        if (!generatedDataUrl) return null;
+        if (!generatedDataUrl) throw new Error('generatePosterImage returned null');
 
         let imageBuffer;
         if (generatedDataUrl.startsWith('data:')) {
@@ -247,7 +256,6 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
           imageBuffer = Buffer.from(resp.data);
         }
 
-        // Resize to 1080x1100
         imageBuffer = await sharp(imageBuffer)
           .resize(1080, 1100, { fit: 'cover', position: 'centre' })
           .jpeg({ quality: 92 })
@@ -259,9 +267,22 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
           uploadedBy: userId,
           mimeType: 'image/jpeg'
         });
-        return uploaded?.url || null;
-      } catch (err) {
-        console.warn(`⚠️ Image ${filename} échouée:`, err.message);
+        if (!uploaded?.url) throw new Error('Upload retourné sans URL');
+        return uploaded.url;
+      };
+
+      // 1ère tentative
+      try {
+        return await attempt();
+      } catch (err1) {
+        console.warn(`⚠️ Image ${filename} tentative 1 échouée: ${err1.message} — retry...`);
+      }
+      // Retry unique avec 3s de délai
+      await new Promise(r => setTimeout(r, 3000));
+      try {
+        return await attempt();
+      } catch (err2) {
+        console.warn(`⚠️ Image ${filename} tentative 2 échouée: ${err2.message}`);
         return null;
       }
     };
@@ -288,12 +309,80 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         .then(url => ({ type: 'beforeAfter', url }))
     );
 
-    // 4 Affiches publicitaires — baseImageBuffer pour garder le VRAI produit
-    for (let i = 0; i < 4; i++) {
+    // Diversité visuelle : mix de types de plans — jamais le même cadrage deux fois
+    // Deux jeux de directives selon qu'on a une image produit de référence ou non.
+    // Avec référence : le produit réel doit être visible dans chaque image.
+    // Sans référence : scènes lifestyle pures — JAMAIS de produit inventé.
+    const ANGLE_DIVERSITY_WITH_PRODUCT = [
+      {
+        directive: 'Medium shot lifestyle scene. Young Black African woman (25-30), natural afro hair, joyful expression — shown using or applying THE EXACT REFERENCE PRODUCT in a bright morning bathroom or kitchen. THE PRODUCT FROM THE REFERENCE IMAGE must be clearly visible and recognizable in her hand or in front of her. Show her face and emotion alongside the product. Natural environment, authentic moment.',
+        mood: 'fresh, authentic, relatable',
+      },
+      {
+        directive: 'Overhead flat lay product shot. THE EXACT REFERENCE PRODUCT is the absolute hero — placed centrally, large, sharp and dominant, occupying at least 60% of the frame. Surrounded by complementary natural ingredients (plants, fruits, herbs). The product packaging, color, label and shape must be perfectly reproduced from the reference. NO people, NO hands. Clean top-down composition, soft natural light, editorial magazine style.',
+        mood: 'premium, clean, editorial',
+      },
+      {
+        directive: 'Lifestyle environment scene. THE EXACT REFERENCE PRODUCT is prominently placed in the foreground, large and sharp — on a beautifully styled African home bathroom shelf or wellness corner. The product must be the unmistakable focal point of the scene; reproduce its exact packaging, shape and colors from the reference. Warm ambient lighting, real African interior aesthetics. NO hands holding the product.',
+        mood: 'warm, aspirational, immersive',
+      },
+      {
+        directive: 'Close-up lifestyle shot. Black African woman (35-45), braided hair, radiant glowing skin — shown actively applying or holding THE EXACT REFERENCE PRODUCT. The product must be clearly visible and recognizable next to her face or in her hands. Tight frame that shows both her emotion (satisfaction, confidence) and the product details. The product packaging must match the reference exactly.',
+        mood: 'sensory, emotional, aspirational',
+      },
+      {
+        directive: 'Stylized hero product shot. THE EXACT REFERENCE PRODUCT alone, filling at least 70% of the frame, dramatically lit against a rich textured African-inspired background (kente pattern, terracotta, deep green foliage). Reproduce the product shape, color, label and packaging with perfect fidelity from the reference. Studio quality, professional beauty photography. NO people, NO hands. Luxury brand aesthetic with bold color contrast.',
+        mood: 'premium, bold, brand-forward',
+      },
+    ];
+
+    // Sans image de référence : scènes lifestyle pures, ZÉRO produit inventé
+    const ANGLE_DIVERSITY_NO_PRODUCT = [
+      {
+        directive: 'Lifestyle scene showing the RESULT, not the product. Young Black African woman (25-30), natural afro hair, glowing skin — radiant and confident in a bright bathroom or kitchen. Focus entirely on her expression of satisfaction and wellbeing. NO product visible, NO packaging, NO bottles or boxes. Pure emotion and result.',
+        mood: 'fresh, authentic, relatable',
+      },
+      {
+        directive: 'Aesthetic mood board flat lay. Beautiful African-inspired textures, fabrics and natural elements (kente cloth, wooden surfaces, tropical leaves, natural ingredients like shea butter or aloe). Evokes the product\'s benefit atmosphere without showing any product. Editorial, clean, top-down composition. NO invented products, NO packaging.',
+        mood: 'premium, clean, editorial',
+      },
+      {
+        directive: 'Wide lifestyle environment scene. A beautifully styled African home bathroom or wellness corner — candles, plants, natural wood, soft towels — evoking the ritual and benefit of the product without showing any product. The scene IS the message. Warm ambient lighting, real African interior aesthetics.',
+        mood: 'warm, aspirational, immersive',
+      },
+      {
+        directive: 'Close-up emotional lifestyle shot. Black African woman (35-45), braided hair, eyes closed in pure satisfaction — mid skincare or wellness ritual gesture (hands on face, fingers running through hair). No product visible. Focus entirely on the sensory moment, glowing skin, authentic emotion. Cinematic close-up.',
+        mood: 'sensory, emotional, aspirational',
+      },
+      {
+        directive: 'Bold abstract lifestyle scene. Black African man or woman, confident and stylish in a minimalist studio or urban African setting. Strong graphic composition with bold colors and shapes evoking energy and premium quality. NO product, NO packaging invented. Pure brand atmosphere.',
+        mood: 'premium, bold, brand-forward',
+      },
+    ];
+
+    const ANGLE_DIVERSITY = baseImageBuffer ? ANGLE_DIVERSITY_WITH_PRODUCT : ANGLE_DIVERSITY_NO_PRODUCT;
+
+    // 5 Affiches publicitaires — diversité forcée par angle
+    for (let i = 0; i < 5; i++) {
       const angle = gptResult.angles?.[i];
-      if (angle?.prompt_affiche) {
+      const diversity = ANGLE_DIVERSITY[i];
+      const basePrompt = angle?.prompt_affiche ||
+        (angle?.titre_angle
+          ? `Square 1:1 scroll-stopping ecommerce ad for "${gptResult.title || 'product'}". Bold French headline: "${(angle.titre_angle || '').slice(0, 60)}". No price, no CTA, no URL.`
+          : null);
+
+      // Injecter la directive adaptée (avec ou sans produit référence)
+      const productBlock = baseImageBuffer
+        ? `\nPRODUCT REFERENCE (NON-NEGOTIABLE): A real product image is provided. THE EXACT SAME PRODUCT — same packaging, shape, color, label — MUST appear clearly in the generated image. NEVER invent, replace or omit the product.\n`
+        : `\nIMPORTANT: No product reference image is available. Do NOT invent or imagine any product, packaging, bottle or box. Generate a pure lifestyle/atmosphere scene only.\n`;
+
+      const prompt = basePrompt
+        ? `${basePrompt}${productBlock}\nVISUAL DIRECTIVE (follow strictly for this image only):\n${diversity.directive}\nMood: ${diversity.mood}.\nThis image MUST be visually different from all others in the series in terms of shot type and composition.`
+        : null;
+
+      if (prompt) {
         imagePromises.push(
-          generateAndUpload(angle.prompt_affiche, baseImageBuffer, `poster-${i + 1}-${Date.now()}.png`, 'scene')
+          generateAndUpload(prompt, baseImageBuffer, `poster-${i + 1}-${Date.now()}.png`, 'scene')
             .then(url => ({ type: 'poster', index: i, url, angle }))
         );
       } else {
@@ -301,8 +390,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       }
     }
 
-    // Exécuter toutes les générations en parallèle avec timeout global de 90s
-    const IMAGE_TIMEOUT_MS = 90000;
+    // Exécuter toutes les générations en parallèle avec timeout global de 180s
+    const IMAGE_TIMEOUT_MS = 180000;
     const withTimeout = (promise, fallback) =>
       Promise.race([
         promise,

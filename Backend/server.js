@@ -542,6 +542,13 @@ const startServer = async () => {
     console.log(`🔍 Debug mode: ENABLED (all requests logged)`);
     
     server.listen(PORT, () => {
+      // Allow long-running AI generation requests (up to 8 minutes).
+      // Railway/Nginx proxy can drop idle connections at ~60s; setting
+      // headersTimeout=0 + requestTimeout=480000 prevents that cut-off.
+      server.headersTimeout = 0;        // no headers-phase timeout
+      server.requestTimeout = 480000;   // 8 min max per request
+      server.keepAliveTimeout = 65000;  // slightly above Railway's 60s keepalive
+
       console.log(`🌐 Server ready on port ${PORT}`);
       console.log(`📡 API: http://localhost:${PORT}/api`);
       console.log(`🏪 Stores: http://localhost:${PORT}/store/:subdomain`);
@@ -553,3 +560,17 @@ const startServer = async () => {
 };
 
 startServer();
+
+// ─── Process-level safety net ────────────────────────────────────────────────
+// Prevent unhandled promise rejections and unexpected exceptions from taking
+// down the entire Node process in production.
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('⚠️ [process] Unhandled Rejection:', reason instanceof Error ? reason.stack : reason);
+  // Do NOT exit — let the request fail naturally and let Railway restart if needed.
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('💥 [process] Uncaught Exception:', error.stack || error);
+  // Exit so Railway's restartPolicyType:"ON_FAILURE" can restart cleanly.
+  process.exit(1);
+});

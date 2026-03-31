@@ -367,6 +367,30 @@ router.get('/:id', requireEcomAuth, requireWorkspace, async (req, res) => {
 });
 
 /**
+ * Normalise les témoignages : date string → Date réelle, supprime les champs invalides.
+ */
+function normalizeTestimonials(raw) {
+  if (!Array.isArray(raw)) return undefined;
+  return raw.map(t => ({
+    ...t,
+    date: t.date && /^\d{4}/.test(String(t.date)) ? new Date(t.date) : new Date(),
+  }));
+}
+
+/**
+ * Normalise les FAQ : mappe `reponse` → `answer`, force le champ requis.
+ */
+function normalizeFaq(raw) {
+  if (!Array.isArray(raw)) return undefined;
+  return raw
+    .map(f => ({
+      question: f.question || '',
+      answer: f.answer || f.reponse || f.response || '',
+    }))
+    .filter(f => f.question && f.answer);
+}
+
+/**
  * POST /store-products
  * Create a new store product (dashboard).
  */
@@ -406,8 +430,8 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, async (re
       seoDescription: seoDescription || '',
       linkedProductId: linkedProductId || null,
       createdBy: req.user.id,
-      ...(testimonials?.length > 0 && { testimonials }),
-      ...(faq?.length > 0 && { faq }),
+      ...(testimonials?.length > 0 && { testimonials: normalizeTestimonials(testimonials) }),
+      ...(faq?.length > 0 && { faq: normalizeFaq(faq) }),
       ...(_pageData && { _pageData })
     });
 
@@ -469,8 +493,8 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
     if (seoTitle !== undefined) update.seoTitle = seoTitle;
     if (seoDescription !== undefined) update.seoDescription = seoDescription;
     if (linkedProductId !== undefined) update.linkedProductId = linkedProductId || null;
-    if (testimonials !== undefined) update.testimonials = testimonials;
-    if (faq !== undefined) update.faq = faq;
+    if (testimonials !== undefined) update.testimonials = normalizeTestimonials(testimonials);
+    if (faq !== undefined) update.faq = normalizeFaq(faq);
     if (_pageData !== undefined) update._pageData = _pageData;
 
     // Regenerate slug if name changed
