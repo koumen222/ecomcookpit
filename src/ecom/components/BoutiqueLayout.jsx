@@ -91,7 +91,7 @@ const BOUTIQUE_NAV = [
 ];
 
 // ── Mobile bottom tabs (5 max) ───────────────────────────────────────────────
-const MOBILE_TABS = ['Dashboard', 'Produits', 'Commandes', 'Thème', 'Paramètres'];
+const MOBILE_TABS = ['Dashboard', 'Produits', 'Commandes', 'Pages', 'Paramètres'];
 
 const BoutiqueLayout = () => {
   const location = useLocation();
@@ -100,20 +100,26 @@ const BoutiqueLayout = () => {
   const [moreOpen, setMoreOpen] = useState(false);
   const [entering, setEntering] = useState(true);
   const [storeSubdomain, setStoreSubdomain] = useState(null);
+  const [storeChecked, setStoreChecked] = useState(false);
 
-  // Load store subdomain on mount
+  // Load store subdomain on mount — redirect to wizard if no store exists
   useEffect(() => {
     const loadSubdomain = async () => {
       try {
         const res = await storeManageApi.getStoreConfig();
         const subdomain = res?.data?.data?.subdomain;
         setStoreSubdomain(subdomain || null);
+        if (!subdomain) {
+          navigate('/ecom/boutique/wizard', { replace: true });
+        }
       } catch (err) {
         console.error('Failed to load subdomain:', err);
+      } finally {
+        setStoreChecked(true);
       }
     };
     loadSubdomain();
-  }, []);
+  }, [navigate]);
 
   // Build store URLs (use loaded subdomain)
   const storeUrl = (path = '/') => {
@@ -137,6 +143,15 @@ const BoutiqueLayout = () => {
 
   const storeName = workspace?.storeSettings?.name || workspace?.name || 'Ma Boutique';
   const themeColor = workspace?.storeSettings?.themeColor || '#0F6B4F';
+
+  // Attendre la vérification du store avant d'afficher le layout
+  if (!storeChecked) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-gray-200 rounded-full animate-spin" style={{ borderTopColor: '#0F6B4F' }} />
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen bg-gray-50 flex flex-col lg:flex-row overflow-x-hidden max-w-[100vw] transition-all duration-500 ${entering ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'}`}>
