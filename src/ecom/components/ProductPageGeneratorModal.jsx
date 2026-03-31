@@ -588,9 +588,14 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       allImages.push({ url: product.heroImage, alt: product.title || 'Image Hero principale', order: 0 });
     }
 
-    // 2. Before/After image - second if available  
+    // 1b. Hero poster (affiche graphique) - second
+    if (product.heroPosterImage) {
+      allImages.push({ url: product.heroPosterImage, alt: `Affiche — ${product.title || 'Produit'}`, order: 1 });
+    }
+
+    // 2. Before/After image - third if available
     if (product.beforeAfterImage) {
-      allImages.push({ url: product.beforeAfterImage, alt: 'Avant / Après - Résultats visibles', order: 1, type: 'before-after' });
+      allImages.push({ url: product.beforeAfterImage, alt: 'Avant / Après - Résultats visibles', order: 2, type: 'before-after' });
     }
     
     // 3. Real photos uploaded by user
@@ -1168,13 +1173,88 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     </div>
                   )}
 
+                  {/* Hero Poster (affiche graphique) */}
+                  {product.heroPosterImage && (
+                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                      <ImagePreview src={product.heroPosterImage} label="Affiche publicitaire hero" className="w-full aspect-square" />
+                      <div className="px-4 py-2 bg-gray-50 border-t border-gray-100">
+                        <p className="text-xs text-gray-500">🎨 Visuel affiche — idéal pour publicités Facebook/Instagram</p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Titre */}
                   <div className="p-4 bg-violet-50 rounded-xl border border-violet-100">
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="text-lg font-bold text-gray-900">{product.title}</h3>
                       <CopyButton text={product.title} />
                     </div>
+                    {/* CTA + Badge urgence */}
+                    {(product.hero_cta || product.urgency_badge) && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {product.urgency_badge && (
+                          <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full border border-red-200">
+                            {product.urgency_badge}
+                          </span>
+                        )}
+                        {product.hero_cta && (
+                          <span className="inline-flex items-center gap-1 px-3 py-1 bg-violet-600 text-white text-xs font-bold rounded-full">
+                            🛒 {product.hero_cta}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
+
+                  {/* Stats Bar */}
+                  {product.stats_bar?.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2">
+                      {product.stats_bar.map((stat, i) => (
+                        <div key={i} className="p-3 bg-indigo-50 rounded-xl border border-indigo-100 text-center">
+                          <p className="text-xs font-bold text-indigo-700 leading-tight">{stat}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Problem / Solution */}
+                  {product.problem_section && (
+                    <div className="p-4 bg-red-50 rounded-xl border border-red-100">
+                      <p className="text-xs font-bold text-red-600 uppercase tracking-wide mb-2">😤 PROBLÈME</p>
+                      {product.problem_section.title && (
+                        <div className="flex items-start justify-between gap-2 mb-3">
+                          <p className="text-sm font-bold text-gray-900">{product.problem_section.title}</p>
+                          <CopyButton text={product.problem_section.title} />
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        {(product.problem_section.pain_points || []).map((point, i) => (
+                          <div key={i} className="flex items-start gap-2 text-sm text-red-800">
+                            <span className="flex-shrink-0 mt-0.5">❌</span>
+                            <span>{point}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {product.solution_section && (
+                    <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                      <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide mb-2">✅ SOLUTION</p>
+                      {product.solution_section.title && (
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <p className="text-sm font-bold text-gray-900">{product.solution_section.title}</p>
+                          <CopyButton text={product.solution_section.title} />
+                        </div>
+                      )}
+                      {product.solution_section.description && (
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm text-gray-700 leading-relaxed flex-1">{product.solution_section.description}</p>
+                          <CopyButton text={product.solution_section.description} />
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Benefits Bullets */}
                   {product.benefits_bullets?.length > 0 && (
@@ -1187,6 +1267,68 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                             <span>{benefit.replace(/^[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]\s*/u, '')}</span>
                           </div>
                         ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Offer Block */}
+                  {product.offer_block && (
+                    <div className="p-4 bg-orange-50 rounded-xl border border-orange-200">
+                      <p className="text-xs font-bold text-orange-600 uppercase tracking-wide mb-3">🎁 OFFRE</p>
+                      <div className="space-y-2">
+                        {product.offer_block.offer_label && (
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-bold text-orange-800">{product.offer_block.offer_label}</p>
+                            <CopyButton text={product.offer_block.offer_label} />
+                          </div>
+                        )}
+                        {product.offer_block.guarantee_text && (
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm text-gray-700 flex-1">🔒 {product.offer_block.guarantee_text}</p>
+                            <CopyButton text={product.offer_block.guarantee_text} />
+                          </div>
+                        )}
+                        {product.offer_block.countdown && (
+                          <div className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 rounded-lg text-xs text-orange-700 font-medium">
+                            ⏳ Compte à rebours activé
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SEO */}
+                  {product.seo && (
+                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                      <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">🔍 SEO</p>
+                      <div className="space-y-3">
+                        {product.seo.meta_title && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-1">Meta title ({product.seo.meta_title.length}/60)</p>
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-sm font-semibold text-gray-800 flex-1">{product.seo.meta_title}</p>
+                              <CopyButton text={product.seo.meta_title} />
+                            </div>
+                          </div>
+                        )}
+                        {product.seo.meta_description && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-1">Meta description ({product.seo.meta_description.length}/155)</p>
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-sm text-gray-700 flex-1">{product.seo.meta_description}</p>
+                              <CopyButton text={product.seo.meta_description} />
+                            </div>
+                          </div>
+                        )}
+                        {product.seo.slug && (
+                          <div>
+                            <p className="text-xs text-gray-400 mb-1">URL slug</p>
+                            <div className="flex items-center justify-between gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200">
+                              <code className="text-xs text-violet-700 font-mono">/products/{product.seo.slug}</code>
+                              <CopyButton text={product.seo.slug} />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1360,7 +1502,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               {activeTab === 'images' && (
                 <div className="space-y-4">
                   {/* Visuels IA galerie principale */}
-                  {(product.heroImage || product.beforeAfterImage) && (
+                  {(product.heroImage || product.heroPosterImage || product.beforeAfterImage) && (
                     <div>
                       <p className="text-xs font-bold text-violet-600 uppercase tracking-wide mb-2">🖼️ VISUELS GALERIE PRINCIPALE</p>
                       <div className="grid grid-cols-2 gap-3">
@@ -1370,10 +1512,16 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                             <p className="text-xs text-center text-gray-400 mt-1">1ère image galerie</p>
                           </div>
                         )}
+                        {product.heroPosterImage && (
+                          <div>
+                            <ImagePreview src={product.heroPosterImage} label="Affiche Hero" className="aspect-square" />
+                            <p className="text-xs text-center text-gray-400 mt-1">Affiche publicitaire</p>
+                          </div>
+                        )}
                         {product.beforeAfterImage && (
                           <div>
                             <ImagePreview src={product.beforeAfterImage} label="Avant / Après" className="aspect-square" />
-                            <p className="text-xs text-center text-gray-400 mt-1">2ème image galerie</p>
+                            <p className="text-xs text-center text-gray-400 mt-1">Transformation</p>
                           </div>
                         )}
                       </div>

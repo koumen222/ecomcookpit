@@ -170,7 +170,9 @@ const StoreProductForm = () => {
         tags: productData.tags || prev.tags,
         seoTitle: productData.seoTitle || prev.seoTitle,
         seoDescription: productData.seoDescription || prev.seoDescription,
-        images: allImages.length > 0 ? allImages : prev.images
+        images: allImages.length > 0 ? allImages : prev.images,
+        testimonials: productData._pageData?.testimonials?.length > 0 ? productData._pageData.testimonials : prev.testimonials,
+        faq: productData._pageData?.faq?.length > 0 ? productData._pageData.faq : prev.faq
       };
     });
   };
@@ -187,7 +189,9 @@ const StoreProductForm = () => {
     seoTitle: navState?.seoTitle || '',
     seoDescription: navState?.seoDescription || '',
     images: navState?.images || [],
-    linkedProductId: null
+    linkedProductId: null,
+    testimonials: navState?._pageData?.testimonials || [],
+    faq: navState?._pageData?.faq || []
   });
 
   // Load product for edit mode
@@ -507,7 +511,9 @@ const StoreProductForm = () => {
       seoTitle: form.seoTitle.trim(),
       seoDescription: form.seoDescription.trim(),
       images: form.images,
-      linkedProductId: form.linkedProductId || null
+      linkedProductId: form.linkedProductId || null,
+      ...(form.testimonials?.length > 0 && { testimonials: form.testimonials }),
+      ...(form.faq?.length > 0 && { faq: form.faq })
     };
 
     try {
