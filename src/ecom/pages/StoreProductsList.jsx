@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Package, Plus, Search, Edit, Trash2, Eye, EyeOff, ChevronLeft, ChevronRight, Loader2, AlertCircle, Image, ShoppingBag, Sparkles, ExternalLink } from 'lucide-react';
+import { Package, Plus, Search, Edit, Trash2, Eye, EyeOff, ChevronLeft, ChevronRight, Loader2, AlertCircle, Image, Sparkles, ExternalLink, Zap } from 'lucide-react';
 import { storeProductsApi, storeManageApi } from '../services/storeApi.js';
-import AlibabaImportModal from '../components/AlibabaImportModal.jsx';
+import ecomApi from '../services/ecommApi.js';
 import ProductPageGeneratorModal from '../components/ProductPageGeneratorModal.jsx';
 
 /**
@@ -18,9 +18,9 @@ const StoreProductsList = () => {
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 });
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
-  const [showAlibabaModal, setShowAlibabaModal] = useState(false);
   const [showPageGeneratorModal, setShowPageGeneratorModal] = useState(false);
   const [storeSubdomain, setStoreSubdomain] = useState(null);
+  const [generationsInfo, setGenerationsInfo] = useState(null);
 
   // Récupérer le subdomain du store pour l'aperçu
   useEffect(() => {
@@ -29,18 +29,35 @@ const StoreProductsList = () => {
       .catch(() => {});
   }, []);
 
+  // Récupérer les infos de générations
+  const fetchGenerationsInfo = useCallback(async () => {
+    try {
+      const response = await ecomApi.get('/billing/generations-info');
+      if (response.data?.success && response.data?.generations) {
+        setGenerationsInfo(response.data.generations);
+      }
+    } catch (err) {
+      console.error('Erreur lors de la récupération des infos de générations:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchGenerationsInfo();
+  }, [fetchGenerationsInfo]);
+
   const handleViewProduct = (product) => {
     if (!storeSubdomain || !product.slug) return;
     const url = `https://${storeSubdomain}.scalor.net/product/${product.slug}`;
     window.open(url, '_blank');
   };
 
-  const handleAlibabaApply = (productData) => {
+  const handlePageGeneratorApply = (productData) => {
     navigate(`${basePath}/products/new`, { state: { prefill: productData } });
   };
 
-  const handlePageGeneratorApply = (productData) => {
-    navigate(`${basePath}/products/new`, { state: { prefill: productData } });
+  const handlePageGeneratorClose = () => {
+    setShowPageGeneratorModal(false);
+    fetchGenerationsInfo(); // Rafraîchir les infos après fermeture du modal
   };
 
   const fetchProducts = useCallback(async (page = 1, searchTerm = '') => {
@@ -111,17 +128,16 @@ const StoreProductsList = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowPageGeneratorModal(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-lg text-sm font-medium hover:from-violet-600 hover:to-purple-700 transition shadow-sm"
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-lg text-sm font-medium hover:from-violet-600 hover:to-purple-700 transition shadow-sm relative"
           >
             <Sparkles className="w-4 h-4" />
             <span className="hidden sm:inline">Générer Page IA</span>
-          </button>
-          <button
-            onClick={() => setShowAlibabaModal(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg text-sm font-medium hover:from-orange-600 hover:to-red-600 transition shadow-sm"
-          >
-            <ShoppingBag className="w-4 h-4" />
-            <span className="hidden sm:inline">Importer Alibaba</span>
+            {generationsInfo && (generationsInfo.freeRemaining + generationsInfo.paidRemaining) > 0 && (
+              <span className="ml-1 px-2 py-0.5 bg-white/20 rounded-full text-xs font-bold flex items-center gap-1">
+                <Zap className="w-3 h-3" />
+                {generationsInfo.freeRemaining + generationsInfo.paidRemaining}
+              </span>
+            )}
           </button>
           <button
             onClick={() => navigate(`${basePath}/products/new`)}
@@ -145,16 +161,9 @@ const StoreProductsList = () => {
         />
       </div>
 
-      {showAlibabaModal && (
-        <AlibabaImportModal
-          onClose={() => setShowAlibabaModal(false)}
-          onApply={handleAlibabaApply}
-        />
-      )}
-
       {showPageGeneratorModal && (
         <ProductPageGeneratorModal
-          onClose={() => setShowPageGeneratorModal(false)}
+          onClose={handlePageGeneratorClose}
           onApply={handlePageGeneratorApply}
         />
       )}

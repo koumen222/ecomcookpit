@@ -490,6 +490,33 @@ router.get('/generation-status/:token', requireEcomAuth, async (req, res) => {
   }
 });
 
+// ─── GET /generations-info ────────────────────────────────────────────────────
+router.get('/generations-info', requireEcomAuth, async (req, res) => {
+  try {
+    const workspaceId = req.workspaceId || req.query.workspaceId;
+    if (!workspaceId) {
+      return res.status(400).json({ success: false, message: 'workspaceId requis' });
+    }
+
+    const workspace = await EcomWorkspace.findById(workspaceId).select('freeGenerationsRemaining paidGenerationsRemaining totalGenerations');
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Workspace non trouvé' });
+    }
+
+    res.json({ 
+      success: true, 
+      generations: {
+        freeRemaining: workspace.freeGenerationsRemaining || 0,
+        paidRemaining: workspace.paidGenerationsRemaining || 0,
+        totalUsed: workspace.totalGenerations || 0
+      }
+    });
+  } catch (err) {
+    console.error('[billing] GET /generations-info error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur lors de la récupération' });
+  }
+});
+
 // ─── GET /history ─────────────────────────────────────────────────────────────
 router.get('/history', requireEcomAuth, async (req, res) => {
   try {
