@@ -14,6 +14,7 @@ import ConversionBlocks, { UrgencyBadge } from '../components/ConversionBlocks';
 import { io } from 'socket.io-client';
 import { setDocumentMeta } from '../utils/pageMeta';
 import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking';
+import { useStoreAnalytics } from '../hooks/useStoreAnalytics';
 import { preloadStoreCheckoutRoute, preloadStoreProductRoute } from '../utils/routePrefetch';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
@@ -959,6 +960,7 @@ const StoreProductPage = () => {
 
   const { store, pixels, product, related, error } = useStoreProduct(subdomain, slug);
   const { cartCount } = useStoreCart(subdomain);
+  const { trackPageView, trackProductView, trackAddToCart } = useStoreAnalytics(subdomain);
 
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showStickyOrderBar, setShowStickyOrderBar] = useState(false);
@@ -974,6 +976,8 @@ const StoreProductPage = () => {
       value: product.price || 0,
       currency: store?.currency || 'XAF',
     });
+    // Track product view in store analytics
+    trackProductView(product._id || product.slug, product.name, product.price);
   }, [product, pixels, store?.currency]);
 
   useEffect(() => {
@@ -1062,6 +1066,7 @@ const StoreProductPage = () => {
   const openOrderModal = () => {
     if (!inStock) return;
     setShowOrderModal(true);
+    trackAddToCart(product?._id || product?.slug, product?.name, product?.price);
     firePixelEvent('AddToCart', {
       content_ids: [product?._id || product?.slug || ''],
       content_name: product?.name || '',

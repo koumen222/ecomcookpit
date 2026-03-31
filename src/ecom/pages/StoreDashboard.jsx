@@ -94,7 +94,7 @@ export default function StoreDashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-4 border-emerald-500 border-t-transparent mx-auto"></div>
           <p className="mt-6 text-lg font-medium text-gray-700">Chargement de votre boutique...</p>
@@ -118,70 +118,57 @@ export default function StoreDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-    <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4">
       {/* Header */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
-                <BarChart3 size={24} className="text-white" />
-              </div>
-              Dashboard Boutique
-            </h1>
-            <p className="text-gray-600 mt-2 flex items-center gap-2">
-              <Calendar size={16} />
-              {period === '24h' ? 'Dernières 24 heures' : period === '7d' ? '7 derniers jours' : period === '30d' ? '30 derniers jours' : '90 derniers jours'}
-            </p>
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
+              <BarChart3 size={16} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-base font-bold text-gray-900 leading-tight">Dashboard Boutique</h1>
+              <p className="text-xs text-gray-500">
+                {period === '24h' ? 'Dernières 24h' : period === '7d' ? '7 derniers jours' : period === '30d' ? '30 jours' : '90 jours'}
+              </p>
+            </div>
           </div>
         
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Période */}
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+            className="text-xs px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
           >
-            <option value="24h">Dernières 24h</option>
-            <option value="7d">7 derniers jours</option>
-            <option value="30d">30 derniers jours</option>
-            <option value="90d">90 derniers jours</option>
+            <option value="24h">24h</option>
+            <option value="7d">7 jours</option>
+            <option value="30d">30 jours</option>
+            <option value="90d">90 jours</option>
           </select>
 
-          {/* Boutons d'action */}
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+            className="p-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
             title="Actualiser"
           >
-            <RefreshCw size={20} className={refreshing ? 'animate-spin' : ''} />
+            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
           </button>
 
           <button
             onClick={exportAnalytics}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition flex items-center gap-2"
+            className="p-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+            title="Exporter CSV"
           >
-            <Download size={18} />
-            Exporter
+            <Download size={16} />
           </button>
-
-          {workspace?.storeSubdomain && (
-            <button
-              onClick={() => window.open(`https://${workspace.storeSubdomain}.scalor.net`, '_blank')}
-              className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-lg hover:from-emerald-600 hover:to-teal-700 transition-all shadow-md hover:shadow-lg flex items-center gap-2 font-medium"
-            >
-              <ExternalLink size={18} />
-              Voir la boutique
-            </button>
-          )}
         </div>
         </div>
       </div>
 
-      {/* Métriques principales - Style Shopify */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Métriques principales */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <ShopifyMetricCard
           title="Visites"
           value={formatNumber(analytics.uniqueVisitors || 0)}
@@ -264,61 +251,10 @@ export default function StoreDashboard() {
         </div>
       )}
 
-      {/* Tunnel de conversion */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-        <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-          <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
-            <TrendingUp size={18} className="text-emerald-600" />
-          </div>
-          Tunnel de conversion
-        </h2>
-        <div className="space-y-4">
-          <ConversionStep
-            label="Visiteurs"
-            count={analytics.uniqueVisitors}
-            percentage={100}
-            color="bg-blue-500"
-          />
-          <ConversionStep
-            label="Vues produits"
-            count={analytics.productViews}
-            percentage={(analytics.productViews / analytics.uniqueVisitors * 100) || 0}
-            color="bg-purple-500"
-          />
-          <ConversionStep
-            label="Ajouts au panier"
-            count={analytics.addToCarts}
-            percentage={(analytics.addToCarts / analytics.uniqueVisitors * 100) || 0}
-            color="bg-orange-500"
-          />
-          <ConversionStep
-            label="Checkouts"
-            count={analytics.checkoutsStarted}
-            percentage={(analytics.checkoutsStarted / analytics.uniqueVisitors * 100) || 0}
-            color="bg-amber-500"
-          />
-          <ConversionStep
-            label="Commandes"
-            count={analytics.ordersPlaced}
-            percentage={analytics.conversionRate || 0}
-            color="bg-green-500"
-          />
-        </div>
-        <div className="mt-6 p-5 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-emerald-700 mb-1">Taux de conversion global</p>
-              <p className="text-3xl font-bold text-emerald-900">{analytics.conversionRate || 0}%</p>
-            </div>
-            <div className="w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center">
-              <TrendingUp size={28} className="text-white" />
-            </div>
-          </div>
-        </div>
-      </div>
+
 
       {/* Stats appareils & Top produits */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Appareils */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
@@ -396,24 +332,6 @@ export default function StoreDashboard() {
         </div>
       </div>
 
-      {/* Statuts des commandes */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-        <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-          <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-            <Package size={18} className="text-orange-600" />
-          </div>
-          Statuts des commandes
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          <ShopifyStatusCard label="En attente" count={orders.pending} color="amber" icon="⏳" />
-          <ShopifyStatusCard label="Confirmées" count={orders.confirmed} color="blue" icon="✓" />
-          <ShopifyStatusCard label="En traitement" count={orders.processing} color="indigo" icon="⚙️" />
-          <ShopifyStatusCard label="Expédiées" count={orders.shipped} color="purple" icon="🚚" />
-          <ShopifyStatusCard label="Livrées" count={orders.delivered} color="green" icon="✅" />
-          <ShopifyStatusCard label="Annulées" count={orders.cancelled} color="red" icon="✕" />
-        </div>
-      </div>
-    </div>
     </div>
   );
 }
@@ -524,12 +442,12 @@ const ShopifyStatusCard = ({ label, count, color, icon }) => {
   };
   
   return (
-    <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-5 border border-gray-200 hover:shadow-md transition-all text-center group">
-      <div className="text-3xl mb-2">{icon}</div>
-      <p className={`text-4xl font-bold bg-gradient-to-r ${colorClasses[color]} bg-clip-text text-transparent mb-2`}>
+    <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-3 border border-gray-200 text-center">
+      <div className="text-xl mb-1">{icon}</div>
+      <p className={`text-2xl font-bold bg-gradient-to-r ${colorClasses[color]} bg-clip-text text-transparent mb-0.5`}>
         {count || 0}
       </p>
-      <p className="text-sm font-medium text-gray-600">{label}</p>
+      <p className="text-[10px] font-medium text-gray-500 leading-tight">{label}</p>
     </div>
   );
 };
