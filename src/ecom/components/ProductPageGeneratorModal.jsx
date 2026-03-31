@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   X, Sparkles, Loader2, CheckCircle, AlertCircle, Upload,
   Image as ImageIcon, Copy, ExternalLink, Zap, Package, ArrowRight, Star
@@ -119,6 +119,35 @@ function ImagePreview({ src, label, className = '' }) {
   );
 }
 
+// Typing effect component
+function TypingText({ text }) {
+  const [displayedText, setDisplayedText] = useState('');
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    if (currentIndex < text.length) {
+      const timeout = setTimeout(() => {
+        setDisplayedText(prev => prev + text[currentIndex]);
+        setCurrentIndex(currentIndex + 1);
+      }, 30); // 30ms par caractère pour effet fluide
+      return () => clearTimeout(timeout);
+    }
+  }, [currentIndex, text]);
+
+  useEffect(() => {
+    // Reset when text changes
+    setDisplayedText('');
+    setCurrentIndex(0);
+  }, [text]);
+
+  return (
+    <span className="inline-block">
+      {displayedText}
+      <span className="inline-block w-0.5 h-4 bg-violet-600 ml-0.5 animate-pulse" />
+    </span>
+  );
+}
+
 const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const [phase, setPhase] = useState('input');
   const [inputMode, setInputMode] = useState('url'); // 'url' ou 'description'
@@ -138,6 +167,12 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const [paymentPhone, setPaymentPhone] = useState('');
   const [paymentName, setPaymentName] = useState('');
   const [paymentLoading, setPaymentLoading] = useState(false);
+  
+  // AI Store Builder states
+  const [buildStep, setBuildStep] = useState(0); // 0-4
+  const [buildProgress, setBuildProgress] = useState(0); // 0-100
+  const [buildMessage, setBuildMessage] = useState('');
+  const [showConfetti, setShowConfetti] = useState(false);
   const fileInputRef = useRef(null);
   const abortRef = useRef(null);
   const readerRef = useRef(null);
@@ -157,6 +192,98 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
 
   const removePhoto = (index) => setPhotos(prev => prev.filter((_, i) => i !== index));
 
+  // AI Store Builder progression
+  useEffect(() => {
+    if (phase !== 'loading') return;
+
+    const steps = [
+      {
+        step: 0,
+        title: '🔍 Analyse de votre produit en cours…',
+        messages: [
+          'Détection des bénéfices clés…',
+          'Analyse du marché africain…',
+          'Identification des angles marketing…'
+        ],
+        progressRange: [0, 30],
+        duration: 8000
+      },
+      {
+        step: 1,
+        title: '✍️ Génération du contenu marketing',
+        messages: [
+          'Création du titre accrocheur…',
+          'Rédaction des bénéfices…',
+          'Optimisation pour la conversion…',
+          'Génération des témoignages clients…'
+        ],
+        progressRange: [30, 65],
+        duration: 12000
+      },
+      {
+        step: 2,
+        title: '🎨 Design de la page',
+        messages: [
+          'Création du design…',
+          'Ajout des sections de conversion…',
+          'Génération des visuels marketing…',
+          'Optimisation mobile…'
+        ],
+        progressRange: [65, 90],
+        duration: 15000
+      },
+      {
+        step: 3,
+        title: '🚀 Finalisation',
+        messages: [
+          'Assemblage final…',
+          'Vérification qualité…',
+          'Votre page est prête !'
+        ],
+        progressRange: [90, 100],
+        duration: 5000
+      }
+    ];
+
+    const currentStepData = steps[buildStep];
+    if (!currentStepData) return;
+
+    let messageIndex = 0;
+    let startProgress = currentStepData.progressRange[0];
+    const endProgress = currentStepData.progressRange[1];
+    const progressIncrement = (endProgress - startProgress) / currentStepData.messages.length;
+
+    // Set initial message
+    setBuildMessage(currentStepData.messages[0]);
+    
+    const messageInterval = setInterval(() => {
+      messageIndex++;
+      if (messageIndex < currentStepData.messages.length) {
+        setBuildMessage(currentStepData.messages[messageIndex]);
+        setBuildProgress(startProgress + (progressIncrement * messageIndex));
+      } else {
+        clearInterval(messageInterval);
+      }
+    }, currentStepData.duration / currentStepData.messages.length);
+
+    const stepTimeout = setTimeout(() => {
+      if (buildStep < 3) {
+        setBuildStep(buildStep + 1);
+        setBuildProgress(endProgress);
+      } else {
+        // Dernière étape terminée
+        setBuildProgress(100);
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 3000);
+      }
+    }, currentStepData.duration);
+
+    return () => {
+      clearInterval(messageInterval);
+      clearTimeout(stepTimeout);
+    };
+  }, [phase, buildStep]);
+
   const handleDrop = (e) => {
     e.preventDefault();
     setDragOver(false);
@@ -172,6 +299,10 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     setStepLabel('Génération en cours...');
     setError('');
     setProduct(null);
+    setBuildStep(0);
+    setBuildProgress(0);
+    setBuildMessage('');
+    setShowConfetti(false);
     isGeneratingRef.current = true;
 
     const token = localStorage.getItem('ecomToken');
@@ -494,18 +625,21 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {/* Compteur de générations */}
+            {/* Compteur de générations - Affichage détaillé */}
             {generationsInfo && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-violet-50 border border-violet-200">
-                <Zap className="w-4 h-4 text-violet-600" />
-                <span className="text-xs font-bold text-violet-700">
-                  {generationsInfo.freeRemaining > 0 
-                    ? `${generationsInfo.freeRemaining} gratuite${generationsInfo.freeRemaining > 1 ? 's' : ''}`
-                    : generationsInfo.paidRemaining > 0
-                    ? `${generationsInfo.paidRemaining} payante${generationsInfo.paidRemaining > 1 ? 's' : ''}`
-                    : '0 restante'
-                  }
-                </span>
+              <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 shadow-sm">
+                <Zap className="w-5 h-5 text-violet-600" />
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-violet-900">
+                    {generationsInfo.freeRemaining + generationsInfo.paidRemaining} génération{(generationsInfo.freeRemaining + generationsInfo.paidRemaining) !== 1 ? 's' : ''}
+                  </span>
+                  <span className="text-[10px] text-violet-600">
+                    {generationsInfo.freeRemaining > 0 && `${generationsInfo.freeRemaining} gratuite${generationsInfo.freeRemaining > 1 ? 's' : ''}`}
+                    {generationsInfo.freeRemaining > 0 && generationsInfo.paidRemaining > 0 && ' + '}
+                    {generationsInfo.paidRemaining > 0 && `${generationsInfo.paidRemaining} payée${generationsInfo.paidRemaining > 1 ? 's' : ''}`}
+                    {generationsInfo.freeRemaining === 0 && generationsInfo.paidRemaining === 0 && 'Épuisées'}
+                  </span>
+                </div>
               </div>
             )}
             <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
@@ -811,34 +945,135 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
             </div>
           )}
 
-          {/* ─── LOADING PHASE ─── */}
+          {/* ─── AI STORE BUILDER PHASE ─── */}
           {phase === 'loading' && (
-            <div className="p-8 flex flex-col items-center justify-center gap-6 min-h-[400px]">
-              <div className="relative w-20 h-20">
-                <div className="absolute inset-0 rounded-full border-4 border-violet-100" />
-                <div className="absolute inset-0 rounded-full border-4 border-violet-600 border-t-transparent animate-spin" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Sparkles className="w-8 h-8 text-violet-600 animate-pulse" />
+            <div className="p-8 flex flex-col items-center justify-center gap-8 min-h-[500px] relative overflow-hidden">
+              {/* Confetti effect */}
+              {showConfetti && (
+                <div className="absolute inset-0 pointer-events-none z-50">
+                  {[...Array(50)].map((_, i) => (
+                    <div
+                      key={i}
+                      className="absolute"
+                      style={{
+                        left: `${Math.random() * 100}%`,
+                        top: `-20px`,
+                        animation: `fall ${1 + Math.random() * 2}s linear forwards`,
+                        animationDelay: `${Math.random() * 0.5}s`
+                      }}
+                    >
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{
+                          backgroundColor: ['#ec4899', '#8b5cf6', '#f59e0b', '#10b981', '#3b82f6', '#ef4444'][Math.floor(Math.random() * 6)],
+                          transform: `rotate(${Math.random() * 360}deg)`
+                        }}
+                      />
+                    </div>
+                  ))}
+                  <style dangerouslySetInnerHTML={{
+                    __html: `
+                      @keyframes fall {
+                        to {
+                          transform: translateY(600px) rotate(720deg);
+                          opacity: 0;
+                        }
+                      }
+                    `
+                  }} />
+                </div>
+              )}
+
+              {/* Main icon animation */}
+              <div className="relative">
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center relative">
+                  <div className="absolute inset-0 rounded-full border-4 border-violet-300 animate-ping opacity-20" />
+                  <Sparkles className="w-12 h-12 text-violet-600 animate-pulse" />
                 </div>
               </div>
 
-              <div className="text-center space-y-4">
-                <p className="text-xl font-bold text-gray-900">Génération en cours...</p>
-                <p className="text-sm text-gray-600">
-                  L'IA analyse votre produit et génère les images marketing.<br/>
-                  Cela peut prendre jusqu'à 2 minutes.
+              {/* Step title */}
+              <div className="text-center space-y-2 relative z-10">
+                <h3 className="text-2xl font-black text-gray-900">
+                  {[
+                    '🔍 Analyse de votre produit en cours…',
+                    '✍️ Génération du contenu marketing',
+                    '🎨 Design de la page',
+                    '🚀 Finalisation'
+                  ][buildStep]}
+                </h3>
+                
+                {/* Typing effect message */}
+                <p className="text-base text-gray-600 font-medium h-6">
+                  <TypingText text={buildMessage} />
                 </p>
-                <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
-                  <div className="w-2 h-2 bg-violet-500 rounded-full animate-pulse" />
-                  <span>Scraping • Vision GPT-4o • NanoBanana IA</span>
-                  <div className="w-2 h-2 bg-violet-500 rounded-full animate-pulse" style={{ animationDelay: '0.5s' }} />
+              </div>
+
+              {/* Progress bar */}
+              <div className="w-full max-w-md space-y-2">
+                <div className="flex justify-between text-xs font-bold">
+                  <span className="text-violet-600">Progression</span>
+                  <span className="text-violet-600">{Math.round(buildProgress)}%</span>
+                </div>
+                <div className="h-3 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full overflow-hidden shadow-inner">
+                  <div
+                    className="h-full bg-gradient-to-r from-violet-500 via-purple-500 to-pink-500 rounded-full transition-all duration-500 ease-out relative overflow-hidden"
+                    style={{ width: `${buildProgress}%` }}
+                  >
+                    <div className="absolute inset-0 bg-white/30 animate-pulse" />
+                  </div>
                 </div>
               </div>
 
+              {/* Steps indicators */}
+              <div className="flex items-center justify-center gap-3">
+                {[0, 1, 2, 3].map((step) => (
+                  <div
+                    key={step}
+                    className={`flex items-center gap-2 transition-all duration-300 ${
+                      step === buildStep
+                        ? 'scale-110'
+                        : step < buildStep
+                        ? 'opacity-50'
+                        : 'opacity-30'
+                    }`}
+                  >
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${
+                        step < buildStep
+                          ? 'bg-emerald-500 text-white'
+                          : step === buildStep
+                          ? 'bg-violet-600 text-white shadow-lg'
+                          : 'bg-gray-200 text-gray-400'
+                      }`}
+                    >
+                      {step < buildStep ? (
+                        <CheckCircle className="w-5 h-5" />
+                      ) : (
+                        step + 1
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Tech badges */}
+              <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
+                <div className="w-2 h-2 bg-violet-500 rounded-full animate-pulse" />
+                <span className="font-medium">Vision GPT-4o • NanoBanana IA • Groq</span>
+                <div className="w-2 h-2 bg-violet-500 rounded-full animate-pulse" style={{ animationDelay: '0.5s' }} />
+              </div>
+
+              {/* Cancel button */}
               <button
                 type="button"
-                onClick={() => { abortRef.current?.abort(); setPhase('input'); }}
-                className="text-sm text-gray-500 hover:text-gray-700 underline transition"
+                onClick={() => { 
+                  abortRef.current?.abort(); 
+                  setPhase('input');
+                  setBuildStep(0);
+                  setBuildProgress(0);
+                }}
+                className="text-sm text-gray-400 hover:text-gray-600 underline transition mt-4"
               >
                 Annuler
               </button>
@@ -1144,16 +1379,52 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-100 shrink-0">
           {phase === 'input' && (
-            <button
-              type="button"
-              onClick={handleGenerate}
-              disabled={inputMode === 'url' ? !isValidUrl || photos.length === 0 : !isValidDescription}
-              className="w-full py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-semibold text-sm hover:from-violet-700 hover:to-purple-700 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              <Sparkles className="w-4 h-4" />
-              Générer la page produit avec l'IA
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            <>
+              {/* Info générations restantes */}
+              {generationsInfo && (
+                <div className="mb-3 p-3 rounded-lg bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-100">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-violet-600" />
+                      <span className="font-medium text-gray-700">
+                        Générations restantes :
+                      </span>
+                    </div>
+                    <div className="font-bold text-violet-700">
+                      {generationsInfo.freeRemaining + generationsInfo.paidRemaining > 0 ? (
+                        <>
+                          {generationsInfo.freeRemaining > 0 && (
+                            <span className="text-emerald-600">{generationsInfo.freeRemaining} gratuite{generationsInfo.freeRemaining > 1 ? 's' : ''}</span>
+                          )}
+                          {generationsInfo.freeRemaining > 0 && generationsInfo.paidRemaining > 0 && <span className="text-gray-500"> + </span>}
+                          {generationsInfo.paidRemaining > 0 && (
+                            <span className="text-violet-600">{generationsInfo.paidRemaining} payée{generationsInfo.paidRemaining > 1 ? 's' : ''}</span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-red-600">0 restante</span>
+                      )}
+                    </div>
+                  </div>
+                  {generationsInfo.totalUsed > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      🎉 Tu as déjà généré {generationsInfo.totalUsed} page{generationsInfo.totalUsed > 1 ? 's' : ''} avec succès
+                    </p>
+                  )}
+                </div>
+              )}
+              
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={inputMode === 'url' ? !isValidUrl || photos.length === 0 : !isValidDescription}
+                className="w-full py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-semibold text-sm hover:from-violet-700 hover:to-purple-700 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                Générer la page produit avec l'IA
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </>
           )}
 
           {phase === 'preview' && (
