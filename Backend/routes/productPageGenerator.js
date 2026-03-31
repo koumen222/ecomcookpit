@@ -22,10 +22,7 @@ import EcomWorkspace from '../models/Workspace.js';
 
 const router = express.Router();
 
-// ── Global generation lock ──────────────────────────────────────────────────
-if (!globalThis.__aiProductGeneratorLock) {
-  globalThis.__aiProductGeneratorLock = { locked: false, userId: null, startedAt: null };
-}
+// Plusieurs générations simultanées autorisées — lock supprimé
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -36,25 +33,8 @@ const upload = multer({
   }
 });
 
-function releaseLock(userId) {
-  if (globalThis.__aiProductGeneratorLock?.userId === userId) {
-    globalThis.__aiProductGeneratorLock.locked = false;
-    globalThis.__aiProductGeneratorLock.userId = null;
-    globalThis.__aiProductGeneratorLock.startedAt = null;
-  }
-}
-
 router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), upload.array('images', 8), async (req, res) => {
   const userId = req.user?.id || req.user?._id || 'anonymous';
-
-  // ── Anti double-génération ────────────────────────────────────────────────
-  const lock = globalThis.__aiProductGeneratorLock;
-  if (lock.locked) {
-    return res.status(429).json({ success: false, message: 'Génération déjà en cours' });
-  }
-  lock.locked = true;
-  lock.userId = userId;
-  lock.startedAt = Date.now();
 
   const { 
     url, 
@@ -94,23 +74,19 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   if (isDescriptionMode) {
     // Mode description directe
     if (!userDescription || typeof userDescription !== 'string' || userDescription.trim().length < 20) {
-      releaseLock(userId);
       return res.status(400).json({ success: false, message: 'Description requise (minimum 20 caractères)' });
     }
     if (!imageFiles || imageFiles.length === 0) {
-      releaseLock(userId);
       return res.status(400).json({ success: false, message: 'Au moins une photo requise en mode description' });
     }
   } else {
     // Mode URL produit
     if (!url || typeof url !== 'string' || url.trim().length < 10) {
-      releaseLock(userId);
       return res.status(400).json({ success: false, message: 'URL du produit requise' });
     }
     const cleanUrl = url.trim();
     // Validation basique de l'URL
     if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
-      releaseLock(userId);
       return res.status(400).json({ success: false, message: 'URL invalide - doit commencer par http:// ou https://' });
     }
   }
@@ -129,7 +105,6 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         .select('storeSettings.country storeSettings.city storeSettings.storeName name freeGenerationsRemaining paidGenerationsRemaining totalGenerations');
       
       if (!workspace) {
-        releaseLock(userId);
         return res.status(404).json({ success: false, message: 'Workspace introuvable' });
       }
 
@@ -149,7 +124,6 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       const totalRemaining = freeRemaining + paidRemaining;
 
       if (totalRemaining <= 0) {
-        releaseLock(userId);
         return res.status(403).json({ 
           success: false, 
           limitReached: true,
@@ -501,7 +475,6 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       generatedAt: new Date().toISOString()
     };
 
-    releaseLock(userId);
     console.log('✅ Page produit générée avec succès');
     
     // Récupérer le nombre de générations restantes pour l'inclure dans la réponse
@@ -524,7 +497,6 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   } catch (error) {
     console.error('❌ Erreur génération:', error.message);
     console.error('❌ Stack:', error.stack);
-    releaseLock(userId);
     
     return res.status(500).json({
       success: false,

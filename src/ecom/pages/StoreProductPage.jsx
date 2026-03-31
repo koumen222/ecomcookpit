@@ -230,6 +230,7 @@ const ImageGallery = ({ images = [] }) => {
 
 // ── Product Reviews (Stars) ─────────────────────────────────────────────────
 const ProductReviews = ({ rating = 4.5, reviewCount = 128 }) => {
+  const displayCount = reviewCount > 0 ? reviewCount : 125;
   const fullStars = Math.floor(rating);
   const hasHalfStar = rating % 1 >= 0.5;
   
@@ -252,7 +253,7 @@ const ProductReviews = ({ rating = 4.5, reviewCount = 128 }) => {
         {rating.toFixed(1)}
       </span>
       <span style={{ fontSize: 13, color: 'var(--s-text2)' }}>
-        ({reviewCount} avis)
+        ({displayCount} avis)
       </span>
     </div>
   );
@@ -1056,9 +1057,9 @@ const StoreProductPage = () => {
 
                 {/* Name */}
                 <h1 style={{
-                  fontSize: 'clamp(22px, 3.5vw, 32px)', fontWeight: 800,
+                  fontSize: 'clamp(26px, 4vw, 38px)', fontWeight: 900,
                   color: 'var(--s-text)', margin: '8px 0 8px',
-                  lineHeight: 1.15, letterSpacing: '-0.02em', fontFamily: 'var(--s-font)',
+                  lineHeight: 1.1, letterSpacing: '-0.03em', fontFamily: 'var(--s-font)',
                 }}>
                   {product.name}
                 </h1>
@@ -1135,7 +1136,7 @@ const StoreProductPage = () => {
                       }
                     }}
                     style={{
-                      width: '100%', padding: '15px 24px', borderRadius: 40, border: 'none',
+                      width: '100%', padding: '16px 24px', borderRadius: 14, border: 'none',
                       backgroundColor: inStock ? 'var(--s-primary)' : '#d1d5db',
                       color: '#fff', fontWeight: 700, fontSize: 16, cursor: inStock ? 'pointer' : 'not-allowed',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
