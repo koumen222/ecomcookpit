@@ -683,29 +683,185 @@ const AiTestimonialsSection = ({ cfg }) => {
 // ─── FAQ ──────────────────────────────────────────────────────────────────────
 const AiFaqSection = ({ cfg }) => {
   const [open, setOpen] = useState(null);
+  const [heights, setHeights] = useState({});
+  
+  const toggleItem = (i) => {
+    setOpen(open === i ? null : i);
+  };
+  
   return (
-    <section style={{ padding: 'clamp(56px, 9vw, 88px) 24px', backgroundColor: '#fff' }}>
-      <div style={{ maxWidth: 740, margin: '0 auto' }}>
-        <h2 style={{ fontSize: 'clamp(22px, 3.2vw, 34px)', fontWeight: 900, textAlign: 'center', color: 'var(--s-text)', margin: '0 0 40px', letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>
-          {cfg.title || 'Questions fréquentes'}
-        </h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {(cfg.items || []).map((item, i) => (
-            <div key={i} style={{ borderRadius: 14, border: '1.5px solid', overflow: 'hidden', borderColor: open === i ? 'var(--s-primary)' : '#E5E7EB', backgroundColor: open === i ? '#FAFFFE' : '#fff', transition: 'border-color 0.15s, background-color 0.15s' }}>
-              <button onClick={() => setOpen(open === i ? null : i)} style={{ width: '100%', padding: '18px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', gap: 12 }}>
-                <span style={{ fontWeight: 600, fontSize: 14.5, color: 'var(--s-text)', fontFamily: 'var(--s-font)', lineHeight: 1.4 }}>{item.question}</span>
-                <span style={{ flexShrink: 0 }}>
-                  {open === i ? <ChevronUp size={17} color="var(--s-primary)" /> : <ChevronDown size={17} color="#9CA3AF" />}
-                </span>
-              </button>
-              {open === i && (
-                <div style={{ padding: '0 22px 20px', fontSize: 14, color: '#4B5563', lineHeight: 1.7, fontFamily: 'var(--s-font)' }}>
-                  {item.answer || item.reponse}
-                </div>
-              )}
-            </div>
-          ))}
+    <section style={{ padding: 'clamp(56px, 9vw, 88px) 24px', backgroundColor: '#FAFAFA' }}>
+      <style>
+        {`
+          .faq-chevron {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          }
+          
+          .faq-chevron.open {
+            transform: rotate(180deg);
+          }
+          
+          .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), 
+                        padding 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                        opacity 0.3s ease;
+            opacity: 0;
+          }
+          
+          .faq-answer.open {
+            max-height: 500px;
+            opacity: 1;
+          }
+          
+          .faq-item {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          }
+          
+          .faq-item:hover {
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+            transform: translateY(-2px);
+          }
+        `}
+      </style>
+      
+      <div style={{ maxWidth: 780, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 48 }}>
+          <h2 style={{ 
+            fontSize: 'clamp(26px, 3.8vw, 38px)', 
+            fontWeight: 900, 
+            color: 'var(--s-text)', 
+            margin: '0 0 12px', 
+            letterSpacing: '-0.03em', 
+            fontFamily: 'var(--s-font)' 
+          }}>
+            {cfg.title || 'Questions fréquentes'}
+          </h2>
+          {cfg.subtitle && (
+            <p style={{ 
+              fontSize: 15.5, 
+              color: 'var(--s-text2)', 
+              margin: 0, 
+              fontFamily: 'var(--s-font)' 
+            }}>
+              {cfg.subtitle}
+            </p>
+          )}
         </div>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {(cfg.items || []).map((item, i) => {
+            const isOpen = open === i;
+            
+            return (
+              <div 
+                key={i} 
+                className="faq-item"
+                style={{ 
+                  borderRadius: 16, 
+                  border: '1.5px solid', 
+                  overflow: 'hidden', 
+                  borderColor: isOpen ? 'var(--s-primary)' : '#E5E7EB', 
+                  backgroundColor: isOpen ? '#FFFFFF' : '#fff',
+                  boxShadow: isOpen ? '0 8px 32px rgba(0, 0, 0, 0.08)' : '0 1px 3px rgba(0, 0, 0, 0.02)',
+                }}
+              >
+                <button 
+                  onClick={() => toggleItem(i)} 
+                  style={{ 
+                    width: '100%', 
+                    padding: '20px 24px', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between', 
+                    background: 'none', 
+                    border: 'none', 
+                    cursor: 'pointer', 
+                    textAlign: 'left', 
+                    gap: 16 
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, flex: 1 }}>
+                    <span style={{ 
+                      flexShrink: 0,
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      backgroundColor: isOpen ? 'var(--s-primary)' : '#F3F4F6',
+                      color: isOpen ? '#fff' : 'var(--s-text2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 13,
+                      fontWeight: 700,
+                      fontFamily: 'var(--s-font)',
+                      transition: 'all 0.3s',
+                    }}>
+                      {i + 1}
+                    </span>
+                    <span style={{ 
+                      fontWeight: 600, 
+                      fontSize: 15.5, 
+                      color: 'var(--s-text)', 
+                      fontFamily: 'var(--s-font)', 
+                      lineHeight: 1.5,
+                      paddingTop: 3,
+                    }}>
+                      {item.question}
+                    </span>
+                  </div>
+                  <div className={`faq-chevron ${isOpen ? 'open' : ''}`} style={{ flexShrink: 0 }}>
+                    <ChevronDown size={20} color={isOpen ? 'var(--s-primary)' : '#9CA3AF'} strokeWidth={2.5} />
+                  </div>
+                </button>
+                
+                <div className={`faq-answer ${isOpen ? 'open' : ''}`}>
+                  <div style={{ 
+                    padding: '0 24px 20px 66px', 
+                    fontSize: 14.5, 
+                    color: '#4B5563', 
+                    lineHeight: 1.75, 
+                    fontFamily: 'var(--s-font)',
+                  }}>
+                    {item.answer || item.reponse}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        
+        {/* Optional CTA at the bottom */}
+        {cfg.showContactCta !== false && (
+          <div style={{ 
+            marginTop: 40, 
+            textAlign: 'center', 
+            padding: '28px 24px',
+            backgroundColor: '#fff',
+            borderRadius: 16,
+            border: '1px solid #E5E7EB',
+          }}>
+            <p style={{ 
+              fontSize: 14.5, 
+              color: 'var(--s-text2)', 
+              margin: '0 0 16px',
+              fontFamily: 'var(--s-font)',
+            }}>
+              Vous ne trouvez pas votre réponse ?
+            </p>
+            <p style={{ 
+              fontSize: 15, 
+              fontWeight: 600, 
+              color: 'var(--s-text)', 
+              margin: 0,
+              fontFamily: 'var(--s-font)',
+            }}>
+              <MessageCircle size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+              Contactez-nous directement
+            </p>
+          </div>
+        )}
       </div>
     </section>
   );
