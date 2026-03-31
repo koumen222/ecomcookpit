@@ -1,14 +1,27 @@
 /**
- * Google Imagen 3 / Gemini Image Generation Service
- * - Text-to-image  : imagen-3.0-generate-002 (Imagen 3)
- * - Image-to-image : gemini-2.5-flash-image (Gemini 2.5 Flash)
+ * Gemini 3 Pro Image / Imagen 4 Generation Service
+ * - Image generation : gemini-3-pro-image-preview → gemini-3.1-flash-image-preview (generateContent)
+ * - Fallback         : imagen-4.0-fast-generate-001 (predict)
  */
 
 import axios from 'axios';
 
 const GEMINI_API_KEY = process.env.NANOBANANA_API_KEY;
-const IMAGEN3_URL   = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict';
-const GEMINI_IMG_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent';
+const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+// Modèles Gemini image (generateContent, responseModalities IMAGE)
+const GEMINI_IMAGE_MODELS = [
+  'gemini-3-pro-image-preview',
+  'gemini-3.1-flash-image-preview',
+  'gemini-2.5-flash-image',
+];
+
+// Imagen 4 fallback (predict endpoint)
+const IMAGEN_MODELS = [
+  'imagen-4.0-fast-generate-001',
+  'imagen-4.0-generate-001',
+];
+const IMAGEN_BASE_URL = GEMINI_BASE_URL;
 
 /**
  * Generate image using Google Imagen 3 (text-to-image)
@@ -18,43 +31,55 @@ const GEMINI_IMG_URL = 'https://generativelanguage.googleapis.com/v1beta/models/
  * @returns {Promise<string|null>} - Base64 image data URL or null
  */
 export async function generateNanoBananaImage(prompt, aspectRatio = '1:1', numImages = 1) {
-  if (!GEMINI_API_KEY) {
-    throw new Error('Google Gemini API key not configured');
-  }
+  if (!GEMINI_API_KEY) throw new Error('Google Gemini API key not configured');
 
-  try {
-    console.log('🎨 Generating image with Google Imagen 3...');
-
-    const response = await axios.post(
-      `${IMAGEN3_URL}?key=${GEMINI_API_KEY}`,
-      {
-        instances: [{ prompt: prompt.slice(0, 4000) }],
-        parameters: {
-          sampleCount: numImages,
-          aspectRatio,
-          safetyFilterLevel: 'BLOCK_SOME',
-          personGeneration: 'ALLOW_ADULT'
-        }
-      },
-      {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 30000
-      }
-    );
-
-    const prediction = response.data?.predictions?.[0];
-    if (!prediction?.bytesBase64Encoded) {
-      throw new Error('No image data in Imagen 3 response');
+  // 1ère tentative : Gemini 3 Pro Image (generateContent)
+  for (const model of GEMINI_IMAGE_MODELS) {
+    try {
+      console.log(`🎨 Generating image with ${model}...`);
+      const response = await axios.post(
+        `${GEMINI_BASE_URL}/${model}:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          contents: [{ parts: [{ text: prompt.slice(0, 4000) }] }],
+          generationConfig: { responseModalities: ['IMAGE', 'TEXT'], temperature: 1.0 }
+        },
+        { headers: { 'Content-Type': 'application/json' }, timeout: 60000 }
+      );
+      const parts = response.data?.candidates?.[0]?.content?.parts || [];
+      const imagePart = parts.find(p => p.inlineData?.mimeType?.startsWith('image/'));
+      if (!imagePart) { console.warn(`⚠️ ${model}: pas de donnée image`); continue; }
+      console.log(`✅ Image générée avec ${model}`);
+      return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+    } catch (err) {
+      const msg = err.response?.data?.error?.message || err.message;
+      console.warn(`⚠️ ${model} failed: ${msg}`);
     }
-
-    const mimeType = prediction.mimeType || 'image/png';
-    console.log('✅ Imagen 3 image generated successfully');
-    return `data:${mimeType};base64,${prediction.bytesBase64Encoded}`;
-  } catch (error) {
-    const msg = error.response?.data?.error?.message || error.message;
-    console.error('❌ Imagen 3 error:', msg);
-    return null;
   }
+
+  // Fallback : Imagen 4 (predict)
+  for (const model of IMAGEN_MODELS) {
+    try {
+      console.log(`🎨 Fallback Imagen 4: ${model}...`);
+      const response = await axios.post(
+        `${IMAGEN_BASE_URL}/${model}:predict?key=${GEMINI_API_KEY}`,
+        {
+          instances: [{ prompt: prompt.slice(0, 4000) }],
+          parameters: { sampleCount: 1, aspectRatio, safetyFilterLevel: 'BLOCK_SOME', personGeneration: 'ALLOW_ADULT' }
+        },
+        { headers: { 'Content-Type': 'application/json' }, timeout: 45000 }
+      );
+      const prediction = response.data?.predictions?.[0];
+      if (!prediction?.bytesBase64Encoded) { console.warn(`⚠️ ${model}: pas de donnée image`); continue; }
+      console.log(`✅ Image générée avec ${model}`);
+      return `data:${prediction.mimeType || 'image/png'};base64,${prediction.bytesBase64Encoded}`;
+    } catch (err) {
+      const msg = err.response?.data?.error?.message || err.message;
+      console.warn(`⚠️ ${model} failed: ${msg}`);
+    }
+  }
+
+  console.error('❌ Tous les modèles image ont échoué');
+  return null;
 }
 
 /**
@@ -66,60 +91,46 @@ export async function generateNanoBananaImage(prompt, aspectRatio = '1:1', numIm
  * @returns {Promise<string|null>} - Base64 image data URL or null
  */
 export async function generateNanoBananaImageToImage(prompt, imageInput, aspectRatio = '1:1', numImages = 1) {
-  if (!GEMINI_API_KEY) {
-    throw new Error('Google Gemini API key not configured');
+  if (!GEMINI_API_KEY) throw new Error('Google Gemini API key not configured');
+
+  let base64Image;
+  if (Buffer.isBuffer(imageInput)) {
+    base64Image = imageInput.toString('base64');
+  } else if (typeof imageInput === 'string' && imageInput.startsWith('data:')) {
+    base64Image = imageInput.split(',')[1];
+  } else {
+    base64Image = imageInput;
   }
 
-  try {
-    console.log('🎨 Generating image-to-image with Gemini 2.5 Flash...');
-
-    let base64Image;
-    if (Buffer.isBuffer(imageInput)) {
-      base64Image = imageInput.toString('base64');
-    } else if (typeof imageInput === 'string' && imageInput.startsWith('data:')) {
-      base64Image = imageInput.split(',')[1];
-    } else {
-      base64Image = imageInput;
-    }
-
-    const response = await axios.post(
-      `${GEMINI_IMG_URL}?key=${GEMINI_API_KEY}`,
-      {
-        contents: [{
-          parts: [
+  // Gemini 3 Pro Image supporte image-to-image via inlineData
+  for (const model of GEMINI_IMAGE_MODELS) {
+    try {
+      console.log(`🎨 Image-to-image with ${model}...`);
+      const response = await axios.post(
+        `${GEMINI_BASE_URL}/${model}:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          contents: [{ parts: [
             { text: prompt.slice(0, 4000) },
-            {
-              inlineData: {
-                mimeType: 'image/jpeg',
-                data: base64Image
-              }
-            }
-          ]
-        }],
-        generationConfig: {
-          responseModalities: ['IMAGE']
-        }
-      },
-      {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 30000
-      }
-    );
-
-    const parts = response.data?.candidates?.[0]?.content?.parts || [];
-    const imagePart = parts.find(p => p.inlineData?.mimeType?.startsWith('image/'));
-    if (!imagePart) {
-      throw new Error('No image data in Gemini response');
+            { inlineData: { mimeType: 'image/jpeg', data: base64Image } }
+          ]}],
+          generationConfig: { responseModalities: ['IMAGE', 'TEXT'], temperature: 1.0 }
+        },
+        { headers: { 'Content-Type': 'application/json' }, timeout: 60000 }
+      );
+      const parts = response.data?.candidates?.[0]?.content?.parts || [];
+      const imagePart = parts.find(p => p.inlineData?.mimeType?.startsWith('image/'));
+      if (!imagePart) { console.warn(`⚠️ ${model}: pas de donnée image`); continue; }
+      console.log(`✅ Image-to-image générée avec ${model}`);
+      return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+    } catch (err) {
+      const msg = err.response?.data?.error?.message || err.message;
+      console.warn(`⚠️ ${model} image-to-image failed: ${msg}`);
     }
-
-    const mimeType = imagePart.inlineData.mimeType;
-    console.log('✅ Gemini image-to-image generated successfully');
-    return `data:${mimeType};base64,${imagePart.inlineData.data}`;
-  } catch (error) {
-    const msg = error.response?.data?.error?.message || error.message;
-    console.error('❌ Gemini image-to-image error:', msg);
-    return null;
   }
+
+  // Fallback text-to-image
+  console.log('🔄 Fallback text-to-image...');
+  return generateNanoBananaImage(prompt, aspectRatio, numImages);
 }
 
 /**

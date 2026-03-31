@@ -78,8 +78,23 @@ function getLocalizedTestimonialLocations(country = '', city = '') {
     });
   }
 
+  // Fallback avec suffixes pour éviter les doublons (pas de boucle infinie)
+  const fallbacks = [
+    country || "Afrique de l'Ouest",
+    'Dakar, Sénégal',
+    "Abidjan, Côte d'Ivoire",
+    'Douala, Cameroun',
+    'Lomé, Togo',
+  ];
+  for (const fb of fallbacks) {
+    if (locations.length >= 4) break;
+    const trimmed = cleanScrapedText(fb);
+    if (trimmed && !locations.includes(trimmed)) locations.push(trimmed);
+  }
+  // Dernier recours numéroté
+  let i = 1;
   while (locations.length < 4) {
-    pushLocation(country || 'Afrique de l’Ouest');
+    locations.push(`Client vérifié ${i++}`);
   }
 
   return locations.slice(0, 4);
@@ -130,6 +145,33 @@ function buildDefaultTestimonials(productName, country = '', city = '') {
       date: 'Il y a 2 semaines'
     }
   ];
+}
+
+// ─── Parser JSON robuste pour réponses Groq/LLM ────────────────────
+function parseGroqJSON(text) {
+  // 1. Supprimer blocs markdown
+  let cleaned = text.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
+
+  // 2. Isoler du premier { au dernier }
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start === -1 || end === -1) return null;
+  cleaned = cleaned.slice(start, end + 1);
+
+  // 3. Tentative directe
+  try { return JSON.parse(cleaned); } catch (_) {}
+
+  // 4. Échapper les newlines/tabs littéraux dans les valeurs de chaînes
+  let fixed = cleaned.replace(/"((?:[^"\\]|\\.)*)"/gs, (match, inner) =>
+    '"' + inner.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t') + '"'
+  );
+  try { return JSON.parse(fixed); } catch (_) {}
+
+  // 5. Supprimer virgules traînantes
+  fixed = fixed.replace(/,\s*([}\]])/g, '$1');
+  try { return JSON.parse(fixed); } catch (_) {}
+
+  return null;
 }
 
 // ─── Étape 2 : Groq → JSON structuré ultra fiable ──────────────────
@@ -294,7 +336,7 @@ Utilise ces réponses pour personnaliser TOUT le contenu.
 ━━ CRITÈRE 1 : GENRE DE LA PERSONNE (adapte au produit, ne mets PAS toujours une femme) ━━
 - Produit FEMME (crème féminité, soin intime féminin, rouge à lèvres, soin cheveux femme, minceur ventre femme, lingerie, etc.) → personne africaine FEMME
 - Produit HOMME (gel rasage, soin barbe, parfum homme, déodorant homme, virilité, etc.) → personne africaine HOMME
-- Produit MIXTE / UNISEXE (shampoing neutre, complément alimentaire, sport, tech, nettoyage, etc.) → homme OU femme africain(e) selon le contexte — varie entre les 4 images d'angles
+- Produit MIXTE / UNISEXE (shampoing neutre, complément alimentaire, sport, tech, nettoyage, etc.) → homme OU femme africain(e) selon le contexte — varie entre les 5 images d'angles
 - Produit ENFANT → enfant africain avec parent si nécessaire
 - Si le produit est un OBJET (appareil, flacon, complément en gélules, etc.) sans usage corporel évident → montrer le PRODUIT LUI-MÊME au premier plan, très grand, net, dominant, avec la personne en arrière-plan ou absente
 
@@ -323,13 +365,13 @@ ${storeLocaleInstruction}
 
 ${approachGuide}
 
-⚠️ IMPORTANT : Suis STRICTEMENT cette structure pour les 4 angles. Chaque angle doit correspondre à l'étape de l'approche marketing sélectionnée.
+⚠️ IMPORTANT : Suis STRICTEMENT cette structure pour les 5 angles. Chaque angle doit correspondre à l'étape de l'approche marketing sélectionnée.
 
 ═══ 12 ANGLES MARKETING PUISSANTS (UNIVERSELS) ═══
 🎯 Un angle marketing = La façon stratégique de présenter le produit + La raison principale qui pousse à acheter
 Ce n'est PAS la description technique. C'est le MESSAGE qui touche le client.
 
-Choisis 4 angles parmi ces 12 selon le produit :
+Choisis 5 angles parmi ces 12 selon le produit :
 
 1️⃣ **Problème → Solution** : Montre la douleur puis la solution (ex: "Marre des boutons qui reviennent ?")
 2️⃣ **Résultat Rapide** : Les gens veulent vite des résultats (ex: "Résultats visibles dès les premières applications")
@@ -344,7 +386,7 @@ Choisis 4 angles parmi ces 12 selon le produit :
 1️⃣1️⃣ **Gain de Temps** : Les gens veulent aller vite (ex: "Routine rapide en 2 minutes")
 1️⃣2️⃣ **Preuve Sociale** : Les gens suivent les autres (ex: "Déjà adopté par des milliers d'utilisateurs")
 
-🧠 COMMENT CHOISIR LES 4 ANGLES ?
+🧠 COMMENT CHOISIR LES 5 ANGLES ?
 Pose-toi 3 questions :
 1. Quel problème principal ça résout ?
 2. Quel bénéfice est le plus visible ?
@@ -383,7 +425,7 @@ Pose-toi 3 questions :
 🎯 Chaque titre doit expliquer CONCRÈTEMENT ce que le produit fait pour le client.
 
 ═══ IMAGES D'ANGLES — VISUELS ILLUSTRATIFS AVEC PERSONNES AFRICAINES ═══
-Les 4 images d'angles sont des visuels marketing illustratifs avec des personnes africaines et du texte qui illustre le bénéfice du produit.
+Les 5 images d'angles sont des visuels marketing illustratifs avec des personnes africaines et du texte qui illustre le bénéfice du produit.
 
 🎯 OBJECTIF : Visuel percutant montrant une personne africaine qui bénéficie du produit, avec un court texte overlay qui illustre le bénéfice clé de l'angle.
 
@@ -555,7 +597,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   "description_optimisee": ""
 }
 
-⚠️ EXACTEMENT 4 angles, 7 bénéfices avec emojis, 4 raisons, 7 questions FAQ (avec réponses VISIBLES directement), 4 témoignages.
+⚠️ EXACTEMENT 5 angles, 7 bénéfices avec emojis, 4 raisons, 7 questions FAQ (avec réponses VISIBLES directement), 4 témoignages.
 ⚠️ benefits_bullets : 7 bénéfices DIRECTS avec emojis pertinents — texte simple, compréhensible, sans jargon.
 ⚠️ problem_section.pain_points : 3 points de douleur CONCRETS et SPÉCIFIQUES à CE produit — jamais génériques.
 ⚠️ solution_section.description : paragraphe persuasif 3-4 phrases, relie chaque douleur à un bénéfice du produit.
@@ -605,29 +647,60 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     console.log('ℹ️ Aucune image fournie — analyse basée sur le texte uniquement');
   }
 
+  // Helper: appel Groq avec timeout + retries
+  const GROQ_TIMEOUT_MS = 120000; // 2 minutes max par tentative
+
+  async function callGroqWithTimeout(model, msgs, withImages) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), GROQ_TIMEOUT_MS);
+    try {
+      const resp = await groq.chat.completions.create(
+        {
+          model,
+          messages: msgs,
+          max_tokens: 7000,
+          temperature: 0.7,
+          response_format: { type: 'json_object' },
+        },
+        { signal: controller.signal }
+      );
+      return resp;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   let result;
   try {
-    const response = await groq.chat.completions.create({
-      model: imageBuffers.length > 0 ? 'meta-llama/llama-4-scout-17b-16e-instruct' : 'llama-3.3-70b-versatile',
-      messages,
-      max_tokens: 6000,
-      temperature: 0.7,
-      response_format: { type: "json_object" }
-    });
+    let response;
+    // Tentative 1 : modèle vision si images disponibles
+    if (imageBuffers.length > 0) {
+      try {
+        console.log('🔍 Tentative Groq Vision (meta-llama/llama-4-scout-17b-16e-instruct)...');
+        response = await callGroqWithTimeout('meta-llama/llama-4-scout-17b-16e-instruct', messages, true);
+      } catch (visionErr) {
+        console.warn(`⚠️ Groq Vision échoué (${visionErr.message}), fallback text-only...`);
+        // Fallback text-only : remplacer le contenu image par du texte
+        const textOnlyMessages = [
+          messages[0],
+          { role: 'user', content: typeof messages[1].content === 'string' ? messages[1].content : messages[1].content[0]?.text || userPrompt }
+        ];
+        response = await callGroqWithTimeout('llama-3.3-70b-versatile', textOnlyMessages, false);
+      }
+    } else {
+      response = await callGroqWithTimeout('llama-3.3-70b-versatile', messages, false);
+    }
 
     const raw = response.choices[0]?.message?.content || '{}';
     console.log('📝 Groq raw response length:', raw.length);
 
-    try {
-      result = JSON.parse(raw);
-    } catch {
-      const match = raw.match(/\{[\s\S]+\}/);
-      if (match) {
-        result = JSON.parse(match[0]);
-      } else {
-        throw new Error('Réponse IA invalide — JSON non parsable');
-      }
+    // Parse robuste : gère markdown, newlines littéraux, virgules traînantes
+    result = parseGroqJSON(raw);
+    if (!result) {
+      console.warn('⚠️ Groq raw (début):', raw.slice(0, 400));
+      throw new Error('Réponse IA invalide — JSON non parsable');
     }
+    console.log('✅ Groq JSON parsé, clés:', Object.keys(result).join(', '));
   } catch (error) {
     console.error('❌ Groq API error:', error.message);
     throw new Error(`Erreur Groq: ${error.message}`);
@@ -638,8 +711,8 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   }
 
   // Validation de la structure - Fallbacks SPÉCIFIQUES au produit
-  if (!result.angles || !Array.isArray(result.angles) || result.angles.length < 4) {
-    console.warn('⚠️ Moins de 4 angles générés, padding avec angles spécifiques...');
+  if (!result.angles || !Array.isArray(result.angles) || result.angles.length < 5) {
+    console.warn('⚠️ Moins de 5 angles générés, padding avec angles spécifiques...');
     result.angles = result.angles || [];
     const fallbackAngles = [
       {
@@ -669,9 +742,16 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
         message_principal: "Un produit de confiance pour les années à venir",
         promesse: "La tranquillité d'esprit avec chaque utilisation",
         prompt_affiche: `Square 1:1 close-up visual focused on reliability, finish and trust around the ${title || 'product'}. Tight crop, premium but simple, no text overlay, no promotional elements, no empty margins.`
+      },
+      {
+        titre_angle: `Ce ${title || 'produit'} offre un rapport qualité-prix imbattable pour un usage quotidien`,
+        explication: `Ce ${title || 'produit'} combine performance et accessibilité, offrant une solution premium sans compromis sur votre budget. Un investissement rentable sur le long terme.`,
+        message_principal: "Le meilleur rapport qualité-prix du marché",
+        promesse: "La qualité premium accessible à tous",
+        prompt_affiche: `Square 1:1 lifestyle scene showing satisfaction and value around the ${title || 'product'}. Person smiling, product visible and prominent, everyday authentic African setting, professional lighting, no text overlay, no promotional elements.`
       }
     ];
-    while (result.angles.length < 4) {
+    while (result.angles.length < 5) {
       result.angles.push(fallbackAngles[result.angles.length]);
     }
   }
@@ -810,13 +890,19 @@ Strong emotional impact. Eye-catching composition. Clear problem → solution �
 
     const productRefRule = originalImageBuffer
       ? `\nCRITICAL: A reference image of the EXACT real product is provided. You MUST include THIS SPECIFIC product (same shape, color, packaging, design) in the generated image. NEVER invent, replace, or redesign the product. The product in the output MUST be recognizably the same as the reference.\n`
-      : '';
+      : `\nIMPORTANT: No product reference image is provided. Do NOT invent or hallucinate any product, packaging, bottle or box. If the scene directive does not explicitly ask for a product, generate the scene WITHOUT any product visible.\n`;
 
     let modeRules;
     if (mode === 'hero') modeRules = heroRules;
     else if (mode === 'hero_poster') modeRules = heroPosterRules;
     else if (mode === 'before_after') modeRules = beforeAfterRules;
-    else modeRules = sceneRules;
+    else if (mode === 'scene' && !originalImageBuffer) {
+      // Pas d'image de référence : supprimer l'injonction de montrer le produit
+      modeRules = sceneRules
+        .replace(/PRODUCT VISIBILITY \(CRITICAL\):.*?\n\n/s, '')
+        .replace(/The person is ACTIVELY interacting with or benefiting from the product\./,
+          'The person shows confidence, satisfaction or the benefit associated with the product category.');
+    } else modeRules = sceneRules;
 
     const posterPrompt = `${promptAffiche}
 ${productRefRule}
