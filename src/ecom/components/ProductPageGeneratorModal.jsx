@@ -134,6 +134,10 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const [dragOver, setDragOver] = useState(false);
   const [generationsInfo, setGenerationsInfo] = useState(null); // { freeRemaining, paidRemaining, totalUsed }
   const [limitReached, setLimitReached] = useState(false);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [paymentPhone, setPaymentPhone] = useState('');
+  const [paymentName, setPaymentName] = useState('');
+  const [paymentLoading, setPaymentLoading] = useState(false);
   const fileInputRef = useRef(null);
   const abortRef = useRef(null);
   const readerRef = useRef(null);
@@ -287,6 +291,63 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       clearTimeout(safetyTimer);
       abortRef.current = null;
       isGeneratingRef.current = false;
+    }
+  };
+
+  const handleBuyGeneration = async () => {
+    if (!paymentPhone || paymentPhone.trim().length < 8) {
+      alert('Veuillez saisir un numéro de téléphone valide');
+      return;
+    }
+    if (!paymentName || paymentName.trim().length < 2) {
+      alert('Veuillez saisir votre nom');
+      return;
+    }
+
+    setPaymentLoading(true);
+    
+    try {
+      const token = localStorage.getItem('ecomToken');
+      const wsId = localStorage.getItem('workspaceId');
+
+      const response = await fetch(`${API_ORIGIN}/api/ecom/billing/buy-generation`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(wsId ? { 'X-Workspace-Id': wsId } : {})
+        },
+        body: JSON.stringify({
+          quantity: 1,
+          phone: paymentPhone.trim(),
+          clientName: paymentName.trim(),
+          workspaceId: wsId
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success && result.paymentUrl) {
+        // Ouvrir la page de paiement MoneyFusion
+        window.open(result.paymentUrl, '_blank');
+        
+        // Fermer le modal et rafraîchir ou afficher un message
+        alert('✅ Paiement initié ! Une fois le paiement confirmé, tes générations seront créditées automatiquement.');
+        
+        // Reset le formulaire
+        setShowPaymentForm(false);
+        setPaymentPhone('');
+        setPaymentName('');
+        setLimitReached(false);
+        setError('');
+      } else {
+        throw new Error(result.message || 'Erreur lors de l\'initialisation du paiement');
+      }
+    } catch (error) {
+      console.error('Payment error:', error);
+      alert('❌ Erreur: ' + error.message);
+    } finally {
+      setPaymentLoading(false);
     }
   };
 
@@ -670,17 +731,72 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                           </p>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          // TODO: Rediriger vers la page de paiement ou ouvrir un modal de paiement
-                          alert('🚀 Page de paiement bientôt disponible ! Contactez le support pour activer des générations supplémentaires.');
-                        }}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl hover:from-amber-600 hover:to-orange-600 transition shadow-lg"
-                      >
-                        <Zap className="w-4 h-4" />
-                        Débloquer une génération (1500 FCFA)
-                      </button>
+                      
+                      {!showPaymentForm ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowPaymentForm(true)}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl hover:from-amber-600 hover:to-orange-600 transition shadow-lg"
+                        >
+                          <Zap className="w-4 h-4" />
+                          Débloquer une génération (1500 FCFA)
+                        </button>
+                      ) : (
+                        <div className="space-y-3 p-4 bg-white rounded-xl border border-gray-200">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                              📱 Numéro de téléphone
+                            </label>
+                            <input
+                              type="tel"
+                              value={paymentPhone}
+                              onChange={(e) => setPaymentPhone(e.target.value)}
+                              placeholder="Ex: 0707070707"
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                              👤 Votre nom
+                            </label>
+                            <input
+                              type="text"
+                              value={paymentName}
+                              onChange={(e) => setPaymentName(e.target.value)}
+                              placeholder="Ex: Jean Dupont"
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setShowPaymentForm(false)}
+                              className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition text-sm"
+                            >
+                              Annuler
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleBuyGeneration}
+                              disabled={paymentLoading}
+                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-lg hover:from-amber-600 hover:to-orange-600 transition text-sm disabled:opacity-50"
+                            >
+                              {paymentLoading ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  Chargement...
+                                </>
+                              ) : (
+                                <>
+                                  <Zap className="w-4 h-4" />
+                                  Payer 1500 FCFA
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      
                       <p className="text-xs text-center text-gray-500">
                         Tu as déjà généré {generationsInfo?.totalUsed || 0} page{(generationsInfo?.totalUsed || 0) > 1 ? 's' : ''} produit avec succès 🎉
                       </p>

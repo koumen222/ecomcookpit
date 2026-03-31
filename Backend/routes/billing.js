@@ -15,6 +15,7 @@ import express from 'express';
 import axios from 'axios';
 import EcomWorkspace from '../models/Workspace.js';
 import PlanPayment from '../models/PlanPayment.js';
+import GenerationPayment from '../models/GenerationPayment.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 
 const router = express.Router();
@@ -74,6 +75,28 @@ export const PLAN_LIMITS = {
 const TRIAL_DAYS = 3;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Apply an approved generation payment to the workspace:
+ * - increments paidGenerationsRemaining
+ * - records the payment token
+ */
+async function applyGenerationPayment(payment) {
+  const workspace = await EcomWorkspace.findById(payment.workspaceId);
+  if (!workspace) return;
+
+  const now = new Date();
+  
+  // Add purchased generations to paid count
+  workspace.paidGenerationsRemaining = (workspace.paidGenerationsRemaining || 0) + payment.quantity;
+  await workspace.save();
+
+  payment.status = 'paid';
+  payment.creditedAt = now;
+  await payment.save();
+
+  console.log(`[billing] Credited ${payment.quantity} generation(s) to workspace ${workspace._id}`);
+}
 
 /**
  * Apply an approved plan payment to the workspace:
@@ -261,6 +284,100 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
   }
 });
 
+// ─── POST /buy-generation ─────────────────────────────────────────────────────
+router.post('/buy-generation', requireEcomAuth, async (req, res) => {
+  try {
+    const { quantity = 1, phone, clientName, workspaceId: bodyWsId } = req.body;
+    const workspaceId = req.workspaceId || bodyWsId;
+
+    if (!workspaceId) {
+      return res.status(400).json({ success: false, message: 'workspaceId requis' });
+    }
+    if (!phone || String(phone).trim().length < 8) {
+      return res.status(400).json({ success: false, message: 'Numéro de téléphone requis' });
+    }
+    if (!clientName || String(clientName).trim().length < 2) {
+      return res.status(400).json({ success: false, message: 'Nom du client requis' });
+    }
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) {
+      return res.status(400).json({ success: false, message: 'Quantité invalide (1-100)' });
+    }
+
+    const pricePerGeneration = 1500;
+    const amount = pricePerGeneration * quantity;
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://scalor.net';
+    const backendUrl = process.env.BACKEND_URL || 'https://api.scalor.net';
+
+    const paymentData = {
+      totalPrice: amount,
+      article: [{ [`Scalor - ${quantity} Génération${quantity > 1 ? 's' : ''} IA`]: amount }],
+      personal_Info: [
+        {
+          workspaceId: workspaceId.toString(),
+          userId: req.ecomUser._id.toString(),
+          type: 'generation',
+          quantity
+        }
+      ],
+      numeroSend: String(phone).trim(),
+      nomclient: String(clientName).trim(),
+      return_url: `${frontendUrl}/ecom/products`,
+      webhook_url: `${backendUrl}/api/ecom/billing/webhook`
+    };
+
+    const mfResponse = await axios.post(MF_API_URL, paymentData, {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 15000
+    });
+
+    const { statut, token: mfToken, url: paymentUrl, message } = mfResponse.data;
+
+    if (!statut || !mfToken) {
+      console.error('[billing] MoneyFusion bad response:', mfResponse.data);
+      return res.status(502).json({
+        success: false,
+        message: message || 'Erreur lors de l\'initialisation du paiement'
+      });
+    }
+
+    // Persist payment record
+    const payment = new GenerationPayment({
+      workspaceId,
+      userId: req.ecomUser._id,
+      quantity,
+      pricePerGeneration,
+      amount,
+      mfToken,
+      paymentUrl: paymentUrl || '',
+      status: 'pending',
+      phone: String(phone).trim(),
+      clientName: String(clientName).trim()
+    });
+    await payment.save();
+
+    res.json({
+      success: true,
+      mfToken,
+      paymentUrl,
+      message: message || 'Paiement en cours',
+      amount,
+      quantity,
+      pricePerGeneration
+    });
+  } catch (err) {
+    if (err.response) {
+      console.error('[billing] MoneyFusion API error:', err.response.status, err.response.data);
+      return res.status(502).json({
+        success: false,
+        message: 'Erreur de communication avec le prestataire de paiement'
+      });
+    }
+    console.error('[billing] POST /buy-generation error:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 // ─── GET /status/:token ───────────────────────────────────────────────────────
 router.get('/status/:token', requireEcomAuth, async (req, res) => {
   try {
@@ -312,6 +429,62 @@ router.get('/status/:token', requireEcomAuth, async (req, res) => {
       console.error('[billing] MF status check error:', err.response.status, err.response.data);
     } else {
       console.error('[billing] GET /status error:', err.message);
+    }
+    res.status(500).json({ success: false, message: 'Erreur lors de la vérification' });
+  }
+});
+
+// ─── GET /generation-status/:token ────────────────────────────────────────────
+router.get('/generation-status/:token', requireEcomAuth, async (req, res) => {
+  try {
+    const { token } = req.params;
+    if (!token || token.length < 4) {
+      return res.status(400).json({ success: false, message: 'Token invalide' });
+    }
+
+    // Find local record first
+    const payment = await GenerationPayment.findOne({ mfToken: token });
+    if (!payment) {
+      return res.status(404).json({ success: false, message: 'Paiement introuvable' });
+    }
+
+    // If already paid, return immediately
+    if (payment.status === 'paid') {
+      return res.json({ success: true, status: 'paid', payment });
+    }
+
+    // Fetch fresh status from MoneyFusion
+    const mfResp = await axios.get(MF_STATUS_URL(token), { timeout: 10000 });
+    const { statut, data: mfData } = mfResp.data;
+
+    if (!statut || !mfData) {
+      return res.json({ success: true, status: payment.status, payment });
+    }
+
+    const mfStatus = mfData.statut; // 'paid' | 'pending' | 'failure' | 'no paid'
+
+    if (mfStatus === payment.status) {
+      return res.json({ success: true, status: payment.status, payment });
+    }
+
+    // Update local record
+    payment.status = mfStatus;
+    if (mfData.moyen) payment.paymentMethod = mfData.moyen;
+    if (mfData.numeroTransaction) payment.transactionNumber = mfData.numeroTransaction;
+    if (mfData.frais) payment.fees = mfData.frais;
+
+    if (mfStatus === 'paid') {
+      await applyGenerationPayment(payment);
+    } else {
+      await payment.save();
+    }
+
+    res.json({ success: true, status: mfStatus, payment });
+  } catch (err) {
+    if (err.response) {
+      console.error('[billing] MF generation status check error:', err.response.status, err.response.data);
+    } else {
+      console.error('[billing] GET /generation-status error:', err.message);
     }
     res.status(500).json({ success: false, message: 'Erreur lors de la vérification' });
   }
@@ -385,7 +558,15 @@ router.post('/webhook', async (req, res) => {
       return;
     }
 
-    const payment = await PlanPayment.findOne({ mfToken: tokenPay });
+    // Try to find payment in both PlanPayment and GenerationPayment
+    let payment = await PlanPayment.findOne({ mfToken: tokenPay });
+    let isGenerationPayment = false;
+    
+    if (!payment) {
+      payment = await GenerationPayment.findOne({ mfToken: tokenPay });
+      isGenerationPayment = !!payment;
+    }
+    
     if (!payment) {
       console.warn('[billing/webhook] Unknown tokenPay:', tokenPay);
       return;
@@ -410,13 +591,18 @@ router.post('/webhook', async (req, res) => {
     if (req.body.frais !== undefined) payment.fees = req.body.frais;
 
     if (incomingStatus === 'paid') {
-      await applyPlanPayment(payment);
+      if (isGenerationPayment) {
+        await applyGenerationPayment(payment);
+      } else {
+        await applyPlanPayment(payment);
+      }
     } else {
       payment.status = incomingStatus;
       await payment.save();
     }
 
-    console.log(`[billing/webhook] ${event} → token=${tokenPay} status=${incomingStatus}`);
+    const paymentType = isGenerationPayment ? 'generation' : 'plan';
+    console.log(`[billing/webhook] ${event} → token=${tokenPay} type=${paymentType} status=${incomingStatus}`);
   } catch (err) {
     console.error('[billing/webhook] processing error:', err);
   }
