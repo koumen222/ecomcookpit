@@ -172,7 +172,8 @@ const StoreProductForm = () => {
         seoDescription: productData.seoDescription || prev.seoDescription,
         images: allImages.length > 0 ? allImages : prev.images,
         testimonials: productData._pageData?.testimonials?.length > 0 ? productData._pageData.testimonials : prev.testimonials,
-        faq: productData._pageData?.faq?.length > 0 ? productData._pageData.faq : prev.faq
+        faq: productData._pageData?.faq?.length > 0 ? productData._pageData.faq : prev.faq,
+        _pageData: productData._pageData || prev._pageData
       };
     });
   };
@@ -191,7 +192,8 @@ const StoreProductForm = () => {
     images: navState?.images || [],
     linkedProductId: null,
     testimonials: navState?._pageData?.testimonials || [],
-    faq: navState?._pageData?.faq || []
+    faq: navState?._pageData?.faq || [],
+    _pageData: navState?._pageData || null
   });
 
   // Load product for edit mode
@@ -214,7 +216,10 @@ const StoreProductForm = () => {
             seoTitle: p.seoTitle || '',
             seoDescription: p.seoDescription || '',
             images: p.images || [],
-            linkedProductId: p.linkedProductId || null
+            linkedProductId: p.linkedProductId || null,
+            testimonials: p.testimonials || [],
+            faq: p.faq || [],
+            _pageData: p._pageData || null
           });
           if (p.linkedProductId) {
             setLinkedProduct({ _id: p.linkedProductId, name: p.name });
@@ -513,7 +518,8 @@ const StoreProductForm = () => {
       images: form.images,
       linkedProductId: form.linkedProductId || null,
       ...(form.testimonials?.length > 0 && { testimonials: form.testimonials }),
-      ...(form.faq?.length > 0 && { faq: form.faq })
+      ...(form.faq?.length > 0 && { faq: form.faq }),
+      ...(form._pageData && { _pageData: form._pageData })
     };
 
     try {
