@@ -29,9 +29,9 @@ export async function extractProductInfo(url) {
   try {
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     
-    // Utilisez gemini-2.0-flash-exp qui supporte le grounding
+    // Utilisez gemini-1.5-pro qui supporte le grounding avec Google Search
     const model = genAI.getGenerativeModel({ 
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-1.5-pro',
       generationConfig: {
         temperature: 0.3, // Plus bas pour des résultats factuels
         maxOutputTokens: 2000,
