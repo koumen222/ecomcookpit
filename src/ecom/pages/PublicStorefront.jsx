@@ -1827,70 +1827,324 @@ const StorefrontFooter = ({ store, prefix }) => {
     { label: 'Accueil', href: `${prefix}/` },
     { label: 'Tous nos produits', href: `${prefix}/products` },
   ];
+  
+  const whatsapp = store?.whatsapp?.replace(/\D/g, '');
+  const waLink = whatsapp ? `https://wa.me/${whatsapp}` : null;
 
   return (
-    <footer style={{ backgroundColor: 'var(--s-primary)', color: 'rgba(255,255,255,0.7)', fontFamily: 'var(--s-font)', marginTop: 0 }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '64px 24px 48px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 48 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+    <footer style={{ 
+      backgroundColor: '#1F2937', 
+      color: 'rgba(255,255,255,0.7)', 
+      fontFamily: 'var(--s-font)', 
+      marginTop: 0,
+      position: 'relative',
+    }}>
+      {/* Main footer content */}
+      <div style={{ 
+        maxWidth: 1200, 
+        margin: '0 auto', 
+        padding: 'clamp(56px, 8vw, 72px) 24px clamp(40px, 6vw, 56px)',
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', 
+        gap: '40px 48px',
+      }}>
+        {/* Column 1: Brand & Description */}
+        <div style={{ gridColumn: window.innerWidth > 768 ? 'span 2' : 'span 1' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
             {store?.logo ? (
-              <img src={store.logo} alt={store?.name} style={{ height: 32, width: 'auto', objectFit: 'contain', filter: 'brightness(0) invert(1)', opacity: 0.9 }} />
+              <img 
+                src={store.logo} 
+                alt={store?.name} 
+                style={{ 
+                  height: 40, 
+                  width: 'auto', 
+                  objectFit: 'contain', 
+                  filter: 'brightness(0) invert(1)', 
+                  opacity: 0.95,
+                }} 
+              />
             ) : (
-              <span style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.2)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14 }}>
+              <span style={{ 
+                width: 40, 
+                height: 40, 
+                borderRadius: 10, 
+                backgroundColor: 'var(--s-primary)', 
+                color: '#fff', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                fontWeight: 800, 
+                fontSize: 18,
+              }}>
                 {(store?.name || 'S')[0]}
               </span>
             )}
-            <span style={{ fontWeight: 700, fontSize: 16, color: '#fff' }}>{store?.name}</span>
+            <span style={{ 
+              fontWeight: 800, 
+              fontSize: 19, 
+              color: '#fff',
+              letterSpacing: '-0.01em',
+            }}>
+              {store?.name}
+            </span>
           </div>
+          
           {store?.description && (
-            <p style={{ fontSize: 13, lineHeight: 1.65, margin: '0 0 20px', maxWidth: 260, color: 'rgba(255,255,255,0.6)' }}>{store.description}</p>
+            <p style={{ 
+              fontSize: 14, 
+              lineHeight: 1.7, 
+              margin: '0 0 24px', 
+              maxWidth: 400, 
+              color: 'rgba(255,255,255,0.65)',
+            }}>
+              {store.description}
+            </p>
           )}
+          
+          {/* Payment methods */}
+          <div>
+            <p style={{ 
+              fontSize: 12, 
+              fontWeight: 600, 
+              color: 'rgba(255,255,255,0.5)', 
+              margin: '0 0 12px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+            }}>
+              Paiement sécurisé
+            </p>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {[
+                { icon: <CreditCard size={16} />, label: 'Carte' },
+                { icon: <MessageCircle size={16} />, label: 'Mobile Money' },
+              ].map((method, i) => (
+                <div 
+                  key={i}
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 6,
+                    padding: '6px 12px',
+                    backgroundColor: 'rgba(255,255,255,0.08)',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    color: 'rgba(255,255,255,0.7)',
+                  }}
+                >
+                  {method.icon}
+                  <span>{method.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
+        {/* Column 2: Navigation */}
         <div>
-          <p style={{ fontWeight: 700, fontSize: 13, color: '#fff', margin: '0 0 18px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Navigation</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <p style={{ 
+            fontWeight: 700, 
+            fontSize: 13.5, 
+            color: '#fff', 
+            margin: '0 0 20px', 
+            textTransform: 'uppercase', 
+            letterSpacing: '0.08em',
+          }}>
+            Navigation
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {navigationLinks.map(link => (
-              <Link key={link.label} to={link.href} style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.7)', textDecoration: 'none', transition: 'color 0.15s' }}
-                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}>
+              <Link 
+                key={link.label} 
+                to={link.href} 
+                style={{ 
+                  fontSize: 14, 
+                  color: 'rgba(255,255,255,0.65)', 
+                  textDecoration: 'none', 
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.color = '#fff';
+                  e.currentTarget.style.paddingLeft = '8px';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.color = 'rgba(255,255,255,0.65)';
+                  e.currentTarget.style.paddingLeft = '0';
+                }}
+              >
+                <ChevronRight size={14} />
                 {link.label}
               </Link>
             ))}
           </div>
         </div>
 
+        {/* Column 3: Contact */}
         <div>
-          <p style={{ fontWeight: 700, fontSize: 13, color: '#fff', margin: '0 0 18px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Contact</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <p style={{ 
+            fontWeight: 700, 
+            fontSize: 13.5, 
+            color: '#fff', 
+            margin: '0 0 20px', 
+            textTransform: 'uppercase', 
+            letterSpacing: '0.08em',
+          }}>
+            Contact
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {store?.city && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13.5, color: 'rgba(255,255,255,0.6)' }}>
-                <MapPin size={14} style={{ flexShrink: 0 }} /> {store.city}{store.country ? `, ${store.country}` : ''}
+              <span style={{ 
+                display: 'flex', 
+                alignItems: 'flex-start', 
+                gap: 10, 
+                fontSize: 14, 
+                color: 'rgba(255,255,255,0.65)',
+                lineHeight: 1.6,
+              }}>
+                <MapPin size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+                <span>{store.city}{store.country ? `, ${store.country}` : ''}</span>
               </span>
+            )}
+            {store?.phone && (
+              <a 
+                href={`tel:${store.phone.replace(/\s/g, '')}`}
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 10, 
+                  fontSize: 14, 
+                  color: 'rgba(255,255,255,0.65)',
+                  textDecoration: 'none',
+                  transition: 'color 0.2s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.65)'}
+              >
+                <Phone size={16} style={{ flexShrink: 0 }} />
+                <span>{store.phone}</span>
+              </a>
+            )}
+            {store?.email && (
+              <a 
+                href={`mailto:${store.email}`}
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 10, 
+                  fontSize: 14, 
+                  color: 'rgba(255,255,255,0.65)',
+                  textDecoration: 'none',
+                  transition: 'color 0.2s',
+                  wordBreak: 'break-all',
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.65)'}
+              >
+                <Mail size={16} style={{ flexShrink: 0 }} />
+                <span>{store.email}</span>
+              </a>
+            )}
+            {waLink && (
+              <a 
+                href={waLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: 8, 
+                  fontSize: 14, 
+                  color: '#fff',
+                  textDecoration: 'none',
+                  backgroundColor: '#25D366',
+                  padding: '10px 18px',
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  marginTop: 8,
+                  transition: 'all 0.2s',
+                  width: 'fit-content',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.backgroundColor = '#1FB855';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.backgroundColor = '#25D366';
+                  e.currentTarget.style.transform = 'none';
+                }}
+              >
+                <MessageCircle size={16} />
+                WhatsApp
+              </a>
             )}
           </div>
         </div>
       </div>
 
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.15)', padding: '20px 24px' }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-          <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
+      {/* Bottom bar */}
+      <div style={{ 
+        borderTop: '1px solid rgba(255,255,255,0.1)', 
+        backgroundColor: 'rgba(0,0,0,0.2)',
+      }}>
+        <div style={{ 
+          maxWidth: 1200, 
+          margin: '0 auto',
+          padding: '24px 24px',
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between', 
+          flexWrap: 'wrap', 
+          gap: 16,
+        }}>
+          <p style={{ 
+            margin: 0, 
+            fontSize: 13, 
+            color: 'rgba(255,255,255,0.5)',
+          }}>
             © {new Date().getFullYear()} {store?.name}. Tous droits réservés.
           </p>
-          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+          
+          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
             {[
-              { label: 'Politique de confidentialité', href: '#' },
-              { label: "Conditions d'utilisation", href: '#' },
+              { label: 'Confidentialité', href: '#' },
+              { label: 'Conditions', href: '#' },
             ].map(link => (
-              <a key={link.label} href={link.href} style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', textDecoration: 'none', transition: 'color 0.15s' }}
+              <a 
+                key={link.label} 
+                href={link.href} 
+                style={{ 
+                  fontSize: 13, 
+                  color: 'rgba(255,255,255,0.5)', 
+                  textDecoration: 'none', 
+                  transition: 'color 0.2s',
+                }}
                 onMouseEnter={e => e.currentTarget.style.color = '#fff'}
-                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}>
+                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
+              >
                 {link.label}
               </a>
             ))}
-            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+            
+            <span style={{ 
+              fontSize: 13, 
+              color: 'rgba(255,255,255,0.4)',
+            }}>
               Propulsé par{' '}
-              <a href="https://scalor.net" target="_blank" rel="noreferrer" style={{ color: '#fff', fontWeight: 600, textDecoration: 'none' }}>
+              <a 
+                href="https://scalor.net" 
+                target="_blank" 
+                rel="noreferrer" 
+                style={{ 
+                  color: 'var(--s-primary)', 
+                  fontWeight: 700, 
+                  textDecoration: 'none',
+                  transition: 'opacity 0.2s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.opacity = '0.8'}
+                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+              >
                 Scalor
               </a>
             </span>
