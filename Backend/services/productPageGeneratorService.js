@@ -142,6 +142,7 @@ export async function analyzeWithVision(scrapedData, imageBuffers = [], marketin
   const description = cleanScrapedText(scrapedData.description || scrapedData.rawText || '');
   const storeCountry = cleanScrapedText(storeContext.country || '');
   const storeCity = cleanScrapedText(storeContext.city || '');
+  const shopName = cleanScrapedText(storeContext.shopName || '');
   const storeLocaleInstruction = buildStoreLocaleInstruction(storeCountry, storeCity);
   const testimonialLocationTemplate = storeCountry
     ? `${storeCity ? `${storeCity}, ` : 'Ville crédible, '}${storeCountry}`
@@ -177,6 +178,12 @@ export async function analyzeWithVision(scrapedData, imageBuffers = [], marketin
   const approachGuide = approachGuides[marketingApproach] || approachGuides.AIDA;
 
   const userPrompt = `Tu es expert e-commerce et copywriting SPÉCIALISTE du marché africain francophone (Cameroun, Côte d'Ivoire, Sénégal, etc.). Tu dois générer une page produit ULTRA PERSUASIVE, optimisée mobile-first, qui capte l'attention en moins de 3 secondes et pousse à l'achat sans friction.
+
+CONTEXTE BOUTIQUE :
+${shopName ? `- Nom de la boutique : ${shopName}` : ''}
+${storeCountry ? `- Pays / Marché cible : ${storeCountry}` : ''}
+${storeCity ? `- Ville principale : ${storeCity}` : ''}
+- Approche copywriting : ${marketingApproach}
 
 PRODUIT À ANALYSER :
 TITRE : ${title || 'Non disponible'}
@@ -276,6 +283,7 @@ Les 4 images d'angles sont des visuels marketing illustratifs avec des personnes
 - Personne africaine authentique (peau noire/marron, cheveux naturels, visage africain) en situation d'utilisation réelle du produit
 - Le produit VISIBLE dans l'image ou son résultat clairement montré
 - Court texte overlay en français : 1 titre court (4-6 mots max) + éventuellement 1 courte phrase (8-10 mots max)
+- ⚠️ ORTHOGRAPHE PARFAITE OBLIGATOIRE : Le texte overlay doit être vérifié à 100% — ZÉRO faute d'orthographe, ZÉRO faute de grammaire, ZÉRO faute d'accord. Chaque mot doit être correctement écrit en français.
 - Cadrage 1:1 serré, lumière naturelle propre, fond net
 - Ambiance africaine ou universelle — jamais de contexte occidental artificiel
 
@@ -285,11 +293,17 @@ Les 4 images d'angles sont des visuels marketing illustratifs avec des personnes
 - Visage flou ou corps coupé de façon malvenue
 - Espaces vides / marges inutiles autour du sujet
 
-═══ VISUEL HÉRO — IMAGE PRINCIPALE AVEC PRODUIT ET PERSONNE AFRICAINE ═══
-⚠️ Le HERO montre le produit réel ET une personne africaine qui l'utilise ou en bénéficie (si le produit implique une utilisation humaine).
+═══ VISUELS HÉRO — 2 IMAGES PRINCIPALES ═══
+⚠️ Génère DEUX prompts hero différents et complémentaires pour ce produit :
+
+**1. prompt_affiche_hero** = Photo lifestyle premium : le produit réel + personne africaine qui l'utilise ou en bénéficie. Image propre, lumineuse, fond minimaliste.
+
+**2. prompt_hero_poster** = Affiche publicitaire graphique : le produit réel en grand au centre sur fond foncé dramatique (gradient profond) avec un titre français gras en haut ou en bas. Ambiance lancement de marque premium (style Apple/Nike adapté marché africain).
+
+☝️ Les deux prompts doivent être entièrement basés sur CE produit spécifique — jamais générique, jamais copié des exemples.
 
 Le HERO doit être :
-✅ Le produit réel visible au premier plan (EXACT, jamais recréé)
+✅ Le produit réel visible au premier plan (EXACT, jamais recréé), grand, net, dominant
 ✅ Si produit de beauté/santé/corps : personne africaine authentique utilisant le produit ou montrant le résultat
 ✅ Si produit tech/objet : produit en contexte d'utilisation naturel avec fond africain
 ✅ Cadrage carré 1:1 tight crop, ZÉRO espace vide, lumière propre
@@ -331,15 +345,16 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     "⏱️ Bénéfice concret 6 avec emoji pertinent",
     "✅ Bénéfice concret 7 avec emoji pertinent"
   ],
-  "prompt_affiche_hero": "[Generate in English: High-converting ecommerce hero image for THIS specific product. Ultra realistic, 4K, advertising photography. Product clearly visible center/foreground. If used by a person: include authentic Black African model (dark brown skin, natural hair, African features) with confident/satisfied expression. Clean premium background (white, beige, or warm contextual). Professional studio lighting, soft shadows, depth of field. Optional short French badge (3 words max, bold font). No paragraphs, no CTA, no price. Scroll-stopping, trustworthy, premium mood.]",
-  "prompt_avant_apres": "[Generate in English: Square 1:1 split-screen before/after transformation for THIS product. MANDATORY: authentic Black African person (dark brown skin, natural hair, African features, realistic skin). LEFT = BEFORE: person showing the problem/frustration this product solves. RIGHT = AFTER: same person showing the result — improvement, confidence, glow. Professional lighting, clean premium aesthetic, 4K quality. Small bold 'Avant'/'Après' label if helpful. No arrows, no heavy overlays. Convincing, high-conversion, scroll-stopping.]",
+  "prompt_affiche_hero": "[Generate in English: HIGH-IMPACT ecommerce hero image for THIS SPECIFIC product (describe its exact name, type, color, packaging). Ultra realistic, 4K, advertising photography. The product is the STAR — show it LARGE, sharp, dominant in the frame (minimum 60% of the frame). Include authentic Black African model (dark brown skin, natural hair, African features) ACTIVELY using or holding the product if it's a personal-use product. Clean premium background (pure white or soft beige). Professional softbox lighting, crisp shadows, depth of field. Optional short French benefit badge (3 words max, bold font) — CRITICAL: any French text MUST have PERFECT spelling and accents (é, è, ê, à, ç, ù). No paragraphs, no CTA, no price. Premium catalog quality, scroll-stopping.]",
+  "prompt_hero_poster": "[Generate in English: BOLD ADVERTISING POSTER for THIS SPECIFIC product (describe its exact name, type, color, packaging). Square 1:1 graphic-design meets product photography. The product shown LARGE, dominant, perfectly sharp (min 50% of frame), exact same packaging/color/shape. Premium dark gradient background (deep midnight blue to black, OR deep forest green to charcoal, or deep burgundy — choose what contrasts best with product colors). Dramatic cinematic lighting with product glow. MANDATORY: 1 bold French headline in large modern sans-serif font at top or bottom — CRITICAL: French text MUST be 100% perfectly spelled with all accents. Optional thin accent line or minimal graphic element. NO price, NO phone, NO fake button, NO URL. Mood: aspirational, premium brand launch poster, scroll-stopping. Think Apple product launch. Adapted for African market.]",
+  "prompt_avant_apres": "[Generate in English: Square 1:1 split-screen before/after transformation for THIS SPECIFIC product (name it, describe what it does). MANDATORY: authentic Black African person (dark brown skin, natural hair, African features, realistic skin). LEFT = BEFORE: person showing the EXACT problem/frustration THIS product solves. RIGHT = AFTER: SAME person showing the visible result — improvement, confidence, glow. PRODUCT clearly visible on the RIGHT side (being used or result shown). Professional lighting, clean premium aesthetic, 4K quality. Small bold 'Avant'/'Après' label if helpful — CRITICAL: spell 'Après' CORRECTLY with accent grave, NEVER 'Apres'. Perfect French spelling MANDATORY. No arrows, no heavy overlays. Convincing, high-conversion, scroll-stopping.]",
   "angles": [
     {
       "titre_angle": "Phrase complète de 10-15 mots expliquant concrètement le bénéfice (PAS de titre court, PAS de slogan de 2-3 mots)",
       "explication": "3-4 phrases concrètes et persuasives. Décris comment ce bénéfice spécifique se manifeste dans la vie réelle. Reste crédible et factuel, sans exagération.",
       "message_principal": "1 phrase d'accroche mémorable spécifique à ce bénéfice",
       "promesse": "La transformation concrète que l'utilisateur va vivre",
-      "prompt_affiche": "Scroll-stopping ecommerce ad image, square 1:1, ultra realistic, 4K, advertising photography: [Describe in English: authentic Black African model (dark brown skin, natural hair, African features, realistic skin, confident/satisfied expression) using or benefiting from THIS product in a real-life or studio scene. Product clearly visible or result shown. Clean premium background, professional lighting, soft shadows, depth of field. Visual storytelling: problem → product → result. Bold French headline (4-5 words max, modern font) at top or bottom. Optional supporting line (8 words max). No price, no phone, no CTA, no URL. Trustworthy, premium, high-conversion mood.]"
+      "prompt_affiche": "Scroll-stopping ecommerce ad image, square 1:1, ultra realistic, 4K, advertising photography: [Describe in English: authentic Black African model (dark brown skin, natural hair, African features, realistic skin, confident/satisfied expression) ACTIVELY using or directly benefiting from THIS specific product — the product MUST be clearly visible, large and sharp in the frame (at least 40% of the image). Real-life or studio scene with contextual African setting. Product dominates alongside the person. Clean premium background, professional lighting, soft shadows, depth of field. Visual storytelling: specific problem this product solves → product clearly shown → result on the person. Bold French headline (4-5 words max, modern font) at top or bottom — CRITICAL: French text MUST have PERFECT spelling with all accents (é, è, ê, à, ç, ù). ZERO spelling errors allowed. Optional supporting line (8 words max). No price, no phone, no CTA, no URL. Trustworthy, premium, high-conversion mood.]"
     }
   ],
   "raisons_acheter": [
@@ -388,11 +403,49 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     "social_proof_count": "Nombre d'avis réels ou estimé",
     "quick_result": "Ex: 7 jours pour voir les premiers résultats"
   },
+  "hero_cta": "Texte du bouton d'achat (ex: 'Je commande maintenant', 'Je veux ce produit')",
+  "urgency_badge": "Badge d'urgence court (ex: '🔥 Plus que 12 en stock', '⚡ Offre valable aujourd'hui')",
+  "problem_section": {
+    "title": "Titre de la section problème (ex: Vous en avez assez de... ?)",
+    "pain_points": [
+      "Point de douleur 1 — frustration concrète que vit l'acheteur",
+      "Point de douleur 2 — conséquence négative de ne rien faire",
+      "Point de douleur 3 — objection ou doute courant"
+    ]
+  },
+  "solution_section": {
+    "title": "Titre de la section solution (ex: La solution simple et efficace)",
+    "description": "3-4 phrases présentant CE produit comme LA solution évidente. Relier chaque point de douleur à un bénéfice concret. Ton naturel et persuasif, jamais exagéré."
+  },
+  "stats_bar": [
+    "Stat sociale fort (ex: +5 000 clients satisfaits)",
+    "Résultat rapide (ex: Résultats en 7 jours)",
+    "Garantie (ex: Satisfait ou remboursé 30j)"
+  ],
+  "offer_block": {
+    "offer_label": "Texte de l'offre (ex: 'Offre de lancement — 20% de réduction')",
+    "guarantee_text": "Texte de garantie rassurant (ex: 'Paiement à la livraison, retour sans questions')",
+    "countdown": true
+  },
+  "seo": {
+    "meta_title": "Titre SEO optimisé max 60 caractères incluant le bénéfice principal et le pays",
+    "meta_description": "Description SEO max 155 caractères — bénéfice + produit + action",
+    "slug": "url-produit-optimisee-sans-accents"
+  },
   "description_optimisee": ""
 }
 
 ⚠️ EXACTEMENT 4 angles, 7 bénéfices avec emojis, 4 raisons, 7 questions FAQ (avec réponses VISIBLES directement), 4 témoignages.
 ⚠️ benefits_bullets : 7 bénéfices DIRECTS avec emojis pertinents — texte simple, compréhensible, sans jargon.
+⚠️ problem_section.pain_points : 3 points de douleur CONCRETS et SPÉCIFIQUES à CE produit — jamais génériques.
+⚠️ solution_section.description : paragraphe persuasif 3-4 phrases, relie chaque douleur à un bénéfice du produit.
+⚠️ stats_bar : 3 stats crédibles et adaptées au produit (clients, résultats, garantie).
+⚠️ hero_cta : bouton d'achat percutant, actionnable, 3-5 mots.
+⚠️ urgency_badge : badge court et percutant pour déclencher l'urgence psychologique.
+⚠️ offer_block.guarantee_text : phrase de garantie rassurante et crédible pour CE marché.
+⚠️ seo.meta_title : max 60 caractères, bénéfice principal + produit${storeCountry ? ` + ${storeCountry}` : ''}.
+⚠️ seo.meta_description : max 155 caractères, accrocheur et informatif.
+⚠️ seo.slug : URL en kebab-case, sans accents, max 6 mots, ex: "creme-eclaircissante-peau-noire".
 ⚠️ FAQ : Les questions doivent couvrir : Quand voir résultats ? Est-ce naturel ? Effets secondaires ? Peut-on combiner ? Livraison ? Paiement à la livraison ? + 1 question spécifique au produit.
 ⚠️ FAQ : Les réponses doivent être SIMPLES, RASSURANTES, SANS JARGON — affichées directement (pas de dropdown fermé).
 ⚠️ guide_utilisation.applicable = false si le produit n'a pas besoin d'explication.
@@ -406,7 +459,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   const messages = [
     {
       role: "system",
-      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit optimisée pour la conversion avec des visuels représentant des personnes africaines authentiques. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS PARFAIT (sauf prompts images en anglais) — zéro faute d'orthographe, zéro faute de grammaire, zéro faute de conjugaison. 3) ZÉRO généricité — tout doit être spécifique à CE produit et à sa niche. 4) ZÉRO exagération — bénéfices réels et crédibles. 5) CRITIQUE hero : le produit réel DOIT être visible + inclure une personne africaine authentique (peau noire/marron, cheveux naturels, traits africains) si le produit implique un usage humain. Cadrage serré plein cadre, zéro marge vide. 6) CRITIQUE avant/après : split-screen carré, OBLIGATOIREMENT avec une personne africaine authentique, transformation réaliste liée au produit spécifique. 7) CRITIQUE angles : 4 visuels illustratifs avec OBLIGATOIREMENT des personnes africaines authentiques utilisant ou bénéficiant du produit, avec le produit visible + court texte overlay en français (titre 4-5 mots max). 8) Témoignages : prénoms, villes et contexte adaptés au pays de la boutique, orthographe parfaite. 9) Prompts ENTIÈREMENT réécrits pour CE produit ET cette niche — JAMAIS copier les exemples. 10) description_optimisee = chaîne vide toujours. 11) JSON uniquement."
+      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit complète et optimisée pour la conversion avec des visuels représentant des personnes africaines authentiques. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS PARFAIT (sauf prompts images en anglais) — zéro faute d'orthographe, zéro faute de grammaire, zéro faute de conjugaison. 3) ZÉRO généricité — tout doit être spécifique à CE produit et à sa niche. 4) ZÉRO exagération — bénéfices réels et crédibles. 5) CRITIQUE problem_section : 3 vraies douleurs SPÉCIFIQUES à ce produit, pas génériques. 6) CRITIQUE solution_section : paragraphe persuasif reliant chaque douleur au produit. 7) CRITIQUE hero_cta : bouton d'achat percutant 3-5 mots. 8) CRITIQUE stats_bar : 3 stats crédibles adaptées au produit. 9) CRITIQUE seo : meta_title max 60 chars, meta_description max 155 chars, slug kebab-case sans accents. 10) CRITIQUE hero (2 prompts) : a) prompt_affiche_hero = photo lifestyle premium, produit dominant (60%+ du cadre) + personne africaine qui l'utilise si pertinent, fond épuré. b) prompt_hero_poster = affiche graphique publicitaire, produit grand et net sur fond sombre dramatique, titre français gras, style lancement de marque premium. 11) CRITIQUE avant/après : split-screen carré, personne africaine obligatoire, transformation réaliste, produit visible. 12) CRITIQUE angles : 4 visuels, produit VISIBLE et GRAND (40%+ du cadre) + texte overlay français. 13) Témoignages : prénoms, villes et contexte adaptés au pays de la boutique. 14) description_optimisee = chaîne vide toujours. 15) JSON uniquement."
     },
     {
       role: "user",
@@ -557,17 +610,48 @@ Create a high-converting ecommerce product hero image. Ultra realistic, 4K quali
 USE THE EXACT REAL PRODUCT IMAGE PROVIDED — NEVER invent, recreate or redesign the product.
 Square 1:1 premium composition, tight crop, full-bleed framing, ZERO empty margins.
 
-Visual style: Clean, modern, premium brand aesthetic. Minimalist background (white, beige, or soft warm color). Strong focus on the product. Professional lighting with soft shadows, studio quality. Depth of field for a premium look.
+Visual style: Clean, modern, premium brand aesthetic. Minimalist background (pure white, soft beige, or warm pastel contextual). Strong product spotlight. Professional lighting setup: softbox overhead + two rim lights creating product depth. Studio quality, sharp textures, vivid yet accurate colors.
+
+PRODUCT FOCUS (CRITICAL): The product must be the absolute hero of the image — large, sharp, dominant. Every detail of the product (texture, color, label, shape) must be crystal clear. The product fills at least 60% of the frame.
 
 Human element (MANDATORY if the product is used by a person — beauty, health, wellness, fitness, food):
-Include an authentic Black African model (dark brown skin, natural African hair, African facial features). Natural expression showing confidence and satisfaction. Realistic skin and features — not fake or plastic.
+Include an authentic Black African model (dark brown skin, natural African hair, African facial features). Natural expression showing confidence and satisfaction. Realistic skin and features — not fake or plastic. The model INTERACTS with the product — holding it, applying it, using it — so both are clearly visible.
 
-Composition: Product clearly visible in center or foreground. Supporting elements that reinforce the product context. Show the product as a premium solution.
+Composition: Product dominates center or bold foreground. Supporting elements reinforce the product context. Rich visual storytelling: what this product does, who uses it, what result it creates.
 
 Text overlay: At most one very short French benefit badge (3 words max, bold modern font) OR no text at all. Optional small "BEST SELLER" or "NOUVEAU" badge.
+⚠️ CRITICAL SPELLING REQUIREMENT: If there is any French text in the image, it MUST be 100% PERFECT — ZERO spelling errors, ZERO grammar mistakes, ZERO typos. Every single French word must be correctly written. Double-check all accents (é, è, ê, à, ù, etc.).
 NO paragraphs, NO long text, NO button, NO price, NO phone number, NO CTA, NO clutter.
 
-Mood: Trustworthy, premium, high-conversion ecommerce ad, clean and attractive, scroll-stopping.`;
+Mood: Premium ecommerce catalog, trustworthy, high-conversion, scroll-stopping, impossible to ignore.`;
+
+    const heroPosterRules = `
+Create a bold, visually striking advertising poster for THIS specific product. Premium graphic design meets ultra-realistic product photography.
+USE THE EXACT REAL PRODUCT IMAGE PROVIDED — NEVER invent, recreate or redesign the product.
+Square 1:1, dramatic full-bleed composition, ZERO empty margins.
+
+PRODUCT PLACEMENT (CRITICAL): The product must be LARGE, DOMINANT, and PERFECTLY SHARP in the center or lower third. It should occupy at least 50% of the frame. Every detail of the product (color, texture, label, packaging) must be crystal clear and instantly recognizable.
+
+Background: Premium solid or gradient background that CONTRASTS with the product and makes it POP. Possible choices:
+- Deep gradient (dark to rich midnight blue / charcoal / deep forest green / rich burgundy) behind a warm product
+- Clean white or light gray for a product with strong colors
+- Contextual bokeh scene if the product is lifestyle-oriented
+Dramatic studio lighting: strong key light from above, rim lights creating product depth, subtle reflection on surface.
+
+Graphic design elements (SUBTLE, premium):
+- A thin elegant colored line or frame accent at edges
+- Optional small accent shape (circle, corner mark) in matching brand color
+- Product shadow or glow effect for depth
+
+Typography (MANDATORY — 1 headline only):
+1 bold French headline (4-6 words MAX) in modern graphic sans-serif font, positioned prominently at top or bottom.
+The text must be in high contrast to background (white text on dark, or dark text on light).
+CRITICAL SPELLING: French text MUST be 100% perfectly spelled — every accent, every letter. NEVER misspell a French word.
+Optional: 1 short French subline (6-8 words max) in lighter weight.
+
+NO price, NO phone number, NO URL, NO fake CTA button.
+
+Mood: Bold, aspirational, premium brand launch — think Apple product launch poster or Nike campaign, adapted for the African market. Scroll-stopping, impossible to ignore in a social media feed.`;
 
     const beforeAfterRules = `
 Create a high-converting before/after product transformation image. Ultra realistic, 4K quality, sharp focus, advertising photography style.
@@ -580,6 +664,7 @@ Right side AFTER: The SAME African person showing the RESULT — improvement, sa
 
 Visual style: Clean, modern, premium. Professional lighting, soft shadows, studio quality. Clear visual storytelling: problem → product → result.
 Tight crop, clear realistic transformation (not exaggerated). Small 'Avant'/'Après' label text in bold modern font if helpful for reading.
+⚠️ CRITICAL SPELLING REQUIREMENT: The French labels 'Avant' and 'Après' MUST be spelled PERFECTLY with correct accents. NEVER write "Apres" without the accent grave (è). All French text must be 100% error-free.
 NO arrows, NO heavy graphic overlays, NO empty margins, NO price, NO CTA.
 
 Mood: Trustworthy, convincing, high-conversion, impossible to ignore in a Facebook or TikTok feed.`;
@@ -588,13 +673,16 @@ Mood: Trustworthy, convincing, high-conversion, impossible to ignore in a Facebo
 Create a scroll-stopping ecommerce ad image. Ultra realistic, 4K quality, sharp focus, advertising photography style.
 Square 1:1 illustrative marketing visual, tight crop, subject fills the entire frame, ZERO empty space.
 
-Visual style: Clean, modern, premium brand aesthetic. Minimalist or contextual background. Professional lighting with soft shadows. Depth of field for a premium look.
+Visual style: Clean, modern, premium brand aesthetic. Minimalist or contextual African environment. Professional lighting with soft shadows. Depth of field for a premium look.
 
-Human element (MANDATORY): Include an authentic Black African model (dark brown skin, natural African hair, African facial features). Natural expression showing confidence, satisfaction, or the benefit of the product. Realistic skin and features — not fake or plastic.
+PRODUCT VISIBILITY (CRITICAL): The product MUST be clearly visible, large, and sharp in the image. It should be recognizable, prominent, and take up significant space in the frame. Every detail — color, texture, label — must be visible.
 
-Composition: Product clearly visible in the scene or its result shown on the person. Supporting elements that reinforce the product benefit. Visual storytelling: show the PROBLEM or CONTEXT → PRODUCT as solution → RESULT (clean, glowing, improved).
+Human element (MANDATORY): Include an authentic Black African model (dark brown skin, natural African hair, African facial features). Natural expression showing confidence, satisfaction, or the benefit of the product. Realistic skin and features — not fake or plastic. The person is ACTIVELY interacting with or benefiting from the product.
+
+Composition: Rich visual storytelling — show the CONTEXT (problem or need) → PRODUCT as clear solution → visible RESULT on the person. Product and person together in the same tight frame, both clearly visible.
 
 Text overlay (modern bold font): 1 bold French headline (4-5 words max) capturing the key benefit at the top or bottom. Optional supporting line (8 words max). Optional small badge: "BEST SELLER" or "NOUVEAU".
+⚠️ CRITICAL SPELLING REQUIREMENT: All French text in the image MUST be 100% PERFECT — ZERO spelling errors, ZERO grammar mistakes, ZERO missing accents (é, è, ê, à, ç, ù, etc.). Every French word must be correctly written and properly accented. This is MANDATORY and NON-NEGOTIABLE.
 NO price, NO phone number, NO CTA button, NO URL. Keep it clean.
 
 Mood: Trustworthy, premium, high-conversion ecommerce ad, clean and attractive, impossible to ignore in a Facebook or TikTok feed.
@@ -604,9 +692,15 @@ Strong emotional impact. Eye-catching composition. Clear problem → solution �
       ? `\nCRITICAL: A reference image of the EXACT real product is provided. You MUST include THIS SPECIFIC product (same shape, color, packaging, design) in the generated image. NEVER invent, replace, or redesign the product. The product in the output MUST be recognizably the same as the reference.\n`
       : '';
 
+    let modeRules;
+    if (mode === 'hero') modeRules = heroRules;
+    else if (mode === 'hero_poster') modeRules = heroPosterRules;
+    else if (mode === 'before_after') modeRules = beforeAfterRules;
+    else modeRules = sceneRules;
+
     const posterPrompt = `${promptAffiche}
 ${productRefRule}
-${mode === 'hero' ? heroRules : mode === 'before_after' ? beforeAfterRules : sceneRules}`;
+${modeRules}`;
 
     let result;
 

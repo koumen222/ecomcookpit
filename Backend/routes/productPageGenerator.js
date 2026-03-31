@@ -13,6 +13,7 @@
 
 import express from 'express';
 import multer from 'multer';
+import sharp from 'sharp';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
 import { analyzeWithVision, generatePosterImage } from '../services/productPageGeneratorService.js';
 import { uploadImage } from '../services/cloudflareImagesService.js';
@@ -96,7 +97,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     let workspace;
     if (req.workspaceId) {
       workspace = await EcomWorkspace.findById(req.workspaceId)
-        .select('storeSettings.country storeSettings.city freeGenerationsRemaining paidGenerationsRemaining totalGenerations');
+        .select('storeSettings.country storeSettings.city storeSettings.storeName name freeGenerationsRemaining paidGenerationsRemaining totalGenerations');
       
       if (!workspace) {
         releaseLock(userId);
@@ -106,6 +107,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       storeContext = {
         country: workspace?.storeSettings?.country || '',
         city: workspace?.storeSettings?.city || '',
+        shopName: workspace?.storeSettings?.storeName || workspace?.name || '',
       };
     }
 
@@ -216,10 +218,17 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
           imageBuffer = Buffer.from(resp.data);
         }
 
-        const uploaded = await uploadImage(imageBuffer, filename, {
+        // Resize to 1080x1100
+        imageBuffer = await sharp(imageBuffer)
+          .resize(1080, 1100, { fit: 'cover', position: 'centre' })
+          .jpeg({ quality: 92 })
+          .toBuffer();
+
+        const resizedFilename = filename.replace(/\.[^.]+$/, '.jpg');
+        const uploaded = await uploadImage(imageBuffer, resizedFilename, {
           workspaceId: req.workspaceId,
           uploadedBy: userId,
-          mimeType: 'image/png'
+          mimeType: 'image/jpeg'
         });
         return uploaded?.url || null;
       } catch (err) {
@@ -236,6 +245,12 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     imagePromises.push(
       generateAndUpload(gptResult.prompt_affiche_hero, baseImageBuffer, `hero-${Date.now()}.png`, 'hero')
         .then(url => ({ type: 'hero', url }))
+    );
+
+    // Hero Poster (affiche graphique)
+    imagePromises.push(
+      generateAndUpload(gptResult.prompt_hero_poster, baseImageBuffer, `hero-poster-${Date.now()}.png`, 'hero_poster')
+        .then(url => ({ type: 'heroPoster', url }))
     );
 
     // Avant/Après — baseImageBuffer pour garder le VRAI produit
@@ -262,6 +277,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     // Extraire les résultats
     let heroImageUrl = imageResults.find(r => r.type === 'hero')?.url || realPhotos[0] || null;
+    let heroPosterImageUrl = imageResults.find(r => r.type === 'heroPoster')?.url || null;
     let beforeAfterImageUrl = imageResults.find(r => r.type === 'beforeAfter')?.url || null;
 
     const posterImages = imageResults
@@ -275,6 +291,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     console.log('✅ Images générées:', {
       hero: !!heroImageUrl,
+      heroPoster: !!heroPosterImageUrl,
       beforeAfter: !!beforeAfterImageUrl,
       posters: posterImages.filter(p => p.poster_url).length
     });
@@ -308,7 +325,15 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       hero_headline: gptResult.hero_headline || null,
       hero_slogan: gptResult.hero_slogan || null,
       hero_baseline: gptResult.hero_baseline || null,
+      hero_cta: gptResult.hero_cta || null,
+      urgency_badge: gptResult.urgency_badge || null,
+      problem_section: gptResult.problem_section || null,
+      solution_section: gptResult.solution_section || null,
+      stats_bar: gptResult.stats_bar || [],
+      offer_block: gptResult.offer_block || null,
+      seo: gptResult.seo || null,
       heroImage: heroImageUrl || realPhotos[0] || null,
+      heroPosterImage: heroPosterImageUrl || null,
       beforeAfterImage: beforeAfterImageUrl || null,
       angles: posterImages,
       raisons_acheter: gptResult.raisons_acheter || [],
@@ -320,6 +345,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       realPhotos,
       allImages: [
         ...(heroImageUrl ? [heroImageUrl] : []),
+        ...(heroPosterImageUrl ? [heroPosterImageUrl] : []),
         ...(beforeAfterImageUrl ? [beforeAfterImageUrl] : []),
         ...realPhotos,
         ...posterImages.map(p => p.poster_url).filter(Boolean)

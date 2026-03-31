@@ -1004,8 +1004,13 @@ const StoreProductPage = () => {
         .ai-desc img { width:auto !important; max-width:100% !important; height:auto !important; aspect-ratio:auto !important; object-fit:contain !important; display:block; margin:0 0 0; }
         .ai-desc ul { margin:0; padding:0; list-style:none; }
         .ai-desc ul li { display:flex; align-items:flex-start; gap:10px; margin-bottom:10px; font-size:14px; }
-        .ai-desc-testimonials { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; }
-        @media(max-width:640px){ .ai-desc-testimonials { grid-template-columns:1fr; } }
+        .ai-desc-testimonials { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; gap:16px; padding-bottom:12px; scroll-behavior:smooth; -webkit-overflow-scrolling:touch; cursor:grab; }
+        .ai-desc-testimonials:active { cursor:grabbing; }
+        .ai-desc-testimonials::-webkit-scrollbar { height:4px; }
+        .ai-desc-testimonials::-webkit-scrollbar-track { background:#f3f4f6; border-radius:9px; }
+        .ai-desc-testimonials::-webkit-scrollbar-thumb { background:#d1d5db; border-radius:9px; }
+        .ai-desc-testimonials > * { flex:0 0 min(85%,300px); scroll-snap-align:center; }
+        @media(max-width:640px){ .ai-desc-testimonials > * { flex:0 0 85%; } }
       `}</style>
 
       {/* Barre d'annonce */}
