@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { storeManageApi } from '../services/storeApi.js';
+import { useDmUnread } from '../hooks/useDmUnread';
 
 // ── Boutique Sidebar Navigation ──────────────────────────────────────────────
 const BOUTIQUE_NAV = [
@@ -102,6 +103,29 @@ const BoutiqueLayout = () => {
   const [storeSubdomain, setStoreSubdomain] = useState(null);
   const [storeChecked, setStoreChecked] = useState(false);
 
+  // Toast notification (nouvelle commande)
+  const [toast, setToast] = useState(null);
+  const toastTimerRef = useRef(null);
+  const showToast = useCallback((data) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast(data);
+    toastTimerRef.current = setTimeout(() => setToast(null), 5000);
+  }, []);
+
+  // Activer le socket (singleton partagé) pour recevoir notification:new
+  useDmUnread();
+
+  // Écouter les événements de notification dispatché par useDmUnread
+  useEffect(() => {
+    const handler = (e) => {
+      const notif = e.detail;
+      if (!notif) return;
+      showToast({ title: notif.title || '🔔 Notification', body: notif.message || '', type: notif.type || 'info' });
+    };
+    window.addEventListener('ecom:notification', handler);
+    return () => window.removeEventListener('ecom:notification', handler);
+  }, [showToast]);
+
   // Load store subdomain on mount — redirect to wizard if no store exists
   useEffect(() => {
     const loadSubdomain = async () => {
@@ -154,7 +178,7 @@ const BoutiqueLayout = () => {
   }
 
   return (
-    <div className={`min-h-screen bg-gray-50 flex flex-col lg:flex-row overflow-x-hidden max-w-[100vw] transition-all duration-500 ${entering ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'}`}>
+    <div className="min-h-screen bg-gray-50 flex flex-col lg:flex-row max-w-[100vw]">
 
       {/* ── Desktop Sidebar ────────────────────────────────────────────────── */}
       <aside className="hidden lg:flex lg:flex-col lg:w-[240px] lg:fixed lg:inset-y-0 z-30 bg-white border-r border-gray-200">
@@ -226,7 +250,7 @@ const BoutiqueLayout = () => {
       </aside>
 
       {/* ── Main content ───────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 lg:ml-[240px]">
+      <div className={`flex-1 flex flex-col min-w-0 lg:ml-[240px] transition-all duration-500 ${entering ? 'opacity-0' : 'opacity-100'}`}>
 
         {/* Mobile header */}
         <header className="lg:hidden fixed top-0 left-0 right-0 z-20 bg-white border-b border-gray-200">
@@ -355,6 +379,27 @@ const BoutiqueLayout = () => {
           </div>
         </div>
       </nav>
+
+      {/* ── Toast notification nouvelle commande ───────────────────────────── */}
+      {toast && (
+        <div
+          onClick={() => setToast(null)}
+          style={{
+            position: 'fixed', top: 72, right: 12, zIndex: 200,
+            maxWidth: 320, width: 'calc(100vw - 24px)',
+            backgroundColor: '#fff', border: '1px solid #E5E7EB',
+            borderLeft: `4px solid ${toast.type === 'order_new' ? '#10B981' : '#6366F1'}`,
+            borderRadius: 14, padding: '12px 16px',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+            animation: 'slide-in-toast 0.3s ease-out',
+            cursor: 'pointer',
+          }}
+        >
+          <style>{`@keyframes slide-in-toast { from { transform: translateX(110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }`}</style>
+          <p style={{ margin: '0 0 3px', fontSize: 13, fontWeight: 700, color: '#111' }}>{toast.title}</p>
+          {toast.body && <p style={{ margin: 0, fontSize: 12, color: '#6B7280', lineHeight: 1.4 }}>{toast.body}</p>}
+        </div>
+      )}
     </div>
   );
 };

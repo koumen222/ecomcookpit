@@ -14,6 +14,7 @@ import { setDocumentMeta } from '../utils/pageMeta';
 import { preloadStoreCheckoutRoute, preloadStoreProductRoute } from '../utils/routePrefetch';
 import { EditModeProvider, useEditMode } from '../contexts/EditModeContext';
 import { EditableWrapper, EditToolbar } from '../components/storefront/EditableWrapper';
+import { useStoreAnalytics } from '../hooks/useStoreAnalytics';
 
 // Lazy load des sections below-the-fold pour performance
 const TestimonialsCarousel = lazy(() => import('../components/TestimonialsCarousel'));
@@ -2413,6 +2414,7 @@ export const StoreAllProducts = () => {
 
   const { store, products, error } = useStoreData(subdomain);
   const { cartCount } = useStoreCart(subdomain);
+  const { trackPageView } = useStoreAnalytics(subdomain);
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
 
@@ -2435,7 +2437,8 @@ export const StoreAllProducts = () => {
       appTitle: store.name,
       type: 'website',
     });
-  }, [store]);
+    trackPageView();
+  }, [store?.name]);
 
   if (error) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
