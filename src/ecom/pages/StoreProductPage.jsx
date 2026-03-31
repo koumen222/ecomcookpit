@@ -1175,6 +1175,13 @@ const StoreProductPage = () => {
                 {/* Messages de confiance */}
                 {showTrustBadges && <TrustBadges compact />}
 
+                {/* ── Témoignages clients — juste sous les CTAs ───────────── */}
+                {product.testimonials && product.testimonials.length > 0 && (
+                  <div style={{ marginTop: 24, marginBottom: 8 }}>
+                    <VerifiedTestimonialsCarousel testimonials={product.testimonials} autoPlay={true} />
+                  </div>
+                )}
+
                 {(() => {
                   const raw = product.description?.toString().trim() || '';
                   const hasHtml = raw && /<[^>]+>/.test(raw);
@@ -1198,11 +1205,6 @@ const StoreProductPage = () => {
                       )}
                       {hasFaq && (
                         <ProductFaqAccordion items={faqItems} />
-                      )}
-                      {product.testimonials && product.testimonials.length > 0 && (
-                        <div style={{ marginTop: 32, marginBottom: 32 }}>
-                          <VerifiedTestimonialsCarousel testimonials={product.testimonials} autoPlay={true} />
-                        </div>
                       )}
                     </>
                   );
