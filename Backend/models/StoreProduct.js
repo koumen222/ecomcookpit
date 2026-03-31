@@ -134,6 +134,19 @@ const storeProductSchema = new mongoose.Schema({
     autoGenerate: { type: Boolean, default: false },
     generatedCount: { type: Number, default: 3 },
     lastGenerated: { type: Date, default: null }
+  },
+  // FAQ items (AI-generated or manual)
+  faq: {
+    type: [{
+      question: { type: String, required: true },
+      answer: { type: String, required: true }
+    }],
+    default: []
+  },
+  // Full AI-generated page data blob (_pageData from generator)
+  _pageData: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
   }
 }, {
   collection: 'store_products',

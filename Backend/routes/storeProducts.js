@@ -375,7 +375,8 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, async (re
     const {
       name, description, price, compareAtPrice, stock,
       images, category, tags, isPublished,
-      seoTitle, seoDescription, linkedProductId, currency
+      seoTitle, seoDescription, linkedProductId, currency,
+      testimonials, faq, _pageData
     } = req.body;
 
     if (!name || price === undefined) {
@@ -404,7 +405,10 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, async (re
       seoTitle: seoTitle || '',
       seoDescription: seoDescription || '',
       linkedProductId: linkedProductId || null,
-      createdBy: req.user.id
+      createdBy: req.user.id,
+      ...(testimonials?.length > 0 && { testimonials }),
+      ...(faq?.length > 0 && { faq }),
+      ...(_pageData && { _pageData })
     });
 
     await product.save();
@@ -440,7 +444,8 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
     const {
       name, description, price, compareAtPrice, stock,
       images, category, tags, isPublished,
-      seoTitle, seoDescription, linkedProductId, currency
+      seoTitle, seoDescription, linkedProductId, currency,
+      testimonials, faq, _pageData
     } = req.body;
 
     // Build update object — only include provided fields
@@ -464,6 +469,9 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
     if (seoTitle !== undefined) update.seoTitle = seoTitle;
     if (seoDescription !== undefined) update.seoDescription = seoDescription;
     if (linkedProductId !== undefined) update.linkedProductId = linkedProductId || null;
+    if (testimonials !== undefined) update.testimonials = testimonials;
+    if (faq !== undefined) update.faq = faq;
+    if (_pageData !== undefined) update._pageData = _pageData;
 
     // Regenerate slug if name changed
     if (name) {
