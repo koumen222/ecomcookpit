@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   ShoppingCart, MessageCircle, ArrowRight, ShoppingBag, Star,
@@ -12,9 +12,11 @@ import { prefetchStoreProduct, useStoreData } from '../hooks/useStoreData';
 import { useStoreCart } from '../hooks/useStoreCart';
 import { setDocumentMeta } from '../utils/pageMeta';
 import { preloadStoreCheckoutRoute, preloadStoreProductRoute } from '../utils/routePrefetch';
-import TestimonialsCarousel from '../components/TestimonialsCarousel';
 import { EditModeProvider, useEditMode } from '../contexts/EditModeContext';
 import { EditableWrapper, EditToolbar } from '../components/storefront/EditableWrapper';
+
+// Lazy load des sections below-the-fold pour performance
+const TestimonialsCarousel = lazy(() => import('../components/TestimonialsCarousel'));
 
 const fmt = (n, cur = 'XAF') =>
   `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
@@ -480,9 +482,20 @@ const HeroContent = ({ cfg, prefix, sectionId = 'hero' }) => {
 // ─── BADGES (trust strip) ──────────────────────────────────────────────────────
 const AiBadgesSection = ({ cfg }) => {
   const badges = cfg.items || [];
+  const sectionRef = React.useRef(null);
+  const [isVisible, setIsVisible] = React.useState(false);
+
+  React.useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsVisible(entry.isIntersecting),
+      { threshold: 0.1 }
+    );
+    if (sectionRef.current) observer.observe(sectionRef.current);
+    return () => observer.disconnect();
+  }, []);
   
   return (
-    <section style={{ 
+    <section ref={sectionRef} style={{ 
       backgroundColor: '#fff', 
       borderTop: '1px solid #F3F4F6',
       borderBottom: '1px solid #F3F4F6',
@@ -499,6 +512,7 @@ const AiBadgesSection = ({ cfg }) => {
           .s-badges-container {
             display: flex;
             animation: scrollBadges 30s linear infinite;
+            animation-play-state: ${isVisible ? 'running' : 'paused'};
             width: fit-content;
           }
           
@@ -607,7 +621,7 @@ const AiProductsSection = ({ cfg, products, prefix, store }) => {
               <ShoppingBag size={40} style={{ marginBottom: 12, opacity: 0.3 }} />
               <p style={{ margin: 0, fontSize: 15 }}>Aucun produit pour l'instant.</p>
             </div>
-          ) : displayed.map(p => <ProductCard key={p._id} product={p} prefix={prefix} store={store} subdomain={store?.subdomain} />)}
+          ) : displayed.map(p => <MemoizedProductCard key={p._id} product={p} prefix={prefix} store={store} subdomain={store?.subdomain} />)}
         </div>
         {products.length > limit && (
           <div style={{ textAlign: 'center', marginTop: 40 }}>
@@ -1145,9 +1159,24 @@ const SectionRenderer = ({ section, store, products, prefix }) => {
       case 'features':     return <AiFeaturesSection cfg={cfg} />;
       case 'text':         return <AiTextSection cfg={cfg} />;
       case 'products':     return <AiProductsSection cfg={cfg} products={products} prefix={prefix} store={store} />;
-      case 'testimonials': return <AiTestimonialsSection cfg={cfg} />;
-      case 'faq':          return <AiFaqSection cfg={cfg} />;
-      case 'contact':      return <AiContactSection cfg={cfg} store={store} />;
+      case 'testimonials': 
+        return (
+          <Suspense fallback={<div style={{ padding: '60px 0', textAlign: 'center', color: '#9CA3AF' }}>Chargement...</div>}>
+            <AiTestimonialsSection cfg={cfg} />
+          </Suspense>
+        );
+      case 'faq':          
+        return (
+          <Suspense fallback={<div style={{ padding: '60px 0', textAlign: 'center', color: '#9CA3AF' }}>Chargement...</div>}>
+            <AiFaqSection cfg={cfg} />
+          </Suspense>
+        );
+      case 'contact':      
+        return (
+          <Suspense fallback={<div style={{ padding: '60px 0', textAlign: 'center', color: '#9CA3AF' }}>Chargement...</div>}>
+            <AiContactSection cfg={cfg} store={store} />
+          </Suspense>
+        );
       case 'spacer':       return <AiSpacerSection cfg={cfg} />;
       default:             return null;
     }
@@ -1821,6 +1850,9 @@ const ProductCard = ({ product, prefix, store, subdomain }) => {
   );
 };
 
+// Memoize ProductCard to prevent unnecessary re-renders
+const MemoizedProductCard = React.memo(ProductCard);
+
 // ── Mobile Bottom Navigation ──────────────────────────────────────────────────
 const MobileBottomNav = ({ prefix, cartCount, store }) => {
   return (
@@ -1955,6 +1987,18 @@ const MobileBottomNav = ({ prefix, cartCount, store }) => {
 // ── Floating WhatsApp Button ──────────────────────────────────────────────────
 const FloatingWhatsAppButton = ({ store }) => {
   const whatsapp = (store?.whatsapp || '').replace(/\D/g, '');
+  const buttonRef = React.useRef(null);
+  const [isVisible, setIsVisible] = React.useState(true);
+  
+  React.useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsVisible(entry.isIntersecting),
+      { threshold: 0 }
+    );
+    if (buttonRef.current) observer.observe(buttonRef.current);
+    return () => observer.disconnect();
+  }, []);
+  
   if (!whatsapp) return null;
   
   const storeName = store?.name || 'la boutique';
@@ -1980,6 +2024,7 @@ const FloatingWhatsAppButton = ({ store }) => {
             right: 20px;
             z-index: 30;
             animation: whatsapp-pulse 2s infinite;
+            animation-play-state: ${isVisible ? 'running' : 'paused'};
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           }
           
@@ -2002,6 +2047,7 @@ const FloatingWhatsAppButton = ({ store }) => {
       </style>
       
       <a 
+        ref={buttonRef}
         href={waLink}
         target="_blank"
         rel="noopener noreferrer"
@@ -2447,7 +2493,7 @@ export const StoreAllProducts = () => {
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 20 }}>
-            {filtered.map(p => <ProductCard key={p._id} product={p} prefix={prefix} store={store} subdomain={store?.subdomain} />)}
+            {filtered.map(p => <MemoizedProductCard key={p._id} product={p} prefix={prefix} store={store} subdomain={store?.subdomain} />)}
           </div>
         )}
       </div>
@@ -2554,7 +2600,7 @@ const PublicStorefrontInner = () => {
               )}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 20 }}>
-              {filtered.slice(0, 3).map(p => <ProductCard key={p._id} product={p} prefix={prefix} store={store} subdomain={store?.subdomain} />)}
+              {filtered.slice(0, 3).map(p => <MemoizedProductCard key={p._id} product={p} prefix={prefix} store={store} subdomain={store?.subdomain} />)}
             </div>
             {filtered.length === 0 && (
               <div style={{ textAlign: 'center', padding: '72px 20px' }}>
