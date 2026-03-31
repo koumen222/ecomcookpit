@@ -178,6 +178,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const [mainOffer, setMainOffer] = useState('');
   const [objections, setObjections] = useState('');
   const [keyBenefits, setKeyBenefits] = useState('');
+  const [testimonialImages, setTestimonialImages] = useState([]); // Images pour les témoignages
   const [showAdvanced, setShowAdvanced] = useState(false);
   
   // AI Store Builder states
@@ -1166,6 +1167,61 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                         className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
                       />
                       <p className="text-xs text-gray-500 mt-1">L'IA reformatera les avis pour les rendre plus persuasifs ✨</p>
+                    </div>
+
+                    {/* Testimonial Images Upload */}
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
+                        📸 Photos pour les témoignages (optionnel)
+                        <span className="text-emerald-600 text-[10px] font-bold uppercase px-1.5 py-0.5 bg-emerald-50 rounded">Nouveauté</span>
+                      </label>
+                      <div className="space-y-2">
+                        {/* Upload Zone */}
+                        <label className="flex flex-col items-center justify-center w-full px-4 py-5 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition">
+                          <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                          <span className="text-xs text-gray-500 text-center">
+                            <strong className="text-gray-700">Cliquez</strong> pour ajouter des photos de clients
+                            <br />
+                            <span className="text-[10px]">Ces images seront affichées dans le carrousel de témoignages</span>
+                          </span>
+                          <input
+                            type="file"
+                            multiple
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const newFiles = Array.from(e.target.files || []);
+                              setTestimonialImages(prev => [...prev, ...newFiles]);
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
+
+                        {/* Preview Testimonial Images */}
+                        {testimonialImages.length > 0 && (
+                          <div className="grid grid-cols-4 gap-2">
+                            {testimonialImages.map((file, idx) => (
+                              <div key={idx} className="relative group">
+                                <img
+                                  src={URL.createObjectURL(file)}
+                                  alt={`Témoignage ${idx + 1}`}
+                                  className="w-full h-20 object-cover rounded-lg border border-gray-200"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setTestimonialImages(prev => prev.filter((_, i) => i !== idx))}
+                                  className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <p className="text-[10px] text-gray-500">
+                          💡 <strong>Astuce:</strong> Ajoutez des photos de clients satisfaits, des screenshots d'avis WhatsApp, ou des photos avant/après pour renforcer la crédibilité du carrousel de témoignages.
+                        </p>
+                      </div>
                     </div>
 
                     {/* Social Proof Links */}

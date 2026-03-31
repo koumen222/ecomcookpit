@@ -475,7 +475,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
       "text": "Témoignage réaliste et spécifique (2-3 phrases). Bénéfice concret ressenti. Langage local naturel (comme WhatsApp). Résultat concret mentionné.",
       "verified": true,
       "date": "Il y a X jours/semaines",
-      "image_type": "ugc"
+      "image": ""
     }
   ],
   "conversion_blocks": [
