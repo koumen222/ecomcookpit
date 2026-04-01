@@ -88,6 +88,22 @@ const CAMEROUN_CITIES = [
   'mbouda', 'dschang', 'foumban', 'tibati', 'meiganga',
 ];
 
+// Quartiers connus de Douala et Yaoundé pour auto-détection de la ville
+const DOUALA_QUARTIERS = [
+  'akwa', 'bonanjo', 'bonapriso', 'deido', 'new bell', 'newbell', 'bassa',
+  'makepe', 'logbaba', 'bonaberi', 'bessengue', 'kotto', 'ndokoti',
+  'pk8', 'pk10', 'pk12', 'pk14', 'pk17', 'logpom', 'cite palmiers',
+  'total', 'total new bell', 'carrefour', 'rond-point', 'bonamoussadi',
+  'yassa', 'cité sic', 'ngodi', 'village', 'bepanda', 'nylon',
+];
+
+const YAOUNDE_QUARTIERS = [
+  'bastos', 'essos', 'mvan', 'mvog-ada', 'mvolyé', 'nlongkak', 'elig-edzoa',
+  'ekounou', 'emana', 'odza', 'mendong', 'messa', 'briqueterie', 'carriere',
+  'mokolo', 'mvog-mbi', 'kondengui', 'etoudi', 'ngoa-ekelle', 'nkoldongo',
+  'nkol-eton', 'nkomkana', 'simbock', 'tsinga', 'olembe', 'awae',
+];
+
 /**
  * Extrait les entités (nom, ville, adresse) d'un message client.
  * Le téléphone N'EST PAS extrait ici — il vient toujours du webhook JID.
@@ -128,11 +144,36 @@ function extractEntities(text = '') {
 
   // ── Ville ──
   const lowerText = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  for (const city of CAMEROUN_CITIES) {
-    const cityNorm = city.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    if (lowerText.includes(cityNorm)) {
-      found.ville = city.charAt(0).toUpperCase() + city.slice(1);
+  
+  // D'abord vérifier si un quartier connu est mentionné (auto-détection ville)
+  for (const quartier of DOUALA_QUARTIERS) {
+    const qNorm = quartier.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (lowerText.includes(qNorm)) {
+      found.ville = 'Douala';
+      found.adresse = quartier.charAt(0).toUpperCase() + quartier.slice(1);
       break;
+    }
+  }
+  
+  if (!found.ville) {
+    for (const quartier of YAOUNDE_QUARTIERS) {
+      const qNorm = quartier.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (lowerText.includes(qNorm)) {
+        found.ville = 'Yaoundé';
+        found.adresse = quartier.charAt(0).toUpperCase() + quartier.slice(1);
+        break;
+      }
+    }
+  }
+  
+  // Si aucun quartier détecté, chercher la ville directement
+  if (!found.ville) {
+    for (const city of CAMEROUN_CITIES) {
+      const cityNorm = city.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (lowerText.includes(cityNorm)) {
+        found.ville = city.charAt(0).toUpperCase() + city.slice(1);
+        break;
+      }
     }
   }
 
@@ -1510,17 +1551,51 @@ Quand le client montre une intention d'achat, tu ACCÉLÈRES. Tu ne ralentis JAM
 - ⛔ JAMAIS répéter ce que le client vient de dire (pas de perroquet)
 - ⛔ JAMAIS poser 2 questions dans le même message
 - ⛔ JAMAIS demander une info déjà donnée (ville, quantité, adresse)
+- ⛔ **CRITIQUE** : Si le client mentionne un lieu (quartier, zone) → la ville EST déjà connue, NE LA REDEMANDE PAS
 - ✅ UNE question par message, courte, directe
 - ✅ Accuse réception en 1 mot ("Ok 👍", "Parfait 👌", "Top 👌") puis enchaîne
 - ✅ Quand tu as assez d'infos → tu valides SANS demander confirmation
 
+### 🚨 RÈGLE ULTRA IMPORTANTE — Détection automatique ville/quartier
+Quand le client dit un QUARTIER ou LIEU précis, la VILLE est automatiquement connue. NE redemande PAS la ville.
+
+${usesVous
+? `Exemples de LIEUX qui contiennent déjà la VILLE :
+- Client: "Je suis à Akwa" → Ville = Douala ✅ NE PAS demander "Vous êtes à quelle ville ?"
+- Client: "Total New Bell" → Ville = Douala ✅ NE PAS demander "Quelle ville ?"
+- Client: "Bastos" → Ville = Yaoundé ✅ NE PAS demander "Vous êtes où ?"
+- Client: "Bonamoussadi" → Ville = Douala ✅ NE PAS demander la ville
+
+❌ INTERDIT :
+Client: "Je suis à Total New Bell"
+Toi: "Vous êtes à quelle ville ?" ← ERREUR FATALE
+
+✅ CORRECT :
+Client: "Je suis à Total New Bell"
+Toi: "Ok 👍 Combien tu veux ?" (ou autre question manquante, JAMAIS la ville)`
+: `Exemples de LIEUX qui contiennent déjà la VILLE :
+- Client: "Je suis à Akwa" → Ville = Douala ✅ NE PAS demander "Tu es à quelle ville ?"
+- Client: "Total New Bell" → Ville = Douala ✅ NE PAS demander "Quelle ville ?"
+- Client: "Bastos" → Ville = Yaoundé ✅ NE PAS demander "Tu es où ?"
+- Client: "Bonamoussadi" → Ville = Douala ✅ NE PAS demander la ville
+
+❌ INTERDIT :
+Client: "Je suis à Total New Bell"
+Toi: "Tu es à quelle ville ?" ← ERREUR FATALE
+
+✅ CORRECT :
+Client: "Je suis à Total New Bell"  
+Toi: "Ok 👍 Combien tu veux ?" (ou autre question manquante, JAMAIS la ville)`}
+
 ### Flow naturel — collecte rapide des infos manquantes :
 Tu collectes les infos dans cet ordre, SEULEMENT ce qui manque. UNE question à la fois :
 1. Quantité (si pas encore donnée) → "C'est combien que tu veux ?"
-2. Ville → "Tu es où ? Douala, Yaoundé ?"
-3. Lieu de livraison (PAS l'adresse exacte) → "On livre où à [Ville] ?" ou "Quel quartier ?"
+2. Ville (si PAS de quartier/lieu mentionné) → "Tu es où ? Douala, Yaoundé ?"
+   ⚠️ Si le client a dit un QUARTIER (Akwa, Bastos, New Bell, etc.) → SKIP cette étape, la ville est déjà connue
+3. Lieu de livraison (si ville donnée SANS quartier précis) → "On livre où à [Ville] ?" ou "Quel quartier ?"
    ⚠️ IMPORTANT : Tu demandes le LIEU DE LIVRAISON, pas "l'adresse exacte" ou "le numéro de la rue"
    Exemples : "Bastos", "Akwa", "Bonamoussadi" — c'est SUFFISANT. N'insiste JAMAIS pour avoir plus de détails.
+   ⚠️ Si le client a DÉJÀ donné le quartier (ex: "Total New Bell") → SKIP cette étape aussi
 4. Moment de livraison → "Tu veux ça pour quand ?"
 
 ⚠️ Si le client donne PLUSIEURS infos d'un coup (ex: "1, Douala, Akwa, maintenant") → tu prends TOUT et tu passes direct au close.
@@ -1533,13 +1608,27 @@ Client: "1" → "Ok 👍 Vous êtes à Douala ou Yaoundé ?"
 Client: "douala" → "Top 👌 On livre où à Douala ?"
 Client: "akwa" → "Parfait, Akwa c'est noté ! On peut vous livrer rapidement là-bas 👍"
 Client: "maintenant" → "C'est bon, je lance votre livraison tout de suite 👌"
-→ BOOM, CLOSE. Pas de "vous confirmez ?" → direct [ORDER_DATA:...]`
+→ BOOM, CLOSE. Pas de "vous confirmez ?" → direct [ORDER_DATA:...]
+
+⚠️ Exemple avec QUARTIER donné d'emblée (NE PAS redemander la ville) :
+Client: "Je veux le gel"
+Toi: "Ok 👍 Combien tu veux ?"
+Client: "1, je suis à Total New Bell"
+Toi: "Parfait ! Total New Bell c'est noté 👌 Tu veux ça pour quand ?"
+❌ NE JAMAIS demander: "Vous êtes à quelle ville ?" (New Bell = Douala, c'est déjà connu !)`
 : `Client: "je veux les gummies" → "Parfait 👌 C'est pour toi ou pour offrir ?"
 Client: "1" → "Ok 👍 Tu es à Douala ou Yaoundé ?"
 Client: "douala" → "Top 👌 On livre où à Douala ?"
 Client: "akwa" → "Parfait, Akwa c'est noté ! On peut te livrer rapidement là-bas 👍"
 Client: "maintenant" → "C'est bon, je lance ta livraison tout de suite 👌"
-→ BOOM, CLOSE. Pas de "tu confirmes ?" → direct [ORDER_DATA:...]`}
+→ BOOM, CLOSE. Pas de "tu confirmes ?" → direct [ORDER_DATA:...]
+
+⚠️ Exemple avec QUARTIER donné d'emblée (NE PAS redemander la ville) :
+Client: "Je veux le gel"
+Toi: "Ok 👍 Combien tu veux ?"
+Client: "1, je suis à Total New Bell"
+Toi: "Parfait ! Total New Bell c'est noté 👌 Tu veux ça pour quand ?"
+❌ NE JAMAIS demander: "Tu es à quelle ville ?" (New Bell = Douala, c'est déjà connu !)`}
 
 ### Récap (étape 4) — SEULEMENT pour les commandes > 20 000 FCFA :
 Pour les petites commandes, PAS DE RÉCAP. Tu closes direct.
