@@ -366,6 +366,55 @@ export const TEMPLATES = {
     `, `Nouveau record : ${metric}`)
   }),
 
+  // ─── RITA IA TRIAL ────────────────────────────────────────────────────────
+
+  rita_trial_started: ({ name, workspaceName, trialDays = 14, trialEndsAt }) => ({
+    subject: `🎉 Votre essai Rita IA de ${trialDays} jours a commencé !`,
+    preview: `Profitez de Rita, votre assistant commercial IA, pendant ${trialDays} jours gratuitement`,
+    html: baseLayout(`
+      <h2>Bienvenue dans Rita IA ! 🎉</h2>
+      <p>Bonjour ${name || ''},</p>
+      <p>Félicitations ! Votre essai gratuit de <strong>${trialDays} jours</strong> de <strong>Rita IA</strong> a démarré pour <strong>${workspaceName}</strong>.</p>
+      
+      <div class="kpi-row">
+        <div class="kpi" style="background:#f0fdf4">
+          <p class="kpi-value" style="color:#059669">✅ Actif</p>
+          <p class="kpi-label">Votre agent Rita</p>
+        </div>
+        <div class="kpi" style="background:#dbeafe">
+          <p class="kpi-value" style="color:#2563eb">${trialDays} jours</p>
+          <p class="kpi-label">Essai gratuit</p>
+        </div>
+      </div>
+
+      <div class="alert-box alert-green">
+        ✨ <strong>Rita IA</strong> répond automatiquement à vos clients sur WhatsApp 24h/24, 7j/7. Elle gère les questions produits, confirme les commandes et augmente vos ventes pendant que vous dormez !
+      </div>
+
+      <p><strong>Ce que Rita fait pour vous :</strong></p>
+      <ul style="color:#4a4a68;font-size:15px;line-height:1.8;margin:16px 0">
+        <li>✅ Répond instantanément aux questions produits</li>
+        <li>📦 Confirme les commandes automatiquement</li>
+        <li>💰 Propose des offres personnalisées</li>
+        <li>📊 Vous envoie un rapport de chaque vente</li>
+        <li>⚡ Disponible 24h/24 sans pause ni repos</li>
+      </ul>
+
+      <p><strong>Échéance de votre essai :</strong> ${trialEndsAt || 'Dans 14 jours'}</p>
+
+      <div class="alert-box alert-blue">
+        💡 <strong>Astuce :</strong> Configurez Rita dans votre espace pour maximiser vos ventes. Ajoutez vos produits, personnalisez les messages et activez les notifications !
+      </div>
+
+      <div style="text-align:center;margin:24px 0">
+        <a href="${FRONTEND_URL}/ecom/agent-ia" class="btn btn-success">Configurer Rita maintenant →</a>
+      </div>
+
+      <hr class="divider"/>
+      <p style="font-size:13px;color:#888">⏰ Après les ${trialDays} jours, passez à un plan Pro ou Ultra pour continuer à vendre automatiquement avec Rita.</p>
+    `, `Essai Rita IA de ${trialDays} jours commencé !`)
+  }),
+
   // ─── TRIAL / PLAN EXPIRY ─────────────────────────────────────────────────
 
   trial_expiring: ({ name, workspaceName, hoursLeft, trialEndsAt }) => ({
