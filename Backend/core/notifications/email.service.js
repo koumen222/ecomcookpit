@@ -12,10 +12,10 @@ const getResend = () => {
   return resend;
 };
 
-const FROM = `Ecom Cockpit <${process.env.EMAIL_FROM || 'contact@infomania.store'}>`;
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://ecomcookpit.site';
+const FROM = `Scalor <${process.env.EMAIL_FROM || 'contact@infomania.store'}>`;
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://scalor.site';
 const BRAND_COLOR = '#4f46e5';
-const BRAND_NAME = 'Ecom Cockpit';
+const BRAND_NAME = 'Scalor';
 
 // ─── Templates HTML ───────────────────────────────────────────────────────────
 
@@ -66,12 +66,12 @@ const baseLayout = (content, previewText = '') => `
     <div class="card">
       <div class="header">
         <h1>${BRAND_NAME}</h1>
-        <p>Plateforme e-commerce intelligente</p>
+        <p>Votre assistant commercial intelligent</p>
       </div>
       <div class="body">${content}</div>
       <div class="footer">
         <p>© ${new Date().getFullYear()} ${BRAND_NAME} · Tous droits réservés</p>
-        <p><a href="https://ecomcookpit.site/" style="color:#888;text-decoration:none">Accéder à la plateforme</a></p>
+        <p><a href="https://scalor.site/" style="color:#888;text-decoration:none">Accéder à la plateforme</a></p>
       </div>
     </div>
   </div>
@@ -91,7 +91,7 @@ export const TEMPLATES = {
       <p>Votre compte <strong>${BRAND_NAME}</strong> est maintenant actif${workspaceName ? ` dans l'espace <strong>${workspaceName}</strong>` : ''}.</p>
       <p>Vous pouvez dès maintenant gérer vos commandes, produits, équipes et finances depuis une seule interface.</p>
       <div style="text-align:center;margin:24px 0">
-        <a href="https://ecomcookpit.site/ecom" class="btn">Accéder à mon espace →</a>
+        <a href="https://scalor.site/ecom" class="btn">Accéder à mon espace →</a>
       </div>
       <hr class="divider"/>
       <p style="font-size:13px;color:#888">Si vous n'êtes pas à l'origine de cette inscription, ignorez cet email.</p>
@@ -127,7 +127,7 @@ export const TEMPLATES = {
         🚨 Si vous n'êtes pas à l'origine de ce changement, <strong>contactez-nous immédiatement</strong> et sécurisez votre compte.
       </div>
       <div style="text-align:center;margin:24px 0">
-        <a href="https://ecomcookpit.site/ecom" class="btn btn-danger">Sécuriser mon compte</a>
+        <a href="https://scalor.site/ecom" class="btn btn-danger">Sécuriser mon compte</a>
       </div>
     `, 'Votre mot de passe a été modifié')
   }),
@@ -148,7 +148,7 @@ export const TEMPLATES = {
       </div>
       <p>Si c'était bien vous, aucune action n'est requise. Sinon, sécurisez votre compte immédiatement.</p>
       <div style="text-align:center;margin:24px 0">
-        <a href="https://ecomcookpit.site/ecom/settings" class="btn btn-danger">Sécuriser mon compte</a>
+        <a href="https://scalor.site/ecom/settings" class="btn btn-danger">Sécuriser mon compte</a>
       </div>
     `, 'Connexion suspecte sur votre compte')
   }),
@@ -184,7 +184,7 @@ export const TEMPLATES = {
         <div class="kpi" style="background:#f0fdf4"><p class="kpi-value" style="color:#059669">${newRole}</p><p class="kpi-label">Nouveau rôle</p></div>
       </div>
       <div style="text-align:center;margin:24px 0">
-        <a href="https://ecomcookpit.site/ecom" class="btn">Voir mon espace →</a>
+        <a href="https://scalor.site/ecom" class="btn">Voir mon espace →</a>
       </div>
     `, `Votre rôle est maintenant ${newRole}`)
   }),
@@ -216,7 +216,7 @@ export const TEMPLATES = {
         ⚠️ À ce rythme, le budget sera épuisé avant la fin de la période. Pensez à ajuster vos dépenses.
       </div>
       <div style="text-align:center;margin:24px 0">
-        <a href="https://ecomcookpit.site/ecom/transactions" class="btn">Voir les finances →</a>
+        <a href="https://scalor.site/ecom/transactions" class="btn">Voir les finances →</a>
       </div>
     `, `Budget ${budgetName} à ${percentage}%`)
   }),
@@ -236,7 +236,7 @@ export const TEMPLATES = {
         🚨 Action requise : ce budget est en dépassement. Revoyez vos dépenses ou augmentez la limite.
       </div>
       <div style="text-align:center;margin:24px 0">
-        <a href="https://ecomcookpit.site/ecom/transactions" class="btn btn-danger">Gérer les budgets →</a>
+        <a href="https://scalor.site/ecom/transactions" class="btn btn-danger">Gérer les budgets →</a>
       </div>
     `, `Budget ${budgetName} dépassé !`)
   }),
@@ -253,7 +253,7 @@ export const TEMPLATES = {
       </div>
       <p><strong>Catégorie :</strong> ${category}<br/><strong>Description :</strong> ${description || '—'}</p>
       <div style="text-align:center;margin:24px 0">
-        <a href="https://ecomcookpit.site/ecom/transactions" class="btn">Voir les transactions →</a>
+        <a href="https://scalor.site/ecom/transactions" class="btn">Voir les transactions →</a>
       </div>
     `, `Transaction critique : ${amount}`)
   }),
@@ -272,7 +272,7 @@ export const TEMPLATES = {
       ${ordersCount !== undefined ? `<p>📦 <strong>${ordersCount}</strong> commandes traitées cette semaine.</p>` : ''}
       ${topCategory ? `<p>🏆 Catégorie principale : <strong>${topCategory}</strong></p>` : ''}
       <div style="text-align:center;margin:24px 0">
-        <a href="https://ecomcookpit.site/ecom/transactions" class="btn">Voir le détail →</a>
+        <a href="https://scalor.site/ecom/transactions" class="btn">Voir le détail →</a>
       </div>
     `, `Rapport hebdo ${workspaceName}`)
   }),
@@ -291,7 +291,7 @@ export const TEMPLATES = {
       ${growth !== undefined ? `<div class="alert-box ${growth >= 0 ? 'alert-green' : 'alert-red'}">${growth >= 0 ? '📈' : '📉'} Évolution vs mois précédent : <strong>${growth >= 0 ? '+' : ''}${growth}%</strong></div>` : ''}
       ${budgetUsage !== undefined ? `<p>💰 Utilisation des budgets : <strong>${budgetUsage}%</strong></p>` : ''}
       <div style="text-align:center;margin:24px 0">
-        <a href="https://ecomcookpit.site/ecom/transactions" class="btn">Voir le rapport complet →</a>
+        <a href="https://scalor.site/ecom/transactions" class="btn">Voir le rapport complet →</a>
       </div>
     `, `Rapport mensuel ${month}`)
   }),
@@ -311,7 +311,7 @@ export const TEMPLATES = {
         ⚠️ Pensez à réapprovisionner ce produit pour éviter une rupture de stock.
       </div>
       <div style="text-align:center;margin:24px 0">
-        <a href="https://ecomcookpit.site/ecom/stock" class="btn">Gérer le stock →</a>
+        <a href="https://scalor.site/ecom/stock" class="btn">Gérer le stock →</a>
       </div>
     `, `Stock bas : ${productName}`)
   }),
@@ -326,7 +326,7 @@ export const TEMPLATES = {
         🚨 Ce produit n'est plus disponible. Les nouvelles commandes pourraient être impactées.
       </div>
       <div style="text-align:center;margin:24px 0">
-        <a href="https://ecomcookpit.site/ecom/stock" class="btn btn-danger">Réapprovisionner →</a>
+        <a href="https://scalor.site/ecom/stock" class="btn btn-danger">Réapprovisionner →</a>
       </div>
     `, `Rupture de stock : ${productName}`)
   }),
@@ -347,7 +347,7 @@ export const TEMPLATES = {
         🎉 Performance exceptionnelle ! Continuez sur cette lancée.
       </div>
       <div style="text-align:center;margin:24px 0">
-        <a href="https://ecomcookpit.site/ecom/orders" class="btn btn-success">Voir les commandes →</a>
+        <a href="https://scalor.site/ecom/orders" class="btn btn-success">Voir les commandes →</a>
       </div>
     `, `Pic de ventes : ${ordersCount} commandes !`)
   }),

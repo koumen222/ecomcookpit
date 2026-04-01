@@ -63,7 +63,7 @@ const getResend = () => {
 };
 
 const FROM_DEFAULT = process.env.EMAIL_FROM || 'contact@infomania.store';
-const FROM_NAME_DEFAULT = process.env.EMAIL_FROM_NAME || 'Ecom Cockpit';
+const FROM_NAME_DEFAULT = process.env.EMAIL_FROM_NAME || 'Scalor';
 
 // ─── Middleware: super_admin OR ecom_admin ───────────────────────────────────
 const requireMarketingAccess = [requireEcomAuth, (req, res, next) => {
@@ -122,7 +122,7 @@ function buildHtml(campaign, user = null) {
     <div class="body">${body}</div>
     <div class="footer">
       <p>© ${new Date().getFullYear()} ${fromName}</p>
-      <p><a href="https://ecomcookpit.site/" style="color:#888;text-decoration:none">Accéder à la plateforme</a></p>
+      <p><a href="https://scalor.site/" style="color:#888;text-decoration:none">Accéder à la plateforme</a></p>
     </div>
   </div></div>
 </body>

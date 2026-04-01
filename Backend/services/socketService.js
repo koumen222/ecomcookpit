@@ -14,13 +14,13 @@ const JWT_SECRET = process.env.ECOM_JWT_SECRET || 'ecom-secret-key-change-in-pro
  */
 export function initSocketServer(httpServer) {
   const allowedOrigins = [
-    'https://ecomcookpit.site',
-    'https://www.ecomcookpit.site',
+    'https://scalor.site',
+    'https://www.scalor.site',
     'https://scalor.net',
     'https://www.scalor.net',
     'https://api.scalor.net',
-    'http://ecomcookpit.site',
-    'http://www.ecomcookpit.site',
+    'http://scalor.site',
+    'http://www.scalor.site',
     'https://ecomcookpit.pages.dev',
     'https://ecomcookpit-production.up.railway.app',
     'https://ecomcookpit-production-7a08.up.railway.app',
