@@ -16,6 +16,7 @@ import { getIO } from '../services/socketService.js';
 import { logRitaActivity } from '../services/ritaBossReportService.js';
 import { analyzeImage as analyzeProductImage } from '../services/agentImageService.js';
 import { processFlows } from '../services/ritaFlowEngine.js';
+import RitaFlow from '../models/RitaFlow.js';
 import { uploadImage as uploadImageToR2, isConfigured as isR2Configured } from '../services/cloudflareImagesService.js';
 import { requireEcomAuth, requireRitaAgentAccess } from '../middleware/ecomAuth.js';
 import Workspace from '../models/Workspace.js';
@@ -478,6 +479,36 @@ function isExplicitImageRequest(text) {
   const normalizedText = normalizeStr(text);
   return /(?:envoie|envoy|montre|montrer|voir|photo|image|picture|pic)/.test(normalizedText) &&
          /(?:encore|autre|plus|toute|all|autre fois|à nouveau|again)/.test(normalizedText);
+}
+
+// ─── Buffer pour regrouper les messages rapides du même client ───
+// Permet de répondre une seule fois à plusieurs messages envoyés rapidement
+const messageBuffers = new Map();
+const MESSAGE_BUFFER_DELAY = 2000; // 2 secondes d'attente après le dernier message
+
+function addMessageToBuffer(conversationKey, messageData, processCallback) {
+  // Si un buffer existe déjà, annuler le timeout
+  if (messageBuffers.has(conversationKey)) {
+    const buffer = messageBuffers.get(conversationKey);
+    clearTimeout(buffer.timeout);
+    buffer.messages.push(messageData);
+  } else {
+    // Créer un nouveau buffer
+    messageBuffers.set(conversationKey, {
+      messages: [messageData],
+      timeout: null,
+    });
+  }
+
+  // Créer un nouveau timeout pour traiter tous les messages regroupés
+  const buffer = messageBuffers.get(conversationKey);
+  buffer.timeout = setTimeout(async () => {
+    const messagesToProcess = buffer.messages;
+    messageBuffers.delete(conversationKey);
+    
+    // Traiter tous les messages regroupés
+    await processCallback(messagesToProcess);
+  }, MESSAGE_BUFFER_DELAY);
 }
 
 function addPendingEscalation(userId, entry) {
@@ -1792,29 +1823,67 @@ router.post('/incoming', async (req, res) => {
             }
           }
 
-          // Générer la réponse IA
-          const startTime = Date.now();
-          const reply = await processIncomingMessage(userId, senderJid, text, { agentId, pushName });
-          const elapsed = Date.now() - startTime;
-
-          // Émettre un événement socket pour la vue temps réel
-          try {
-            const io = getIO();
-            if (io && workspaceId) {
-              io.to(`workspace:${workspaceId}`).emit('rita:message:new', { phone: senderPhone, agentId, userId });
+          // ─── Regrouper les messages rapides du même client ───
+          const bufferKey = `${userId}:${senderPhone}`;
+          const workspaceId = instanceDoc?.workspaceId;
+          
+          // Ajouter ce message au buffer et traiter après le délai
+          addMessageToBuffer(bufferKey, {
+            userId,
+            senderJid,
+            senderPhone,
+            text,
+            agentId,
+            pushName,
+            instanceDoc,
+            workspaceId,
+            from,
+          }, async (messages) => {
+            // ─── Traiter tous les messages regroupés ───
+            const combinedText = messages.map(m => m.text).join('\n\n');
+            const firstMsg = messages[0];
+            
+            // Déstructurer pour utiliser les variables comme avant
+            const userId = firstMsg.userId;
+            const agentId = firstMsg.agentId;
+            const pushName = firstMsg.pushName;
+            const instanceDoc = firstMsg.instanceDoc;
+            const from = firstMsg.from;
+            const text = combinedText; // Le texte combiné de tous les messages
+            
+            console.log(`📦 [RITA] Traitement groupé de ${messages.length} message(s) de ${firstMsg.senderPhone}`);
+            if (messages.length > 1) {
+              console.log(`📦 [RITA] Messages combinés: "${combinedText.substring(0, 200)}"`);
             }
-          } catch (_) { /* non-bloquant */ }
 
-          if (!reply) {
-            console.log(`ℹ️ [RITA] Rita désactivée ou pas de réponse pour userId=${userId} (${elapsed}ms)`);
-            continue;
-          }
+            // Générer la réponse IA
+            const startTime = Date.now();
+            const reply = await processIncomingMessage(
+              firstMsg.userId,
+              firstMsg.senderJid,
+              combinedText, // Utiliser le texte combiné
+              { agentId: firstMsg.agentId, pushName: firstMsg.pushName }
+            );
+            const elapsed = Date.now() - startTime;
 
-          console.log(`🤖 [RITA] Réponse générée en ${elapsed}ms pour ${from}:`);
-          console.log(`🤖 [RITA] "${reply.substring(0, 300)}"`);
-          console.log(`🤖 [RITA] Tags détectés: IMAGE=${/\[IMAGE:/.test(reply)} VIDEO=${/\[VIDEO:/.test(reply)} ORDER=${/\[ORDER_DATA:/.test(reply)} ASK_BOSS=${/\[ASK_BOSS:/.test(reply)}`);
-          // Extraire le numéro propre depuis le JID WhatsApp (ex: 33612345678@s.whatsapp.net)
-          const cleanFrom = senderPhone;
+            // Émettre un événement socket pour la vue temps réel
+            try {
+              const io = getIO();
+              if (io && firstMsg.workspaceId) {
+                io.to(`workspace:${firstMsg.workspaceId}`).emit('rita:message:new', { phone: firstMsg.senderPhone, agentId: firstMsg.agentId, userId: firstMsg.userId });
+              }
+            } catch (_) { /* non-bloquant */ }
+
+            if (!reply) {
+              console.log(`ℹ️ [RITA] Rita désactivée ou pas de réponse pour userId=${firstMsg.userId} (${elapsed}ms)`);
+              return;
+            }
+
+            console.log(`🤖 [RITA] Réponse générée en ${elapsed}ms pour ${from}:`);
+            console.log(`🤖 [RITA] "${reply.substring(0, 300)}"`);
+            console.log(`🤖 [RITA] Tags détectés: IMAGE=${/\[IMAGE:/.test(reply)} VIDEO=${/\[VIDEO:/.test(reply)} ORDER=${/\[ORDER_DATA:/.test(reply)} ASK_BOSS=${/\[ASK_BOSS:/.test(reply)}`);
+            // Extraire le numéro propre depuis le JID WhatsApp (ex: 33612345678@s.whatsapp.net)
+            const cleanFrom = firstMsg.senderPhone;
 
           // ─── Détecter tag [ORDER_DATA:{...}] pour enregistrer la commande ───
           // Extraction robuste supportant le JSON imbriqué (ex: objets adresse)
@@ -1954,6 +2023,52 @@ router.post('/incoming', async (req, res) => {
                 }
               } catch (bossErr) {
                 console.error(`⚠️ [RITA] Erreur notification boss:`, bossErr.message);
+              }
+
+              // ─── Proposition d'ajout au groupe WhatsApp clients ───
+              try {
+                const flowConfig = await RitaFlow.findOne({ userId }).lean();
+                if (flowConfig?.groups?.length > 0) {
+                  // Chercher un groupe 'clients' ou le premier groupe disponible
+                  const clientGroup = flowConfig.groups.find(g => g.role === 'clients') || flowConfig.groups[0];
+                  
+                  if (clientGroup) {
+                    let inviteUrl = clientGroup.inviteUrl;
+                    
+                    // Si pas d'URL d'invitation en cache, la récupérer
+                    if (!inviteUrl && clientGroup.groupJid) {
+                      const inviteResult = await evolutionApiService.getGroupInviteCode(
+                        instanceDoc.instanceName,
+                        instanceDoc.instanceToken,
+                        clientGroup.groupJid
+                      );
+                      if (inviteResult.success) {
+                        inviteUrl = inviteResult.inviteUrl;
+                        // Mettre à jour le lien en cache
+                        await RitaFlow.updateOne(
+                          { userId, 'groups.groupJid': clientGroup.groupJid },
+                          { $set: { 'groups.$.inviteUrl': inviteUrl } }
+                        );
+                      }
+                    }
+                    
+                    if (inviteUrl) {
+                      await new Promise(r => setTimeout(r, 1500)); // Petit délai après le récap commande
+                      const groupName = clientGroup.name || 'notre groupe WhatsApp';
+                      const groupMsg = `🎉 Merci pour ta commande !\n\nRejoins ${groupName} pour suivre ta livraison et profiter des offres exclusives 👇\n\n${inviteUrl}`;
+                      await sendMessageAndTrack(
+                        instanceDoc.instanceName,
+                        instanceDoc.instanceToken,
+                        cleanFrom,
+                        groupMsg
+                      );
+                      console.log(`✅ [RITA] Lien groupe WhatsApp envoyé à ${cleanFrom} (${groupName})`);
+                      logRitaActivity(userId, 'group_invite_sent', { customerPhone: cleanFrom, details: groupName });
+                    }
+                  }
+                }
+              } catch (groupErr) {
+                console.error(`⚠️ [RITA] Erreur invitation groupe:`, groupErr.message);
               }
             } catch (parseErr) {
               console.error(`❌ [RITA] Erreur parsing ORDER_DATA:`, parseErr.message);
@@ -2458,7 +2573,7 @@ router.post('/incoming', async (req, res) => {
                       instanceDoc.instanceToken,
                       cleanFrom,
                       photoUrl,
-                      '',
+                      foundProduct.name,
                       `catalog_${lineIdx + 1}.${ext}`
                     );
                     
@@ -2501,7 +2616,7 @@ router.post('/incoming', async (req, res) => {
                     instanceDoc.instanceToken,
                     cleanFrom,
                     imgUrl,
-                    '',
+                    matchedProductForMedia.name,
                     `product_${imgIdx + 1}.${ext}`
                   );
                   if (result.success) {
@@ -2550,7 +2665,7 @@ router.post('/incoming', async (req, res) => {
                     instanceDoc.instanceToken,
                     cleanFrom,
                     imgUrl,
-                    '',
+                    matchedProductForMedia.name,
                     `product_${imgIdx + 1}.${ext}`
                   );
                   if (result.success) {
@@ -2582,8 +2697,6 @@ router.post('/incoming', async (req, res) => {
                 // Marquer les images comme envoyées
                 markImageAsSent(conversationKey, matchedProductForMedia.name);
                 console.log(`📸 [RITA] ${imagesSentCount}/${numberOfImagesToSend} photos envoyées à ${cleanFrom}`);
-              } else {
-                console.log(`📸📸 [RITA] ${imagesSentCount}/${numberOfImagesToSend} photo(s) envoyée(s) à ${cleanFrom}`);
               }
             }
 
@@ -2675,6 +2788,7 @@ router.post('/incoming', async (req, res) => {
           } catch (flowErr) { console.error('⚠️ [FlowEngine] message_received:', flowErr.message); }
 
           console.log(`💬 [RITA] ══════════════════════════════════════`);
+          }); // Fin du callback de traitement groupé
         }
       } else if (normalizedEvent === 'MESSAGES_UPDATE') {
         // Accusés de réception / statuts de livraison — log discret
