@@ -7,6 +7,8 @@ import SupportConversation from '../models/SupportConversation.js';
 import StoreProduct from '../models/StoreProduct.js';
 import { requireEcomAuth, requireSuperAdmin } from '../middleware/ecomAuth.js';
 import { logAudit, auditSensitiveAccess, AuditLog } from '../middleware/security.js';
+import { sendNotificationEmail } from '../core/notifications/email.service.js';
+import { sendPushNotification, sendPushNotificationToUser } from '../services/pushService.js';
 
 const router = express.Router();
 
@@ -877,11 +879,23 @@ router.get('/billing', requireEcomAuth, requireSuperAdmin, async (req, res) => {
     // 6) Active trials
     const activeTrials = await Workspace.find({
       trialEndsAt: { $gt: now },
-      trialUsed: false
+      trialUsed: true
     })
-      .select('name slug trialStartedAt trialEndsAt owner plan')
+      .select('name slug trialStartedAt trialEndsAt trialExpiryNotifiedAt trialExpiredNotifiedAt owner plan')
       .populate('owner', 'email name phone')
       .sort({ trialEndsAt: 1 })
+      .lean();
+
+    // 6b) Expired trials (trial ended, still on free plan)
+    const expiredTrials = await Workspace.find({
+      trialUsed: true,
+      trialEndsAt: { $lte: now },
+      plan: 'free',
+    })
+      .select('name slug trialStartedAt trialEndsAt trialExpiryNotifiedAt trialExpiredNotifiedAt owner plan')
+      .populate('owner', 'email name phone')
+      .sort({ trialEndsAt: -1 })
+      .limit(50)
       .lean();
 
     // 7) Expired (paid plans that expired, now effectively free)
@@ -929,6 +943,7 @@ router.get('/billing', requireEcomAuth, requireSuperAdmin, async (req, res) => {
         activeSubscriptions,
         expiringSoon,
         activeTrials,
+        expiredTrials,
         expiredPaid,
         workspaces: allWorkspaces,
         pagination: {
@@ -989,6 +1004,97 @@ router.post('/migrate-product-descriptions', requireEcomAuth, requireSuperAdmin,
     res.json({ success: true, updated, skipped, total: products.length });
   } catch (err) {
     console.error('[SuperAdmin] migrate-product-descriptions error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── POST /super-admin/notify-workspace — Envoyer email/push manuellement ────
+router.post('/notify-workspace', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { workspaceId, channel, templateKey } = req.body;
+    // channel: 'email' | 'push' | 'both'
+    // templateKey: 'trial_expiring' | 'trial_expired' | 'plan_expired'
+    if (!workspaceId || !channel || !templateKey) {
+      return res.status(400).json({ success: false, message: 'workspaceId, channel et templateKey requis' });
+    }
+
+    const allowedTemplates = ['trial_expiring', 'trial_expired', 'plan_expired'];
+    if (!allowedTemplates.includes(templateKey)) {
+      return res.status(400).json({ success: false, message: `Template invalide. Autorisés: ${allowedTemplates.join(', ')}` });
+    }
+
+    const workspace = await Workspace.findById(workspaceId).populate('owner', 'email name phone').lean();
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Workspace introuvable' });
+    }
+
+    const owner = workspace.owner;
+    if (!owner?.email) {
+      return res.status(400).json({ success: false, message: 'Propriétaire sans email' });
+    }
+
+    const results = { email: null, push: null };
+
+    // Build data for templates
+    const hoursLeft = workspace.trialEndsAt
+      ? Math.max(1, Math.round((new Date(workspace.trialEndsAt) - new Date()) / (60 * 60 * 1000)))
+      : 0;
+    const trialEndsStr = workspace.trialEndsAt
+      ? new Date(workspace.trialEndsAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '—';
+    const planName = workspace.plan === 'pro' ? 'Pro' : workspace.plan === 'ultra' ? 'Ultra' : 'Gratuit';
+
+    const templateData = {
+      name: owner.name || '',
+      workspaceName: workspace.name,
+      hoursLeft,
+      trialEndsAt: trialEndsStr,
+      planName,
+    };
+
+    const pushTitles = {
+      trial_expiring: { title: '⏰ Essai gratuit expire bientôt', body: `Plus que ${hoursLeft}h — vos agents IA seront désactivés. Passez à Pro !` },
+      trial_expired: { title: '🚫 Essai terminé — Agents IA désactivés', body: 'Vos agents ne répondent plus. Passez à Pro pour les réactiver !' },
+      plan_expired: { title: `🚫 Plan ${planName} expiré`, body: 'Vos agents IA sont désactivés. Renouvelez pour continuer à vendre !' },
+    };
+
+    // Email
+    if (channel === 'email' || channel === 'both') {
+      try {
+        const emailResult = await sendNotificationEmail({
+          to: owner.email,
+          templateKey,
+          data: templateData,
+          userId: String(workspace.owner._id),
+          workspaceId: String(workspace._id),
+          eventType: `manual_${templateKey}`,
+        });
+        results.email = emailResult;
+      } catch (e) {
+        results.email = { success: false, error: e.message };
+      }
+    }
+
+    // Push
+    if (channel === 'push' || channel === 'both') {
+      try {
+        const pushData = {
+          ...pushTitles[templateKey],
+          icon: '/icons/icon-192x192.png',
+          tag: `manual-${templateKey}`,
+          data: { type: templateKey, url: '/ecom/billing' },
+        };
+        const pushResult = await sendPushNotificationToUser(String(workspace.owner._id), pushData);
+        results.push = pushResult || { success: true };
+      } catch (e) {
+        results.push = { success: false, error: e.message };
+      }
+    }
+
+    await logAudit(req, 'NOTIFY_WORKSPACE', `Manual ${templateKey} (${channel}) sent to ${owner.email}`, 'workspace', workspace._id);
+    res.json({ success: true, results, email: owner.email });
+  } catch (err) {
+    console.error('[SuperAdmin] POST /notify-workspace error:', err.message);
     res.status(500).json({ success: false, message: err.message });
   }
 });

@@ -451,7 +451,7 @@ function resolveStatusVariants(rawStatus) {
   return [normalized];
 }
 
-// ─── Escalades boss en attente: userId → [{ clientPhone, question, askedAt, instanceName, instanceToken }]
+// ─── Escalades boss en attente: userId → [{ clientPhone, question, askedAt, instanceName, instanceToken, waitMsgSent }]
 // Queue FIFO : chaque réponse du boss est transmise au prochain client en attente.
 const pendingBossEscalations = new Map();
 
@@ -459,6 +459,7 @@ function addPendingEscalation(userId, entry) {
   if (!pendingBossEscalations.has(userId)) pendingBossEscalations.set(userId, []);
   // Éviter les doublons pour le même client
   const queue = pendingBossEscalations.get(userId).filter(e => e.clientPhone !== entry.clientPhone);
+  entry.waitMsgSent = false; // Track si le msg d'attente a déjà été envoyé
   queue.push(entry);
   pendingBossEscalations.set(userId, queue);
 }
@@ -1749,16 +1750,18 @@ router.post('/incoming', async (req, res) => {
             const escQueue = pendingBossEscalations.get(userId) || [];
             const clientEsc = escQueue.find(e => e.clientPhone === cleanFromEarly);
             const elapsedEscMin = clientEsc ? (Date.now() - clientEsc.askedAt) / 60000 : Infinity;
-            const timeoutMin = clientEsc?.timeoutMin || 30;
-            if (elapsedEscMin < timeoutMin) {
-              // Toujours en attente, timeout pas encore expiré
-              console.log(`⏳ [BOSS] Client ${cleanFromEarly} en attente de réponse boss (${Math.round(elapsedEscMin)} min / ${timeoutMin} min)`);
-              const waitMsg = `Je suis toujours en train de vérifier pour toi 🙏 Une petite patience, j'arrive !`;
+            const timeoutMin = clientEsc?.timeoutMin || 5;
+            if (elapsedEscMin < timeoutMin && !clientEsc.waitMsgSent) {
+              // Premier message du client pendant l'attente → envoyer UNE SEULE fois le msg d'attente
+              console.log(`⏳ [BOSS] Client ${cleanFromEarly} en attente de réponse boss — envoi msg patience (1ère fois)`);
+              const waitMsg = `Je suis en train de vérifier pour toi 🙏 Une petite patience, j'arrive !`;
               await sendMessageAndTrack(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFromEarly, waitMsg, 2, 1500);
+              clientEsc.waitMsgSent = true;
               continue;
             } else {
-              // Timeout expiré → retirer l'escalade, laisser Rita improviser
-              console.log(`⏰ [BOSS] Timeout écoulé pour ${cleanFromEarly} — Rita improvise`);
+              // Soit le client a déjà reçu le msg d'attente, soit le timeout est expiré
+              // → Retirer l'escalade et laisser Rita continuer la conversation normalement
+              console.log(`⏰ [BOSS] ${clientEsc?.waitMsgSent ? 'Client relance — Rita reprend la conversation' : 'Timeout écoulé'} pour ${cleanFromEarly}`);
               const queue2 = (pendingBossEscalations.get(userId) || []).filter(e => e.clientPhone !== cleanFromEarly);
               pendingBossEscalations.set(userId, queue2);
             }
@@ -1993,7 +1996,7 @@ router.post('/incoming', async (req, res) => {
                 const question = askBossMatch[1].trim();
                 const bossPhone = ritaCfgEsc2.bossPhone.replace(/\D/g, '');
                 const currentCleanFrom = from.replace(/@.*$/, '');
-                const timeoutMin = ritaCfgEsc2.bossEscalationTimeoutMin || 30;
+                const timeoutMin = ritaCfgEsc2.bossEscalationTimeoutMin || 5;
                 // Stocker l'escalade
                 addPendingEscalation(userId, {
                   clientPhone: currentCleanFrom,
@@ -2111,7 +2114,7 @@ router.post('/incoming', async (req, res) => {
                 if (ritaCfgNoVid?.bossEscalationEnabled && ritaCfgNoVid?.bossPhone) {
                   const bossPhone = ritaCfgNoVid.bossPhone.replace(/\D/g, '');
                   const currentCleanFrom = from.replace(/@.*$/, '');
-                  const timeoutMin = ritaCfgNoVid.bossEscalationTimeoutMin || 30;
+                  const timeoutMin = ritaCfgNoVid.bossEscalationTimeoutMin || 5;
                   const question = `Le client demande la vidéo du produit "${videoProductName}" — aucune vidéo configurée`;
                   addPendingEscalation(userId, {
                     clientPhone: currentCleanFrom,

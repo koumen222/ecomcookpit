@@ -5,7 +5,8 @@ import {
   CheckCircle2, XCircle, Loader2, RefreshCw, Search, Filter,
   ArrowUpRight, ArrowDownRight, CreditCard, Calendar, Phone,
   Building2, Mail, ChevronDown, ChevronRight, Eye, Download,
-  BarChart3, PieChart, Activity, Shield, AlertCircle, Timer
+  BarChart3, PieChart, Activity, Shield, AlertCircle, Timer,
+  Bell, Send
 } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 
@@ -179,6 +180,27 @@ const SuperAdminBilling = () => {
   const [paymentFilter, setPaymentFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedPayment, setExpandedPayment] = useState(null);
+  const [sendingNotif, setSendingNotif] = useState(null); // 'wsId-channel'
+  const [notifSuccess, setNotifSuccess] = useState('');
+
+  const handleNotify = async (workspaceId, channel, templateKey) => {
+    const key = `${workspaceId}-${channel}`;
+    setSendingNotif(key);
+    setNotifSuccess('');
+    try {
+      const res = await ecomApi.post('/super-admin/notify-workspace', { workspaceId, channel, templateKey });
+      if (res.data?.success) {
+        setNotifSuccess(`${channel === 'email' ? 'Email' : channel === 'push' ? 'Push' : 'Email + Push'} envoyé à ${res.data.email}`);
+        setTimeout(() => setNotifSuccess(''), 4000);
+      } else {
+        setError(res.data?.message || 'Erreur envoi notification');
+      }
+    } catch (e) {
+      setError(e.response?.data?.message || e.message);
+    } finally {
+      setSendingNotif(null);
+    }
+  };
 
   const fetchData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -278,7 +300,8 @@ const SuperAdminBilling = () => {
   // Free plan workspaces count as "essais"
   const freeWorkspaces = (data.workspaces || []).filter(w => w.plan === 'free');
   const trialWorkspaces = data.activeTrials || [];
-  const totalEssais = trialWorkspaces.length + freeWorkspaces.length;
+  const expiredTrials = data.expiredTrials || [];
+  const totalEssais = trialWorkspaces.length + freeWorkspaces.length + expiredTrials.length;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
@@ -347,7 +370,7 @@ const SuperAdminBilling = () => {
             icon={Timer}
             label="Essais actifs"
             value={totalEssais}
-            sub={`${freeWorkspaces.length} gratuit${freeWorkspaces.length > 1 ? 's' : ''} + ${trialWorkspaces.length} trial`}
+            sub={`${freeWorkspaces.length} gratuit${freeWorkspaces.length > 1 ? 's' : ''} + ${trialWorkspaces.length} trial + ${expiredTrials.length} expirés`}
             accent="amber"
           />
           <KpiCard
@@ -451,32 +474,81 @@ const SuperAdminBilling = () => {
               })}
             </div>
 
+            {/* Notification success toast */}
+            {notifSuccess && (
+              <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800 shadow-sm">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                {notifSuccess}
+              </div>
+            )}
+
             {/* Expiring soon + Revenue by plan */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Expiring soon */}
+              {/* Expiring soon (paid plans + active trials) */}
               <div className="bg-white rounded-2xl ring-2 ring-orange-100 p-6">
-                <SectionHead icon={AlertTriangle} title="Expirent bientot" subtitle="Dans les 7 prochains jours" color="from-orange-500 to-amber-500" />
-                {(data.expiringSoon || []).length === 0 ? (
-                  <p className="text-sm text-slate-400 italic mt-4">Aucun abonnement n'expire bientot</p>
-                ) : (
-                  <div className="space-y-2 mt-4">
-                    {(data.expiringSoon || []).map(ws => {
-                      const days = daysUntil(ws.planExpiresAt);
-                      return (
-                        <div key={ws._id} className="flex items-center gap-3 p-3 rounded-xl bg-orange-50/50 border border-orange-100">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-slate-800 truncate">{ws.name}</p>
-                            <p className="text-[11px] text-slate-500">{ws.owner?.email}</p>
+                <SectionHead icon={AlertTriangle} title="Expirent bientôt" subtitle="Abonnements & essais" color="from-orange-500 to-amber-500" />
+                {(() => {
+                  const paidExpiring = (data.expiringSoon || []).map(ws => ({ ...ws, _kind: 'plan' }));
+                  const trialsExpiring = trialWorkspaces.map(ws => ({ ...ws, _kind: 'trial' }));
+                  const allExpiring = [...trialsExpiring, ...paidExpiring];
+                  if (allExpiring.length === 0) {
+                    return <p className="text-sm text-slate-400 italic mt-4">Aucun abonnement ou essai n'expire bientôt</p>;
+                  }
+                  return (
+                    <div className="space-y-2 mt-4 max-h-[400px] overflow-y-auto">
+                      {allExpiring.map(ws => {
+                        const isTrial = ws._kind === 'trial';
+                        const days = isTrial ? daysUntil(ws.trialEndsAt) : daysUntil(ws.planExpiresAt);
+                        const tplKey = isTrial ? (days <= 0 ? 'trial_expired' : 'trial_expiring') : 'plan_expired';
+                        return (
+                          <div key={ws._id} className={`p-3 rounded-xl border ${isTrial ? 'bg-amber-50/50 border-amber-200' : 'bg-orange-50/50 border-orange-100'}`}>
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-slate-800 truncate">{ws.name}</p>
+                                <p className="text-[11px] text-slate-500">{ws.owner?.email}</p>
+                              </div>
+                              {isTrial ? (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-700">Essai</span>
+                              ) : (
+                                <PlanBadge plan={ws.plan} />
+                              )}
+                              <span className={`text-xs font-bold ${days <= 1 ? 'text-red-600' : 'text-orange-600'}`}>
+                                {days}j
+                              </span>
+                            </div>
+                            {/* Notify actions */}
+                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100">
+                              <button
+                                onClick={() => handleNotify(ws._id, 'email', tplKey)}
+                                disabled={sendingNotif === `${ws._id}-email`}
+                                className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                              >
+                                {sendingNotif === `${ws._id}-email` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
+                                Email
+                              </button>
+                              <button
+                                onClick={() => handleNotify(ws._id, 'push', tplKey)}
+                                disabled={sendingNotif === `${ws._id}-push`}
+                                className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors disabled:opacity-50"
+                              >
+                                {sendingNotif === `${ws._id}-push` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bell className="w-3 h-3" />}
+                                Push
+                              </button>
+                              <button
+                                onClick={() => handleNotify(ws._id, 'both', tplKey)}
+                                disabled={sendingNotif === `${ws._id}-both`}
+                                className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50"
+                              >
+                                {sendingNotif === `${ws._id}-both` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                                Les 2
+                              </button>
+                            </div>
                           </div>
-                          <PlanBadge plan={ws.plan} />
-                          <span className={`text-xs font-bold ${days <= 2 ? 'text-red-600' : 'text-orange-600'}`}>
-                            {days}j
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Revenue by plan */}
@@ -745,6 +817,14 @@ const SuperAdminBilling = () => {
               </div>
             )}
 
+            {/* Notification success toast */}
+            {notifSuccess && (
+              <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800 shadow-sm">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                {notifSuccess}
+              </div>
+            )}
+
             {/* Active trial period accounts */}
             {trialWorkspaces.length > 0 && (
               <div className="space-y-3">
@@ -758,6 +838,7 @@ const SuperAdminBilling = () => {
                     const totalDays = 3;
                     const elapsed = totalDays - (daysLeft || 0);
                     const pct = Math.min(100, Math.round((elapsed / totalDays) * 100));
+                    const tplKey = daysLeft <= 0 ? 'trial_expired' : 'trial_expiring';
                     return (
                       <div key={ws._id} className="bg-white rounded-2xl ring-2 ring-amber-100 p-5 hover:shadow-md transition-all">
                         <div className="flex items-start justify-between mb-3">
@@ -789,6 +870,116 @@ const SuperAdminBilling = () => {
                             {ws.owner.phone}
                           </div>
                         )}
+
+                        {/* Notify actions */}
+                        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+                          <button
+                            onClick={() => handleNotify(ws._id, 'email', tplKey)}
+                            disabled={sendingNotif === `${ws._id}-email`}
+                            className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                          >
+                            {sendingNotif === `${ws._id}-email` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
+                            Email
+                          </button>
+                          <button
+                            onClick={() => handleNotify(ws._id, 'push', tplKey)}
+                            disabled={sendingNotif === `${ws._id}-push`}
+                            className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors disabled:opacity-50"
+                          >
+                            {sendingNotif === `${ws._id}-push` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bell className="w-3 h-3" />}
+                            Push
+                          </button>
+                          <button
+                            onClick={() => handleNotify(ws._id, 'both', tplKey)}
+                            disabled={sendingNotif === `${ws._id}-both`}
+                            className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors disabled:opacity-50"
+                          >
+                            {sendingNotif === `${ws._id}-both` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                            Les 2
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Expired trial accounts */}
+            {expiredTrials.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-bold text-slate-600 flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-red-100 text-red-700">Expiré</span>
+                  {expiredTrials.length} essai{expiredTrials.length > 1 ? 's' : ''} expiré{expiredTrials.length > 1 ? 's' : ''}
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {expiredTrials.map(ws => {
+                    const daysExpired = Math.abs(daysUntil(ws.trialEndsAt) || 0);
+                    return (
+                      <div key={ws._id} className="bg-white rounded-2xl ring-2 ring-red-100 p-5 hover:shadow-md transition-all">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-slate-800 truncate">{ws.name}</p>
+                            <p className="text-[11px] text-slate-400 truncate">{ws.owner?.email}</p>
+                          </div>
+                          <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-md">
+                            -{daysExpired}j
+                          </span>
+                        </div>
+
+                        <div className="space-y-1 text-[11px] text-slate-400">
+                          <div className="flex justify-between">
+                            <span>Debut: {fmtDate(ws.trialStartedAt)}</span>
+                            <span>Fin: {fmtDate(ws.trialEndsAt)}</span>
+                          </div>
+                          {ws.trialExpiredNotifiedAt && (
+                            <div className="flex items-center gap-1 text-emerald-600">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Notifié le {fmtDatetime(ws.trialExpiredNotifiedAt)}
+                            </div>
+                          )}
+                          {!ws.trialExpiredNotifiedAt && ws.trialExpiryNotifiedAt && (
+                            <div className="flex items-center gap-1 text-amber-600">
+                              <AlertTriangle className="w-3 h-3" />
+                              Avertissement envoyé le {fmtDatetime(ws.trialExpiryNotifiedAt)}
+                            </div>
+                          )}
+                        </div>
+
+                        {ws.owner?.phone && (
+                          <div className="flex items-center gap-1.5 mt-2 text-xs text-slate-500">
+                            <Phone className="w-3 h-3" />
+                            {ws.owner.phone}
+                          </div>
+                        )}
+
+                        {/* Notify actions */}
+                        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+                          <button
+                            onClick={() => handleNotify(ws._id, 'email', 'trial_expired')}
+                            disabled={sendingNotif === `${ws._id}-email`}
+                            className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                          >
+                            {sendingNotif === `${ws._id}-email` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
+                            Email
+                          </button>
+                          <button
+                            onClick={() => handleNotify(ws._id, 'push', 'trial_expired')}
+                            disabled={sendingNotif === `${ws._id}-push`}
+                            className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors disabled:opacity-50"
+                          >
+                            {sendingNotif === `${ws._id}-push` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bell className="w-3 h-3" />}
+                            Push
+                          </button>
+                          <button
+                            onClick={() => handleNotify(ws._id, 'both', 'trial_expired')}
+                            disabled={sendingNotif === `${ws._id}-both`}
+                            className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50"
+                          >
+                            {sendingNotif === `${ws._id}-both` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                            Les 2
+                          </button>
+                        </div>
                       </div>
                     );
                   })}

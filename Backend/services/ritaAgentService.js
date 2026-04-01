@@ -2,6 +2,7 @@ import Groq from 'groq-sdk';
 import axios from 'axios';
 import RitaConfig from '../models/RitaConfig.js';
 import RitaContact from '../models/RitaContact.js';
+import Workspace from '../models/Workspace.js';
 import { Readable } from 'stream';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -363,16 +364,14 @@ function extractOrderData(text = '') {
 
 function findActiveProduct(catalog = [], history = []) {
   const namedProducts = (catalog || []).filter((product) => product?.name);
+  
+  // ⚠️ IMPORTANT : Ne JAMAIS deviner un produit si le client ne l'a pas mentionné
+  // On retourne null si aucun produit n'est identifié dans l'historique
+  // L'IA demandera alors au client de clarifier quel produit l'intéresse
+  
   if (!history.length) {
-    // ✅ Fallback : si pas d'historique, prendre le premier produit valide du catalogue
-    // (utile pour une première conversation ou si le nom est vide)
-    if (catalog.length > 0) {
-      // Chercher le premier produit avec un nom non-vide
-      const firstValid = catalog.find(p => p?.name && p.name.trim() !== '');
-      if (firstValid) return firstValid;
-      // Sinon retourner le premier produit même s'il a un nom vide (fallback ultime)
-      return catalog[0];
-    }
+    // Pas d'historique = pas de produit identifié → retourner null
+    // L'IA posera la question "Quel produit vous intéresse ?"
     return null;
   }
 
@@ -395,18 +394,13 @@ function findActiveProduct(catalog = [], history = []) {
     if (matched) return matched;
   }
 
-  // ✅ Fallback : si aucun produit trouvé dans l'historique mais le catalogue a un seul produit
-  // → utiliser ce produit (cohérence garantie)
-  if (catalog.length === 1) {
+  // ✅ Exception : si le catalogue a UN SEUL produit et que le client a déjà eu 2+ échanges
+  // → on peut assumer qu'il parle de ce produit unique
+  if (catalog.length === 1 && history.length >= 4) {
     return catalog[0];
   }
 
-  // ✅ Fallback : si plusieurs produits mais aucun trouvé, prendre le premier avec un nom valide
-  if (namedProducts.length > 0) {
-    const firstValid = namedProducts.find(p => p.name && p.name.trim() !== '');
-    return firstValid || namedProducts[0];
-  }
-
+  // ⚠️ Aucun produit trouvé → retourner null pour forcer l'IA à demander une clarification
   return null;
 }
 
@@ -1394,6 +1388,51 @@ ${usesVous
 : `- Client: "Rita" → "Haha c'est mon prénom 😄 Dis-moi, voici ce qu'on propose : [liste tes produits brièvement avec prix]. Lequel t'a intéressé ?"
 - Client: "azert" → "Désolée, j'ai pas bien compris 😅 Voici nos produits : [liste brève]. Lequel t'intéresse ?"
 - Client: n'importe quel mot court sans contexte → "Hey 😊 Voici ce qu'on a : [liste brève avec prix]. Dis-moi lequel t'intéresse !"`}
+
+## 🚫 RÈGLE CRITIQUE — NE JAMAIS DEVINER LE PRODUIT
+⚠️ **RÈGLE ABSOLUE** : Si le client pose une question SANS mentionner clairement le produit, tu NE DOIS PAS deviner ou assumer un produit.
+
+### Questions vagues qui nécessitent une clarification :
+- "Puis-je en savoir plus à ce sujet ?"
+- "C'est pour quoi ?"
+- "Ça fait quoi ?"
+- "Comment ça marche ?"
+- "Donne-moi plus d'infos"
+- "Explique-moi"
+- "C'est quoi ça ?"
+
+### ⛔ CE QUE TU NE DOIS JAMAIS FAIRE :
+- Deviner un produit du catalogue et répondre avec ses informations
+- Assumer que le client parle du premier produit de la liste
+- Parler d'un produit sans que le client l'ait mentionné
+
+### ✅ CE QUE TU DOIS FAIRE :
+Demander immédiatement une clarification en listant les produits disponibles.
+
+${usesVous
+? `Exemples CORRECTS :
+- Client: "Puis-je en savoir plus à ce sujet ?" → "Bien sûr 😊 De quel produit parlez-vous exactement ? Voici ce qu'on propose : [liste brève avec prix]. Lequel vous intéresse ?"
+- Client: "C'est pour quoi ?" → "On a plusieurs produits 👍 Vous voulez savoir sur lequel ? [liste brève]. Dites-moi !"
+- Client: "Ça fait quoi ?" → "Avec plaisir ! Mais dites-moi d'abord : vous parlez de quel produit ? [liste brève avec prix]"
+- Client: "Comment ça marche ?" → "Je vais vous expliquer 😊 Mais vous parlez de quel produit exactement ? Voici nos options : [liste brève]"`
+: `Exemples CORRECTS :
+- Client: "Puis-je en savoir plus à ce sujet ?" → "Bien sûr 😊 De quel produit tu parles exactement ? Voici ce qu'on propose : [liste brève avec prix]. Lequel t'intéresse ?"
+- Client: "C'est pour quoi ?" → "On a plusieurs produits 👍 Tu veux savoir sur lequel ? [liste brève]. Dis-moi !"
+- Client: "Ça fait quoi ?" → "Avec plaisir ! Mais dis-moi d'abord : tu parles de quel produit ? [liste brève avec prix]"
+- Client: "Comment ça marche ?" → "Je vais t'expliquer 😊 Mais tu parles de quel produit exactement ? Voici nos options : [liste brève]"`}
+
+### Cas particulier : si le client a DÉJÀ mentionné un produit dans l'historique récent
+Si dans les 2-3 derniers messages, le client a clairement nommé un produit et qu'il demande ensuite "c'est pour quoi ?" ou "ça fait quoi ?" → tu peux répondre sur CE produit mentionné.
+
+${usesVous
+? `Exemple :
+- Message 1 Client: "Les gummies"
+- Message 2 Toi: "Oui les Gummies Anti-Odeur Intime 👍"
+- Message 3 Client: "C'est pour quoi ?" → OK, tu peux expliquer les gummies car le client les a mentionnés`
+: `Exemple :
+- Message 1 Client: "Les gummies"
+- Message 2 Toi: "Oui les Gummies Anti-Odeur Intime 👍"
+- Message 3 Client: "C'est pour quoi ?" → OK, tu peux expliquer les gummies car le client les a mentionnés`}
 
 ## 🏪 GESTION DES REVENDEURS / ACHAT EN GROS
 Si le client mentionne qu'il est revendeur, commerçant, grossiste, ou veut acheter en grande quantité :
@@ -3056,6 +3095,25 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
     console.warn(`⚠️ [RITA] Rita désactivée (enabled=false) pour ${agentId ? 'agentId=' + agentId : 'userId=' + userId}`);
     return null;
   }
+
+  // ── Vérification plan : plan gratuit sans essai actif → agent bloqué ──────
+  try {
+    const workspace = await Workspace.findOne({ owner: userId }).select('plan planExpiresAt trialEndsAt trialUsed').lean();
+    if (workspace) {
+      const now = new Date();
+      const isPaidActive = (workspace.plan === 'pro' || workspace.plan === 'ultra')
+        && workspace.planExpiresAt && workspace.planExpiresAt > now;
+      const trialActive = !workspace.trialUsed && workspace.trialEndsAt && workspace.trialEndsAt > now;
+      if (!isPaidActive && !trialActive) {
+        console.warn(`🚫 [RITA] Agent bloqué — plan gratuit pour userId=${userId}`);
+        return null;
+      }
+    }
+  } catch (e) {
+    console.warn('⚠️ [RITA] Impossible de vérifier le plan:', e.message);
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   console.log("BACK PRODUCTS:", JSON.stringify(config.productCatalog?.map(p => ({ name: p.name, price: p.price })) || []));
 
   // Clé unique par agent (ou userId si pas d'agentId) + numéro expéditeur

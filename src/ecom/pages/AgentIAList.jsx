@@ -60,7 +60,7 @@ function StatCard({ icon: Icon, label, value, sub, loading, accent }) {
 }
 
 // ─── AgentCard ────────────────────────────────────────────────────────────────
-function AgentCard({ agent, onConfigure, onDelete, deleting, onViewConversations }) {
+function AgentCard({ agent, onConfigure, onDelete, deleting, onViewConversations, isFreePlan }) {
   const status = getAgentStatus(agent);
   const steps  = getSteps(agent);
   const doneCt = steps.filter(s => s.done).length;
@@ -74,9 +74,18 @@ function AgentCard({ agent, onConfigure, onDelete, deleting, onViewConversations
 
   return (
     <div
-      onClick={() => onConfigure(agent)}
-      className={`group relative bg-white rounded-2xl ring-2 ring-gray-100 hover:ring-2 hover:${statusStyles.ring} p-5 cursor-pointer transition-all duration-200 hover:shadow-lg`}
+      onClick={() => !isFreePlan && onConfigure(agent)}
+      className={`group relative bg-white rounded-2xl ring-2 ring-gray-100 p-5 transition-all duration-200 ${
+        isFreePlan ? 'opacity-60 cursor-not-allowed' : `hover:ring-2 hover:${statusStyles.ring} cursor-pointer hover:shadow-lg`
+      }`}
     >
+      {/* Free plan overlay */}
+      {isFreePlan && (
+        <div className="absolute inset-0 rounded-2xl bg-white/70 backdrop-blur-[1px] flex flex-col items-center justify-center z-10 gap-2">
+          <span className="text-2xl">🔒</span>
+          <p className="text-xs font-bold text-gray-600 text-center px-4">Passez à Pro pour activer cet agent</p>
+        </div>
+      )}
       {/* Delete button */}
       <button
         onClick={e => { e.stopPropagation(); onDelete(agent._id); }}
@@ -188,6 +197,24 @@ function PlanBar({ planInfo, agentCount, agentLimit, onUpgrade, onBilling }) {
   const isExpired = (plan === 'pro' || plan === 'ultra') && !isActive;
   const trialDays = isTrial ? daysLeft(planInfo.trial.endsAt) : null;
   const atLimit = agentCount >= agentLimit;
+
+  // Free plan without trial — agents are fully disabled
+  if (plan === 'free' && !isTrial) {
+    return (
+      <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-slate-400 flex-shrink-0" />
+          <div>
+            <p className="font-bold text-slate-700 text-sm">Agents désactivés — Plan gratuit</p>
+            <p className="text-slate-500 text-xs">Passez au plan Pro pour activer vos agents commerciaux IA.</p>
+          </div>
+        </div>
+        <button onClick={onUpgrade} className="text-xs font-bold px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition">
+          Passer à Pro →
+        </button>
+      </div>
+    );
+  }
 
   // Paid active plan — no alert needed
   if (isActive) return null;
@@ -461,6 +488,7 @@ export default function AgentIAList() {
                       onDelete={handleDelete}
                       deleting={deleting}
                       onViewConversations={a => navigate(`/ecom/whatsapp/conversations/${a._id}`)}
+                      isFreePlan={isFreeNoTrial}
                     />
                   ))
               }
