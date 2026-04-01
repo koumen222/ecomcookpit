@@ -190,6 +190,15 @@ const workspaceSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  // Track when trial expiry notifications were sent (to avoid duplicates)
+  trialExpiryNotifiedAt: {
+    type: Date,
+    default: null
+  },
+  trialExpiredNotifiedAt: {
+    type: Date,
+    default: null
+  },
 
   // ─── Product Page Generator Tracking ─────────────────────────────────────
   // Free generations remaining (default 3)

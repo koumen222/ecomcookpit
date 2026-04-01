@@ -364,6 +364,73 @@ export const TEMPLATES = {
       </div>
       <div class="alert-box alert-green">🏆 Nouveau record battu ! Continuez comme ça.</div>
     `, `Nouveau record : ${metric}`)
+  }),
+
+  // ─── TRIAL / PLAN EXPIRY ─────────────────────────────────────────────────
+
+  trial_expiring: ({ name, workspaceName, hoursLeft, trialEndsAt }) => ({
+    subject: `⏰ Votre essai gratuit expire bientôt — ${BRAND_NAME}`,
+    preview: `Plus que ${hoursLeft}h pour profiter de toutes les fonctionnalités`,
+    html: baseLayout(`
+      <h2>Votre essai gratuit expire bientôt ⏰</h2>
+      <p>Bonjour ${name || ''},</p>
+      <p>Votre essai gratuit de <strong>${workspaceName}</strong> expire dans <strong>${hoursLeft} heures</strong> (le ${trialEndsAt}).</p>
+      <div class="alert-box alert-orange">
+        ⚠️ Après expiration, vos <strong>agents commerciaux IA</strong> seront <strong>désactivés</strong> et ne répondront plus aux clients sur WhatsApp.
+      </div>
+      <p>Pour continuer à vendre automatiquement, passez à un plan Pro ou Ultra dès maintenant.</p>
+      <div style="text-align:center;margin:24px 0">
+        <a href="${FRONTEND_URL}/ecom/billing" class="btn">Passer à Pro — Garder mes agents actifs →</a>
+      </div>
+      <hr class="divider"/>
+      <p style="font-size:13px;color:#888">Si vous ne souhaitez pas continuer, aucune action n'est requise. Vos données seront conservées.</p>
+    `, `Essai gratuit expire dans ${hoursLeft}h`)
+  }),
+
+  trial_expired: ({ name, workspaceName }) => ({
+    subject: `🚫 Essai terminé — Vos agents IA sont désactivés`,
+    preview: `Votre essai gratuit est terminé, passez à Pro pour réactiver vos agents`,
+    html: baseLayout(`
+      <h2>Votre essai gratuit est terminé 🚫</h2>
+      <p>Bonjour ${name || ''},</p>
+      <p>L'essai gratuit de <strong>${workspaceName}</strong> a expiré. Vos agents commerciaux IA sont maintenant <strong>désactivés</strong>.</p>
+      <div class="alert-box alert-red">
+        🚨 <strong>Vos agents ne répondent plus</strong> aux messages de vos clients sur WhatsApp. Chaque minute sans agent = des ventes perdues.
+      </div>
+      <div class="kpi-row">
+        <div class="kpi" style="background:#fef2f2">
+          <p class="kpi-value" style="color:#dc2626">Inactifs</p>
+          <p class="kpi-label">Agents IA</p>
+        </div>
+        <div class="kpi" style="background:#fef2f2">
+          <p class="kpi-value" style="color:#dc2626">0</p>
+          <p class="kpi-label">Messages traités</p>
+        </div>
+      </div>
+      <p><strong>Passez à Pro maintenant</strong> pour réactiver vos agents et ne plus perdre de clients.</p>
+      <div style="text-align:center;margin:24px 0">
+        <a href="${FRONTEND_URL}/ecom/billing" class="btn btn-danger">Réactiver mes agents — Passer à Pro →</a>
+      </div>
+      <hr class="divider"/>
+      <p style="font-size:13px;color:#888">Vos données et configurations d'agents sont conservées. Vous pourrez les réactiver à tout moment en souscrivant.</p>
+    `, `Agents IA désactivés — Passez à Pro`)
+  }),
+
+  plan_expired: ({ name, workspaceName, planName }) => ({
+    subject: `🚫 Plan ${planName} expiré — Agents IA désactivés`,
+    preview: `Votre plan ${planName} a expiré, renouvelez pour garder vos agents actifs`,
+    html: baseLayout(`
+      <h2>Votre plan ${planName} a expiré 🚫</h2>
+      <p>Bonjour ${name || ''},</p>
+      <p>Votre abonnement <strong>${planName}</strong> pour <strong>${workspaceName}</strong> a expiré. Vous êtes revenu au <strong>plan gratuit</strong>.</p>
+      <div class="alert-box alert-red">
+        🚨 <strong>Vos agents commerciaux IA sont désactivés.</strong> Ils ne traitent plus les messages de vos clients sur WhatsApp.
+      </div>
+      <p>Renouvelez votre abonnement pour réactiver vos agents et continuer à vendre.</p>
+      <div style="text-align:center;margin:24px 0">
+        <a href="${FRONTEND_URL}/ecom/billing" class="btn btn-danger">Renouveler mon plan ${planName} →</a>
+      </div>
+    `, `Plan ${planName} expiré`)
   })
 };
 

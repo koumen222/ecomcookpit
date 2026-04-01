@@ -424,6 +424,14 @@ const startServer = async () => {
       console.warn('⚠️ Rita status cron non démarré:', err.message);
     }
 
+    // ─── Trial & Plan expiry cron (email + push) ─────────────────────────
+    try {
+      const { startTrialExpiryCron } = await import('./services/trialExpiryCronService.js');
+      startTrialExpiryCron();
+    } catch (err) {
+      console.warn('⚠️ Trial expiry cron non démarré:', err.message);
+    }
+
     // ─── Rita group animator (animation des groupes WhatsApp) ──────
     try {
       const { tickGroupAnimator } = await import('./services/ritaGroupAnimatorService.js');
