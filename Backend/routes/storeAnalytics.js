@@ -9,6 +9,9 @@ const router = express.Router();
  * POST /api/ecom/store-analytics/track
  * Tracker un événement analytics (appelé depuis le storefront public)
  */
+// Fenêtre anti-spam : une même visite (page ou produit) par visiteur toutes les 30 minutes
+const DEDUP_WINDOW_MS = 30 * 60 * 1000;
+
 router.post('/track', async (req, res) => {
   try {
     const {
@@ -22,6 +25,7 @@ router.post('/track', async (req, res) => {
       orderValue,
       visitor,
       sessionId,
+      visitorId,
     } = req.body;
 
     if (!subdomain || !eventType) {
@@ -36,9 +40,37 @@ router.post('/track', async (req, res) => {
       return res.status(404).json({ error: 'Boutique introuvable' });
     }
 
+    const workspaceId = workspace._id.toString();
+
+    // Anti-spam : dédupliquer les page_view et product_view par visiteur
+    if (['page_view', 'product_view'].includes(eventType)) {
+      const identifier = visitorId || sessionId;
+      if (identifier) {
+        const since = new Date(Date.now() - DEDUP_WINDOW_MS);
+        const dedupQuery = {
+          workspaceId,
+          eventType,
+          timestamp: { $gte: since },
+          $or: [
+            { visitorId: identifier },
+            { sessionId: identifier },
+          ],
+        };
+        if (eventType === 'product_view' && productId) {
+          dedupQuery.productId = productId;
+        } else if (eventType === 'page_view') {
+          dedupQuery['page.path'] = page?.path || '';
+        }
+        const existing = await StoreAnalytics.findOne(dedupQuery).lean();
+        if (existing) {
+          return res.json({ success: true, deduplicated: true });
+        }
+      }
+    }
+
     // Créer l'événement analytics
     await StoreAnalytics.create({
-      workspaceId: workspace._id.toString(),
+      workspaceId,
       subdomain,
       eventType,
       page,
@@ -48,7 +80,8 @@ router.post('/track', async (req, res) => {
       orderId,
       orderValue,
       visitor,
-      sessionId,
+      sessionId: sessionId || '',
+      visitorId: visitorId || '',
       timestamp: new Date(),
     });
 

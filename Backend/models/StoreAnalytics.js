@@ -39,6 +39,9 @@ const storeAnalyticsSchema = new mongoose.Schema({
     browser: { type: String, default: '' },
   },
   
+  // Identifiant visiteur persistant (UUID stocké en localStorage)
+  visitorId: { type: String, default: '', index: true },
+
   // Session
   sessionId: { type: String, default: '', index: true },
   
@@ -55,6 +58,7 @@ storeAnalyticsSchema.index({ workspaceId: 1, timestamp: -1 });
 storeAnalyticsSchema.index({ workspaceId: 1, eventType: 1, timestamp: -1 });
 storeAnalyticsSchema.index({ subdomain: 1, timestamp: -1 });
 storeAnalyticsSchema.index({ sessionId: 1, timestamp: -1 });
+storeAnalyticsSchema.index({ visitorId: 1, workspaceId: 1, timestamp: -1 });
 
 // Méthode statique pour obtenir les statistiques
 storeAnalyticsSchema.statics.getStoreDashboardStats = async function(workspaceId, startDate, endDate) {
@@ -63,8 +67,19 @@ storeAnalyticsSchema.statics.getStoreDashboardStats = async function(workspaceId
     timestamp: { $gte: startDate, $lte: endDate }
   };
   
-  // Visites uniques (sessions uniques)
-  const uniqueVisitors = await this.distinct('sessionId', matchQuery);
+  // Visites uniques — préférer visitorId (persistant) et fallback sessionId
+  const uniqueVisitorsById = await this.distinct('visitorId', {
+    ...matchQuery,
+    visitorId: { $ne: '' }
+  });
+  const uniqueVisitorsBySession = await this.distinct('sessionId', {
+    ...matchQuery,
+    visitorId: ''
+  });
+  const uniqueVisitors = [
+    ...uniqueVisitorsById,
+    ...uniqueVisitorsBySession,
+  ];
   
   // Total vues de pages
   const pageViews = await this.countDocuments({
@@ -117,6 +132,32 @@ storeAnalyticsSchema.statics.getStoreDashboardStats = async function(workspaceId
     { $limit: 10 }
   ]);
   
+  // Visites aujourd'hui
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const visitsToday = await this.countDocuments({
+    workspaceId,
+    eventType: { $in: ['page_view', 'product_view'] },
+    timestamp: { $gte: todayStart },
+  });
+
+  // Visites par produit
+  const visitsPerProduct = await this.aggregate([
+    { $match: { ...matchQuery, eventType: 'product_view', productId: { $ne: null } } },
+    {
+      $group: {
+        _id: '$productId',
+        name: { $first: '$productName' },
+        visits: { $sum: 1 },
+        uniqueVisitors: { $addToSet: { $cond: [{ $ne: ['$visitorId', ''] }, '$visitorId', '$sessionId'] } },
+      }
+    },
+    { $addFields: { uniqueVisitorCount: { $size: '$uniqueVisitors' } } },
+    { $sort: { visits: -1 } },
+    { $limit: 20 },
+    { $project: { _id: 1, name: 1, visits: 1, uniqueVisitorCount: 1 } },
+  ]);
+
   // Taux de conversion
   const conversionRate = uniqueVisitors.length > 0 
     ? ((ordersPlaced / uniqueVisitors.length) * 100).toFixed(2)
@@ -171,8 +212,10 @@ storeAnalyticsSchema.statics.getStoreDashboardStats = async function(workspaceId
       ordersPlaced,
       totalRevenue,
       conversionRate: parseFloat(conversionRate),
+      visitsToday,
     },
     topProducts,
+    visitsPerProduct,
     trafficSources,
     deviceStats,
     timeline,
