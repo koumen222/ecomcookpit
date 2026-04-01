@@ -1099,4 +1099,48 @@ router.post('/notify-workspace', requireEcomAuth, requireSuperAdmin, async (req,
   }
 });
 
+// ── POST /super-admin/deactivate-trial — Désactiver l'essai gratuit d'un workspace ────
+router.post('/deactivate-trial', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { workspaceId } = req.body;
+    if (!workspaceId) {
+      return res.status(400).json({ success: false, message: 'workspaceId requis' });
+    }
+
+    const workspace = await Workspace.findById(workspaceId).populate('owner', 'email name').lean();
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Workspace introuvable' });
+    }
+
+    // Vérifier si un trial existe
+    if (!workspace.trialStartedAt && !workspace.trialEndsAt && !workspace.trialUsed) {
+      return res.status(400).json({ success: false, message: 'Aucun essai gratuit trouvé sur ce compte' });
+    }
+
+    // Désactiver le trial
+    await Workspace.updateOne(
+      { _id: workspaceId },
+      {
+        $set: {
+          trialStartedAt: null,
+          trialEndsAt: null,
+          trialUsed: false,
+          trialExpiryNotifiedAt: null,
+          trialExpiredNotifiedAt: null,
+        }
+      }
+    );
+
+    await logAudit(req, 'DEACTIVATE_TRIAL', `Trial désactivé pour ${workspace.owner?.email} (${workspace.name})`, 'workspace', workspace._id);
+    res.json({ 
+      success: true, 
+      message: `Essai désactivé pour ${workspace.name}`,
+      workspace: { id: workspace._id, name: workspace.name, owner: workspace.owner?.email }
+    });
+  } catch (err) {
+    console.error('[SuperAdmin] POST /deactivate-trial error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 export default router;

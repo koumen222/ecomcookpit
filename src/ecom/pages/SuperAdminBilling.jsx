@@ -182,6 +182,7 @@ const SuperAdminBilling = () => {
   const [expandedPayment, setExpandedPayment] = useState(null);
   const [sendingNotif, setSendingNotif] = useState(null); // 'wsId-channel'
   const [notifSuccess, setNotifSuccess] = useState('');
+  const [deactivatingTrial, setDeactivatingTrial] = useState(null); // wsId
 
   const handleNotify = async (workspaceId, channel, templateKey) => {
     const key = `${workspaceId}-${channel}`;
@@ -199,6 +200,30 @@ const SuperAdminBilling = () => {
       setError(e.response?.data?.message || e.message);
     } finally {
       setSendingNotif(null);
+    }
+  };
+
+  const handleDeactivateTrial = async (workspaceId, workspaceName) => {
+    if (!confirm(`Êtes-vous sûr de vouloir désactiver l'essai gratuit de "${workspaceName}" ?\n\nCette action réinitialisera complètement l'essai.`)) {
+      return;
+    }
+    
+    setDeactivatingTrial(workspaceId);
+    setNotifSuccess('');
+    try {
+      const res = await ecomApi.post('/super-admin/deactivate-trial', { workspaceId });
+      if (res.data?.success) {
+        setNotifSuccess(`✅ Essai désactivé pour ${workspaceName}`);
+        setTimeout(() => setNotifSuccess(''), 4000);
+        // Rafraîchir les données
+        fetchData(true);
+      } else {
+        setError(res.data?.message || 'Erreur lors de la désactivation');
+      }
+    } catch (e) {
+      setError(e.response?.data?.message || e.message);
+    } finally {
+      setDeactivatingTrial(null);
     }
   };
 
@@ -897,6 +922,15 @@ const SuperAdminBilling = () => {
                             {sendingNotif === `${ws._id}-both` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
                             Les 2
                           </button>
+                          <button
+                            onClick={() => handleDeactivateTrial(ws._id, ws.name)}
+                            disabled={deactivatingTrial === ws._id}
+                            className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition-colors disabled:opacity-50 ml-auto"
+                            title="Désactiver l'essai gratuit"
+                          >
+                            {deactivatingTrial === ws._id ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3" />}
+                            Désactiver
+                          </button>
                         </div>
                       </div>
                     );
@@ -978,6 +1012,15 @@ const SuperAdminBilling = () => {
                           >
                             {sendingNotif === `${ws._id}-both` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
                             Les 2
+                          </button>
+                          <button
+                            onClick={() => handleDeactivateTrial(ws._id, ws.name)}
+                            disabled={deactivatingTrial === ws._id}
+                            className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-slate-50 text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50 ml-auto"
+                            title="Réinitialiser l'essai"
+                          >
+                            {deactivatingTrial === ws._id ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3" />}
+                            Réinitialiser
                           </button>
                         </div>
                       </div>

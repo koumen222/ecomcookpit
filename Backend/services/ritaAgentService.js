@@ -2372,9 +2372,11 @@ Tu proposes UNIQUEMENT ces produits. AUCUN AUTRE produit n'existe. Si un produit
       if (p.features?.length) prompt += `\n- ✅ Caractéristiques : ${p.features.join(', ')}`;
       prompt += `\n- ${p.inStock !== false ? '🟢 En stock' : '🔴 Rupture de stock'}`;
       if (p.images?.length) {
-        prompt += `\n- 📸 ${p.images.length} photo(s) disponible(s) → tag à utiliser : [IMAGE:${p.name}]`;
-        if (p.images.length > 1) {
-          prompt += `\n- 📸📸 Pour envoyer TOUTES les photos d'un coup → tag : [IMAGES_ALL:${p.name}]`;
+        const imageCount = p.images.length;
+        const minToSend = Math.min(3, imageCount);
+        prompt += `\n- 📸 ${imageCount} photo(s) disponible(s) → tag [IMAGE:${p.name}] envoie ${minToSend} photo(s)`;
+        if (imageCount > 3) {
+          prompt += `\n- 📸📸 Pour envoyer TOUTES les ${imageCount} photos → tag : [IMAGES_ALL:${p.name}]`;
         }
       } else {
         prompt += `\n- ❌ Pas d'image disponible pour ce produit`;
@@ -2454,12 +2456,13 @@ Tu disposes des stocks réels de chaque produit par ville. Tu DOIS consulter ces
     prompt += `\n\n## 📸 PHOTOS & VIDÉOS PRODUIT — RÈGLES ABSOLUES
 
 ### Comment fonctionnent les images
-Le système envoie l'image automatiquement comme un message séparé APRÈS ton message texte.
-Tu n'as pas à dire "je t'envoie", "la voilà", "je viens de t'envoyer" — l'image arrive toute seule.
+Le système envoie automatiquement AU MOINS 3 PHOTOS du produit (ou toutes si moins de 3) comme des messages séparés APRÈS ton message texte.
+Tu n'as pas à dire "je t'envoie", "la voilà", "je viens de t'envoyer" — les images arrivent toutes seules.
 Ton rôle : écrire ton message normalement et ajouter [IMAGE:NomExact] à la FIN du texte.
 
 ### Règles images
 ✅ Dès que le client identifie ou demande UN SEUL produit précis → ajoute IMMÉDIATEMENT le tag [IMAGE:Nom exact du catalogue] à la FIN de ta réponse, sans demander confirmation.
+📸 Le système enverra AUTOMATIQUEMENT au moins 3 photos du produit (si disponibles) pour que le client voie bien le produit.
 🎯 INTENTION D'ACHAT FORTE : Quand le client demande une photo ou une vidéo = il est TRÈS intéressé. Après avoir envoyé le media, CLOSE IMMÉDIATEMENT. Ne reviens JAMAIS au début de la conversation ou à la présentation produit. Enchaîne directement avec la proposition de commande.
 ${usesVous
 ? `Exemple : "[IMAGE:Produit]\nVous le voulez ? Je vous le réserve de suite 👍"`
@@ -2471,19 +2474,19 @@ Exemple : "La Montre Connectée Z7 Ultra c'est vraiment top 👍 Prix : 25000 FC
 ⛔ Si le client dit "Oui" ou confirme après une question sur l'image → renvoie IMMÉDIATEMENT le tag [IMAGE:NomDuProduit] pour ce produit.
 ⛔ JAMAIS de tag [IMAGE:...] dans une réponse catalogue (liste de plusieurs produits). Les images ne s'envoient que quand le client a choisi UN seul produit.
 ❌ Si le produit a "❌ Pas d'image disponible" → réponds : "Je n'ai pas encore la photo de ce produit 🙏 Mais je peux te donner tous les détails !"
-⛔ Ne JAMAIS dire "je t'envoie la photo", "la voilà !", "je viens de t'envoyer" — tu n'envoies rien toi-même, le système s'en charge automatiquement.
+⛔ Ne JAMAIS dire "je t'envoie la photo", "les voilà !", "je viens de t'envoyer" — tu n'envoies rien toi-même, le système s'en charge automatiquement.
 ⛔ Ne JAMAIS utiliser [IMAGE:...] pour un produit sans photo disponible.
 Un seul tag [IMAGE:...] par message maximum.
 
-### Envoyer TOUTES les photos d'un produit
-Si le client demande explicitement "montre-moi toutes les photos", "toutes les images", "je veux voir tout", "d'autres photos ?" ou demande à voir plus de photos :
+### Envoyer TOUTES les photos d'un produit (au-delà de 3)
+Si le client demande explicitement "montre-moi toutes les photos", "toutes les images", "je veux voir tout", "d'autres photos ?" ou demande à voir plus de photos ET que le produit a plus de 3 photos :
 → Utilise le tag [IMAGES_ALL:Nom exact du catalogue] à la FIN de ta réponse
 → Le système enverra automatiquement TOUTES les photos configurées pour ce produit
 ${usesVous
 ? `Exemple : "Voici toutes les photos disponibles 👇 [IMAGES_ALL:Montre Connectée Z7 Ultra]"`
 : `Exemple : "Voilà toutes les photos dispo 👇 [IMAGES_ALL:Montre Connectée Z7 Ultra]"`}
-⚠️ N'utilise [IMAGES_ALL:] QUE quand le client demande explicitement plus de photos ou toutes les photos.
-⚠️ Si le produit n'a qu'une seule photo, utilise [IMAGE:] normalement — [IMAGES_ALL:] enverra la même image unique.
+⚠️ N'utilise [IMAGES_ALL:] QUE quand le client demande explicitement PLUS de photos et que le produit en a plus de 3.
+⚠️ Par défaut, utilise [IMAGE:] — le système enverra automatiquement au moins 3 photos.
 
 ### Règles vidéos
 ✅ Si le produit a "🎬 Vidéo disponible" dans le catalogue → ENVOIE LA VIDÉO DIRECTEMENT avec [VIDEO:Nom exact du catalogue].
