@@ -6,7 +6,7 @@ import UpgradeWall from '../components/UpgradeWall.jsx';
 import {
   Plus, Trash2, Zap, Smartphone, Package, Settings,
   TrendingUp, DollarSign, MessageSquare, Bot,
-  AlertTriangle, ArrowRight, CheckCircle, Clock, Loader2,
+  AlertTriangle, ArrowRight, CheckCircle, Clock, Loader2, RefreshCw,
 } from 'lucide-react';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -299,6 +299,13 @@ export default function AgentIAList() {
     loadAgents();
     loadPlan();
     loadStats();
+    
+    // Auto-refresh des stats toutes les 30 secondes
+    const statsInterval = setInterval(() => {
+      loadStats();
+    }, 30000); // 30 secondes
+    
+    return () => clearInterval(statsInterval);
   }, []);
 
   async function loadAgents() {
@@ -403,6 +410,17 @@ export default function AgentIAList() {
         />
 
         {/* ── STATS ───────────────────────────────────────────────────────── */}
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Statistiques du jour</p>
+          <button
+            onClick={loadStats}
+            disabled={kpisLoading}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${kpisLoading ? 'animate-spin' : ''}`} />
+            {kpisLoading ? 'Chargement...' : 'Actualiser'}
+          </button>
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <StatCard
             icon={Bot}
