@@ -200,6 +200,55 @@ router.post('/groups/invite-link', requireEcomAuth, requireRitaAgentAccess, asyn
 });
 
 /**
+ * POST /groups/join
+ * Rejoint un groupe WhatsApp existant via lien d'invitation
+ */
+router.post('/groups/join', requireEcomAuth, requireRitaAgentAccess, async (req, res) => {
+  try {
+    const { inviteLink } = req.body;
+    const userId = await resolveRitaFlowUserId(req);
+    if (!userId || !inviteLink) return res.status(400).json({ success: false, error: 'userId et inviteLink requis' });
+
+    // Extraire le code d'invitation du lien
+    const codeMatch = inviteLink.match(/chat\.whatsapp\.com\/([A-Za-z0-9_-]+)/);
+    if (!codeMatch) return res.status(400).json({ success: false, error: 'Lien d\'invitation WhatsApp invalide' });
+    const inviteCode = codeMatch[1];
+
+    const inst = await WhatsAppInstance.findOne({ userId, isActive: true }).lean();
+    if (!inst) return res.status(400).json({ success: false, error: 'Aucune instance WhatsApp active' });
+
+    const result = await evolutionApiService.acceptGroupInvite(inst.instanceName, inst.instanceToken, inviteCode);
+    if (!result.success) return res.status(500).json({ success: false, error: result.error || 'Impossible de rejoindre le groupe' });
+
+    const groupJid = result.groupJid;
+
+    // Essayer de récupérer les infos du groupe
+    let groupName = 'Groupe rejoint';
+    try {
+      const allGroups = await evolutionApiService.listGroups(inst.instanceName, inst.instanceToken);
+      const found = (allGroups.groups || []).find(g => (g.id || g.jid) === groupJid);
+      if (found) groupName = found.subject || found.name || groupName;
+    } catch (_) { /* ignore */ }
+
+    // Ajouter aux groupes gérés
+    await RitaFlow.findOneAndUpdate(
+      { userId },
+      {
+        $push: {
+          groups: { groupJid, name: groupName, inviteUrl: inviteLink, role: 'custom', autoCreated: false, scheduledPosts: [] }
+        }
+      },
+      { upsert: true }
+    );
+
+    res.json({ success: true, group: { groupJid, name: groupName, inviteUrl: inviteLink } });
+  } catch (err) {
+    console.error('❌ [RitaFlows] POST /groups/join:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
  * POST /groups/auto-create-product
  * Crée un groupe automatiquement pour un produit
  */
