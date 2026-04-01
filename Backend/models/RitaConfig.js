@@ -45,6 +45,35 @@ const ritaConfigSchema = new mongoose.Schema({
   bossNotifications: { type: Boolean, default: false },
   notifyOnOrder: { type: Boolean, default: true },
 
+  // ─── Escalade Boss (questions sans réponse) ───
+  bossEscalationEnabled: { type: Boolean, default: false },
+  bossEscalationTimeoutMin: { type: Number, default: 5 },
+
+  // ─── Expédition par agence (Express Union, etc.) ───
+  expeditionEnabled: { type: Boolean, default: false },
+  expeditionAgencies: [{
+    name: { type: String, default: '' },        // Ex: "Express Union", "Yango", "CAMEX"
+    available: { type: Boolean, default: true },
+    estimatedCost: { type: String, default: '' }, // Ex: "2000 FCFA"
+  }],
+  expeditionCities: [String], // Villes où l'expédition est disponible
+  
+  // Coordonnées de paiement pour expédition
+  paymentCoordinates: {
+    mobileMoney: [{
+      provider: { type: String, default: '' },  // "Orange Money", "MTN Mobile Money", "Express Union"
+      number: { type: String, default: '' },    // "699123456"
+      name: { type: String, default: '' },      // Nom du compte
+    }],
+    bankAccount: {
+      bankName: { type: String, default: '' },
+      accountNumber: { type: String, default: '' },
+      accountName: { type: String, default: '' },
+    },
+  },
+  
+  expeditionInstructions: { type: String, default: '' }, // Instructions personnalisées
+
   // ─── Instructions personnalisées propriétaire ───
   customInstructionsEnabled: { type: Boolean, default: false },
   customInstructions: { type: String, default: '' },
