@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye, Star, Trash2, Plus, Image, Video, X, Download, Upload, FileText, ToggleLeft, ToggleRight, Radio, PlayCircle } from 'lucide-react';
+import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye, Star, Trash2, Plus, Image, Video, X, Download, Upload, FileText, ToggleLeft, ToggleRight, Radio, PlayCircle, Truck } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ProductImportLocal from '../components/ProductImportLocal.jsx';
@@ -12,6 +12,7 @@ const TABS = [
   { id: 'identity', label: 'Identité', icon: Bot },
   { id: 'intelligence', label: 'Intelligence', icon: Sparkles },
   { id: 'sales-rules', label: 'Vente', icon: Target },
+  { id: 'delivery', label: 'Livraison', icon: Truck },
   { id: 'products', label: 'Produits', icon: Package },
   { id: 'stock', label: 'Stock', icon: Warehouse },
   { id: 'admin-profile', label: 'Profil Admin', icon: UserCog },
@@ -101,6 +102,35 @@ const OFFER_TRIGGER_OPTIONS = [
   { value: 'follow_up', label: 'Relance' },
   { value: 'closing', label: 'Avant closing' },
 ];
+
+// Villes par pays pour les expéditions
+const CITIES_BY_COUNTRY = {
+  CM: [ // Cameroun
+    'Yaoundé', 'Douala', 'Bafoussam', 'Bamenda', 'Garoua', 'Maroua', 
+    'Ngaoundéré', 'Bertoua', 'Buéa', 'Kribi', 'Limbé', 'Edéa', 'Kumba', 
+    'Ebolowa', 'Foumban', 'Nkongsamba', 'Mbouda', 'Dschang', 'Bafang'
+  ],
+  CD: [ // RDC
+    'Kinshasa', 'Lubumbashi', 'Mbuji-Mayi', 'Kananga', 'Kisangani', 
+    'Bukavu', 'Goma', 'Matadi', 'Kolwezi', 'Likasi', 'Mbandaka'
+  ],
+  SN: [ // Sénégal
+    'Dakar', 'Thiès', 'Kaolack', 'Saint-Louis', 'Ziguinchor', 
+    'Diourbel', 'Louga', 'Tambacounda', 'Mbour', 'Rufisque'
+  ],
+  CI: [ // Côte d'Ivoire
+    'Abidjan', 'Bouaké', 'Yamoussoukro', 'Daloa', 'San-Pédro', 
+    'Korhogo', 'Man', 'Gagnoa', 'Divo', 'Abengourou'
+  ],
+  BJ: [ // Bénin
+    'Cotonou', 'Porto-Novo', 'Parakou', 'Djougou', 'Abomey-Calavi', 
+    'Bohicon', 'Kandi', 'Lokossa', 'Ouidah', 'Natitingou'
+  ],
+  TG: [ // Togo
+    'Lomé', 'Sokodé', 'Kara', 'Atakpamé', 'Kpalimé', 
+    'Dapaong', 'Tsévié', 'Aného', 'Bassar'
+  ],
+};
 
 const getInstanceStatusLabel = (status) => {
   switch (status) {
@@ -398,6 +428,13 @@ export default function AgentConfig() {
   const [contactsPage, setContactsPage] = useState(1);
   const [contactsLoading, setContactsLoading] = useState(false);
 
+  // Relances
+  const [activeConversations, setActiveConversations] = useState([]);
+  const [conversationsStats, setConversationsStats] = useState(null);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
+  const [relancingPhone, setRelancingPhone] = useState(null);
+  const [relancingBulk, setRelancingBulk] = useState(false);
+
   const [config, setConfig] = useState({
     enabled: false,
     instanceId: '',
@@ -451,7 +488,6 @@ export default function AgentConfig() {
     deliveryZones: [],
     // Expéditions
     expeditionEnabled: false,
-    expeditionAgencies: [],
     expeditionCities: [],
     paymentCoordinates: {
       mobileMoney: [],
@@ -471,6 +507,7 @@ export default function AgentConfig() {
     adminEmail: '',
     businessName: '',
     businessCity: '',
+    businessCountry: 'CM', // Code pays ISO (CM = Cameroun par défaut)
     businessDescription: '',
     // 3 Modes
     modeClientEnabled: true,
@@ -757,6 +794,70 @@ export default function AgentConfig() {
       setRitaRequestStatus({ type: 'error', message: err.response?.data?.message || 'Erreur serveur, reessayez.' });
     } finally {
       setRitaRequestSubmitting(false);
+    }
+  };
+
+  // ─── Relances ───
+  const loadActiveConversations = async () => {
+    if (!userId) return;
+    setConversationsLoading(true);
+    try {
+      const { data } = await ecomApi.get(`/api/ecom/rita/conversations/active?userId=${userId}`);
+      setActiveConversations(data.conversations || []);
+      setConversationsStats(data.stats || null);
+    } catch (error) {
+      console.error('[AgentConfig] Erreur chargement conversations:', error);
+    } finally {
+      setConversationsLoading(false);
+    }
+  };
+
+  const relanceSingleClient = async (clientPhone, customMessage = null) => {
+    setRelancingPhone(clientPhone);
+    try {
+      const payload = {
+        userId,
+        clientPhone,
+      };
+      if (customMessage) payload.customMessage = customMessage;
+
+      const { data } = await ecomApi.post('/api/ecom/rita/relance/single', payload);
+      if (!data.success) {
+        throw new Error(data.error || 'Échec de la relance');
+      }
+      alert(`✅ Client relancé avec succès !\n\n"${data.message}"`);
+      await loadActiveConversations();
+    } catch (error) {
+      console.error('[AgentConfig] Erreur relance:', error);
+      alert(`❌ ${error.response?.data?.error || error.message || 'Erreur lors de la relance'}`);
+    } finally {
+      setRelancingPhone(null);
+    }
+  };
+
+  const relanceBulkClients = async (statusFilter = 'need_relance', maxRelance = 3) => {
+    if (!confirm(`Voulez-vous vraiment relancer TOUS les clients en attente (statut: ${statusFilter}) ?\n\nCela peut prendre du temps si vous avez beaucoup de conversations.`)) {
+      return;
+    }
+    setRelancingBulk(true);
+    try {
+      const payload = {
+        userId,
+        status: statusFilter,
+        maxRelance,
+      };
+
+      const { data } = await ecomApi.post('/api/ecom/rita/relance/bulk', payload);
+      if (!data.success) {
+        throw new Error(data.error || 'Échec relance bulk');
+      }
+      alert(`✅ ${data.message}\n\n${data.successCount}/${data.count} clients relancés avec succès !`);
+      await loadActiveConversations();
+    } catch (error) {
+      console.error('[AgentConfig] Erreur relance bulk:', error);
+      alert(`❌ ${error.response?.data?.error || error.message || 'Erreur lors de la relance bulk'}`);
+    } finally {
+      setRelancingBulk(false);
     }
   };
 
@@ -1719,45 +1820,182 @@ export default function AgentConfig() {
                     <div className="flex items-center justify-between mb-3">
                       <div>
                         <p className="text-[13px] font-bold text-gray-900">Relances manuelles en un clic</p>
-                        <p className="text-[11px] text-gray-400 mt-0.5">Relancez tous vos clients en attente instantanément</p>
+                        <p className="text-[11px] text-gray-400 mt-0.5">Tableau de bord des conversations actives et relances instantanées</p>
                       </div>
+                      <button
+                        type="button"
+                        onClick={loadActiveConversations}
+                        disabled={conversationsLoading}
+                        className="text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2"
+                        style={{ color: '#0F6B4F', background: 'rgba(15,107,79,0.08)' }}
+                      >
+                        {conversationsLoading ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            Chargement...
+                          </>
+                        ) : (
+                          <>
+                            <RotateCcw className="w-3 h-3" />
+                            Actualiser
+                          </>
+                        )}
+                      </button>
                     </div>
 
-                    <div className="rounded-xl border border-purple-100 bg-purple-50/40 p-4 space-y-3">
-                      <p className="text-[12px] font-bold text-purple-800">📱 Utiliser les API de relance :</p>
-                      
-                      <div className="space-y-2">
-                        <div className="bg-white rounded-lg border border-purple-100 p-3">
-                          <p className="text-[11px] font-bold text-purple-900 mb-1">1️⃣ Voir toutes les conversations actives</p>
-                          <code className="text-[10px] text-purple-700 bg-purple-50 px-2 py-1 rounded block overflow-x-auto">
-                            GET /api/rita/conversations/active?userId=YOUR_USER_ID
-                          </code>
-                          <p className="text-[10px] text-gray-500 mt-1">Retourne: liste avec statuts (waiting_response, need_relance, abandoned)</p>
+                    {/* Stats rapides */}
+                    {conversationsStats && (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+                        <div className="bg-blue-50 rounded-lg p-3 text-center">
+                          <p className="text-[20px] font-bold text-blue-700">{conversationsStats.total}</p>
+                          <p className="text-[10px] text-blue-600 font-medium">Total</p>
                         </div>
-
-                        <div className="bg-white rounded-lg border border-purple-100 p-3">
-                          <p className="text-[11px] font-bold text-purple-900 mb-1">2️⃣ Relancer UN client spécifique</p>
-                          <code className="text-[10px] text-purple-700 bg-purple-50 px-2 py-1 rounded block overflow-x-auto">
-                            POST /api/rita/relance/single
-                            {`{ "userId": "...", "clientPhone": "237690..." }`}
-                          </code>
-                          <p className="text-[10px] text-gray-500 mt-1">Message auto-généré par IA selon l'historique</p>
+                        <div className="bg-amber-50 rounded-lg p-3 text-center">
+                          <p className="text-[20px] font-bold text-amber-700">{conversationsStats.waitingResponse}</p>
+                          <p className="text-[10px] text-amber-600 font-medium">En attente</p>
                         </div>
-
-                        <div className="bg-white rounded-lg border border-purple-100 p-3">
-                          <p className="text-[11px] font-bold text-purple-900 mb-1">3️⃣ Relancer TOUS les clients en attente</p>
-                          <code className="text-[10px] text-purple-700 bg-purple-50 px-2 py-1 rounded block overflow-x-auto">
-                            POST /api/rita/relance/bulk
-                            {`{ "userId": "...", "status": "need_relance", "maxRelance": 3 }`}
-                          </code>
-                          <p className="text-[10px] text-gray-500 mt-1">Envoie avec délai anti-spam (2s entre messages)</p>
+                        <div className="bg-red-50 rounded-lg p-3 text-center">
+                          <p className="text-[20px] font-bold text-red-700">{conversationsStats.needRelance}</p>
+                          <p className="text-[10px] text-red-600 font-medium">À relancer</p>
+                        </div>
+                        <div className="bg-emerald-50 rounded-lg p-3 text-center">
+                          <p className="text-[20px] font-bold text-emerald-700">{conversationsStats.ordered}</p>
+                          <p className="text-[10px] text-emerald-600 font-medium">Commandés</p>
                         </div>
                       </div>
+                    )}
 
-                      <div className="bg-purple-100/50 rounded-lg p-3 space-y-1">
-                        <p className="text-[10px] font-bold text-purple-800">💡 Prochainement :</p>
-                        <p className="text-[10px] text-purple-700">Interface graphique avec tableau de bord des conversations actives et boutons de relance intégrés ici même.</p>
+                    {/* Bouton relance bulk */}
+                    {activeConversations.length > 0 && (
+                      <div className="mb-4 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => relanceBulkClients('need_relance', 3)}
+                          disabled={relancingBulk || conversationsLoading}
+                          className="text-[12px] font-semibold px-4 py-2 rounded-lg transition-colors flex items-center gap-2 bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {relancingBulk ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Relance en cours...
+                            </>
+                          ) : (
+                            <>
+                              <Send className="w-4 h-4" />
+                              Relancer tous les clients en attente
+                            </>
+                          )}
+                        </button>
                       </div>
+                    )}
+
+                    {/* Tableau des conversations */}
+                    {conversationsLoading ? (
+                      <div className="rounded-xl border border-purple-100 bg-purple-50/20 p-8 text-center">
+                        <Loader2 className="w-8 h-8 animate-spin mx-auto text-purple-500 mb-2" />
+                        <p className="text-[12px] text-purple-600 font-medium">Chargement des conversations...</p>
+                      </div>
+                    ) : activeConversations.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-purple-200 p-8 text-center">
+                        <MessageSquare className="w-12 h-12 mx-auto text-purple-200 mb-3" />
+                        <p className="text-[13px] font-bold text-gray-600 mb-1">Aucune conversation active</p>
+                        <p className="text-[11px] text-gray-400">Les conversations avec Rita apparaîtront ici</p>
+                        <button
+                          type="button"
+                          onClick={loadActiveConversations}
+                          className="mt-3 text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                          style={{ color: '#0F6B4F', background: 'rgba(15,107,79,0.08)' }}
+                        >
+                          Actualiser
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                        {activeConversations.map((conv, idx) => {
+                          const statusColors = {
+                            waiting_response: 'bg-blue-50 text-blue-700 border-blue-200',
+                            need_relance: 'bg-red-50 text-red-700 border-red-200',
+                            abandoned: 'bg-gray-100 text-gray-600 border-gray-200',
+                            pending: 'bg-amber-50 text-amber-700 border-amber-200',
+                          };
+                          const statusLabels = {
+                            waiting_response: 'En attente',
+                            need_relance: 'À relancer',
+                            abandoned: 'Abandonné',
+                            pending: 'En cours',
+                          };
+                          
+                          return (
+                            <div key={idx} className="rounded-lg border border-purple-100 bg-white p-3 hover:shadow-sm transition-shadow">
+                              <div className="flex items-start justify-between gap-3 mb-2">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Phone className="w-3 h-3 text-gray-400" />
+                                    <p className="text-[12px] font-bold text-gray-900">
+                                      {conv.from.replace(/@.*$/, '')}
+                                    </p>
+                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${statusColors[conv.status] || 'bg-gray-100 text-gray-600'}`}>
+                                      {statusLabels[conv.status] || conv.status}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-3 text-[10px] text-gray-500">
+                                    <span>💬 {conv.messageCount} messages</span>
+                                    <span>🔄 {conv.relanceCount} relances</span>
+                                    <span>⏱️ {Math.round(conv.hoursSinceLastActivity)}h</span>
+                                    {conv.ordered && <span className="text-emerald-600 font-bold">✅ Commandé</span>}
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => relanceSingleClient(conv.from.replace(/@.*$/, ''))}
+                                  disabled={relancingPhone === conv.from || relancingBulk || conv.ordered}
+                                  className="text-[11px] font-semibold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                                  style={{ 
+                                    color: conv.ordered ? '#6B7280' : '#0F6B4F', 
+                                    background: conv.ordered ? '#F3F4F6' : 'rgba(15,107,79,0.08)' 
+                                  }}
+                                >
+                                  {relancingPhone === conv.from ? (
+                                    <>
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                      Envoi...
+                                    </>
+                                  ) : conv.ordered ? (
+                                    <>
+                                      <ShieldCheck className="w-3 h-3" />
+                                      Commandé
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Send className="w-3 h-3" />
+                                      Relancer
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+
+                              {/* Dernier message */}
+                              {conv.history && conv.history.length > 0 && (
+                                <div className="mt-2 pt-2 border-t border-purple-50">
+                                  <p className="text-[10px] text-gray-400 mb-0.5">Dernier message :</p>
+                                  <p className="text-[11px] text-gray-600 line-clamp-2 italic">
+                                    "{conv.history[conv.history.length - 1]?.content?.substring(0, 100)}..."
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Info box */}
+                    <div className="mt-4 rounded-xl border border-purple-100 bg-purple-50/40 p-4">
+                      <p className="text-[11px] text-purple-700 leading-relaxed">
+                        <span className="font-bold text-purple-800">💡 Comment ça marche :</span> Rita classe automatiquement les conversations selon leur statut. 
+                        Vous pouvez relancer un client individuellement ou tous les clients "À relancer" en un seul clic. 
+                        Les messages sont générés par IA selon l'historique de chaque conversation.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1898,346 +2136,6 @@ export default function AgentConfig() {
                     ))}
                   </div>
                 </div>
-              </div>
-
-              {/* Livraison */}
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-                      <MapPin className="w-4 h-4 text-blue-600" />
-                    </span>
-                    Configuration Livraison
-                  </h2>
-                  <p className="text-[12px] text-gray-400 mt-1">Tarifs, zones et délais de livraison que Rita mentionnera aux clients</p>
-                </div>
-                <div className="p-6 space-y-4">
-                  <Field label="Frais de livraison" hint="ex: 500 FCFA, gratuit">
-                    <input
-                      value={config.deliveryFee || ''}
-                      onChange={e => set('deliveryFee', e.target.value)}
-                      placeholder="ex: 500 FCFA"
-                      className="ac-input"
-                    />
-                  </Field>
-
-                  <Field label="Délai estimé" hint="ex: 24h, 2-3 jours">
-                    <input
-                      value={config.deliveryDelay || ''}
-                      onChange={e => set('deliveryDelay', e.target.value)}
-                      placeholder="ex: 24 heures"
-                      className="ac-input"
-                    />
-                  </Field>
-
-                  <Field label="Informations complémentaires" hint="optionnel">
-                    <textarea
-                      value={config.deliveryInfo || ''}
-                      onChange={e => set('deliveryInfo', e.target.value)}
-                      placeholder="ex: Paiement à la livraison, vérification avant paiement"
-                      rows={2}
-                      className="ac-textarea"
-                    />
-                  </Field>
-
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const updatedZones = [...(config.deliveryZones || [])];
-                        updatedZones.push({ city: '', fee: '', delay: '' });
-                        set('deliveryZones', updatedZones);
-                      }}
-                      className="text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                      style={{ color: '#0F6B4F', background: 'rgba(15,107,79,0.08)' }}
-                    >
-                      + Ajouter une zone
-                    </button>
-                  </div>
-
-                  {(config.deliveryZones || []).length > 0 && (
-                    <div className="space-y-2 rounded-xl bg-blue-50/40 p-4">
-                      <p className="text-[12px] font-bold text-blue-900">Zones de livraison</p>
-                      {(config.deliveryZones || []).map((zone, idx) => (
-                        <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-lg border border-blue-100 bg-white p-3">
-                          <Field label="Ville/Zone">
-                            <input
-                              value={zone.city || ''}
-                              onChange={e => {
-                                const updatedZones = [...(config.deliveryZones || [])];
-                                updatedZones[idx].city = e.target.value;
-                                set('deliveryZones', updatedZones);
-                              }}
-                              placeholder="ex: Douala"
-                              className="ac-input"
-                            />
-                          </Field>
-                          <Field label="Tarif">
-                            <input
-                              value={zone.fee || ''}
-                              onChange={e => {
-                                const updatedZones = [...(config.deliveryZones || [])];
-                                updatedZones[idx].fee = e.target.value;
-                                set('deliveryZones', updatedZones);
-                              }}
-                              placeholder="ex: 500 FCFA"
-                              className="ac-input"
-                            />
-                          </Field>
-                          <div className="flex items-end gap-2">
-                            <div className="flex-1">
-                              <Field label="Délai">
-                                <input
-                                  value={zone.delay || ''}
-                                  onChange={e => {
-                                    const updatedZones = [...(config.deliveryZones || [])];
-                                    updatedZones[idx].delay = e.target.value;
-                                    set('deliveryZones', updatedZones);
-                                  }}
-                                  placeholder="ex: 24h"
-                                  className="ac-input"
-                                />
-                              </Field>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const updatedZones = (config.deliveryZones || []).filter((_, i) => i !== idx);
-                                  set('deliveryZones', updatedZones);
-                                }}
-                                className="px-2 py-2 text-red-500 hover:text-red-700 text-[12px] font-semibold mb-5"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Expéditions */}
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
-                      <span className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center">
-                        <Package className="w-4 h-4 text-orange-600" />
-                      </span>
-                      Expéditions (Villes Hors Zone)
-                    </h2>
-                    <p className="text-[12px] text-gray-400 mt-1">Pour les clients dans des villes où vous ne livrez pas directement (Express Union, etc.)</p>
-                  </div>
-                  <Toggle enabled={config.expeditionEnabled} onChange={v => set('expeditionEnabled', v)} label="" />
-                </div>
-                {config.expeditionEnabled && (
-                  <div className="p-6 space-y-4">
-                    {/* Villes éligibles */}
-                    <Field label="Villes éligibles pour expédition" hint="Séparer par des virgules">
-                      <textarea
-                        value={(config.expeditionCities || []).join(', ')}
-                        onChange={e => set('expeditionCities', e.target.value.split(',').map(c => c.trim()).filter(Boolean))}
-                        placeholder="ex: Bafoussam, Bamenda, Bertoua, Kribi, Limbe, etc."
-                        rows={2}
-                        className="ac-textarea"
-                      />
-                    </Field>
-
-                    {/* Agences d'expédition */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[12px] font-bold text-gray-700">Agences d'expédition</label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const updated = [...(config.expeditionAgencies || [])];
-                            updated.push({ name: '', cost: '', estimatedDays: '' });
-                            set('expeditionAgencies', updated);
-                          }}
-                          className="text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                          style={{ color: '#0F6B4F', background: 'rgba(15,107,79,0.08)' }}
-                        >
-                          + Ajouter agence
-                        </button>
-                      </div>
-
-                      {(config.expeditionAgencies || []).length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-gray-200 p-4 text-center text-[12px] text-gray-400">
-                          Aucune agence configurée. Ajoutez Express Union, Chronopost, etc.
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {(config.expeditionAgencies || []).map((agency, idx) => (
-                            <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-lg border border-orange-100 bg-orange-50/30 p-3">
-                              <Field label="Nom agence">
-                                <input
-                                  value={agency.name || ''}
-                                  onChange={e => {
-                                    const updated = [...(config.expeditionAgencies || [])];
-                                    updated[idx].name = e.target.value;
-                                    set('expeditionAgencies', updated);
-                                  }}
-                                  placeholder="ex: Express Union"
-                                  className="ac-input"
-                                />
-                              </Field>
-                              <Field label="Coût">
-                                <input
-                                  value={agency.cost || ''}
-                                  onChange={e => {
-                                    const updated = [...(config.expeditionAgencies || [])];
-                                    updated[idx].cost = e.target.value;
-                                    set('expeditionAgencies', updated);
-                                  }}
-                                  placeholder="ex: 2000 FCFA"
-                                  className="ac-input"
-                                />
-                              </Field>
-                              <div className="flex items-end gap-2">
-                                <div className="flex-1">
-                                  <Field label="Délai (jours)">
-                                    <input
-                                      value={agency.estimatedDays || ''}
-                                      onChange={e => {
-                                        const updated = [...(config.expeditionAgencies || [])];
-                                        updated[idx].estimatedDays = e.target.value;
-                                        set('expeditionAgencies', updated);
-                                      }}
-                                      placeholder="ex: 2-3"
-                                      className="ac-input"
-                                    />
-                                  </Field>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const updated = (config.expeditionAgencies || []).filter((_, i) => i !== idx);
-                                    set('expeditionAgencies', updated);
-                                  }}
-                                  className="px-2 py-2 text-red-500 hover:text-red-700 text-[12px] font-semibold mb-1"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Coordonnées de paiement Mobile Money */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[12px] font-bold text-gray-700">Coordonnées Mobile Money</label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const updated = {
-                              ...config.paymentCoordinates,
-                              mobileMoney: [...(config.paymentCoordinates?.mobileMoney || []), { provider: 'Orange Money', number: '', accountName: '' }]
-                            };
-                            set('paymentCoordinates', updated);
-                          }}
-                          className="text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                          style={{ color: '#0F6B4F', background: 'rgba(15,107,79,0.08)' }}
-                        >
-                          + Ajouter compte
-                        </button>
-                      </div>
-
-                      {(config.paymentCoordinates?.mobileMoney || []).length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-gray-200 p-4 text-center text-[12px] text-gray-400">
-                          Aucun compte configuré. Ajoutez Orange Money, MTN Mobile Money, etc.
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {(config.paymentCoordinates?.mobileMoney || []).map((mm, idx) => (
-                            <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-lg border border-yellow-100 bg-yellow-50/30 p-3">
-                              <Field label="Opérateur">
-                                <select
-                                  value={mm.provider || 'Orange Money'}
-                                  onChange={e => {
-                                    const updated = { ...config.paymentCoordinates };
-                                    updated.mobileMoney[idx].provider = e.target.value;
-                                    set('paymentCoordinates', updated);
-                                  }}
-                                  className="ac-input"
-                                >
-                                  <option value="Orange Money">Orange Money</option>
-                                  <option value="MTN Mobile Money">MTN Mobile Money</option>
-                                  <option value="Express Union">Express Union</option>
-                                </select>
-                              </Field>
-                              <Field label="Numéro">
-                                <input
-                                  value={mm.number || ''}
-                                  onChange={e => {
-                                    const updated = { ...config.paymentCoordinates };
-                                    updated.mobileMoney[idx].number = e.target.value;
-                                    set('paymentCoordinates', updated);
-                                  }}
-                                  placeholder="ex: 690123456"
-                                  className="ac-input"
-                                />
-                              </Field>
-                              <div className="flex items-end gap-2">
-                                <div className="flex-1">
-                                  <Field label="Nom du compte">
-                                    <input
-                                      value={mm.accountName || ''}
-                                      onChange={e => {
-                                        const updated = { ...config.paymentCoordinates };
-                                        updated.mobileMoney[idx].accountName = e.target.value;
-                                        set('paymentCoordinates', updated);
-                                      }}
-                                      placeholder="ex: Jean KOUMEN"
-                                      className="ac-input"
-                                    />
-                                  </Field>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const updated = { ...config.paymentCoordinates };
-                                    updated.mobileMoney = updated.mobileMoney.filter((_, i) => i !== idx);
-                                    set('paymentCoordinates', updated);
-                                  }}
-                                  className="px-2 py-2 text-red-500 hover:text-red-700 text-[12px] font-semibold mb-1"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Instructions personnalisées */}
-                    <Field label="Instructions spéciales (optionnel)" hint="Instructions additionnelles pour Rita concernant les expéditions">
-                      <textarea
-                        value={config.expeditionInstructions || ''}
-                        onChange={e => set('expeditionInstructions', e.target.value)}
-                        placeholder="ex: Toujours demander confirmation du point de retrait avant d'envoyer les coordonnées"
-                        rows={2}
-                        className="ac-textarea"
-                      />
-                    </Field>
-
-                    {/* Info box */}
-                    <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-4 space-y-2">
-                      <p className="text-[12px] font-bold text-orange-800">📦 Comment ça fonctionne :</p>
-                      <ul className="text-[11px] text-orange-700 space-y-1 ml-4">
-                        <li>1️⃣ Rita détecte si le client est dans une ville hors zone de livraison</li>
-                        <li>2️⃣ Elle propose les agences d'expédition avec coûts et délais</li>
-                        <li>3️⃣ Le client choisit l'agence et confirme le point de retrait</li>
-                        <li>4️⃣ Rita envoie automatiquement les coordonnées Mobile Money avec le total (produit + expédition)</li>
-                        <li>5️⃣ Après paiement confirmé, vous expédiez le colis</li>
-                      </ul>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Groupe WhatsApp */}
@@ -2472,6 +2370,360 @@ export default function AgentConfig() {
                 <p className="text-[11px] text-blue-600 leading-relaxed">
                   Gardez toutes les règles activées pour une vente optimale.
                   Désactivez un cas spécial uniquement si vous voulez que Rita l'ignore.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── TAB: LIVRAISON & EXPÉDITIONS ─── */}
+        {activeTab === 'delivery' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              
+              {/* Livraison */}
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                      <MapPin className="w-4 h-4 text-blue-600" />
+                    </span>
+                    Configuration Livraison
+                  </h2>
+                  <p className="text-[12px] text-gray-400 mt-1">Tarifs, zones et délais de livraison que Rita mentionnera aux clients</p>
+                </div>
+                <div className="p-6 space-y-4">
+                  <Field label="Frais de livraison" hint="ex: 500 FCFA, gratuit">
+                    <input
+                      value={config.deliveryFee || ''}
+                      onChange={e => set('deliveryFee', e.target.value)}
+                      placeholder="ex: 500 FCFA"
+                      className="ac-input"
+                    />
+                  </Field>
+
+                  <Field label="Délai estimé" hint="ex: 24h, 2-3 jours">
+                    <input
+                      value={config.deliveryDelay || ''}
+                      onChange={e => set('deliveryDelay', e.target.value)}
+                      placeholder="ex: 24 heures"
+                      className="ac-input"
+                    />
+                  </Field>
+
+                  <Field label="Informations complémentaires" hint="optionnel">
+                    <textarea
+                      value={config.deliveryInfo || ''}
+                      onChange={e => set('deliveryInfo', e.target.value)}
+                      placeholder="ex: Paiement à la livraison, vérification avant paiement"
+                      rows={2}
+                      className="ac-textarea"
+                    />
+                  </Field>
+
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updatedZones = [...(config.deliveryZones || [])];
+                        updatedZones.push({ city: '', fee: '', delay: '' });
+                        set('deliveryZones', updatedZones);
+                      }}
+                      className="text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                      style={{ color: '#0F6B4F', background: 'rgba(15,107,79,0.08)' }}
+                    >
+                      + Ajouter une zone
+                    </button>
+                  </div>
+
+                  {(config.deliveryZones || []).length > 0 && (
+                    <div className="space-y-2 rounded-xl bg-blue-50/40 p-4">
+                      <p className="text-[12px] font-bold text-blue-900">Zones de livraison</p>
+                      {(config.deliveryZones || []).map((zone, idx) => (
+                        <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-lg border border-blue-100 bg-white p-3">
+                          <Field label="Ville/Zone">
+                            <input
+                              value={zone.city || ''}
+                              onChange={e => {
+                                const updatedZones = [...(config.deliveryZones || [])];
+                                updatedZones[idx].city = e.target.value;
+                                set('deliveryZones', updatedZones);
+                              }}
+                              placeholder="ex: Douala"
+                              className="ac-input"
+                            />
+                          </Field>
+                          <Field label="Tarif">
+                            <input
+                              value={zone.fee || ''}
+                              onChange={e => {
+                                const updatedZones = [...(config.deliveryZones || [])];
+                                updatedZones[idx].fee = e.target.value;
+                                set('deliveryZones', updatedZones);
+                              }}
+                              placeholder="ex: 500 FCFA"
+                              className="ac-input"
+                            />
+                          </Field>
+                          <div className="flex items-end gap-2">
+                            <div className="flex-1">
+                              <Field label="Délai">
+                                <input
+                                  value={zone.delay || ''}
+                                  onChange={e => {
+                                    const updatedZones = [...(config.deliveryZones || [])];
+                                    updatedZones[idx].delay = e.target.value;
+                                    set('deliveryZones', updatedZones);
+                                  }}
+                                  placeholder="ex: 24h"
+                                  className="ac-input"
+                                />
+                              </Field>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updatedZones = (config.deliveryZones || []).filter((_, i) => i !== idx);
+                                  set('deliveryZones', updatedZones);
+                                }}
+                                className="px-2 py-2 text-red-500 hover:text-red-700 text-[12px] font-semibold mb-5"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Expéditions */}
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+                      <span className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center">
+                        <Package className="w-4 h-4 text-orange-600" />
+                      </span>
+                      Expéditions (Villes Hors Zone)
+                    </h2>
+                    <p className="text-[12px] text-gray-400 mt-1">Pour les clients dans des villes où vous ne livrez pas directement</p>
+                  </div>
+                  <Toggle enabled={config.expeditionEnabled} onChange={v => set('expeditionEnabled', v)} label="" />
+                </div>
+                {config.expeditionEnabled && (
+                  <div className="p-6 space-y-4">
+                    {/* Villes éligibles - sous forme de checkboxes */}
+                    <div className="space-y-3">
+                      <label className="text-[12px] font-bold text-gray-700">Villes éligibles pour expédition</label>
+                      <p className="text-[11px] text-gray-400">Cochez les villes où vous pouvez expédier vos produits</p>
+                      
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                        {(CITIES_BY_COUNTRY[config.businessCountry || 'CM'] || CITIES_BY_COUNTRY.CM).map((city) => {
+                          const isChecked = (config.expeditionCities || []).includes(city);
+                          return (
+                            <label
+                              key={city}
+                              className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                                isChecked 
+                                  ? 'border-orange-400 bg-orange-50' 
+                                  : 'border-gray-200 bg-white hover:border-orange-200 hover:bg-orange-50/30'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  const updated = e.target.checked
+                                    ? [...(config.expeditionCities || []), city]
+                                    : (config.expeditionCities || []).filter(c => c !== city);
+                                  set('expeditionCities', updated);
+                                }}
+                                className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500"
+                              />
+                              <span className="text-[12px] font-medium text-gray-700">{city}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+
+                      {(config.expeditionCities || []).length > 0 && (
+                        <div className="rounded-lg border border-orange-100 bg-orange-50/40 p-3">
+                          <p className="text-[11px] text-orange-700">
+                            <span className="font-bold">{(config.expeditionCities || []).length} ville(s) sélectionnée(s) :</span> {(config.expeditionCities || []).join(', ')}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Coordonnées de paiement Mobile Money */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[12px] font-bold text-gray-700">Coordonnées Mobile Money pour expéditions</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = {
+                              ...config.paymentCoordinates,
+                              mobileMoney: [...(config.paymentCoordinates?.mobileMoney || []), { provider: 'Orange Money', number: '', accountName: '' }]
+                            };
+                            set('paymentCoordinates', updated);
+                          }}
+                          className="text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                          style={{ color: '#0F6B4F', background: 'rgba(15,107,79,0.08)' }}
+                        >
+                          + Ajouter compte
+                        </button>
+                      </div>
+
+                      {(config.paymentCoordinates?.mobileMoney || []).length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-gray-200 p-4 text-center text-[12px] text-gray-400">
+                          Aucun compte configuré. Ajoutez Orange Money, MTN Mobile Money, etc.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {(config.paymentCoordinates?.mobileMoney || []).map((mm, idx) => (
+                            <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-lg border border-yellow-100 bg-yellow-50/30 p-3">
+                              <Field label="Opérateur">
+                                <select
+                                  value={mm.provider || 'Orange Money'}
+                                  onChange={e => {
+                                    const updated = { ...config.paymentCoordinates };
+                                    updated.mobileMoney[idx].provider = e.target.value;
+                                    set('paymentCoordinates', updated);
+                                  }}
+                                  className="ac-input"
+                                >
+                                  <option value="Orange Money">Orange Money</option>
+                                  <option value="MTN Mobile Money">MTN Mobile Money</option>
+                                  <option value="Express Union">Express Union</option>
+                                </select>
+                              </Field>
+                              <Field label="Numéro">
+                                <input
+                                  value={mm.number || ''}
+                                  onChange={e => {
+                                    const updated = { ...config.paymentCoordinates };
+                                    updated.mobileMoney[idx].number = e.target.value;
+                                    set('paymentCoordinates', updated);
+                                  }}
+                                  placeholder="ex: 690123456"
+                                  className="ac-input"
+                                />
+                              </Field>
+                              <div className="flex items-end gap-2">
+                                <div className="flex-1">
+                                  <Field label="Nom du compte">
+                                    <input
+                                      value={mm.accountName || ''}
+                                      onChange={e => {
+                                        const updated = { ...config.paymentCoordinates };
+                                        updated.mobileMoney[idx].accountName = e.target.value;
+                                        set('paymentCoordinates', updated);
+                                      }}
+                                      placeholder="ex: Jean KOUMEN"
+                                      className="ac-input"
+                                    />
+                                  </Field>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = { ...config.paymentCoordinates };
+                                    updated.mobileMoney = updated.mobileMoney.filter((_, i) => i !== idx);
+                                    set('paymentCoordinates', updated);
+                                  }}
+                                  className="px-2 py-2 text-red-500 hover:text-red-700 text-[12px] font-semibold mb-1"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Instructions personnalisées */}
+                    <Field label="Instructions spéciales (optionnel)" hint="Instructions additionnelles pour Rita concernant les expéditions">
+                      <textarea
+                        value={config.expeditionInstructions || ''}
+                        onChange={e => set('expeditionInstructions', e.target.value)}
+                        placeholder="ex: Toujours demander confirmation du point de retrait avant d'envoyer les coordonnées"
+                        rows={2}
+                        className="ac-textarea"
+                      />
+                    </Field>
+
+                    {/* Info box */}
+                    <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-4 space-y-2">
+                      <p className="text-[12px] font-bold text-orange-800">📦 Comment ça fonctionne :</p>
+                      <ul className="text-[11px] text-orange-700 space-y-1 ml-4">
+                        <li>1️⃣ Rita détecte si le client est dans une ville hors zone de livraison</li>
+                        <li>2️⃣ Elle propose l'expédition avec les coordonnées de paiement</li>
+                        <li>3️⃣ Le client confirme sa ville et le point de retrait</li>
+                        <li>4️⃣ Rita envoie automatiquement les coordonnées Mobile Money avec le montant total</li>
+                        <li>5️⃣ Après paiement confirmé, vous expédiez le colis via votre agence habituelle</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Sidebar */}
+            <div className="space-y-6">
+              {/* Récapitulatif */}
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-5 py-4 border-b border-gray-100">
+                  <h2 className="text-[15px] font-bold text-gray-900">Récapitulatif</h2>
+                </div>
+                <div className="p-5 space-y-3">
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50/50">
+                    <MapPin className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-[12px] font-bold text-blue-900">Livraison locale</p>
+                      <p className="text-[11px] text-blue-700 mt-1">
+                        {config.deliveryFee ? `${config.deliveryFee}` : 'Non configuré'}
+                        {config.deliveryDelay && ` • ${config.deliveryDelay}`}
+                      </p>
+                      <p className="text-[10px] text-blue-600 mt-1">
+                        {(config.deliveryZones || []).length} zone{(config.deliveryZones || []).length > 1 ? 's' : ''} configurée{(config.deliveryZones || []).length > 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-orange-50/50">
+                    <Package className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-[12px] font-bold text-orange-900">Expéditions</p>
+                      <p className="text-[11px] text-orange-700 mt-1">
+                        {config.expeditionEnabled ? 'Activé' : 'Désactivé'}
+                      </p>
+                      {config.expeditionEnabled && (
+                        <>
+                          <p className="text-[10px] text-orange-600 mt-1">
+                            {(config.expeditionAgencies || []).length} agence{(config.expeditionAgencies || []).length > 1 ? 's' : ''}
+                          </p>
+                          <p className="text-[10px] text-orange-600">
+                            {(config.expeditionCities || []).length} ville{(config.expeditionCities || []).length > 1 ? 's' : ''} éligible{(config.expeditionCities || []).length > 1 ? 's' : ''}
+                          </p>
+                          <p className="text-[10px] text-orange-600">
+                            {(config.paymentCoordinates?.mobileMoney || []).length} compte{(config.paymentCoordinates?.mobileMoney || []).length > 1 ? 's' : ''} Mobile Money
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Aide */}
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
+                <p className="text-[12px] font-semibold text-blue-700 mb-2">💡 Conseil</p>
+                <p className="text-[11px] text-blue-600 leading-relaxed">
+                  Configurez les zones de livraison locale pour Douala/Yaoundé, et activez les expéditions pour les autres villes du Cameroun.
                 </p>
               </div>
             </div>
@@ -2861,14 +3113,31 @@ export default function AgentConfig() {
                           placeholder="ex: Zendo Store" className="ac-input !pl-10" />
                       </div>
                     </Field>
-                    <Field label="Ville / Localisation">
+                    <Field label="Pays" required>
                       <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input value={config.businessCity} onChange={e => set('businessCity', e.target.value)}
-                          placeholder="ex: Abidjan, Côte d'Ivoire" className="ac-input !pl-10" />
+                        <Globe2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <select 
+                          value={config.businessCountry || 'CM'} 
+                          onChange={e => set('businessCountry', e.target.value)}
+                          className="ac-input !pl-10"
+                        >
+                          <option value="CM">🇨🇲 Cameroun</option>
+                          <option value="CD">🇨🇩 RD Congo</option>
+                          <option value="SN">🇸🇳 Sénégal</option>
+                          <option value="CI">🇨🇮 Côte d'Ivoire</option>
+                          <option value="BJ">🇧🇯 Bénin</option>
+                          <option value="TG">🇹🇬 Togo</option>
+                        </select>
                       </div>
                     </Field>
                   </div>
+                  <Field label="Ville / Localisation">
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input value={config.businessCity} onChange={e => set('businessCity', e.target.value)}
+                        placeholder="ex: Douala, Yaoundé, Abidjan..." className="ac-input !pl-10" />
+                    </div>
+                  </Field>
                   <Field label="Description de l'activité" hint="courte présentation pour Rita">
                     <textarea value={config.businessDescription} onChange={e => set('businessDescription', e.target.value)}
                       rows={3} className="ac-textarea"

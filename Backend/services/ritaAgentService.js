@@ -1859,56 +1859,69 @@ Exemple :
 
 N'ajoute ces phrases QUE quand il y a une hésitation ou une question sur la confiance. Pas systématiquement.
 
-## 📦 EXPÉDITION PAR AGENCE (Villes hors zone de livraison)
+## 📦 EXPÉDITION PAR AGENCE (Villes HORS zone de livraison directe)
 ${config.expeditionEnabled ? `
 ⚠️ **ACTIVATION EXPÉDITION** : Le système d'expédition par agence est ACTIVÉ.
 
-### Villes avec expédition disponible :
-${config.expeditionCities?.length ? config.expeditionCities.join(', ') : 'Toutes les villes du Cameroun'}
+### 📍 ZONES D'EXPÉDITION (On expédie via agence, pas de livraison directe) :
+${config.expeditionCities?.length ? config.expeditionCities.join(', ') : 'Toutes les villes du pays hors zones de livraison'}
 
-### Agences disponibles :
-${config.expeditionAgencies?.filter(a => a.available).map(a => `- ${a.name}${a.estimatedCost ? ` (env. ${a.estimatedCost})` : ''}`).join('\n') || '- Express Union\n- Services de transport locaux'}
+⚠️ **CONCEPT IMPORTANT** : Ces villes ont l'EXPÉDITION par agence UNIQUEMENT
+- ❌ PAS de livraison directe à domicile dans ces villes
+- ✅ On expédie le produit via agence de transport (Express Union, etc.)
+- ⚠️ Paiement en AVANCE OBLIGATOIRE (avant expédition)
+- 📍 Le client récupère son colis à l'agence de sa ville
 
 ### 🔄 PROCESSUS D'EXPÉDITION (Flow complet)
 
-**Étape 1 : Détecter si client hors zone de livraison directe**
+**Étape 1 : Détecter si client est dans une zone d'EXPÉDITION**
 ${usesVous ? `
-Si le client est dans une ville où on n'a pas de livraison directe (ex: Bafoussam, Bamenda, Kribi, etc.) :
+Si le client est dans une ville listée ci-dessus (ex: Bafoussam, Bamenda, Kribi) :
 → Proposer l'expédition par agence
+→ BIEN préciser que c'est paiement en avance
 
 Exemple :
-"Ok 👍 Vous êtes à Bafoussam — on livre par agence de transport là-bas (Express Union).
-C'est rapide et sécurisé 😊 Vous êtes d'accord ?"
+"Ok 👍 Vous êtes à Bafoussam — on livre par agence de transport là-bas.
+⚠️ Pour l'expédition, le paiement se fait en avance. Vous êtes d'accord ?"
 ` : `
-Si le client est dans une ville où on n'a pas de livraison directe (ex: Bafoussam, Bamenda, Kribi, etc.) :
+Si le client est dans une ville listée ci-dessus (ex: Bafoussam, Bamenda, Kribi) :
 → Proposer l'expédition par agence
+→ BIEN préciser que c'est paiement en avance
 
 Exemple :
-"Ok 👍 Tu es à Bafoussam — on livre par agence de transport là-bas (Express Union).
-C'est rapide et sécurisé 😊 Tu es d'accord ?"
+"Ok 👍 Tu es à Bafoussam — on livre par agence de transport là-bas.
+⚠️ Pour l'expédition, le paiement se fait en avance. Tu es d'accord ?"
 `}
 
-**Étape 2 : Rassurer le client**
+**Étape 2 : Rassurer le client sur le paiement en avance**
 ${usesVous ? `
-Le client peut être hésitant sur le paiement avant expédition. RASSURE-LE :
+Le client peut être hésitant car paiement AVANT expédition (différent de la livraison directe). RASSURE-LE :
 - "On a déjà expédié à plus de [nombre] clients à [Ville]"
 - "C'est totalement sécurisé, on envoie la preuve d'expédition"
-- "Tu paies → On expédie le jour même → Tu reçois le colis à l'agence"
+- "Vous payez → On expédie le jour même → Vous recevez le colis à l'agence"
 - "Beaucoup de nos clients à [Ville] utilisent ce système"
+
+⚠️ DISTINCTION IMPORTANTE :
+• Livraison directe (Douala, Yaoundé, etc.) = Paiement à la livraison ✅
+• Expédition (villes hors zone) = Paiement en AVANCE obligatoire ⚠️
 
 Exemple :
 "Pas de souci 😊 Voici comment ça marche :
 1️⃣ Vous payez par Mobile Money
 2️⃣ On vous envoie la preuve de paiement et le bordereau d'expédition
-3️⃣ Vous récupérez votre colis à l'agence Express Union de [Ville] (2-3 jours max)
+3️⃣ Vous récupérez votre colis à l'agence de [Ville] (2-3 jours max)
 
 On a déjà plus de 50 clients à Bafoussam qui commandent comme ça 👍"
 ` : `
-Le client peut être hésitant sur le paiement avant expédition. RASSURE-LE :
+Le client peut être hésitant car paiement AVANT expédition (différent de la livraison directe). RASSURE-LE :
 - "On a déjà expédié à plus de [nombre] clients à [Ville]"
 - "C'est totalement sécurisé, on envoie la preuve d'expédition"
 - "Tu paies → On expédie le jour même → Tu reçois le colis à l'agence"
 - "Beaucoup de nos clients à [Ville] utilisent ce système"
+
+⚠️ DISTINCTION IMPORTANTE :
+• Livraison directe (Douala, Yaoundé, etc.) = Paiement à la livraison ✅
+• Expédition (villes hors zone) = Paiement en AVANCE obligatoire ⚠️
 
 Exemple :
 "Pas de souci 😊 Voici comment ça marche :
@@ -2776,7 +2789,12 @@ Exemple TEXTE (question simple) :
     
     if (config.deliveryZones?.length) {
       const zones = config.deliveryZones.map(z => z.city || z.zone).filter(Boolean);
-      prompt += `\n\n### 📍 Zones de livraison couvertes (livraison standard) :`;
+      prompt += `\n\n### 📍 ZONES DE LIVRAISON DIRECTE (On livre chez le client) :`;
+      prompt += `\n\n⚠️ **CONCEPT IMPORTANT** : Ces villes ont la LIVRAISON DIRECTE`;
+      prompt += `\n- ✅ On livre directement chez le client à domicile`;
+      prompt += `\n- ✅ Paiement à la livraison POSSIBLE (le client paie au livreur)`;
+      prompt += `\n- ✅ Le client vérifie le produit avant de payer`;
+      prompt += `\n- ✅ Pas besoin de payer en avance`;
       
       // Grouper par pays si disponible
       const zonesByCountry = {};
@@ -2825,32 +2843,43 @@ Exemple TEXTE (question simple) :
         prompt += `\n- Calcul total : "Donc au total : 15000 FCFA (produit) + 2000 FCFA (livraison) = 17000 FCFA"`;
       }
       
-      prompt += `\n\n### 🚨 RÈGLE CRITIQUE — VILLES NON COUVERTES (GESTION AUTOMATIQUE)`;
-      prompt += `\nSi le client indique une ville QUI N'EST PAS dans la liste ci-dessus :`;
-      prompt += `\n\n**TU NE DEMANDES PLUS AU BOSS. Tu gères automatiquement :**`;
-      prompt += `\n1. Tu confirmes que vous ne livrez pas encore directement dans cette ville`;
-      prompt += `\n2. Tu proposes IMMÉDIATEMENT l'expédition avec paiement en avance`;
-      prompt += `\n3. Tu demandes si le client est d'accord avec ce mode`;
-      prompt += `\n4. Si le client dit OUI → tu collectes les coordonnées et tu continues la commande normalement`;
-      prompt += `\n5. Tu ne mentionnes JAMAIS "je vais demander au boss" ou "je vais vérifier"`;
+      prompt += `\n\n### 🚨 RÈGLE CRITIQUE — Villes en DEHORS de la zone de livraison directe`;
       
-      prompt += `\n\n**Formulation exacte à utiliser :**`;
-      if (isVous) {
-        prompt += `\n"Pour [Ville non couverte], nous n'avons pas encore la livraison directe. Mais on peut vous expédier le produit — dans ce cas vous payez en avance. Vous êtes d'accord ?"`;
+      if (config.expeditionEnabled && config.expeditionCities?.length) {
+        prompt += `\n\n**DISTINCTION IMPORTANTE :**`;
+        prompt += `\n📍 **Zones de LIVRAISON** (listées ci-dessus) = On livre chez le client, paiement à la livraison`;
+        prompt += `\n📦 **Zones d'EXPÉDITION** (listées plus bas) = On expédie via agence, paiement en avance OBLIGATOIRE`;
+        prompt += `\n\n**Si le client est dans une ville QUI N'EST PAS dans les zones de livraison directe :**`;
+        prompt += `\n1️⃣ Vérifie si sa ville est dans les zones d'expédition`;
+        prompt += `\n2️⃣ Si OUI → Propose l'expédition (voir section EXPÉDITION plus bas)`;
+        prompt += `\n3️⃣ Si NON → Explique qu'on ne couvre pas encore cette ville`;
       } else {
-        prompt += `\n"Pour [Ville non couverte], on n'a pas encore la livraison directe. Mais on peut t'expédier le produit — dans ce cas tu paies en avance. Tu es d'accord ?"`;
+        prompt += `\n\nSi le client indique une ville QUI N'EST PAS dans la liste ci-dessus :`;
+        prompt += `\n\n**TU NE DEMANDES PLUS AU BOSS. Tu gères automatiquement :**`;
+        prompt += `\n1. Tu confirmes que vous ne livrez pas encore directement dans cette ville`;
+        prompt += `\n2. Tu proposes IMMÉDIATEMENT l'expédition avec paiement en avance`;
+        prompt += `\n3. Tu demandes si le client est d'accord avec ce mode`;
+        prompt += `\n4. Si le client dit OUI → tu collectes les coordonnées et tu continues la commande normalement`;
+        prompt += `\n5. Tu ne mentionnes JAMAIS "je vais demander au boss" ou "je vais vérifier"`;
+        
+        prompt += `\n\n**Formulation exacte à utiliser :**`;
+        if (isVous) {
+          prompt += `\n"Pour [Ville non couverte], nous n'avons pas encore la livraison directe. Mais on peut vous expédier le produit — dans ce cas vous payez en avance. Vous êtes d'accord ?"`;
+        } else {
+          prompt += `\n"Pour [Ville non couverte], on n'a pas encore la livraison directe. Mais on peut t'expédier le produit — dans ce cas tu paies en avance. Tu es d'accord ?"`;
+        }
+        
+        prompt += `\n\n**Exemples concrets :**`;
+        if (isVous) {
+          prompt += `\n- Client: "Je suis à Bétois" → "Pour Bétois, on n'a pas encore la livraison directe. Mais on peut vous expédier — vous payez en avance dans ce cas. Vous êtes d'accord ?"`;
+          prompt += `\n- Client: "Oui ça marche" → "Parfait 👍 Donnez-moi votre nom complet et votre numéro de téléphone pour l'expédition"`;
+        } else {
+          prompt += `\n- Client: "Je suis à Bétois" → "Pour Bétois, on n'a pas encore la livraison directe. Mais on peut t'expédier — tu paies en avance dans ce cas. Tu es d'accord ?"`;
+          prompt += `\n- Client: "Oui ça marche" → "Parfait 👍 Donne-moi ton nom complet et ton numéro pour l'expédition"`;
+        }
+        
+        prompt += `\n\n⚠️ IMPORTANT : Cette règle s'applique pour TOUTE ville non listée ci-dessus. Pas d'exception, pas de demande au boss.`;
       }
-      
-      prompt += `\n\n**Exemples concrets :**`;
-      if (isVous) {
-        prompt += `\n- Client: "Je suis à Bétois" → "Pour Bétois, on n'a pas encore la livraison directe. Mais on peut vous expédier — vous payez en avance dans ce cas. Vous êtes d'accord ?"`;
-        prompt += `\n- Client: "Oui ça marche" → "Parfait 👍 Donnez-moi votre nom complet et votre numéro de téléphone pour l'expédition"`;
-      } else {
-        prompt += `\n- Client: "Je suis à Bétois" → "Pour Bétois, on n'a pas encore la livraison directe. Mais on peut t'expédier — tu paies en avance dans ce cas. Tu es d'accord ?"`;
-        prompt += `\n- Client: "Oui ça marche" → "Parfait 👍 Donne-moi ton nom complet et ton numéro pour l'expédition"`;
-      }
-      
-      prompt += `\n\n⚠️ IMPORTANT : Cette règle s'applique pour TOUTE ville non listée ci-dessus. Pas d'exception, pas de demande au boss.`;
     }
     
     if (config.deliveryFee) {
