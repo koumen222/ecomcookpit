@@ -745,6 +745,44 @@ function detectIsEnglish(text) {
   return enCount > frCount;
 }
 
+/**
+ * Détecte la langue d'un message client (en, fr, ar, es).
+ * Retourne le code langue ou null si indéterminé.
+ */
+function detectClientLanguage(text) {
+  if (!text || typeof text !== 'string') return null;
+  
+  // Mots clés par langue
+  const enWords = /\b(the|is|are|you|your|we|will|can|have|this|that|with|for|and|not|yes|no|please|thank|want|need|order|delivery|price|product|how|much|what|which|hello|hi|good|want)\b/gi;
+  const frWords = /\b(le|la|les|est|sont|vous|votre|nous|avec|pour|pas|oui|non|merci|veux|besoin|commande|livraison|prix|produit|combien|quel|quelle|bonjour|salut|bonsoir)\b/gi;
+  const esWords = /\b(el|la|los|las|es|son|usted|tu|con|para|no|si|gracias|quiero|necesito|pedido|entrega|precio|producto|cuanto|cual|hola|buenos)\b/gi;
+  const arPattern = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/; // Arabic unicode ranges
+  
+  // Compte les occurrences
+  const enCount = (text.match(enWords) || []).length;
+  const frCount = (text.match(frWords) || []).length;
+  const esCount = (text.match(esWords) || []).length;
+  const hasArabic = arPattern.test(text);
+  
+  // Si contient de l'arabe, c'est probablement de l'arabe
+  if (hasArabic) return 'ar';
+  
+  // Compare les comptages
+  const counts = { en: enCount, fr: frCount, es: esCount };
+  const max = Math.max(enCount, frCount, esCount);
+  
+  // Si aucun mot détecté ou trop court/ambigu, retourne null
+  if (max === 0 || text.trim().length < 5) return null;
+  
+  // Retourne la langue avec le plus de mots détectés
+  if (counts.en === max) return 'en';
+  if (counts.fr === max) return 'fr';
+  if (counts.es === max) return 'es';
+  
+  return null;
+}
+
+
 function stripForTTS(text, lang = 'fr') {
   // Auto-detect language from content when bilingual
   const isEn = lang === 'en' || (lang === 'fr_en' && detectIsEnglish(text));
@@ -1010,6 +1048,7 @@ function buildSystemPrompt(config, context = {}) {
   const name = config.agentName || 'Rita';
   const toneStyle = config.toneStyle || 'warm';
   const activeConversation = context.activeConversation || null;
+  const clientLanguage = context.clientLanguage; // Langue détectée du message actuel du client
 
   // Mapping ton → instructions concrètes
   const toneInstructions = {
@@ -1046,6 +1085,13 @@ ${tone.extra}
 ${usesVous ? '⚠️ RÈGLE ABSOLUE : Tu utilises TOUJOURS le VOUVOIEMENT ("vous", "votre", "vos"). JAMAIS de "tu", "ton", "ta", "tes". Chaque message doit respecter cette règle sans exception.' : '⚠️ Tu TUTOIES le client ("tu", "ton", "ta"). Style naturel et proche.'}
 ${needsExpedition ? `\n🚨 **MODE EXPÉDITION ACTIVÉ** : Le client est à ${clientCity} — livraison par agence de transport (pas de livraison directe).` : ''}
 
+${clientLanguage ? `🌍 **LANGUE DÉTECTÉE : ${clientLanguage.toUpperCase()}** 🌍
+Le client vient de t'écrire en ${clientLanguage === 'en' ? 'ANGLAIS' : clientLanguage === 'fr' ? 'FRANÇAIS' : clientLanguage === 'ar' ? 'ARABE' : 'ESPAGNOL'}.
+TU DOIS DONC RÉPONDRE EN ${clientLanguage === 'en' ? 'ANGLAIS' : clientLanguage === 'fr' ? 'FRANÇAIS' : clientLanguage === 'ar' ? 'ARABE' : 'ESPAGNOL'}.
+Cette règle est ABSOLUE et PRIORITAIRE sur toute configuration de langue par défaut.
+${clientLanguage === 'en' ? 'You MUST respond in ENGLISH to this client.' : clientLanguage === 'fr' ? 'Tu DOIS répondre en FRANÇAIS à ce client.' : clientLanguage === 'ar' ? 'يجب أن ترد بالعربية على هذا العميل' : 'Debes responder en ESPAÑOL a este cliente.'}
+
+` : ''}
 ## 🚨🚨🚨 RÈGLES ABSOLUES DE FORMATAGE (PRIORITÉ MAXIMALE) 🚨🚨🚨
 Tu écris sur WhatsApp — PAS dans un document. RESPECTE CES RÈGLES SANS EXCEPTION :
 
@@ -3479,9 +3525,15 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
   }
 
   const activeConversation = buildActiveConversationContext(config, history, text);
+  
+  // ── Détection automatique de la langue du message client ──
+  const clientLanguage = detectClientLanguage(text);
+  const langNames = { en: 'anglais', fr: 'français', ar: 'arabe', es: 'espagnol' };
+  console.log(`🌍 [RITA] Langue détectée du client: ${clientLanguage ? langNames[clientLanguage] : 'indéterminée'} pour message: "${text.substring(0, 50)}"`);
+  
   let systemPrompt;
   try {
-    systemPrompt = buildSystemPrompt(config, { contact, activeConversation, clientState, askedQs, imageAnalysis });
+    systemPrompt = buildSystemPrompt(config, { contact, activeConversation, clientState, askedQs, imageAnalysis, clientLanguage });
   } catch (promptErr) {
     console.error(`❌ [RITA] Erreur buildSystemPrompt pour userId=${userId}:`, promptErr.message);
     return config.fallbackMessage || null;
