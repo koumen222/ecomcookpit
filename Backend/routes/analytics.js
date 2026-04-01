@@ -148,26 +148,35 @@ router.post('/track', async (req, res) => {
     });
 
     // Upsert session
-    const session = await AnalyticsSession.findOne({ sessionId });
+    let session = await AnalyticsSession.findOne({ sessionId });
     if (!session) {
-      await AnalyticsSession.create({
-        sessionId,
-        userId: userId || null,
-        startedAt: new Date(),
-        lastActivityAt: new Date(),
-        country,
-        city,
-        device,
-        browser,
-        os,
-        pageViews: eventType === 'page_view' ? 1 : 0,
-        pagesVisited: page ? [page] : [],
-        entryPage: page || null,
-        exitPage: page || null,
-        referrer: referrer || null,
-        isBounce: true
-      });
-    } else {
+      try {
+        session = await AnalyticsSession.create({
+          sessionId,
+          userId: userId || null,
+          startedAt: new Date(),
+          lastActivityAt: new Date(),
+          country,
+          city,
+          device,
+          browser,
+          os,
+          pageViews: eventType === 'page_view' ? 1 : 0,
+          pagesVisited: page ? [page] : [],
+          entryPage: page || null,
+          exitPage: page || null,
+          referrer: referrer || null,
+          isBounce: true
+        });
+      } catch (dupErr) {
+        if (dupErr.code === 11000) {
+          session = await AnalyticsSession.findOne({ sessionId });
+        } else {
+          throw dupErr;
+        }
+      }
+    }
+    if (session) {
       const updates = {
         lastActivityAt: new Date(),
         exitPage: page || session.exitPage,
