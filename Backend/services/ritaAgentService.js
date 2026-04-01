@@ -3634,3 +3634,167 @@ export function addRelanceToHistory(userId, from, message) {
     history.push({ role: 'assistant', content: message });
   }
 }
+
+/**
+ * Récupère TOUTES les conversations actives pour un userId
+ * @param {string} userId - ID de l'utilisateur
+ * @returns {Array} Liste des conversations avec statut
+ */
+export function getAllActiveConversations(userId) {
+  const now = new Date();
+  const results = [];
+
+  for (const [key, history] of conversationHistory.entries()) {
+    const [uid, from] = key.split(':');
+    if (uid !== userId) continue;
+
+    const tracker = conversationTracker.get(key) || {};
+    const lastActivity = tracker.lastAgentMessage || tracker.lastClientMessage || null;
+    const lastClientMessage = tracker.lastClientMessage || null;
+    const lastAgentMessage = tracker.lastAgentMessage || null;
+    
+    // Calculer le statut
+    let status = 'active';
+    let hoursSinceLastActivity = 0;
+    
+    if (lastActivity) {
+      hoursSinceLastActivity = (now - lastActivity) / (1000 * 60 * 60);
+      
+      // Client a répondu après le dernier message agent
+      if (lastClientMessage && lastAgentMessage && lastClientMessage > lastAgentMessage) {
+        status = 'waiting_response'; // En attente de réponse de Rita
+      }
+      // Rita a répondu, client n'a pas encore répondu
+      else if (lastAgentMessage && (!lastClientMessage || lastAgentMessage > lastClientMessage)) {
+        if (hoursSinceLastActivity > 72) {
+          status = 'abandoned'; // Abandonné (>3 jours)
+        } else if (hoursSinceLastActivity > 24) {
+          status = 'need_relance'; // Besoin de relance (>24h)
+        } else {
+          status = 'pending'; // En attente de réponse (< 24h)
+        }
+      }
+    }
+
+    results.push({
+      key,
+      from,
+      status,
+      ordered: tracker.ordered || false,
+      relanceCount: tracker.relanceCount || 0,
+      lastClientMessage,
+      lastAgentMessage,
+      hoursSinceLastActivity: Math.round(hoursSinceLastActivity * 10) / 10,
+      messageCount: history.length,
+      history: history.slice(-10), // Derniers 10 messages
+    });
+  }
+
+  // Trier par dernière activité (plus récent en premier)
+  results.sort((a, b) => {
+    const aTime = a.lastAgentMessage || a.lastClientMessage || 0;
+    const bTime = b.lastAgentMessage || b.lastClientMessage || 0;
+    return bTime - aTime;
+  });
+
+  return results;
+}
+
+/**
+ * Génère un message de relance intelligent basé sur l'historique
+ * @param {Array} history - Historique de la conversation
+ * @param {Object} config - Configuration Rita
+ * @param {number} relanceCount - Nombre de relances déjà effectuées
+ * @returns {string} Message de relance personnalisé
+ */
+export function generateRelanceMessage(history, config, relanceCount = 0) {
+  const usesVous = config.toneStyle === 'formal' || config.toneStyle === 'luxury' || config.toneStyle === 'vouvoiement' || config.toneStyle === 'respectful';
+  
+  // Analyser l'historique pour trouver le produit mentionné
+  let productName = null;
+  let productMentioned = false;
+  
+  for (let i = history.length - 1; i >= 0; i--) {
+    const msg = history[i];
+    if (msg.role === 'assistant') {
+      // Chercher un produit mentionné dans les messages de Rita
+      const catalog = config.productCatalog || [];
+      for (const product of catalog) {
+        if (product.name && msg.content.includes(product.name)) {
+          productName = product.name;
+          productMentioned = true;
+          break;
+        }
+      }
+      if (productName) break;
+    }
+  }
+
+  // Messages de relance différents selon le nombre de relances
+  const relanceMessages = [];
+
+  if (relanceCount === 0) {
+    // Première relance (amicale)
+    if (productMentioned && productName) {
+      relanceMessages.push(
+        usesVous 
+          ? `Bonjour ! 😊 Vous étiez intéressé(e) par ${productName}. Vous avez encore des questions ?`
+          : `Hey ! 😊 Tu étais intéressé(e) par ${productName}. T'as encore des questions ?`
+      );
+      relanceMessages.push(
+        usesVous
+          ? `Coucou ! 👋 J'ai vu que ${productName} vous intéressait. Je suis là si vous voulez plus d'infos 😊`
+          : `Coucou ! 👋 J'ai vu que ${productName} t'intéressait. Je suis là si tu veux plus d'infos 😊`
+      );
+    } else {
+      relanceMessages.push(
+        usesVous
+          ? `Bonjour ! 😊 Vous allez bien ? Je voulais savoir si vous aviez toujours besoin d'aide 👍`
+          : `Hey ! 😊 Ça va ? Je voulais savoir si t'avais toujours besoin d'aide 👍`
+      );
+      relanceMessages.push(
+        usesVous
+          ? `Coucou ! 👋 Vous cherchez toujours quelque chose ? Je suis là pour vous aider 😊`
+          : `Coucou ! 👋 Tu cherches toujours quelque chose ? Je suis là pour t'aider 😊`
+      );
+    }
+  } else if (relanceCount === 1) {
+    // Deuxième relance (avec urgence douce)
+    if (productMentioned && productName) {
+      relanceMessages.push(
+        usesVous
+          ? `Petite info 😊 Il reste peu de ${productName} en stock. Vous voulez le réserver ?`
+          : `Petite info 😊 Il reste peu de ${productName} en stock. Tu veux le réserver ?`
+      );
+      relanceMessages.push(
+        usesVous
+          ? `Juste pour vous dire : ${productName} part vite en ce moment ! Je peux vous le garder si vous voulez 👍`
+          : `Juste pour te dire : ${productName} part vite en ce moment ! Je peux te le garder si tu veux 👍`
+      );
+    } else {
+      relanceMessages.push(
+        usesVous
+          ? `Hello ! 👋 On a eu beaucoup de nouvelles commandes. Je voulais être sûre que vous n'aviez besoin de rien 😊`
+          : `Hello ! 👋 On a eu beaucoup de nouvelles commandes. Je voulais être sûr(e) que t'avais besoin de rien 😊`
+      );
+    }
+  } else {
+    // Dernière relance (offre finale)
+    if (productMentioned && productName) {
+      relanceMessages.push(
+        usesVous
+          ? `Dernière chance 🔥 ${productName} est presque en rupture. Vous êtes toujours intéressé(e) ?`
+          : `Dernière chance 🔥 ${productName} est presque en rupture. T'es toujours intéressé(e) ?`
+      );
+    } else {
+      relanceMessages.push(
+        usesVous
+          ? `Bonne journée ! 😊 Si jamais vous changez d'avis, je suis là 👍`
+          : `Bonne journée ! 😊 Si jamais tu changes d'avis, je suis là 👍`
+      );
+    }
+  }
+
+  // Choisir un message aléatoire
+  return relanceMessages[Math.floor(Math.random() * relanceMessages.length)];
+}
