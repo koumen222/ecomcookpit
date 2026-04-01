@@ -918,8 +918,6 @@ const StoreProductPage = () => {
                   </p>
                 )}
 
-                {/* Features/Badges - scrolling list */}
-                <ProductFeatures features={product.features} />
 
                 {/* Reviews */}
                 <ProductReviews rating={product.rating || 4.5} reviewCount={product.reviewCount || 0} />
