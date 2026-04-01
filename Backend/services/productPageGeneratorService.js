@@ -190,15 +190,11 @@ export async function analyzeWithVision(scrapedData, imageBuffers = [], marketin
     ? `${storeCity ? `${storeCity}, ` : 'Ville crédible, '}${storeCountry}`
     : 'Ville, Pays africain';
   
-  // Extraction du contexte copywriting avancé
+  // Contexte copywriting simplifié : méthode + avatar + problème
   const {
-    angle = 'PROBLEME_SOLUTION',
-    audience = '',
-    reviews = '',
-    socialProof = '',
-    offer = '',
-    objections = '',
-    benefits = '',
+    method = 'PAS',
+    avatar = '',
+    problem = '',
     tone = 'urgence',
     language = 'français'
   } = copywritingContext;
@@ -223,71 +219,17 @@ export async function analyzeWithVision(scrapedData, imageBuffers = [], marketin
 - Angle 3 : BRIDGE — Expliquer comment le produit fait le pont entre avant et après
 - Angle 4 : CONFIANCE — Renforcer la crédibilité et éliminer les doutes`,
 
-    FAB: `APPROCHE FAB (Features → Advantages → Benefits) :
-- Angle 1 : FEATURE principale — Caractéristique technique ou composition unique du produit
-- Angle 2 : ADVANTAGE — Avantage pratique direct de cette caractéristique
-- Angle 3 : BENEFIT émotionnel — Bénéfice ressenti dans la vie quotidienne
-- Angle 4 : DIFFÉRENCIATION — Ce qui rend ce produit supérieur aux alternatives`
   };
 
-  const approachGuide = approachGuides[marketingApproach] || approachGuides.AIDA;
+  const approachGuide = approachGuides[marketingApproach] || approachGuides.PAS;
   
-  // Définition des angles copywriting avancés
-  const copywritingAngles = {
-    PROBLEME_SOLUTION: {
-      nom: 'PROBLÈME → SOLUTION',
-      description: 'Empathie avec la douleur du client, puis présentation du produit comme LA solution évidente',
-      structure: 'Identifier le problème → Aggraver la douleur → Présenter la solution → Preuves et garanties'
-    },
-    PREUVE_SOCIALE: {
-      nom: 'PREUVE SOCIALE',
-      description: 'Mise en avant des résultats, avis clients, mentions virales pour créer la confiance FOMO',
-      structure: 'Résultats clients → Témoignages détaillés → Stats impressionnantes → Rejoindre la communauté'
-    },
-    URGENCE: {
-      nom: 'URGENCE / RARETÉ',
-      description: 'Stock limité, offre temporaire, effet de rareté pour déclencher l\'achat immédiat',
-      structure: 'Offre limitée → Compteur urgence → Bénéfices clés → Appel à l\'action immédiat'
-    },
-    TRANSFORMATION: {
-      nom: 'TRANSFORMATION',
-      description: 'Avant/après émotionnel et visuel, projection dans un nouveau style de vie',
-      structure: 'Vie avant (frustration) → Découverte produit → Résultats obtenus → Nouvelle vie transformée'
-    },
-    AUTORITE: {
-      nom: 'AUTORITÉ',
-      description: 'Expertise, certifications, études, recommandations d\'experts pour établir la crédibilité',
-      structure: 'Expertise prouvée → Certifications/études → Recommandations pros → Pourquoi nous faire confiance'
-    }
-  };
-  
-  const selectedAngle = copywritingAngles[angle] || copywritingAngles.PROBLEME_SOLUTION;
-  
-  // Construction des sections d\'informations supplémentaires
-  let additionalInfo = '';
-  
-  if (audience) {
-    additionalInfo += `\n\n🎯 CIBLE CLIENT PRIORITAIRE :\n${audience}\n`;
+  // Contexte simplifié : avatar cible + problème principal
+  let avatarAndProblemInfo = '';
+  if (avatar) {
+    avatarAndProblemInfo += `\n🎯 AVATAR CLIENT CIBLE :\n${avatar}\n`;
   }
-  
-  if (reviews) {
-    additionalInfo += `\n\n⭐ AVIS CLIENTS À INTÉGRER :\n${reviews}\nFormate et optimise ces avis pour les rendre encore plus persuasifs.\n`;
-  }
-  
-  if (socialProof) {
-    additionalInfo += `\n\n🔗 PREUVES SOCIALES / LIENS DE RÉASSURANCE :\n${socialProof}\nUtilise ces éléments pour renforcer la crédibilité.\n`;
-  }
-  
-  if (offer) {
-    additionalInfo += `\n\n🎁 OFFRE PRINCIPALE :\n${offer}\nMets en avant cette offre de manière stratégique dans toute la page.\n`;
-  }
-  
-  if (objections) {
-    additionalInfo += `\n\n🚫 OBJECTIONS À LEVER :\n${objections}\nChaque objection doit être adressée dans la FAQ ou dans les sections de réassurance.\n`;
-  }
-  
-  if (benefits) {
-    additionalInfo += `\n\n✨ POINTS FORTS À METTRE EN AVANT :\n${benefits}\nIntègre ces bénéfices de manière naturelle dans les angles et sections.\n`;
+  if (problem) {
+    avatarAndProblemInfo += `\n💥 PROBLÈME PRINCIPAL À RÉSOUDRE :\n${problem}\n`;
   }
 
   const userPrompt = `Tu es expert e-commerce et copywriting SPÉCIALISTE du marché africain francophone (Cameroun, Côte d'Ivoire, Sénégal, etc.). Tu dois générer une page produit ULTRA PERSUASIVE, optimisée mobile-first, qui capte l'attention en moins de 3 secondes et pousse à l'achat sans friction.
@@ -300,24 +242,16 @@ ${storeCountry ? `- Pays / Marché cible : ${storeCountry}` : ''}
 ${storeCity ? `- Ville principale : ${storeCity}` : ''}
 - Langue : ${language}
 - Ton de communication : ${tone} (urgent, fun, premium, sérieux)
-- Approche marketing : ${marketingApproach}
-- Angle copywriting choisi : ${selectedAngle.nom}
+- Méthode copywriting : ${marketingApproach}
 
 ═══════════════════════════════════════════════
 SOURCE DE CONTENU DU PRODUIT
 ═══════════════════════════════════════════════
 TITRE : ${title || 'Non disponible'}
 DESCRIPTION : ${description || 'Non disponible'}
-${additionalInfo}
+${avatarAndProblemInfo}
 
-═══════════════════════════════════════════════
-ANGLE COPYWRITING PRINCIPAL
-═══════════════════════════════════════════════
-🎯 ${selectedAngle.nom}
-📖 ${selectedAngle.description}
-📋 Structure à suivre : ${selectedAngle.structure}
-
-🎯 OBJECTIF : Créer une page qui capte l'attention immédiatement, donne confiance, et pousse à l'achat sans friction en suivant l'angle copywriting "${selectedAngle.nom}".
+🎯 OBJECTIF : Créer une page qui capte l'attention immédiatement, donne confiance, et pousse à l'achat sans friction en suivant la méthode ${marketingApproach}. TOUTE la page (texte, structure, images) doit être cohérente avec cette méthode.
 
 ═══ ÉTAPE 1 : ANALYSE INTELLIGENTE DU PRODUIT ═══
 Avant de générer quoi que ce soit, réponds mentalement à ces questions :
@@ -506,10 +440,11 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     "⚡ Bénéfice clé 4 avec emoji pertinent"
   ],
   "prompt_hero_poster": "[Generate in English: BOLD ADVERTISING POSTER for THIS SPECIFIC product (describe its exact name, type, color, packaging). Square 1:1 graphic-design meets product photography. The product shown LARGE, dominant, perfectly sharp (min 50% of frame), exact same packaging/color/shape. Premium dark gradient background (deep midnight blue to black, OR deep forest green to charcoal, or deep burgundy — choose what contrasts best with product colors). Dramatic cinematic lighting with product glow. MANDATORY: 1 bold French headline in large modern sans-serif font at top or bottom — CRITICAL: French text MUST be 100% perfectly spelled with all accents. Optional thin accent line or minimal graphic element. NO price, NO phone, NO fake button, NO URL. Mood: aspirational, premium brand launch poster, scroll-stopping. Think Apple product launch. Adapted for African market.]",
+  "prompt_avant_apres": "[Generate in English: Split-screen before/after transformation image SPECIFIC to THIS product. LEFT: the problem this product solves (realistic, relatable). RIGHT: the result after using the product (improvement visible). Authentic African person matching the product gender. Product visible on the AFTER side. Square 1:1, tight crop, realistic transformation. Small 'Avant'/'Après' labels. Match the EXACT body zone of the product.]",
   "angles": [
     {
-      "titre_angle": "Phrase complète de 10-15 mots expliquant concrètement le bénéfice (PAS de titre court, PAS de slogan de 2-3 mots)",
-      "explication": "3-4 phrases concrètes et persuasives. Décris comment ce bénéfice spécifique se manifeste dans la vie réelle. Reste crédible et factuel, sans exagération.",
+      "titre_angle": "Phrase complète de 10-15 mots suivant l'étape de la méthode ${marketingApproach} — explique concrètement le bénéfice",
+      "explication": "3-4 phrases concrètes et persuasives adaptées à l'étape de la méthode ${marketingApproach}. Reste crédible et factuel.",
       "message_principal": "1 phrase d'accroche mémorable spécifique à ce bénéfice",
       "promesse": "La transformation concrète que l'utilisateur va vivre",
       "poster_url": ""

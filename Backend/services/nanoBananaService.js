@@ -33,17 +33,18 @@ const IMAGEN_BASE_URL = GEMINI_BASE_URL;
 export async function generateNanoBananaImage(prompt, aspectRatio = '1:1', numImages = 1) {
   if (!GEMINI_API_KEY) throw new Error('Google Gemini API key not configured');
 
-  // 1ère tentative : Gemini 3 Pro Image (generateContent)
+  // 1ère tentative : Gemini 3 Pro Image (generateContent) — priorité au modèle Pro
   for (const model of GEMINI_IMAGE_MODELS) {
+    const isPro = model.includes('-pro-');
     try {
-      console.log(`🎨 Generating image with ${model}...`);
+      console.log(`🎨 Generating image with ${model}${isPro ? ' (PRO)' : ''}...`);
       const response = await axios.post(
         `${GEMINI_BASE_URL}/${model}:generateContent?key=${GEMINI_API_KEY}`,
         {
           contents: [{ parts: [{ text: prompt.slice(0, 4000) }] }],
           generationConfig: { responseModalities: ['IMAGE', 'TEXT'], temperature: 1.0 }
         },
-        { headers: { 'Content-Type': 'application/json' }, timeout: 60000 }
+        { headers: { 'Content-Type': 'application/json' }, timeout: isPro ? 90000 : 60000 }
       );
       const parts = response.data?.candidates?.[0]?.content?.parts || [];
       const imagePart = parts.find(p => p.inlineData?.mimeType?.startsWith('image/'));
@@ -109,10 +110,11 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
     base64Image = imageInput;
   }
 
-  // Gemini 3 Pro Image supporte image-to-image via inlineData
+  // Gemini 3 Pro Image supporte image-to-image via inlineData — priorité au Pro
   for (const model of GEMINI_IMAGE_MODELS) {
+    const isPro = model.includes('-pro-');
     try {
-      console.log(`🎨 Image-to-image with ${model} (ref: ${imageMimeType}, ${Math.round((base64Image?.length || 0) * 0.75 / 1024)}Ko)...`);
+      console.log(`🎨 Image-to-image with ${model}${isPro ? ' (PRO)' : ''} (ref: ${imageMimeType}, ${Math.round((base64Image?.length || 0) * 0.75 / 1024)}Ko)...`);
       const response = await axios.post(
         `${GEMINI_BASE_URL}/${model}:generateContent?key=${GEMINI_API_KEY}`,
         {
@@ -122,7 +124,7 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
           ]}],
           generationConfig: { responseModalities: ['IMAGE', 'TEXT'], temperature: 1.0 }
         },
-        { headers: { 'Content-Type': 'application/json' }, timeout: 60000 }
+        { headers: { 'Content-Type': 'application/json' }, timeout: isPro ? 90000 : 60000 }
       );
       const parts = response.data?.candidates?.[0]?.content?.parts || [];
       const imagePart = parts.find(p => p.inlineData?.mimeType?.startsWith('image/'));
