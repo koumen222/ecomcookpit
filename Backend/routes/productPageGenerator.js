@@ -54,38 +54,32 @@ Style: commercial Facebook advertising style, bright clean white background, hig
 }
 
 /**
- * 3 testimonial portrait photos — Cameroonian customers holding the product.
- * Names taken from gptResult.testimonials, fallback to Cameroonian defaults.
+ * 4 flash prompts — generic, reusable, no text overlay, no product reference.
+ * cache: true — same image works for any product.
  */
-function buildTestimonialPrompts(gptResult, hasProductRef) {
-  const title = gptResult.title || 'product';
-  const testimonials = gptResult.testimonials || [];
-
-  const CAMEROONIAN_DEFAULTS = [
-    { name: 'Thierry M.', city: 'Douala, Cameroun', gender: 'man' },
-    { name: 'Astride N.', city: 'Yaoundé, Cameroun', gender: 'woman' },
-    { name: 'Rodrigue K.', city: 'Bafoussam, Cameroun', gender: 'man' },
-  ];
-
-  const FEMALE_PATTERN = /astride|christelle|marie|pauline|nathalie|sandrine|fatou|aicha|aminata|bintou|mariama|diane|grace|celine|carole|stephanie/i;
-
-  return [0, 1, 2].map(i => {
-    const t = testimonials[i];
-    const def = CAMEROONIAN_DEFAULTS[i];
-    const name = t?.name || def.name;
-    const city = t?.location || def.city;
-    const isWoman = FEMALE_PATTERN.test(name);
-    const gender = isWoman ? 'African woman' : 'African man';
-
-    const productRef = hasProductRef
-      ? `holding THE EXACT REFERENCE PRODUCT ("${title}") — same packaging, shape, color, label as the reference image`
-      : `holding a product (no visible brand or label)`;
-
-    return {
-      prompt: `Realistic portrait photo of a happy ${gender} from ${city}, ${productRef}. Authentic satisfied smile, genuine warm expression. Simple modern African home background, soft natural daylight. Waist-up shot, person clearly visible. High quality, 4K, commercial lifestyle photography, no text overlay, no watermark, no logo.`,
+function buildFlashPrompts() {
+  return [
+    // 0 — lifestyle (mise en situation)
+    {
+      prompt: 'African person using a product in a natural lifestyle scene, modern African home interior, soft daylight, authentic relaxed moment, no brand visible, no product label, commercial lifestyle photography, high quality, 4K, no text overlay, no watermark',
+      type: 'lifestyle',
+    },
+    // 1 — benefit: beauty / skin
+    {
+      prompt: 'African person with clean glowing radiant skin, natural beauty, soft diffused lighting, close-up face, minimal clean background, fresh confident look, commercial skincare photography style, high quality, 4K, no brand, no text overlay, no watermark',
+      type: 'benefit_beauty',
+    },
+    // 2 — benefit: energy / happiness
+    {
+      prompt: 'Happy African person smiling with full energy and confidence, natural warm light, clean modern African environment, genuine joyful expression, lifestyle photography, commercial advertising style, high quality, 4K, no brand, no text overlay, no watermark',
+      type: 'benefit_energy',
+    },
+    // 3 — testimonial
+    {
+      prompt: 'Happy African customer holding a product with a satisfied smile, clean neutral background, authentic warm expression, waist-up portrait, lifestyle photo, no brand visible, no label, commercial photography, high quality, 4K, no text overlay, no watermark',
       type: 'testimonial',
-    };
-  });
+    },
+  ];
 }
 
 // Plusieurs générations simultanées autorisées — lock supprimé
@@ -353,20 +347,14 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         .then(url => ({ type: 'hero', url }))
     );
 
-    // ── Hero Poster (affiche graphique sombre — gardé en parallèle) ──────────
-    imagePromises.push(
-      generateAndUpload(gptResult.prompt_hero_poster, baseImageBuffer, `hero-poster-${Date.now()}.png`, 'hero_poster')
-        .then(url => ({ type: 'heroPoster', url }))
-    );
-
-    // ── 3 Testimonial photos (total = 2 hero + 3 testimonials = 5 images) ────
-    const testimonialPrompts = buildTestimonialPrompts(gptResult, !!baseImageBuffer);
-    for (let i = 0; i < testimonialPrompts.length; i++) {
-      const tp = testimonialPrompts[i];
+    // ── 4 Flash images — generic, reusable, no text overlay (total = 1 hero + 4 flash = 5) ─
+    const flashPrompts = buildFlashPrompts();
+    for (let i = 0; i < flashPrompts.length; i++) {
+      const flash = flashPrompts[i];
       const angle = gptResult.angles?.[i] || null;
       imagePromises.push(
-        generateAndUpload(tp.prompt, baseImageBuffer, `testimonial-${i + 1}-${Date.now()}.png`, 'scene')
-          .then(url => ({ type: 'poster', index: i, url, angle, flashType: tp.type }))
+        generateAndUpload(flash.prompt, null, `flash-${i + 1}-${Date.now()}.png`, 'scene')
+          .then(url => ({ type: 'poster', index: i, url, angle, flashType: flash.type }))
       );
     }
 
@@ -384,8 +372,6 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     // Extraire les résultats (nulls possibles si timeout)
     let heroImageUrl = imageResults.find(r => r?.type === 'hero')?.url || realPhotos[0] || null;
-    let heroPosterImageUrl = imageResults.find(r => r?.type === 'heroPoster')?.url || null;
-    let beforeAfterImageUrl = imageResults.find(r => r?.type === 'beforeAfter')?.url || null;
 
     const posterImages = imageResults
       .filter(r => r?.type === 'poster')
@@ -398,8 +384,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     console.log('✅ Images générées:', {
       hero: !!heroImageUrl,
-      heroPoster: !!heroPosterImageUrl,
-      testimonials: posterImages.filter(p => p.poster_url).length
+      flash: posterImages.filter(p => p.poster_url).length
     });
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -439,8 +424,6 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       offer_block: gptResult.offer_block || null,
       seo: gptResult.seo || null,
       heroImage: heroImageUrl || realPhotos[0] || null,
-      heroPosterImage: heroPosterImageUrl || null,
-      beforeAfterImage: beforeAfterImageUrl || null,
       angles: posterImages,
       raisons_acheter: gptResult.raisons_acheter || [],
       benefits_bullets: gptResult.benefits_bullets || [],
@@ -454,8 +437,6 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       realPhotos,
       allImages: [
         ...(heroImageUrl ? [heroImageUrl] : []),
-        ...(heroPosterImageUrl ? [heroPosterImageUrl] : []),
-        ...realPhotos,
         ...posterImages.map(p => p.poster_url).filter(Boolean)
       ],
       sourceUrl: cleanUrl,

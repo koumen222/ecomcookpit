@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Star } from 'lucide-react';
  * Carrousel horizontal de témoignages pour pages produits
  * Autoplay + swipe mobile + navigation par boutons
  */
-export default function ProductTestimonials({ testimonials = [] }) {
+export default function ProductTestimonials({ testimonials = [], productImage = null }) {
   const scrollRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
@@ -192,10 +192,18 @@ export default function ProductTestimonials({ testimonials = [] }) {
 
               {/* Avatar + Info — bottom */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                {t.image ? (
+                {(productImage && i < 2) ? (
+                  <img
+                    src={productImage}
+                    alt={t.name}
+                    loading="lazy"
+                    style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #fff', boxShadow: '0 1px 4px rgba(0,0,0,0.12)' }}
+                  />
+                ) : t.image ? (
                   <img
                     src={t.image}
                     alt={t.name}
+                    loading="lazy"
                     style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #fff', boxShadow: '0 1px 4px rgba(0,0,0,0.12)' }}
                   />
                 ) : (

@@ -21,13 +21,29 @@ import { preloadStoreCheckoutRoute, preloadStoreProductRoute } from '../utils/ro
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
 
-const DEFAULT_TESTIMONIALS = [
-  { name: "Aicha M.", location: "Douala", rating: 5, text: "Produit vraiment excellent ! Je n'aurais pas cru que ca marcherait aussi vite. J'ai vu des resultats en moins d'une semaine. Je recommande a 100%.", verified: true, date: "Il y a 3 jours" },
-  { name: "Fatou K.", location: "Abidjan", rating: 5, text: "Avant j'avais essaye plein de produits sans resultats. Depuis que j'utilise celui-ci, la difference est flagrante. Mes amies m'ont toutes demande mon secret !", verified: true, date: "Il y a 5 jours" },
-  { name: "Mariama D.", location: "Dakar", rating: 5, text: "Super qualite, livraison rapide. Le produit depasse mes attentes. Je vais en commander encore pour ma famille.", verified: true, date: "Il y a 1 semaine" },
-  { name: "Aminata B.", location: "Yaounde", rating: 5, text: "J'etais sceptique au depart mais apres 2 semaines d'utilisation je ne peux plus m'en passer. Resultats visibles et durables.", verified: true, date: "Il y a 2 semaines" },
-  { name: "Bintou S.", location: "Lome", rating: 4, text: "Tres bon produit, je suis satisfaite. Paiement a la livraison, c'etait rassurant. Je recommande cette boutique les yeux fermes.", verified: true, date: "Il y a 3 semaines" },
-];
+const COUNTRY_TESTIMONIALS = {
+  Cameroun: [
+    { name: "Thierry M.", location: "Douala", rating: 5, text: "Produit vraiment excellent ! J'ai vu des resultats en moins d'une semaine. Je recommande a 100%.", verified: true, date: "Il y a 3 jours" },
+    { name: "Astride N.", location: "Yaounde", rating: 5, text: "Avant j'avais essaye plein de produits sans resultats. Depuis que j'utilise celui-ci, la difference est flagrante !", verified: true, date: "Il y a 5 jours" },
+    { name: "Rodrigue K.", location: "Bafoussam", rating: 5, text: "Super qualite, livraison rapide. Le produit depasse mes attentes. Je vais en commander encore.", verified: true, date: "Il y a 1 semaine" },
+    { name: "Christelle B.", location: "Douala", rating: 5, text: "J'etais sceptique au depart mais apres 2 semaines je ne peux plus m'en passer. Resultats durables.", verified: true, date: "Il y a 2 semaines" },
+    { name: "Paul E.", location: "Yaounde", rating: 4, text: "Tres bon produit. Paiement a la livraison, c'etait rassurant. Je recommande cette boutique.", verified: true, date: "Il y a 3 semaines" },
+  ],
+  "Cote d'Ivoire": [
+    { name: "Fatou K.", location: "Abidjan", rating: 5, text: "Produit vraiment excellent ! J'ai vu des resultats en moins d'une semaine.", verified: true, date: "Il y a 3 jours" },
+    { name: "Kouame A.", location: "Bouake", rating: 5, text: "La difference est flagrante. Mes amis m'ont tous demande mon secret !", verified: true, date: "Il y a 5 jours" },
+    { name: "Aya D.", location: "Abidjan", rating: 5, text: "Super qualite, livraison rapide. Je vais en commander encore pour ma famille.", verified: true, date: "Il y a 1 semaine" },
+    { name: "Seydou T.", location: "Yamoussoukro", rating: 5, text: "Apres 2 semaines je ne peux plus m'en passer. Resultats visibles et durables.", verified: true, date: "Il y a 2 semaines" },
+    { name: "Marie L.", location: "Abidjan", rating: 4, text: "Tres bon produit. Paiement a la livraison, c'etait rassurant.", verified: true, date: "Il y a 3 semaines" },
+  ],
+};
+COUNTRY_TESTIMONIALS.default = COUNTRY_TESTIMONIALS.Cameroun;
+
+const getDefaultTestimonials = (country) => {
+  if (!country) return COUNTRY_TESTIMONIALS.default;
+  const key = Object.keys(COUNTRY_TESTIMONIALS).find(k => country.toLowerCase().includes(k.toLowerCase()));
+  return COUNTRY_TESTIMONIALS[key] || COUNTRY_TESTIMONIALS.default;
+};
 
 const normalizeMetaText = (value = '') => String(value || '')
   .replace(/<[^>]*>/g, ' ')
@@ -858,18 +874,28 @@ const StoreProductPage = () => {
         @media(max-width:480px){ .sf-nav-link { display:none !important; } }
       `}</style>
 
-      {/* Barre d'annonce */}
+      {/* Barre d'annonce défilante */}
       {store?.announcementEnabled && store?.announcement && (
         <div style={{
           backgroundColor: 'var(--s-primary)',
           color: '#fff',
-          padding: '10px 16px',
-          textAlign: 'center',
+          padding: '10px 0',
+          overflow: 'hidden',
           fontSize: 13,
-          fontWeight: 500,
+          fontWeight: 600,
           fontFamily: 'var(--s-font)',
+          whiteSpace: 'nowrap',
         }}>
-          {store.announcement}
+          <div style={{
+            display: 'inline-block',
+            animation: 'sp-marquee 18s linear infinite',
+          }}>
+            <span>{store.announcement}</span>
+            <span style={{ padding: '0 60px' }}>✦</span>
+            <span>{store.announcement}</span>
+            <span style={{ padding: '0 60px' }}>✦</span>
+          </div>
+          <style>{`@keyframes sp-marquee { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }`}</style>
         </div>
       )}
 
@@ -1088,11 +1114,11 @@ const StoreProductPage = () => {
           ? product._pageData.testimonials
           : product?.testimonials?.length > 0
             ? product.testimonials
-            : DEFAULT_TESTIMONIALS;
-        console.log('[ProductPage] testimonials:', t?.length, t);
+            : getDefaultTestimonials(store?.country);
+        const prodImg = product?._pageData?.heroImage || product?.images?.[0]?.url || product?.images?.[0] || null;
         return (
           <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
-            <ProductTestimonials testimonials={t} />
+            <ProductTestimonials testimonials={t} productImage={prodImg} />
           </div>
         );
       })()}
