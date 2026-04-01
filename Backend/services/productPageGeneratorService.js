@@ -500,13 +500,9 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   "hero_slogan": "Sous-titre orienté TRANSFORMATION + bénéfice émotionnel — Ex: Une vie intime libérée et sereine",
   "hero_baseline": "Phrase de réassurance courte avec résultat rapide — Ex: Résultats visibles en quelques jours",
   "benefits_bullets": [
-    "💐 Bénéfice concret 1 avec emoji pertinent",
-    "💖 Bénéfice concret 2 avec emoji pertinent",
-    "👩‍⚕️ Bénéfice concret 3 avec emoji pertinent",
-    "💧 Bénéfice concret 4 avec emoji pertinent",
-    "🛡️ Bénéfice concret 5 avec emoji pertinent",
-    "⏱️ Bénéfice concret 6 avec emoji pertinent",
-    "✅ Bénéfice concret 7 avec emoji pertinent"
+    "💐 Bénéfice clé 1 avec emoji pertinent",
+    "💖 Bénéfice clé 2 avec emoji pertinent",
+    "✅ Bénéfice clé 3 avec emoji pertinent"
   ],
   "prompt_affiche_hero": "[Generate in English: HIGH-IMPACT ecommerce hero image for THIS SPECIFIC product (describe its exact name, type, color, packaging). Ultra realistic, 4K, advertising photography. The product is the STAR — show it LARGE, sharp, dominant in the frame (minimum 60% of the frame). GENDER RULE: if this is a women's product → authentic Black AFRICAN WOMAN; if men's product → authentic Black AFRICAN MAN; if unisex → choose the most natural fit; if it's an object/tech → product alone as hero, no person required. ZONE RULE: HAIR product → frame on hair/scalp being treated or showing great results — NEVER face-focused; FACE product → face/skin close-up; BODY LOTION → arms/legs/body; SLIMMING → waist/silhouette; TEETH → bright smile. The product packaging MUST be clearly visible and recognizable. Clean premium background (pure white or soft beige). Professional softbox lighting, depth of field. Optional short French benefit badge (3 words max) — CRITICAL: PERFECT French spelling with all accents. No CTA, no price. Scroll-stopping catalog quality.]",
   "prompt_hero_poster": "[Generate in English: BOLD ADVERTISING POSTER for THIS SPECIFIC product (describe its exact name, type, color, packaging). Square 1:1 graphic-design meets product photography. The product shown LARGE, dominant, perfectly sharp (min 50% of frame), exact same packaging/color/shape. Premium dark gradient background (deep midnight blue to black, OR deep forest green to charcoal, or deep burgundy — choose what contrasts best with product colors). Dramatic cinematic lighting with product glow. MANDATORY: 1 bold French headline in large modern sans-serif font at top or bottom — CRITICAL: French text MUST be 100% perfectly spelled with all accents. Optional thin accent line or minimal graphic element. NO price, NO phone, NO fake button, NO URL. Mood: aspirational, premium brand launch poster, scroll-stopping. Think Apple product launch. Adapted for African market.]",
@@ -599,8 +595,8 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   "description_optimisee": ""
 }
 
-⚠️ EXACTEMENT 5 angles, 7 bénéfices avec emojis, 4 raisons, 7 questions FAQ (avec réponses VISIBLES directement), 8 témoignages.
-⚠️ benefits_bullets : 7 bénéfices DIRECTS avec emojis pertinents — texte simple, compréhensible, sans jargon.
+⚠️ EXACTEMENT 5 angles, 3 bénéfices avec emojis, 4 raisons, 7 questions FAQ (avec réponses VISIBLES directement), 8 témoignages.
+⚠️ benefits_bullets : 3 bénéfices DIRECTS avec emojis pertinents — texte simple, compréhensible, sans jargon. Maximum 3, jamais plus.
 ⚠️ problem_section.pain_points : 3 points de douleur CONCRETS et SPÉCIFIQUES à CE produit — jamais génériques.
 ⚠️ solution_section.description : paragraphe persuasif 3-4 phrases, relie chaque douleur à un bénéfice du produit.
 ⚠️ stats_bar : 3 stats crédibles et adaptées au produit (clients, résultats, garantie).

@@ -1042,8 +1042,6 @@ const StoreProductPage = () => {
                   <OfferBlock block={product._pageData.offer_block} />
                 )}
 
-                {/* Messages de confiance */}
-                {showTrustBadges && <TrustBadges compact />}
 
 
                 {(() => {
