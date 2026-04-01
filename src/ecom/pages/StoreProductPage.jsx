@@ -65,9 +65,9 @@ const ImageGallery = ({ images = [] }) => {
 
   const activeSrc = images[active]?.url || images[active];
   const activeRatio = ratios[activeSrc] || 1; // width / height
-  // Padding-bottom fallback pour gérer le ratio sans layout shift violent.
   // Clamp pour éviter des héros trop plats ou trop hauts sur des images extrêmes.
-  const heroPaddingBottomPct = `${Math.max(45, Math.min(130, (1 / activeRatio) * 100))}%`;
+  // On mobile, limit to 85% so CTA remains partly visible
+  const heroPaddingBottomPct = `${Math.max(45, Math.min(100, (1 / activeRatio) * 100))}%`;
 
   return (
     <div>
@@ -87,6 +87,7 @@ const ImageGallery = ({ images = [] }) => {
           loading="eager"
           fetchpriority="high"
           decoding="async"
+          sizes="(max-width: 768px) 100vw, 50vw"
           onLoad={(e) => {
             const img = e.currentTarget;
             const w = img.naturalWidth || 0;
@@ -981,7 +982,7 @@ const StoreProductPage = () => {
                     disabled={!inStock}
                     onMouseEnter={(e) => {
                       if (inStock) {
-                        e.target.style.transform = 'scale(1.05)';
+                        e.target.style.transform = 'scale(1.02)';
                         e.target.style.boxShadow = '0 8px 24px rgba(0,0,0,0.2)';
                       }
                     }}
@@ -992,14 +993,13 @@ const StoreProductPage = () => {
                       }
                     }}
                     style={{
-                      width: '100%', padding: '16px 24px', borderRadius: 14, border: 'none',
+                      width: '100%', padding: '18px 24px', borderRadius: 14, border: 'none',
                       backgroundColor: inStock ? 'var(--s-primary)' : '#d1d5db',
-                      color: '#fff', fontWeight: 700, fontSize: 16, cursor: inStock ? 'pointer' : 'not-allowed',
+                      color: '#fff', fontWeight: 700, fontSize: 17, cursor: inStock ? 'pointer' : 'not-allowed',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
                       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', fontFamily: 'var(--s-font)',
                       boxShadow: inStock ? '0 4px 16px rgba(0,0,0,0.12)' : 'none',
-                      animation: inStock ? 'glow 2s ease-in-out infinite' : 'none',
-                      transform: inStock ? 'scale(1)' : 'scale(0.98)',
+                      minHeight: 56,
                       position: 'relative',
                       overflow: 'hidden'
                     }}
@@ -1093,14 +1093,14 @@ const StoreProductPage = () => {
 
       {/* ── Related Products ───────────────────────────────────────────────── */}
       {showRelatedProducts && related.length > 0 && (
-        <section style={{ maxWidth: 1200, margin: '64px auto 0', padding: '0 24px' }}>
+        <section style={{ maxWidth: 1200, margin: '48px auto 0', padding: '0 16px' }}>
           <h2 style={{
-            fontSize: 'clamp(20px, 3vw, 26px)', fontWeight: 800, color: 'var(--s-text)',
-            margin: '0 0 24px', letterSpacing: '-0.02em', fontFamily: 'var(--s-font)',
+            fontSize: 'clamp(18px, 3vw, 24px)', fontWeight: 800, color: 'var(--s-text)',
+            margin: '0 0 20px', letterSpacing: '-0.02em', fontFamily: 'var(--s-font)',
           }}>
             Vous aimerez aussi
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
             {related.map(p => <RelatedCard key={p._id} product={p} prefix={prefix} store={store} subdomain={store?.subdomain} />)}
           </div>
         </section>

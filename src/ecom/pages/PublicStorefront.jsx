@@ -15,6 +15,7 @@ import { preloadStoreCheckoutRoute, preloadStoreProductRoute } from '../utils/ro
 import { EditModeProvider, useEditMode } from '../contexts/EditModeContext';
 import { EditableWrapper, EditToolbar } from '../components/storefront/EditableWrapper';
 import { useStoreAnalytics } from '../hooks/useStoreAnalytics';
+import { StorefrontFooter as SharedStorefrontFooter } from '../components/StorefrontShared';
 
 // Lazy load des sections below-the-fold pour performance
 const TestimonialsCarousel = lazy(() => import('../components/TestimonialsCarousel'));
@@ -2500,7 +2501,7 @@ export const StoreAllProducts = () => {
           </div>
         )}
       </div>
-      <StorefrontFooter store={store} prefix={prefix} />
+      <SharedStorefrontFooter store={store} prefix={prefix} />
     </div>
   );
 };
@@ -2624,7 +2625,7 @@ const PublicStorefrontInner = () => {
         </>
       )}
 
-      <StorefrontFooter store={store} prefix={prefix} />
+      <SharedStorefrontFooter store={store} prefix={prefix} />
       
       {/* Mobile Bottom Navigation (visible uniquement sur mobile) */}
       <MobileBottomNav prefix={prefix} cartCount={cartCount} store={store} />
