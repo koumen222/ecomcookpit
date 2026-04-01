@@ -17,7 +17,7 @@ router.post('/', async (req, res) => {
 
     // Envoyer l'email à l'administrateur
     await sendEmail({
-      to: process.env.ADMIN_EMAIL || 'admin@ecomcookpit.site',
+      to: process.env.ADMIN_EMAIL || 'admin@scalor.site',
       subject: subject || 'Nouvelle demande de contact',
       template: 'contact-request',
       data: {
