@@ -25,83 +25,67 @@ const router = express.Router();
 // ─── Image prompt builders ────────────────────────────────────────────────────
 
 /**
- * Hero PRO — African Facebook-ads layout:
- * LEFT: product  |  RIGHT: person with problem  |  TOP: headline  |  RED CTA badge
+ * Hero PRO — African Facebook-ads layout matching the reference style:
+ * TOP: bold headline (keyword in red) | LEFT: product large | RIGHT: person showing problem
+ * LEFT overlay: red CTA badge + curved arrow pointing to product
  */
 function buildHeroPrompt(gptResult, hasProductRef) {
   const productName = gptResult.title || 'product';
   const targetPerson = gptResult.hero_target_person || 'authentic Black African person';
   const hookText = (gptResult.hero_headline || '').toUpperCase();
-  const ctaText = (gptResult.hero_cta || 'Je commande maintenant').toUpperCase();
+  const ctaText = (gptResult.hero_cta || 'ÇA COMMENCE ICI').toUpperCase();
 
   const productBlock = hasProductRef
-    ? `THE EXACT product from the reference image (same packaging, shape, color, label) on the LEFT side — large, well lit, studio lighting, soft shadows, ultra realistic, professional look`
-    : `premium product packaging of "${productName}" on the LEFT side — clean, well lit, studio lighting, soft shadows, ultra realistic, professional look`;
+    ? `THE EXACT product from the reference image (same packaging, shape, color, label) — placed large on the LEFT half of the frame, clean studio lighting, sharp focus, ultra realistic`
+    : `premium product packaging of "${productName}" — placed large on the LEFT half of the frame, clean studio lighting, sharp focus, ultra realistic`;
 
-  return `Create a high-converting e-commerce hero banner image in African Facebook ads style. Square 1:1.
+  return `Square 1:1 high-converting Facebook ads product image. White or very light gray background.
 
-Scene layout:
-- LEFT SIDE: ${productBlock}
-- RIGHT SIDE: Realistic ${targetPerson} showing the main problem (emotional facial expression, natural posture, authentic Black African person with dark brown skin)
-${hookText ? `
-Top area: BIG BOLD WHITE TEXT on semi-transparent dark overlay: "${hookText}"` : ''}
-${ctaText ? `
-Add a bold red badge / CTA button at bottom: "${ctaText}"` : ''}
+MANDATORY EXACT LAYOUT:
+1. TOP SECTION (20% of frame): Large bold black headline text centered: "${hookText}". The KEY transformation word or last phrase is in bold RED color. Text is perfectly readable, no distortion.
+2. MAIN SCENE (bottom 80% of frame):
+   - LEFT HALF: ${productBlock}. The product stands tall and dominant, occupying the full left side.
+   - RIGHT HALF: Realistic ${targetPerson}. Authentic Black African person, dark brown skin, natural hair, standing in a simple modern African home interior. Looking down at or holding the problem area (e.g. belly, skin, hair) with a concerned/frustrated expression.
+3. LEFT SIDE OVERLAY (on top of product area): A bold red rounded-rectangle badge with white bold text: "${ctaText}". Directly below the badge: a thick curved red arrow pointing DOWN toward the product.
 
-Visual style:
-- African environment (modern home or natural setting)
-- Very realistic Black African model, authentic African features, dark brown skin, natural hair
-- High contrast and eye-catching composition
-- Strong marketing composition: headline text top → person right → product left
-- Commercial Facebook advertising style
-- Sharp, 4K quality, dramatic lighting, persuasive marketing composition
-- Professional ad layout
+Text rules: ALL French text must have PERFECT spelling with every accent (é, è, à, ê, û, ç etc). Zero spelling errors.
 
-Important:
-- Text must be readable and clean, perfect spelling with all accents, no distorted text
-- Product must look premium and clearly recognizable
-- Strong emotional impact, scroll-stopping quality
-- No watermark, no URL, no price`;
+Style: commercial Facebook advertising style, bright clean white background, high contrast, 4K quality, professional ad photography, scroll-stopping, no watermark, no price, no URL.`;
 }
 
 /**
- * 5 flash prompts — no text overlay, reusable across products.
- * WITH product ref: reference product stays visible.
- * WITHOUT: pure lifestyle / emotion scenes.
+ * 3 testimonial portrait photos — Cameroonian customers holding the product.
+ * Names taken from gptResult.testimonials, fallback to Cameroonian defaults.
  */
-function buildFlashPrompts(gptResult, hasProductRef) {
+function buildTestimonialPrompts(gptResult, hasProductRef) {
   const title = gptResult.title || 'product';
-  const productNote = hasProductRef
-    ? `THE EXACT REFERENCE PRODUCT ("${title}") must be clearly visible — same packaging, shape, color, label.`
-    : `No product visible. Pure lifestyle / emotion scene only.`;
+  const testimonials = gptResult.testimonials || [];
 
-  return [
-    // 0 — lifestyle (mise en situation)
-    {
-      prompt: `African person using a product in a natural lifestyle scene, modern African home, soft daylight, authentic moment, ${hasProductRef ? `holding or applying THE EXACT REFERENCE PRODUCT — ${productNote}` : 'no brand visible, no product'}, commercial lifestyle photography, high quality, 4K, no text overlay`,
-      type: 'lifestyle',
-    },
-    // 1 — benefit: beauty / skin
-    {
-      prompt: `African person with clean glowing skin, natural beauty, soft lighting, close-up face, minimal background, fresh radiant look, commercial skincare photography, high quality, 4K, ${hasProductRef ? `THE EXACT REFERENCE PRODUCT subtly visible in frame — ${productNote}` : 'no brand, no product visible'}, no text overlay`,
-      type: 'benefit_beauty',
-    },
-    // 2 — benefit: fitness / body
-    {
-      prompt: `African person with fit healthy body, confident posture, natural lighting, minimal background, realistic physique, commercial fitness photography, high quality, 4K, ${hasProductRef ? `THE EXACT REFERENCE PRODUCT visible in scene — ${productNote}` : 'no brand, no product visible'}, no text overlay`,
-      type: 'benefit_fitness',
-    },
-    // 3 — benefit: energy / happiness
-    {
-      prompt: `Happy African person smiling, full of energy, natural light, clean modern African environment, lifestyle photography, commercial advertising style, high quality, 4K, ${hasProductRef ? `THE EXACT REFERENCE PRODUCT visible — ${productNote}` : 'no brand, no product visible'}, no text overlay`,
-      type: 'benefit_energy',
-    },
-    // 4 — testimonial
-    {
-      prompt: `Happy African customer smiling, ${hasProductRef ? `holding THE EXACT REFERENCE PRODUCT — ${productNote}` : 'holding a generic product, clean background, no brand'}, authentic satisfied expression, warm lifestyle photo, high quality, 4K, no text overlay`,
-      type: 'testimonial',
-    },
+  const CAMEROONIAN_DEFAULTS = [
+    { name: 'Thierry M.', city: 'Douala, Cameroun', gender: 'man' },
+    { name: 'Astride N.', city: 'Yaoundé, Cameroun', gender: 'woman' },
+    { name: 'Rodrigue K.', city: 'Bafoussam, Cameroun', gender: 'man' },
   ];
+
+  const FEMALE_PATTERN = /astride|christelle|marie|pauline|nathalie|sandrine|fatou|aicha|aminata|bintou|mariama|diane|grace|celine|carole|stephanie/i;
+
+  return [0, 1, 2].map(i => {
+    const t = testimonials[i];
+    const def = CAMEROONIAN_DEFAULTS[i];
+    const name = t?.name || def.name;
+    const city = t?.location || def.city;
+    const isWoman = FEMALE_PATTERN.test(name);
+    const gender = isWoman ? 'African woman' : 'African man';
+
+    const productRef = hasProductRef
+      ? `holding THE EXACT REFERENCE PRODUCT ("${title}") — same packaging, shape, color, label as the reference image`
+      : `holding a product (no visible brand or label)`;
+
+    return {
+      prompt: `Realistic portrait photo of a happy ${gender} from ${city}, ${productRef}. Authentic satisfied smile, genuine warm expression. Simple modern African home background, soft natural daylight. Waist-up shot, person clearly visible. High quality, 4K, commercial lifestyle photography, no text overlay, no watermark, no logo.`,
+      type: 'testimonial',
+    };
+  });
 }
 
 // Plusieurs générations simultanées autorisées — lock supprimé
@@ -375,20 +359,14 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         .then(url => ({ type: 'heroPoster', url }))
     );
 
-    // ── Avant/Après — baseImageBuffer pour garder le VRAI produit ────────────
-    imagePromises.push(
-      generateAndUpload(gptResult.prompt_avant_apres, baseImageBuffer, `before-after-${Date.now()}.png`, 'before_after')
-        .then(url => ({ type: 'beforeAfter', url }))
-    );
-
-    // ── 5 Flash images — lifestyle / benefit / testimonial (no text overlay) ─
-    const flashPrompts = buildFlashPrompts(gptResult, !!baseImageBuffer);
-    for (let i = 0; i < flashPrompts.length; i++) {
-      const flash = flashPrompts[i];
+    // ── 3 Testimonial photos (total = 2 hero + 3 testimonials = 5 images) ────
+    const testimonialPrompts = buildTestimonialPrompts(gptResult, !!baseImageBuffer);
+    for (let i = 0; i < testimonialPrompts.length; i++) {
+      const tp = testimonialPrompts[i];
       const angle = gptResult.angles?.[i] || null;
       imagePromises.push(
-        generateAndUpload(flash.prompt, baseImageBuffer, `poster-${i + 1}-${Date.now()}.png`, 'scene')
-          .then(url => ({ type: 'poster', index: i, url, angle, flashType: flash.type }))
+        generateAndUpload(tp.prompt, baseImageBuffer, `testimonial-${i + 1}-${Date.now()}.png`, 'scene')
+          .then(url => ({ type: 'poster', index: i, url, angle, flashType: tp.type }))
       );
     }
 
@@ -421,8 +399,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     console.log('✅ Images générées:', {
       hero: !!heroImageUrl,
       heroPoster: !!heroPosterImageUrl,
-      beforeAfter: !!beforeAfterImageUrl,
-      posters: posterImages.filter(p => p.poster_url).length
+      testimonials: posterImages.filter(p => p.poster_url).length
     });
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -478,7 +455,6 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       allImages: [
         ...(heroImageUrl ? [heroImageUrl] : []),
         ...(heroPosterImageUrl ? [heroPosterImageUrl] : []),
-        ...(beforeAfterImageUrl ? [beforeAfterImageUrl] : []),
         ...realPhotos,
         ...posterImages.map(p => p.poster_url).filter(Boolean)
       ],
