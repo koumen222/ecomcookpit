@@ -350,6 +350,42 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       }
     }
 
+    // Si aucune image uploadée mais URL fournie → extraire og:image de la page produit
+    if (!baseImageBuffer && cleanUrl) {
+      try {
+        console.log('🔍 Aucune image uploadée — extraction og:image depuis', cleanUrl);
+        const pageResp = await axios.get(cleanUrl, {
+          timeout: 12000,
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EcomBot/1.0)' },
+          maxRedirects: 5,
+          responseType: 'text',
+        });
+        const html = typeof pageResp.data === 'string' ? pageResp.data : '';
+        // Try og:image, then twitter:image, then first large <img>
+        const ogMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+          || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
+          || html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
+        const imgUrl = ogMatch?.[1];
+        if (imgUrl) {
+          const imgResp = await axios.get(imgUrl, {
+            responseType: 'arraybuffer',
+            timeout: 10000,
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EcomBot/1.0)' },
+            maxRedirects: 3,
+          });
+          baseImageBuffer = await sharp(Buffer.from(imgResp.data))
+            .resize(768, 768, { fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 88 })
+            .toBuffer();
+          console.log(`✅ og:image téléchargée et normalisée: ${Math.round(baseImageBuffer.length / 1024)}Ko`);
+        } else {
+          console.warn('⚠️ Aucun og:image trouvé sur la page');
+        }
+      } catch (ogErr) {
+        console.warn('⚠️ Extraction og:image échouée:', ogErr.message);
+      }
+    }
+
     // ── Hero PRO — African FB-ads template (LEFT: product | RIGHT: person + problem) ──
     imagePromises.push(
       generateAndUpload(buildHeroPrompt(gptResult, !!baseImageBuffer), baseImageBuffer, `hero-${Date.now()}.png`, 'hero')
