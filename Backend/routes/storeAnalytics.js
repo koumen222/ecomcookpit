@@ -34,7 +34,7 @@ router.post('/track', async (req, res) => {
 
     // Récupérer le workspaceId depuis le subdomain
     const Workspace = (await import('../models/Workspace.js')).default;
-    const workspace = await Workspace.findOne({ storeSubdomain: subdomain }).lean();
+    const workspace = await Workspace.findOne({ subdomain }).lean();
     
     if (!workspace) {
       return res.status(404).json({ error: 'Boutique introuvable' });
