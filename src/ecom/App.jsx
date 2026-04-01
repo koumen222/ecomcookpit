@@ -446,11 +446,16 @@ const PageViewTracker = () => {
  * Only loads public store routes. No SaaS dashboard, no auth required.
  */
 const StoreApp = () => {
-  const { subdomain } = useSubdomain();
+  const { subdomain, loading } = useSubdomain();
 
   React.useEffect(() => {
     preloadStoreRoutesOnIdle();
   }, []);
+
+  // Show loader while resolving custom domain
+  if (loading) {
+    return <PageLoader storeMode />;
+  }
 
   return (
     <ThemeProvider subdomain={subdomain}>
@@ -474,7 +479,11 @@ const StoreApp = () => {
 // ═══════════════════════════════════════════════════════════════
 
 const EcomApp = () => {
-  const { isStoreDomain } = useSubdomain();
+  const { isStoreDomain, loading } = useSubdomain();
+
+  if (loading) {
+    return <PageLoader storeMode />;
+  }
 
   if (isStoreDomain) {
     return <StoreApp />;
