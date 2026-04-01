@@ -18,57 +18,18 @@ const ProductGeneratorModal = ({ isOpen, onClose, workspaceId, onSuccess }) => {
     description: '',
     images: [],
     
-    // Étape 2: Paramètres copywriting avancés
-    marketingApproach: 'AIDA',
-    copywritingAngle: 'PROBLEME_SOLUTION',
+    // Étape 2: Paramètres copywriting simplifiés
+    marketingApproach: 'PAS',
     language: 'français',
     tone: 'urgence',
-    targetAudience: '',
-    customerReviews: '',
-    socialProofLinks: '',
-    mainOffer: '',
-    objections: '',
-    keyBenefits: ''
+    targetAvatar: '',
+    mainProblem: ''
   });
 
   const marketingApproaches = [
-    { value: 'AIDA', label: 'AIDA', description: 'Attention → Intérêt → Désir → Action' },
     { value: 'PAS', label: 'PAS', description: 'Problème → Agitation → Solution' },
-    { value: 'BAB', label: 'BAB', description: 'Before → After → Bridge' },
-    { value: 'FAB', label: 'FAB', description: 'Features → Advantages → Benefits' }
-  ];
-
-  const copywritingAngles = [
-    { 
-      value: 'PROBLEME_SOLUTION', 
-      label: 'Problème → Solution',
-      description: 'Empathie + résolution',
-      icon: '🎯'
-    },
-    { 
-      value: 'PREUVE_SOCIALE', 
-      label: 'Preuve sociale',
-      description: 'Résultats, avis, viral',
-      icon: '⭐'
-    },
-    { 
-      value: 'URGENCE', 
-      label: 'Urgence / Rareté',
-      description: 'Stock limité, offre temporaire',
-      icon: '⚡'
-    },
-    { 
-      value: 'TRANSFORMATION', 
-      label: 'Transformation',
-      description: 'Avant/après, lifestyle',
-      icon: '✨'
-    },
-    { 
-      value: 'AUTORITE', 
-      label: 'Autorité',
-      description: 'Expertise, certifications',
-      icon: '🏆'
-    }
+    { value: 'AIDA', label: 'AIDA', description: 'Attention → Intérêt → Désir → Action' },
+    { value: 'BAB', label: 'BAB', description: 'Before → After → Bridge' }
   ];
 
   const tones = [
@@ -104,33 +65,17 @@ const ProductGeneratorModal = ({ isOpen, onClose, workspaceId, onSuccess }) => {
         formDataToSend.append('images', image);
       });
 
-      // Approche marketing
+      // Approche marketing simplifiée
       formDataToSend.append('marketingApproach', formData.marketingApproach);
-      formDataToSend.append('copywritingAngle', formData.copywritingAngle);
-
-      // Copywriting avancé
       formDataToSend.append('language', formData.language);
       formDataToSend.append('tone', formData.tone);
-      
-      if (formData.targetAudience) {
-        formDataToSend.append('targetAudience', formData.targetAudience);
-      }
-      if (formData.customerReviews) {
-        formDataToSend.append('customerReviews', formData.customerReviews);
-      }
-      if (formData.socialProofLinks) {
-        formDataToSend.append('socialProofLinks', formData.socialProofLinks);
-      }
-      if (formData.mainOffer) {
-        formDataToSend.append('mainOffer', formData.mainOffer);
-      }
-      if (formData.objections) {
-        formDataToSend.append('objections', formData.objections);
-      }
-      if (formData.keyBenefits) {
-        formDataToSend.append('keyBenefits', formData.keyBenefits);
-      }
 
+      if (formData.targetAvatar) {
+        formDataToSend.append('targetAvatar', formData.targetAvatar);
+      }
+      if (formData.mainProblem) {
+        formDataToSend.append('mainProblem', formData.mainProblem);
+      }
       const response = await fetch('/api/ai/product-generator', {
         method: 'POST',
         headers: {
@@ -333,36 +278,10 @@ const ProductGeneratorModal = ({ isOpen, onClose, workspaceId, onSuccess }) => {
                 </div>
               </div>
 
-              {/* Copywriting Angle */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-3">
-                  Angle copywriting principal ✨
-                </label>
-                <div className="grid grid-cols-1 gap-2">
-                  {copywritingAngles.map(angle => (
-                    <button
-                      key={angle.value}
-                      onClick={() => setFormData(prev => ({ ...prev, copywritingAngle: angle.value }))}
-                      className={`p-3 rounded-lg border-2 text-left transition flex items-center gap-3 ${
-                        formData.copywritingAngle === angle.value
-                          ? 'border-purple-500 bg-purple-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <span className="text-2xl">{angle.icon}</span>
-                      <div className="flex-1">
-                        <div className="font-semibold text-sm">{angle.label}</div>
-                        <div className="text-xs text-gray-500">{angle.description}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* Tone */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-3">
-                  Ton de communication 🎨
+                  Ton de communication
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   {tones.map(t => (
@@ -385,85 +304,29 @@ const ProductGeneratorModal = ({ isOpen, onClose, workspaceId, onSuccess }) => {
                 </div>
               </div>
 
-              {/* Target Audience */}
+              {/* Avatar cible */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  🎯 Cible client (optionnel mais recommandé)
+                  Avatar client cible (optionnel)
                 </label>
                 <textarea
-                  value={formData.targetAudience}
-                  onChange={(e) => setFormData(prev => ({ ...prev, targetAudience: e.target.value }))}
-                  placeholder="Ex: Femmes 28-45 ans, mamans actives qui manquent de temps, sensibles au naturel, zone urbaine..."
-                  rows={3}
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-sm"
-                />
-              </div>
-
-              {/* Main Offer */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  🎁 Offre principale (optionnel)
-                </label>
-                <input
-                  type="text"
-                  value={formData.mainOffer}
-                  onChange={(e) => setFormData(prev => ({ ...prev, mainOffer: e.target.value }))}
-                  placeholder="Ex: -40% aujourd'hui seulement + Livraison gratuite sous 48h"
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
-                />
-              </div>
-
-              {/* Key Benefits */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ✨ Points forts à mettre en avant (optionnel)
-                </label>
-                <textarea
-                  value={formData.keyBenefits}
-                  onChange={(e) => setFormData(prev => ({ ...prev, keyBenefits: e.target.value }))}
-                  placeholder="Ex: Sans BPA, Certifié CE, Garantie 2 ans, Support 7j/7, Adapté peaux noires"
+                  value={formData.targetAvatar}
+                  onChange={(e) => setFormData(prev => ({ ...prev, targetAvatar: e.target.value }))}
+                  placeholder="Ex: Femme 28-45 ans, maman active, zone urbaine, sensible au naturel..."
                   rows={2}
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-sm"
                 />
               </div>
 
-              {/* Objections */}
+              {/* Probleme principal */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  🚫 Objections courantes (optionnel)
+                  Probleme principal (optionnel)
                 </label>
                 <textarea
-                  value={formData.objections}
-                  onChange={(e) => setFormData(prev => ({ ...prev, objections: e.target.value }))}
-                  placeholder="Ex: Ça va tenir dans le temps ? Est-ce que ça fonctionne vraiment ? Et si ça ne me convient pas ?"
-                  rows={3}
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-sm"
-                />
-              </div>
-
-              {/* Customer Reviews */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ⭐ Avis clients à intégrer (optionnel)
-                </label>
-                <textarea
-                  value={formData.customerReviews}
-                  onChange={(e) => setFormData(prev => ({ ...prev, customerReviews: e.target.value }))}
-                  placeholder="Collez ici les avis bruts, l'IA les reformatera et optimisera..."
-                  rows={3}
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-sm"
-                />
-              </div>
-
-              {/* Social Proof Links */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  🔗 Preuves sociales / Liens (optionnel)
-                </label>
-                <textarea
-                  value={formData.socialProofLinks}
-                  onChange={(e) => setFormData(prev => ({ ...prev, socialProofLinks: e.target.value }))}
-                  placeholder="Ex: TikTok viral: https://tiktok.com/..., Article de presse, Page Instagram"
+                  value={formData.mainProblem}
+                  onChange={(e) => setFormData(prev => ({ ...prev, mainProblem: e.target.value }))}
+                  placeholder="Ex: Peau terne avec des taches, perte de confiance en soi..."
                   rows={2}
                   className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-sm"
                 />

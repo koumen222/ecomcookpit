@@ -54,41 +54,94 @@ Style: commercial Facebook advertising style, bright clean white background, hig
 }
 
 /**
- * 4 flash prompts — product-specific, no text overlay.
+ * 4 flash prompts — adaptés à la MÉTHODE copywriting + au PRODUIT RÉEL.
+ * Les scènes illustrent les étapes de la méthode (PAS, AIDA, BAB).
  * WITH product ref: reference product stays visible in every scene.
  * WITHOUT: pure lifestyle / emotion scenes, no brand.
  */
-function buildFlashPrompts(gptResult, hasProductRef) {
+function buildFlashPrompts(gptResult, hasProductRef, method = 'PAS') {
   const title = gptResult.title || 'product';
+  const targetPerson = gptResult.hero_target_person || 'authentic African person';
   const productNote = hasProductRef
     ? `THE EXACT REFERENCE PRODUCT ("${title}") must be clearly visible — same packaging, shape, color, label.`
     : '';
   const productTag = hasProductRef
     ? `holding or near THE EXACT REFERENCE PRODUCT — ${productNote}`
-    : 'no brand visible, no product label';
+    : 'the product category context visible, no brand label';
 
-  return [
-    // 0 — lifestyle (mise en situation)
-    {
-      prompt: `African person using a product in a natural lifestyle scene, modern African home interior, soft daylight, authentic relaxed moment, ${productTag}, commercial lifestyle photography, high quality, 4K, no text overlay, no watermark`,
-      type: 'lifestyle',
-    },
-    // 1 — benefit: beauty / skin
-    {
-      prompt: `African person with clean glowing radiant skin, natural beauty, soft diffused lighting, close-up face, minimal clean background, fresh confident look, ${hasProductRef ? `THE EXACT REFERENCE PRODUCT subtly visible in frame — ${productNote}` : 'no brand, no product visible'}, commercial skincare photography style, high quality, 4K, no text overlay, no watermark`,
-      type: 'benefit_beauty',
-    },
-    // 2 — benefit: energy / happiness
-    {
-      prompt: `Happy African person smiling with full energy and confidence, natural warm light, clean modern African environment, genuine joyful expression, ${productTag}, lifestyle photography, commercial advertising style, high quality, 4K, no text overlay, no watermark`,
-      type: 'benefit_energy',
-    },
-    // 3 — testimonial
-    {
-      prompt: `Happy African customer ${hasProductRef ? `holding THE EXACT REFERENCE PRODUCT — ${productNote}` : 'holding a product, clean background, no brand'}, satisfied smile, authentic warm expression, waist-up portrait, lifestyle photo, commercial photography, high quality, 4K, no text overlay, no watermark`,
-      type: 'testimonial',
-    },
-  ];
+  const baseStyle = 'commercial advertising photography, ultra realistic, 4K quality, sharp focus, no watermark, no text overlay, square 1:1';
+
+  // Prompts adaptés à chaque méthode copywriting
+  const methodPrompts = {
+    PAS: [
+      // P — Problème : la personne vit le problème
+      {
+        prompt: `${targetPerson} clearly showing frustration or discomfort from the problem this product solves. Realistic everyday situation, natural African home or work environment, visible struggle or concern on face. The problem area is clearly shown. ${baseStyle}`,
+        type: 'problem',
+      },
+      // A — Agitation : les conséquences de ne rien faire
+      {
+        prompt: `${targetPerson} dealing with the worsened consequences of not solving the problem. Stressed, uncomfortable, or embarrassed expression. Realistic scene showing the negative impact on daily life. Close-up on the affected area. ${baseStyle}`,
+        type: 'agitation',
+      },
+      // S — Solution : le produit résout tout
+      {
+        prompt: `${targetPerson} happily using or holding the product with visible relief and satisfaction. ${productTag}. Clean bright environment, confident smile, the product is the clear solution. Natural warm lighting, modern African setting. ${baseStyle}`,
+        type: 'solution',
+      },
+      // Résultat : transformation visible
+      {
+        prompt: `${targetPerson} showing the positive result after using the product. Radiant, confident, satisfied. The improvement is clearly visible on the relevant body area. ${productTag}. Bright optimistic lighting, premium feel. ${baseStyle}`,
+        type: 'result',
+      },
+    ],
+    AIDA: [
+      // A — Attention : image accrocheuse
+      {
+        prompt: `Eye-catching scroll-stopping image: ${targetPerson} in a dramatic or surprising moment related to this product category. Bold composition, high contrast, vivid colors. ${productTag}. ${baseStyle}`,
+        type: 'attention',
+      },
+      // I — Intérêt : détail fascinant
+      {
+        prompt: `Close-up detail shot showing the unique quality or texture of the product being used by ${targetPerson}. Macro-style detail, fascinating texture, premium materials visible. ${productTag}. Soft studio lighting. ${baseStyle}`,
+        type: 'interest',
+      },
+      // D — Désir : transformation émotionnelle
+      {
+        prompt: `${targetPerson} experiencing the emotional transformation from using this product. Pure joy, confidence, or pride visible on face. Aspirational lifestyle scene, warm golden lighting, modern African setting. ${productTag}. ${baseStyle}`,
+        type: 'desire',
+      },
+      // A — Action : social proof / facilité
+      {
+        prompt: `${targetPerson} confidently recommending or showcasing the product to others. Group scene or testimonial-style portrait, authentic warm expressions, trust and satisfaction. ${productTag}. Natural community setting. ${baseStyle}`,
+        type: 'action',
+      },
+    ],
+    BAB: [
+      // B — Before : vie avant le produit
+      {
+        prompt: `${targetPerson} in their daily life BEFORE discovering this product. Visible frustration, discomfort, or dissatisfaction with current situation. Muted colors, dull lighting, realistic everyday African setting. ${baseStyle}`,
+        type: 'before',
+      },
+      // A — After : vie après le produit
+      {
+        prompt: `${targetPerson} enjoying life AFTER using this product. Radiant, happy, transformed. Bright warm colors, golden hour lighting, premium feel. The improvement is clearly visible. ${productTag}. Modern African setting. ${baseStyle}`,
+        type: 'after',
+      },
+      // B — Bridge : le produit fait le pont
+      {
+        prompt: `${targetPerson} actively using or applying the product — the bridge between the old and new life. Clear product interaction, focused expression turning to smile. ${productTag}. Clean bright environment. ${baseStyle}`,
+        type: 'bridge',
+      },
+      // Confiance : crédibilité
+      {
+        prompt: `Premium product showcase: the product displayed beautifully in a clean, trustworthy setting. ${productTag}. Professional product photography, premium packaging visible, quality feel, soft studio lighting, elegant composition. ${baseStyle}`,
+        type: 'trust',
+      },
+    ],
+  };
+
+  return methodPrompts[method] || methodPrompts.PAS;
 }
 
 // Plusieurs générations simultanées autorisées — lock supprimé
@@ -105,34 +158,25 @@ const upload = multer({
 router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), upload.array('images', 8), async (req, res) => {
   const userId = req.user?.id || req.user?._id || 'anonymous';
 
-  const { 
-    url, 
-    description: userDescription, 
-    skipScraping, 
+  const {
+    url,
+    description: userDescription,
+    skipScraping,
     marketingApproach,
-    // Nouveaux paramètres copywriting avancés
-    copywritingAngle,
-    targetAudience,
-    customerReviews,
-    socialProofLinks,
-    mainOffer,
-    objections,
-    keyBenefits,
+    // Paramètres copywriting simplifiés
+    targetAvatar,
+    mainProblem,
     tone,
     language
   } = req.body || {};
   const imageFiles = req.files || [];
-  const approach = marketingApproach || 'AIDA'; // Default to AIDA if not specified
-  
-  // Préparer le contexte copywriting avancé
+  const approach = marketingApproach || 'PAS'; // Default to PAS
+
+  // Contexte copywriting simplifié : méthode + avatar + problème
   const copywritingContext = {
-    angle: copywritingAngle || 'PROBLEME_SOLUTION',
-    audience: targetAudience || '',
-    reviews: customerReviews || '',
-    socialProof: socialProofLinks || '',
-    offer: mainOffer || '',
-    objections: objections || '',
-    benefits: keyBenefits || '',
+    method: approach,
+    avatar: targetAvatar || '',
+    problem: mainProblem || '',
     tone: tone || 'urgence',
     language: language || 'français'
   };
@@ -392,14 +436,51 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         .then(url => ({ type: 'hero', url }))
     );
 
-    // ── 4 Flash images — product-specific, no text overlay (total = 1 hero + 4 flash = 5) ─
-    const flashPrompts = buildFlashPrompts(gptResult, !!baseImageBuffer);
+    // ── Avant/Après — deuxième image forte, transformation réaliste ──
+    const beforeAfterPrompt = gptResult.prompt_avant_apres || null;
+    if (beforeAfterPrompt) {
+      imagePromises.push(
+        generateAndUpload(beforeAfterPrompt, baseImageBuffer, `before-after-${Date.now()}.png`, 'before_after')
+          .then(url => ({ type: 'before_after', url }))
+      );
+    }
+
+    // ── 4 Flash images — adaptés à la méthode copywriting (total = 1 hero + 1 avant/après + 4 flash) ─
+    const flashPrompts = buildFlashPrompts(gptResult, !!baseImageBuffer, approach);
     for (let i = 0; i < flashPrompts.length; i++) {
       const flash = flashPrompts[i];
       const angle = gptResult.angles?.[i] || null;
       imagePromises.push(
         generateAndUpload(flash.prompt, baseImageBuffer, `flash-${i + 1}-${Date.now()}.png`, 'scene')
           .then(url => ({ type: 'poster', index: i, url, angle, flashType: flash.type }))
+      );
+    }
+
+    // ── Testimonial avatars — generate portrait images for each testimonial ─
+    const testimonials = gptResult.testimonials || [];
+    for (let i = 0; i < testimonials.length; i++) {
+      const t = testimonials[i];
+      const avatarPrompt = t.image_prompt || `realistic portrait photo of african person, natural smile, casual setting, warm lighting, headshot, clean background`;
+      imagePromises.push(
+        (async () => {
+          try {
+            const { generateNanoBananaImage } = await import('../services/nanoBananaService.js');
+            const dataUrl = await generateNanoBananaImage(avatarPrompt, '1:1', 1);
+            if (!dataUrl) return { type: 'avatar', index: i, url: null };
+            let buf = dataUrl.startsWith('data:')
+              ? Buffer.from(dataUrl.split(',')[1], 'base64')
+              : Buffer.from((await axios.get(dataUrl, { responseType: 'arraybuffer', timeout: 15000 })).data);
+            buf = await sharp(buf).resize(256, 256, { fit: 'cover' }).jpeg({ quality: 85 }).toBuffer();
+            const url = await uploadImage(buf, `avatar-${i}-${Date.now()}.jpg`, {
+              workspaceId: req.workspaceId,
+              uploadedBy: userId,
+            });
+            return { type: 'avatar', index: i, url };
+          } catch (err) {
+            console.warn(`⚠️ Avatar ${i} generation failed:`, err.message);
+            return { type: 'avatar', index: i, url: null };
+          }
+        })()
       );
     }
 
@@ -417,6 +498,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     // Extraire les résultats (nulls possibles si timeout)
     let heroImageUrl = imageResults.find(r => r?.type === 'hero')?.url || null;
+    let beforeAfterUrl = imageResults.find(r => r?.type === 'before_after')?.url || null;
 
     const posterImages = imageResults
       .filter(r => r?.type === 'poster')
@@ -424,13 +506,24 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       .map(r => ({
         ...r?.angle,
         poster_url: r?.url || null,
-        index: (r?.index ?? 0) + 1
+        index: (r?.index ?? 0) + 1,
+        flashType: r?.flashType || null
       }));
 
     console.log('✅ Images générées:', {
       hero: !!heroImageUrl,
+      beforeAfter: !!beforeAfterUrl,
       flash: posterImages.filter(p => p.poster_url).length
     });
+
+    // Inject avatar URLs into testimonials
+    const avatarResults = imageResults.filter(r => r?.type === 'avatar');
+    const finalTestimonials = (gptResult.testimonials || []).map((t, i) => {
+      const avatar = avatarResults.find(a => a?.index === i);
+      return { ...t, image: avatar?.url || t.image || '' };
+    });
+    console.log(`✅ Avatars témoignages: ${avatarResults.filter(a => a?.url).length}/${finalTestimonials.length}`);
+
 
     // ══════════════════════════════════════════════════════════════════════════
     // ÉTAPE 5 : Assembler la description avec les images
@@ -469,19 +562,21 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       offer_block: gptResult.offer_block || null,
       seo: gptResult.seo || null,
       heroImage: heroImageUrl || null,
+      beforeAfterImage: beforeAfterUrl || null,
       angles: posterImages,
       raisons_acheter: gptResult.raisons_acheter || [],
       benefits_bullets: gptResult.benefits_bullets || [],
       conversion_blocks: gptResult.conversion_blocks || [],
       urgency_elements: gptResult.urgency_elements || null,
       faq: gptResult.faq || [],
-      testimonials: gptResult.testimonials || [],
+      testimonials: finalTestimonials,
       reassurance: gptResult.reassurance || null,
       guide_utilisation: gptResult.guide_utilisation || null,
       description: description,
       realPhotos,
       allImages: [
         ...(heroImageUrl ? [heroImageUrl] : []),
+        ...(beforeAfterUrl ? [beforeAfterUrl] : []),
         ...posterImages.map(p => p.poster_url).filter(Boolean)
       ],
       sourceUrl: cleanUrl,

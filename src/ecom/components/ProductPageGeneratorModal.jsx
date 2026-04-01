@@ -155,7 +155,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const [url, setUrl] = useState('');
   const [description, setDescription] = useState('');
   const [photos, setPhotos] = useState([]);
-  const [marketingApproach, setMarketingApproach] = useState('AIDA'); // AIDA, PAS, BAB, FAB
+  const [marketingApproach, setMarketingApproach] = useState('PAS'); // PAS, AIDA, BAB
   const [currentStep, setCurrentStep] = useState(0);
   const [stepLabel, setStepLabel] = useState('');
   const [product, setProduct] = useState(null);
@@ -169,16 +169,10 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const [paymentName, setPaymentName] = useState('');
   const [paymentLoading, setPaymentLoading] = useState(false);
   
-  // Nouveaux états copywriting avancés
-  const [copywritingAngle, setCopywritingAngle] = useState('PROBLEME_SOLUTION');
+  // États copywriting simplifiés
   const [tone, setTone] = useState('urgence');
-  const [targetAudience, setTargetAudience] = useState('');
-  const [customerReviews, setCustomerReviews] = useState('');
-  const [socialProofLinks, setSocialProofLinks] = useState('');
-  const [mainOffer, setMainOffer] = useState('');
-  const [objections, setObjections] = useState('');
-  const [keyBenefits, setKeyBenefits] = useState('');
-  const [testimonialImages, setTestimonialImages] = useState([]); // Images pour les témoignages
+  const [targetAvatar, setTargetAvatar] = useState('');
+  const [mainProblem, setMainProblem] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   
   // AI Store Builder states
@@ -382,17 +376,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     formData.append('withImages', 'true');
     formData.append('marketingApproach', marketingApproach);
     
-    // Nouveaux paramètres copywriting avancés
-    formData.append('copywritingAngle', copywritingAngle);
+    // Paramètres copywriting simplifiés
     formData.append('tone', tone);
     formData.append('language', 'français');
-    
-    if (targetAudience.trim()) formData.append('targetAudience', targetAudience.trim());
-    if (customerReviews.trim()) formData.append('customerReviews', customerReviews.trim());
-    if (socialProofLinks.trim()) formData.append('socialProofLinks', socialProofLinks.trim());
-    if (mainOffer.trim()) formData.append('mainOffer', mainOffer.trim());
-    if (objections.trim()) formData.append('objections', objections.trim());
-    if (keyBenefits.trim()) formData.append('keyBenefits', keyBenefits.trim());
+    if (targetAvatar.trim()) formData.append('targetAvatar', targetAvatar.trim());
+    if (mainProblem.trim()) formData.append('mainProblem', mainProblem.trim());
     
     photos.forEach(f => formData.append('images', f));
     
@@ -930,324 +918,135 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                 </>
               )}
 
-              {/* ÉTAPE 2: Copywriting */}
+              {/* ÉTAPE 2: Méthode Copywriting (simplifié) */}
               {step === 2 && (
                 <>
-                  {/* Marketing Approach Selection */}
+                  {/* 3 Méthodes Copywriting */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      🎯 Approche marketing
+                      Choisis ta méthode copywriting
                     </label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <p className="text-xs text-gray-500 mb-3">La méthode choisie pilote tout : texte, images, structure de la page</p>
+                    <div className="grid grid-cols-1 gap-3">
                       {[
-                        { value: 'AIDA', label: 'AIDA', desc: 'Attention → Intérêt → Désir → Action' },
-                        { value: 'PAS', label: 'PAS', desc: 'Problème → Agitation → Solution' },
-                        { value: 'BAB', label: 'BAB', desc: 'Avant → Après → Pont' },
-                        { value: 'FAB', label: 'FAB', desc: 'Caractéristiques → Avantages → Bénéfices' }
+                        { value: 'PAS', label: 'PAS', icon: '🎯', desc: 'Problème → Agitation → Solution', detail: 'Montre le problème, amplifie la douleur, puis présente ton produit comme LA solution' },
+                        { value: 'AIDA', label: 'AIDA', icon: '⚡', desc: 'Attention → Intérêt → Désir → Action', detail: 'Capte l\'attention, éveille la curiosité, crée l\'envie et pousse à l\'achat' },
+                        { value: 'BAB', label: 'BAB', icon: '✨', desc: 'Before → After → Bridge', detail: 'Montre la vie avant, peint la vie après, et le produit fait le pont' }
                       ].map(approach => (
                         <button
                           key={approach.value}
                           type="button"
                           onClick={() => setMarketingApproach(approach.value)}
-                          className={`p-3 rounded-xl border-2 text-left transition ${
+                          className={`p-4 rounded-xl border-2 text-left transition ${
                             marketingApproach === approach.value
-                              ? 'border-violet-500 bg-violet-50'
+                              ? 'border-violet-500 bg-violet-50 shadow-md'
                               : 'border-gray-200 hover:border-violet-300 bg-white'
                           }`}
                         >
                           <div className="flex items-center justify-between mb-1">
-                            <span className={`text-sm font-bold ${
-                              marketingApproach === approach.value ? 'text-violet-700' : 'text-gray-900'
-                            }`}>
-                              {approach.label}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl">{approach.icon}</span>
+                              <span className={`text-base font-bold ${
+                                marketingApproach === approach.value ? 'text-violet-700' : 'text-gray-900'
+                              }`}>
+                                {approach.label}
+                              </span>
+                            </div>
                             {marketingApproach === approach.value && (
-                              <CheckCircle className="w-4 h-4 text-violet-600" />
+                              <CheckCircle className="w-5 h-5 text-violet-600" />
                             )}
                           </div>
-                          <p className="text-xs text-gray-500 leading-tight">{approach.desc}</p>
+                          <p className="text-xs font-medium text-gray-600 mb-1">{approach.desc}</p>
+                          <p className="text-xs text-gray-400 leading-relaxed">{approach.detail}</p>
                         </button>
                       ))}
                     </div>
                   </div>
 
-              {/* Copywriting Angle Selection */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  ✨ Angle copywriting principal
-                </label>
-                <div className="grid grid-cols-1 gap-2">
-                  {[
-                    { value: 'PROBLEME_SOLUTION', label: 'Problème → Solution', icon: '🎯', desc: 'Empathie + résolution' },
-                    { value: 'PREUVE_SOCIALE', label: 'Preuve sociale', icon: '⭐', desc: 'Résultats, avis, viral' },
-                    { value: 'URGENCE', label: 'Urgence / Rareté', icon: '⚡', desc: 'Stock limité, offre temporaire' },
-                    { value: 'TRANSFORMATION', label: 'Transformation', icon: '✨', desc: 'Avant/après, lifestyle' },
-                    { value: 'AUTORITE', label: 'Autorité', icon: '🏆', desc: 'Expertise, certifications' }
-                  ].map(angle => (
-                    <button
-                      key={angle.value}
-                      type="button"
-                      onClick={() => setCopywritingAngle(angle.value)}
-                      className={`p-3 rounded-xl border-2 text-left transition flex items-center gap-3 ${
-                        copywritingAngle === angle.value
-                          ? 'border-violet-500 bg-violet-50'
-                          : 'border-gray-200 hover:border-violet-300 bg-white'
-                      }`}
-                    >
-                      <span className="text-2xl">{angle.icon}</span>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className={`text-sm font-bold ${
-                            copywritingAngle === angle.value ? 'text-violet-700' : 'text-gray-900'
-                          }`}>
-                            {angle.label}
-                          </span>
-                          {copywritingAngle === angle.value && (
-                            <CheckCircle className="w-4 h-4 text-violet-600" />
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-500 leading-tight">{angle.desc}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
                   {/* Tone Selection */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      🎨 Ton de communication
+                      Ton de communication
                     </label>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { value: 'urgence', label: 'Urgence', emoji: '🔥', desc: 'Stock limité, action immédiate' },
-                    { value: 'premium', label: 'Premium', emoji: '💎', desc: 'Qualité exceptionnelle' },
-                    { value: 'fun', label: 'Fun', emoji: '🎉', desc: 'Enjoué, dynamique' },
-                    { value: 'serieux', label: 'Sérieux', emoji: '🎓', desc: 'Professionnel, crédible' }
-                  ].map(t => (
-                    <button
-                      key={t.value}
-                      type="button"
-                      onClick={() => setTone(t.value)}
-                      className={`p-3 rounded-xl border-2 text-left transition ${
-                        tone === t.value
-                          ? 'border-violet-500 bg-violet-50'
-                          : 'border-gray-200 hover:border-violet-300 bg-white'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xl">{t.emoji}</span>
-                          <span className={`text-sm font-bold ${
-                            tone === t.value ? 'text-violet-700' : 'text-gray-900'
-                          }`}>
-                            {t.label}
-                          </span>
-                        </div>
-                        {tone === t.value && (
-                          <CheckCircle className="w-4 h-4 text-violet-600" />
-                        )}
-                      </div>
-                      <p className="text-xs text-gray-500 leading-tight">{t.desc}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { value: 'urgence', label: 'Urgence', emoji: '🔥', desc: 'Stock limité, action immédiate' },
+                        { value: 'premium', label: 'Premium', emoji: '💎', desc: 'Qualité exceptionnelle' },
+                        { value: 'fun', label: 'Fun', emoji: '🎉', desc: 'Enjoué, dynamique' },
+                        { value: 'serieux', label: 'Sérieux', emoji: '🎓', desc: 'Professionnel, crédible' }
+                      ].map(t => (
+                        <button
+                          key={t.value}
+                          type="button"
+                          onClick={() => setTone(t.value)}
+                          className={`p-3 rounded-xl border-2 text-left transition ${
+                            tone === t.value
+                              ? 'border-violet-500 bg-violet-50'
+                              : 'border-gray-200 hover:border-violet-300 bg-white'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl">{t.emoji}</span>
+                              <span className={`text-sm font-bold ${
+                                tone === t.value ? 'text-violet-700' : 'text-gray-900'
+                              }`}>
+                                {t.label}
+                              </span>
+                            </div>
+                            {tone === t.value && (
+                              <CheckCircle className="w-4 h-4 text-violet-600" />
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 leading-tight">{t.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </>
               )}
 
-              {/* ÉTAPE 3: Paramètres avancés */}
+              {/* ÉTAPE 3: Paramètres avancés (simplifié) */}
               {step === 3 && (
                 <>
-                  {/* Header Section */}
-                  <div className="text-center space-y-3 mb-5">
-                    <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-full shadow-sm">
-                      <Star className="w-5 h-5 text-amber-600" />
-                      <span className="text-sm font-bold text-amber-900">Paramètres Avancés</span>
+                  {/* Header */}
+                  <div className="text-center space-y-2 mb-4">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-full">
+                      <Star className="w-4 h-4 text-amber-600" />
+                      <span className="text-sm font-bold text-amber-900">Optionnel</span>
                     </div>
-                    <p className="text-sm text-gray-600 max-w-md mx-auto">
-                      Ces champs sont <strong>optionnels</strong> mais fortement recommandés pour maximiser les conversions de ta page produit
-                    </p>
+                    <p className="text-xs text-gray-500">Ces infos aident l'IA a mieux cibler ta page produit</p>
                   </div>
 
-                  {/* Section 1: Ciblage */}
+                  {/* Avatar cible */}
                   <div className="space-y-4 p-4 bg-gradient-to-br from-violet-50/50 to-purple-50/50 rounded-xl border border-violet-100">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-6 h-6 rounded-full bg-violet-600 text-white flex items-center justify-center text-xs font-bold">1</div>
-                      <h4 className="text-sm font-bold text-gray-800">Ciblage & Positionnement</h4>
-                    </div>
-                    
-                    {/* Target Audience */}
                     <div>
                       <label className="block text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
-                        🎯 Cible client
-                        <span className="text-emerald-600 text-[10px] font-bold uppercase px-1.5 py-0.5 bg-emerald-50 rounded">Recommandé</span>
+                        🎯 Avatar client cible
                       </label>
                       <textarea
-                        value={targetAudience}
-                        onChange={(e) => setTargetAudience(e.target.value)}
-                        placeholder="Ex: Femmes 28-45 ans, mamans actives qui manquent de temps, sensibles au naturel, pouvoir d'achat moyen, zone urbaine Douala/Yaoundé..."
-                        rows={3}
+                        value={targetAvatar}
+                        onChange={(e) => setTargetAvatar(e.target.value)}
+                        placeholder="Ex: Femme 28-45 ans, maman active, zone urbaine, sensible au naturel..."
+                        rows={2}
                         className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Plus c'est précis, meilleure sera la conversion ✨</p>
+                      <p className="text-xs text-gray-400 mt-1">Qui est ton client ideal ?</p>
                     </div>
 
-                    {/* Main Offer */}
+                    {/* Probleme principal */}
                     <div>
                       <label className="block text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
-                        🎁 Offre principale
-                        <span className="text-emerald-600 text-[10px] font-bold uppercase px-1.5 py-0.5 bg-emerald-50 rounded">Recommandé</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={mainOffer}
-                        onChange={(e) => setMainOffer(e.target.value)}
-                        placeholder="Ex: -40% aujourd'hui seulement | Livraison gratuite sous 48h | Cadeau surprise pour 2 achetés"
-                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">L'offre sera mise en avant stratégiquement sur la page 🎯</p>
-                    </div>
-                  </div>
-
-                  {/* Section 2: Arguments de vente */}
-                  <div className="space-y-4 p-4 bg-gradient-to-br from-blue-50/50 to-cyan-50/50 rounded-xl border border-blue-100">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold">2</div>
-                      <h4 className="text-sm font-bold text-gray-800">Arguments de Vente</h4>
-                    </div>
-
-                    {/* Key Benefits */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                        ✨ Points forts à mettre en avant
+                        💥 Probleme principal
                       </label>
                       <textarea
-                        value={keyBenefits}
-                        onChange={(e) => setKeyBenefits(e.target.value)}
-                        placeholder="Ex: Sans BPA | Certifié CE | Garantie 2 ans | Support WhatsApp 7j/7 | Adapté peaux noires | Résultats en 7 jours"
+                        value={mainProblem}
+                        onChange={(e) => setMainProblem(e.target.value)}
+                        placeholder="Ex: Peau terne avec des taches, perte de confiance en soi..."
                         rows={2}
-                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
                       />
-                    </div>
-
-                    {/* Objections */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                        🚫 Objections à lever
-                      </label>
-                      <textarea
-                        value={objections}
-                        onChange={(e) => setObjections(e.target.value)}
-                        placeholder="Ex: Ça va tenir dans le temps ? | Est-ce que ça fonctionne vraiment ? | C'est adapté pour ma peau noire ? | Et si ça ne me convient pas ?"
-                        rows={2}
-                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Chaque objection sera traitée dans la FAQ 💡</p>
-                    </div>
-                  </div>
-
-                  {/* Section 3: Preuve sociale */}
-                  <div className="space-y-4 p-4 bg-gradient-to-br from-emerald-50/50 to-teal-50/50 rounded-xl border border-emerald-100">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold">3</div>
-                      <h4 className="text-sm font-bold text-gray-800">Preuve Sociale & Crédibilité</h4>
-                    </div>
-
-                    {/* Customer Reviews */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                        ⭐ Avis clients à intégrer
-                      </label>
-                      <textarea
-                        value={customerReviews}
-                        onChange={(e) => setCustomerReviews(e.target.value)}
-                        placeholder="Colle ici les vrais avis clients (bruts), l'IA les reformatera et optimisera automatiquement...&#10;&#10;Ex:&#10;- Super produit, je l'adore !&#10;- Résultats visibles en 5 jours&#10;- Je recommande à 100%, livraison rapide"
-                        rows={3}
-                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">L'IA reformatera les avis pour les rendre plus persuasifs ✨</p>
-                    </div>
-
-                    {/* Testimonial Images Upload */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
-                        📸 Photos pour les témoignages (optionnel)
-                        <span className="text-emerald-600 text-[10px] font-bold uppercase px-1.5 py-0.5 bg-emerald-50 rounded">Nouveauté</span>
-                      </label>
-                      <div className="space-y-2">
-                        {/* Upload Zone */}
-                        <label className="flex flex-col items-center justify-center w-full px-4 py-5 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition">
-                          <Upload className="w-8 h-8 text-gray-400 mb-2" />
-                          <span className="text-xs text-gray-500 text-center">
-                            <strong className="text-gray-700">Cliquez</strong> pour ajouter des photos de clients
-                            <br />
-                            <span className="text-[10px]">Ces images seront affichées dans le carrousel de témoignages</span>
-                          </span>
-                          <input
-                            type="file"
-                            multiple
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const newFiles = Array.from(e.target.files || []);
-                              setTestimonialImages(prev => [...prev, ...newFiles]);
-                              e.target.value = '';
-                            }}
-                          />
-                        </label>
-
-                        {/* Preview Testimonial Images */}
-                        {testimonialImages.length > 0 && (
-                          <div className="grid grid-cols-4 gap-2">
-                            {testimonialImages.map((file, idx) => (
-                              <div key={idx} className="relative group">
-                                <img
-                                  src={URL.createObjectURL(file)}
-                                  alt={`Témoignage ${idx + 1}`}
-                                  className="w-full h-20 object-cover rounded-lg border border-gray-200"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setTestimonialImages(prev => prev.filter((_, i) => i !== idx))}
-                                  className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition"
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        <p className="text-[10px] text-gray-500">
-                          💡 <strong>Astuce:</strong> Ajoutez des photos de clients satisfaits, des screenshots d'avis WhatsApp, ou des photos avant/après pour renforcer la crédibilité du carrousel de témoignages.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Social Proof Links */}
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                        🔗 Preuves sociales / Liens
-                      </label>
-                      <textarea
-                        value={socialProofLinks}
-                        onChange={(e) => setSocialProofLinks(e.target.value)}
-                        placeholder="Ex:&#10;- TikTok viral (2M vues): https://tiktok.com/@user/video/123&#10;- Article blog beauté: https://blog.com/mon-avis&#10;- Instagram @influenceur (50k followers)&#10;- Vu dans Magazine Elle Cameroun"
-                        rows={3}
-                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Mentions virales, influenceurs, articles de presse... 🚀</p>
-                    </div>
-                  </div>
-
-                  {/* Info box */}
-                  <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                    <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
-                      <span className="text-white text-lg">💡</span>
-                    </div>
-                    <div className="flex-1 text-xs text-amber-900">
-                      <p className="font-semibold mb-1">Conseil Pro</p>
-                      <p className="leading-relaxed">Plus tu remplis de champs, plus ta page produit sera personnalisée et convaincante. Un ciblage précis peut <strong>doubler ton taux de conversion</strong> !</p>
+                      <p className="text-xs text-gray-400 mt-1">Quel probleme ton produit resout ?</p>
                     </div>
                   </div>
                 </>
