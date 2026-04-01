@@ -1264,194 +1264,19 @@ const StorefrontHeader = ({ store, cartCount, prefix }) => {
           </div>
         )}
 
-        <div style={{ 
-          maxWidth: 1200, 
-          margin: '0 auto', 
-          padding: '0 24px', 
-          height: scrolled ? 56 : 64, 
-          display: 'flex', 
-          alignItems: 'center', 
+        <div style={{
+          maxWidth: 1200,
+          margin: '0 auto',
+          padding: '0 16px',
+          height: scrolled ? 52 : 60,
+          display: 'flex',
+          alignItems: 'center',
           justifyContent: 'space-between',
           transition: 'height 0.3s ease',
         }}>
-          {/* Logo */}
-          <Link 
-            to={`${prefix}/`} 
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 12, 
-              textDecoration: 'none',
-              transition: 'transform 0.2s ease',
-            }}
-            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
-            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-          >
-            {store?.logo ? (
-              <img 
-                src={store.logo} 
-                alt={store?.name} 
-                style={{ 
-                  height: scrolled ? 32 : 36, 
-                  width: 'auto', 
-                  maxWidth: 120, 
-                  objectFit: 'contain',
-                  transition: 'height 0.3s ease',
-                }} 
-              />
-            ) : (
-              <span style={{ 
-                width: scrolled ? 32 : 36, 
-                height: scrolled ? 32 : 36, 
-                borderRadius: 10, 
-                backgroundColor: 'var(--s-primary)', 
-                color: '#fff', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                fontWeight: 800, 
-                fontSize: scrolled ? 14 : 16, 
-                flexShrink: 0,
-                transition: 'all 0.3s ease',
-              }}>
-                {(store?.name || 'S')[0].toUpperCase()}
-              </span>
-            )}
-            <span style={{ 
-              fontWeight: 700, 
-              fontSize: scrolled ? 16 : 17, 
-              color: 'var(--s-text)', 
-              letterSpacing: '-0.01em',
-              transition: 'font-size 0.3s ease',
-            }}>
-              {store?.name}
-            </span>
-          </Link>
-
-          {/* Navigation Desktop */}
-          <nav className="desktop-nav" style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: 6,
-          }}>
-            {navLinks.map(link => (
-              <Link 
-                key={link.label} 
-                to={link.href} 
-                style={{
-                  padding: '8px 16px', 
-                  borderRadius: 8, 
-                  fontSize: 14, 
-                  fontWeight: 600,
-                  color: 'var(--s-text2)', 
-                  textDecoration: 'none', 
-                  fontFamily: 'var(--s-font)',
-                  transition: 'all 0.2s ease',
-                  position: 'relative',
-                }}
-                onMouseEnter={e => { 
-                  e.currentTarget.style.background = 'rgba(0,0,0,0.04)'; 
-                  e.currentTarget.style.color = 'var(--s-text)'; 
-                }}
-                onMouseLeave={e => { 
-                  e.currentTarget.style.background = 'transparent'; 
-                  e.currentTarget.style.color = 'var(--s-text2)'; 
-                }}
-              >
-                {link.label}
-              </Link>
-            ))}
-            
-            {/* Bouton Mode Édition (visible pour owner) */}
-            {canEdit && (
-              <button
-                onClick={toggleEditMode}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '8px 16px',
-                  borderRadius: 8,
-                  border: isEditMode ? '2px solid #3B82F6' : '1.5px solid var(--s-border)',
-                  backgroundColor: isEditMode ? '#EFF6FF' : 'transparent',
-                  color: isEditMode ? '#3B82F6' : 'var(--s-text2)',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  fontFamily: 'var(--s-font)',
-                  transition: 'all 0.2s ease',
-                }}
-                onMouseEnter={e => {
-                  if (!isEditMode) {
-                    e.currentTarget.style.backgroundColor = '#F3F4F6';
-                    e.currentTarget.style.borderColor = '#D1D5DB';
-                  }
-                }}
-                onMouseLeave={e => {
-                  if (!isEditMode) {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                    e.currentTarget.style.borderColor = 'var(--s-border)';
-                  }
-                }}
-              >
-                <Pencil size={14} />
-                {isEditMode ? 'Édition' : 'Modifier'}
-              </button>
-            )}
-            
-            {/* Panier avec animation */}
-            <Link 
-              to={`${prefix}/checkout`} 
-              style={{
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 7, 
-                padding: '8px 18px', 
-                borderRadius: 40,
-                border: '1.5px solid', 
-                borderColor: cartCount > 0 ? 'var(--s-primary)' : 'var(--s-border)',
-                backgroundColor: cartCount > 0 ? 'var(--s-primary)' : 'transparent',
-                color: cartCount > 0 ? '#fff' : 'var(--s-text)', 
-                textDecoration: 'none',
-                fontWeight: 600, 
-                fontSize: 14, 
-                transition: 'all 0.2s ease', 
-                fontFamily: 'var(--s-font)', 
-                marginLeft: 8,
-                transform: cartBounce ? 'scale(1.1)' : 'scale(1)',
-              }} 
-              onMouseEnter={e => {
-                if (cartCount === 0) {
-                  e.currentTarget.style.backgroundColor = '#F3F4F6';
-                  e.currentTarget.style.borderColor = '#D1D5DB';
-                } else {
-                  e.currentTarget.style.transform = 'scale(1.05)';
-                }
-              }}
-              onMouseLeave={e => {
-                if (cartCount === 0) {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                  e.currentTarget.style.borderColor = 'var(--s-border)';
-                } else {
-                  e.currentTarget.style.transform = 'scale(1)';
-                }
-              }}
-              onFocus={preloadStoreCheckoutRoute} 
-              onTouchStart={preloadStoreCheckoutRoute}
-            >
-              <ShoppingCart size={17} />
-              {cartCount > 0 && (
-                <span style={{ 
-                  minWidth: 18, 
-                  textAlign: 'center',
-                  animation: cartBounce ? 'cartPop 0.3s ease' : 'none',
-                }}>
-                  {cartCount}
-                </span>
-              )}
-            </Link>
-
-            {/* Menu Hamburger Mobile */}
+          {/* Left zone: Hamburger (mobile) + Nav links (desktop) */}
+          <div className="header-left" style={{ display: 'flex', alignItems: 'center', gap: 6, flex: '1 1 0', minWidth: 0 }}>
+            {/* Menu Hamburger — visible mobile only */}
             <button
               className="mobile-menu-btn"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -1462,7 +1287,6 @@ const StorefrontHeader = ({ store, cartCount, prefix }) => {
                 border: 'none',
                 backgroundColor: mobileMenuOpen ? '#F3F4F6' : 'transparent',
                 cursor: 'pointer',
-                marginLeft: 8,
               }}
               aria-label="Menu"
             >
@@ -1475,35 +1299,136 @@ const StorefrontHeader = ({ store, cartCount, prefix }) => {
                 justifyContent: 'space-between',
               }}>
                 <span style={{
-                  display: 'block',
-                  width: '100%',
-                  height: 2,
-                  backgroundColor: 'var(--s-text)',
-                  borderRadius: 2,
+                  display: 'block', width: '100%', height: 2,
+                  backgroundColor: 'var(--s-text)', borderRadius: 2,
                   transition: 'all 0.3s ease',
                   transform: mobileMenuOpen ? 'rotate(45deg) translateY(6px)' : 'none',
                 }} />
                 <span style={{
-                  display: 'block',
-                  width: '100%',
-                  height: 2,
-                  backgroundColor: 'var(--s-text)',
-                  borderRadius: 2,
+                  display: 'block', width: '100%', height: 2,
+                  backgroundColor: 'var(--s-text)', borderRadius: 2,
                   transition: 'all 0.3s ease',
                   opacity: mobileMenuOpen ? 0 : 1,
                 }} />
                 <span style={{
-                  display: 'block',
-                  width: '100%',
-                  height: 2,
-                  backgroundColor: 'var(--s-text)',
-                  borderRadius: 2,
+                  display: 'block', width: '100%', height: 2,
+                  backgroundColor: 'var(--s-text)', borderRadius: 2,
                   transition: 'all 0.3s ease',
                   transform: mobileMenuOpen ? 'rotate(-45deg) translateY(-6px)' : 'none',
                 }} />
               </div>
             </button>
-          </nav>
+
+            {/* Desktop nav links */}
+            <nav className="desktop-nav-links" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              {navLinks.map(link => (
+                <Link
+                  key={link.label}
+                  to={link.href}
+                  style={{
+                    padding: '8px 16px', borderRadius: 8, fontSize: 14, fontWeight: 600,
+                    color: 'var(--s-text2)', textDecoration: 'none', fontFamily: 'var(--s-font)',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.04)'; e.currentTarget.style.color = 'var(--s-text)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--s-text2)'; }}
+                >
+                  {link.label}
+                </Link>
+              ))}
+
+              {/* Bouton Mode Édition (desktop only) */}
+              {canEdit && (
+                <button
+                  onClick={toggleEditMode}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '8px 16px', borderRadius: 8,
+                    border: isEditMode ? '2px solid #3B82F6' : '1.5px solid var(--s-border)',
+                    backgroundColor: isEditMode ? '#EFF6FF' : 'transparent',
+                    color: isEditMode ? '#3B82F6' : 'var(--s-text2)',
+                    fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--s-font)',
+                    transition: 'all 0.2s ease',
+                  }}
+                  onMouseEnter={e => { if (!isEditMode) { e.currentTarget.style.backgroundColor = '#F3F4F6'; e.currentTarget.style.borderColor = '#D1D5DB'; } }}
+                  onMouseLeave={e => { if (!isEditMode) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.borderColor = 'var(--s-border)'; } }}
+                >
+                  <Pencil size={14} />
+                  {isEditMode ? 'Édition' : 'Modifier'}
+                </button>
+              )}
+            </nav>
+          </div>
+
+          {/* Center: Logo — always centered on mobile */}
+          <Link
+            to={`${prefix}/`}
+            className="header-logo"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none',
+              transition: 'transform 0.2s ease', flexShrink: 0,
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            {store?.logo ? (
+              <img
+                src={store.logo} alt={store?.name}
+                style={{ height: scrolled ? 30 : 34, width: 'auto', maxWidth: 120, objectFit: 'contain', transition: 'height 0.3s ease' }}
+              />
+            ) : (
+              <span style={{
+                width: scrolled ? 30 : 34, height: scrolled ? 30 : 34, borderRadius: 10,
+                backgroundColor: 'var(--s-primary)', color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 800, fontSize: scrolled ? 14 : 16, flexShrink: 0,
+                transition: 'all 0.3s ease',
+              }}>
+                {(store?.name || 'S')[0].toUpperCase()}
+              </span>
+            )}
+            <span className="header-store-name" style={{
+              fontWeight: 700, fontSize: scrolled ? 16 : 17, color: 'var(--s-text)',
+              letterSpacing: '-0.01em', transition: 'font-size 0.3s ease',
+            }}>
+              {store?.name}
+            </span>
+          </Link>
+
+          {/* Right zone: Cart */}
+          <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: 8, flex: '1 1 0', justifyContent: 'flex-end', minWidth: 0 }}>
+            <Link
+              to={`${prefix}/checkout`}
+              className="header-cart-btn"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                padding: '8px 18px', borderRadius: 40,
+                border: '1.5px solid',
+                borderColor: cartCount > 0 ? 'var(--s-primary)' : 'var(--s-border)',
+                backgroundColor: cartCount > 0 ? 'var(--s-primary)' : 'transparent',
+                color: cartCount > 0 ? '#fff' : 'var(--s-text)', textDecoration: 'none',
+                fontWeight: 600, fontSize: 14, transition: 'all 0.2s ease', fontFamily: 'var(--s-font)',
+                transform: cartBounce ? 'scale(1.1)' : 'scale(1)',
+              }}
+              onMouseEnter={e => {
+                if (cartCount === 0) { e.currentTarget.style.backgroundColor = '#F3F4F6'; e.currentTarget.style.borderColor = '#D1D5DB'; }
+                else { e.currentTarget.style.transform = 'scale(1.05)'; }
+              }}
+              onMouseLeave={e => {
+                if (cartCount === 0) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.borderColor = 'var(--s-border)'; }
+                else { e.currentTarget.style.transform = 'scale(1)'; }
+              }}
+              onFocus={preloadStoreCheckoutRoute}
+              onTouchStart={preloadStoreCheckoutRoute}
+            >
+              <ShoppingCart size={17} />
+              {cartCount > 0 && (
+                <span style={{ minWidth: 18, textAlign: 'center', animation: cartBounce ? 'cartPop 0.3s ease' : 'none' }}>
+                  {cartCount}
+                </span>
+              )}
+            </Link>
+          </div>
         </div>
       </header>
 

@@ -373,6 +373,7 @@ function normalizeTestimonials(raw) {
   if (!Array.isArray(raw)) return undefined;
   return raw.map(t => ({
     ...t,
+    image: t.image && typeof t.image === 'object' ? (t.image.url || '') : (t.image || ''),
     date: t.date ? t.date : undefined,
   }));
 }
