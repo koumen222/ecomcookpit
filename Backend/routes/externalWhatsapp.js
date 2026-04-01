@@ -2188,6 +2188,52 @@ router.post('/incoming', async (req, res) => {
             }
           }
 
+          // ─── Détecter tag [PAYMENT_COORDS] pour envoi coordonnées paiement expédition ───
+          const paymentCoordsMatch = replyClean.match(/\[PAYMENT_COORDS\]/);
+          if (paymentCoordsMatch) {
+            textToSend = textToSend.replace(/\s*\[PAYMENT_COORDS\]/g, '').trim();
+            console.log(`💳 [RITA] Tag PAYMENT_COORDS détecté — envoi des coordonnées de paiement`);
+
+            const ritaCfgPayment = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
+            if (ritaCfgPayment?.expeditionEnabled && ritaCfgPayment?.paymentCoordinates) {
+              const coords = ritaCfgPayment.paymentCoordinates;
+              let paymentInfo = '\n\n💳 *Coordonnées de paiement :*\n\n';
+
+              // Mobile Money
+              if (coords.mobileMoney?.length) {
+                coords.mobileMoney.forEach((mm, idx) => {
+                  if (mm.provider && mm.number) {
+                    paymentInfo += `${idx + 1}. *${mm.provider}*\n`;
+                    paymentInfo += `   📱 ${mm.number}\n`;
+                    if (mm.name) paymentInfo += `   👤 ${mm.name}\n`;
+                    paymentInfo += '\n';
+                  }
+                });
+              }
+
+              // Compte bancaire (optionnel)
+              if (coords.bankAccount?.bankName && coords.bankAccount?.accountNumber) {
+                paymentInfo += `🏦 *Compte bancaire*\n`;
+                paymentInfo += `   Banque : ${coords.bankAccount.bankName}\n`;
+                paymentInfo += `   Compte : ${coords.bankAccount.accountNumber}\n`;
+                if (coords.bankAccount.accountName) {
+                  paymentInfo += `   Nom : ${coords.bankAccount.accountName}\n`;
+                }
+                paymentInfo += '\n';
+              }
+
+              paymentInfo += `💰 *Montant total :* ${matchedProductForMedia?.price || 'À confirmer'}\n`;
+              paymentInfo += `\n📸 Envoie-moi la capture d'écran du paiement pour confirmer 👍`;
+
+              textToSend += paymentInfo;
+              console.log(`💳 [RITA] Coordonnées de paiement envoyées`);
+            } else {
+              console.log(`⚠️ [RITA] Expédition non activée ou coordonnées manquantes`);
+              const fallbackMsg = `\n\nContacte-nous pour les coordonnées de paiement 😊`;
+              textToSend += fallbackMsg;
+            }
+          }
+
           // ─── Déterminer le mode de réponse ───
           const ritaCfgVoice = await RitaConfig.findOne({ userId }).lean();
           // Utiliser la clé API de la config Rita OU celle du .env en fallback
