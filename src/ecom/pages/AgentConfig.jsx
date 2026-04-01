@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye, Star, Trash2, Plus, Image, Video, X, Download, Upload, FileText, ToggleLeft, ToggleRight, Radio, PlayCircle, Truck } from 'lucide-react';
+import { Loader2, Save, ChevronDown, Send, RotateCcw, Bell, Settings, Bot, MessageSquare, Sparkles, Package, BarChart3, Warehouse, UserCog, Headphones, Clock, Mail, Phone, Building2, MapPin, Zap, ShieldCheck, Globe2, Target, AlertTriangle, Users, MessageCircle, TrendingUp, Eye, Star, Trash2, Plus, Image, Video, X, Download, Upload, FileText, ToggleLeft, ToggleRight, Radio, PlayCircle, Truck, Megaphone } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import ProductImportLocal from '../components/ProductImportLocal.jsx';
@@ -22,6 +22,7 @@ const TABS = [
   { id: 'contacts', label: 'Contacts', icon: Users },
   { id: 'statuts', label: 'Statuts', icon: Radio },
   { id: 'instructions', label: 'Instructions', icon: FileText },
+  { id: 'group-animation', label: 'Groupes', icon: Megaphone },
 ];
 
 const TONE_OPTIONS = [
@@ -220,6 +221,20 @@ export default function AgentConfig() {
   const [instanceSwitching, setInstanceSwitching] = useState(false);
   const [instanceSwitchStatus, setInstanceSwitchStatus] = useState(null);
   const [showImport, setShowImport] = useState(false);
+
+  // Group animation
+  const [groupConfig, setGroupConfig] = useState(null);
+  const [whatsappGroups, setWhatsappGroups] = useState([]);
+  const [groupProducts, setGroupProducts] = useState([]);
+  const [groupNewName, setGroupNewName] = useState('');
+  const [groupCreating, setGroupCreating] = useState(false);
+  const [groupSelectedAdd, setGroupSelectedAdd] = useState('');
+  const [groupSaving, setGroupSaving] = useState(false);
+  const [groupMsg, setGroupMsg] = useState(null);
+  const [groupExpandedIdx, setGroupExpandedIdx] = useState(null);
+  const [groupInviteLink, setGroupInviteLink] = useState('');
+  const [groupJoining, setGroupJoining] = useState(false);
+  const [groupAddMode, setGroupAddMode] = useState('invite'); // 'invite' | 'existing' | 'create'
 
   // Chat simulator
   const [simMessages, setSimMessages] = useState([]);
@@ -1082,6 +1097,130 @@ export default function AgentConfig() {
   useEffect(() => {
     if (activeTab === 'statuts') loadStatuts();
   }, [activeTab, loadStatuts]);
+
+  // ─── Group Animation ───
+  const loadGroupAnimation = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const [cfgRes, grpRes, ritaRes] = await Promise.all([
+        ecomApi.get('/v1/rita-flows/config', { params: { userId } }).catch(() => ({ data: { config: null } })),
+        ecomApi.get('/v1/rita-flows/groups/list', { params: { userId } }).catch(() => ({ data: { groups: [] } })),
+        ecomApi.get('/v1/external/whatsapp/rita-config', { params: { userId } }).catch(() => ({ data: { config: null } })),
+      ]);
+      setGroupConfig(cfgRes.data.config || { enabled: false, flows: [], groups: [], settings: {} });
+      setWhatsappGroups(grpRes.data.groups || []);
+      setGroupProducts((ritaRes.data.config?.productCatalog || []).map(p => p.name));
+    } catch (err) {
+      console.error('Erreur chargement groupes:', err);
+      setGroupConfig({ enabled: false, flows: [], groups: [], settings: {} });
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (activeTab === 'group-animation') loadGroupAnimation();
+  }, [activeTab, loadGroupAnimation]);
+
+  const saveGroupConfig = async () => {
+    if (!groupConfig) return;
+    setGroupSaving(true); setGroupMsg(null);
+    try {
+      await ecomApi.post('/v1/rita-flows/config', { userId, config: groupConfig });
+      setGroupMsg({ ok: true, text: '✅ Animation sauvegardée !' });
+      setTimeout(() => setGroupMsg(null), 3000);
+    } catch {
+      setGroupMsg({ ok: false, text: '❌ Erreur de sauvegarde' });
+      setTimeout(() => setGroupMsg(null), 3000);
+    } finally { setGroupSaving(false); }
+  };
+
+  const updateGroupConfig = (key, val) => setGroupConfig(prev => prev ? { ...prev, [key]: val } : prev);
+
+  const updateManagedGroup = (gi, group) => {
+    const groups = [...(groupConfig?.groups || [])];
+    groups[gi] = group;
+    updateGroupConfig('groups', groups);
+  };
+
+  const createNewGroup = async () => {
+    if (!groupNewName.trim()) return;
+    setGroupCreating(true);
+    try {
+      const { data } = await ecomApi.post('/v1/rita-flows/groups/create', { userId, name: groupNewName.trim() });
+      if (data.success) {
+        await loadGroupAnimation();
+        setGroupNewName('');
+      }
+    } catch (err) { console.error(err); }
+    finally { setGroupCreating(false); }
+  };
+
+  const addExistingGroupToAnimation = () => {
+    if (!groupSelectedAdd || !groupConfig) return;
+    const wa = whatsappGroups.find(g => g.id === groupSelectedAdd);
+    if (!wa) return;
+    if ((groupConfig.groups || []).some(g => g.groupJid === wa.id)) {
+      setGroupMsg({ ok: false, text: 'Ce groupe est déjà géré.' });
+      setTimeout(() => setGroupMsg(null), 3000);
+      return;
+    }
+    updateGroupConfig('groups', [...(groupConfig.groups || []), { groupJid: wa.id, name: wa.name, inviteUrl: '', role: 'custom', autoCreated: false, scheduledPosts: [] }]);
+    setGroupSelectedAdd('');
+  };
+
+  const joinGroupByInvite = async () => {
+    if (!groupInviteLink.trim()) return;
+    if (!groupInviteLink.includes('chat.whatsapp.com/')) {
+      setGroupMsg({ ok: false, text: 'Collez un lien WhatsApp valide (chat.whatsapp.com/...)' });
+      setTimeout(() => setGroupMsg(null), 3000);
+      return;
+    }
+    setGroupJoining(true);
+    try {
+      const { data } = await ecomApi.post('/v1/rita-flows/groups/join', { userId, inviteLink: groupInviteLink.trim() });
+      if (data.success) {
+        await loadGroupAnimation();
+        setGroupInviteLink('');
+        setGroupMsg({ ok: true, text: `✅ Rita a rejoint le groupe "${data.group?.name || 'Groupe'}" !` });
+        setTimeout(() => setGroupMsg(null), 4000);
+      } else {
+        setGroupMsg({ ok: false, text: data.error || 'Impossible de rejoindre le groupe' });
+        setTimeout(() => setGroupMsg(null), 4000);
+      }
+    } catch (err) {
+      setGroupMsg({ ok: false, text: err.response?.data?.error || 'Erreur en rejoignant le groupe' });
+      setTimeout(() => setGroupMsg(null), 4000);
+    } finally { setGroupJoining(false); }
+  };
+
+  const refreshGroupInvite = async (groupJid, gi) => {
+    try {
+      const { data } = await ecomApi.post('/v1/rita-flows/groups/invite-link', { userId, groupJid });
+      if (data.success && data.inviteUrl) {
+        const groups = [...(groupConfig?.groups || [])];
+        groups[gi] = { ...groups[gi], inviteUrl: data.inviteUrl };
+        updateGroupConfig('groups', groups);
+        setGroupMsg({ ok: true, text: '🔗 Lien d\'invitation mis à jour !' });
+        setTimeout(() => setGroupMsg(null), 3000);
+      }
+    } catch (err) {
+      setGroupMsg({ ok: false, text: '❌ Erreur génération du lien' });
+      setTimeout(() => setGroupMsg(null), 3000);
+    }
+  };
+
+  const removeGroupFromAnimation = (gi) => {
+    const groups = [...(groupConfig?.groups || [])];
+    groups.splice(gi, 1);
+    updateGroupConfig('groups', groups);
+  };
+
+  const GA_DAYS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+  const GA_ROLES = [
+    { value: 'clients', label: '🛒 Clients' },
+    { value: 'prospects', label: '🎯 Prospects' },
+    { value: 'vip', label: '⭐ VIP' },
+    { value: 'custom', label: '🔧 Personnalisé' },
+  ];
 
   const exportContactsCSV = async () => {
     try {
@@ -4221,6 +4360,346 @@ export default function AgentConfig() {
             </div>
           </div>
         )}
+
+        {/* ─── TAB: GROUP ANIMATION ─── */}
+        {activeTab === 'group-animation' && (
+          <div className="space-y-6">
+
+            {/* Flash message */}
+            {groupMsg && (
+              <div className={`text-[13px] px-4 py-2.5 rounded-xl font-medium ${groupMsg.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                {groupMsg.text}
+              </div>
+            )}
+
+            {!groupConfig ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            ) : (
+              <>
+                {/* Stats */}
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { val: groupConfig.groups?.length || 0, label: 'Groupes gérés', color: 'text-gray-900' },
+                    { val: (groupConfig.groups || []).reduce((s, g) => s + (g.scheduledPosts || []).filter(p => p.enabled !== false).length, 0), label: 'Posts actifs', color: 'text-emerald-600' },
+                    { val: (groupConfig.groups || []).reduce((s, g) => s + (g.scheduledPosts || []).filter(p => p.enabled === false).length, 0), label: 'Posts en pause', color: 'text-gray-500' },
+                  ].map((s, i) => (
+                    <div key={i} className="bg-white border rounded-xl p-4 text-center">
+                      <p className={`text-2xl font-bold ${s.color}`}>{s.val}</p>
+                      <p className="text-[11px] text-gray-500">{s.label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Ajouter un groupe */}
+                <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+                  <h3 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+                    <Plus className="w-4 h-4" /> Connecter un groupe à animer
+                  </h3>
+
+                  {/* Mode selector */}
+                  <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+                    {[
+                      { id: 'invite', label: '🔗 Lien d\'invitation' },
+                      { id: 'existing', label: '📱 Mes groupes' },
+                      { id: 'create', label: '➕ Nouveau groupe' },
+                    ].map(m => (
+                      <button key={m.id} onClick={() => setGroupAddMode(m.id)}
+                        className={`flex-1 text-[12px] font-semibold py-2 rounded-lg transition ${groupAddMode === m.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Mode: Coller un lien d'invitation */}
+                  {groupAddMode === 'invite' && (
+                    <div className="space-y-2">
+                      <p className="text-[12px] text-gray-500">Collez le lien d'invitation WhatsApp et Rita rejoindra automatiquement le groupe.</p>
+                      <div className="flex gap-2">
+                        <input type="text" value={groupInviteLink} onChange={e => setGroupInviteLink(e.target.value)}
+                          placeholder="https://chat.whatsapp.com/ABC123..."
+                          className="ac-input flex-1" onKeyDown={e => e.key === 'Enter' && joinGroupByInvite()} />
+                        <button onClick={joinGroupByInvite} disabled={groupJoining || !groupInviteLink.trim()}
+                          className="px-4 py-2 rounded-xl text-[13px] font-bold text-white disabled:opacity-50 transition whitespace-nowrap"
+                          style={{ background: ACCENT }}>
+                          {groupJoining ? 'Connexion...' : 'Rejoindre'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mode: Sélectionner un groupe existant */}
+                  {groupAddMode === 'existing' && (
+                    <div className="space-y-2">
+                      <p className="text-[12px] text-gray-500">Sélectionnez un groupe WhatsApp déjà présent sur votre instance.</p>
+                      {whatsappGroups.filter(w => !(groupConfig.groups || []).some(g => g.groupJid === w.id)).length > 0 ? (
+                        <div className="flex gap-2">
+                          <select value={groupSelectedAdd} onChange={e => setGroupSelectedAdd(e.target.value)} className="ac-input flex-1">
+                            <option value="">— Choisir un groupe —</option>
+                            {whatsappGroups.filter(w => !(groupConfig.groups || []).some(g => g.groupJid === w.id)).map(g => (
+                              <option key={g.id} value={g.id}>{g.name} ({g.participants} membres)</option>
+                            ))}
+                          </select>
+                          <button onClick={addExistingGroupToAnimation} disabled={!groupSelectedAdd}
+                            className="px-4 py-2 rounded-xl text-[13px] font-bold text-white disabled:opacity-50 transition"
+                            style={{ background: ACCENT }}>
+                            Ajouter
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-[12px] text-gray-400 italic py-2">Tous les groupes sont déjà connectés, ou aucun groupe n'est trouvé sur l'instance.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Mode: Créer un nouveau groupe */}
+                  {groupAddMode === 'create' && (
+                    <div className="space-y-2">
+                      <p className="text-[12px] text-gray-500">Créez un nouveau groupe WhatsApp directement depuis Rita.</p>
+                      <div className="flex gap-2">
+                        <input type="text" value={groupNewName} onChange={e => setGroupNewName(e.target.value)}
+                          placeholder="Ex: 🛒 Clients Premium"
+                          className="ac-input flex-1" onKeyDown={e => e.key === 'Enter' && createNewGroup()} />
+                        <button onClick={createNewGroup} disabled={groupCreating || !groupNewName.trim()}
+                          className="px-4 py-2 rounded-xl text-[13px] font-bold text-white disabled:opacity-50 transition"
+                          style={{ background: ACCENT }}>
+                          {groupCreating ? '...' : 'Créer'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Liste de tous les groupes WhatsApp avec checkbox */}
+                {whatsappGroups.length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+                        <Users className="w-4 h-4" /> Groupes sur votre WhatsApp
+                      </h3>
+                      <span className="text-[11px] text-gray-400">{whatsappGroups.length} groupe{whatsappGroups.length > 1 ? 's' : ''} trouvé{whatsappGroups.length > 1 ? 's' : ''}</span>
+                    </div>
+                    <p className="text-[12px] text-gray-500">Cochez les groupes que Rita doit animer :</p>
+                    <div className="max-h-64 overflow-y-auto space-y-1 pr-1">
+                      {whatsappGroups.map(wg => {
+                        const isManaged = (groupConfig.groups || []).some(g => g.groupJid === wg.id);
+                        return (
+                          <label key={wg.id} className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition ${isManaged ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-transparent hover:bg-gray-100'}`}>
+                            <input type="checkbox" checked={isManaged} onChange={() => {
+                              if (isManaged) {
+                                // Retirer
+                                const idx = (groupConfig.groups || []).findIndex(g => g.groupJid === wg.id);
+                                if (idx !== -1) removeGroupFromAnimation(idx);
+                              } else {
+                                // Ajouter
+                                updateGroupConfig('groups', [...(groupConfig.groups || []), { groupJid: wg.id, name: wg.name, inviteUrl: '', role: 'custom', autoCreated: false, scheduledPosts: [] }]);
+                              }
+                            }}
+                              className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-[13px] font-medium text-gray-900 truncate block">{wg.name}</span>
+                              <span className="text-[10px] text-gray-400">{wg.participants} membre{wg.participants > 1 ? 's' : ''}</span>
+                            </div>
+                            {isManaged && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium whitespace-nowrap">✓ Animé</span>
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Groupes gérés */}
+                {!(groupConfig.groups?.length) ? (
+                  <div className="text-center py-12 bg-white border rounded-2xl">
+                    <Megaphone className="w-10 h-10 mx-auto text-gray-300 mb-2" />
+                    <p className="text-[15px] font-bold text-gray-700">Aucun groupe à animer</p>
+                    <p className="text-[12px] text-gray-400 mt-1">Créez ou ajoutez un groupe pour que Rita l'anime automatiquement.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {groupConfig.groups.map((group, gi) => {
+                      const postsCount = group.scheduledPosts?.length || 0;
+                      const activeCount = (group.scheduledPosts || []).filter(p => p.enabled !== false).length;
+                      const isExpanded = groupExpandedIdx === gi;
+                      const roleObj = GA_ROLES.find(r => r.value === group.role);
+
+                      return (
+                        <div key={gi} className="bg-white border rounded-2xl overflow-hidden">
+                          {/* Group header */}
+                          <div className="px-5 py-4 flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition" onClick={() => setGroupExpandedIdx(isExpanded ? null : gi)}>
+                            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-lg flex-shrink-0">
+                              {group.role === 'clients' ? '🛒' : group.role === 'prospects' ? '🎯' : group.role === 'vip' ? '⭐' : '👥'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-[14px] font-bold text-gray-900 truncate">{group.name || group.groupJid}</h4>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600">{roleObj?.label || group.role}</span>
+                                <span className="text-[10px] text-gray-400">{postsCount} post{postsCount > 1 ? 's' : ''} • {activeCount} actif{activeCount > 1 ? 's' : ''}</span>
+                              </div>
+                            </div>
+                            <button onClick={e => { e.stopPropagation(); removeGroupFromAnimation(gi); }}
+                              className="text-[11px] text-gray-400 hover:text-red-500 transition mr-2">Retirer</button>
+                            <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                          </div>
+
+                          {isExpanded && (
+                            <div className="px-5 pb-5 space-y-4 border-t">
+                              {/* Actions */}
+                              <div className="flex flex-wrap gap-2 pt-3">
+                                <select value={group.role} onChange={e => updateManagedGroup(gi, { ...group, role: e.target.value })}
+                                  className="text-[12px] border rounded-lg px-2 py-1.5 bg-gray-50 font-medium">
+                                  {GA_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                                </select>
+                                {group.inviteUrl ? (
+                                  <button onClick={() => { navigator.clipboard.writeText(group.inviteUrl); setGroupMsg({ ok: true, text: '📋 Lien copié !' }); setTimeout(() => setGroupMsg(null), 2000); }}
+                                    className="text-[12px] px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition font-medium">
+                                    📋 Copier le lien
+                                  </button>
+                                ) : (
+                                  <button onClick={() => refreshGroupInvite(group.groupJid, gi)}
+                                    className="text-[12px] px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition font-medium">
+                                    🔗 Générer lien d'invitation
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Invite URL */}
+                              {group.inviteUrl && (
+                                <div className="flex items-center gap-2 bg-emerald-50 rounded-lg px-3 py-2">
+                                  <span className="text-[11px] text-emerald-600 truncate flex-1">{group.inviteUrl}</span>
+                                  <button onClick={() => refreshGroupInvite(group.groupJid, gi)}
+                                    className="text-[10px] text-emerald-700 hover:underline font-medium whitespace-nowrap">🔄 Régénérer</button>
+                                </div>
+                              )}
+
+                              {/* Scheduled Posts */}
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <h5 className="text-[12px] font-bold text-gray-700 uppercase tracking-wide">📢 Posts planifiés</h5>
+                                  <button onClick={() => {
+                                    const posts = [...(group.scheduledPosts || []), { type: 'text', content: '', productName: '', days: [], hour: '09:00', enabled: true }];
+                                    updateManagedGroup(gi, { ...group, scheduledPosts: posts });
+                                  }}
+                                    className="text-[12px] px-3 py-1 rounded-lg text-white font-medium transition" style={{ background: ACCENT }}>
+                                    + Ajouter
+                                  </button>
+                                </div>
+
+                                {!postsCount && (
+                                  <div className="text-center py-6 bg-gray-50 rounded-xl">
+                                    <p className="text-[11px] text-gray-400">Aucun post planifié. Rita peut animer ce groupe !</p>
+                                  </div>
+                                )}
+
+                                {(group.scheduledPosts || []).map((post, pi) => (
+                                  <div key={pi} className="bg-gray-50 border rounded-xl p-4 space-y-3">
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                      <select value={post.type} onChange={e => {
+                                        const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], type: e.target.value };
+                                        updateManagedGroup(gi, { ...group, scheduledPosts: ps });
+                                      }} className="text-[12px] border rounded-lg px-3 py-1.5 bg-white font-medium">
+                                        <option value="text">📝 Texte</option>
+                                        <option value="image">🖼️ Image</option>
+                                        <option value="product">🛍️ Produit</option>
+                                      </select>
+                                      <input type="time" value={post.hour || '09:00'} onChange={e => {
+                                        const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], hour: e.target.value };
+                                        updateManagedGroup(gi, { ...group, scheduledPosts: ps });
+                                      }} className="text-[12px] border rounded-lg px-2 py-1.5" />
+                                      <label className="flex items-center gap-1.5 ml-auto cursor-pointer">
+                                        <div className={`relative w-9 h-5 rounded-full transition ${post.enabled !== false ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                                          onClick={() => {
+                                            const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], enabled: !(post.enabled !== false) };
+                                            updateManagedGroup(gi, { ...group, scheduledPosts: ps });
+                                          }}>
+                                          <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${post.enabled !== false ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                                        </div>
+                                        <span className="text-[11px] font-medium text-gray-600">{post.enabled !== false ? 'Actif' : 'Pause'}</span>
+                                      </label>
+                                      <button onClick={() => {
+                                        const ps = [...group.scheduledPosts]; ps.splice(pi, 1);
+                                        updateManagedGroup(gi, { ...group, scheduledPosts: ps });
+                                      }} className="text-gray-400 hover:text-red-500 transition">
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+
+                                    {post.type === 'text' && (
+                                      <textarea value={post.content || ''} onChange={e => {
+                                        const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], content: e.target.value };
+                                        updateManagedGroup(gi, { ...group, scheduledPosts: ps });
+                                      }} rows={2} placeholder="Message à envoyer..." className="ac-textarea" />
+                                    )}
+                                    {post.type === 'image' && (
+                                      <input type="text" value={post.content || ''} onChange={e => {
+                                        const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], content: e.target.value };
+                                        updateManagedGroup(gi, { ...group, scheduledPosts: ps });
+                                      }} placeholder="https://example.com/image.jpg" className="ac-input" />
+                                    )}
+                                    {post.type === 'product' && (
+                                      <select value={post.productName || ''} onChange={e => {
+                                        const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], productName: e.target.value };
+                                        updateManagedGroup(gi, { ...group, scheduledPosts: ps });
+                                      }} className="ac-input">
+                                        <option value="">— Choisir un produit —</option>
+                                        {groupProducts.map(p => <option key={p} value={p}>{p}</option>)}
+                                      </select>
+                                    )}
+
+                                    {/* Days */}
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {GA_DAYS.map(d => (
+                                        <button key={d} onClick={() => {
+                                          const days = (post.days || []).includes(d) ? post.days.filter(x => x !== d) : [...(post.days || []), d];
+                                          const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], days };
+                                          updateManagedGroup(gi, { ...group, scheduledPosts: ps });
+                                        }}
+                                          className={`text-[11px] px-2 py-0.5 rounded-full border transition font-medium ${(post.days || []).includes(d) ? 'bg-emerald-50 border-emerald-400 text-emerald-700' : 'bg-white border-gray-200 text-gray-400'}`}>
+                                          {d.charAt(0).toUpperCase() + d.slice(1, 3)}
+                                        </button>
+                                      ))}
+                                      <button onClick={() => {
+                                        const ps = [...group.scheduledPosts]; ps[pi] = { ...ps[pi], days: GA_DAYS.slice() };
+                                        updateManagedGroup(gi, { ...group, scheduledPosts: ps });
+                                      }} className="text-[10px] px-2 text-emerald-600 hover:underline font-medium">Tous</button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Save button */}
+                <div className="flex items-center justify-between">
+                  <button onClick={saveGroupConfig} disabled={groupSaving}
+                    className="px-5 py-2.5 rounded-xl text-[13px] font-bold text-white disabled:opacity-50 transition"
+                    style={{ background: ACCENT }}>
+                    {groupSaving ? 'Enregistrement...' : '💾 Sauvegarder l\'animation'}
+                  </button>
+                </div>
+
+                {/* Info */}
+                <div className="p-4 rounded-xl border border-blue-200 bg-blue-50 text-[12px] text-blue-700 space-y-1">
+                  <p className="font-bold">💡 Comment fonctionne l'animation ?</p>
+                  <p>• <strong>Rejoindre un groupe</strong> : collez un lien d'invitation et Rita rejoint automatiquement le groupe.</p>
+                  <p>• <strong>Programmer des produits</strong> : ajoutez des posts de type "Produit" → Rita envoie la fiche + photo aux jours/heures choisis.</p>
+                  <p>• <strong>Calendrier automatique</strong> : choisissez les jours de la semaine et l'heure d'envoi pour chaque post.</p>
+                  <p>• Rita vérifie toutes les minutes si un post doit être envoyé (fuseau Africa/Douala).</p>
+                  <p>• Mettez un post en pause avec le toggle Actif/Pause sans le supprimer.</p>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
       </div>
 
       {/* ═══ BOTTOM SAVE BAR ═══ */}

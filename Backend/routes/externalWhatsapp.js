@@ -2525,12 +2525,17 @@ router.post('/incoming', async (req, res) => {
           // ─── Détection et envoi automatique de photos pour les LISTES DE PRODUITS ───
           if (!imageUrl && !videoUrl && !imagesAllTagMatch) {
             // Détecter si le message contient une liste de produits (lignes avec numéros ou tirets)
-            const catalogListPattern = /(?:^|\n)\s*(?:[\d]+[\.\)]\s*|[-•▪◦]\s*)(.+?)(?:\s*[:：]\s*|\s*-\s*|\n|$)/gm;
+            // Note: on capture toute la ligne après le marqueur, le nettoyage du prix est fait après
+            const catalogListPattern = /(?:^|\n)\s*(?:[\d]+[\.\)]\s*|[-•▪◦]\s*)(.+)/gm;
             const productLines = [];
             let match;
             
             while ((match = catalogListPattern.exec(textToSend)) !== null) {
-              productLines.push(match[1].trim());
+              const line = match[1].trim();
+              // Filtrer les lignes trop courtes ou qui ressemblent à des phrases (pas des produits)
+              if (line.length >= 3 && !line.match(/^(vous|tu |on |je |nous |voir|merci|bonjour)/i)) {
+                productLines.push(line);
+              }
             }
 
             // Si on a détecté au moins 2 lignes de produits, c'est probablement un catalogue
@@ -2547,7 +2552,8 @@ router.post('/incoming', async (req, res) => {
               for (let lineIdx = 0; lineIdx < productLines.length; lineIdx++) {
                 const line = productLines[lineIdx];
                 // Extraire le nom du produit (avant le prix si présent)
-                const productNameMatch = line.match(/^(.+?)(?:\s*[:：-]\s*\d+|$)/);
+                // Utilise \s+[-–—]\s+ pour les tirets (requiert des espaces autour) et [:：] pour les deux-points
+                const productNameMatch = line.match(/^(.+?)(?:\s+[-–—]\s+\d|\s*[:：]\s*\d|\s*[–—]\s*\d|$)/);
                 if (!productNameMatch) continue;
                 
                 const potentialProductName = productNameMatch[1].trim();

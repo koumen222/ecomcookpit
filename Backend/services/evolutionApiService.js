@@ -879,6 +879,32 @@ class EvolutionApiService {
       return { success: false, error: error.response?.data?.message || error.message };
     }
   }
+
+  /**
+   * Rejoint un groupe via un code d'invitation WhatsApp
+   * @param {string} instanceName
+   * @param {string} instanceToken
+   * @param {string} inviteCode - Le code d'invitation (partie après https://chat.whatsapp.com/)
+   * @returns {Promise<{success: boolean, groupJid?: string}>}
+   */
+  async acceptGroupInvite(instanceName, instanceToken, inviteCode) {
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/group/acceptInvite/${instanceName}`,
+        { inviteCode },
+        {
+          headers: { 'Content-Type': 'application/json', 'apikey': instanceToken },
+          timeout: 30000,
+        }
+      );
+      const groupJid = response.data?.groupJid || response.data?.id || response.data?.gid || response.data;
+      console.log(`✅ [Evolution API] Rejoint le groupe via invite: ${inviteCode}`);
+      return { success: true, groupJid: typeof groupJid === 'string' ? groupJid : String(groupJid) };
+    } catch (error) {
+      console.error(`❌ Erreur Evolution API (acceptGroupInvite):`, error.response?.data || error.message);
+      return { success: false, error: error.response?.data?.message || error.message };
+    }
+  }
 }
 
 export default new EvolutionApiService();
