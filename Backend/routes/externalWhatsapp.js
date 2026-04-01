@@ -2364,6 +2364,73 @@ router.post('/incoming', async (req, res) => {
             }
           }
 
+          // ─── Détection et envoi automatique de photos pour les LISTES DE PRODUITS ───
+          if (!imageUrl && !videoUrl && !imagesAllTagMatch) {
+            // Détecter si le message contient une liste de produits (lignes avec numéros ou tirets)
+            const catalogListPattern = /(?:^|\n)\s*(?:[\d]+[\.\)]\s*|[-•▪◦]\s*)(.+?)(?:\s*[:：]\s*|\s*-\s*|\n|$)/gm;
+            const productLines = [];
+            let match;
+            
+            while ((match = catalogListPattern.exec(textToSend)) !== null) {
+              productLines.push(match[1].trim());
+            }
+
+            // Si on a détecté au moins 2 lignes de produits, c'est probablement un catalogue
+            if (productLines.length >= 2) {
+              console.log(`📋 [RITA] Liste de produits détectée (${productLines.length} lignes) — envoi des photos...`);
+              
+              const ritaCfgForCatalog = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
+              const catalogForImages = ritaCfgForCatalog?.productCatalog || [];
+              let catalogImagesSent = 0;
+
+              for (let lineIdx = 0; lineIdx < productLines.length; lineIdx++) {
+                const line = productLines[lineIdx];
+                // Extraire le nom du produit (avant le prix si présent)
+                const productNameMatch = line.match(/^(.+?)(?:\s*[:：-]\s*\d+|$)/);
+                if (!productNameMatch) continue;
+                
+                const potentialProductName = productNameMatch[1].trim();
+                // Chercher le produit dans le catalogue
+                const foundProduct = findProductByName(catalogForImages, potentialProductName);
+                
+                if (foundProduct && foundProduct.images?.length > 0) {
+                  let photoUrl = foundProduct.images[0];
+                  if (photoUrl.startsWith('/')) photoUrl = `https://api.scalor.net${photoUrl}`;
+                  
+                  const ext = (photoUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
+                  
+                  try {
+                    await new Promise(r => setTimeout(r, 600)); // Délai pour éviter le flood
+                    const result = await evolutionApiService.sendMedia(
+                      instanceDoc.instanceName,
+                      instanceDoc.instanceToken,
+                      cleanFrom,
+                      photoUrl,
+                      '',
+                      `catalog_${lineIdx + 1}.${ext}`
+                    );
+                    
+                    if (result.success) {
+                      catalogImagesSent++;
+                      console.log(`✅ [RITA] Photo catalogue ${lineIdx + 1}/${productLines.length} envoyée (${foundProduct.name})`);
+                      logRitaActivity(userId, 'catalog_image_sent', { customerPhone: cleanFrom, product: foundProduct.name });
+                    } else {
+                      console.error(`❌ [RITA] Échec photo catalogue ${lineIdx + 1}: ${result.error}`);
+                    }
+                  } catch (imgErr) {
+                    console.error(`❌ [RITA] Erreur envoi photo catalogue ${lineIdx + 1}:`, imgErr.message);
+                  }
+                } else {
+                  console.log(`⚠️ [RITA] Produit "${potentialProductName}" non trouvé ou sans image dans le catalogue`);
+                }
+              }
+
+              if (catalogImagesSent > 0) {
+                console.log(`📸 [RITA] ${catalogImagesSent}/${productLines.length} photo(s) de catalogue envoyée(s) à ${cleanFrom}`);
+              }
+            }
+          }
+
           // Envoyer l'image (ou TOUTES les images) si disponible
           if (imageUrl) {
             if (sendAllImages && matchedProductForMedia?.images?.length > 1) {
