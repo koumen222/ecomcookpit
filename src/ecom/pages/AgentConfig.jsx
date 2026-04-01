@@ -449,6 +449,15 @@ export default function AgentConfig() {
     deliveryDelay: '',
     deliveryInfo: '',
     deliveryZones: [],
+    // Expéditions
+    expeditionEnabled: false,
+    expeditionAgencies: [],
+    expeditionCities: [],
+    paymentCoordinates: {
+      mobileMoney: [],
+      bankAccount: null,
+    },
+    expeditionInstructions: '',
     whatsappGroupLink: null,
     bossNotifications: false,
     bossPhone: '',
@@ -1679,11 +1688,17 @@ export default function AgentConfig() {
               {/* Follow-up */}
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-[15px] font-bold text-gray-900">Relances automatiques</h2>
+                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
+                      <MessageSquare className="w-4 h-4 text-purple-600" />
+                    </span>
+                    Relances & Suivi Clients
+                  </h2>
+                  <p className="text-[12px] text-gray-400 mt-1">Relances automatiques + Tableau de bord des conversations actives</p>
                 </div>
-                <div className="p-6 space-y-3">
+                <div className="p-6 space-y-4">
                   <Toggle enabled={config.followUpEnabled} onChange={v => set('followUpEnabled', v)}
-                    label="Activer les relances" description="Rita relance naturellement les prospects silencieux" />
+                    label="Activer les relances automatiques" description="Rita relance naturellement les prospects silencieux" />
                   {config.followUpEnabled && (
                     <div className="space-y-3 pt-2">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1699,6 +1714,52 @@ export default function AgentConfig() {
                       </Field>
                     </div>
                   )}
+
+                  <div className="border-t border-gray-100 pt-4 mt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <p className="text-[13px] font-bold text-gray-900">Relances manuelles en un clic</p>
+                        <p className="text-[11px] text-gray-400 mt-0.5">Relancez tous vos clients en attente instantanément</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-purple-100 bg-purple-50/40 p-4 space-y-3">
+                      <p className="text-[12px] font-bold text-purple-800">📱 Utiliser les API de relance :</p>
+                      
+                      <div className="space-y-2">
+                        <div className="bg-white rounded-lg border border-purple-100 p-3">
+                          <p className="text-[11px] font-bold text-purple-900 mb-1">1️⃣ Voir toutes les conversations actives</p>
+                          <code className="text-[10px] text-purple-700 bg-purple-50 px-2 py-1 rounded block overflow-x-auto">
+                            GET /api/rita/conversations/active?userId=YOUR_USER_ID
+                          </code>
+                          <p className="text-[10px] text-gray-500 mt-1">Retourne: liste avec statuts (waiting_response, need_relance, abandoned)</p>
+                        </div>
+
+                        <div className="bg-white rounded-lg border border-purple-100 p-3">
+                          <p className="text-[11px] font-bold text-purple-900 mb-1">2️⃣ Relancer UN client spécifique</p>
+                          <code className="text-[10px] text-purple-700 bg-purple-50 px-2 py-1 rounded block overflow-x-auto">
+                            POST /api/rita/relance/single
+                            {`{ "userId": "...", "clientPhone": "237690..." }`}
+                          </code>
+                          <p className="text-[10px] text-gray-500 mt-1">Message auto-généré par IA selon l'historique</p>
+                        </div>
+
+                        <div className="bg-white rounded-lg border border-purple-100 p-3">
+                          <p className="text-[11px] font-bold text-purple-900 mb-1">3️⃣ Relancer TOUS les clients en attente</p>
+                          <code className="text-[10px] text-purple-700 bg-purple-50 px-2 py-1 rounded block overflow-x-auto">
+                            POST /api/rita/relance/bulk
+                            {`{ "userId": "...", "status": "need_relance", "maxRelance": 3 }`}
+                          </code>
+                          <p className="text-[10px] text-gray-500 mt-1">Envoie avec délai anti-spam (2s entre messages)</p>
+                        </div>
+                      </div>
+
+                      <div className="bg-purple-100/50 rounded-lg p-3 space-y-1">
+                        <p className="text-[10px] font-bold text-purple-800">💡 Prochainement :</p>
+                        <p className="text-[10px] text-purple-700">Interface graphique avec tableau de bord des conversations actives et boutons de relance intégrés ici même.</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1954,6 +2015,229 @@ export default function AgentConfig() {
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Expéditions */}
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+                      <span className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center">
+                        <Package className="w-4 h-4 text-orange-600" />
+                      </span>
+                      Expéditions (Villes Hors Zone)
+                    </h2>
+                    <p className="text-[12px] text-gray-400 mt-1">Pour les clients dans des villes où vous ne livrez pas directement (Express Union, etc.)</p>
+                  </div>
+                  <Toggle enabled={config.expeditionEnabled} onChange={v => set('expeditionEnabled', v)} label="" />
+                </div>
+                {config.expeditionEnabled && (
+                  <div className="p-6 space-y-4">
+                    {/* Villes éligibles */}
+                    <Field label="Villes éligibles pour expédition" hint="Séparer par des virgules">
+                      <textarea
+                        value={(config.expeditionCities || []).join(', ')}
+                        onChange={e => set('expeditionCities', e.target.value.split(',').map(c => c.trim()).filter(Boolean))}
+                        placeholder="ex: Bafoussam, Bamenda, Bertoua, Kribi, Limbe, etc."
+                        rows={2}
+                        className="ac-textarea"
+                      />
+                    </Field>
+
+                    {/* Agences d'expédition */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[12px] font-bold text-gray-700">Agences d'expédition</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = [...(config.expeditionAgencies || [])];
+                            updated.push({ name: '', cost: '', estimatedDays: '' });
+                            set('expeditionAgencies', updated);
+                          }}
+                          className="text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                          style={{ color: '#0F6B4F', background: 'rgba(15,107,79,0.08)' }}
+                        >
+                          + Ajouter agence
+                        </button>
+                      </div>
+
+                      {(config.expeditionAgencies || []).length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-gray-200 p-4 text-center text-[12px] text-gray-400">
+                          Aucune agence configurée. Ajoutez Express Union, Chronopost, etc.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {(config.expeditionAgencies || []).map((agency, idx) => (
+                            <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-lg border border-orange-100 bg-orange-50/30 p-3">
+                              <Field label="Nom agence">
+                                <input
+                                  value={agency.name || ''}
+                                  onChange={e => {
+                                    const updated = [...(config.expeditionAgencies || [])];
+                                    updated[idx].name = e.target.value;
+                                    set('expeditionAgencies', updated);
+                                  }}
+                                  placeholder="ex: Express Union"
+                                  className="ac-input"
+                                />
+                              </Field>
+                              <Field label="Coût">
+                                <input
+                                  value={agency.cost || ''}
+                                  onChange={e => {
+                                    const updated = [...(config.expeditionAgencies || [])];
+                                    updated[idx].cost = e.target.value;
+                                    set('expeditionAgencies', updated);
+                                  }}
+                                  placeholder="ex: 2000 FCFA"
+                                  className="ac-input"
+                                />
+                              </Field>
+                              <div className="flex items-end gap-2">
+                                <div className="flex-1">
+                                  <Field label="Délai (jours)">
+                                    <input
+                                      value={agency.estimatedDays || ''}
+                                      onChange={e => {
+                                        const updated = [...(config.expeditionAgencies || [])];
+                                        updated[idx].estimatedDays = e.target.value;
+                                        set('expeditionAgencies', updated);
+                                      }}
+                                      placeholder="ex: 2-3"
+                                      className="ac-input"
+                                    />
+                                  </Field>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = (config.expeditionAgencies || []).filter((_, i) => i !== idx);
+                                    set('expeditionAgencies', updated);
+                                  }}
+                                  className="px-2 py-2 text-red-500 hover:text-red-700 text-[12px] font-semibold mb-1"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Coordonnées de paiement Mobile Money */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[12px] font-bold text-gray-700">Coordonnées Mobile Money</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = {
+                              ...config.paymentCoordinates,
+                              mobileMoney: [...(config.paymentCoordinates?.mobileMoney || []), { provider: 'Orange Money', number: '', accountName: '' }]
+                            };
+                            set('paymentCoordinates', updated);
+                          }}
+                          className="text-[12px] font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                          style={{ color: '#0F6B4F', background: 'rgba(15,107,79,0.08)' }}
+                        >
+                          + Ajouter compte
+                        </button>
+                      </div>
+
+                      {(config.paymentCoordinates?.mobileMoney || []).length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-gray-200 p-4 text-center text-[12px] text-gray-400">
+                          Aucun compte configuré. Ajoutez Orange Money, MTN Mobile Money, etc.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {(config.paymentCoordinates?.mobileMoney || []).map((mm, idx) => (
+                            <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-lg border border-yellow-100 bg-yellow-50/30 p-3">
+                              <Field label="Opérateur">
+                                <select
+                                  value={mm.provider || 'Orange Money'}
+                                  onChange={e => {
+                                    const updated = { ...config.paymentCoordinates };
+                                    updated.mobileMoney[idx].provider = e.target.value;
+                                    set('paymentCoordinates', updated);
+                                  }}
+                                  className="ac-input"
+                                >
+                                  <option value="Orange Money">Orange Money</option>
+                                  <option value="MTN Mobile Money">MTN Mobile Money</option>
+                                  <option value="Express Union">Express Union</option>
+                                </select>
+                              </Field>
+                              <Field label="Numéro">
+                                <input
+                                  value={mm.number || ''}
+                                  onChange={e => {
+                                    const updated = { ...config.paymentCoordinates };
+                                    updated.mobileMoney[idx].number = e.target.value;
+                                    set('paymentCoordinates', updated);
+                                  }}
+                                  placeholder="ex: 690123456"
+                                  className="ac-input"
+                                />
+                              </Field>
+                              <div className="flex items-end gap-2">
+                                <div className="flex-1">
+                                  <Field label="Nom du compte">
+                                    <input
+                                      value={mm.accountName || ''}
+                                      onChange={e => {
+                                        const updated = { ...config.paymentCoordinates };
+                                        updated.mobileMoney[idx].accountName = e.target.value;
+                                        set('paymentCoordinates', updated);
+                                      }}
+                                      placeholder="ex: Jean KOUMEN"
+                                      className="ac-input"
+                                    />
+                                  </Field>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = { ...config.paymentCoordinates };
+                                    updated.mobileMoney = updated.mobileMoney.filter((_, i) => i !== idx);
+                                    set('paymentCoordinates', updated);
+                                  }}
+                                  className="px-2 py-2 text-red-500 hover:text-red-700 text-[12px] font-semibold mb-1"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Instructions personnalisées */}
+                    <Field label="Instructions spéciales (optionnel)" hint="Instructions additionnelles pour Rita concernant les expéditions">
+                      <textarea
+                        value={config.expeditionInstructions || ''}
+                        onChange={e => set('expeditionInstructions', e.target.value)}
+                        placeholder="ex: Toujours demander confirmation du point de retrait avant d'envoyer les coordonnées"
+                        rows={2}
+                        className="ac-textarea"
+                      />
+                    </Field>
+
+                    {/* Info box */}
+                    <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-4 space-y-2">
+                      <p className="text-[12px] font-bold text-orange-800">📦 Comment ça fonctionne :</p>
+                      <ul className="text-[11px] text-orange-700 space-y-1 ml-4">
+                        <li>1️⃣ Rita détecte si le client est dans une ville hors zone de livraison</li>
+                        <li>2️⃣ Elle propose les agences d'expédition avec coûts et délais</li>
+                        <li>3️⃣ Le client choisit l'agence et confirme le point de retrait</li>
+                        <li>4️⃣ Rita envoie automatiquement les coordonnées Mobile Money avec le total (produit + expédition)</li>
+                        <li>5️⃣ Après paiement confirmé, vous expédiez le colis</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Groupe WhatsApp */}
