@@ -12,6 +12,7 @@ import QuickOrderModal from '../components/QuickOrderModal';
 import ProductBenefits from '../components/ProductBenefits';
 import ConversionBlocks, { UrgencyBadge } from '../components/ConversionBlocks';
 import ProductTestimonials from '../components/ProductTestimonials';
+import { StorefrontHeader, StorefrontFooter } from '../components/StorefrontShared';
 import { io } from 'socket.io-client';
 import { setDocumentMeta } from '../utils/pageMeta';
 import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking';
@@ -29,48 +30,6 @@ const truncateMetaText = (value = '', max = 180) => {
   if (!value || value.length <= max) return value;
   return `${value.slice(0, max - 1).trimEnd()}…`;
 };
-
-// ── Shared Header ────────────────────────────────────────────────────────────
-const StorefrontHeader = ({ store, cartCount, prefix }) => (
-  <header style={{
-    position: 'sticky', top: 0, zIndex: 50,
-    backgroundColor: 'var(--s-bg)', borderBottom: '1px solid var(--s-border)',
-    fontFamily: 'var(--s-font)',
-  }}>
-    <div style={{
-      maxWidth: 1200, margin: '0 auto', padding: '0 24px',
-      height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    }}>
-      <Link to={`${prefix}/`} style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
-        {store?.logo ? (
-          <img src={store.logo} alt={store?.name} style={{ height: 36, width: 'auto', maxWidth: 120, objectFit: 'contain' }} />
-        ) : (
-          <span style={{
-            width: 36, height: 36, borderRadius: 10, backgroundColor: 'var(--s-primary)',
-            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 800, fontSize: 16, flexShrink: 0,
-          }}>
-            {(store?.name || 'S')[0].toUpperCase()}
-          </span>
-        )}
-        <span style={{ fontWeight: 700, fontSize: 17, color: 'var(--s-text)', letterSpacing: '-0.01em' }}>
-          {store?.name}
-        </span>
-      </Link>
-      <Link to={`${prefix}/checkout`} style={{
-        display: 'flex', alignItems: 'center', gap: 7,
-        padding: '8px 18px', borderRadius: 40, border: '1.5px solid',
-        borderColor: cartCount > 0 ? 'var(--s-primary)' : 'var(--s-border)',
-        backgroundColor: cartCount > 0 ? 'var(--s-primary)' : 'transparent',
-        color: cartCount > 0 ? '#fff' : 'var(--s-text)',
-        textDecoration: 'none', fontWeight: 600, fontSize: 14, fontFamily: 'var(--s-font)',
-      }} onMouseEnter={preloadStoreCheckoutRoute} onFocus={preloadStoreCheckoutRoute} onTouchStart={preloadStoreCheckoutRoute}>
-        <ShoppingCart size={17} />
-        {cartCount > 0 && <span>{cartCount}</span>}
-      </Link>
-    </div>
-  </header>
-);
 
 // ── Image Gallery ────────────────────────────────────────────────────────────
 const ImageGallery = ({ images = [] }) => {
@@ -644,218 +603,6 @@ const ProductFaqAccordion = ({ items = [] }) => {
   );
 };
 
-// ── Avis Clients (carrousel) ──────────────────────────────────────────────
-const VerifiedTestimonialsCarousel = ({ testimonials = [], autoPlay = true }) => {
-  const verifiedSlides = (testimonials || []).filter((t) => !!t?.verified);
-  const slides = verifiedSlides.length ? verifiedSlides : (testimonials || []);
-
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isAutoPlaying, setIsAutoPlaying] = useState(autoPlay);
-
-  useEffect(() => {
-    if (!isAutoPlaying || slides.length <= 1) return;
-
-    const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % slides.length);
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [isAutoPlaying, slides.length]);
-
-  if (!slides || slides.length === 0) return null;
-
-  const goToPrevious = () => {
-    setIsAutoPlaying(false);
-    setCurrentIndex((prev) => (prev - 1 + slides.length) % slides.length);
-  };
-
-  const goToNext = () => {
-    setIsAutoPlaying(false);
-    setCurrentIndex((prev) => (prev + 1) % slides.length);
-  };
-
-  const goToSlide = (index) => {
-    setIsAutoPlaying(false);
-    setCurrentIndex(index);
-  };
-
-  const current = slides[currentIndex];
-  const ratingNum = Number(current?.rating || 5);
-  const fullStars = Math.max(0, Math.min(5, Math.round(ratingNum)));
-
-  const safeText = current?.text || current?.comment || '';
-  const displayDate = (() => {
-    if (!current?.date) return null;
-    const d = new Date(current.date);
-    if (Number.isNaN(d.getTime())) return String(current.date);
-    return d.toLocaleDateString('fr-FR');
-  })();
-
-  return (
-    <div
-      style={{
-        width: '100%',
-        background: 'linear-gradient(135deg, #ecfdf5 0%, #cffafe 100%)',
-        borderRadius: 18,
-        padding: '22px 18px',
-        border: '1px solid rgba(13, 148, 136, 0.18)',
-      }}
-    >
-      <div style={{ textAlign: 'center', marginBottom: 14 }}>
-        <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--s-text)', marginBottom: 2 }}>
-          ⭐ Ce que disent nos clients
-        </div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--s-text2)' }}>
-          Avis vérifiés de clients satisfaits
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button
-          onClick={goToPrevious}
-          disabled={slides.length <= 1}
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 999,
-            border: '1px solid var(--s-border)',
-            backgroundColor: '#fff',
-            cursor: slides.length > 1 ? 'pointer' : 'not-allowed',
-            opacity: slides.length > 1 ? 1 : 0.6,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-          }}
-          aria-label="Avis précédent"
-        >
-          <ChevronLeft size={20} color="var(--s-text)" />
-        </button>
-
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              backgroundColor: '#fff',
-              border: '1px solid rgba(229, 231, 235, 0.9)',
-              borderRadius: 16,
-              padding: 18,
-              boxShadow: '0 10px 30px rgba(0,0,0,0.06)',
-            }}
-          >
-            {/* Étoiles */}
-            <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 10 }}>
-              {[...Array(5)].map((_, i) => (
-                <Star
-                  // eslint-disable-next-line react/no-array-index-key
-                  key={i}
-                  size={18}
-                  fill={i < fullStars ? '#F59E0B' : 'transparent'}
-                  color={i < fullStars ? '#F59E0B' : '#D1D5DB'}
-                />
-              ))}
-            </div>
-
-            {/* Texte */}
-            <p
-              style={{
-                margin: '0 0 14px',
-                color: 'var(--s-text2)',
-                fontStyle: 'italic',
-                fontSize: 14.5,
-                lineHeight: 1.7,
-                textAlign: 'center',
-                fontFamily: 'var(--s-font)',
-              }}
-            >
-              "{safeText}"
-            </p>
-
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--s-text)', marginBottom: 2 }}>
-                {current?.name || 'Client vérifié'}
-              </div>
-              {current?.location && (
-                <div style={{ fontSize: 12, color: 'var(--s-text2)', fontWeight: 700, marginBottom: 2 }}>
-                  📍 {current.location}
-                </div>
-              )}
-              {displayDate && (
-                <div style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 700 }}>
-                  {displayDate}
-                </div>
-              )}
-              {current?.verified && (
-                <div
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    marginTop: 8,
-                    padding: '6px 12px',
-                    borderRadius: 999,
-                    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-                    color: '#059669',
-                    fontSize: 12,
-                    fontWeight: 900,
-                    border: '1px solid rgba(16, 185, 129, 0.16)',
-                  }}
-                >
-                  ✓ Achat vérifié
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <button
-          onClick={goToNext}
-          disabled={slides.length <= 1}
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 999,
-            border: '1px solid var(--s-border)',
-            backgroundColor: '#fff',
-            cursor: slides.length > 1 ? 'pointer' : 'not-allowed',
-            opacity: slides.length > 1 ? 1 : 0.6,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-          }}
-          aria-label="Avis suivant"
-        >
-          <ChevronRight size={20} color="var(--s-text)" />
-        </button>
-      </div>
-
-      {slides.length > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12 }}>
-          {slides.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => goToSlide(index)}
-              style={{
-                width: index === currentIndex ? 30 : 8,
-                height: 8,
-                borderRadius: 999,
-                border: 'none',
-                cursor: 'pointer',
-                backgroundColor:
-                  index === currentIndex ? 'var(--s-primary)' : 'rgba(107, 114, 128, 0.35)',
-                transition: 'width 0.2s ease, background-color 0.2s ease',
-              }}
-              aria-label={`Aller au témoignage ${index + 1}`}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
 // ── Trust Badges ─────────────────────────────────────────────────────────────
 const TrustBadges = ({ compact = false }) => (
   <div className="sf-no-scrollbar" style={{
@@ -934,23 +681,6 @@ const RelatedCard = ({ product, prefix, store, subdomain }) => {
   );
 };
 
-
-// ── Footer ───────────────────────────────────────────────────────────────────
-const StorefrontFooter = ({ store }) => (
-  <footer style={{ borderTop: '1px solid var(--s-border)', marginTop: 80, padding: '40px 24px', fontFamily: 'var(--s-font)' }}>
-    <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 20 }}>
-      <div>
-        <p style={{ fontWeight: 700, fontSize: 15, color: 'var(--s-text)', margin: '0 0 4px' }}>{store?.name}</p>
-        {store?.description && <p style={{ fontSize: 13, color: 'var(--s-text2)', margin: 0, maxWidth: 320 }}>{store.description}</p>}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 12, color: 'var(--s-text2)' }}>
-          Propulsé par <a href="https://scalor.net" target="_blank" rel="noreferrer" style={{ color: 'var(--s-primary)', fontWeight: 600, textDecoration: 'none' }}>Scalor</a>
-        </span>
-      </div>
-    </div>
-  </footer>
-);
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 const StoreProductPage = () => {
@@ -1094,20 +824,29 @@ const StoreProductPage = () => {
         .sf-no-scrollbar { scrollbar-width:none; -ms-overflow-style:none; }
         .sf-no-scrollbar::-webkit-scrollbar { display:none; }
         @keyframes slide-up { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        @media(max-width:768px){ .product-grid{ grid-template-columns: 1fr !important; } }
-        .ai-desc h3 { font-size:20px; font-weight:800; color:var(--s-text); margin:0 0 12px; line-height:1.3; }
+        /* Mobile first: single column */
+        .product-grid { display:grid; grid-template-columns:1fr; gap:0; align-items:start; }
+        .product-gallery { position:relative; }
+        .product-info { padding:16px 16px 48px; }
+        /* Desktop: 2 columns */
+        @media(min-width:769px){
+          .product-grid { grid-template-columns:1fr 1fr; gap:40px; }
+          .product-gallery { position:sticky; top:72px; }
+          .product-info { padding:0 24px 48px 0; }
+        }
+        .ai-desc h3 { font-size:18px; font-weight:800; color:var(--s-text); margin:0 0 10px; line-height:1.3; }
         .ai-desc h3 strong { font-weight:800; }
-        .ai-desc p { font-size:15px; line-height:1.75; color:var(--s-text2); margin:0 0 14px; }
-        .ai-desc img { width:auto !important; max-width:100% !important; height:auto !important; aspect-ratio:auto !important; object-fit:contain !important; display:block; margin:0 0 0; }
+        .ai-desc p { font-size:14px; line-height:1.75; color:var(--s-text2); margin:0 0 12px; }
+        .ai-desc img { width:auto !important; max-width:100% !important; height:auto !important; aspect-ratio:auto !important; object-fit:contain !important; display:block; margin:0; }
         .ai-desc ul { margin:0; padding:0; list-style:none; }
-        .ai-desc ul li { display:flex; align-items:flex-start; gap:10px; margin-bottom:10px; font-size:14px; }
-        .ai-desc-testimonials { display:flex; overflow-x:auto; scroll-snap-type:x mandatory; gap:16px; padding-bottom:12px; scroll-behavior:smooth; -webkit-overflow-scrolling:touch; cursor:grab; }
-        .ai-desc-testimonials:active { cursor:grabbing; }
-        .ai-desc-testimonials::-webkit-scrollbar { height:4px; }
-        .ai-desc-testimonials::-webkit-scrollbar-track { background:#f3f4f6; border-radius:9px; }
-        .ai-desc-testimonials::-webkit-scrollbar-thumb { background:#d1d5db; border-radius:9px; }
-        .ai-desc-testimonials > * { flex:0 0 min(85%,300px); scroll-snap-align:center; }
-        @media(max-width:640px){ .ai-desc-testimonials > * { flex:0 0 85%; } }
+        .ai-desc ul li { display:flex; align-items:flex-start; gap:8px; margin-bottom:8px; font-size:13px; }
+        @media(min-width:769px){
+          .ai-desc h3 { font-size:20px; }
+          .ai-desc p { font-size:15px; }
+          .ai-desc ul li { font-size:14px; }
+        }
+        /* Hide nav links on very small screens */
+        @media(max-width:480px){ .sf-nav-link { display:none !important; } }
       `}</style>
 
       {/* Barre d'annonce */}
@@ -1128,17 +867,15 @@ const StoreProductPage = () => {
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
 
       {/* Product Detail */}
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '8px 0 0' }}>
-        <div className="product-grid" style={{
-          display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 48, alignItems: 'start',
-        }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0' }}>
+        <div className="product-grid">
           {/* ── Left: Gallery ─────────────────────────────────────────────── */}
-          <div style={{ position: 'sticky', top: 80 }}>
+          <div className="product-gallery">
             <ImageGallery images={images} />
           </div>
 
           {/* ── Right: Info ───────────────────────────────────────────────── */}
-          <div style={{ padding: '0 24px 48px 24px' }}>
+          <div className="product-info">
             {product ? (
               <>
                 {/* Category */}
@@ -1300,12 +1037,19 @@ const StoreProductPage = () => {
                 {/* Messages de confiance */}
                 {showTrustBadges && <TrustBadges compact />}
 
-                {/* ── Témoignages clients — juste sous les CTAs ───────────── */}
-                {product.testimonials && product.testimonials.length > 0 && (
-                  <div style={{ marginTop: 24, marginBottom: 8 }}>
-                    <VerifiedTestimonialsCarousel testimonials={product.testimonials} autoPlay={true} />
-                  </div>
-                )}
+                {/* ── Témoignages clients (consolidé: _pageData ou model) ── */}
+                {(() => {
+                  const t = product._pageData?.testimonials?.length > 0
+                    ? product._pageData.testimonials
+                    : product.testimonials?.length > 0
+                      ? product.testimonials
+                      : null;
+                  return t ? (
+                    <div style={{ marginTop: 24, marginBottom: 8 }}>
+                      <ProductTestimonials testimonials={t} />
+                    </div>
+                  ) : null;
+                })()}
 
                 {(() => {
                   const raw = product.description?.toString().trim() || '';
@@ -1334,9 +1078,6 @@ const StoreProductPage = () => {
                       )}
                       {product._pageData?.solution_section && (
                         <SolutionSection section={product._pageData.solution_section} />
-                      )}
-                      {product._pageData?.testimonials?.length > 0 && (
-                        <ProductTestimonials testimonials={product._pageData.testimonials} />
                       )}
                       {hasFaq && (
                         <ProductFaqAccordion items={faqItems} />
@@ -1368,17 +1109,18 @@ const StoreProductPage = () => {
       {showStickyOrderBar && product && (
         <div style={{
           position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 70,
-          padding: '10px 14px calc(env(safe-area-inset-bottom, 0px) + 10px)',
+          padding: '10px 16px calc(env(safe-area-inset-bottom, 0px) + 10px)',
           backgroundColor: 'rgba(255,255,255,0.96)',
           borderTop: '1px solid var(--s-border)',
-          boxShadow: '0 -10px 30px rgba(0,0,0,0.08)',
+          boxShadow: '0 -8px 24px rgba(0,0,0,0.08)',
           backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
           animation: 'slide-up 0.2s ease-out',
         }}>
-          <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <p style={{ margin: 0, fontSize: 12, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>{product.name}</p>
-              <p style={{ margin: '2px 0 0', fontSize: 16, fontWeight: 800, color: 'var(--s-primary)', fontFamily: 'var(--s-font)' }}>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--s-text2)', fontFamily: 'var(--s-font)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.name}</p>
+              <p style={{ margin: '2px 0 0', fontSize: 17, fontWeight: 800, color: 'var(--s-primary)', fontFamily: 'var(--s-font)' }}>
                 {fmt(product.price, product.currency || store?.currency || 'XAF')}
               </p>
             </div>
@@ -1386,10 +1128,11 @@ const StoreProductPage = () => {
               onClick={openOrderModal}
               disabled={!inStock}
               style={{
-                border: 'none', borderRadius: 999, padding: '14px 20px',
+                border: 'none', borderRadius: 999, padding: '16px 24px',
                 backgroundColor: inStock ? 'var(--s-primary)' : '#d1d5db', color: '#fff',
-                fontSize: 14, fontWeight: 800, fontFamily: 'var(--s-font)',
+                fontSize: 15, fontWeight: 800, fontFamily: 'var(--s-font)',
                 cursor: inStock ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap',
+                minHeight: 48,
               }}
             >
               Commander
@@ -1398,7 +1141,7 @@ const StoreProductPage = () => {
         </div>
       )}
 
-      <StorefrontFooter store={store} />
+      <StorefrontFooter store={store} prefix={prefix} />
 
       {/* Quick Order Modal */}
       {product && (
