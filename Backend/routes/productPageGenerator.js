@@ -54,29 +54,38 @@ Style: commercial Facebook advertising style, bright clean white background, hig
 }
 
 /**
- * 4 flash prompts — generic, reusable, no text overlay, no product reference.
- * cache: true — same image works for any product.
+ * 4 flash prompts — product-specific, no text overlay.
+ * WITH product ref: reference product stays visible in every scene.
+ * WITHOUT: pure lifestyle / emotion scenes, no brand.
  */
-function buildFlashPrompts() {
+function buildFlashPrompts(gptResult, hasProductRef) {
+  const title = gptResult.title || 'product';
+  const productNote = hasProductRef
+    ? `THE EXACT REFERENCE PRODUCT ("${title}") must be clearly visible — same packaging, shape, color, label.`
+    : '';
+  const productTag = hasProductRef
+    ? `holding or near THE EXACT REFERENCE PRODUCT — ${productNote}`
+    : 'no brand visible, no product label';
+
   return [
     // 0 — lifestyle (mise en situation)
     {
-      prompt: 'African person using a product in a natural lifestyle scene, modern African home interior, soft daylight, authentic relaxed moment, no brand visible, no product label, commercial lifestyle photography, high quality, 4K, no text overlay, no watermark',
+      prompt: `African person using a product in a natural lifestyle scene, modern African home interior, soft daylight, authentic relaxed moment, ${productTag}, commercial lifestyle photography, high quality, 4K, no text overlay, no watermark`,
       type: 'lifestyle',
     },
     // 1 — benefit: beauty / skin
     {
-      prompt: 'African person with clean glowing radiant skin, natural beauty, soft diffused lighting, close-up face, minimal clean background, fresh confident look, commercial skincare photography style, high quality, 4K, no brand, no text overlay, no watermark',
+      prompt: `African person with clean glowing radiant skin, natural beauty, soft diffused lighting, close-up face, minimal clean background, fresh confident look, ${hasProductRef ? `THE EXACT REFERENCE PRODUCT subtly visible in frame — ${productNote}` : 'no brand, no product visible'}, commercial skincare photography style, high quality, 4K, no text overlay, no watermark`,
       type: 'benefit_beauty',
     },
     // 2 — benefit: energy / happiness
     {
-      prompt: 'Happy African person smiling with full energy and confidence, natural warm light, clean modern African environment, genuine joyful expression, lifestyle photography, commercial advertising style, high quality, 4K, no brand, no text overlay, no watermark',
+      prompt: `Happy African person smiling with full energy and confidence, natural warm light, clean modern African environment, genuine joyful expression, ${productTag}, lifestyle photography, commercial advertising style, high quality, 4K, no text overlay, no watermark`,
       type: 'benefit_energy',
     },
     // 3 — testimonial
     {
-      prompt: 'Happy African customer holding a product with a satisfied smile, clean neutral background, authentic warm expression, waist-up portrait, lifestyle photo, no brand visible, no label, commercial photography, high quality, 4K, no text overlay, no watermark',
+      prompt: `Happy African customer ${hasProductRef ? `holding THE EXACT REFERENCE PRODUCT — ${productNote}` : 'holding a product, clean background, no brand'}, satisfied smile, authentic warm expression, waist-up portrait, lifestyle photo, commercial photography, high quality, 4K, no text overlay, no watermark`,
       type: 'testimonial',
     },
   ];
@@ -347,13 +356,13 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         .then(url => ({ type: 'hero', url }))
     );
 
-    // ── 4 Flash images — generic, reusable, no text overlay (total = 1 hero + 4 flash = 5) ─
-    const flashPrompts = buildFlashPrompts();
+    // ── 4 Flash images — product-specific, no text overlay (total = 1 hero + 4 flash = 5) ─
+    const flashPrompts = buildFlashPrompts(gptResult, !!baseImageBuffer);
     for (let i = 0; i < flashPrompts.length; i++) {
       const flash = flashPrompts[i];
       const angle = gptResult.angles?.[i] || null;
       imagePromises.push(
-        generateAndUpload(flash.prompt, null, `flash-${i + 1}-${Date.now()}.png`, 'scene')
+        generateAndUpload(flash.prompt, baseImageBuffer, `flash-${i + 1}-${Date.now()}.png`, 'scene')
           .then(url => ({ type: 'poster', index: i, url, angle, flashType: flash.type }))
       );
     }
@@ -371,14 +380,14 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     ).then(results => results.map(r => (r.status === 'fulfilled' ? r.value : null)));
 
     // Extraire les résultats (nulls possibles si timeout)
-    let heroImageUrl = imageResults.find(r => r?.type === 'hero')?.url || realPhotos[0] || null;
+    let heroImageUrl = imageResults.find(r => r?.type === 'hero')?.url || null;
 
     const posterImages = imageResults
       .filter(r => r?.type === 'poster')
       .sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0))
       .map(r => ({
         ...r?.angle,
-        poster_url: r?.url || realPhotos[r?.index] || realPhotos[0] || null,
+        poster_url: r?.url || null,
         index: (r?.index ?? 0) + 1
       }));
 
@@ -423,7 +432,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       stats_bar: gptResult.stats_bar || [],
       offer_block: gptResult.offer_block || null,
       seo: gptResult.seo || null,
-      heroImage: heroImageUrl || realPhotos[0] || null,
+      heroImage: heroImageUrl || null,
       angles: posterImages,
       raisons_acheter: gptResult.raisons_acheter || [],
       benefits_bullets: gptResult.benefits_bullets || [],
