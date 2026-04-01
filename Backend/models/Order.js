@@ -125,7 +125,7 @@ const orderSchema = new mongoose.Schema({
   },
   source: {
     type: String,
-    enum: ['google_sheets', 'manual', 'boutique', 'shopify', 'webhook', 'rita'],
+    enum: ['google_sheets', 'manual', 'boutique', 'shopify', 'webhook', 'rita', 'skelor'],
     default: 'manual'
   },
   storeOrderId: {

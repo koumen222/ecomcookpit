@@ -400,8 +400,8 @@ router.delete('/bulk', requireEcomAuth, validateEcomAccess('products', 'write'),
     if (sourceId) {
       if (sourceId === 'legacy') {
         filter.sheetRowId = { $not: /^source_/ };
-      } else if (sourceId === 'webhook') {
-        filter.source = 'webhook';
+      } else if (['webhook', 'shopify', 'skelor', 'boutique', 'rita'].includes(sourceId)) {
+        filter.source = sourceId;
       } else {
         filter.sheetRowId = { $regex: `^source_${sourceId}_` };
       }
@@ -514,8 +514,8 @@ router.get('/quick', requireEcomAuth, async (req, res) => {
     const { sourceId, sortOrder } = req.query;
     const filter = { workspaceId: req.workspaceId };
     if (sourceId) {
-      if (sourceId === 'webhook') {
-        filter.source = 'webhook';
+      if (['webhook', 'shopify', 'skelor', 'boutique', 'rita'].includes(sourceId)) {
+        filter.source = sourceId;
       } else {
         filter.sheetRowId = { $regex: `^source_${sourceId}_` };
       }
@@ -584,8 +584,8 @@ router.get('/new-since', requireEcomAuth, async (req, res) => {
       updatedAt: { $gt: sinceDate }
     };
     if (sourceId) {
-      if (sourceId === 'webhook') {
-        filter.source = 'webhook';
+      if (['webhook', 'shopify', 'skelor', 'boutique', 'rita'].includes(sourceId)) {
+        filter.source = sourceId;
       } else {
         filter.sheetRowId = { $regex: `^source_${sourceId}_` };
       }
@@ -885,8 +885,8 @@ router.get('/', requireEcomAuth, async (req, res) => {
     if (sourceId) {
       if (sourceId === 'legacy') {
         filter.sheetRowId = { $not: /^source_/ };
-      } else if (sourceId === 'webhook') {
-        filter.source = 'webhook';
+      } else if (['webhook', 'shopify', 'skelor', 'boutique', 'rita'].includes(sourceId)) {
+        filter.source = sourceId;
       } else {
         filter.sheetRowId = { $regex: `^source_${sourceId}_` };
       }

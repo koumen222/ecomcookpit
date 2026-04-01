@@ -149,19 +149,54 @@ export default function ProductTestimonials({ testimonials = [] }) {
             <div
               key={i}
               style={{
-                minWidth: 280, maxWidth: 320, flex: '0 0 auto', scrollSnapAlign: 'start',
-                background: 'var(--s-bg, #fff)', borderRadius: 16,
-                border: '1px solid var(--s-border, #e5e7eb)',
-                padding: 20, position: 'relative',
+                minWidth: 300, maxWidth: 340, flex: '0 0 auto', scrollSnapAlign: 'start',
+                background: '#F3F4F6',
+                borderRadius: 20,
+                border: 'none',
+                padding: 20,
+                position: 'relative',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
               }}
             >
-              {/* Avatar + Info */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              {/* Verified badge — top right */}
+              {t.verified && (
+                <div style={{
+                  position: 'absolute', top: 14, right: 14,
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  background: '#D1FAE5', borderRadius: 99,
+                  padding: '3px 10px',
+                }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                  <span style={{ fontSize: 10, color: '#059669', fontWeight: 700, fontFamily: 'var(--s-font, sans-serif)', letterSpacing: '0.02em' }}>
+                    Avis vérifié
+                  </span>
+                </div>
+              )}
+
+              {/* Stars */}
+              <div style={{ display: 'flex', gap: 3, marginBottom: 12 }}>
+                {[...Array(5)].map((_, j) => (
+                  <Star key={j} size={15} fill={j < (t.rating || 5) ? '#F59E0B' : '#E5E7EB'} color={j < (t.rating || 5) ? '#F59E0B' : '#E5E7EB'} />
+                ))}
+              </div>
+
+              {/* Text */}
+              <p style={{
+                margin: '0 0 16px', fontSize: 14, lineHeight: 1.65, color: '#1F2937',
+                fontFamily: 'var(--s-font, sans-serif)', fontStyle: 'normal', fontWeight: 500,
+              }}>
+                "{t.text || t.comment}"
+              </p>
+
+              {/* Avatar + Info — bottom */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 {t.image ? (
                   <img
                     src={t.image}
                     alt={t.name}
-                    style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }}
+                    style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #fff', boxShadow: '0 1px 4px rgba(0,0,0,0.12)' }}
                   />
                 ) : (
                   <div style={{
@@ -170,56 +205,22 @@ export default function ProductTestimonials({ testimonials = [] }) {
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     color: '#fff', fontWeight: 700, fontSize: 16, flexShrink: 0,
                     fontFamily: 'var(--s-font, sans-serif)',
+                    border: '2px solid #fff', boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
                   }}>
                     {initials}
                   </div>
                 )}
                 <div style={{ minWidth: 0 }}>
                   <p style={{
-                    margin: 0, fontWeight: 700, fontSize: 14, color: 'var(--s-text, #111)',
+                    margin: 0, fontWeight: 700, fontSize: 14, color: '#111827',
                     fontFamily: 'var(--s-font, sans-serif)',
                   }}>
                     {t.name || 'Client vérifié'}
                   </p>
-                  {t.location && (
-                    <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--s-text2, #888)', fontFamily: 'var(--s-font, sans-serif)' }}>
-                      📍 {t.location}
-                    </p>
-                  )}
+                  <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6B7280', fontFamily: 'var(--s-font, sans-serif)' }}>
+                    {t.location ? `📍 ${t.location}` : ''}{t.date ? (t.location ? ` · ${t.date}` : t.date) : ''}
+                  </p>
                 </div>
-              </div>
-
-              {/* Stars */}
-              <div style={{ display: 'flex', gap: 2, marginBottom: 10 }}>
-                {[...Array(t.rating || 5)].map((_, j) => (
-                  <Star key={j} size={16} fill="#F59E0B" color="#F59E0B" />
-                ))}
-              </div>
-
-              {/* Text */}
-              <p style={{
-                margin: 0, fontSize: 14, lineHeight: 1.6, color: 'var(--s-text, #333)',
-                fontFamily: 'var(--s-font, sans-serif)', fontStyle: 'italic',
-              }}>
-                "{t.text || t.comment}"
-              </p>
-
-              {/* Footer */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
-                {t.date && (
-                  <span style={{ fontSize: 11, color: 'var(--s-text2, #999)', fontFamily: 'var(--s-font, sans-serif)' }}>
-                    {t.date}
-                  </span>
-                )}
-                {t.verified && (
-                  <span style={{
-                    fontSize: 11, color: '#059669', background: '#ECFDF5',
-                    padding: '2px 8px', borderRadius: 99, fontWeight: 600,
-                    fontFamily: 'var(--s-font, sans-serif)',
-                  }}>
-                    ✓ Vérifié
-                  </span>
-                )}
               </div>
             </div>
           );

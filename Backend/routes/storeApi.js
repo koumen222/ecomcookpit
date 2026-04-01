@@ -30,6 +30,7 @@ import StoreOrder from '../models/StoreOrder.js';
 import Order from '../models/Order.js';
 import { notifyNewOrder } from '../services/notificationHelper.js';
 import { memCache } from '../services/memoryCache.js';
+import { sendClientOrderConfirmation } from '../services/shopifyWhatsappService.js';
 
 const router = express.Router();
 
@@ -365,7 +366,9 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
         seoTitle: product.seoTitle,
         seoDescription: product.seoDescription,
         features: product.features || [],
-        faq: product.faq || []
+        faq: product.faq || [],
+        testimonials: product.testimonials || [],
+        _pageData: product._pageData || null
       }
     });
 
@@ -503,7 +506,7 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
         price: order.total,
         currency: order.currency,
         status: 'pending',
-        source: 'boutique',
+        source: 'skelor',
         sheetRowId: `store_${order._id.toString()}`,
         sheetRowIndex: 999999,
         storeOrderId: order._id,
@@ -519,6 +522,23 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
         .catch((notifErr) => {
           console.warn('⚠️ Could not send new order notification for store order:', notifErr.message);
         });
+
+      // WhatsApp auto-confirm (non-blocking)
+      if (workspace.whatsappAutoConfirm && mainOrder.clientPhone) {
+        const fakePayload = {
+          order_number: order.orderNumber,
+          currency: order.currency,
+          customer: { first_name: (order.customerName || '').split(' ')[0] || 'Client' },
+          line_items: orderProducts.map(p => ({ title: p.name, quantity: p.quantity })),
+        };
+        sendClientOrderConfirmation(mainOrder, fakePayload, workspace._id.toString(), {
+          storeName:      workspace.storeSettings?.storeName || workspace.name || '',
+          instanceId:     workspace.whatsappAutoInstanceId || null,
+          customTemplate: workspace.whatsappOrderTemplate || null,
+          imageUrl:       workspace.whatsappAutoImageUrl || null,
+          audioUrl:       workspace.whatsappAutoAudioUrl || null,
+        }).catch(err => console.error('⚠️ WhatsApp auto-confirm failed for skelor order:', err.message));
+      }
     } catch (syncErr) {
       console.error('⚠️ Could not sync store order to main orders:', syncErr.message);
     }
