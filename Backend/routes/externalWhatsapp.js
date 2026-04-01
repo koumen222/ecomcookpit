@@ -455,6 +455,31 @@ function resolveStatusVariants(rawStatus) {
 // Queue FIFO : chaque réponse du boss est transmise au prochain client en attente.
 const pendingBossEscalations = new Map();
 
+// ─── Tracking des photos envoyées par conversation: "conversationKey" → Set(productNames)
+// Pour éviter d'envoyer les mêmes photos plusieurs fois dans une conversation
+const sentImagesPerConversation = new Map();
+
+// Vérifier si une photo a déjà été envoyée dans cette conversation
+function hasImageBeenSent(conversationKey, productName) {
+  const sentImages = sentImagesPerConversation.get(conversationKey);
+  return sentImages ? sentImages.has(productName) : false;
+}
+
+// Marquer une photo comme envoyée dans cette conversation
+function markImageAsSent(conversationKey, productName) {
+  if (!sentImagesPerConversation.has(conversationKey)) {
+    sentImagesPerConversation.set(conversationKey, new Set());
+  }
+  sentImagesPerConversation.get(conversationKey).add(productName);
+}
+
+// Vérifier si le message contient une demande explicite de photos
+function isExplicitImageRequest(text) {
+  const normalizedText = normalizeStr(text);
+  return /(?:envoie|envoy|montre|montrer|voir|photo|image|picture|pic)/.test(normalizedText) &&
+         /(?:encore|autre|plus|toute|all|autre fois|à nouveau|again)/.test(normalizedText);
+}
+
 function addPendingEscalation(userId, entry) {
   if (!pendingBossEscalations.has(userId)) pendingBossEscalations.set(userId, []);
   // Éviter les doublons pour le même client
@@ -2038,6 +2063,10 @@ router.post('/incoming', async (req, res) => {
           let matchedProductForMedia = null;
           let sendAllImages = false; // flag pour envoyer toutes les images
 
+          // ─── Créer la clé de conversation pour le tracking des images ───
+          const conversationKey = `${userId}:${cleanFrom}`;
+          const isExplicitRequest = isExplicitImageRequest(text);
+
           if (imagesAllTagMatch) {
             // Mode: envoyer TOUTES les images du produit
             imageProductName = imagesAllTagMatch[1].trim();
@@ -2050,13 +2079,20 @@ router.post('/incoming', async (req, res) => {
             console.log(`📸📸 [RITA] Produit trouvé: ${product ? product.name : 'AUCUN'} | images: ${product?.images?.length || 0}`);
 
             if (product?.images?.length) {
-              imageUrl = product.images[0];
-              if (imageUrl && imageUrl.startsWith('/')) {
-                imageUrl = `https://api.scalor.net${imageUrl}`;
+              // Vérifier si les images ont déjà été envoyées (sauf demande explicite)
+              if (!isExplicitRequest && hasImageBeenSent(conversationKey, product.name)) {
+                console.log(`⏭️ [RITA] Photos de "${product.name}" déjà envoyées dans cette conversation — ignoré`);
+                imageUrl = null;
+                matchedProductForMedia = null;
+              } else {
+                imageUrl = product.images[0];
+                if (imageUrl && imageUrl.startsWith('/')) {
+                  imageUrl = `https://api.scalor.net${imageUrl}`;
+                }
+                matchedProductForMedia = product;
+                sendAllImages = true;
+                console.log(`📸📸 [RITA] ${product.images.length} image(s) à envoyer pour ${product.name}`);
               }
-              matchedProductForMedia = product;
-              sendAllImages = true;
-              console.log(`📸📸 [RITA] ${product.images.length} image(s) à envoyer pour ${product.name}`);
             } else {
               console.log(`📸📸 [RITA] Aucune image pour "${imageProductName}"`);
               const noImgMsg = `Désolé, on n'a pas encore de photos de ce produit 🙏 Mais je peux te donner tous les détails !`;
@@ -2073,12 +2109,19 @@ router.post('/incoming', async (req, res) => {
             console.log(`📸 [RITA] Produit trouvé: ${product ? product.name : 'AUCUN'} | images: ${product?.images?.length || 0}`);
 
             if (product?.images?.length) {
-              imageUrl = product.images[0];
-              if (imageUrl && imageUrl.startsWith('/')) {
-                imageUrl = `https://api.scalor.net${imageUrl}`;
+              // Vérifier si les photos ont déjà été envoyées (sauf demande explicite)
+              if (!isExplicitRequest && hasImageBeenSent(conversationKey, product.name)) {
+                console.log(`⏭️ [RITA] Photos de "${product.name}" déjà envoyées dans cette conversation — ignoré`);
+                imageUrl = null;
+                matchedProductForMedia = null;
+              } else {
+                imageUrl = product.images[0];
+                if (imageUrl && imageUrl.startsWith('/')) {
+                  imageUrl = `https://api.scalor.net${imageUrl}`;
+                }
+                matchedProductForMedia = product;
+                console.log(`📸 [RITA] Image trouvée: ${imageUrl}`);
               }
-              matchedProductForMedia = product;
-              console.log(`📸 [RITA] Image trouvée: ${imageUrl}`);
             } else {
               console.log(`📸 [RITA] Aucune image pour "${imageProductName}"`);
               const noImgMsg = `Désolé, on n'a pas encore la photo de ce produit 🙏 Mais je peux te donner tous les détails !`;
@@ -2382,6 +2425,9 @@ router.post('/incoming', async (req, res) => {
               const ritaCfgForCatalog = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
               const catalogForImages = ritaCfgForCatalog?.productCatalog || [];
               let catalogImagesSent = 0;
+              
+              // Vérifier si c'est une demande explicite de réenvoyer les images
+              const isExplicitRequest = isExplicitImageRequest(messageBody);
 
               for (let lineIdx = 0; lineIdx < productLines.length; lineIdx++) {
                 const line = productLines[lineIdx];
@@ -2394,6 +2440,12 @@ router.post('/incoming', async (req, res) => {
                 const foundProduct = findProductByName(catalogForImages, potentialProductName);
                 
                 if (foundProduct && foundProduct.images?.length > 0) {
+                  // ── Vérifier si l'image a déjà été envoyée dans cette conversation ──
+                  if (!isExplicitRequest && hasImageBeenSent(conversationKey, foundProduct.name)) {
+                    console.log(`⏭️ [RITA] Photo catalogue "${foundProduct.name}" déjà envoyée dans cette conversation — saut`);
+                    continue;
+                  }
+                  
                   let photoUrl = foundProduct.images[0];
                   if (photoUrl.startsWith('/')) photoUrl = `https://api.scalor.net${photoUrl}`;
                   
@@ -2412,6 +2464,7 @@ router.post('/incoming', async (req, res) => {
                     
                     if (result.success) {
                       catalogImagesSent++;
+                      markImageAsSent(conversationKey, foundProduct.name); // Marquer comme envoyée
                       console.log(`✅ [RITA] Photo catalogue ${lineIdx + 1}/${productLines.length} envoyée (${foundProduct.name})`);
                       logRitaActivity(userId, 'catalog_image_sent', { customerPhone: cleanFrom, product: foundProduct.name });
                     } else {
@@ -2472,6 +2525,8 @@ router.post('/incoming', async (req, res) => {
                   `Désolé, je n'arrive pas à envoyer les photos en ce moment 🙏 Mais le produit est bien disponible !`
                 );
               } else {
+                // Marquer les images comme envoyées
+                markImageAsSent(conversationKey, matchedProductForMedia.name);
                 console.log(`📸📸 [RITA] ${imagesSentCount}/${matchedProductForMedia.images.length} images envoyées à ${cleanFrom}`);
               }
             } else {
@@ -2523,6 +2578,10 @@ router.post('/incoming', async (req, res) => {
                   cleanFrom,
                   `Désolé, je n'arrive pas à envoyer les photos en ce moment 🙏 Mais le produit est bien disponible, tu veux qu'on te le réserve ?`
                 );
+              } else {
+                // Marquer les images comme envoyées
+                markImageAsSent(conversationKey, matchedProductForMedia.name);
+                console.log(`📸 [RITA] ${imagesSentCount}/${numberOfImagesToSend} photos envoyées à ${cleanFrom}`);
               } else {
                 console.log(`📸📸 [RITA] ${imagesSentCount}/${numberOfImagesToSend} photo(s) envoyée(s) à ${cleanFrom}`);
               }
