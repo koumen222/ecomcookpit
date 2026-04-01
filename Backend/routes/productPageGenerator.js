@@ -22,6 +22,88 @@ import EcomWorkspace from '../models/Workspace.js';
 
 const router = express.Router();
 
+// ─── Image prompt builders ────────────────────────────────────────────────────
+
+/**
+ * Hero PRO — African Facebook-ads layout:
+ * LEFT: product  |  RIGHT: person with problem  |  TOP: headline  |  RED CTA badge
+ */
+function buildHeroPrompt(gptResult, hasProductRef) {
+  const productName = gptResult.title || 'product';
+  const targetPerson = gptResult.hero_target_person || 'authentic Black African person';
+  const hookText = (gptResult.hero_headline || '').toUpperCase();
+  const ctaText = (gptResult.hero_cta || 'Je commande maintenant').toUpperCase();
+
+  const productBlock = hasProductRef
+    ? `THE EXACT product from the reference image (same packaging, shape, color, label) on the LEFT side — large, well lit, studio lighting, soft shadows, ultra realistic, professional look`
+    : `premium product packaging of "${productName}" on the LEFT side — clean, well lit, studio lighting, soft shadows, ultra realistic, professional look`;
+
+  return `Create a high-converting e-commerce hero banner image in African Facebook ads style. Square 1:1.
+
+Scene layout:
+- LEFT SIDE: ${productBlock}
+- RIGHT SIDE: Realistic ${targetPerson} showing the main problem (emotional facial expression, natural posture, authentic Black African person with dark brown skin)
+${hookText ? `
+Top area: BIG BOLD WHITE TEXT on semi-transparent dark overlay: "${hookText}"` : ''}
+${ctaText ? `
+Add a bold red badge / CTA button at bottom: "${ctaText}"` : ''}
+
+Visual style:
+- African environment (modern home or natural setting)
+- Very realistic Black African model, authentic African features, dark brown skin, natural hair
+- High contrast and eye-catching composition
+- Strong marketing composition: headline text top → person right → product left
+- Commercial Facebook advertising style
+- Sharp, 4K quality, dramatic lighting, persuasive marketing composition
+- Professional ad layout
+
+Important:
+- Text must be readable and clean, perfect spelling with all accents, no distorted text
+- Product must look premium and clearly recognizable
+- Strong emotional impact, scroll-stopping quality
+- No watermark, no URL, no price`;
+}
+
+/**
+ * 5 flash prompts — no text overlay, reusable across products.
+ * WITH product ref: reference product stays visible.
+ * WITHOUT: pure lifestyle / emotion scenes.
+ */
+function buildFlashPrompts(gptResult, hasProductRef) {
+  const title = gptResult.title || 'product';
+  const productNote = hasProductRef
+    ? `THE EXACT REFERENCE PRODUCT ("${title}") must be clearly visible — same packaging, shape, color, label.`
+    : `No product visible. Pure lifestyle / emotion scene only.`;
+
+  return [
+    // 0 — lifestyle (mise en situation)
+    {
+      prompt: `African person using a product in a natural lifestyle scene, modern African home, soft daylight, authentic moment, ${hasProductRef ? `holding or applying THE EXACT REFERENCE PRODUCT — ${productNote}` : 'no brand visible, no product'}, commercial lifestyle photography, high quality, 4K, no text overlay`,
+      type: 'lifestyle',
+    },
+    // 1 — benefit: beauty / skin
+    {
+      prompt: `African person with clean glowing skin, natural beauty, soft lighting, close-up face, minimal background, fresh radiant look, commercial skincare photography, high quality, 4K, ${hasProductRef ? `THE EXACT REFERENCE PRODUCT subtly visible in frame — ${productNote}` : 'no brand, no product visible'}, no text overlay`,
+      type: 'benefit_beauty',
+    },
+    // 2 — benefit: fitness / body
+    {
+      prompt: `African person with fit healthy body, confident posture, natural lighting, minimal background, realistic physique, commercial fitness photography, high quality, 4K, ${hasProductRef ? `THE EXACT REFERENCE PRODUCT visible in scene — ${productNote}` : 'no brand, no product visible'}, no text overlay`,
+      type: 'benefit_fitness',
+    },
+    // 3 — benefit: energy / happiness
+    {
+      prompt: `Happy African person smiling, full of energy, natural light, clean modern African environment, lifestyle photography, commercial advertising style, high quality, 4K, ${hasProductRef ? `THE EXACT REFERENCE PRODUCT visible — ${productNote}` : 'no brand, no product visible'}, no text overlay`,
+      type: 'benefit_energy',
+    },
+    // 4 — testimonial
+    {
+      prompt: `Happy African customer smiling, ${hasProductRef ? `holding THE EXACT REFERENCE PRODUCT — ${productNote}` : 'holding a generic product, clean background, no brand'}, authentic satisfied expression, warm lifestyle photo, high quality, 4K, no text overlay`,
+      type: 'testimonial',
+    },
+  ];
+}
+
 // Plusieurs générations simultanées autorisées — lock supprimé
 
 const upload = multer({
@@ -281,103 +363,33 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       }
     }
 
-    // Hero
+    // ── Hero PRO — African FB-ads template (LEFT: product | RIGHT: person + problem) ──
     imagePromises.push(
-      generateAndUpload(gptResult.prompt_affiche_hero, baseImageBuffer, `hero-${Date.now()}.png`, 'hero')
+      generateAndUpload(buildHeroPrompt(gptResult, !!baseImageBuffer), baseImageBuffer, `hero-${Date.now()}.png`, 'hero')
         .then(url => ({ type: 'hero', url }))
     );
 
-    // Hero Poster (affiche graphique)
+    // ── Hero Poster (affiche graphique sombre — gardé en parallèle) ──────────
     imagePromises.push(
       generateAndUpload(gptResult.prompt_hero_poster, baseImageBuffer, `hero-poster-${Date.now()}.png`, 'hero_poster')
         .then(url => ({ type: 'heroPoster', url }))
     );
 
-    // Avant/Après — baseImageBuffer pour garder le VRAI produit
+    // ── Avant/Après — baseImageBuffer pour garder le VRAI produit ────────────
     imagePromises.push(
       generateAndUpload(gptResult.prompt_avant_apres, baseImageBuffer, `before-after-${Date.now()}.png`, 'before_after')
         .then(url => ({ type: 'beforeAfter', url }))
     );
 
-    // Diversité visuelle : mix de types de plans — jamais le même cadrage deux fois
-    // Deux jeux de directives selon qu'on a une image produit de référence ou non.
-    // Avec référence : le produit réel doit être visible dans chaque image.
-    // Sans référence : scènes lifestyle pures — JAMAIS de produit inventé.
-    const ANGLE_DIVERSITY_WITH_PRODUCT = [
-      {
-        directive: 'Medium shot lifestyle scene. Young Black African woman (25-30), natural afro hair, joyful expression — shown using or applying THE EXACT REFERENCE PRODUCT in a bright morning bathroom or kitchen. THE PRODUCT FROM THE REFERENCE IMAGE must be clearly visible and recognizable in her hand or in front of her. Show her face and emotion alongside the product. Natural environment, authentic moment.',
-        mood: 'fresh, authentic, relatable',
-      },
-      {
-        directive: 'Overhead flat lay product shot. THE EXACT REFERENCE PRODUCT is the absolute hero — placed centrally, large, sharp and dominant, occupying at least 60% of the frame. Surrounded by complementary natural ingredients (plants, fruits, herbs). The product packaging, color, label and shape must be perfectly reproduced from the reference. NO people, NO hands. Clean top-down composition, soft natural light, editorial magazine style.',
-        mood: 'premium, clean, editorial',
-      },
-      {
-        directive: 'Lifestyle environment scene. THE EXACT REFERENCE PRODUCT is prominently placed in the foreground, large and sharp — on a beautifully styled African home bathroom shelf or wellness corner. The product must be the unmistakable focal point of the scene; reproduce its exact packaging, shape and colors from the reference. Warm ambient lighting, real African interior aesthetics. NO hands holding the product.',
-        mood: 'warm, aspirational, immersive',
-      },
-      {
-        directive: 'Close-up lifestyle shot. Black African woman (35-45), braided hair, radiant glowing skin — shown actively applying or holding THE EXACT REFERENCE PRODUCT. The product must be clearly visible and recognizable next to her face or in her hands. Tight frame that shows both her emotion (satisfaction, confidence) and the product details. The product packaging must match the reference exactly.',
-        mood: 'sensory, emotional, aspirational',
-      },
-      {
-        directive: 'Stylized hero product shot. THE EXACT REFERENCE PRODUCT alone, filling at least 70% of the frame, dramatically lit against a rich textured African-inspired background (kente pattern, terracotta, deep green foliage). Reproduce the product shape, color, label and packaging with perfect fidelity from the reference. Studio quality, professional beauty photography. NO people, NO hands. Luxury brand aesthetic with bold color contrast.',
-        mood: 'premium, bold, brand-forward',
-      },
-    ];
-
-    // Sans image de référence : scènes lifestyle pures, ZÉRO produit inventé
-    const ANGLE_DIVERSITY_NO_PRODUCT = [
-      {
-        directive: 'Lifestyle scene showing the RESULT, not the product. Young Black African woman (25-30), natural afro hair, glowing skin — radiant and confident in a bright bathroom or kitchen. Focus entirely on her expression of satisfaction and wellbeing. NO product visible, NO packaging, NO bottles or boxes. Pure emotion and result.',
-        mood: 'fresh, authentic, relatable',
-      },
-      {
-        directive: 'Aesthetic mood board flat lay. Beautiful African-inspired textures, fabrics and natural elements (kente cloth, wooden surfaces, tropical leaves, natural ingredients like shea butter or aloe). Evokes the product\'s benefit atmosphere without showing any product. Editorial, clean, top-down composition. NO invented products, NO packaging.',
-        mood: 'premium, clean, editorial',
-      },
-      {
-        directive: 'Wide lifestyle environment scene. A beautifully styled African home bathroom or wellness corner — candles, plants, natural wood, soft towels — evoking the ritual and benefit of the product without showing any product. The scene IS the message. Warm ambient lighting, real African interior aesthetics.',
-        mood: 'warm, aspirational, immersive',
-      },
-      {
-        directive: 'Close-up emotional lifestyle shot. Black African woman (35-45), braided hair, eyes closed in pure satisfaction — mid skincare or wellness ritual gesture (hands on face, fingers running through hair). No product visible. Focus entirely on the sensory moment, glowing skin, authentic emotion. Cinematic close-up.',
-        mood: 'sensory, emotional, aspirational',
-      },
-      {
-        directive: 'Bold abstract lifestyle scene. Black African man or woman, confident and stylish in a minimalist studio or urban African setting. Strong graphic composition with bold colors and shapes evoking energy and premium quality. NO product, NO packaging invented. Pure brand atmosphere.',
-        mood: 'premium, bold, brand-forward',
-      },
-    ];
-
-    const ANGLE_DIVERSITY = baseImageBuffer ? ANGLE_DIVERSITY_WITH_PRODUCT : ANGLE_DIVERSITY_NO_PRODUCT;
-
-    // 5 Affiches publicitaires — diversité forcée par angle
-    for (let i = 0; i < 5; i++) {
-      const angle = gptResult.angles?.[i];
-      const diversity = ANGLE_DIVERSITY[i];
-      const basePrompt = angle?.prompt_affiche ||
-        (angle?.titre_angle
-          ? `Square 1:1 scroll-stopping ecommerce ad for "${gptResult.title || 'product'}". Bold French headline: "${(angle.titre_angle || '').slice(0, 60)}". No price, no CTA, no URL.`
-          : null);
-
-      // Injecter la directive adaptée (avec ou sans produit référence)
-      const productBlock = baseImageBuffer
-        ? `\nPRODUCT REFERENCE (NON-NEGOTIABLE): A real product image is provided. THE EXACT SAME PRODUCT — same packaging, shape, color, label — MUST appear clearly in the generated image. NEVER invent, replace or omit the product.\n`
-        : `\nIMPORTANT: No product reference image is available. Do NOT invent or imagine any product, packaging, bottle or box. Generate a pure lifestyle/atmosphere scene only.\n`;
-
-      const prompt = basePrompt
-        ? `${basePrompt}${productBlock}\nVISUAL DIRECTIVE (follow strictly for this image only):\n${diversity.directive}\nMood: ${diversity.mood}.\nThis image MUST be visually different from all others in the series in terms of shot type and composition.`
-        : null;
-
-      if (prompt) {
-        imagePromises.push(
-          generateAndUpload(prompt, baseImageBuffer, `poster-${i + 1}-${Date.now()}.png`, 'scene')
-            .then(url => ({ type: 'poster', index: i, url, angle }))
-        );
-      } else {
-        imagePromises.push(Promise.resolve({ type: 'poster', index: i, url: null, angle }));
-      }
+    // ── 5 Flash images — lifestyle / benefit / testimonial (no text overlay) ─
+    const flashPrompts = buildFlashPrompts(gptResult, !!baseImageBuffer);
+    for (let i = 0; i < flashPrompts.length; i++) {
+      const flash = flashPrompts[i];
+      const angle = gptResult.angles?.[i] || null;
+      imagePromises.push(
+        generateAndUpload(flash.prompt, baseImageBuffer, `poster-${i + 1}-${Date.now()}.png`, 'scene')
+          .then(url => ({ type: 'poster', index: i, url, angle, flashType: flash.type }))
+      );
     }
 
     // Exécuter toutes les générations en parallèle avec timeout global de 180s
