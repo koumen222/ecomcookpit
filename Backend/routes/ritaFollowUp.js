@@ -6,8 +6,17 @@ import {
   getEligibleContactsForCampaign,
   getRitaPerformanceStats 
 } from '../services/ritaFollowUpService.js';
+import {
+  getAllActiveConversations,
+  generateRelanceMessage,
+  markRelanced,
+  addRelanceToHistory,
+} from '../services/ritaAgentService.js';
 import RitaFollowUpCampaign from '../models/RitaFollowUpCampaign.js';
 import RitaContact from '../models/RitaContact.js';
+import RitaConfig from '../models/RitaConfig.js';
+import WhatsAppInstance from '../models/WhatsAppInstance.js';
+import evolutionApiService from '../services/evolutionApiService.js';
 
 const router = express.Router();
 
@@ -229,6 +238,216 @@ router.put('/contacts/:phone/status', async (req, res) => {
     res.json(contact);
   } catch (error) {
     console.error('Erreur mise à jour statut contact:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════
+// RELANCES EN UN CLIC
+// ══════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/rita/conversations/active
+ * Obtenir toutes les conversations actives avec leur statut
+ */
+router.get('/conversations/active', async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId requis' });
+    }
+
+    const conversations = getAllActiveConversations(userId);
+    
+    // Statistiques rapides
+    const stats = {
+      total: conversations.length,
+      waitingResponse: conversations.filter(c => c.status === 'waiting_response').length,
+      needRelance: conversations.filter(c => c.status === 'need_relance').length,
+      abandoned: conversations.filter(c => c.status === 'abandoned').length,
+      ordered: conversations.filter(c => c.ordered).length,
+    };
+
+    res.json({ conversations, stats });
+  } catch (error) {
+    console.error('Erreur récupération conversations actives:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/rita/relance/single
+ * Relancer un client spécifique en un clic
+ */
+router.post('/relance/single', async (req, res) => {
+  try {
+    const { userId, clientPhone, customMessage } = req.body;
+
+    if (!userId || !clientPhone) {
+      return res.status(400).json({ error: 'userId et clientPhone requis' });
+    }
+
+    // Récupérer la config Rita et l'instance WhatsApp
+    const ritaConfig = await RitaConfig.findOne({ userId }).lean();
+    if (!ritaConfig || !ritaConfig.enabled) {
+      return res.status(400).json({ error: 'Rita non configurée ou désactivée' });
+    }
+
+    const instance = await WhatsAppInstance.findById(ritaConfig.instanceId).lean();
+    if (!instance || !instance.isActive) {
+      return res.status(400).json({ error: 'Instance WhatsApp non trouvée ou inactive' });
+    }
+
+    // Récupérer la conversation
+    const conversations = getAllActiveConversations(userId);
+    const conversation = conversations.find(c => c.from.replace(/@.*$/, '') === clientPhone.replace(/\D/g, ''));
+
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversation introuvable' });
+    }
+
+    // Générer ou utiliser le message personnalisé
+    const message = customMessage || generateRelanceMessage(
+      conversation.history,
+      ritaConfig,
+      conversation.relanceCount
+    );
+
+    // Envoyer le message via WhatsApp
+    const result = await evolutionApiService.sendMessage(
+      instance.instanceName,
+      instance.instanceToken,
+      clientPhone.replace(/\D/g, ''),
+      message
+    );
+
+    if (!result || !result.success) {
+      throw new Error('Échec envoi message WhatsApp');
+    }
+
+    // Marquer comme relancé
+    markRelanced(userId, conversation.from);
+    addRelanceToHistory(userId, conversation.from, message);
+
+    res.json({
+      success: true,
+      message,
+      clientPhone,
+      relanceCount: conversation.relanceCount + 1,
+    });
+  } catch (error) {
+    console.error('Erreur relance client:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/rita/relance/bulk
+ * Relancer TOUS les clients en attente en un clic
+ */
+router.post('/relance/bulk', async (req, res) => {
+  try {
+    const { userId, status = 'need_relance', maxRelance = 3 } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId requis' });
+    }
+
+    // Récupérer la config Rita et l'instance WhatsApp
+    const ritaConfig = await RitaConfig.findOne({ userId }).lean();
+    if (!ritaConfig || !ritaConfig.enabled) {
+      return res.status(400).json({ error: 'Rita non configurée ou désactivée' });
+    }
+
+    const instance = await WhatsAppInstance.findById(ritaConfig.instanceId).lean();
+    if (!instance || !instance.isActive) {
+      return res.status(400).json({ error: 'Instance WhatsApp non trouvée ou inactive' });
+    }
+
+    // Récupérer toutes les conversations à relancer
+    const conversations = getAllActiveConversations(userId);
+    const toRelance = conversations.filter(c => 
+      c.status === status && 
+      !c.ordered && 
+      c.relanceCount < maxRelance
+    );
+
+    if (toRelance.length === 0) {
+      return res.json({
+        success: true,
+        message: 'Aucune conversation à relancer',
+        count: 0,
+        results: [],
+      });
+    }
+
+    // Relancer chaque client (avec délai pour ne pas spam)
+    const results = [];
+    const delay = 2000; // 2 secondes entre chaque message
+
+    for (let i = 0; i < toRelance.length; i++) {
+      const conversation = toRelance[i];
+      const clientPhone = conversation.from.replace(/@.*$/, '');
+
+      try {
+        // Générer le message de relance
+        const message = generateRelanceMessage(
+          conversation.history,
+          ritaConfig,
+          conversation.relanceCount
+        );
+
+        // Envoyer le message
+        const result = await evolutionApiService.sendMessage(
+          instance.instanceName,
+          instance.instanceToken,
+          clientPhone,
+          message
+        );
+
+        if (result && result.success) {
+          // Marquer comme relancé
+          markRelanced(userId, conversation.from);
+          addRelanceToHistory(userId, conversation.from, message);
+
+          results.push({
+            clientPhone,
+            success: true,
+            message,
+          });
+        } else {
+          results.push({
+            clientPhone,
+            success: false,
+            error: 'Échec envoi message',
+          });
+        }
+
+        // Attendre avant le prochain message (sauf le dernier)
+        if (i < toRelance.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      } catch (err) {
+        results.push({
+          clientPhone,
+          success: false,
+          error: err.message,
+        });
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+
+    res.json({
+      success: true,
+      message: `${successCount}/${toRelance.length} clients relancés avec succès`,
+      count: toRelance.length,
+      successCount,
+      results,
+    });
+  } catch (error) {
+    console.error('Erreur relance bulk:', error);
     res.status(500).json({ error: error.message });
   }
 });
