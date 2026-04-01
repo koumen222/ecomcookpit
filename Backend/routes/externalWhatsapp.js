@@ -3105,13 +3105,20 @@ router.get('/agent-dashboard-stats', requireEcomAuth, async (req, res) => {
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
 
+    // Ne compter que les commandes confirmées (pending ou accepted), pas les refusées
     const [ordersToday, messageStats] = await Promise.all([
-      WhatsAppOrder.find({ userId, createdAt: { $gte: today, $lt: tomorrow } }).lean(),
+      WhatsAppOrder.find({ 
+        userId, 
+        createdAt: { $gte: today, $lt: tomorrow },
+        status: { $in: ['pending', 'accepted'] } // Exclure les commandes refusées
+      }).lean(),
       WhatsAppInstance.aggregate([
         { $match: { userId, isActive: true } },
         { $group: { _id: null, total: { $sum: '$messagesSentToday' } } }
       ])
     ]);
+
+    console.log(`📊 [STATS] User ${userId}: ${ordersToday.length} commandes confirmées aujourd'hui`);
 
     // Calculer le CA en parsant le champ productPrice (ex: "10000 XAF")
     let revenueToday = 0;
@@ -3129,6 +3136,7 @@ router.get('/agent-dashboard-stats', requireEcomAuth, async (req, res) => {
       }
     });
   } catch (err) {
+    console.error('❌ [STATS] Erreur agent-dashboard-stats:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
