@@ -170,8 +170,9 @@ export default function StoreDashboard() {
       {/* Métriques principales */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <ShopifyMetricCard
-          title="Visites"
+          title="Visiteurs uniques"
           value={formatNumber(analytics.uniqueVisitors || 0)}
+          subtitle={`${formatNumber(analytics.visitsToday || 0)} aujourd'hui`}
           trend={calculateTrend(analytics.uniqueVisitors, 0)}
           sparklineData={timeline}
           color="blue"
@@ -194,6 +195,7 @@ export default function StoreDashboard() {
         <ShopifyMetricCard
           title="Taux de conversion"
           value={`${analytics.conversionRate || 0}%`}
+          subtitle={`${formatNumber(analytics.pageViews || 0)} pages vues`}
           trend={calculateTrend(analytics.conversionRate, 0)}
           sparklineData={timeline}
           color="purple"
@@ -252,6 +254,43 @@ export default function StoreDashboard() {
       )}
 
 
+
+      {/* Visites par produit */}
+      {dashboardData?.analytics?.visitsPerProduct?.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <div className="w-7 h-7 bg-emerald-100 rounded-lg flex items-center justify-center">
+              <Eye size={15} className="text-emerald-600" />
+            </div>
+            Visites par produit
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left py-2 pr-4 text-xs font-medium text-gray-500 uppercase">Produit</th>
+                  <th className="text-right py-2 px-2 text-xs font-medium text-gray-500 uppercase">Visites</th>
+                  <th className="text-right py-2 pl-2 text-xs font-medium text-gray-500 uppercase">Visiteurs uniques</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dashboardData.analytics.visitsPerProduct.map((p, i) => (
+                  <tr key={p._id || i} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                    <td className="py-2.5 pr-4">
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded bg-emerald-50 text-emerald-600 text-xs font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                        <span className="font-medium text-gray-800 truncate max-w-[200px]">{p.name || 'Sans nom'}</span>
+                      </div>
+                    </td>
+                    <td className="text-right py-2.5 px-2 font-semibold text-gray-900">{formatNumber(p.visits)}</td>
+                    <td className="text-right py-2.5 pl-2 text-gray-500">{formatNumber(p.uniqueVisitorCount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Stats appareils & Top produits */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

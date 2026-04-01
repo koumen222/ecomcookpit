@@ -545,13 +545,14 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   ],
   "testimonials": [
     {
-      "name": "Prénom N. (nom africain crédible)",
+      "name": "Prénom N. (nom africain crédible et réaliste)",
       "location": "${testimonialLocationTemplate}",
       "rating": 5,
-      "text": "Témoignage réaliste et spécifique (2-3 phrases). Bénéfice concret ressenti. Langage local naturel (comme WhatsApp). Résultat concret mentionné.",
+      "text": "Témoignage réaliste et spécifique (2-3 phrases). Problème initial vécu → résultat concret après usage. Langage naturel humain (comme WhatsApp). Jamais marketing.",
       "verified": true,
       "date": "Il y a X jours/semaines",
-      "image": ""
+      "image": "",
+      "image_prompt": "realistic portrait photo of african woman/man holding the product, natural smile, casual setting, warm lighting"
     }
   ],
   "conversion_blocks": [
@@ -597,7 +598,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   "description_optimisee": ""
 }
 
-⚠️ EXACTEMENT 5 angles, 7 bénéfices avec emojis, 4 raisons, 7 questions FAQ (avec réponses VISIBLES directement), 4 témoignages.
+⚠️ EXACTEMENT 5 angles, 7 bénéfices avec emojis, 4 raisons, 7 questions FAQ (avec réponses VISIBLES directement), 8 témoignages.
 ⚠️ benefits_bullets : 7 bénéfices DIRECTS avec emojis pertinents — texte simple, compréhensible, sans jargon.
 ⚠️ problem_section.pain_points : 3 points de douleur CONCRETS et SPÉCIFIQUES à CE produit — jamais génériques.
 ⚠️ solution_section.description : paragraphe persuasif 3-4 phrases, relie chaque douleur à un bénéfice du produit.
@@ -614,7 +615,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
 ⚠️ Adapte prompt_avant_apres au PROBLÈME RÉEL que résout CE produit spécifique.
 ⚠️ description_optimisee doit toujours être une chaîne vide car la page commence directement par les angles marketing.
 ⚠️ ORTHOGRAPHE PARFAITE : zéro faute d'orthographe, zéro faute de grammaire, zéro faute de conjugaison dans TOUT le contenu français.
-⚠️ TÉMOIGNAGES : prénoms africains et villes doivent correspondre au pays de la boutique (${storeCountry || 'Afrique de l\'Ouest'}). Langage naturel local.
+⚠️ TÉMOIGNAGES : 8 témoignages OBLIGATOIRES. Prénoms africains réalistes et villes (Douala, Yaoundé, Abidjan, Dakar, Lomé, Cotonou...) correspondant au pays (${storeCountry || 'Afrique de l\'Ouest'}). Chaque témoignage DOIT mentionner : le problème initial AVANT usage + le résultat APRÈS usage. Ton naturel humain comme un message WhatsApp. Ratings variés (4 ou 5). image_prompt en anglais décrivant un portrait réaliste adapté au genre et au produit.
 ⚠️ URGENCE : Intégrer éléments psychologiques (stock limité, preuve sociale, résultats rapides).
 ⚠️ JSON uniquement. Pas d'explication. Pas de texte avant/après.`;
 

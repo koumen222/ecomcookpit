@@ -11,6 +11,7 @@ import { useStoreCart } from '../hooks/useStoreCart';
 import QuickOrderModal from '../components/QuickOrderModal';
 import ProductBenefits from '../components/ProductBenefits';
 import ConversionBlocks, { UrgencyBadge } from '../components/ConversionBlocks';
+import ProductTestimonials from '../components/ProductTestimonials';
 import { io } from 'socket.io-client';
 import { setDocumentMeta } from '../utils/pageMeta';
 import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking';
@@ -1333,6 +1334,9 @@ const StoreProductPage = () => {
                       )}
                       {product._pageData?.solution_section && (
                         <SolutionSection section={product._pageData.solution_section} />
+                      )}
+                      {product._pageData?.testimonials?.length > 0 && (
+                        <ProductTestimonials testimonials={product._pageData.testimonials} />
                       )}
                       {hasFaq && (
                         <ProductFaqAccordion items={faqItems} />
