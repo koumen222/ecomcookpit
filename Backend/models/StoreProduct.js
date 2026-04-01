@@ -123,7 +123,7 @@ const storeProductSchema = new mongoose.Schema({
       rating: { type: Number, min: 1, max: 5, default: 5 },
       image: { type: String, default: '' },
       location: { type: String, default: '' },
-      date: { type: Date, default: Date.now },
+      date: { type: String, default: '' },
       verified: { type: Boolean, default: false },
       source: { type: String, enum: ['manual', 'ai'], default: 'manual' }
     }],

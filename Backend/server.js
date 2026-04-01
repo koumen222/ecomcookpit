@@ -350,6 +350,8 @@ const startServer = async () => {
       ['./routes/shopify.js',                  '/api/ecom/shopify'],
       // ─── Shopify Webhooks (orders/create) ─────────────────────────────
       ['./routes/shopifyWebhooks.js',          '/api/webhooks/shopify'],
+      // ─── Skelor Storefront Orders (*.scalor.net checkout → main orders table) ─
+      ['./routes/skolerOrders.js',             '/api/orders/skelor'],
       // ─── Generic Order Webhook (external systems → /webhook/orders/:token) ─
       ['./routes/orderWebhook.js',             '/webhook/orders'],      // ─── Billing / Plan upgrade (MoneyFusion) ─────────────────────────────
       ['./routes/billing.js',                   '/api/ecom/billing'],      // ─── Test Routes ───────────────────────────────────────────────────

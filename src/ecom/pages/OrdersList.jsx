@@ -2112,6 +2112,20 @@ const OrdersList = () => {
                 {isCloseuse ? 'Aucune source assignée' : 'Aucune source. Importer des commandes.'}
               </p>
             )}
+            {/* Source enum filters: Skelor / Shopify / Boutique */}
+            {(isAdmin || isSuperAdmin) && [
+              { id: 'skelor', label: 'Skelor', color: 'bg-violet-600 text-white', inactive: 'bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200' },
+              { id: 'shopify', label: 'Shopify', color: 'bg-green-700 text-white', inactive: 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200' },
+              { id: 'boutique', label: 'Boutique', color: 'bg-sky-600 text-white', inactive: 'bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200' },
+            ].map(src => (
+              <button
+                key={src.id}
+                onClick={() => { setSelectedSourceId(selectedSourceId === src.id ? '' : src.id); setPage(1); }}
+                className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${selectedSourceId === src.id ? src.color + ' shadow-sm' : src.inactive}`}
+              >
+                {src.label}
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -2577,6 +2591,23 @@ const OrdersList = () => {
                         </div>
                       )}
 
+                      {/* Source badge */}
+                      {o.source === 'skelor' && (
+                        <div className="flex-shrink-0">
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200 uppercase tracking-wide">Skelor</span>
+                        </div>
+                      )}
+                      {o.source === 'shopify' && (
+                        <div className="flex-shrink-0">
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 uppercase tracking-wide">Shopify</span>
+                        </div>
+                      )}
+                      {o.source === 'boutique' && (
+                        <div className="flex-shrink-0">
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 border border-sky-200 uppercase tracking-wide">Boutique</span>
+                        </div>
+                      )}
+
                       {/* Status */}
                       <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                         <select 
@@ -2704,6 +2735,9 @@ const OrdersList = () => {
                     {o.readyForDelivery && !o.assignedLivreur && (
                       <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300">🚚 Pool</span>
                     )}
+                    {o.source === 'skelor' && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200 uppercase">Skelor</span>}
+                    {o.source === 'shopify' && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 uppercase">Shopify</span>}
+                    {o.source === 'boutique' && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700 border border-sky-200 uppercase">Boutique</span>}
                     <select 
                       value={o.status} 
                       onChange={(e) => { 

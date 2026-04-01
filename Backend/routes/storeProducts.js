@@ -373,7 +373,7 @@ function normalizeTestimonials(raw) {
   if (!Array.isArray(raw)) return undefined;
   return raw.map(t => ({
     ...t,
-    date: t.date && /^\d{4}/.test(String(t.date)) ? new Date(t.date) : new Date(),
+    date: t.date ? t.date : undefined,
   }));
 }
 
