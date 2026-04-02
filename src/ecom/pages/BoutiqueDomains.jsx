@@ -366,7 +366,7 @@ const BoutiqueDomains = () => {
                 </p>
                 <div className="space-y-1.5">
                   <DnsRow type="A" name="@" value={VPS_IP} />
-                  <DnsRow type="A" name="www" value={VPS_IP} />
+                  <DnsRow type="CNAME" name="www" value={customDomain || 'votredomaine.com'} />
                 </div>
               </div>
 
