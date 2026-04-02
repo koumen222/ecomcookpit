@@ -9,6 +9,7 @@ import { useSubdomain } from '../hooks/useSubdomain';
 import { useStoreProduct, injectStoreCssVars, prefetchStoreProduct } from '../hooks/useStoreData';
 import { useStoreCart } from '../hooks/useStoreCart';
 import QuickOrderModal from '../components/QuickOrderModal';
+import EmbeddedOrderForm from '../components/EmbeddedOrderForm';
 import ProductBenefits from '../components/ProductBenefits';
 import ConversionBlocks, { UrgencyBadge } from '../components/ConversionBlocks';
 import ProductTestimonials from '../components/ProductTestimonials';
@@ -18,6 +19,7 @@ import { setDocumentMeta } from '../utils/pageMeta';
 import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking';
 import { useStoreAnalytics } from '../hooks/useStoreAnalytics';
 import { preloadStoreCheckoutRoute, preloadStoreProductRoute } from '../utils/routePrefetch';
+import { getIconComponent } from '../components/productSettings/ButtonEditor';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
 
@@ -808,6 +810,11 @@ const StoreProductPage = () => {
     return s ? s.enabled : fallback;
   };
 
+  // Resolve button icon from config
+  const CtaIcon = getIconComponent(ppButton.icon);
+  const ctaAnimation = ppButton.animation || 'none';
+  const ppFormType = ppGeneral.formType || 'popup';
+
   // Build ordered enabled section IDs for rendering
   const enabledSectionIds = ppSectionOrder
     ? ppSectionOrder.filter(s => s.enabled).map(s => s.id)
@@ -821,6 +828,7 @@ const StoreProductPage = () => {
   const ctaBtnColor = ppDesign.buttonColor || 'var(--s-primary)';
   const ctaBorderRadius = ppDesign.borderRadius || '14px';
   const ctaShadow = ppDesign.shadow !== false ? '0 4px 16px rgba(0,0,0,0.12)' : 'none';
+  const ctaAnimClass = ctaAnimation === 'pulse' ? 'pp-pulse' : ctaAnimation === 'bounce' ? 'pp-bounce' : ctaAnimation === 'shake' ? 'pp-shake' : ctaAnimation === 'glow' ? 'pp-glow' : '';
 
   useEffect(() => {
     if (!product || !inStock) {
@@ -876,6 +884,15 @@ const StoreProductPage = () => {
         .sf-no-scrollbar { scrollbar-width:none; -ms-overflow-style:none; }
         .sf-no-scrollbar::-webkit-scrollbar { display:none; }
         @keyframes slide-up { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        /* Button animations from product page config */
+        .pp-pulse { animation: pp-pulse-kf 2s ease-in-out infinite; }
+        .pp-bounce { animation: pp-bounce-kf 1s ease infinite; }
+        .pp-shake { animation: pp-shake-kf 0.6s ease-in-out infinite; }
+        .pp-glow { animation: pp-glow-kf 2s ease-in-out infinite; }
+        @keyframes pp-pulse-kf { 0%,100%{transform:scale(1)} 50%{transform:scale(1.03)} }
+        @keyframes pp-bounce-kf { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+        @keyframes pp-shake-kf { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-3px)} 75%{transform:translateX(3px)} }
+        @keyframes pp-glow-kf { 0%,100%{box-shadow:0 0 5px rgba(255,255,255,0.2)} 50%{box-shadow:0 0 20px rgba(255,255,255,0.5)} }
         /* Mobile first: single column */
         .product-grid { display:grid; grid-template-columns:1fr; gap:0; align-items:start; }
         .product-gallery { position:relative; }
@@ -988,6 +1005,61 @@ const StoreProductPage = () => {
                   )}
                 </div>
 
+                {/* CTA — Embedded form OR Popup button — always above sections */}
+                <div ref={ctaButtonsRef} style={{ marginBottom: 20 }}>
+                  {ppFormType === 'embedded' && inStock ? (
+                    <EmbeddedOrderForm
+                      product={product}
+                      subdomain={subdomain}
+                      store={store}
+                      productPageConfig={productPageConfig}
+                    />
+                  ) : (
+                    <button
+                      onClick={openOrderModal}
+                      disabled={!inStock}
+                      className={ctaAnimClass}
+                      onMouseEnter={(e) => {
+                        if (inStock) {
+                          e.target.style.transform = 'scale(1.02)';
+                          e.target.style.boxShadow = '0 8px 24px rgba(0,0,0,0.2)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (inStock) {
+                          e.target.style.transform = 'scale(1)';
+                          e.target.style.boxShadow = '0 4px 16px rgba(0,0,0,0.12)';
+                        }
+                      }}
+                      style={{
+                        width: '100%', padding: '18px 24px', borderRadius: ctaBorderRadius, border: 'none',
+                        backgroundColor: inStock ? ctaBtnColor : '#d1d5db',
+                        color: '#fff', fontWeight: 700, fontSize: 17, cursor: inStock ? 'pointer' : 'not-allowed',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', fontFamily: 'var(--s-font)',
+                        boxShadow: inStock ? ctaShadow : 'none',
+                        minHeight: 56,
+                        position: 'relative',
+                        overflow: 'hidden'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                        <CtaIcon size={18} /> {ppButton.text || 'Commander maintenant'}
+                      </div>
+                      <span style={{ 
+                        fontSize: '12px', 
+                        opacity: 0.9, 
+                        fontWeight: 500, 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 4,
+                      }}>
+                        <Truck size={10} /> {ppButton.subtext || 'Paiement à la livraison'}
+                      </span>
+                    </button>
+                  )}
+                </div>
+
                 {/* Sections rendered in config order */}
                 {enabledSectionIds.map(sectionId => {
                   switch (sectionId) {
@@ -1095,55 +1167,6 @@ const StoreProductPage = () => {
                       return null;
                   }
                 })}
-
-                {/* CTA Buttons */}
-                <div ref={ctaButtonsRef} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
-                  <button
-                    onClick={openOrderModal}
-                    disabled={!inStock}
-                    onMouseEnter={(e) => {
-                      if (inStock) {
-                        e.target.style.transform = 'scale(1.02)';
-                        e.target.style.boxShadow = '0 8px 24px rgba(0,0,0,0.2)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (inStock) {
-                        e.target.style.transform = 'scale(1)';
-                        e.target.style.boxShadow = '0 4px 16px rgba(0,0,0,0.12)';
-                      }
-                    }}
-                    style={{
-                      width: '100%', padding: '18px 24px', borderRadius: ctaBorderRadius, border: 'none',
-                      backgroundColor: inStock ? ctaBtnColor : '#d1d5db',
-                      color: '#fff', fontWeight: 700, fontSize: 17, cursor: inStock ? 'pointer' : 'not-allowed',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
-                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', fontFamily: 'var(--s-font)',
-                      boxShadow: inStock ? ctaShadow : 'none',
-                      minHeight: 56,
-                      position: 'relative',
-                      overflow: 'hidden'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                      <ShoppingCart size={18} /> {ppButton.text || 'Commander maintenant'}
-                    </div>
-                    <span style={{ 
-                      fontSize: '12px', 
-                      opacity: 0.9, 
-                      fontWeight: 500, 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: 4,
-                      animation: 'pulse 2s ease-in-out infinite'
-                    }}>
-                      <Truck size={10} style={{ 
-                        animation: 'bounce 1s ease-in-out infinite'
-                      }} /> {ppButton.subtext || 'Paiement à la livraison'}
-                    </span>
-                  </button>
-
-                </div>
 
               </>
             ) : null}

@@ -214,10 +214,10 @@ export function useStoreProduct(subdomain, slug) {
 
     async function load() {
       try {
-        // If store already in session cache: skip getStore, only fetch the product (1 req instead of 2)
+        // Always fetch both product AND store to get latest config (productPageConfig, theme, etc.)
         const [productRes, storeRes] = await Promise.all([
           publicStoreApi.getProduct(subdomain, slug),
-          cachedStore?.store ? null : publicStoreApi.getStore(subdomain),
+          publicStoreApi.getStore(subdomain),
         ]);
 
         if (cancelled) return;

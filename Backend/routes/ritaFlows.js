@@ -10,6 +10,7 @@ import evolutionApiService from '../services/evolutionApiService.js';
 import { autoCreateGroupForProduct } from '../services/ritaFlowEngine.js';
 import { requireEcomAuth, requireRitaAgentAccess } from '../middleware/ecomAuth.js';
 import Workspace from '../models/Workspace.js';
+import RitaConfig from '../models/RitaConfig.js';
 
 const router = express.Router();
 
@@ -109,8 +110,13 @@ router.get('/groups/list', requireEcomAuth, requireRitaAgentAccess, async (req, 
     const userId = await resolveRitaFlowUserId(req);
     if (!userId) return res.status(400).json({ success: false, error: 'userId requis' });
 
-    const inst = await WhatsAppInstance.findOne({ userId, isActive: true }).lean();
-    if (!inst) return res.json({ success: true, groups: [], message: 'Aucune instance active' });
+    const ritaConfig = await RitaConfig.findOne({ userId }).lean();
+    if (!ritaConfig || !ritaConfig.instanceId) {
+      return res.json({ success: true, groups: [], message: 'Rita non configurée avec une instance' });
+    }
+
+    const inst = await WhatsAppInstance.findById(ritaConfig.instanceId).lean();
+    if (!inst) return res.json({ success: true, groups: [], message: 'Instance WhatsApp introuvable' });
 
     const result = await evolutionApiService.listGroups(inst.instanceName, inst.instanceToken);
     const groups = (result.groups || []).map(g => ({
@@ -137,8 +143,13 @@ router.post('/groups/create', requireEcomAuth, requireRitaAgentAccess, async (re
     const userId = await resolveRitaFlowUserId(req);
     if (!userId || !name) return res.status(400).json({ success: false, error: 'userId et name requis' });
 
-    const inst = await WhatsAppInstance.findOne({ userId, isActive: true }).lean();
-    if (!inst) return res.status(400).json({ success: false, error: 'Aucune instance WhatsApp active' });
+    const ritaConfig = await RitaConfig.findOne({ userId }).lean();
+    if (!ritaConfig || !ritaConfig.instanceId) {
+      return res.status(400).json({ success: false, error: 'Rita non configurée avec une instance' });
+    }
+
+    const inst = await WhatsAppInstance.findById(ritaConfig.instanceId).lean();
+    if (!inst) return res.status(400).json({ success: false, error: 'Instance WhatsApp introuvable' });
 
     const result = await evolutionApiService.createGroup(inst.instanceName, inst.instanceToken, name, [], description || '');
     if (!result.success) return res.status(500).json({ success: false, error: result.error });
@@ -180,8 +191,13 @@ router.post('/groups/invite-link', requireEcomAuth, requireRitaAgentAccess, asyn
     const userId = await resolveRitaFlowUserId(req);
     if (!userId || !groupJid) return res.status(400).json({ success: false, error: 'userId et groupJid requis' });
 
-    const inst = await WhatsAppInstance.findOne({ userId, isActive: true }).lean();
-    if (!inst) return res.status(400).json({ success: false, error: 'Aucune instance active' });
+    const ritaConfig = await RitaConfig.findOne({ userId }).lean();
+    if (!ritaConfig || !ritaConfig.instanceId) {
+      return res.status(400).json({ success: false, error: 'Rita non configurée avec une instance' });
+    }
+
+    const inst = await WhatsAppInstance.findById(ritaConfig.instanceId).lean();
+    if (!inst) return res.status(400).json({ success: false, error: 'Instance WhatsApp introuvable' });
 
     const result = await evolutionApiService.getGroupInviteCode(inst.instanceName, inst.instanceToken, groupJid);
     if (!result.success) return res.status(500).json({ success: false, error: result.error });
@@ -214,8 +230,13 @@ router.post('/groups/join', requireEcomAuth, requireRitaAgentAccess, async (req,
     if (!codeMatch) return res.status(400).json({ success: false, error: 'Lien d\'invitation WhatsApp invalide' });
     const inviteCode = codeMatch[1];
 
-    const inst = await WhatsAppInstance.findOne({ userId, isActive: true }).lean();
-    if (!inst) return res.status(400).json({ success: false, error: 'Aucune instance WhatsApp active' });
+    const ritaConfig = await RitaConfig.findOne({ userId }).lean();
+    if (!ritaConfig || !ritaConfig.instanceId) {
+      return res.status(400).json({ success: false, error: 'Rita non configurée avec une instance' });
+    }
+
+    const inst = await WhatsAppInstance.findById(ritaConfig.instanceId).lean();
+    if (!inst) return res.status(400).json({ success: false, error: 'Instance WhatsApp introuvable' });
 
     const result = await evolutionApiService.acceptGroupInvite(inst.instanceName, inst.instanceToken, inviteCode);
     if (!result.success) return res.status(500).json({ success: false, error: result.error || 'Impossible de rejoindre le groupe' });
