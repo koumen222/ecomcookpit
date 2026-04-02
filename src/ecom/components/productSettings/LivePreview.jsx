@@ -5,29 +5,41 @@ import {
   ChevronLeft, ChevronRight, Package, User, Phone, MapPin, FileText,
   AlertTriangle, Lightbulb, Gift, Clock, TrendingUp, Users,
 } from 'lucide-react';
-import { storeManageApi } from '../../services/storeApi';
+import { storeManageApi, storeProductsApi } from '../../services/storeApi';
+import { getIconComponent } from './ButtonEditor';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
 
 const FIELD_ICONS = { fullname: User, phone: Phone, address: MapPin, note: FileText };
 
-const LivePreview = ({ config }) => {
-  const { general, conversion, design, form, automation } = config;
+const LivePreview = ({ config, product: productProp }) => {
+  const { general, conversion, design, form, automation, button: btnCfg } = config;
+  const BtnIcon = getIconComponent(btnCfg?.icon);
+  const btnText = btnCfg?.text || 'Commander maintenant';
+  const btnSubtext = btnCfg?.subtext || '';
+  const btnAnim = btnCfg?.animation || 'none';
+  const offersEnabled = conversion?.offersEnabled && conversion?.offers?.length > 0;
+  const [selectedOffer, setSelectedOffer] = useState(0);
   const [faqOpen, setFaqOpen] = useState(null);
   const [popupOpen, setPopupOpen] = useState(false);
-  const [product, setProduct] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [internalProduct, setInternalProduct] = useState(null);
+  const [loading, setLoading] = useState(!productProp);
 
   useEffect(() => {
+    if (productProp) return;
     (async () => {
       try {
-        const res = await storeManageApi.getProducts({ limit: 1 });
+        const res = await storeProductsApi.getProducts({ limit: 1 });
         const list = res.data?.data?.products || res.data?.data || res.data || [];
-        if (list.length > 0) setProduct(list[0]);
-      } catch { /* ignore */ }
+        if (list.length > 0) setInternalProduct(list[0]);
+      } catch (err) {
+        console.error('LivePreview: failed to load product', err);
+      }
       setLoading(false);
     })();
-  }, []);
+  }, [productProp]);
+
+  const product = productProp || internalProduct;
 
   const pd = product?._pageData || {};
   const images = product?.images || [];
@@ -90,12 +102,12 @@ const LivePreview = ({ config }) => {
         </div>
       )}
       <div style={{ height: 2 }} />
-      <div style={btnStyle}>
-        <ShoppingCart size={12} /> Commander · {fmt(price, cur)}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 8, color: '#16A34A', padding: '2px 0' }}>
-        <Truck size={9} /> Paiement à la livraison
-      </div>
+      <button style={{...btnStyle, flexDirection: 'column', gap: 1}}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <BtnIcon size={12} /> {btnText}
+        </span>
+        {btnSubtext && <span style={{ fontSize: 8, fontWeight: 500, opacity: 0.8 }}>{btnSubtext}</span>}
+      </button>
     </div>
   );
 
@@ -221,47 +233,276 @@ const LivePreview = ({ config }) => {
             {product.name}
           </div>
 
-          {/* Hero slogan */}
-          {isOn('heroSlogan') && pd.hero_slogan && (
-            <div style={{ fontSize: 9.5, fontWeight: 600, color: '#6B7280', marginBottom: 3, lineHeight: 1.4 }}>
-              {pd.hero_slogan}
-            </div>
-          )}
+          {/* Sections rendered in config order */}
+          {sections.filter(s => s.enabled).map(s => {
+            switch (s.id) {
+              case 'heroSlogan':
+                return pd.hero_slogan ? (
+                  <div key={s.id} style={{ fontSize: 9.5, fontWeight: 600, color: '#6B7280', marginBottom: 3, lineHeight: 1.4 }}>
+                    {pd.hero_slogan}
+                  </div>
+                ) : null;
 
-          {/* Hero baseline */}
-          {isOn('heroBaseline') && pd.hero_baseline && (
-            <div style={{ fontSize: 9, fontWeight: 700, color: btnColor, marginBottom: 8 }}>
-              ✅ {pd.hero_baseline}
-            </div>
-          )}
+              case 'heroBaseline':
+                return pd.hero_baseline ? (
+                  <div key={s.id} style={{ fontSize: 9, fontWeight: 700, color: btnColor, marginBottom: 8 }}>
+                    ✅ {pd.hero_baseline}
+                  </div>
+                ) : null;
 
-          {/* Reviews */}
-          {isOn('reviews') && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
-              <div style={{ display: 'flex', gap: 0.5 }}>
-                {[1,2,3,4,5].map(i => <Star key={i} size={10} fill={i <= 4 ? '#FBBF24' : 'none'} color="#FBBF24" />)}
-              </div>
-              <span style={{ fontSize: 9, fontWeight: 600, color: '#111827' }}>{product.rating || 4.8}</span>
-              <span style={{ fontSize: 9, color: '#9CA3AF' }}>({product.reviewCount || testimonials.length || 0} avis)</span>
-            </div>
-          )}
+              case 'reviews':
+                return (
+                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+                    <div style={{ display: 'flex', gap: 0.5 }}>
+                      {[1,2,3,4,5].map(i => <Star key={i} size={10} fill={i <= 4 ? '#FBBF24' : 'none'} color="#FBBF24" />)}
+                    </div>
+                    <span style={{ fontSize: 9, fontWeight: 600, color: '#111827' }}>{product.rating || 4.8}</span>
+                    <span style={{ fontSize: 9, color: '#9CA3AF' }}>({product.reviewCount || testimonials.length || 0} avis)</span>
+                  </div>
+                );
 
-          {/* Stats bar */}
-          {isOn('statsBar') && pd.stats_bar?.length > 0 && (
-            <div style={{ display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap' }}>
-              {pd.stats_bar.slice(0, 3).map((s, i) => (
-                <div key={i} style={{
-                  flex: 1, minWidth: 60, textAlign: 'center', padding: '5px 4px',
-                  borderRadius: 8, backgroundColor: '#F0FAF5', border: '1px solid #D1FAE5',
-                }}>
-                  <div style={{ fontSize: 11, fontWeight: 900, color: '#065F46' }}>{s.value}</div>
-                  <div style={{ fontSize: 7, color: '#6B7280', marginTop: 1 }}>{s.label}</div>
-                </div>
-              ))}
-            </div>
-          )}
+              case 'statsBar':
+                return pd.stats_bar?.length > 0 ? (
+                  <div key={s.id} style={{ display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap' }}>
+                    {pd.stats_bar.slice(0, 3).map((st, i) => (
+                      <div key={i} style={{
+                        flex: 1, minWidth: 60, textAlign: 'center', padding: '5px 4px',
+                        borderRadius: 8, backgroundColor: '#F0FAF5', border: '1px solid #D1FAE5',
+                      }}>
+                        <div style={{ fontSize: 11, fontWeight: 900, color: '#065F46' }}>{st.value}</div>
+                        <div style={{ fontSize: 7, color: '#6B7280', marginTop: 1 }}>{st.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null;
 
-          {/* Price */}
+              case 'stockCounter':
+                return stock > 0 && stock <= 10 ? (
+                  <div key={s.id} style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8, alignItems: 'center' }}>
+                    <span style={{ fontSize: 8.5, fontWeight: 700, color: '#D97706', backgroundColor: '#FEF3C7', padding: '3px 8px', borderRadius: 20 }}>
+                      ⚡ Plus que {stock} en stock
+                    </span>
+                  </div>
+                ) : null;
+
+              case 'urgencyBadge':
+                return pd.urgency_badge ? (
+                  <div key={s.id} style={{ marginBottom: 6 }}>
+                    <span style={{ fontSize: 8.5, fontWeight: 700, color: '#DC2626', backgroundColor: '#FEF2F2', padding: '3px 8px', borderRadius: 20, border: '1px solid #FECACA' }}>
+                      {pd.urgency_badge}
+                    </span>
+                  </div>
+                ) : null;
+
+              case 'urgencyElements':
+                return pd.urgency_elements ? (
+                  <div key={s.id} style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10 }}>
+                    {pd.urgency_elements.stock_limited && (
+                      <div style={{ fontSize: 8, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Clock size={9} /> {pd.urgency_elements.stock_limited}
+                      </div>
+                    )}
+                    {pd.urgency_elements.social_proof_count && (
+                      <div style={{ fontSize: 8, color: '#7C3AED', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Users size={9} /> {pd.urgency_elements.social_proof_count}
+                      </div>
+                    )}
+                    {pd.urgency_elements.quick_result && (
+                      <div style={{ fontSize: 8, color: '#059669', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <TrendingUp size={9} /> {pd.urgency_elements.quick_result}
+                      </div>
+                    )}
+                  </div>
+                ) : null;
+
+              case 'benefitsBullets':
+                return pd.benefits_bullets?.length > 0 ? (
+                  <div key={s.id} style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: '#374151', marginBottom: 4 }}>💥 Les bénéfices</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {pd.benefits_bullets.slice(0, 4).map((b, i) => (
+                        <div key={i} style={{ fontSize: 8.5, color: '#374151', display: 'flex', alignItems: 'flex-start', gap: 4, lineHeight: 1.4 }}>
+                          {b}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null;
+
+              case 'conversionBlocks':
+                return pd.conversion_blocks?.length > 0 ? (
+                  <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 10 }}>
+                    {pd.conversion_blocks.slice(0, 4).map((b, i) => (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'center', gap: 4, padding: '5px 6px',
+                        borderRadius: 8, backgroundColor: '#F9FAFB', border: '1px solid #F3F4F6',
+                      }}>
+                        <span style={{ fontSize: 12, flexShrink: 0 }}>{b.icon}</span>
+                        <span style={{ fontSize: 7.5, color: '#374151', lineHeight: 1.3 }}>{b.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null;
+
+              case 'offerBlock':
+                return pd.offer_block ? (
+                  <div key={s.id} style={{
+                    padding: '8px 10px', borderRadius: 10, marginBottom: 10,
+                    backgroundColor: '#FFFBEB', border: '1px solid #FDE68A',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
+                      <Gift size={10} color="#D97706" />
+                      <span style={{ fontSize: 9, fontWeight: 800, color: '#92400E' }}>{pd.offer_block.offer_label || 'Offre spéciale'}</span>
+                    </div>
+                    {pd.offer_block.guarantee_text && (
+                      <div style={{ fontSize: 8, color: '#78350F', lineHeight: 1.4 }}>{pd.offer_block.guarantee_text}</div>
+                    )}
+                  </div>
+                ) : null;
+
+              case 'description':
+                return product.description ? (
+                  <div key={s.id} style={{ marginBottom: 8, paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
+                    <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Description du produit</div>
+                    <p style={{ fontSize: 8, color: '#6B7280', lineHeight: 1.5, margin: '0 0 8px' }}>
+                      {product.description.replace(/<[^>]*>/g, '').slice(0, 180)}…
+                    </p>
+                  </div>
+                ) : null;
+
+              case 'problemSection':
+                return pd.problem_section ? (
+                  <div key={s.id} style={{ padding: '8px 10px', borderRadius: 10, marginBottom: 8, backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                      <AlertTriangle size={10} color="#DC2626" />
+                      <span style={{ fontSize: 9, fontWeight: 800, color: '#991B1B' }}>{pd.problem_section.title || 'Le problème'}</span>
+                    </div>
+                    {pd.problem_section.pain_points?.slice(0, 3).map((p, i) => (
+                      <div key={i} style={{ fontSize: 8, color: '#7F1D1D', marginBottom: 2, display: 'flex', gap: 3, alignItems: 'flex-start' }}>
+                        <span style={{ color: '#EF4444' }}>•</span> {p}
+                      </div>
+                    ))}
+                  </div>
+                ) : null;
+
+              case 'solutionSection':
+                return pd.solution_section ? (
+                  <div key={s.id} style={{ padding: '8px 10px', borderRadius: 10, marginBottom: 8, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                      <Lightbulb size={10} color="#16A34A" />
+                      <span style={{ fontSize: 9, fontWeight: 800, color: '#14532D' }}>{pd.solution_section.title || 'La solution'}</span>
+                    </div>
+                    {pd.solution_section.description && (
+                      <div style={{ fontSize: 8, color: '#166534', lineHeight: 1.4 }}>
+                        {pd.solution_section.description.slice(0, 150)}…
+                      </div>
+                    )}
+                  </div>
+                ) : null;
+
+              case 'faq':
+                return faqItems.length > 0 ? (
+                  <div key={s.id} style={{ marginBottom: 8, paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
+                    <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Questions fréquentes</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {faqItems.slice(0, 3).map((item, i) => (
+                        <div key={i} style={{ borderRadius: 8, border: '1px solid #F3F4F6', overflow: 'hidden' }}>
+                          <button onClick={() => setFaqOpen(faqOpen === i ? null : i)}
+                            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', background: '#FAFAFA', border: 'none', cursor: 'pointer' }}>
+                            <span style={{ fontSize: 8.5, fontWeight: 600, color: '#374151', textAlign: 'left' }}>{item.question || item.q}</span>
+                            {faqOpen === i ? <ChevronUp size={10} color="#6B7280" /> : <ChevronDown size={10} color="#6B7280" />}
+                          </button>
+                          {faqOpen === i && (
+                            <div style={{ padding: '5px 9px 7px', fontSize: 8, color: '#6B7280', backgroundColor: '#fff', lineHeight: 1.4 }}>
+                              {item.answer || item.reponse || item.a || ''}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null;
+
+              case 'testimonials':
+                return testimonials.length > 0 ? (
+                  <div key={s.id} style={{ padding: '10px', borderRadius: 10, marginBottom: 8, background: 'linear-gradient(135deg, #F0FDF4, #ECFDF5)', border: '1px solid #D1FAE5' }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: '#065F46', marginBottom: 6, textAlign: 'center' }}>
+                      Ce que disent nos clients
+                    </div>
+                    {testimonials.slice(0, 2).map((t, i) => (
+                      <div key={i} style={{ padding: '6px 8px', borderRadius: 8, backgroundColor: '#fff', border: '1px solid #E5E7EB', marginBottom: i === 0 ? 4 : 0 }}>
+                        <div style={{ display: 'flex', gap: 1, marginBottom: 2 }}>
+                          {[1,2,3,4,5].map(j => <Star key={j} size={7} fill={j <= (t.rating || 5) ? '#FBBF24' : 'none'} color="#FBBF24" />)}
+                        </div>
+                        <p style={{ fontSize: 7.5, color: '#6B7280', margin: 0, fontStyle: 'italic', lineHeight: 1.4 }}>
+                          &ldquo;{(t.text || t.content || '').slice(0, 80)}&rdquo;
+                        </p>
+                        <div style={{ fontSize: 7, fontWeight: 600, color: '#111827', marginTop: 2 }}>
+                          — {t.name}{t.location ? `, ${t.location}` : ''}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null;
+
+              case 'relatedProducts':
+                return (
+                  <div key={s.id} style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Vous aimerez aussi</div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {[1, 2, 3].map(i => (
+                        <div key={i} style={{ flex: 1, borderRadius: 8, border: '1px solid #F3F4F6', overflow: 'hidden' }}>
+                          <div style={{ height: 40, backgroundColor: '#F3F4F6' }} />
+                          <div style={{ padding: '4px 5px' }}>
+                            <div style={{ height: 5, width: '80%', backgroundColor: '#E5E7EB', borderRadius: 3, marginBottom: 3 }} />
+                            <div style={{ height: 5, width: '50%', backgroundColor: `${btnColor}30`, borderRadius: 3 }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+
+              case 'upsell':
+                return (
+                  <div key={s.id} style={{
+                    padding: '8px 10px', borderRadius: 10, marginBottom: 8,
+                    border: '1px solid #DDD6FE', backgroundColor: '#F5F3FF',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                  }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#EDE9FE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Star size={13} color="#7C3AED" />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 8.5, fontWeight: 800, color: '#5B21B6' }}>Offre Deluxe</div>
+                      <div style={{ fontSize: 7.5, color: '#7C3AED', marginTop: 1 }}>Pack complet + livraison offerte</div>
+                    </div>
+                  </div>
+                );
+
+              case 'orderBump':
+                return (
+                  <div key={s.id} style={{
+                    padding: '6px 8px', border: '1.5px dashed #F97316', marginBottom: 8,
+                    borderRadius: 8, backgroundColor: '#FFF7ED',
+                    display: 'flex', alignItems: 'flex-start', gap: 5,
+                  }}>
+                    <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: '#F97316', marginTop: 1, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Check size={7} color="#fff" />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 8.5, fontWeight: 700, color: '#C2410C' }}>Ajouter l'accessoire assorti</div>
+                      <div style={{ fontSize: 7.5, color: '#EA580C', marginTop: 1 }}>Complément recommandé pour ce produit</div>
+                    </div>
+                  </div>
+                );
+
+              default:
+                return null;
+            }
+          })}
+
+          {/* Price — always shown, not part of toggled sections */}
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
             <span style={{ fontSize: 18, fontWeight: 900, color: btnColor, letterSpacing: '-0.02em' }}>
               {fmt(price, cur)}
@@ -274,52 +515,55 @@ const LivePreview = ({ config }) => {
             )}
           </div>
 
-          {/* Stock + urgency badge */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8, alignItems: 'center' }}>
-            {isOn('stockCounter') && stock > 0 && stock <= 10 && (
-              <span style={{ fontSize: 8.5, fontWeight: 700, color: '#D97706', backgroundColor: '#FEF3C7', padding: '3px 8px', borderRadius: 20 }}>
-                ⚡ Plus que {stock} en stock
-              </span>
-            )}
-            {isOn('urgencyBadge') && pd.urgency_badge && (
-              <span style={{ fontSize: 8.5, fontWeight: 700, color: '#DC2626', backgroundColor: '#FEF2F2', padding: '3px 8px', borderRadius: 20, border: '1px solid #FECACA' }}>
-                {pd.urgency_badge}
-              </span>
-            )}
-          </div>
-
-          {/* Urgency elements */}
-          {isOn('urgencyElements') && pd.urgency_elements && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10 }}>
-              {pd.urgency_elements.stock_limited && (
-                <div style={{ fontSize: 8, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Clock size={9} /> {pd.urgency_elements.stock_limited}
-                </div>
-              )}
-              {pd.urgency_elements.social_proof_count && (
-                <div style={{ fontSize: 8, color: '#7C3AED', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Users size={9} /> {pd.urgency_elements.social_proof_count}
-                </div>
-              )}
-              {pd.urgency_elements.quick_result && (
-                <div style={{ fontSize: 8, color: '#059669', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <TrendingUp size={9} /> {pd.urgency_elements.quick_result}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Benefits bullets */}
-          {isOn('benefitsBullets') && pd.benefits_bullets?.length > 0 && (
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: '#374151', marginBottom: 4 }}>💥 Les bénéfices</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                {pd.benefits_bullets.slice(0, 4).map((b, i) => (
-                  <div key={i} style={{ fontSize: 8.5, color: '#374151', display: 'flex', alignItems: 'flex-start', gap: 4, lineHeight: 1.4 }}>
-                    {b}
+          {/* Offers cards */}
+          {offersEnabled && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+              {conversion.offers.map((offer, i) => {
+                const disc = offer.comparePrice > offer.price && offer.price > 0
+                  ? Math.round((1 - offer.price / offer.comparePrice) * 100) : 0;
+                const sel = selectedOffer === i;
+                return (
+                  <div
+                    key={i}
+                    onClick={() => setSelectedOffer(i)}
+                    style={{
+                      padding: '7px 9px', borderRadius: 10, cursor: 'pointer',
+                      border: sel ? `2px solid ${btnColor}` : '1.5px solid #E5E7EB',
+                      backgroundColor: sel ? `${btnColor}08` : '#fff',
+                      display: 'flex', alignItems: 'center', gap: 8, position: 'relative',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{
+                      width: 14, height: 14, borderRadius: '50%',
+                      border: sel ? `4px solid ${btnColor}` : '2px solid #D1D5DB',
+                      flexShrink: 0,
+                    }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: '#111827' }}>
+                        {offer.qty} {offer.qty === 1 ? 'unité' : 'unités'}
+                        {offer.badge && (
+                          <span style={{
+                            marginLeft: 4, fontSize: 7, fontWeight: 700, color: '#fff',
+                            backgroundColor: btnColor, padding: '1px 5px', borderRadius: 20,
+                          }}>{offer.badge}</span>
+                        )}
+                      </div>
+                      {offer.price > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 1 }}>
+                          <span style={{ fontSize: 10, fontWeight: 800, color: btnColor }}>{fmt(offer.price, cur)}</span>
+                          {disc > 0 && (
+                            <>
+                              <span style={{ fontSize: 8, color: '#9CA3AF', textDecoration: 'line-through' }}>{fmt(offer.comparePrice, cur)}</span>
+                              <span style={{ fontSize: 7, fontWeight: 700, color: '#EF4444', backgroundColor: '#FEE2E2', padding: '1px 4px', borderRadius: 10 }}>-{disc}%</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           )}
 
@@ -327,50 +571,24 @@ const LivePreview = ({ config }) => {
           {general.formType === 'embedded' ? (
             <div style={{ marginBottom: 10, padding: 10, borderRadius: radiusNum, border: `1px solid ${btnColor}25`, backgroundColor: `${btnColor}06` }}>
               <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <ShoppingCart size={11} color={btnColor} /> Commander maintenant
+                <BtnIcon size={11} color={btnColor} /> {btnText}
               </div>
               <OrderFormContent />
             </div>
           ) : (
             <>
-              <button style={btnStyle} onClick={() => setPopupOpen(true)}>
-                <ShoppingCart size={13} /> Commander maintenant
+              <button style={{...btnStyle, flexDirection: 'column', gap: 1}} onClick={() => setPopupOpen(true)}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <BtnIcon size={13} /> {btnText}
+                </span>
+                {btnSubtext && <span style={{ fontSize: 8, fontWeight: 500, opacity: 0.8 }}>{btnSubtext}</span>}
               </button>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 8.5, color: '#16A34A', padding: '5px 0 8px' }}>
-                <Truck size={9} /> Paiement à la livraison
-              </div>
-            </>
-          )}
-
-          {/* Conversion blocks */}
-          {isOn('conversionBlocks') && pd.conversion_blocks?.length > 0 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 10 }}>
-              {pd.conversion_blocks.slice(0, 4).map((b, i) => (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: 4, padding: '5px 6px',
-                  borderRadius: 8, backgroundColor: '#F9FAFB', border: '1px solid #F3F4F6',
-                }}>
-                  <span style={{ fontSize: 12, flexShrink: 0 }}>{b.icon}</span>
-                  <span style={{ fontSize: 7.5, color: '#374151', lineHeight: 1.3 }}>{b.text}</span>
+              {btnSubtext && !general.formType !== 'embedded' && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 8.5, color: '#16A34A', padding: '5px 0 8px' }}>
+                  <Truck size={9} /> {btnSubtext}
                 </div>
-              ))}
-            </div>
-          )}
-
-          {/* Offer block */}
-          {isOn('offerBlock') && pd.offer_block && (
-            <div style={{
-              padding: '8px 10px', borderRadius: 10, marginBottom: 10,
-              backgroundColor: '#FFFBEB', border: '1px solid #FDE68A',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
-                <Gift size={10} color="#D97706" />
-                <span style={{ fontSize: 9, fontWeight: 800, color: '#92400E' }}>{pd.offer_block.offer_label || 'Offre spéciale'}</span>
-              </div>
-              {pd.offer_block.guarantee_text && (
-                <div style={{ fontSize: 8, color: '#78350F', lineHeight: 1.4 }}>{pd.offer_block.guarantee_text}</div>
               )}
-            </div>
+            </>
           )}
 
           {/* Trust badges */}
@@ -386,146 +604,6 @@ const LivePreview = ({ config }) => {
             ))}
           </div>
         </div>
-
-        {/* Description */}
-        {isOn('description') && product.description && (
-          <div style={{ margin: '0 12px 2px', paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
-            <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Description du produit</div>
-            <p style={{ fontSize: 8, color: '#6B7280', lineHeight: 1.5, margin: '0 0 8px' }}>
-              {product.description.replace(/<[^>]*>/g, '').slice(0, 180)}…
-            </p>
-          </div>
-        )}
-
-        {/* Problem section */}
-        {isOn('problemSection') && pd.problem_section && (
-          <div style={{ margin: '4px 12px 8px', padding: '8px 10px', borderRadius: 10, backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-              <AlertTriangle size={10} color="#DC2626" />
-              <span style={{ fontSize: 9, fontWeight: 800, color: '#991B1B' }}>{pd.problem_section.title || 'Le problème'}</span>
-            </div>
-            {pd.problem_section.pain_points?.slice(0, 3).map((p, i) => (
-              <div key={i} style={{ fontSize: 8, color: '#7F1D1D', marginBottom: 2, display: 'flex', gap: 3, alignItems: 'flex-start' }}>
-                <span style={{ color: '#EF4444' }}>•</span> {p}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Solution section */}
-        {isOn('solutionSection') && pd.solution_section && (
-          <div style={{ margin: '4px 12px 8px', padding: '8px 10px', borderRadius: 10, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-              <Lightbulb size={10} color="#16A34A" />
-              <span style={{ fontSize: 9, fontWeight: 800, color: '#14532D' }}>{pd.solution_section.title || 'La solution'}</span>
-            </div>
-            {pd.solution_section.description && (
-              <div style={{ fontSize: 8, color: '#166534', lineHeight: 1.4 }}>
-                {pd.solution_section.description.slice(0, 150)}…
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* FAQ */}
-        {isOn('faq') && faqItems.length > 0 && (
-          <div style={{ margin: '4px 12px 8px', paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
-            <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Questions fréquentes</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {faqItems.slice(0, 3).map((item, i) => (
-                <div key={i} style={{ borderRadius: 8, border: '1px solid #F3F4F6', overflow: 'hidden' }}>
-                  <button onClick={() => setFaqOpen(faqOpen === i ? null : i)}
-                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', background: '#FAFAFA', border: 'none', cursor: 'pointer' }}>
-                    <span style={{ fontSize: 8.5, fontWeight: 600, color: '#374151', textAlign: 'left' }}>{item.question || item.q}</span>
-                    {faqOpen === i ? <ChevronUp size={10} color="#6B7280" /> : <ChevronDown size={10} color="#6B7280" />}
-                  </button>
-                  {faqOpen === i && (
-                    <div style={{ padding: '5px 9px 7px', fontSize: 8, color: '#6B7280', backgroundColor: '#fff', lineHeight: 1.4 }}>
-                      {item.answer || item.reponse || item.a || ''}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Upsell */}
-        {isOn('upsell') && (
-          <div style={{
-            margin: '4px 12px', padding: '8px 10px', borderRadius: 10,
-            border: '1px solid #DDD6FE', backgroundColor: '#F5F3FF',
-            display: 'flex', alignItems: 'center', gap: 8,
-          }}>
-            <div style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#EDE9FE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Star size={13} color="#7C3AED" />
-            </div>
-            <div>
-              <div style={{ fontSize: 8.5, fontWeight: 800, color: '#5B21B6' }}>Offre Deluxe</div>
-              <div style={{ fontSize: 7.5, color: '#7C3AED', marginTop: 1 }}>Pack complet + livraison offerte</div>
-            </div>
-          </div>
-        )}
-
-        {/* Order Bump */}
-        {isOn('orderBump') && (
-          <div style={{
-            margin: '4px 12px', padding: '6px 8px', border: '1.5px dashed #F97316',
-            borderRadius: 8, backgroundColor: '#FFF7ED',
-            display: 'flex', alignItems: 'flex-start', gap: 5,
-          }}>
-            <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: '#F97316', marginTop: 1, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Check size={7} color="#fff" />
-            </div>
-            <div>
-              <div style={{ fontSize: 8.5, fontWeight: 700, color: '#C2410C' }}>Ajouter l'accessoire assorti</div>
-              <div style={{ fontSize: 7.5, color: '#EA580C', marginTop: 1 }}>Complément recommandé pour ce produit</div>
-            </div>
-          </div>
-        )}
-
-        {/* Testimonials */}
-        {isOn('testimonials') && testimonials.length > 0 && (
-          <div style={{ margin: '8px 12px', padding: '10px', borderRadius: 10, background: 'linear-gradient(135deg, #F0FDF4, #ECFDF5)', border: '1px solid #D1FAE5' }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: '#065F46', marginBottom: 6, textAlign: 'center' }}>
-              Ce que disent nos clients
-            </div>
-            {testimonials.slice(0, 2).map((t, i) => (
-              <div key={i} style={{ padding: '6px 8px', borderRadius: 8, backgroundColor: '#fff', border: '1px solid #E5E7EB', marginBottom: i === 0 ? 4 : 0 }}>
-                <div style={{ display: 'flex', gap: 1, marginBottom: 2 }}>
-                  {[1,2,3,4,5].map(j => <Star key={j} size={7} fill={j <= (t.rating || 5) ? '#FBBF24' : 'none'} color="#FBBF24" />)}
-                </div>
-                <p style={{ fontSize: 7.5, color: '#6B7280', margin: 0, fontStyle: 'italic', lineHeight: 1.4 }}>
-                  &ldquo;{(t.text || t.content || '').slice(0, 80)}&rdquo;
-                </p>
-                <div style={{ fontSize: 7, fontWeight: 600, color: '#111827', marginTop: 2 }}>
-                  — {t.name}{t.location ? `, ${t.location}` : ''}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Related products placeholder */}
-        {isOn('relatedProducts') && (
-          <div style={{ margin: '4px 12px 8px' }}>
-            <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Vous aimerez aussi</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {[1, 2, 3].map(i => (
-                <div key={i} style={{ flex: 1, borderRadius: 8, border: '1px solid #F3F4F6', overflow: 'hidden' }}>
-                  <div style={{ height: 40, backgroundColor: '#F3F4F6' }} />
-                  <div style={{ padding: '4px 5px' }}>
-                    <div style={{ height: 5, width: '80%', backgroundColor: '#E5E7EB', borderRadius: 3, marginBottom: 3 }} />
-                    <div style={{ height: 5, width: '50%', backgroundColor: `${btnColor}30`, borderRadius: 3 }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* WhatsApp badge */}
-        {automation?.whatsapp?.enabled && (
           <div style={{ margin: '8px 12px', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 8, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0' }}>
             <MessageCircle size={11} color="#16A34A" />
             <span style={{ fontSize: 8.5, fontWeight: 600, color: '#15803D' }}>Confirmation WhatsApp activée</span>
@@ -570,8 +648,8 @@ const LivePreview = ({ config }) => {
           }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <ShoppingCart size={12} color={btnColor} />
-                <span style={{ fontSize: 11, fontWeight: 800, color: design.textColor || '#111827' }}>Commander</span>
+                <BtnIcon size={12} color={btnColor} />
+                <span style={{ fontSize: 11, fontWeight: 800, color: design.textColor || '#111827' }}>{btnText}</span>
               </div>
               <button onClick={() => setPopupOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
                 <X size={14} color="#9CA3AF" />

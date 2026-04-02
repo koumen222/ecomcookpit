@@ -798,31 +798,26 @@ const StoreProductPage = () => {
   const productPageConfig = store?.productPageConfig || {};
   const ppGeneral = productPageConfig?.general || {};
   const ppDesign = productPageConfig?.design || {};
+  const ppButton = productPageConfig?.button || {};
+  const ppConversion = productPageConfig?.conversion || {};
   const ppSections = ppGeneral.sections || [];
+  const ppSectionOrder = ppSections.length > 0 ? ppSections : null;
   const isSectionEnabled = (id, fallback = true) => {
     if (!ppSections.length) return fallback;
     const s = ppSections.find(s => s.id === id);
     return s ? s.enabled : fallback;
   };
-  const showReviews = isSectionEnabled('reviews', true);
-  const showStockCounter = isSectionEnabled('stockCounter', true);
-  const showFaq = isSectionEnabled('faq', sectionToggles.showFaq ?? true);
-  const showUpsell = isSectionEnabled('upsell', true);
-  const showOrderBump = isSectionEnabled('orderBump', true);
-  const showHeroSlogan = isSectionEnabled('heroSlogan', true);
-  const showHeroBaseline = isSectionEnabled('heroBaseline', true);
-  const showStatsBar = isSectionEnabled('statsBar', true);
-  const showUrgencyBadge = isSectionEnabled('urgencyBadge', true);
-  const showUrgencyElements = isSectionEnabled('urgencyElements', true);
-  const showBenefitsBullets = isSectionEnabled('benefitsBullets', true);
-  const showConversionBlocks = isSectionEnabled('conversionBlocks', true);
-  const showOfferBlock = isSectionEnabled('offerBlock', true);
-  const showDescription = isSectionEnabled('description', true);
-  const showProblemSection = isSectionEnabled('problemSection', true);
-  const showSolutionSection = isSectionEnabled('solutionSection', true);
-  const showTestimonials = isSectionEnabled('testimonials', true);
-  const showRelatedProductsSetting = isSectionEnabled('relatedProducts', showRelatedProducts);
-  const showStickyBar = isSectionEnabled('stickyOrderBar', true);
+
+  // Build ordered enabled section IDs for rendering
+  const enabledSectionIds = ppSectionOrder
+    ? ppSectionOrder.filter(s => s.enabled).map(s => s.id)
+    : ['heroSlogan', 'heroBaseline', 'reviews', 'statsBar', 'stockCounter', 'urgencyBadge',
+       'urgencyElements', 'benefitsBullets', 'conversionBlocks', 'offerBlock', 'description',
+       'problemSection', 'solutionSection', 'faq', 'testimonials', 'relatedProducts',
+       'stickyOrderBar', 'upsell', 'orderBump'];
+  const showStickyBar = enabledSectionIds.includes('stickyOrderBar');
+  const showRelatedProductsSetting = enabledSectionIds.includes('relatedProducts');
+  const showTestimonials = enabledSectionIds.includes('testimonials');
   const ctaBtnColor = ppDesign.buttonColor || 'var(--s-primary)';
   const ctaBorderRadius = ppDesign.borderRadius || '14px';
   const ctaShadow = ppDesign.shadow !== false ? '0 4px 16px rgba(0,0,0,0.12)' : 'none';
@@ -965,27 +960,18 @@ const StoreProductPage = () => {
                 </h1>
 
                 {/* Hero slogan / baseline from AI */}
-                {showHeroSlogan && product._pageData?.hero_slogan && (
+                {enabledSectionIds.includes('heroSlogan') && product._pageData?.hero_slogan && (
                   <p style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 600, color: 'var(--s-text2)', fontFamily: 'var(--s-font)', lineHeight: 1.5 }}>
                     {product._pageData.hero_slogan}
                   </p>
                 )}
-                {showHeroBaseline && product._pageData?.hero_baseline && (
+                {enabledSectionIds.includes('heroBaseline') && product._pageData?.hero_baseline && (
                   <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--s-primary)', fontWeight: 700, fontFamily: 'var(--s-font)' }}>
                     ✅ {product._pageData.hero_baseline}
                   </p>
                 )}
 
-
-                {/* Reviews */}
-                {showReviews && <ProductReviews rating={product.rating || 4.5} reviewCount={product.reviewCount || 0} />}
-
-                {/* Stats bar — social proof numbers */}
-                {showStatsBar && product._pageData?.stats_bar?.length > 0 && (
-                  <StatsBar stats={product._pageData.stats_bar} />
-                )}
-
-                {/* Price */}
+                {/* Price — always shown */}
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
                   <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--s-primary)', fontFamily: 'var(--s-font)', letterSpacing: '-0.02em' }}>
                     {fmt(product.price, product.currency || store?.currency || 'XAF')}
@@ -1002,42 +988,113 @@ const StoreProductPage = () => {
                   )}
                 </div>
 
-                {/* Stock badge */}
-                <div style={{ marginBottom: 10, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                  {!inStock ? (
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#EF4444', padding: '4px 12px', borderRadius: 20, backgroundColor: '#FEE2E2' }}>
-                      Rupture de stock
-                    </span>
-                  ) : showStockCounter && lowStock ? (
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#F59E0B', padding: '4px 12px', borderRadius: 20, backgroundColor: '#FEF3C7' }}>
-                      ⚡ Plus que {product.stock} en stock
-                    </span>
-                  ) : showStockCounter ? (
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#10B981', display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <Check size={14} /> En stock
-                    </span>
-                  ) : null}
-                  {/* AI urgency badge */}
-                  {showUrgencyBadge && product._pageData?.urgency_badge && inStock && (
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#DC2626', padding: '4px 12px', borderRadius: 20, backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
-                      {product._pageData.urgency_badge}
-                    </span>
-                  )}
-                </div>
+                {/* Sections rendered in config order */}
+                {enabledSectionIds.map(sectionId => {
+                  switch (sectionId) {
+                    case 'reviews':
+                      return <ProductReviews key={sectionId} rating={product.rating || 4.5} reviewCount={product.reviewCount || 0} />;
 
-                {/* Urgency elements */}
-                {showUrgencyElements && product._pageData?.urgency_elements && (
-                  <UrgencyBadge
-                    stockLimited={product._pageData.urgency_elements.stock_limited}
-                    socialProofCount={product._pageData.urgency_elements.social_proof_count}
-                    quickResult={product._pageData.urgency_elements.quick_result}
-                  />
-                )}
+                    case 'statsBar':
+                      return product._pageData?.stats_bar?.length > 0
+                        ? <StatsBar key={sectionId} stats={product._pageData.stats_bar} />
+                        : null;
 
-                {/* Benefits bullets with emojis */}
-                {showBenefitsBullets && product._pageData?.benefits_bullets && product._pageData.benefits_bullets.length > 0 && (
-                  <ProductBenefits benefits={product._pageData.benefits_bullets} title="💥 Les bénéfices" />
-                )}
+                    case 'stockCounter':
+                      return (
+                        <div key={sectionId} style={{ marginBottom: 10, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                          {!inStock ? (
+                            <span style={{ fontSize: 13, fontWeight: 600, color: '#EF4444', padding: '4px 12px', borderRadius: 20, backgroundColor: '#FEE2E2' }}>
+                              Rupture de stock
+                            </span>
+                          ) : lowStock ? (
+                            <span style={{ fontSize: 13, fontWeight: 600, color: '#F59E0B', padding: '4px 12px', borderRadius: 20, backgroundColor: '#FEF3C7' }}>
+                              ⚡ Plus que {product.stock} en stock
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: 13, fontWeight: 600, color: '#10B981', display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <Check size={14} /> En stock
+                            </span>
+                          )}
+                        </div>
+                      );
+
+                    case 'urgencyBadge':
+                      return product._pageData?.urgency_badge && inStock ? (
+                        <div key={sectionId} style={{ marginBottom: 10 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: '#DC2626', padding: '4px 12px', borderRadius: 20, backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
+                            {product._pageData.urgency_badge}
+                          </span>
+                        </div>
+                      ) : null;
+
+                    case 'urgencyElements':
+                      return product._pageData?.urgency_elements ? (
+                        <UrgencyBadge key={sectionId}
+                          stockLimited={product._pageData.urgency_elements.stock_limited}
+                          socialProofCount={product._pageData.urgency_elements.social_proof_count}
+                          quickResult={product._pageData.urgency_elements.quick_result}
+                        />
+                      ) : null;
+
+                    case 'benefitsBullets':
+                      return product._pageData?.benefits_bullets?.length > 0 ? (
+                        <ProductBenefits key={sectionId} benefits={product._pageData.benefits_bullets} title="💥 Les bénéfices" />
+                      ) : null;
+
+                    case 'conversionBlocks':
+                      return product._pageData?.conversion_blocks?.length > 0 ? (
+                        <ConversionBlocks key={sectionId} blocks={product._pageData.conversion_blocks} />
+                      ) : null;
+
+                    case 'offerBlock':
+                      return product._pageData?.offer_block ? (
+                        <OfferBlock key={sectionId} block={product._pageData.offer_block} />
+                      ) : null;
+
+                    case 'description': {
+                      const raw = product.description?.toString().trim() || '';
+                      return raw ? (
+                        <div key={sectionId} style={{ borderTop: '1px solid var(--s-border)', marginTop: 8, paddingTop: 16, paddingBottom: 8 }}>
+                          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)', marginBottom: 12 }}>
+                            Description du produit
+                          </div>
+                          <ProductDescription content={raw} />
+                        </div>
+                      ) : null;
+                    }
+
+                    case 'problemSection':
+                      return product._pageData?.problem_section ? (
+                        <ProblemSection key={sectionId} section={product._pageData.problem_section} />
+                      ) : null;
+
+                    case 'solutionSection':
+                      return product._pageData?.solution_section ? (
+                        <SolutionSection key={sectionId} section={product._pageData.solution_section} />
+                      ) : null;
+
+                    case 'faq': {
+                      const raw2 = product.description?.toString().trim() || '';
+                      const hasHtml2 = raw2 && /<[^>]+>/.test(raw2);
+                      const faqItems = product.faq?.length > 0
+                        ? product.faq
+                        : (hasHtml2 ? extractFaqItemsFromHtml(raw2) : []);
+                      return faqItems.length > 0
+                        ? <ProductFaqAccordion key={sectionId} items={faqItems} />
+                        : null;
+                    }
+
+                    case 'upsell':
+                    case 'orderBump':
+                      // These are rendered inline (not standalone components yet)
+                      return null;
+
+                    // heroSlogan, heroBaseline, testimonials, relatedProducts, stickyOrderBar
+                    // are rendered separately (outside this loop)
+                    default:
+                      return null;
+                  }
+                })}
 
                 {/* CTA Buttons */}
                 <div ref={ctaButtonsRef} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
@@ -1069,7 +1126,7 @@ const StoreProductPage = () => {
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                      <ShoppingCart size={18} /> Commander maintenant
+                      <ShoppingCart size={18} /> {ppButton.text || 'Commander maintenant'}
                     </div>
                     <span style={{ 
                       fontSize: '12px', 
@@ -1082,58 +1139,12 @@ const StoreProductPage = () => {
                     }}>
                       <Truck size={10} style={{ 
                         animation: 'bounce 1s ease-in-out infinite'
-                      }} /> Paiement à la livraison
+                      }} /> {ppButton.subtext || 'Paiement à la livraison'}
                     </span>
                   </button>
 
                 </div>
 
-                {/* Conversion blocks */}
-                {showConversionBlocks && product._pageData?.conversion_blocks && product._pageData.conversion_blocks.length > 0 && (
-                  <ConversionBlocks blocks={product._pageData.conversion_blocks} />
-                )}
-
-                {/* Offer / Guarantee block */}
-                {showOfferBlock && product._pageData?.offer_block && (
-                  <OfferBlock block={product._pageData.offer_block} />
-                )}
-
-
-
-                {(() => {
-                  const raw = product.description?.toString().trim() || '';
-                  const hasHtml = raw && /<[^>]+>/.test(raw);
-
-                  const faqItems = product.faq?.length > 0
-                    ? product.faq
-                    : (showFaq && hasHtml ? extractFaqItemsFromHtml(raw) : []);
-                  const hasFaq = showFaq && faqItems.length > 0;
-
-                  const hasDesc = !!raw?.trim();
-
-                  return (
-                    <>
-                      {showDescription && hasDesc && (
-                        <div style={{ borderTop: '1px solid var(--s-border)', marginTop: 8, paddingTop: 16, paddingBottom: 8 }}>
-                          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)', marginBottom: 12 }}>
-                            Description du produit
-                          </div>
-                          <ProductDescription content={raw} />
-                        </div>
-                      )}
-                      {/* Problem / Solution sections from AI */}
-                      {showProblemSection && product._pageData?.problem_section && (
-                        <ProblemSection section={product._pageData.problem_section} />
-                      )}
-                      {showSolutionSection && product._pageData?.solution_section && (
-                        <SolutionSection section={product._pageData.solution_section} />
-                      )}
-                      {hasFaq && (
-                        <ProductFaqAccordion items={faqItems} />
-                      )}
-                    </>
-                  );
-                })()}
               </>
             ) : null}
           </div>
@@ -1199,7 +1210,7 @@ const StoreProductPage = () => {
                 minHeight: 48,
               }}
             >
-              Commander
+              {ppButton.text || 'Commander'}
             </button>
           </div>
         </div>

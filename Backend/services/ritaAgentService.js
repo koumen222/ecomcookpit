@@ -11,7 +11,7 @@ const FISH_AUDIO_DIRECT_API_KEY = process.env.FISH_AUDIO_API_KEY || '203f946aa7b
 // Historique in-memory par numéro de téléphone (max 500 échanges gardés)
 const conversationHistory = new Map();
 const MAX_HISTORY = 500;
-const HISTORY_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours de rétention du contexte
+const HISTORY_TTL_MS = 24 * 60 * 60 * 1000; // 24 heures de rétention du contexte
 
 // Timestamps des dernières activités par conversation
 const conversationLastActivity = new Map();
@@ -3561,15 +3561,26 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
     const reply = sanitizeReply(rawContent, config);
     console.log(`🤖 [RITA] Réponse sanitizée (${reply?.length || 0} chars): "${(reply || '').substring(0, 200)}"`);
     if (reply) {
+      // Nettoyer [ORDER_DATA] de l'historique pour ne pas bloquer l'agent dans l'état de commande (oubli du contexte après commande)
+      let replyForHistory = reply;
+      if (/\[ORDER_DATA:/i.test(reply)) {
+        replyForHistory = reply.replace(/\[ORDER_DATA:[^\]]+\]/gi, '').trim();
+      }
       // Ajouter la réponse de l'agent à l'historique
-      history.push({ role: 'assistant', content: reply });
+      history.push({ role: 'assistant', content: replyForHistory });
+
       // Tracker l'activité agent pour la relance
       const t2 = conversationTracker.get(historyKey);
       if (t2) {
         t2.lastAgentMessage = new Date();
         if (/\[ORDER_DATA:/i.test(reply)) {
           t2.ordered = true;
-          clientState.statut = 'commande';
+          // Réinitialiser le statut pour permettre une nouvelle commande (l'agent a une mémoire de 24h, mais le flow de vente repart à zéro)
+          clientState.statut = 'nouveau';
+          clientState.produit = null;
+          clientState.quantite = null;
+          clientState.prix = null;
+          if (askedQs) askedQs.clear();
           // Marquer le contact comme "client" dans la base (best-effort)
           try {
             await RitaContact.findOneAndUpdate(
