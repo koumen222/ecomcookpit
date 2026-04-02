@@ -10,8 +10,8 @@ FROM node:22-alpine
 WORKDIR /app
 COPY package*.json ./
 RUN npm install --omit=dev --no-audit
-COPY Backend/ ./
-COPY --from=frontend /app/dist ./client/build
-RUN npm install --omit=dev --no-audit
+COPY Backend/ ./Backend/
+COPY --from=frontend /app/dist ./Backend/client/build
+RUN cd Backend && npm install --omit=dev --no-audit
 EXPOSE 8080
 CMD ["npm", "start"]
