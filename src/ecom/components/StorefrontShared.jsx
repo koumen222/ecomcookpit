@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ShoppingCart, ChevronRight, MessageCircle, MapPin, Phone, Mail, CreditCard,
+  ShoppingCart, ChevronRight, MessageCircle, MapPin, Phone, Mail, CreditCard, Menu, X,
 } from 'lucide-react';
 import { preloadStoreCheckoutRoute } from '../utils/routePrefetch';
 
-// ── Shared Header (simple, clean, fast) ──────────────────────────────────────
+// ── Shared Header (mobile: hamburger | logo center | cart) ──────────────────
 export const StorefrontHeader = ({ store, cartCount = 0, prefix = '' }) => {
   const [scrolled, setScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -16,81 +17,174 @@ export const StorefrontHeader = ({ store, cartCount = 0, prefix = '' }) => {
   }, []);
 
   return (
-    <header style={{
-      position: 'sticky', top: 0, zIndex: 50,
-      fontFamily: 'var(--s-font)',
-      transition: 'all 0.3s ease',
-      backgroundColor: scrolled ? 'rgba(255,255,255,0.92)' : 'var(--s-bg)',
-      backdropFilter: scrolled ? 'blur(12px) saturate(180%)' : 'none',
-      WebkitBackdropFilter: scrolled ? 'blur(12px) saturate(180%)' : 'none',
-      borderBottom: scrolled ? '1px solid rgba(0,0,0,0.06)' : '1px solid var(--s-border)',
-      boxShadow: scrolled ? '0 2px 16px rgba(0,0,0,0.06)' : 'none',
-    }}>
-      <div style={{
-        maxWidth: 1200, margin: '0 auto',
-        padding: '0 16px',
-        height: scrolled ? 52 : 58,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        transition: 'height 0.3s ease',
+    <>
+      <style>{`
+        .sfh-desktop-links { display: flex; }
+        .sfh-hamburger { display: none; }
+        .sfh-store-name { display: inline; }
+        .sfh-logo-link { }
+        .sfh-cart-text { display: inline; }
+        @media (max-width: 768px) {
+          .sfh-desktop-links { display: none !important; }
+          .sfh-hamburger { display: flex !important; }
+          .sfh-store-name { display: none !important; }
+          .sfh-logo-link { position: absolute !important; left: 50% !important; transform: translateX(-50%) !important; }
+          .sfh-cart-text { display: none !important; }
+        }
+        @media (min-width: 769px) {
+          .sfh-mobile-drawer, .sfh-mobile-overlay { display: none !important; }
+        }
+      `}</style>
+      <header style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        fontFamily: 'var(--s-font)',
+        transition: 'all 0.3s ease',
+        backgroundColor: scrolled ? 'rgba(255,255,255,0.92)' : 'var(--s-bg)',
+        backdropFilter: scrolled ? 'blur(12px) saturate(180%)' : 'none',
+        WebkitBackdropFilter: scrolled ? 'blur(12px) saturate(180%)' : 'none',
+        borderBottom: scrolled ? '1px solid rgba(0,0,0,0.06)' : '1px solid var(--s-border)',
+        boxShadow: scrolled ? '0 2px 16px rgba(0,0,0,0.06)' : 'none',
       }}>
-        {/* Logo + Name */}
-        <Link to={`${prefix}/`} style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', minWidth: 0 }}>
-          {store?.logo ? (
-            <img
-              src={store.logo} alt={store?.name}
-              style={{ height: scrolled ? 28 : 32, width: 'auto', maxWidth: 100, objectFit: 'contain', transition: 'height 0.3s' }}
-            />
-          ) : (
-            <span style={{
-              width: 32, height: 32, borderRadius: 8, backgroundColor: 'var(--s-primary)',
-              color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontWeight: 800, fontSize: 14, flexShrink: 0,
+        <div style={{
+          maxWidth: 1200, margin: '0 auto',
+          padding: '0 16px',
+          height: scrolled ? 52 : 58,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          transition: 'height 0.3s ease',
+          position: 'relative',
+        }}>
+          {/* Left: Hamburger (mobile) + desktop nav */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: '1 1 0', minWidth: 0 }}>
+            <button
+              className="sfh-hamburger"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              style={{
+                padding: 8, borderRadius: 8, border: 'none',
+                backgroundColor: mobileMenuOpen ? '#F3F4F6' : 'transparent', cursor: 'pointer',
+                alignItems: 'center', justifyContent: 'center',
+              }}
+              aria-label="Menu"
+            >
+              {mobileMenuOpen ? <X size={20} color="var(--s-text)" /> : <Menu size={20} color="var(--s-text)" />}
+            </button>
+
+            <div className="sfh-desktop-links" style={{ alignItems: 'center', gap: 4 }}>
+              <Link to={`${prefix}/`} className="sf-nav-link" style={{
+                padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600,
+                color: 'var(--s-text2)', textDecoration: 'none', fontFamily: 'var(--s-font)',
+              }}>Accueil</Link>
+              <Link to={`${prefix}/products`} className="sf-nav-link" style={{
+                padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600,
+                color: 'var(--s-text2)', textDecoration: 'none', fontFamily: 'var(--s-font)',
+              }}>Produits</Link>
+            </div>
+          </div>
+
+          {/* Center: Logo */}
+          <Link to={`${prefix}/`} className="sfh-logo-link" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', flexShrink: 0 }}>
+            {store?.logo ? (
+              <img
+                src={store.logo} alt={store?.name}
+                style={{ height: scrolled ? 28 : 32, width: 'auto', maxWidth: 100, objectFit: 'contain', transition: 'height 0.3s' }}
+              />
+            ) : (
+              <span style={{
+                width: 32, height: 32, borderRadius: 8, backgroundColor: 'var(--s-primary)',
+                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 800, fontSize: 14, flexShrink: 0,
+              }}>
+                {(store?.name || 'S')[0].toUpperCase()}
+              </span>
+            )}
+            <span className="sfh-store-name" style={{
+              fontWeight: 700, fontSize: scrolled ? 15 : 16, color: 'var(--s-text)',
+              letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              transition: 'font-size 0.3s',
             }}>
-              {(store?.name || 'S')[0].toUpperCase()}
+              {store?.name}
             </span>
-          )}
-          <span style={{
-            fontWeight: 700, fontSize: scrolled ? 15 : 16, color: 'var(--s-text)',
-            letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            transition: 'font-size 0.3s',
-          }}>
-            {store?.name}
-          </span>
-        </Link>
+          </Link>
 
-        {/* Nav links (desktop) + Cart */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Link to={`${prefix}/`} className="sf-nav-link" style={{
-            padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600,
-            color: 'var(--s-text2)', textDecoration: 'none', fontFamily: 'var(--s-font)',
-          }}>Accueil</Link>
-          <Link to={`${prefix}/products`} className="sf-nav-link" style={{
-            padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600,
-            color: 'var(--s-text2)', textDecoration: 'none', fontFamily: 'var(--s-font)',
-          }}>Produits</Link>
+          {/* Right: Cart */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flex: '1 1 0', minWidth: 0 }}>
+            <Link
+              to={`${prefix}/checkout`}
+              onMouseEnter={preloadStoreCheckoutRoute}
+              onFocus={preloadStoreCheckoutRoute}
+              onTouchStart={preloadStoreCheckoutRoute}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '7px 14px', borderRadius: 99,
+                border: '1.5px solid',
+                borderColor: cartCount > 0 ? 'var(--s-primary)' : 'var(--s-border)',
+                backgroundColor: cartCount > 0 ? 'var(--s-primary)' : 'transparent',
+                color: cartCount > 0 ? '#fff' : 'var(--s-text)',
+                textDecoration: 'none', fontWeight: 600, fontSize: 13, fontFamily: 'var(--s-font)',
+                transition: 'all 0.2s',
+              }}
+            >
+              <ShoppingCart size={16} />
+              {cartCount > 0 && <span className="sfh-cart-text">{cartCount}</span>}
+            </Link>
+          </div>
+        </div>
+      </header>
 
+      {/* Mobile menu overlay */}
+      {mobileMenuOpen && (
+        <div
+          className="sfh-mobile-overlay"
+          style={{
+            position: 'fixed', inset: 0, top: scrolled ? 52 : 58,
+            backgroundColor: 'rgba(0,0,0,0.4)', zIndex: 40,
+          }}
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+      <div
+        className="sfh-mobile-drawer"
+        style={{
+          position: 'fixed', top: scrolled ? 52 : 58, left: 0,
+          width: 280, maxWidth: '80vw',
+          height: `calc(100vh - ${scrolled ? 52 : 58}px)`,
+          backgroundColor: '#fff', boxShadow: '4px 0 20px rgba(0,0,0,0.1)',
+          zIndex: 45,
+          transform: mobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.3s ease',
+          padding: 24, display: 'flex', flexDirection: 'column', gap: 8,
+        }}
+      >
+        {[
+          { label: 'Accueil', href: `${prefix}/` },
+          { label: 'Produits', href: `${prefix}/products` },
+        ].map(link => (
+          <Link
+            key={link.label} to={link.href}
+            onClick={() => setMobileMenuOpen(false)}
+            style={{
+              padding: '14px 16px', borderRadius: 12, fontSize: 16, fontWeight: 600,
+              color: 'var(--s-text)', textDecoration: 'none', fontFamily: 'var(--s-font)',
+              backgroundColor: '#F9FAFB', display: 'flex', alignItems: 'center', gap: 12,
+            }}
+          >{link.label}</Link>
+        ))}
+        <div style={{ marginTop: 'auto', paddingTop: 24, borderTop: '1px solid #E5E7EB' }}>
           <Link
             to={`${prefix}/checkout`}
-            onMouseEnter={preloadStoreCheckoutRoute}
-            onFocus={preloadStoreCheckoutRoute}
-            onTouchStart={preloadStoreCheckoutRoute}
+            onClick={() => setMobileMenuOpen(false)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '7px 14px', borderRadius: 99, marginLeft: 4,
-              border: '1.5px solid',
-              borderColor: cartCount > 0 ? 'var(--s-primary)' : 'var(--s-border)',
-              backgroundColor: cartCount > 0 ? 'var(--s-primary)' : 'transparent',
-              color: cartCount > 0 ? '#fff' : 'var(--s-text)',
-              textDecoration: 'none', fontWeight: 600, fontSize: 13, fontFamily: 'var(--s-font)',
-              transition: 'all 0.2s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: 10, padding: '14px 20px', borderRadius: 40,
+              backgroundColor: 'var(--s-primary)', color: '#fff', textDecoration: 'none',
+              fontWeight: 700, fontSize: 15, fontFamily: 'var(--s-font)',
             }}
           >
-            <ShoppingCart size={16} />
-            {cartCount > 0 && <span>{cartCount}</span>}
+            <ShoppingCart size={18} />
+            Voir mon panier {cartCount > 0 && `(${cartCount})`}
           </Link>
         </div>
       </div>
-    </header>
+    </>
   );
 };
 

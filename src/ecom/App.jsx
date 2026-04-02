@@ -117,6 +117,7 @@ const ConnectShopify = lazy(() => import('./pages/ConnectShopify.jsx'));
 const BillingPage = lazy(() => import('./pages/BillingPage.jsx'));
 const BillingSuccess = lazy(() => import('./pages/BillingSuccess.jsx'));
 const ProviderService = lazy(() => import('./pages/ProviderService.jsx'));
+const ProductSettingsPage = lazy(() => import('./pages/ProductSettingsPage.jsx'));
 
 // Store pages
 const StoreSetup = lazy(() => import('./pages/StoreSetup.jsx'));
@@ -250,6 +251,7 @@ const PLATFORM_TITLE_RULES = [
   { path: '/ecom/boutique/domains', title: 'Domaines boutique' },
   { path: '/ecom/boutique/delivery-zones', title: 'Zones de livraison' },
   { path: '/ecom/boutique/settings', title: 'Paramètres boutique' },
+  { path: '/ecom/boutique/product-settings', title: 'Paramètres page produit' },
   { path: '/ecom/boutique', title: 'Boutique' },
   { path: '/ecom/developer', title: 'Développeur' },
   { path: '/ecom/agent-ia', title: 'Agents IA' },
@@ -642,6 +644,7 @@ const EcomApp = () => {
                 <Route path="/ecom/boutique/domains" element={<BoutiqueDomains />} />
                 <Route path="/ecom/boutique/delivery-zones" element={<BoutiqueDeliveryZones />} />
                 <Route path="/ecom/boutique/settings" element={<BoutiqueSettings />} />
+                <Route path="/ecom/boutique/product-settings" element={<ProductSettingsPage />} />
               </Route>
 
               {/* Routes Developer & Rita - Accessibles à tous */}

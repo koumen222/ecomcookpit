@@ -80,6 +80,15 @@ const BOUTIQUE_NAV = [
     ),
   },
   {
+    name: 'Page Produit',
+    href: '/ecom/boutique/product-settings',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+      </svg>
+    ),
+  },
+  {
     name: 'Paramètres',
     href: '/ecom/boutique/settings',
     icon: (
@@ -416,6 +425,7 @@ const getBoutiquePageTitle = (pathname) => {
   if (pathname.includes('/boutique/payments')) return 'Paiements';
   if (pathname.includes('/boutique/delivery-zones')) return 'Zones de livraison';
   if (pathname.includes('/boutique/domains')) return 'Domaines';
+  if (pathname.includes('/boutique/product-settings')) return 'Paramètres Page Produit';
   if (pathname.includes('/boutique/settings')) return 'Paramètres & Branding';
   return 'Boutique';
 };
