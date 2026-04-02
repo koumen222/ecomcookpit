@@ -38,14 +38,14 @@ fi
 if [ ! -f .env ]; then
     echo "📝 Creating .env file..."
     cat > .env << 'EOF'
-# Your Railway backend URL
+# Your Railway backend URL (Railway app)
 RAILWAY_BACKEND=https://ecomcookpit-production-0ec4.up.railway.app
 
 # URL Caddy calls to validate domains (your Railway API)
 CADDY_ASK_URL=https://api.scalor.net/api/caddy/check-domain
 
 # Email for Let's Encrypt certificates
-ACME_EMAIL=koumenmorganperso@gmail.com
+ACME_EMAIL=admin@scalor.net
 
 # Optional: shared secret between Caddy and backend (leave empty to disable)
 # CADDY_AUTH_TOKEN=your-secret-token-here
