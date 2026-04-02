@@ -1,0 +1,20 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3 / QUIC
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data      # TLS certificates
+      - caddy_config:/config  # Caddy config
+    environment:
+      - CADDY_ASK_URL=${CADDY_ASK_URL:-https://api.scalor.net/api/caddy/check-domain}
+      - RAILWAY_BACKEND=${RAILWAY_BACKEND:-https://ecomcookpit-production-0ec4.up.railway.app}
+      - ACME_EMAIL=${ACME_EMAIL:-admin@scalor.net}
+
+volumes:
+  caddy_data:
+  caddy_config:

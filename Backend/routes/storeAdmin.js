@@ -399,8 +399,10 @@ router.post('/domains/check-dns', requireEcomAuth, requireWorkspace, async (req,
 
     // Railway target — customers should CNAME to this
     const CNAME_TARGET = process.env.RAILWAY_DOMAIN || 'ecomcookpit-production-0ec4.up.railway.app';
-    // Accepted IPs (Railway + Cloudflare proxy for shops.scalor.net)
-    const ACCEPTED_IPS = (process.env.ACCEPTED_DNS_IPS || '151.101.2.15,104.21.75.212,172.67.182.57').split(',').map(s => s.trim());
+    // Accepted IPs: VPS (Caddy proxy) + Railway + Cloudflare proxy for shops.scalor.net
+    const VPS_IP = process.env.CUSTOM_DOMAIN_VPS_IP || '';
+    const baseIps = '151.101.2.15,104.21.75.212,172.67.182.57';
+    const ACCEPTED_IPS = (process.env.ACCEPTED_DNS_IPS || (VPS_IP ? `${VPS_IP},${baseIps}` : baseIps)).split(',').map(s => s.trim()).filter(Boolean);
 
     const dns = await import('dns');
     const dnsPromises = dns.promises;

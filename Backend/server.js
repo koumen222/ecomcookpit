@@ -342,6 +342,8 @@ const startServer = async () => {
       // ─── AI Product Page Generator ───────────────────────────────────
       ['./routes/productPageGenerator.js',    '/api/ai/product-generator'],
       ['./routes/creativeGenerator.js',        '/api/ecom/ai/creative-generator'],
+      // ─── Caddy On-Demand TLS domain validation ─────────────────────────
+      ['./routes/caddyDomain.js',             '/api/caddy'],
       // ─── Diagnostics ──────────────────────────────────────────────────────
       ['./routes/diagnostics.js',             '/api/ecom/diagnostics'],
       // ─── Sourcing ────────────────────────────────────────────────────────
