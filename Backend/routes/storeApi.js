@@ -214,6 +214,8 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
           seoDescription: settings.seoDescription || '',
           announcement: settings.announcement || '',
           announcementEnabled: settings.announcementEnabled || false,
+          // Product page builder config
+          productPageConfig: settings.productPageConfig || null,
         },
         // Page sections: null = never configured (use defaults), [] = builder empty page
         sections: pages ? (pages.sections ?? null) : null,

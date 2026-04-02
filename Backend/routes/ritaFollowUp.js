@@ -17,6 +17,7 @@ import RitaContact from '../models/RitaContact.js';
 import RitaConfig from '../models/RitaConfig.js';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import evolutionApiService from '../services/evolutionApiService.js';
+import WhatsAppOrder from '../models/WhatsAppOrder.js';
 
 const router = express.Router();
 
@@ -448,6 +449,94 @@ router.post('/relance/bulk', async (req, res) => {
     });
   } catch (error) {
     console.error('Erreur relance bulk:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/rita/relance/product
+ * Relancer les clients ayant commandé un produit précis
+ */
+router.post('/relance/product', async (req, res) => {
+  try {
+    const { userId, productName, customMessage } = req.body;
+
+    if (!userId || !productName || !customMessage) {
+      return res.status(400).json({ error: 'userId, productName et customMessage requis' });
+    }
+
+    // Récupérer la config Rita et l'instance WhatsApp
+    const ritaConfig = await RitaConfig.findOne({ userId }).lean();
+    if (!ritaConfig || !ritaConfig.enabled) {
+      return res.status(400).json({ error: 'Rita non configurée ou désactivée' });
+    }
+
+    const instance = await WhatsAppInstance.findById(ritaConfig.instanceId).lean();
+    if (!instance || !instance.isActive) {
+      return res.status(400).json({ error: 'Instance WhatsApp non trouvée ou inactive' });
+    }
+
+    // Trouver tous les numéros ayant commandé ce produit (différent de annulé)
+    const orders = await WhatsAppOrder.find({
+      userId,
+      productName: { $regex: new RegExp(productName, 'i') },
+      status: { $ne: 'cancelled' }
+    }).lean();
+
+    if (orders.length === 0) {
+      return res.json({ success: true, count: 0, results: [], message: 'Aucun client trouvé pour ce produit.' });
+    }
+
+    // Dédoublonner par numéro de téléphone
+    const uniquePhonesSet = new Set();
+    const uniquePhones = [];
+    for (const order of orders) {
+      if (order.customerPhone && !uniquePhonesSet.has(order.customerPhone)) {
+        uniquePhonesSet.add(order.customerPhone);
+        uniquePhones.push(order.customerPhone);
+      }
+    }
+
+    const results = [];
+    const delay = 2000; // 2 secondes entre chaque message
+
+    for (let i = 0; i < uniquePhones.length; i++) {
+        const phone = uniquePhones[i];
+        try {
+          const result = await evolutionApiService.sendMessage(
+            instance.instanceName,
+            instance.instanceToken,
+            phone,
+            customMessage
+          );
+
+          if (result && result.success) {
+            markRelanced(userId, `${phone}@s.whatsapp.net`);
+            addRelanceToHistory(userId, `${phone}@s.whatsapp.net`, customMessage);
+            results.push({ phone, success: true });
+          } else {
+            results.push({ phone, success: false, error: 'Échec envoi message' });
+          }
+
+          if (i < uniquePhones.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+        } catch (err) {
+          results.push({ phone, success: false, error: err.message });
+        }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+
+    res.json({
+      success: true,
+      message: `${successCount} clients relancés avec succès sur ${uniquePhones.length} destinataires uniques.`,
+      count: uniquePhones.length,
+      successCount,
+      results
+    });
+  } catch (error) {
+    console.error('Erreur relance produit:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -141,7 +141,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
         {/* Header */}
         <div style={{ position: 'sticky', top: 0, backgroundColor: bgColor, borderBottom: '1px solid #F3F4F6', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: '20px 20px 0 0' }}>
           <h2 style={{ fontSize: 16, fontWeight: 800, color: textColor, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <ShoppingCart size={18} color={btnColor} /> Commander maintenant
+            <ShoppingCart size={18} color={btnColor} /> {productPageConfig?.button?.text || 'Commander maintenant'}
           </h2>
           <button onClick={handleClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#9CA3AF', display: 'flex' }}>
             <X size={20} />

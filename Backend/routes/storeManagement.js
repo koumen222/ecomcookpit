@@ -297,7 +297,9 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
       isStoreEnabled,
       // Nouveaux champs pour génération IA
       productType, audience, tone, city, country,
-      secondaryColor, productDescription
+      secondaryColor, productDescription,
+      // Product page builder config (visual builder)
+      productPageConfig
     } = req.body;
 
     const update = {};
@@ -323,6 +325,8 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
     if (country !== undefined) update['storeSettings.country'] = country;
     if (secondaryColor !== undefined) update['storeSettings.secondaryColor'] = secondaryColor;
     if (productDescription !== undefined) update['storeSettings.productDescription'] = productDescription;
+    // Product page builder config
+    if (productPageConfig !== undefined) update['storeSettings.productPageConfig'] = productPageConfig;
 
     const workspace = await EcomWorkspace.findByIdAndUpdate(
       req.workspaceId,

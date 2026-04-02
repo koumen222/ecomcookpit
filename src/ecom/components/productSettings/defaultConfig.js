@@ -25,6 +25,12 @@ const defaultConfig = {
   },
   conversion: {
     quantities: [1, 2, 3],
+    offersEnabled: false,
+    offers: [
+      { qty: 1, price: 0, comparePrice: 0, badge: '', selected: true },
+      { qty: 2, price: 0, comparePrice: 0, badge: 'Le plus populaire', selected: false },
+      { qty: 3, price: 0, comparePrice: 0, badge: 'Meilleure offre', selected: false },
+    ],
   },
   automation: {
     whatsapp: {
@@ -37,8 +43,17 @@ const defaultConfig = {
     buttonColor: '#ff6600',
     backgroundColor: '#ffffff',
     textColor: '#000000',
+    badgeColor: '#EF4444',
     borderRadius: '8px',
     shadow: true,
+    fontBase: 14,
+    fontWeight: '600',
+  },
+  button: {
+    text: 'Commander maintenant',
+    subtext: 'Paiement à la livraison',
+    icon: 'cart',
+    animation: 'none',
   },
   form: {
     fields: [
