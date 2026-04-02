@@ -1238,7 +1238,13 @@ const StoreProductPage = () => {
               </p>
             </div>
             <button
-              onClick={openOrderModal}
+              onClick={() => {
+                if (ppFormType === 'embedded') {
+                  ctaButtonsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else {
+                  openOrderModal();
+                }
+              }}
               disabled={!inStock}
               style={{
                 border: 'none', borderRadius: 999, padding: '16px 24px',

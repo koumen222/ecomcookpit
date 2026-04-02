@@ -118,6 +118,7 @@ const BillingPage = lazy(() => import('./pages/BillingPage.jsx'));
 const BillingSuccess = lazy(() => import('./pages/BillingSuccess.jsx'));
 const ProviderService = lazy(() => import('./pages/ProviderService.jsx'));
 const ProductSettingsPage = lazy(() => import('./pages/ProductSettingsPage.jsx'));
+const CreativeGenerator = lazy(() => import('./pages/CreativeGenerator.jsx'));
 
 // Store pages
 const StoreSetup = lazy(() => import('./pages/StoreSetup.jsx'));
@@ -646,6 +647,9 @@ const EcomApp = () => {
                 <Route path="/ecom/boutique/settings" element={<BoutiqueSettings />} />
                 <Route path="/ecom/boutique/product-settings" element={<ProductSettingsPage />} />
               </Route>
+
+              {/* Générateur de Créas IA */}
+              <Route path="/ecom/creative-generator" element={<LayoutRoute><CreativeGenerator /></LayoutRoute>} />
 
               {/* Routes Developer & Rita - Accessibles à tous */}
               <Route path="/ecom/developer" element={<LayoutRoute><DeveloperSection /></LayoutRoute>} />
