@@ -23,6 +23,7 @@ const TABS = [
   { id: 'statuts', label: 'Statuts', icon: Radio },
   { id: 'instructions', label: 'Instructions', icon: FileText },
   { id: 'group-animation', label: 'Groupes', icon: Megaphone },
+  { id: 'marketing', label: 'Relances', icon: Send },
 ];
 
 const TONE_OPTIONS = [
@@ -450,6 +451,12 @@ export default function AgentConfig() {
   const [relancingPhone, setRelancingPhone] = useState(null);
   const [relancingBulk, setRelancingBulk] = useState(false);
 
+  // Marketing product follow-up states
+  const [rpProduct, setRpProduct] = useState('');
+  const [rpMessage, setRpMessage] = useState('');
+  const [rpLoading, setRpLoading] = useState(false);
+  const [rpStatus, setRpStatus] = useState(null);
+
   const [config, setConfig] = useState({
     enabled: false,
     instanceId: '',
@@ -873,6 +880,40 @@ export default function AgentConfig() {
       alert(`❌ ${error.response?.data?.error || error.message || 'Erreur lors de la relance bulk'}`);
     } finally {
       setRelancingBulk(false);
+    }
+  };
+
+  const handleRelanceProduct = async () => {
+    if (!rpProduct || !rpMessage) {
+      setRpStatus({ type: 'error', text: 'Veuillez sélectionner un produit et taper un message.' });
+      return;
+    }
+    setRpLoading(true);
+    setRpStatus(null);
+    try {
+      const { data } = await ecomApi.post('/api/ecom/rita/relance/product', {
+        userId,
+        productName: rpProduct,
+        customMessage: rpMessage
+      });
+      if (data.success) {
+        setRpStatus({ type: 'success', text: data.message });
+      } else {
+        setRpStatus({ type: 'error', text: data.error || 'Erreur lors de la relance.' });
+      }
+    } catch (err) {
+      setRpStatus({ type: 'error', text: err.response?.data?.error || err.message });
+    } finally {
+      setRpLoading(false);
+    }
+  };
+
+  const handleProductSelect = (val) => {
+    setRpProduct(val);
+    if (val) {
+      setRpMessage(`Bonjour 👋,\n\nNous espérons que vous allez bien.\nNous vous recontactons suite à l'intérêt que vous avez porté à notre produit *${val}*.\n\nSouhaitez-vous échanger avec nous ou procéder à votre commande ?\nNous restons à votre entière disposition.`);
+    } else {
+      setRpMessage('');
     }
   };
 
@@ -4697,6 +4738,65 @@ export default function AgentConfig() {
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {/* ─── TAB: MARKETING / RELANCES ─── */}
+        {activeTab === 'marketing' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100">
+                <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">
+                    <Send className="w-4 h-4 text-emerald-600" />
+                  </span>
+                  Relances Automatiques par Produit
+                </h2>
+                <p className="text-[13px] text-gray-500 mt-1">Recontactez massivement (mais un par un) tous les clients ayant manifesté de l'intérêt ou commandé un produit spécifique.</p>
+              </div>
+              <div className="p-6 space-y-5">
+                <Field label="Sélectionnez le produit">
+                  <select 
+                    value={rpProduct} 
+                    onChange={e => handleProductSelect(e.target.value)}
+                    className="ac-input appearance-none bg-white font-medium"
+                  >
+                    <option value="">-- Choisir un produit du catalogue --</option>
+                    {(config.productCatalog || []).map((p, idx) => (
+                      <option key={idx} value={p.name}>{p.name}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Message WhatsApp de relance" hint="Sera envoyé à tous les clients concernés">
+                  <textarea
+                    value={rpMessage}
+                    onChange={e => setRpMessage(e.target.value)}
+                    placeholder="Bonjour, suite à votre achat, nous avons une offre..."
+                    className="ac-textarea"
+                    rows={4}
+                  />
+                </Field>
+
+                {rpStatus && (
+                  <div className={`text-[13px] px-4 py-3 rounded-xl font-medium ${rpStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
+                    {rpStatus.type === 'success' ? '✅ ' : '❌ '}{rpStatus.text}
+                  </div>
+                )}
+
+                <div className="pt-2">
+                  <button 
+                    onClick={handleRelanceProduct} 
+                    disabled={rpLoading || !rpProduct || !rpMessage}
+                    className="w-full sm:w-auto inline-flex justify-center items-center gap-2 px-5 py-2.5 text-[13px] font-bold text-white rounded-xl disabled:opacity-50 transition-all shadow-sm"
+                    style={{ background: ACCENT }}
+                  >
+                    {rpLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    Lancer la campagne de relance
+                  </button>
+                  <p className="text-[11px] text-gray-400 mt-2 italic">⚠️ L'envoi est progressif pour protéger votre numéro contre les signalements WhatsApp (anti-spam).</p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

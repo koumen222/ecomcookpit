@@ -233,6 +233,95 @@ const LivePreview = ({ config, product: productProp }) => {
             {product.name}
           </div>
 
+          {/* Price — always shown above form */}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
+            <span style={{ fontSize: 18, fontWeight: 900, color: btnColor, letterSpacing: '-0.02em' }}>
+              {fmt(price, cur)}
+            </span>
+            {pct > 0 && (
+              <>
+                <span style={{ fontSize: 11, color: '#9CA3AF', textDecoration: 'line-through' }}>{fmt(comparePrice, cur)}</span>
+                <span style={{ fontSize: 8, fontWeight: 700, padding: '2px 6px', borderRadius: 20, backgroundColor: '#FEE2E2', color: '#EF4444' }}>-{pct}%</span>
+              </>
+            )}
+          </div>
+
+          {/* Offers cards */}
+          {offersEnabled && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+              {conversion.offers.map((offer, i) => {
+                const disc = offer.comparePrice > offer.price && offer.price > 0
+                  ? Math.round((1 - offer.price / offer.comparePrice) * 100) : 0;
+                const sel = selectedOffer === i;
+                return (
+                  <div
+                    key={i}
+                    onClick={() => setSelectedOffer(i)}
+                    style={{
+                      padding: '7px 9px', borderRadius: 10, cursor: 'pointer',
+                      border: sel ? `2px solid ${btnColor}` : '1.5px solid #E5E7EB',
+                      backgroundColor: sel ? `${btnColor}08` : '#fff',
+                      display: 'flex', alignItems: 'center', gap: 8, position: 'relative',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div style={{
+                      width: 14, height: 14, borderRadius: '50%',
+                      border: sel ? `4px solid ${btnColor}` : '2px solid #D1D5DB',
+                      flexShrink: 0,
+                    }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: '#111827' }}>
+                        {offer.qty} {offer.qty === 1 ? 'unité' : 'unités'}
+                        {offer.badge && (
+                          <span style={{
+                            marginLeft: 4, fontSize: 7, fontWeight: 700, color: '#fff',
+                            backgroundColor: btnColor, padding: '1px 5px', borderRadius: 20,
+                          }}>{offer.badge}</span>
+                        )}
+                      </div>
+                      {offer.price > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 1 }}>
+                          <span style={{ fontSize: 10, fontWeight: 800, color: btnColor }}>{fmt(offer.price, cur)}</span>
+                          {disc > 0 && (
+                            <>
+                              <span style={{ fontSize: 8, color: '#9CA3AF', textDecoration: 'line-through' }}>{fmt(offer.comparePrice, cur)}</span>
+                              <span style={{ fontSize: 7, fontWeight: 700, color: '#EF4444', backgroundColor: '#FEE2E2', padding: '1px 4px', borderRadius: 10 }}>-{disc}%</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* CTA — always above sections */}
+          {general.formType === 'embedded' ? (
+            <div style={{ marginBottom: 10, padding: 10, borderRadius: radiusNum, border: `1px solid ${btnColor}25`, backgroundColor: `${btnColor}06` }}>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <BtnIcon size={11} color={btnColor} /> {btnText}
+              </div>
+              <OrderFormContent />
+            </div>
+          ) : (
+            <>
+              <button style={{...btnStyle, flexDirection: 'column', gap: 1}} onClick={() => setPopupOpen(true)}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <BtnIcon size={13} /> {btnText}
+                </span>
+                {btnSubtext && <span style={{ fontSize: 8, fontWeight: 500, opacity: 0.8 }}>{btnSubtext}</span>}
+              </button>
+              {btnSubtext && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 8.5, color: '#16A34A', padding: '5px 0 8px' }}>
+                  <Truck size={9} /> {btnSubtext}
+                </div>
+              )}
+            </>
+          )}
+
           {/* Sections rendered in config order */}
           {sections.filter(s => s.enabled).map(s => {
             switch (s.id) {
@@ -501,95 +590,6 @@ const LivePreview = ({ config, product: productProp }) => {
                 return null;
             }
           })}
-
-          {/* Price — always shown, not part of toggled sections */}
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
-            <span style={{ fontSize: 18, fontWeight: 900, color: btnColor, letterSpacing: '-0.02em' }}>
-              {fmt(price, cur)}
-            </span>
-            {pct > 0 && (
-              <>
-                <span style={{ fontSize: 11, color: '#9CA3AF', textDecoration: 'line-through' }}>{fmt(comparePrice, cur)}</span>
-                <span style={{ fontSize: 8, fontWeight: 700, padding: '2px 6px', borderRadius: 20, backgroundColor: '#FEE2E2', color: '#EF4444' }}>-{pct}%</span>
-              </>
-            )}
-          </div>
-
-          {/* Offers cards */}
-          {offersEnabled && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
-              {conversion.offers.map((offer, i) => {
-                const disc = offer.comparePrice > offer.price && offer.price > 0
-                  ? Math.round((1 - offer.price / offer.comparePrice) * 100) : 0;
-                const sel = selectedOffer === i;
-                return (
-                  <div
-                    key={i}
-                    onClick={() => setSelectedOffer(i)}
-                    style={{
-                      padding: '7px 9px', borderRadius: 10, cursor: 'pointer',
-                      border: sel ? `2px solid ${btnColor}` : '1.5px solid #E5E7EB',
-                      backgroundColor: sel ? `${btnColor}08` : '#fff',
-                      display: 'flex', alignItems: 'center', gap: 8, position: 'relative',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <div style={{
-                      width: 14, height: 14, borderRadius: '50%',
-                      border: sel ? `4px solid ${btnColor}` : '2px solid #D1D5DB',
-                      flexShrink: 0,
-                    }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 9, fontWeight: 700, color: '#111827' }}>
-                        {offer.qty} {offer.qty === 1 ? 'unité' : 'unités'}
-                        {offer.badge && (
-                          <span style={{
-                            marginLeft: 4, fontSize: 7, fontWeight: 700, color: '#fff',
-                            backgroundColor: btnColor, padding: '1px 5px', borderRadius: 20,
-                          }}>{offer.badge}</span>
-                        )}
-                      </div>
-                      {offer.price > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 1 }}>
-                          <span style={{ fontSize: 10, fontWeight: 800, color: btnColor }}>{fmt(offer.price, cur)}</span>
-                          {disc > 0 && (
-                            <>
-                              <span style={{ fontSize: 8, color: '#9CA3AF', textDecoration: 'line-through' }}>{fmt(offer.comparePrice, cur)}</span>
-                              <span style={{ fontSize: 7, fontWeight: 700, color: '#EF4444', backgroundColor: '#FEE2E2', padding: '1px 4px', borderRadius: 10 }}>-{disc}%</span>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* CTA */}
-          {general.formType === 'embedded' ? (
-            <div style={{ marginBottom: 10, padding: 10, borderRadius: radiusNum, border: `1px solid ${btnColor}25`, backgroundColor: `${btnColor}06` }}>
-              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <BtnIcon size={11} color={btnColor} /> {btnText}
-              </div>
-              <OrderFormContent />
-            </div>
-          ) : (
-            <>
-              <button style={{...btnStyle, flexDirection: 'column', gap: 1}} onClick={() => setPopupOpen(true)}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <BtnIcon size={13} /> {btnText}
-                </span>
-                {btnSubtext && <span style={{ fontSize: 8, fontWeight: 500, opacity: 0.8 }}>{btnSubtext}</span>}
-              </button>
-              {btnSubtext && !general.formType !== 'embedded' && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 8.5, color: '#16A34A', padding: '5px 0 8px' }}>
-                  <Truck size={9} /> {btnSubtext}
-                </div>
-              )}
-            </>
-          )}
 
           {/* Trust badges */}
           <div style={{
