@@ -11,6 +11,7 @@ import {
   generateRelanceMessage,
   markRelanced,
   addRelanceToHistory,
+  setClientProductInterest,
 } from '../services/ritaAgentService.js';
 import RitaFollowUpCampaign from '../models/RitaFollowUpCampaign.js';
 import RitaContact from '../models/RitaContact.js';
@@ -513,6 +514,7 @@ router.post('/relance/product', async (req, res) => {
           if (result && result.success) {
             markRelanced(userId, `${phone}@s.whatsapp.net`);
             addRelanceToHistory(userId, `${phone}@s.whatsapp.net`, customMessage);
+            setClientProductInterest(userId, `${phone}@s.whatsapp.net`, productName);
             results.push({ phone, success: true });
           } else {
             results.push({ phone, success: false, error: 'Échec envoi message' });

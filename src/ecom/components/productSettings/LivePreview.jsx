@@ -233,7 +233,7 @@ const LivePreview = ({ config, product: productProp }) => {
             {product.name}
           </div>
 
-          {/* Price — always shown above form */}
+          {/* Price — always shown */}
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
             <span style={{ fontSize: 18, fontWeight: 900, color: btnColor, letterSpacing: '-0.02em' }}>
               {fmt(price, cur)}
@@ -246,98 +246,26 @@ const LivePreview = ({ config, product: productProp }) => {
             )}
           </div>
 
-          {/* Offers cards */}
-          {offersEnabled && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
-              {conversion.offers.map((offer, i) => {
-                const disc = offer.comparePrice > offer.price && offer.price > 0
-                  ? Math.round((1 - offer.price / offer.comparePrice) * 100) : 0;
-                const sel = selectedOffer === i;
-                return (
-                  <div
-                    key={i}
-                    onClick={() => setSelectedOffer(i)}
-                    style={{
-                      padding: '7px 9px', borderRadius: 10, cursor: 'pointer',
-                      border: sel ? `2px solid ${btnColor}` : '1.5px solid #E5E7EB',
-                      backgroundColor: sel ? `${btnColor}08` : '#fff',
-                      display: 'flex', alignItems: 'center', gap: 8, position: 'relative',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <div style={{
-                      width: 14, height: 14, borderRadius: '50%',
-                      border: sel ? `4px solid ${btnColor}` : '2px solid #D1D5DB',
-                      flexShrink: 0,
-                    }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 9, fontWeight: 700, color: '#111827' }}>
-                        {offer.qty} {offer.qty === 1 ? 'unité' : 'unités'}
-                        {offer.badge && (
-                          <span style={{
-                            marginLeft: 4, fontSize: 7, fontWeight: 700, color: '#fff',
-                            backgroundColor: btnColor, padding: '1px 5px', borderRadius: 20,
-                          }}>{offer.badge}</span>
-                        )}
-                      </div>
-                      {offer.price > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 1 }}>
-                          <span style={{ fontSize: 10, fontWeight: 800, color: btnColor }}>{fmt(offer.price, cur)}</span>
-                          {disc > 0 && (
-                            <>
-                              <span style={{ fontSize: 8, color: '#9CA3AF', textDecoration: 'line-through' }}>{fmt(offer.comparePrice, cur)}</span>
-                              <span style={{ fontSize: 7, fontWeight: 700, color: '#EF4444', backgroundColor: '#FEE2E2', padding: '1px 4px', borderRadius: 10 }}>-{disc}%</span>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* CTA — always above sections */}
-          {general.formType === 'embedded' ? (
-            <div style={{ marginBottom: 10, padding: 10, borderRadius: radiusNum, border: `1px solid ${btnColor}25`, backgroundColor: `${btnColor}06` }}>
-              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <BtnIcon size={11} color={btnColor} /> {btnText}
-              </div>
-              <OrderFormContent />
-            </div>
-          ) : (
-            <>
-              <button style={{...btnStyle, flexDirection: 'column', gap: 1}} onClick={() => setPopupOpen(true)}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <BtnIcon size={13} /> {btnText}
-                </span>
-                {btnSubtext && <span style={{ fontSize: 8, fontWeight: 500, opacity: 0.8 }}>{btnSubtext}</span>}
-              </button>
-              {btnSubtext && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 8.5, color: '#16A34A', padding: '5px 0 8px' }}>
-                  <Truck size={9} /> {btnSubtext}
-                </div>
-              )}
-            </>
-          )}
-
           {/* Sections rendered in config order */}
           {sections.filter(s => s.enabled).map(s => {
             switch (s.id) {
-              case 'heroSlogan':
-                return pd.hero_slogan ? (
+              case 'heroSlogan': {
+                const heroSloganText = s.content?.text || pd.hero_slogan;
+                return heroSloganText ? (
                   <div key={s.id} style={{ fontSize: 9.5, fontWeight: 600, color: '#6B7280', marginBottom: 3, lineHeight: 1.4 }}>
-                    {pd.hero_slogan}
+                    {heroSloganText}
                   </div>
                 ) : null;
+              }
 
-              case 'heroBaseline':
-                return pd.hero_baseline ? (
+              case 'heroBaseline': {
+                const heroBaselineText = s.content?.text || pd.hero_baseline;
+                return heroBaselineText ? (
                   <div key={s.id} style={{ fontSize: 9, fontWeight: 700, color: btnColor, marginBottom: 8 }}>
-                    ✅ {pd.hero_baseline}
+                    ✅ {heroBaselineText}
                   </div>
                 ) : null;
+              }
 
               case 'reviews':
                 return (
@@ -350,10 +278,78 @@ const LivePreview = ({ config, product: productProp }) => {
                   </div>
                 );
 
-              case 'statsBar':
-                return pd.stats_bar?.length > 0 ? (
+              case 'orderForm':
+                return (
+                  <div key={s.id} style={{ marginBottom: 10 }}>
+                    {/* Offers cards */}
+                    {offersEnabled && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                        {conversion.offers.map((offer, i) => {
+                          const disc = offer.comparePrice > offer.price && offer.price > 0
+                            ? Math.round((1 - offer.price / offer.comparePrice) * 100) : 0;
+                          const sel = selectedOffer === i;
+                          return (
+                            <div key={i} onClick={() => setSelectedOffer(i)} style={{
+                              padding: '7px 9px', borderRadius: 10, cursor: 'pointer',
+                              border: sel ? `2px solid ${btnColor}` : '1.5px solid #E5E7EB',
+                              backgroundColor: sel ? `${btnColor}08` : '#fff',
+                              display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.15s ease',
+                            }}>
+                              <div style={{ width: 14, height: 14, borderRadius: '50%', border: sel ? `4px solid ${btnColor}` : '2px solid #D1D5DB', flexShrink: 0 }} />
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 9, fontWeight: 700, color: '#111827' }}>
+                                  {offer.qty} {offer.qty === 1 ? 'unité' : 'unités'}
+                                  {offer.badge && <span style={{ marginLeft: 4, fontSize: 7, fontWeight: 700, color: '#fff', backgroundColor: btnColor, padding: '1px 5px', borderRadius: 20 }}>{offer.badge}</span>}
+                                </div>
+                                {offer.price > 0 && (
+                                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 1 }}>
+                                    <span style={{ fontSize: 10, fontWeight: 800, color: btnColor }}>{fmt(offer.price, cur)}</span>
+                                    {disc > 0 && (
+                                      <>
+                                        <span style={{ fontSize: 8, color: '#9CA3AF', textDecoration: 'line-through' }}>{fmt(offer.comparePrice, cur)}</span>
+                                        <span style={{ fontSize: 7, fontWeight: 700, color: '#EF4444', backgroundColor: '#FEE2E2', padding: '1px 4px', borderRadius: 10 }}>-{disc}%</span>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {/* CTA button or embedded form */}
+                    {general.formType === 'embedded' ? (
+                      <div style={{ padding: 10, borderRadius: radiusNum, border: `1px solid ${btnColor}25`, backgroundColor: `${btnColor}06` }}>
+                        <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <BtnIcon size={11} color={btnColor} /> {btnText}
+                        </div>
+                        <OrderFormContent />
+                      </div>
+                    ) : (
+                      <>
+                        <button style={{...btnStyle, flexDirection: 'column', gap: 1}} onClick={() => setPopupOpen(true)}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <BtnIcon size={13} /> {btnText}
+                          </span>
+                          {btnSubtext && <span style={{ fontSize: 8, fontWeight: 500, opacity: 0.8 }}>{btnSubtext}</span>}
+                        </button>
+                        {btnSubtext && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 8.5, color: '#16A34A', padding: '5px 0 4px' }}>
+                            <Truck size={9} /> {btnSubtext}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+
+              case 'statsBar': {
+                const customStats = s.content?.stats?.filter(st => st.value && st.label);
+                const statsData = customStats?.length > 0 ? customStats : pd.stats_bar;
+                return statsData?.length > 0 ? (
                   <div key={s.id} style={{ display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap' }}>
-                    {pd.stats_bar.slice(0, 3).map((st, i) => (
+                    {statsData.slice(0, 3).map((st, i) => (
                       <div key={i} style={{
                         flex: 1, minWidth: 60, textAlign: 'center', padding: '5px 4px',
                         borderRadius: 8, backgroundColor: '#F0FAF5', border: '1px solid #D1FAE5',
@@ -364,6 +360,7 @@ const LivePreview = ({ config, product: productProp }) => {
                     ))}
                   </div>
                 ) : null;
+              }
 
               case 'stockCounter':
                 return stock > 0 && stock <= 10 ? (
@@ -374,14 +371,16 @@ const LivePreview = ({ config, product: productProp }) => {
                   </div>
                 ) : null;
 
-              case 'urgencyBadge':
-                return pd.urgency_badge ? (
+              case 'urgencyBadge': {
+                const urgencyText = s.content?.text || pd.urgency_badge;
+                return urgencyText ? (
                   <div key={s.id} style={{ marginBottom: 6 }}>
                     <span style={{ fontSize: 8.5, fontWeight: 700, color: '#DC2626', backgroundColor: '#FEF2F2', padding: '3px 8px', borderRadius: 20, border: '1px solid #FECACA' }}>
-                      {pd.urgency_badge}
+                      {urgencyText}
                     </span>
                   </div>
                 ) : null;
+              }
 
               case 'urgencyElements':
                 return pd.urgency_elements ? (
@@ -404,12 +403,14 @@ const LivePreview = ({ config, product: productProp }) => {
                   </div>
                 ) : null;
 
-              case 'benefitsBullets':
-                return pd.benefits_bullets?.length > 0 ? (
+              case 'benefitsBullets': {
+                const customBullets = s.content?.items?.filter(Boolean);
+                const bulletsData = customBullets?.length > 0 ? customBullets : pd.benefits_bullets;
+                return bulletsData?.length > 0 ? (
                   <div key={s.id} style={{ marginBottom: 10 }}>
                     <div style={{ fontSize: 9, fontWeight: 700, color: '#374151', marginBottom: 4 }}>💥 Les bénéfices</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      {pd.benefits_bullets.slice(0, 4).map((b, i) => (
+                      {bulletsData.slice(0, 4).map((b, i) => (
                         <div key={i} style={{ fontSize: 8.5, color: '#374151', display: 'flex', alignItems: 'flex-start', gap: 4, lineHeight: 1.4 }}>
                           {b}
                         </div>
@@ -417,6 +418,7 @@ const LivePreview = ({ config, product: productProp }) => {
                     </div>
                   </div>
                 ) : null;
+              }
 
               case 'conversionBlocks':
                 return pd.conversion_blocks?.length > 0 ? (
@@ -433,21 +435,24 @@ const LivePreview = ({ config, product: productProp }) => {
                   </div>
                 ) : null;
 
-              case 'offerBlock':
-                return pd.offer_block ? (
+              case 'offerBlock': {
+                const offerLabel = s.content?.offerLabel || pd.offer_block?.offer_label || 'Offre spéciale';
+                const guaranteeText = s.content?.guaranteeText || pd.offer_block?.guarantee_text;
+                return (pd.offer_block || s.content?.offerLabel || s.content?.guaranteeText) ? (
                   <div key={s.id} style={{
                     padding: '8px 10px', borderRadius: 10, marginBottom: 10,
                     backgroundColor: '#FFFBEB', border: '1px solid #FDE68A',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
                       <Gift size={10} color="#D97706" />
-                      <span style={{ fontSize: 9, fontWeight: 800, color: '#92400E' }}>{pd.offer_block.offer_label || 'Offre spéciale'}</span>
+                      <span style={{ fontSize: 9, fontWeight: 800, color: '#92400E' }}>{offerLabel}</span>
                     </div>
-                    {pd.offer_block.guarantee_text && (
-                      <div style={{ fontSize: 8, color: '#78350F', lineHeight: 1.4 }}>{pd.offer_block.guarantee_text}</div>
+                    {guaranteeText && (
+                      <div style={{ fontSize: 8, color: '#78350F', lineHeight: 1.4 }}>{guaranteeText}</div>
                     )}
                   </div>
                 ) : null;
+              }
 
               case 'description':
                 return product.description ? (
@@ -459,42 +464,51 @@ const LivePreview = ({ config, product: productProp }) => {
                   </div>
                 ) : null;
 
-              case 'problemSection':
-                return pd.problem_section ? (
+              case 'problemSection': {
+                const probTitle = s.content?.title || pd.problem_section?.title || 'Le problème';
+                const customPainPoints = s.content?.painPoints?.filter(Boolean);
+                const painPoints = customPainPoints?.length > 0 ? customPainPoints : pd.problem_section?.pain_points;
+                return (pd.problem_section || s.content?.title || customPainPoints?.length > 0) ? (
                   <div key={s.id} style={{ padding: '8px 10px', borderRadius: 10, marginBottom: 8, backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
                       <AlertTriangle size={10} color="#DC2626" />
-                      <span style={{ fontSize: 9, fontWeight: 800, color: '#991B1B' }}>{pd.problem_section.title || 'Le problème'}</span>
+                      <span style={{ fontSize: 9, fontWeight: 800, color: '#991B1B' }}>{probTitle}</span>
                     </div>
-                    {pd.problem_section.pain_points?.slice(0, 3).map((p, i) => (
+                    {painPoints?.slice(0, 3).map((p, i) => (
                       <div key={i} style={{ fontSize: 8, color: '#7F1D1D', marginBottom: 2, display: 'flex', gap: 3, alignItems: 'flex-start' }}>
                         <span style={{ color: '#EF4444' }}>•</span> {p}
                       </div>
                     ))}
                   </div>
                 ) : null;
+              }
 
-              case 'solutionSection':
-                return pd.solution_section ? (
+              case 'solutionSection': {
+                const solTitle = s.content?.title || pd.solution_section?.title || 'La solution';
+                const solDesc = s.content?.description || pd.solution_section?.description;
+                return (pd.solution_section || s.content?.title || s.content?.description) ? (
                   <div key={s.id} style={{ padding: '8px 10px', borderRadius: 10, marginBottom: 8, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
                       <Lightbulb size={10} color="#16A34A" />
-                      <span style={{ fontSize: 9, fontWeight: 800, color: '#14532D' }}>{pd.solution_section.title || 'La solution'}</span>
+                      <span style={{ fontSize: 9, fontWeight: 800, color: '#14532D' }}>{solTitle}</span>
                     </div>
-                    {pd.solution_section.description && (
+                    {solDesc && (
                       <div style={{ fontSize: 8, color: '#166534', lineHeight: 1.4 }}>
-                        {pd.solution_section.description.slice(0, 150)}…
+                        {solDesc.slice(0, 150)}…
                       </div>
                     )}
                   </div>
                 ) : null;
+              }
 
-              case 'faq':
-                return faqItems.length > 0 ? (
+              case 'faq': {
+                const customFaq = s.content?.faqItems?.filter(f => f.question && f.answer);
+                const faqData = customFaq?.length > 0 ? customFaq : faqItems;
+                return faqData.length > 0 ? (
                   <div key={s.id} style={{ marginBottom: 8, paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
                     <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Questions fréquentes</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {faqItems.slice(0, 3).map((item, i) => (
+                      {faqData.slice(0, 3).map((item, i) => (
                         <div key={i} style={{ borderRadius: 8, border: '1px solid #F3F4F6', overflow: 'hidden' }}>
                           <button onClick={() => setFaqOpen(faqOpen === i ? null : i)}
                             style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', background: '#FAFAFA', border: 'none', cursor: 'pointer' }}>
@@ -511,6 +525,7 @@ const LivePreview = ({ config, product: productProp }) => {
                     </div>
                   </div>
                 ) : null;
+              }
 
               case 'testimonials':
                 return testimonials.length > 0 ? (

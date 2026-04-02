@@ -804,6 +804,7 @@ const StoreProductPage = () => {
   const ppConversion = productPageConfig?.conversion || {};
   const ppSections = ppGeneral.sections || [];
   const ppSectionOrder = ppSections.length > 0 ? ppSections : null;
+  const sectionContentMap = Object.fromEntries(ppSections.map(s => [s.id, s.content || {}]));
   const isSectionEnabled = (id, fallback = true) => {
     if (!ppSections.length) return fallback;
     const s = ppSections.find(s => s.id === id);
@@ -818,7 +819,7 @@ const StoreProductPage = () => {
   // Build ordered enabled section IDs for rendering
   const enabledSectionIds = ppSectionOrder
     ? ppSectionOrder.filter(s => s.enabled).map(s => s.id)
-    : ['heroSlogan', 'heroBaseline', 'reviews', 'statsBar', 'stockCounter', 'urgencyBadge',
+    : ['heroSlogan', 'heroBaseline', 'reviews', 'orderForm', 'statsBar', 'stockCounter', 'urgencyBadge',
        'urgencyElements', 'benefitsBullets', 'conversionBlocks', 'offerBlock', 'description',
        'problemSection', 'solutionSection', 'faq', 'testimonials', 'relatedProducts',
        'stickyOrderBar', 'upsell', 'orderBump'];
@@ -976,15 +977,15 @@ const StoreProductPage = () => {
                   {product.name}
                 </h1>
 
-                {/* Hero slogan / baseline from AI */}
-                {enabledSectionIds.includes('heroSlogan') && product._pageData?.hero_slogan && (
+                {/* Hero slogan / baseline from AI or config content */}
+                {enabledSectionIds.includes('heroSlogan') && (sectionContentMap.heroSlogan?.text || product._pageData?.hero_slogan) && (
                   <p style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 600, color: 'var(--s-text2)', fontFamily: 'var(--s-font)', lineHeight: 1.5 }}>
-                    {product._pageData.hero_slogan}
+                    {sectionContentMap.heroSlogan?.text || product._pageData.hero_slogan}
                   </p>
                 )}
-                {enabledSectionIds.includes('heroBaseline') && product._pageData?.hero_baseline && (
+                {enabledSectionIds.includes('heroBaseline') && (sectionContentMap.heroBaseline?.text || product._pageData?.hero_baseline) && (
                   <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--s-primary)', fontWeight: 700, fontFamily: 'var(--s-font)' }}>
-                    ✅ {product._pageData.hero_baseline}
+                    ✅ {sectionContentMap.heroBaseline?.text || product._pageData.hero_baseline}
                   </p>
                 )}
 
@@ -1005,71 +1006,61 @@ const StoreProductPage = () => {
                   )}
                 </div>
 
-                {/* CTA — Embedded form OR Popup button — always above sections */}
-                <div ref={ctaButtonsRef} style={{ marginBottom: 20 }}>
-                  {ppFormType === 'embedded' && inStock ? (
-                    <EmbeddedOrderForm
-                      product={product}
-                      subdomain={subdomain}
-                      store={store}
-                      productPageConfig={productPageConfig}
-                    />
-                  ) : (
-                    <button
-                      onClick={openOrderModal}
-                      disabled={!inStock}
-                      className={ctaAnimClass}
-                      onMouseEnter={(e) => {
-                        if (inStock) {
-                          e.target.style.transform = 'scale(1.02)';
-                          e.target.style.boxShadow = '0 8px 24px rgba(0,0,0,0.2)';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (inStock) {
-                          e.target.style.transform = 'scale(1)';
-                          e.target.style.boxShadow = '0 4px 16px rgba(0,0,0,0.12)';
-                        }
-                      }}
-                      style={{
-                        width: '100%', padding: '18px 24px', borderRadius: ctaBorderRadius, border: 'none',
-                        backgroundColor: inStock ? ctaBtnColor : '#d1d5db',
-                        color: '#fff', fontWeight: 700, fontSize: 17, cursor: inStock ? 'pointer' : 'not-allowed',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
-                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', fontFamily: 'var(--s-font)',
-                        boxShadow: inStock ? ctaShadow : 'none',
-                        minHeight: 56,
-                        position: 'relative',
-                        overflow: 'hidden'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                        <CtaIcon size={18} /> {ppButton.text || 'Commander maintenant'}
-                      </div>
-                      <span style={{ 
-                        fontSize: '12px', 
-                        opacity: 0.9, 
-                        fontWeight: 500, 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: 4,
-                      }}>
-                        <Truck size={10} /> {ppButton.subtext || 'Paiement à la livraison'}
-                      </span>
-                    </button>
-                  )}
-                </div>
-
                 {/* Sections rendered in config order */}
                 {enabledSectionIds.map(sectionId => {
                   switch (sectionId) {
                     case 'reviews':
                       return <ProductReviews key={sectionId} rating={product.rating || 4.5} reviewCount={product.reviewCount || 0} />;
 
-                    case 'statsBar':
-                      return product._pageData?.stats_bar?.length > 0
-                        ? <StatsBar key={sectionId} stats={product._pageData.stats_bar} />
+                    case 'orderForm':
+                      return (
+                        <div key={sectionId} ref={ctaButtonsRef} style={{ marginBottom: 20 }}>
+                          {ppFormType === 'embedded' && inStock ? (
+                            <EmbeddedOrderForm
+                              product={product}
+                              subdomain={subdomain}
+                              store={store}
+                              productPageConfig={productPageConfig}
+                            />
+                          ) : (
+                            <button
+                              onClick={openOrderModal}
+                              disabled={!inStock}
+                              className={ctaAnimClass}
+                              onMouseEnter={(e) => {
+                                if (inStock) { e.target.style.transform = 'scale(1.02)'; e.target.style.boxShadow = '0 8px 24px rgba(0,0,0,0.2)'; }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (inStock) { e.target.style.transform = 'scale(1)'; e.target.style.boxShadow = '0 4px 16px rgba(0,0,0,0.12)'; }
+                              }}
+                              style={{
+                                width: '100%', padding: '18px 24px', borderRadius: ctaBorderRadius, border: 'none',
+                                backgroundColor: inStock ? ctaBtnColor : '#d1d5db',
+                                color: '#fff', fontWeight: 700, fontSize: 17, cursor: inStock ? 'pointer' : 'not-allowed',
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', fontFamily: 'var(--s-font)',
+                                boxShadow: inStock ? ctaShadow : 'none',
+                                minHeight: 56, position: 'relative', overflow: 'hidden'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                                <CtaIcon size={18} /> {ppButton.text || 'Commander maintenant'}
+                              </div>
+                              <span style={{ fontSize: '12px', opacity: 0.9, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <Truck size={10} /> {ppButton.subtext || 'Paiement à la livraison'}
+                              </span>
+                            </button>
+                          )}
+                        </div>
+                      );
+
+                    case 'statsBar': {
+                      const customStats = sectionContentMap.statsBar?.stats?.filter(st => st.value && st.label);
+                      const statsData = customStats?.length > 0 ? customStats : product._pageData?.stats_bar;
+                      return statsData?.length > 0
+                        ? <StatsBar key={sectionId} stats={statsData} />
                         : null;
+                    }
 
                     case 'stockCounter':
                       return (
@@ -1090,14 +1081,16 @@ const StoreProductPage = () => {
                         </div>
                       );
 
-                    case 'urgencyBadge':
-                      return product._pageData?.urgency_badge && inStock ? (
+                    case 'urgencyBadge': {
+                      const urgencyText = sectionContentMap.urgencyBadge?.text || product._pageData?.urgency_badge;
+                      return urgencyText && inStock ? (
                         <div key={sectionId} style={{ marginBottom: 10 }}>
                           <span style={{ fontSize: 13, fontWeight: 700, color: '#DC2626', padding: '4px 12px', borderRadius: 20, backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
-                            {product._pageData.urgency_badge}
+                            {urgencyText}
                           </span>
                         </div>
                       ) : null;
+                    }
 
                     case 'urgencyElements':
                       return product._pageData?.urgency_elements ? (
@@ -1108,20 +1101,28 @@ const StoreProductPage = () => {
                         />
                       ) : null;
 
-                    case 'benefitsBullets':
-                      return product._pageData?.benefits_bullets?.length > 0 ? (
-                        <ProductBenefits key={sectionId} benefits={product._pageData.benefits_bullets} title="💥 Les bénéfices" />
+                    case 'benefitsBullets': {
+                      const customBullets = sectionContentMap.benefitsBullets?.items?.filter(Boolean);
+                      const bulletsData = customBullets?.length > 0 ? customBullets : product._pageData?.benefits_bullets;
+                      return bulletsData?.length > 0 ? (
+                        <ProductBenefits key={sectionId} benefits={bulletsData} title="💥 Les bénéfices" />
                       ) : null;
+                    }
 
                     case 'conversionBlocks':
                       return product._pageData?.conversion_blocks?.length > 0 ? (
                         <ConversionBlocks key={sectionId} blocks={product._pageData.conversion_blocks} />
                       ) : null;
 
-                    case 'offerBlock':
-                      return product._pageData?.offer_block ? (
-                        <OfferBlock key={sectionId} block={product._pageData.offer_block} />
-                      ) : null;
+                    case 'offerBlock': {
+                      const sc = sectionContentMap.offerBlock || {};
+                      const aiBlock = product._pageData?.offer_block;
+                      const mergedBlock = (aiBlock || sc.offerLabel || sc.guaranteeText) ? {
+                        offer_label: sc.offerLabel || aiBlock?.offer_label || 'Offre spéciale',
+                        guarantee_text: sc.guaranteeText || aiBlock?.guarantee_text,
+                      } : null;
+                      return mergedBlock ? <OfferBlock key={sectionId} block={mergedBlock} /> : null;
+                    }
 
                     case 'description': {
                       const raw = product.description?.toString().trim() || '';
@@ -1135,22 +1136,36 @@ const StoreProductPage = () => {
                       ) : null;
                     }
 
-                    case 'problemSection':
-                      return product._pageData?.problem_section ? (
-                        <ProblemSection key={sectionId} section={product._pageData.problem_section} />
-                      ) : null;
+                    case 'problemSection': {
+                      const sc = sectionContentMap.problemSection || {};
+                      const aiSection = product._pageData?.problem_section;
+                      const customPainPoints = sc.painPoints?.filter(Boolean);
+                      const mergedSection = (aiSection || sc.title || customPainPoints?.length > 0) ? {
+                        title: sc.title || aiSection?.title || 'Le problème',
+                        pain_points: customPainPoints?.length > 0 ? customPainPoints : aiSection?.pain_points,
+                      } : null;
+                      return mergedSection ? <ProblemSection key={sectionId} section={mergedSection} /> : null;
+                    }
 
-                    case 'solutionSection':
-                      return product._pageData?.solution_section ? (
-                        <SolutionSection key={sectionId} section={product._pageData.solution_section} />
-                      ) : null;
+                    case 'solutionSection': {
+                      const sc = sectionContentMap.solutionSection || {};
+                      const aiSection = product._pageData?.solution_section;
+                      const mergedSection = (aiSection || sc.title || sc.description) ? {
+                        title: sc.title || aiSection?.title || 'La solution',
+                        description: sc.description || aiSection?.description,
+                      } : null;
+                      return mergedSection ? <SolutionSection key={sectionId} section={mergedSection} /> : null;
+                    }
 
                     case 'faq': {
                       const raw2 = product.description?.toString().trim() || '';
                       const hasHtml2 = raw2 && /<[^>]+>/.test(raw2);
-                      const faqItems = product.faq?.length > 0
-                        ? product.faq
-                        : (hasHtml2 ? extractFaqItemsFromHtml(raw2) : []);
+                      const customFaq = sectionContentMap.faq?.faqItems?.filter(f => f.question && f.answer);
+                      const faqItems = customFaq?.length > 0
+                        ? customFaq
+                        : product.faq?.length > 0
+                          ? product.faq
+                          : (hasHtml2 ? extractFaqItemsFromHtml(raw2) : []);
                       return faqItems.length > 0
                         ? <ProductFaqAccordion key={sectionId} items={faqItems} />
                         : null;

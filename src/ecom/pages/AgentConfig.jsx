@@ -4744,7 +4744,60 @@ export default function AgentConfig() {
         {/* ─── TAB: MARKETING / RELANCES ─── */}
         {activeTab === 'marketing' && (
           <div className="space-y-6">
-            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+            
+            {/* ─── AUTOPILOTE IA RELANCES ─── */}
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-blue-50/10">
+                <div>
+                  <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                      <Bot className="w-4 h-4 text-blue-600" />
+                    </span>
+                    Autopilote IA : Relances Autonomes
+                  </h2>
+                  <p className="text-[13px] text-gray-500 mt-1">Laissez l'IA relancer elle-même les clients inactifs en scannant leurs historiques.</p>
+                </div>
+                <Toggle
+                  checked={config.autoRelanceEnabled || false}
+                  onChange={(val) => updateConfig('autoRelanceEnabled', val)}
+                />
+              </div>
+
+              {config.autoRelanceEnabled && (
+                <div className="p-6 bg-blue-50/20 space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <Field label="Délai de silence (en heures)" hint="Attendre x h avant de relancer">
+                      <input
+                        type="number"
+                        min="1"
+                        max="72"
+                        className="ac-input font-medium"
+                        value={config.autoRelanceDelayHours === undefined ? 2 : config.autoRelanceDelayHours}
+                        onChange={(e) => updateConfig('autoRelanceDelayHours', Number(e.target.value))}
+                      />
+                    </Field>
+                    <Field label="Maximum de relances" hint="Combien de fois max par client">
+                      <input
+                        type="number"
+                        min="1"
+                        max="3"
+                        className="ac-input font-medium"
+                        value={config.autoRelanceMaxCount === undefined ? 1 : config.autoRelanceMaxCount}
+                        onChange={(e) => updateConfig('autoRelanceMaxCount', Number(e.target.value))}
+                      />
+                    </Field>
+                  </div>
+                  <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-xl border border-amber-200/60">
+                    <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                    <p className="text-[12px] text-amber-800 leading-relaxed font-medium">
+                      Ce mode est 100% autonome. Il tourne en tâche de fond 24h/24 et consomme des crédits IA (Groq) pour analyser les conversations avant de créer la relance parfaite.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
               <div className="px-6 py-4 border-b border-gray-100">
                 <h2 className="text-[15px] font-bold text-gray-900 flex items-center gap-2">
                   <span className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center">

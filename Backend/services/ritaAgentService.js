@@ -3,6 +3,8 @@ import axios from 'axios';
 import RitaConfig from '../models/RitaConfig.js';
 import RitaContact from '../models/RitaContact.js';
 import Workspace from '../models/Workspace.js';
+import WhatsAppInstance from '../models/WhatsAppInstance.js';
+import evolutionApiService from './evolutionApiService.js';
 import { Readable } from 'stream';
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -29,6 +31,64 @@ setInterval(() => {
     }
   }
 }, 30 * 60 * 1000);
+
+// Worker d'Auto-Relance par l'IA (s'exécute toutes les 15 minutes)
+setInterval(async () => {
+  try {
+    const now = Date.now();
+    for (const [key, tracker] of conversationTracker.entries()) {
+      if (tracker.ordered) continue;
+      if (!tracker.lastClientMessage) continue;
+
+      const [userId, fromJid] = key.split(':');
+      if (!userId || !fromJid) continue;
+
+      const ritaConfig = await RitaConfig.findOne({ userId }).lean();
+      if (!ritaConfig || !ritaConfig.enabled || !ritaConfig.autoRelanceEnabled) continue;
+
+      const maxCount = ritaConfig.autoRelanceMaxCount || 1;
+      if (tracker.relanceCount >= maxCount) continue;
+
+      const delayMs = (ritaConfig.autoRelanceDelayHours || 2) * 60 * 60 * 1000;
+      const lastActivityTime = Math.max(
+         tracker.lastClientMessage ? tracker.lastClientMessage.getTime() : 0,
+         tracker.lastAgentMessage ? tracker.lastAgentMessage.getTime() : 0
+      );
+
+      if (now - lastActivityTime > delayMs) {
+        console.log(`🤖 [AUTO-RELANCE] Déclenchement pour ${key} (inactif depuis > ${ritaConfig.autoRelanceDelayHours || 2}h)`);
+        
+        const history = conversationHistory.get(key) || [];
+        const messageText = await generateRelanceMessage(history, ritaConfig, tracker.relanceCount);
+        if (!messageText) continue;
+
+        let inst = null;
+        if (ritaConfig.instanceId) {
+          inst = await WhatsAppInstance.findById(ritaConfig.instanceId).lean();
+        } else {
+          inst = await WhatsAppInstance.findOne({ userId, isActive: true }).lean();
+        }
+
+        if (inst) {
+          const result = await evolutionApiService.sendMessage(
+            inst.instanceName,
+            inst.instanceToken,
+            fromJid.replace('@s.whatsapp.net', ''),
+            messageText
+          );
+
+          if (result && result.success) {
+            console.log(`✅ [AUTO-RELANCE] Envoyée à ${fromJid}`);
+            markRelanced(userId, fromJid);
+            addRelanceToHistory(userId, fromJid, messageText);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('❌ [AUTO-RELANCE WORKER] Erreur:', err.message);
+  }
+}, 15 * 60 * 1000);
 
 // Suivi des dernières interactions pour le système de relance
 // Map<historyKey, { lastClientMessage: Date, lastAgentMessage: Date, relanceCount: number, ordered: boolean }>
@@ -3744,6 +3804,17 @@ export function addRelanceToHistory(userId, from, message) {
   if (history) {
     history.push({ role: 'assistant', content: message });
   }
+}
+
+/**
+ * Configure le produit d'intérêt d'un client de force (utile lors des relances par produit)
+ */
+export function setClientProductInterest(userId, from, productName) {
+  const key = `${userId}:${from}`;
+  const state = getOrCreateState(key, from);
+  state.produit = productName;
+  clientStates.set(key, state);
+  console.log(`[RITA STATE] Produit pré-assigné pour ${from} = ${productName}`);
 }
 
 /**
