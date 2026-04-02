@@ -3,35 +3,11 @@ import {
   Star, ShoppingCart, ChevronDown, ChevronUp, X,
   Truck, Shield, RotateCcw, MessageCircle, ShoppingBag, Check,
   ChevronLeft, ChevronRight, Package, User, Phone, MapPin, FileText,
+  AlertTriangle, Lightbulb, Gift, Clock, TrendingUp, Users,
 } from 'lucide-react';
 import { storeManageApi } from '../../services/storeApi';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
-
-const MOCK = {
-  name: 'Tongkat Ali Premium — Boost Vitalité',
-  category: 'Compléments Alimentaires',
-  slogan: 'Retrouvez votre énergie et votre libido naturellement',
-  baseline: 'Résultats visibles dès la 1ère semaine',
-  price: 14900,
-  comparePrice: 22000,
-  stock: 4,
-  rating: 4.8,
-  ratingCount: 238,
-  image: null,
-  benefits: ['Boost énergie & vitalité', 'Améliore la libido naturellement', '100% naturel, sans effets secondaires'],
-  faqItems: [
-    { q: 'Quel est le délai de livraison ?', a: 'Entre 24h et 72h selon votre localisation.' },
-    { q: 'Peut-on payer à la livraison ?', a: 'Oui, le paiement à la livraison est disponible.' },
-    { q: 'Est-ce que le produit est naturel ?', a: 'Oui, 100% naturel, sans additifs chimiques.' },
-  ],
-  reviews: [
-    { name: 'Mamadou K.', location: 'Douala', stars: 5, text: 'Résultats visibles dès la 1ère semaine !', verified: true },
-    { name: 'Ibrahim S.', location: 'Abidjan', stars: 5, text: 'Livraison rapide et produit de qualité.', verified: true },
-    { name: 'Astride N.', location: 'Yaoundé', stars: 4, text: 'Très bon produit, je recommande.', verified: true },
-  ],
-  description: 'Tongkat Ali Premium est un complément alimentaire 100% naturel formulé pour booster votre énergie, améliorer votre vitalité et soutenir votre libido de manière naturelle.',
-};
 
 const FIELD_ICONS = { fullname: User, phone: Phone, address: MapPin, note: FileText };
 
@@ -39,64 +15,46 @@ const LivePreview = ({ config }) => {
   const { general, conversion, design, form, automation } = config;
   const [faqOpen, setFaqOpen] = useState(null);
   const [popupOpen, setPopupOpen] = useState(false);
-  const [activeImg, setActiveImg] = useState(0);
-  const [realProduct, setRealProduct] = useState(null);
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Try to fetch a real product for more realistic preview
   useEffect(() => {
     (async () => {
       try {
         const res = await storeManageApi.getProducts({ limit: 1 });
-        const list = res.data?.data || res.data || [];
-        if (list.length > 0) setRealProduct(list[0]);
+        const list = res.data?.data?.products || res.data?.data || res.data || [];
+        if (list.length > 0) setProduct(list[0]);
       } catch { /* ignore */ }
+      setLoading(false);
     })();
   }, []);
 
-  const product = realProduct ? {
-    ...MOCK,
-    name: realProduct.name || MOCK.name,
-    category: realProduct.category || MOCK.category,
-    price: realProduct.price || MOCK.price,
-    comparePrice: realProduct.compareAtPrice || MOCK.comparePrice,
-    stock: realProduct.stock ?? MOCK.stock,
-    image: realProduct.image || realProduct.images?.[0]?.url || realProduct.images?.[0] || null,
-    images: realProduct.images || [],
-    slogan: realProduct._pageData?.hero_slogan || MOCK.slogan,
-    baseline: realProduct._pageData?.hero_baseline || MOCK.baseline,
-    description: realProduct.description || MOCK.description,
-  } : MOCK;
+  const pd = product?._pageData || {};
+  const images = product?.images || [];
+  const mainImage = images[0]?.url || images[0] || null;
+  const price = product?.price || 14900;
+  const comparePrice = product?.compareAtPrice || 0;
+  const pct = comparePrice > price ? Math.round((1 - price / comparePrice) * 100) : 0;
+  const stock = product?.stock ?? 4;
+  const cur = product?.currency || 'XAF';
 
   const enabledFields = form.fields.filter(f => f.enabled);
-  const btnColor = design.buttonColor;
+  const btnColor = design.buttonColor || '#ff6600';
   const radius = typeof design.borderRadius === 'number' ? `${design.borderRadius}px` : design.borderRadius;
   const radiusNum = parseInt(radius) || 8;
   const hasShadow = design.shadow !== false;
-  const pct = product.comparePrice > product.price ? Math.round((1 - product.price / product.comparePrice) * 100) : 0;
-  const hasImages = product.images?.length > 0;
-  const displayImages = hasImages ? product.images.slice(0, 4) : [];
-
-  const enabledSections = (general.sections || []).filter(s => s.enabled);
+  const sections = general.sections || [];
+  const isOn = (id) => sections.find(s => s.id === id)?.enabled ?? true;
 
   const btnStyle = {
-    backgroundColor: btnColor,
-    color: '#fff',
+    backgroundColor: btnColor, color: '#fff',
     borderRadius: radiusNum >= 16 ? '999px' : radius,
     boxShadow: hasShadow ? `0 4px 16px ${btnColor}50` : 'none',
-    border: 'none',
-    width: '100%',
-    padding: '12px 16px',
-    fontWeight: 800,
-    fontSize: 11,
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    fontFamily: 'inherit',
-    transition: 'all 0.2s ease',
+    border: 'none', width: '100%', padding: '12px 16px',
+    fontWeight: 800, fontSize: 11, cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+    fontFamily: 'inherit', transition: 'all 0.2s ease',
   };
-
   const inputRadius = Math.max(6, radiusNum / 1.5);
 
   const OrderFormContent = () => (
@@ -133,13 +91,47 @@ const LivePreview = ({ config }) => {
       )}
       <div style={{ height: 2 }} />
       <div style={btnStyle}>
-        <ShoppingCart size={12} /> Commander · {fmt(product.price)}
+        <ShoppingCart size={12} /> Commander · {fmt(price, cur)}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 8, color: '#16A34A', padding: '2px 0' }}>
         <Truck size={9} /> Paiement à la livraison
       </div>
     </div>
   );
+
+  if (loading) {
+    return (
+      <div style={{ background: '#F1F5F9', borderRadius: 20, border: '1px solid #E2E8F0', padding: '14px 12px', minHeight: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center', color: '#94A3B8' }}>
+          <Package size={24} style={{ marginBottom: 8, opacity: 0.5 }} />
+          <div style={{ fontSize: 11, fontWeight: 600 }}>Chargement du produit…</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div style={{ background: '#F1F5F9', borderRadius: 20, border: '1px solid #E2E8F0', padding: '14px 12px', minHeight: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center', color: '#94A3B8' }}>
+          <Package size={24} style={{ marginBottom: 8, opacity: 0.5 }} />
+          <div style={{ fontSize: 11, fontWeight: 600 }}>Aucun produit trouvé</div>
+          <div style={{ fontSize: 9, marginTop: 4 }}>Créez un produit pour voir l'aperçu</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Testimonials
+  const testimonials = pd.testimonials?.length > 0
+    ? pd.testimonials
+    : product.testimonials?.length > 0
+      ? product.testimonials : [];
+
+  // FAQ
+  const faqItems = product.faq?.length > 0
+    ? product.faq
+    : pd.faq?.length > 0 ? pd.faq : [];
 
   return (
     <div style={{
@@ -151,8 +143,8 @@ const LivePreview = ({ config }) => {
         <span style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           Aperçu page produit
         </span>
-        <span style={{ fontSize: 9, color: '#94A3B8', backgroundColor: '#E2E8F0', padding: '2px 7px', borderRadius: 20 }}>
-          Temps réel
+        <span style={{ fontSize: 9, color: '#16A34A', backgroundColor: '#F0FDF4', padding: '2px 7px', borderRadius: 20, fontWeight: 600 }}>
+          Données réelles
         </span>
       </div>
 
@@ -160,12 +152,11 @@ const LivePreview = ({ config }) => {
       <div style={{
         background: '#fff', borderRadius: 16, overflow: 'hidden',
         boxShadow: '0 8px 32px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.08)',
-        maxHeight: 620, overflowY: 'auto',
-        scrollbarWidth: 'none',
+        maxHeight: 620, overflowY: 'auto', scrollbarWidth: 'none',
         border: '1px solid #E2E8F0',
       }}>
 
-        {/* ── Store header — like real StorefrontHeader ── */}
+        {/* Store header */}
         <div style={{
           padding: '8px 10px', borderBottom: '1px solid #F3F4F6',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -180,72 +171,30 @@ const LivePreview = ({ config }) => {
             </div>
             <span style={{ fontSize: 10, fontWeight: 800, color: '#111827' }}>Ma Boutique</span>
           </div>
-          <div style={{ position: 'relative' }}>
-            <ShoppingCart size={15} color="#6B7280" />
-            <div style={{
-              position: 'absolute', top: -3, right: -3, width: 8, height: 8,
-              borderRadius: '50%', backgroundColor: btnColor, fontSize: 5, color: '#fff',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
-            }}>2</div>
-          </div>
+          <ShoppingCart size={15} color="#6B7280" />
         </div>
 
-        {/* ── Product Image Gallery (realistic) ── */}
+        {/* Product Image */}
         <div style={{ position: 'relative' }}>
           <div style={{
-            height: 200, background: product.image
-              ? `url(${product.image}) center/cover no-repeat`
+            height: 200,
+            background: mainImage
+              ? `url(${mainImage}) center/cover no-repeat`
               : `linear-gradient(135deg, ${btnColor}18 0%, ${btnColor}08 100%)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            position: 'relative',
           }}>
-            {!product.image && (
-              <div style={{
-                width: 80, height: 80, borderRadius: 16,
-                backgroundColor: `${btnColor}20`, display: 'flex',
-                alignItems: 'center', justifyContent: 'center',
-              }}>
+            {!mainImage && (
+              <div style={{ width: 80, height: 80, borderRadius: 16, backgroundColor: `${btnColor}20`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Package size={32} color={btnColor} style={{ opacity: 0.4 }} />
               </div>
             )}
             {pct > 0 && (
-              <div style={{
-                position: 'absolute', top: 8, left: 8,
-                backgroundColor: '#EF4444', color: '#fff', fontSize: 9, fontWeight: 700,
-                padding: '3px 8px', borderRadius: 20,
-                boxShadow: '0 2px 6px rgba(239,68,68,0.3)',
-              }}>-{pct}%</div>
-            )}
-            {/* Nav arrows */}
-            {displayImages.length > 1 && (
-              <>
-                <button style={{
-                  position: 'absolute', left: 6, top: '50%', transform: 'translateY(-50%)',
-                  width: 22, height: 22, borderRadius: '50%', border: 'none',
-                  backgroundColor: 'rgba(255,255,255,0.85)', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <ChevronLeft size={12} color="#374151" />
-                </button>
-                <button style={{
-                  position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
-                  width: 22, height: 22, borderRadius: '50%', border: 'none',
-                  backgroundColor: 'rgba(255,255,255,0.85)', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <ChevronRight size={12} color="#374151" />
-                </button>
-              </>
+              <div style={{ position: 'absolute', top: 8, left: 8, backgroundColor: '#EF4444', color: '#fff', fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 20 }}>-{pct}%</div>
             )}
           </div>
-
-          {/* Thumbnail strip */}
-          {displayImages.length > 1 && (
-            <div style={{
-              display: 'flex', gap: 4, padding: '8px 10px',
-              borderBottom: '1px solid #F3F4F6',
-            }}>
-              {displayImages.map((img, i) => (
+          {images.length > 1 && (
+            <div style={{ display: 'flex', gap: 4, padding: '8px 10px', borderBottom: '1px solid #F3F4F6' }}>
+              {images.slice(0, 4).map((img, i) => (
                 <div key={i} style={{
                   width: 36, height: 36, borderRadius: 6, overflow: 'hidden',
                   border: i === 0 ? `2px solid ${btnColor}` : '1.5px solid #E5E7EB',
@@ -258,94 +207,125 @@ const LivePreview = ({ config }) => {
           )}
         </div>
 
-        {/* ── Product Info — matching real StoreProductPage layout ── */}
+        {/* Product Info */}
         <div style={{ padding: '12px 12px 0' }}>
           {/* Category */}
-          <div style={{
-            fontSize: 8.5, fontWeight: 700, color: btnColor,
-            textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4,
-          }}>
-            {product.category}
-          </div>
+          {product.category && (
+            <div style={{ fontSize: 8.5, fontWeight: 700, color: btnColor, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+              {product.category}
+            </div>
+          )}
 
           {/* Name */}
-          <div style={{
-            fontSize: 14, fontWeight: 900, color: '#111827',
-            lineHeight: 1.15, marginBottom: 4, letterSpacing: '-0.02em',
-          }}>
+          <div style={{ fontSize: 14, fontWeight: 900, color: '#111827', lineHeight: 1.15, marginBottom: 4, letterSpacing: '-0.02em' }}>
             {product.name}
           </div>
 
-          {/* Slogan */}
-          <div style={{ fontSize: 9.5, fontWeight: 600, color: '#6B7280', marginBottom: 3, lineHeight: 1.4 }}>
-            {product.slogan}
-          </div>
+          {/* Hero slogan */}
+          {isOn('heroSlogan') && pd.hero_slogan && (
+            <div style={{ fontSize: 9.5, fontWeight: 600, color: '#6B7280', marginBottom: 3, lineHeight: 1.4 }}>
+              {pd.hero_slogan}
+            </div>
+          )}
 
-          {/* Baseline */}
-          <div style={{ fontSize: 9, fontWeight: 700, color: btnColor, marginBottom: 8 }}>
-            ✅ {product.baseline}
-          </div>
+          {/* Hero baseline */}
+          {isOn('heroBaseline') && pd.hero_baseline && (
+            <div style={{ fontSize: 9, fontWeight: 700, color: btnColor, marginBottom: 8 }}>
+              ✅ {pd.hero_baseline}
+            </div>
+          )}
 
-          {/* Reviews inline */}
-          {enabledSections.some(s => s.id === 'reviews') && (
+          {/* Reviews */}
+          {isOn('reviews') && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
               <div style={{ display: 'flex', gap: 0.5 }}>
-                {[1,2,3,4,5].map(i => (
-                  <Star key={i} size={10} fill={i <= 4 ? '#FBBF24' : 'none'} color="#FBBF24" />
-                ))}
+                {[1,2,3,4,5].map(i => <Star key={i} size={10} fill={i <= 4 ? '#FBBF24' : 'none'} color="#FBBF24" />)}
               </div>
-              <span style={{ fontSize: 9, fontWeight: 600, color: '#111827' }}>{product.rating}</span>
-              <span style={{ fontSize: 9, color: '#9CA3AF' }}>({product.ratingCount} avis)</span>
+              <span style={{ fontSize: 9, fontWeight: 600, color: '#111827' }}>{product.rating || 4.8}</span>
+              <span style={{ fontSize: 9, color: '#9CA3AF' }}>({product.reviewCount || testimonials.length || 0} avis)</span>
+            </div>
+          )}
+
+          {/* Stats bar */}
+          {isOn('statsBar') && pd.stats_bar?.length > 0 && (
+            <div style={{ display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap' }}>
+              {pd.stats_bar.slice(0, 3).map((s, i) => (
+                <div key={i} style={{
+                  flex: 1, minWidth: 60, textAlign: 'center', padding: '5px 4px',
+                  borderRadius: 8, backgroundColor: '#F0FAF5', border: '1px solid #D1FAE5',
+                }}>
+                  <div style={{ fontSize: 11, fontWeight: 900, color: '#065F46' }}>{s.value}</div>
+                  <div style={{ fontSize: 7, color: '#6B7280', marginTop: 1 }}>{s.label}</div>
+                </div>
+              ))}
             </div>
           )}
 
           {/* Price */}
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 6 }}>
             <span style={{ fontSize: 18, fontWeight: 900, color: btnColor, letterSpacing: '-0.02em' }}>
-              {fmt(product.price)}
+              {fmt(price, cur)}
             </span>
             {pct > 0 && (
               <>
-                <span style={{ fontSize: 11, color: '#9CA3AF', textDecoration: 'line-through' }}>
-                  {fmt(product.comparePrice)}
-                </span>
-                <span style={{
-                  fontSize: 8, fontWeight: 700, padding: '2px 6px', borderRadius: 20,
-                  backgroundColor: '#FEE2E2', color: '#EF4444',
-                }}>-{pct}%</span>
+                <span style={{ fontSize: 11, color: '#9CA3AF', textDecoration: 'line-through' }}>{fmt(comparePrice, cur)}</span>
+                <span style={{ fontSize: 8, fontWeight: 700, padding: '2px 6px', borderRadius: 20, backgroundColor: '#FEE2E2', color: '#EF4444' }}>-{pct}%</span>
               </>
             )}
           </div>
 
-          {/* Stock badge */}
-          {enabledSections.some(s => s.id === 'stockCounter') && (
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              backgroundColor: '#FEF3C7', color: '#D97706',
-              fontSize: 8.5, fontWeight: 700, padding: '3px 8px', borderRadius: 20, marginBottom: 8,
-            }}>
-              <span>⚡</span> Plus que {product.stock} en stock
+          {/* Stock + urgency badge */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8, alignItems: 'center' }}>
+            {isOn('stockCounter') && stock > 0 && stock <= 10 && (
+              <span style={{ fontSize: 8.5, fontWeight: 700, color: '#D97706', backgroundColor: '#FEF3C7', padding: '3px 8px', borderRadius: 20 }}>
+                ⚡ Plus que {stock} en stock
+              </span>
+            )}
+            {isOn('urgencyBadge') && pd.urgency_badge && (
+              <span style={{ fontSize: 8.5, fontWeight: 700, color: '#DC2626', backgroundColor: '#FEF2F2', padding: '3px 8px', borderRadius: 20, border: '1px solid #FECACA' }}>
+                {pd.urgency_badge}
+              </span>
+            )}
+          </div>
+
+          {/* Urgency elements */}
+          {isOn('urgencyElements') && pd.urgency_elements && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10 }}>
+              {pd.urgency_elements.stock_limited && (
+                <div style={{ fontSize: 8, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Clock size={9} /> {pd.urgency_elements.stock_limited}
+                </div>
+              )}
+              {pd.urgency_elements.social_proof_count && (
+                <div style={{ fontSize: 8, color: '#7C3AED', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Users size={9} /> {pd.urgency_elements.social_proof_count}
+                </div>
+              )}
+              {pd.urgency_elements.quick_result && (
+                <div style={{ fontSize: 8, color: '#059669', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <TrendingUp size={9} /> {pd.urgency_elements.quick_result}
+                </div>
+              )}
             </div>
           )}
 
-          {/* Benefits */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
-            {product.benefits.map((b, i) => (
-              <div key={i} style={{
-                fontSize: 9, color: '#374151', display: 'flex', alignItems: 'center', gap: 5,
-              }}>
-                <Check size={10} color={btnColor} style={{ flexShrink: 0 }} />
-                {b}
+          {/* Benefits bullets */}
+          {isOn('benefitsBullets') && pd.benefits_bullets?.length > 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#374151', marginBottom: 4 }}>💥 Les bénéfices</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {pd.benefits_bullets.slice(0, 4).map((b, i) => (
+                  <div key={i} style={{ fontSize: 8.5, color: '#374151', display: 'flex', alignItems: 'flex-start', gap: 4, lineHeight: 1.4 }}>
+                    {b}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
 
-          {/* ── CTA — popup or embedded ── */}
+          {/* CTA */}
           {general.formType === 'embedded' ? (
-            <div style={{
-              marginBottom: 10, padding: 10, borderRadius: radiusNum,
-              border: `1px solid ${btnColor}25`, backgroundColor: `${btnColor}06`,
-            }}>
+            <div style={{ marginBottom: 10, padding: 10, borderRadius: radiusNum, border: `1px solid ${btnColor}25`, backgroundColor: `${btnColor}06` }}>
               <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
                 <ShoppingCart size={11} color={btnColor} /> Commander maintenant
               </div>
@@ -356,13 +336,41 @@ const LivePreview = ({ config }) => {
               <button style={btnStyle} onClick={() => setPopupOpen(true)}>
                 <ShoppingCart size={13} /> Commander maintenant
               </button>
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                gap: 4, fontSize: 8.5, color: '#16A34A', padding: '5px 0 8px',
-              }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 8.5, color: '#16A34A', padding: '5px 0 8px' }}>
                 <Truck size={9} /> Paiement à la livraison
               </div>
             </>
+          )}
+
+          {/* Conversion blocks */}
+          {isOn('conversionBlocks') && pd.conversion_blocks?.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 10 }}>
+              {pd.conversion_blocks.slice(0, 4).map((b, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 4, padding: '5px 6px',
+                  borderRadius: 8, backgroundColor: '#F9FAFB', border: '1px solid #F3F4F6',
+                }}>
+                  <span style={{ fontSize: 12, flexShrink: 0 }}>{b.icon}</span>
+                  <span style={{ fontSize: 7.5, color: '#374151', lineHeight: 1.3 }}>{b.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Offer block */}
+          {isOn('offerBlock') && pd.offer_block && (
+            <div style={{
+              padding: '8px 10px', borderRadius: 10, marginBottom: 10,
+              backgroundColor: '#FFFBEB', border: '1px solid #FDE68A',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
+                <Gift size={10} color="#D97706" />
+                <span style={{ fontSize: 9, fontWeight: 800, color: '#92400E' }}>{pd.offer_block.offer_label || 'Offre spéciale'}</span>
+              </div>
+              {pd.offer_block.guarantee_text && (
+                <div style={{ fontSize: 8, color: '#78350F', lineHeight: 1.4 }}>{pd.offer_block.guarantee_text}</div>
+              )}
+            </div>
           )}
 
           {/* Trust badges */}
@@ -379,193 +387,187 @@ const LivePreview = ({ config }) => {
           </div>
         </div>
 
-        {/* ── Description ── */}
-        <div style={{ margin: '0 12px 2px', paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
-          <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>
-            Description du produit
+        {/* Description */}
+        {isOn('description') && product.description && (
+          <div style={{ margin: '0 12px 2px', paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
+            <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Description du produit</div>
+            <p style={{ fontSize: 8, color: '#6B7280', lineHeight: 1.5, margin: '0 0 8px' }}>
+              {product.description.replace(/<[^>]*>/g, '').slice(0, 180)}…
+            </p>
           </div>
-          <p style={{ fontSize: 8, color: '#6B7280', lineHeight: 1.5, margin: '0 0 8px' }}>
-            {product.description?.replace(/<[^>]*>/g, '').slice(0, 150)}…
-          </p>
-        </div>
+        )}
 
-        {/* ── Ordered sections rendered like the real page ── */}
-        {enabledSections.map(section => {
-          if (section.id === 'reviews') return (
-            <div key="reviews" style={{ margin: '4px 12px 8px', paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
-              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>
-                Avis clients
+        {/* Problem section */}
+        {isOn('problemSection') && pd.problem_section && (
+          <div style={{ margin: '4px 12px 8px', padding: '8px 10px', borderRadius: 10, backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+              <AlertTriangle size={10} color="#DC2626" />
+              <span style={{ fontSize: 9, fontWeight: 800, color: '#991B1B' }}>{pd.problem_section.title || 'Le problème'}</span>
+            </div>
+            {pd.problem_section.pain_points?.slice(0, 3).map((p, i) => (
+              <div key={i} style={{ fontSize: 8, color: '#7F1D1D', marginBottom: 2, display: 'flex', gap: 3, alignItems: 'flex-start' }}>
+                <span style={{ color: '#EF4444' }}>•</span> {p}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                {MOCK.reviews.map((r, i) => (
-                  <div key={i} style={{
-                    padding: '7px 9px', borderRadius: 10, backgroundColor: '#FAFAFA',
-                    border: '1px solid #F3F4F6',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 3, marginBottom: 3 }}>
-                      <div style={{
-                        width: 18, height: 18, borderRadius: '50%',
-                        backgroundColor: `${btnColor}20`, display: 'flex',
-                        alignItems: 'center', justifyContent: 'center',
-                        fontSize: 8, fontWeight: 700, color: btnColor,
-                      }}>
-                        {r.name[0]}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                          <span style={{ fontSize: 8, fontWeight: 700, color: '#111827' }}>{r.name}</span>
-                          {r.verified && (
-                            <span style={{ fontSize: 6.5, color: '#16A34A', backgroundColor: '#F0FDF4', padding: '1px 4px', borderRadius: 8 }}>
-                              ✓ Vérifié
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', gap: 1, marginTop: 1 }}>
-                          {[1,2,3,4,5].map(j => <Star key={j} size={7} fill={j <= r.stars ? '#FBBF24' : 'none'} color="#FBBF24" />)}
-                        </div>
-                      </div>
+            ))}
+          </div>
+        )}
+
+        {/* Solution section */}
+        {isOn('solutionSection') && pd.solution_section && (
+          <div style={{ margin: '4px 12px 8px', padding: '8px 10px', borderRadius: 10, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+              <Lightbulb size={10} color="#16A34A" />
+              <span style={{ fontSize: 9, fontWeight: 800, color: '#14532D' }}>{pd.solution_section.title || 'La solution'}</span>
+            </div>
+            {pd.solution_section.description && (
+              <div style={{ fontSize: 8, color: '#166534', lineHeight: 1.4 }}>
+                {pd.solution_section.description.slice(0, 150)}…
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* FAQ */}
+        {isOn('faq') && faqItems.length > 0 && (
+          <div style={{ margin: '4px 12px 8px', paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
+            <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Questions fréquentes</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {faqItems.slice(0, 3).map((item, i) => (
+                <div key={i} style={{ borderRadius: 8, border: '1px solid #F3F4F6', overflow: 'hidden' }}>
+                  <button onClick={() => setFaqOpen(faqOpen === i ? null : i)}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', background: '#FAFAFA', border: 'none', cursor: 'pointer' }}>
+                    <span style={{ fontSize: 8.5, fontWeight: 600, color: '#374151', textAlign: 'left' }}>{item.question || item.q}</span>
+                    {faqOpen === i ? <ChevronUp size={10} color="#6B7280" /> : <ChevronDown size={10} color="#6B7280" />}
+                  </button>
+                  {faqOpen === i && (
+                    <div style={{ padding: '5px 9px 7px', fontSize: 8, color: '#6B7280', backgroundColor: '#fff', lineHeight: 1.4 }}>
+                      {item.answer || item.reponse || item.a || ''}
                     </div>
-                    <div style={{ fontSize: 8, color: '#6B7280', lineHeight: 1.4 }}>{r.text}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Upsell */}
+        {isOn('upsell') && (
+          <div style={{
+            margin: '4px 12px', padding: '8px 10px', borderRadius: 10,
+            border: '1px solid #DDD6FE', backgroundColor: '#F5F3FF',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#EDE9FE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Star size={13} color="#7C3AED" />
+            </div>
+            <div>
+              <div style={{ fontSize: 8.5, fontWeight: 800, color: '#5B21B6' }}>Offre Deluxe</div>
+              <div style={{ fontSize: 7.5, color: '#7C3AED', marginTop: 1 }}>Pack complet + livraison offerte</div>
+            </div>
+          </div>
+        )}
+
+        {/* Order Bump */}
+        {isOn('orderBump') && (
+          <div style={{
+            margin: '4px 12px', padding: '6px 8px', border: '1.5px dashed #F97316',
+            borderRadius: 8, backgroundColor: '#FFF7ED',
+            display: 'flex', alignItems: 'flex-start', gap: 5,
+          }}>
+            <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: '#F97316', marginTop: 1, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Check size={7} color="#fff" />
+            </div>
+            <div>
+              <div style={{ fontSize: 8.5, fontWeight: 700, color: '#C2410C' }}>Ajouter l'accessoire assorti</div>
+              <div style={{ fontSize: 7.5, color: '#EA580C', marginTop: 1 }}>Complément recommandé pour ce produit</div>
+            </div>
+          </div>
+        )}
+
+        {/* Testimonials */}
+        {isOn('testimonials') && testimonials.length > 0 && (
+          <div style={{ margin: '8px 12px', padding: '10px', borderRadius: 10, background: 'linear-gradient(135deg, #F0FDF4, #ECFDF5)', border: '1px solid #D1FAE5' }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: '#065F46', marginBottom: 6, textAlign: 'center' }}>
+              Ce que disent nos clients
+            </div>
+            {testimonials.slice(0, 2).map((t, i) => (
+              <div key={i} style={{ padding: '6px 8px', borderRadius: 8, backgroundColor: '#fff', border: '1px solid #E5E7EB', marginBottom: i === 0 ? 4 : 0 }}>
+                <div style={{ display: 'flex', gap: 1, marginBottom: 2 }}>
+                  {[1,2,3,4,5].map(j => <Star key={j} size={7} fill={j <= (t.rating || 5) ? '#FBBF24' : 'none'} color="#FBBF24" />)}
+                </div>
+                <p style={{ fontSize: 7.5, color: '#6B7280', margin: 0, fontStyle: 'italic', lineHeight: 1.4 }}>
+                  &ldquo;{(t.text || t.content || '').slice(0, 80)}&rdquo;
+                </p>
+                <div style={{ fontSize: 7, fontWeight: 600, color: '#111827', marginTop: 2 }}>
+                  — {t.name}{t.location ? `, ${t.location}` : ''}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Related products placeholder */}
+        {isOn('relatedProducts') && (
+          <div style={{ margin: '4px 12px 8px' }}>
+            <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Vous aimerez aussi</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[1, 2, 3].map(i => (
+                <div key={i} style={{ flex: 1, borderRadius: 8, border: '1px solid #F3F4F6', overflow: 'hidden' }}>
+                  <div style={{ height: 40, backgroundColor: '#F3F4F6' }} />
+                  <div style={{ padding: '4px 5px' }}>
+                    <div style={{ height: 5, width: '80%', backgroundColor: '#E5E7EB', borderRadius: 3, marginBottom: 3 }} />
+                    <div style={{ height: 5, width: '50%', backgroundColor: `${btnColor}30`, borderRadius: 3 }} />
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
-          );
-
-          if (section.id === 'stockCounter') return null; // Already shown above in product info
-
-          if (section.id === 'faq') return (
-            <div key="faq" style={{ margin: '4px 12px 8px', paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
-              <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>
-                Questions fréquentes
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {MOCK.faqItems.map((item, i) => (
-                  <div key={i} style={{ borderRadius: 8, border: '1px solid #F3F4F6', overflow: 'hidden' }}>
-                    <button onClick={() => setFaqOpen(faqOpen === i ? null : i)}
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center',
-                        justifyContent: 'space-between', padding: '7px 9px',
-                        background: '#FAFAFA', border: 'none', cursor: 'pointer',
-                      }}>
-                      <span style={{ fontSize: 8.5, fontWeight: 600, color: '#374151', textAlign: 'left' }}>{item.q}</span>
-                      {faqOpen === i ? <ChevronUp size={10} color="#6B7280" /> : <ChevronDown size={10} color="#6B7280" />}
-                    </button>
-                    {faqOpen === i && (
-                      <div style={{ padding: '5px 9px 7px', fontSize: 8, color: '#6B7280', backgroundColor: '#fff', lineHeight: 1.4 }}>
-                        {item.a}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-
-          if (section.id === 'upsell') return (
-            <div key="upsell" style={{
-              margin: '4px 12px', padding: '8px 10px', borderRadius: 10,
-              border: '1px solid #DDD6FE', backgroundColor: '#F5F3FF',
-              display: 'flex', alignItems: 'center', gap: 8,
-            }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: 8, backgroundColor: '#EDE9FE',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}>
-                <Star size={13} color="#7C3AED" />
-              </div>
-              <div>
-                <div style={{ fontSize: 8.5, fontWeight: 800, color: '#5B21B6' }}>Offre Deluxe — 24 900 FCFA</div>
-                <div style={{ fontSize: 7.5, color: '#7C3AED', marginTop: 1 }}>Pack complet + livraison offerte</div>
-              </div>
-            </div>
-          );
-
-          if (section.id === 'orderBump') return (
-            <div key="orderBump" style={{
-              margin: '4px 12px', padding: '6px 8px', border: '1.5px dashed #F97316',
-              borderRadius: 8, backgroundColor: '#FFF7ED',
-              display: 'flex', alignItems: 'flex-start', gap: 5,
-            }}>
-              <div style={{
-                width: 10, height: 10, borderRadius: 2, backgroundColor: '#F97316',
-                marginTop: 1, flexShrink: 0, display: 'flex',
-                alignItems: 'center', justifyContent: 'center',
-              }}>
-                <Check size={7} color="#fff" />
-              </div>
-              <div>
-                <div style={{ fontSize: 8.5, fontWeight: 700, color: '#C2410C' }}>Ajouter l'accessoire assorti — 3 500 FCFA</div>
-                <div style={{ fontSize: 7.5, color: '#EA580C', marginTop: 1 }}>Complément recommandé pour ce produit</div>
-              </div>
-            </div>
-          );
-
-          return null;
-        })}
+          </div>
+        )}
 
         {/* WhatsApp badge */}
         {automation?.whatsapp?.enabled && (
-          <div style={{
-            margin: '8px 12px', display: 'flex', alignItems: 'center', gap: 6,
-            padding: '6px 10px', borderRadius: 8,
-            backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0',
-          }}>
+          <div style={{ margin: '8px 12px', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 8, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0' }}>
             <MessageCircle size={11} color="#16A34A" />
             <span style={{ fontSize: 8.5, fontWeight: 600, color: '#15803D' }}>Confirmation WhatsApp activée</span>
           </div>
         )}
 
-        {/* Testimonials section placeholder */}
-        <div style={{
-          margin: '8px 12px', padding: '10px', borderRadius: 10,
-          background: 'linear-gradient(135deg, #F0FDF4, #ECFDF5)',
-          border: '1px solid #D1FAE5',
-        }}>
-          <div style={{ fontSize: 9, fontWeight: 700, color: '#065F46', marginBottom: 6, textAlign: 'center' }}>
-            Ce que disent nos clients
-          </div>
+        {/* Sticky order bar preview */}
+        {isOn('stickyOrderBar') && (
           <div style={{
-            padding: '8px', borderRadius: 8, backgroundColor: '#fff',
-            border: '1px solid #E5E7EB',
+            position: 'sticky', bottom: 0, left: 0, right: 0,
+            padding: '6px 10px', backgroundColor: 'rgba(255,255,255,0.96)',
+            borderTop: '1px solid #E5E7EB', backdropFilter: 'blur(10px)',
+            display: 'flex', alignItems: 'center', gap: 6, zIndex: 10,
           }}>
-            <div style={{ display: 'flex', gap: 1, marginBottom: 3 }}>
-              {[1,2,3,4,5].map(i => <Star key={i} size={8} fill="#FBBF24" color="#FBBF24" />)}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 7.5, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.name}</div>
+              <div style={{ fontSize: 10, fontWeight: 800, color: btnColor }}>{fmt(price, cur)}</div>
             </div>
-            <p style={{ fontSize: 7.5, color: '#6B7280', margin: 0, fontStyle: 'italic', lineHeight: 1.4 }}>
-              &ldquo;{MOCK.reviews[0].text}&rdquo;
-            </p>
-            <div style={{ fontSize: 7, fontWeight: 600, color: '#111827', marginTop: 3 }}>
-              — {MOCK.reviews[0].name}, {MOCK.reviews[0].location}
+            <div style={{
+              padding: '6px 12px', borderRadius: 999, fontSize: 8, fontWeight: 800,
+              backgroundColor: btnColor, color: '#fff', whiteSpace: 'nowrap',
+            }}>
+              Commander
             </div>
           </div>
-        </div>
-
-        <div style={{ height: 12 }} />
+        )}
       </div>
 
-      {/* ── Popup overlay ── */}
+      {/* Popup overlay */}
       {popupOpen && general.formType !== 'embedded' && (
         <div style={{
           position: 'absolute', inset: 0, zIndex: 20,
           backgroundColor: 'rgba(0,0,0,0.45)',
           display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
           borderRadius: 20,
-        }}
-          onClick={() => setPopupOpen(false)}
-        >
-          <div
-            style={{
-              backgroundColor: design.backgroundColor || '#fff',
-              borderRadius: '16px 16px 0 0',
-              padding: '14px 14px 20px',
-              width: '100%',
-              maxHeight: '80%',
-              overflowY: 'auto',
-              boxShadow: hasShadow ? '0 -8px 32px rgba(0,0,0,0.15)' : 'none',
-            }}
-            onClick={e => e.stopPropagation()}
-          >
+        }} onClick={() => setPopupOpen(false)}>
+          <div style={{
+            backgroundColor: design.backgroundColor || '#fff',
+            borderRadius: '16px 16px 0 0', padding: '14px 14px 20px',
+            width: '100%', maxHeight: '80%', overflowY: 'auto',
+            boxShadow: hasShadow ? '0 -8px 32px rgba(0,0,0,0.15)' : 'none',
+          }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <ShoppingCart size={12} color={btnColor} />
@@ -575,32 +577,20 @@ const LivePreview = ({ config }) => {
                 <X size={14} color="#9CA3AF" />
               </button>
             </div>
-            {/* Product recap */}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '7px 9px',
               backgroundColor: '#F9FAFB', borderRadius: 8, marginBottom: 10,
             }}>
-              {product.image ? (
-                <img src={product.image} alt="" style={{
-                  width: 36, height: 36, borderRadius: 8, objectFit: 'cover', flexShrink: 0,
-                }} />
+              {mainImage ? (
+                <img src={mainImage} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
               ) : (
-                <div style={{
-                  width: 36, height: 36, borderRadius: 8,
-                  backgroundColor: `${btnColor}20`, display: 'flex',
-                  alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: `${btnColor}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <Package size={16} color={btnColor} style={{ opacity: 0.5 }} />
                 </div>
               )}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{
-                  fontSize: 9, fontWeight: 700, color: '#111827',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>{product.name}</div>
-                <div style={{ fontSize: 9, fontWeight: 800, color: btnColor, marginTop: 1 }}>
-                  {fmt(product.price)}
-                </div>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.name}</div>
+                <div style={{ fontSize: 9, fontWeight: 800, color: btnColor, marginTop: 1 }}>{fmt(price, cur)}</div>
               </div>
             </div>
             <OrderFormContent />
