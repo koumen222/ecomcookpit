@@ -116,6 +116,50 @@ async function resolveStore(subdomain) {
 }
 
 /**
+ * GET /api/store/resolve-domain/:hostname
+ *
+ * Resolves a custom domain to the workspace subdomain.
+ * Called by useSubdomain() hook when a non-scalor.net hostname is detected.
+ */
+router.get('/resolve-domain/:hostname', readLimiter, async (req, res) => {
+  try {
+    const hostname = (req.params.hostname || '').toLowerCase().trim();
+    if (!hostname || hostname.length > 253) {
+      return res.status(400).json({ success: false, message: 'Invalid hostname' });
+    }
+
+    // Look up workspace by custom domain
+    const workspace = await Workspace.findOne({
+      'storeDomains.customDomain': hostname,
+      isActive: true,
+      'storeSettings.isStoreEnabled': true
+    })
+    .select('subdomain name storeSettings.storeName')
+    .lean();
+
+    if (!workspace || !workspace.subdomain) {
+      return res.status(404).json({
+        success: false,
+        message: 'Domain not linked to any store',
+        code: 'DOMAIN_NOT_FOUND'
+      });
+    }
+
+    setCacheHeaders(res, 60); // Cache for 1 minute
+    res.json({
+      success: true,
+      data: {
+        subdomain: workspace.subdomain,
+        storeName: workspace.storeSettings?.storeName || workspace.name
+      }
+    });
+  } catch (error) {
+    console.error('Error GET /api/store/resolve-domain:', error);
+    res.status(500).json({ success: false, message: 'Error resolving domain' });
+  }
+});
+
+/**
  * GET /api/store/:subdomain
  *
  * Returns store configuration + initial products in a single call.

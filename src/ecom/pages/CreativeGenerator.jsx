@@ -1,28 +1,35 @@
-import React, { useState, useCallback } from 'react';
-import { Link2, Sparkles, Download, RefreshCw, Image, Globe, Loader2, CheckCircle, AlertCircle, ChevronDown, Copy, ExternalLink } from 'lucide-react';
+import React, { useState, useCallback, useRef } from 'react';
+import { Link2, Sparkles, Download, RefreshCw, Image, Globe, Loader2, CheckCircle, AlertCircle, ChevronDown, Copy, ExternalLink, Upload, X, FileText } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 
 const FORMATS = [
-  { id: 'promo-story', label: 'Story Promo', ratio: '9:16', icon: '📱', desc: 'Instagram / WhatsApp Story' },
-  { id: 'post-carre', label: 'Post Carré', ratio: '1:1', icon: '📸', desc: 'Facebook / Instagram Post' },
-  { id: 'banniere-fb', label: 'Bannière FB', ratio: '16:9', icon: '🖼️', desc: 'Couverture Facebook / Pub' },
-  { id: 'whatsapp-status', label: 'WhatsApp Status', ratio: '9:16', icon: '💬', desc: 'Statut WhatsApp percutant' },
+  { id: 'hero-benefits', label: 'Problème → Solution', ratio: '1:1', icon: '✨', desc: 'Problème + produit + solution' },
+  { id: 'target-promise', label: 'Pourquoi l\'adorer', ratio: '1:1', icon: '🎯', desc: 'Bénéfices + lifestyle émotionnel' },
+  { id: 'problem-solution', label: 'Situations d\'usage', ratio: '1:1', icon: '💡', desc: 'Grille 2x2 moments de vie' },
+  { id: 'how-to-use', label: 'Mode d\'emploi', ratio: '1:1', icon: '📋', desc: '3 étapes simples' },
+  { id: 'ingredients-trust', label: 'Confiance & Qualité', ratio: '1:1', icon: '🛡️', desc: 'Ingrédients + badges certifs' },
+  { id: 'comparison', label: 'Comparaison', ratio: '1:1', icon: '⚖️', desc: 'Tableau ✓ / ✗ vs concurrents' },
+  { id: 'social-proof', label: 'Preuve Sociale', ratio: '1:1', icon: '👥', desc: 'Clients satisfaits avec le produit' },
 ];
 
 const STEPS = [
-  { icon: Globe, label: 'Analyse du site…', color: 'text-blue-500' },
-  { icon: Sparkles, label: 'Copywriting IA…', color: 'text-purple-500' },
-  { icon: Image, label: 'Génération des visuels…', color: 'text-emerald-500' },
+  { icon: Globe, label: 'Analyse marketing du produit…', color: 'text-blue-500' },
+  { icon: Sparkles, label: 'Préparation des prompts créatifs…', color: 'text-purple-500' },
+  { icon: Image, label: 'Génération des listing images…', color: 'text-emerald-500' },
 ];
 
 const CreativeGenerator = () => {
   const [url, setUrl] = useState('');
-  const [selectedFormats, setSelectedFormats] = useState(['promo-story', 'post-carre']);
+  const [description, setDescription] = useState('');
+  const [productImage, setProductImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [selectedFormats, setSelectedFormats] = useState(['hero-benefits', 'target-promise', 'problem-solution', 'how-to-use', 'ingredients-trust', 'comparison', 'social-proof']);
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [showAnalysis, setShowAnalysis] = useState(false);
+  const fileInputRef = useRef(null);
 
   const toggleFormat = (id) => {
     setSelectedFormats(prev =>
@@ -30,21 +37,45 @@ const CreativeGenerator = () => {
     );
   };
 
+  const handleImageSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setError('Sélectionnez une image'); return; }
+    if (file.size > 10 * 1024 * 1024) { setError('Image trop lourde (max 10 MB)'); return; }
+    setProductImage(file);
+    setImagePreview(URL.createObjectURL(file));
+    setError('');
+  };
+
+  const removeImage = () => {
+    setProductImage(null);
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const canGenerate = productImage || url.trim() || description.trim();
+
   const generate = useCallback(async () => {
-    if (!url.trim()) return;
+    if (!canGenerate) return;
     setLoading(true);
     setError('');
     setResult(null);
     setCurrentStep(0);
 
-    // Simulate step progression
     const stepTimer1 = setTimeout(() => setCurrentStep(1), 3000);
     const stepTimer2 = setTimeout(() => setCurrentStep(2), 8000);
 
     try {
-      const res = await ecomApi.post('/ai/creative-generator', {
-        url: url.trim(),
-        formats: selectedFormats.length > 0 ? selectedFormats : undefined,
+      const formData = new FormData();
+      if (productImage) formData.append('productImage', productImage);
+      if (url.trim()) formData.append('url', url.trim());
+      if (description.trim()) formData.append('description', description.trim());
+      formData.append('formats', JSON.stringify(selectedFormats.length > 0 ? selectedFormats : undefined));
+
+      const res = await ecomApi.post('/ai/creative-generator', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 300000, // 5 min for 6 images
       });
       setResult(res.data);
     } catch (err) {
@@ -55,7 +86,7 @@ const CreativeGenerator = () => {
       setLoading(false);
       setCurrentStep(0);
     }
-  }, [url, selectedFormats]);
+  }, [url, description, productImage, selectedFormats, canGenerate]);
 
   const downloadImage = async (imageUrl, filename) => {
     try {
@@ -87,48 +118,80 @@ const CreativeGenerator = () => {
               <Sparkles size={20} className="text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-gray-900 tracking-tight">Générateur de Créas</h1>
-              <p className="text-sm text-gray-500">Visuels marketing pour le marché africain — 100% IA</p>
+              <h1 className="text-2xl font-black text-gray-900 tracking-tight">Premium Listing Images</h1>
+              <p className="text-sm text-gray-500">Visuels produit pro pour marketplace — 100% IA</p>
             </div>
           </div>
           <p className="text-gray-500 text-sm mt-3 max-w-2xl">
-            Collez simplement le lien de votre site ou page produit. L'IA analyse tout (nom, couleurs, offre, audience)
-            et génère des visuels prêts à poster sur WhatsApp, Instagram et Facebook. <strong>Aucune image produit requise.</strong>
+            Uploadez l'image de votre produit + collez un lien Alibaba/AliExpress OU écrivez une description.
+            L'IA génère <strong>6 Listing Images premium</strong> : bénéfices, cible, problème/solution, mode d'emploi, confiance, comparaison.
           </p>
         </div>
 
         {/* Input Section */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-6">
-          {/* URL Input */}
+          {/* Product Image Upload */}
           <div className="mb-5">
-            <label className="text-sm font-semibold text-gray-700 mb-2 block">Lien du site ou produit</label>
-            <div className="flex gap-3">
-              <div className="relative flex-1">
-                <Link2 size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="url"
-                  value={url}
-                  onChange={e => setUrl(e.target.value)}
-                  placeholder="https://monsite.com ou https://monsite.com/produit"
-                  className="w-full pl-10 pr-4 py-3.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 transition-all bg-gray-50/50 placeholder:text-gray-400"
-                  onKeyDown={e => e.key === 'Enter' && !loading && generate()}
-                />
-              </div>
+            <label className="text-sm font-semibold text-gray-700 mb-2 block">Photo du produit <span className="text-purple-500 font-normal">(recommandé)</span></label>
+            <input type="file" ref={fileInputRef} onChange={handleImageSelect} accept="image/*" className="hidden" />
+            {!imagePreview ? (
               <button
-                onClick={generate}
-                disabled={loading || !url.trim() || selectedFormats.length === 0}
-                className="px-6 py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-500 text-white font-bold text-sm hover:from-purple-700 hover:to-pink-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-purple-200/50 flex items-center gap-2 shrink-0"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-8 border-2 border-dashed border-gray-200 rounded-xl hover:border-purple-300 hover:bg-purple-50/30 transition-all flex flex-col items-center gap-2 group"
               >
-                {loading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                {loading ? 'Génération…' : 'Générer'}
+                <div className="w-12 h-12 rounded-xl bg-gray-100 group-hover:bg-purple-100 flex items-center justify-center transition-colors">
+                  <Upload size={22} className="text-gray-400 group-hover:text-purple-500" />
+                </div>
+                <span className="text-sm font-medium text-gray-500 group-hover:text-purple-600">Cliquez pour uploader l'image produit</span>
+                <span className="text-xs text-gray-400">PNG, JPG, WebP — max 10 MB</span>
               </button>
+            ) : (
+              <div className="relative inline-block">
+                <img src={imagePreview} alt="Produit" className="h-32 w-32 object-cover rounded-xl border-2 border-purple-200 shadow-sm" />
+                <button
+                  onClick={removeImage}
+                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-md hover:bg-red-600 transition-colors"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* URL Input */}
+          <div className="mb-4">
+            <label className="text-sm font-semibold text-gray-700 mb-2 block">Lien Alibaba / AliExpress / produit <span className="text-gray-400 font-normal">(optionnel)</span></label>
+            <div className="relative">
+              <Link2 size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="url"
+                value={url}
+                onChange={e => setUrl(e.target.value)}
+                placeholder="https://alibaba.com/product/..."
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 transition-all bg-gray-50/50 placeholder:text-gray-400"
+              />
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="mb-5">
+            <label className="text-sm font-semibold text-gray-700 mb-2 block">Description du produit <span className="text-gray-400 font-normal">(optionnel si lien fourni)</span></label>
+            <div className="relative">
+              <FileText size={16} className="absolute left-3.5 top-3.5 text-gray-400" />
+              <textarea
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                placeholder="Ex: Gélules nootropiques au collagène pour améliorer la mémoire et la concentration. 60 capsules, ingrédients naturels..."
+                rows={3}
+                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 text-sm outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100 transition-all bg-gray-50/50 placeholder:text-gray-400 resize-none"
+              />
             </div>
           </div>
 
           {/* Format Selector */}
           <div>
             <label className="text-sm font-semibold text-gray-700 mb-2.5 block">Formats à générer</label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
               {FORMATS.map(f => {
                 const active = selectedFormats.includes(f.id);
                 return (
@@ -152,6 +215,19 @@ const CreativeGenerator = () => {
               })}
             </div>
           </div>
+
+          {/* Generate Button */}
+          <button
+            onClick={generate}
+            disabled={loading || !canGenerate || selectedFormats.length === 0}
+            className="w-full mt-5 py-4 rounded-xl bg-gradient-to-r from-purple-600 to-pink-500 text-white font-bold text-sm hover:from-purple-700 hover:to-pink-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-purple-200/50 flex items-center justify-center gap-2"
+          >
+            {loading ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+            {loading ? 'Génération en cours…' : `Générer ${selectedFormats.length} Listing Image${selectedFormats.length > 1 ? 's' : ''}`}
+          </button>
+          {!canGenerate && (
+            <p className="text-xs text-center text-gray-400 mt-2">Ajoutez une image produit, un lien, ou une description pour commencer</p>
+          )}
         </div>
 
         {/* Loading State */}
@@ -222,8 +298,13 @@ const CreativeGenerator = () => {
                     <h3 className="text-sm font-bold text-gray-800">
                       {result.analysis?.productName || 'Analyse'}
                     </h3>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500 flex items-center gap-2">
                       {result.analysis?.category} — {result.analysis?.targetAudience || 'Marché africain'}
+                      {result.productImageFound && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">
+                          📸 Image produit détectée
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -281,13 +362,25 @@ const CreativeGenerator = () => {
                 <h2 className="text-lg font-bold text-gray-800">
                   Vos créas ({result.creatives?.filter(c => c.imageUrl).length || 0})
                 </h2>
-                <button
-                  onClick={generate}
-                  disabled={loading}
-                  className="text-xs font-medium text-purple-600 hover:text-purple-700 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-purple-50 transition-colors"
-                >
-                  <RefreshCw size={12} /> Regénérer
-                </button>
+                <div className="flex items-center gap-3">
+                  {result.cost && (
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
+                      <span>💰</span>
+                      <span>{result.cost.images} images</span>
+                      <span className="text-gray-300">•</span>
+                      <span className="font-bold text-gray-700">~{result.cost.costFcfa} FCFA</span>
+                      <span className="text-gray-300">•</span>
+                      <span className="text-gray-400">${result.cost.costUsd}</span>
+                    </div>
+                  )}
+                  <button
+                    onClick={generate}
+                    disabled={loading}
+                    className="text-xs font-medium text-purple-600 hover:text-purple-700 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-purple-50 transition-colors"
+                  >
+                    <RefreshCw size={12} /> Regénérer
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

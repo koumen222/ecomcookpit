@@ -7,8 +7,8 @@ import sharp from 'sharp';
 class ImageOptimizer {
   constructor() {
     this.quality = 80; // Good balance between quality and size
-    this.maxWidth = 1200; // Maximum width for large images
-    this.maxHeight = 800; // Maximum height for large images
+    this.maxWidth = 600; // Maximum width for large images
+    this.maxHeight = 400; // Maximum height for large images
     this.thumbnailSize = 300; // Size for product thumbnails
   }
 

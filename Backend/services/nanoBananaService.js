@@ -1,107 +1,110 @@
 /**
- * Gemini 3 Pro Image / Imagen 4 Generation Service
- * - Image generation : gemini-3-pro-image-preview → gemini-3.1-flash-image-preview (generateContent)
- * - Fallback         : imagen-4.0-fast-generate-001 (predict)
+ * Gemini 3 Pro Image Generation Service
+ * - Un seul modèle, zéro fallback, zéro latence perdue
  */
 
 import axios from 'axios';
+import sharp from 'sharp';
 
 const GEMINI_API_KEY = process.env.NANOBANANA_API_KEY;
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
-// Modèles Gemini image (generateContent, responseModalities IMAGE)
-const GEMINI_IMAGE_MODELS = [
-  'gemini-3-pro-image-preview',
-  'gemini-3.1-flash-image-preview',
-  'gemini-2.5-flash-image',
-];
+// Un seul modèle — celui qui marche
+const MODEL = 'gemini-3-pro-image-preview';
+const MODEL_COST_USD = 0.04;
+const USD_TO_FCFA = 600;
 
-// Imagen 4 fallback (predict endpoint)
-const IMAGEN_MODELS = [
-  'imagen-4.0-fast-generate-001',
-  'imagen-4.0-generate-001',
-];
-const IMAGEN_BASE_URL = GEMINI_BASE_URL;
+// Compteur de session
+let sessionStats = { totalImages: 0, totalCostUsd: 0, totalCostFcfa: 0 };
+
+function logCost(type = 'text-to-image') {
+  const costFcfa = Math.round(MODEL_COST_USD * USD_TO_FCFA);
+  sessionStats.totalImages++;
+  sessionStats.totalCostUsd += MODEL_COST_USD;
+  sessionStats.totalCostFcfa += costFcfa;
+  console.log(`💰 ${MODEL} (${type}) → ~$${MODEL_COST_USD} (~${costFcfa} FCFA) | SESSION: ${sessionStats.totalImages} img, ~$${sessionStats.totalCostUsd.toFixed(3)} (~${sessionStats.totalCostFcfa} FCFA)`);
+}
+
+export function getImageGenerationStats() { return { ...sessionStats }; }
 
 /**
- * Generate image using Google Imagen 3 (text-to-image)
- * @param {string} prompt - Text description of the image
- * @param {string} aspectRatio - Image aspect ratio (default: "1:1")
- * @param {number} numImages - Number of images to generate (1-4)
- * @returns {Promise<string|null>} - Base64 image data URL or null
+ * Resize image buffer to max 512px and compress as JPEG for cost optimization
+ */
+async function resizeForApi(buffer) {
+  try {
+    const resized = await sharp(buffer)
+      .resize(512, 512, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    console.log(`📐 Image resized: ${Math.round(buffer.length / 1024)}KB → ${Math.round(resized.length / 1024)}KB`);
+    return { buffer: resized, mimeType: 'image/jpeg' };
+  } catch (err) {
+    console.warn('⚠️ Resize failed, using original:', err.message);
+    return { buffer, mimeType: 'image/jpeg' };
+  }
+}
+
+/**
+ * Call Gemini 3 Pro generateContent — single call, no fallback
+ */
+async function callGemini(parts) {
+  const response = await axios.post(
+    `${GEMINI_BASE_URL}/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      contents: [{ parts }],
+      generationConfig: { responseModalities: ['IMAGE', 'TEXT'], temperature: 0.4 }
+    },
+    { headers: { 'Content-Type': 'application/json' }, timeout: 90000 }
+  );
+  const resParts = response.data?.candidates?.[0]?.content?.parts || [];
+  const imagePart = resParts.find(p => p.inlineData?.mimeType?.startsWith('image/'));
+  if (!imagePart) throw new Error('Gemini n\'a pas retourné d\'image');
+  return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+}
+
+function buildArInstruction(aspectRatio) {
+  if (aspectRatio === '1:1') return '\n\nIMPORTANT: Generate a SQUARE image (1:1 aspect ratio).';
+  if (aspectRatio === '9:16') return '\n\nIMPORTANT: Generate a VERTICAL image (9:16 portrait).';
+  if (aspectRatio === '16:9') return '\n\nIMPORTANT: Generate a HORIZONTAL image (16:9 landscape).';
+  return '';
+}
+
+/**
+ * Text-to-image — Gemini 3 Pro direct
  */
 export async function generateNanoBananaImage(prompt, aspectRatio = '1:1', numImages = 1) {
   if (!GEMINI_API_KEY) throw new Error('Google Gemini API key not configured');
 
-  // 1ère tentative : Gemini 3 Pro Image (generateContent) — priorité au modèle Pro
-  for (const model of GEMINI_IMAGE_MODELS) {
-    const isPro = model.includes('-pro-');
-    try {
-      console.log(`🎨 Generating image with ${model}${isPro ? ' (PRO)' : ''}...`);
-      const response = await axios.post(
-        `${GEMINI_BASE_URL}/${model}:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          contents: [{ parts: [{ text: prompt.slice(0, 4000) }] }],
-          generationConfig: { responseModalities: ['IMAGE', 'TEXT'], temperature: 1.0 }
-        },
-        { headers: { 'Content-Type': 'application/json' }, timeout: isPro ? 90000 : 60000 }
-      );
-      const parts = response.data?.candidates?.[0]?.content?.parts || [];
-      const imagePart = parts.find(p => p.inlineData?.mimeType?.startsWith('image/'));
-      if (!imagePart) { console.warn(`⚠️ ${model}: pas de donnée image`); continue; }
-      console.log(`✅ Image générée avec ${model}`);
-      return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
-    } catch (err) {
-      const msg = err.response?.data?.error?.message || err.message;
-      console.warn(`⚠️ ${model} failed: ${msg}`);
-    }
-  }
+  const fullPrompt = prompt + buildArInstruction(aspectRatio);
 
-  // Fallback : Imagen 4 (predict)
-  for (const model of IMAGEN_MODELS) {
-    try {
-      console.log(`🎨 Fallback Imagen 4: ${model}...`);
-      const response = await axios.post(
-        `${IMAGEN_BASE_URL}/${model}:predict?key=${GEMINI_API_KEY}`,
-        {
-          instances: [{ prompt: prompt.slice(0, 4000) }],
-          parameters: { sampleCount: 1, aspectRatio, safetyFilterLevel: 'BLOCK_SOME', personGeneration: 'ALLOW_ADULT' }
-        },
-        { headers: { 'Content-Type': 'application/json' }, timeout: 45000 }
-      );
-      const prediction = response.data?.predictions?.[0];
-      if (!prediction?.bytesBase64Encoded) { console.warn(`⚠️ ${model}: pas de donnée image`); continue; }
-      console.log(`✅ Image générée avec ${model}`);
-      return `data:${prediction.mimeType || 'image/png'};base64,${prediction.bytesBase64Encoded}`;
-    } catch (err) {
-      const msg = err.response?.data?.error?.message || err.message;
-      console.warn(`⚠️ ${model} failed: ${msg}`);
-    }
+  try {
+    console.log(`🎨 ${MODEL} text-to-image...`);
+    const dataUrl = await callGemini([{ text: fullPrompt.slice(0, 4000) }]);
+    logCost('text-to-image');
+    console.log(`✅ Image générée`);
+    return dataUrl;
+  } catch (err) {
+    const msg = err.response?.data?.error?.message || err.message;
+    console.error(`❌ ${MODEL} failed: ${msg}`);
+    return null;
   }
-
-  console.error('❌ Tous les modèles image ont échoué');
-  return null;
 }
 
 /**
- * Generate image using Gemini 2.5 Flash Image (image-to-image with product reference)
- * @param {string} prompt - Text description of the desired transformation
- * @param {string|Buffer} imageInput - Reference product image (base64 or buffer)
- * @param {string} aspectRatio - Unused (Gemini Flash outputs square by default)
- * @param {number} numImages - Unused (Gemini Flash returns 1 image)
- * @returns {Promise<string|null>} - Base64 image data URL or null
+ * Image-to-image — Gemini 3 Pro direct (product reference)
  */
 export async function generateNanoBananaImageToImage(prompt, imageInput, aspectRatio = '1:1', numImages = 1) {
   if (!GEMINI_API_KEY) throw new Error('Google Gemini API key not configured');
 
+  const fullPrompt = prompt + buildArInstruction(aspectRatio);
+
+  // Resize input image
   let base64Image;
-  let imageMimeType = 'image/jpeg'; // défaut
+  let imageMimeType = 'image/jpeg';
   if (Buffer.isBuffer(imageInput)) {
-    // Détecter le vrai format d'après les magic bytes du buffer
-    if (imageInput[0] === 0x89 && imageInput[1] === 0x50) imageMimeType = 'image/png';
-    else if (imageInput[0] === 0x47 && imageInput[1] === 0x49) imageMimeType = 'image/gif';
-    else if (imageInput[0] === 0x52 && imageInput[1] === 0x49) imageMimeType = 'image/webp';
-    base64Image = imageInput.toString('base64');
+    const resized = await resizeForApi(imageInput);
+    base64Image = resized.buffer.toString('base64');
+    imageMimeType = resized.mimeType;
   } else if (typeof imageInput === 'string' && imageInput.startsWith('data:')) {
     const match = imageInput.match(/^data:(image\/[a-z+]+);base64,/);
     if (match) imageMimeType = match[1];
@@ -110,41 +113,26 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
     base64Image = imageInput;
   }
 
-  // Gemini 3 Pro Image supporte image-to-image via inlineData — priorité au Pro
-  for (const model of GEMINI_IMAGE_MODELS) {
-    const isPro = model.includes('-pro-');
-    try {
-      console.log(`🎨 Image-to-image with ${model}${isPro ? ' (PRO)' : ''} (ref: ${imageMimeType}, ${Math.round((base64Image?.length || 0) * 0.75 / 1024)}Ko)...`);
-      const response = await axios.post(
-        `${GEMINI_BASE_URL}/${model}:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          contents: [{ parts: [
-            { text: prompt.slice(0, 4000) },
-            { inlineData: { mimeType: imageMimeType, data: base64Image } }
-          ]}],
-          generationConfig: { responseModalities: ['IMAGE', 'TEXT'], temperature: 1.0 }
-        },
-        { headers: { 'Content-Type': 'application/json' }, timeout: isPro ? 90000 : 60000 }
-      );
-      const parts = response.data?.candidates?.[0]?.content?.parts || [];
-      const imagePart = parts.find(p => p.inlineData?.mimeType?.startsWith('image/'));
-      if (!imagePart) { console.warn(`⚠️ ${model}: pas de donnée image`); continue; }
-      console.log(`✅ Image-to-image générée avec ${model}`);
-      return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
-    } catch (err) {
-      const msg = err.response?.data?.error?.message || err.message;
-      console.warn(`⚠️ ${model} image-to-image failed: ${msg}`);
-    }
+  try {
+    console.log(`🎨 ${MODEL} image-to-image (${Math.round((base64Image?.length || 0) * 0.75 / 1024)}Ko)...`);
+    const dataUrl = await callGemini([
+      { text: fullPrompt.slice(0, 4000) },
+      { inlineData: { mimeType: imageMimeType, data: base64Image } }
+    ]);
+    logCost('image-to-image');
+    console.log(`✅ Image-to-image générée`);
+    return dataUrl;
+  } catch (err) {
+    const msg = err.response?.data?.error?.message || err.message;
+    console.error(`❌ ${MODEL} image-to-image failed: ${msg}`);
+    // Fallback text-to-image si l'image pose problème
+    console.log('🔄 Fallback text-to-image...');
+    return generateNanoBananaImage(prompt, aspectRatio, numImages);
   }
-
-  // Fallback text-to-image
-  console.log('🔄 Fallback text-to-image...');
-  return generateNanoBananaImage(prompt, aspectRatio, numImages);
 }
 
 /**
  * Check Gemini API availability
- * @returns {Promise<Object>} - API status info
  */
 export async function getNanoBananaCredits() {
   if (!GEMINI_API_KEY) {
@@ -157,8 +145,7 @@ export async function getNanoBananaCredits() {
       { timeout: 10000 }
     );
     const models = response.data?.models || [];
-    const hasImagen = models.some(m => m.name?.includes('imagen'));
-    return { credits: hasImagen ? 999 : 0, models: models.length, status: 'active' };
+    return { credits: 999, models: models.length, status: 'active' };
   } catch (error) {
     console.error('❌ Failed to check Gemini API:', error.message);
     return { credits: 0 };

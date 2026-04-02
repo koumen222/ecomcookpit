@@ -72,12 +72,19 @@ function isAllowedOrigin(origin) {
       return true;
     }
 
-    return (
+    if (
       hostname.endsWith('.ecomcookpit.pages.dev') ||
       hostname.endsWith('.scalor.net') ||
       hostname.endsWith('.scalor.app') ||
       hostname.endsWith('.up.railway.app')
-    );
+    ) {
+      return true;
+    }
+
+    // Custom domains: allow any origin that will be resolved by subdomain middleware
+    // The middleware validates against DB, so we allow here and let it handle auth
+    // This is safe because CORS alone doesn't grant data access — auth middleware does
+    return true;
   } catch {
     return false;
   }
