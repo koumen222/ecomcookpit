@@ -791,9 +791,41 @@ const StoreProductPage = () => {
   const lowStock = product && product.stock > 0 && product.stock <= 5;
   const sectionToggles = store?.sectionToggles || {};
   const showWhatsappButton = (sectionToggles.showWhatsappButton ?? false) && !!store?.whatsapp;
-  const showFaq = sectionToggles.showFaq ?? true;
   const showTrustBadges = sectionToggles.showTrustBadges ?? true;
   const showRelatedProducts = sectionToggles.showRelatedProducts ?? true;
+
+  // ── productPageConfig — from saved settings ────────────────────────────────
+  const productPageConfig = store?.productPageConfig || {};
+  const ppGeneral = productPageConfig?.general || {};
+  const ppDesign = productPageConfig?.design || {};
+  const ppSections = ppGeneral.sections || [];
+  const isSectionEnabled = (id, fallback = true) => {
+    if (!ppSections.length) return fallback;
+    const s = ppSections.find(s => s.id === id);
+    return s ? s.enabled : fallback;
+  };
+  const showReviews = isSectionEnabled('reviews', true);
+  const showStockCounter = isSectionEnabled('stockCounter', true);
+  const showFaq = isSectionEnabled('faq', sectionToggles.showFaq ?? true);
+  const showUpsell = isSectionEnabled('upsell', true);
+  const showOrderBump = isSectionEnabled('orderBump', true);
+  const showHeroSlogan = isSectionEnabled('heroSlogan', true);
+  const showHeroBaseline = isSectionEnabled('heroBaseline', true);
+  const showStatsBar = isSectionEnabled('statsBar', true);
+  const showUrgencyBadge = isSectionEnabled('urgencyBadge', true);
+  const showUrgencyElements = isSectionEnabled('urgencyElements', true);
+  const showBenefitsBullets = isSectionEnabled('benefitsBullets', true);
+  const showConversionBlocks = isSectionEnabled('conversionBlocks', true);
+  const showOfferBlock = isSectionEnabled('offerBlock', true);
+  const showDescription = isSectionEnabled('description', true);
+  const showProblemSection = isSectionEnabled('problemSection', true);
+  const showSolutionSection = isSectionEnabled('solutionSection', true);
+  const showTestimonials = isSectionEnabled('testimonials', true);
+  const showRelatedProductsSetting = isSectionEnabled('relatedProducts', showRelatedProducts);
+  const showStickyBar = isSectionEnabled('stickyOrderBar', true);
+  const ctaBtnColor = ppDesign.buttonColor || 'var(--s-primary)';
+  const ctaBorderRadius = ppDesign.borderRadius || '14px';
+  const ctaShadow = ppDesign.shadow !== false ? '0 4px 16px rgba(0,0,0,0.12)' : 'none';
 
   useEffect(() => {
     if (!product || !inStock) {
@@ -933,12 +965,12 @@ const StoreProductPage = () => {
                 </h1>
 
                 {/* Hero slogan / baseline from AI */}
-                {product._pageData?.hero_slogan && (
+                {showHeroSlogan && product._pageData?.hero_slogan && (
                   <p style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 600, color: 'var(--s-text2)', fontFamily: 'var(--s-font)', lineHeight: 1.5 }}>
                     {product._pageData.hero_slogan}
                   </p>
                 )}
-                {product._pageData?.hero_baseline && (
+                {showHeroBaseline && product._pageData?.hero_baseline && (
                   <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--s-primary)', fontWeight: 700, fontFamily: 'var(--s-font)' }}>
                     ✅ {product._pageData.hero_baseline}
                   </p>
@@ -946,10 +978,10 @@ const StoreProductPage = () => {
 
 
                 {/* Reviews */}
-                <ProductReviews rating={product.rating || 4.5} reviewCount={product.reviewCount || 0} />
+                {showReviews && <ProductReviews rating={product.rating || 4.5} reviewCount={product.reviewCount || 0} />}
 
                 {/* Stats bar — social proof numbers */}
-                {product._pageData?.stats_bar?.length > 0 && (
+                {showStatsBar && product._pageData?.stats_bar?.length > 0 && (
                   <StatsBar stats={product._pageData.stats_bar} />
                 )}
 
@@ -976,17 +1008,17 @@ const StoreProductPage = () => {
                     <span style={{ fontSize: 13, fontWeight: 600, color: '#EF4444', padding: '4px 12px', borderRadius: 20, backgroundColor: '#FEE2E2' }}>
                       Rupture de stock
                     </span>
-                  ) : lowStock ? (
+                  ) : showStockCounter && lowStock ? (
                     <span style={{ fontSize: 13, fontWeight: 600, color: '#F59E0B', padding: '4px 12px', borderRadius: 20, backgroundColor: '#FEF3C7' }}>
                       ⚡ Plus que {product.stock} en stock
                     </span>
-                  ) : (
+                  ) : showStockCounter ? (
                     <span style={{ fontSize: 13, fontWeight: 600, color: '#10B981', display: 'flex', alignItems: 'center', gap: 5 }}>
                       <Check size={14} /> En stock
                     </span>
-                  )}
+                  ) : null}
                   {/* AI urgency badge */}
-                  {product._pageData?.urgency_badge && inStock && (
+                  {showUrgencyBadge && product._pageData?.urgency_badge && inStock && (
                     <span style={{ fontSize: 13, fontWeight: 700, color: '#DC2626', padding: '4px 12px', borderRadius: 20, backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
                       {product._pageData.urgency_badge}
                     </span>
@@ -994,7 +1026,7 @@ const StoreProductPage = () => {
                 </div>
 
                 {/* Urgency elements */}
-                {product._pageData?.urgency_elements && (
+                {showUrgencyElements && product._pageData?.urgency_elements && (
                   <UrgencyBadge
                     stockLimited={product._pageData.urgency_elements.stock_limited}
                     socialProofCount={product._pageData.urgency_elements.social_proof_count}
@@ -1003,7 +1035,7 @@ const StoreProductPage = () => {
                 )}
 
                 {/* Benefits bullets with emojis */}
-                {product._pageData?.benefits_bullets && product._pageData.benefits_bullets.length > 0 && (
+                {showBenefitsBullets && product._pageData?.benefits_bullets && product._pageData.benefits_bullets.length > 0 && (
                   <ProductBenefits benefits={product._pageData.benefits_bullets} title="💥 Les bénéfices" />
                 )}
 
@@ -1025,12 +1057,12 @@ const StoreProductPage = () => {
                       }
                     }}
                     style={{
-                      width: '100%', padding: '18px 24px', borderRadius: 14, border: 'none',
-                      backgroundColor: inStock ? 'var(--s-primary)' : '#d1d5db',
+                      width: '100%', padding: '18px 24px', borderRadius: ctaBorderRadius, border: 'none',
+                      backgroundColor: inStock ? ctaBtnColor : '#d1d5db',
                       color: '#fff', fontWeight: 700, fontSize: 17, cursor: inStock ? 'pointer' : 'not-allowed',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
                       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', fontFamily: 'var(--s-font)',
-                      boxShadow: inStock ? '0 4px 16px rgba(0,0,0,0.12)' : 'none',
+                      boxShadow: inStock ? ctaShadow : 'none',
                       minHeight: 56,
                       position: 'relative',
                       overflow: 'hidden'
@@ -1057,12 +1089,12 @@ const StoreProductPage = () => {
                 </div>
 
                 {/* Conversion blocks */}
-                {product._pageData?.conversion_blocks && product._pageData.conversion_blocks.length > 0 && (
+                {showConversionBlocks && product._pageData?.conversion_blocks && product._pageData.conversion_blocks.length > 0 && (
                   <ConversionBlocks blocks={product._pageData.conversion_blocks} />
                 )}
 
                 {/* Offer / Guarantee block */}
-                {product._pageData?.offer_block && (
+                {showOfferBlock && product._pageData?.offer_block && (
                   <OfferBlock block={product._pageData.offer_block} />
                 )}
 
@@ -1081,7 +1113,7 @@ const StoreProductPage = () => {
 
                   return (
                     <>
-                      {hasDesc && (
+                      {showDescription && hasDesc && (
                         <div style={{ borderTop: '1px solid var(--s-border)', marginTop: 8, paddingTop: 16, paddingBottom: 8 }}>
                           <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)', marginBottom: 12 }}>
                             Description du produit
@@ -1090,10 +1122,10 @@ const StoreProductPage = () => {
                         </div>
                       )}
                       {/* Problem / Solution sections from AI */}
-                      {product._pageData?.problem_section && (
+                      {showProblemSection && product._pageData?.problem_section && (
                         <ProblemSection section={product._pageData.problem_section} />
                       )}
-                      {product._pageData?.solution_section && (
+                      {showSolutionSection && product._pageData?.solution_section && (
                         <SolutionSection section={product._pageData.solution_section} />
                       )}
                       {hasFaq && (
@@ -1108,8 +1140,8 @@ const StoreProductPage = () => {
         </div>
       </div>
 
-      {/* ── Témoignages clients ── full-width, always visible ──────────────── */}
-      {(() => {
+      {/* ── Témoignages clients ── full-width ──────────────── */}
+      {showTestimonials && (() => {
         const t = product?._pageData?.testimonials?.length > 0
           ? product._pageData.testimonials
           : product?.testimonials?.length > 0
@@ -1124,7 +1156,7 @@ const StoreProductPage = () => {
       })()}
 
       {/* ── Related Products ───────────────────────────────────────────────── */}
-      {showRelatedProducts && related.length > 0 && (
+      {showRelatedProductsSetting && related.length > 0 && (
         <section style={{ maxWidth: 1200, margin: '48px auto 0', padding: '0 16px' }}>
           <h2 style={{
             fontSize: 'clamp(18px, 3vw, 24px)', fontWeight: 800, color: 'var(--s-text)',
@@ -1138,7 +1170,7 @@ const StoreProductPage = () => {
         </section>
       )}
 
-      {showStickyOrderBar && product && (
+      {showStickyBar && showStickyOrderBar && product && (
         <div style={{
           position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 70,
           padding: '10px 16px calc(env(safe-area-inset-bottom, 0px) + 10px)',
@@ -1183,6 +1215,7 @@ const StoreProductPage = () => {
           store={store}
           subdomain={subdomain}
           onClose={() => setShowOrderModal(false)}
+          productPageConfig={productPageConfig}
         />
       )}
     </div>

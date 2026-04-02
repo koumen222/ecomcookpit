@@ -5,7 +5,7 @@ import {
   ChevronDown, ChevronUp, Truck, ShieldCheck, Package, RotateCcw,
   Leaf, Heart, Sparkles, Zap, Gift, Users, Globe, Award, Clock,
   MapPin, Mail, X, ChevronRight, Pencil, Phone, CreditCard, Headphones,
-  ThumbsUp, BadgeCheck, Timer, Percent, RefreshCw, Shield, CheckCircle,
+  ThumbsUp, BadgeCheck, Timer, Percent, RefreshCw, Shield, CheckCircle, Check, Menu,
 } from 'lucide-react';
 import { useSubdomain } from '../hooks/useSubdomain';
 import { prefetchStoreProduct, useStoreData } from '../hooks/useStoreData';
@@ -608,15 +608,66 @@ const AiBadgesSection = ({ cfg }) => {
 const AiProductsSection = ({ cfg, products, prefix, store }) => {
   const limit = cfg.homepageLimit || 3;
   const displayed = products.slice(0, limit);
+  const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
+
   return (
     <section id="products" style={{ backgroundColor: '#FAFAFA', padding: 'clamp(52px, 8vw, 80px) 24px' }}>
+      <style>{`
+        .hp-catalog-scroll { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; -ms-overflow-style: none; }
+        .hp-catalog-scroll::-webkit-scrollbar { display: none; }
+        .hp-cat-card { flex-shrink: 0; text-decoration: none; transition: all 0.2s ease; display: block; }
+        .hp-cat-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.1); }
+      `}</style>
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 34px)', fontWeight: 900, color: 'var(--s-text)', margin: '0 0 10px', letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>
             {cfg.title || 'Nos Produits'}
           </h2>
           {cfg.subtitle && <p style={{ fontSize: 15, color: 'var(--s-text2)', margin: 0, fontFamily: 'var(--s-font)' }}>{cfg.subtitle}</p>}
         </div>
+
+        {/* Catalog categories */}
+        {categories.length > 1 && (
+          <div style={{ marginBottom: 32 }}>
+            <div className="hp-catalog-scroll" style={{ justifyContent: categories.length <= 4 ? 'center' : 'flex-start' }}>
+              {categories.map(cat => {
+                const catProducts = products.filter(p => p.category === cat);
+                const catImage = catProducts.find(p => p.image)?.image;
+                return (
+                  <Link
+                    key={cat}
+                    to={`${prefix}/products?category=${encodeURIComponent(cat)}`}
+                    className="hp-cat-card"
+                    style={{
+                      width: 140, borderRadius: 16, overflow: 'hidden',
+                      backgroundColor: '#fff', border: '1px solid #F0F0F0',
+                    }}
+                  >
+                    <div style={{
+                      height: 80, width: '100%',
+                      backgroundColor: catImage ? undefined : `color-mix(in srgb, var(--s-primary) 10%, white)`,
+                      backgroundImage: catImage ? `url(${catImage})` : undefined,
+                      backgroundSize: 'cover', backgroundPosition: 'center',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {!catImage && <Package size={24} color="var(--s-primary)" style={{ opacity: 0.3 }} />}
+                    </div>
+                    <div style={{ padding: '10px 12px' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--s-text)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {cat}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--s-text2)', marginTop: 3 }}>
+                        {catProducts.length} article{catProducts.length !== 1 ? 's' : ''}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Product grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 24, maxWidth: 820, margin: '0 auto' }}>
           {displayed.length === 0 ? (
             <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '64px 20px', color: 'var(--s-text2)' }}>
@@ -1527,9 +1578,12 @@ const StorefrontHeader = ({ store, cartCount, prefix }) => {
           100% { transform: scale(1); }
         }
         @media (max-width: 768px) {
-          .desktop-nav > a:not([href*="checkout"]) { display: none !important; }
-          .desktop-nav > button { display: none !important; }
+          .desktop-nav-links { display: none !important; }
           .mobile-menu-btn { display: flex !important; }
+          .header-store-name { display: none; }
+          .header-logo { position: absolute; left: 50%; transform: translateX(-50%); }
+          .header-cart-btn span { display: none; }
+          .header-cart-btn { padding: 8px !important; border-radius: 50% !important; }
         }
         @media (min-width: 769px) {
           .mobile-menu-overlay, .mobile-menu-drawer { display: none !important; }
@@ -2334,6 +2388,7 @@ const StorefrontFooter = ({ store, prefix }) => {
 
 export const StoreAllProducts = () => {
   const { subdomain: paramSubdomain } = useParams();
+  const [searchParams] = useSearchParams();
   const { subdomain: detectedSubdomain, isStoreDomain } = useSubdomain();
   const subdomain = paramSubdomain || detectedSubdomain;
   const prefix = isStoreDomain ? '' : (subdomain ? `/store/${subdomain}` : '');
@@ -2342,7 +2397,8 @@ export const StoreAllProducts = () => {
   const { cartCount } = useStoreCart(subdomain);
   const { trackPageView } = useStoreAnalytics(subdomain);
   const [search, setSearch] = useState('');
-  const [activeCategory, setActiveCategory] = useState('all');
+  const initialCategory = searchParams.get('category') || 'all';
+  const [activeCategory, setActiveCategory] = useState(initialCategory);
 
   const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
   const filtered = products.filter(p => {
@@ -2391,37 +2447,116 @@ export const StoreAllProducts = () => {
       <AnnouncementBar store={store} />
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
 
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 'clamp(32px, 6vw, 64px) 24px 80px' }}>
-        <div style={{ marginBottom: 36 }}>
-          <h1 style={{ fontSize: 'clamp(26px, 4vw, 38px)', fontWeight: 900, color: 'var(--s-text)', margin: '0 0 6px', letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>
-            Tous nos produits
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 'clamp(32px, 6vw, 64px) 16px 80px' }}>
+        {/* Header */}
+        <div style={{ marginBottom: 24 }}>
+          <h1 style={{ fontSize: 'clamp(24px, 4vw, 38px)', fontWeight: 900, color: 'var(--s-text)', margin: '0 0 6px', letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>
+            {activeCategory !== 'all' ? activeCategory : 'Tous nos produits'}
           </h1>
-          <p style={{ fontSize: 14, color: 'var(--s-text2)', margin: 0 }}>{products.length} article{products.length !== 1 ? 's' : ''} disponible{products.length !== 1 ? 's' : ''}</p>
+          <p style={{ fontSize: 14, color: 'var(--s-text2)', margin: 0 }}>
+            {filtered.length} article{filtered.length !== 1 ? 's' : ''} disponible{filtered.length !== 1 ? 's' : ''}
+          </p>
         </div>
 
-        <div style={{ display: 'flex', gap: 12, marginBottom: 32, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* Catalog category cards */}
+        {categories.length > 0 && (
+          <div style={{ marginBottom: 28 }}>
+            <style>{`
+              .catalog-cards { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: none; -ms-overflow-style: none; }
+              .catalog-cards::-webkit-scrollbar { display: none; }
+              .catalog-card { flex-shrink: 0; cursor: pointer; transition: all 0.2s ease; border: none; font-family: var(--s-font); text-align: left; }
+              .catalog-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
+              .catalog-card:active { transform: scale(0.97); }
+            `}</style>
+            <div className="catalog-cards">
+              <button
+                className="catalog-card"
+                onClick={() => setActiveCategory('all')}
+                style={{
+                  padding: '12px 20px', borderRadius: 14,
+                  backgroundColor: activeCategory === 'all' ? 'var(--s-primary)' : '#fff',
+                  color: activeCategory === 'all' ? '#fff' : 'var(--s-text)',
+                  border: `1.5px solid ${activeCategory === 'all' ? 'var(--s-primary)' : '#E5E7EB'}`,
+                  fontWeight: 700, fontSize: 13, minWidth: 80,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                }}
+              >
+                <Package size={18} style={{ opacity: 0.8 }} />
+                <span>Tout</span>
+                <span style={{ fontSize: 11, opacity: 0.7, fontWeight: 500 }}>{products.length}</span>
+              </button>
+              {categories.map(cat => {
+                const catProducts = products.filter(p => p.category === cat);
+                const catImage = catProducts.find(p => p.image)?.image;
+                const isActive = activeCategory === cat;
+                return (
+                  <button
+                    key={cat}
+                    className="catalog-card"
+                    onClick={() => setActiveCategory(isActive ? 'all' : cat)}
+                    style={{
+                      padding: 0, borderRadius: 14, overflow: 'hidden',
+                      backgroundColor: '#fff',
+                      border: `2px solid ${isActive ? 'var(--s-primary)' : '#E5E7EB'}`,
+                      minWidth: 120, width: 120, position: 'relative',
+                    }}
+                  >
+                    <div style={{
+                      height: 64, width: '100%',
+                      backgroundColor: catImage ? undefined : `color-mix(in srgb, var(--s-primary) 12%, white)`,
+                      backgroundImage: catImage ? `url(${catImage})` : undefined,
+                      backgroundSize: 'cover', backgroundPosition: 'center',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {!catImage && <Package size={20} color="var(--s-primary)" style={{ opacity: 0.4 }} />}
+                      {isActive && (
+                        <div style={{
+                          position: 'absolute', top: 0, left: 0, right: 0, height: 64,
+                          backgroundColor: 'rgba(0,0,0,0.3)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <Check size={20} color="#fff" strokeWidth={3} />
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ padding: '8px 10px' }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: isActive ? 'var(--s-primary)' : 'var(--s-text)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {cat}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--s-text2)', marginTop: 2 }}>
+                        {catProducts.length} article{catProducts.length !== 1 ? 's' : ''}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Search bar */}
+        <div style={{ marginBottom: 24 }}>
           <input
             type="text" placeholder="Rechercher un produit..." value={search} onChange={e => setSearch(e.target.value)}
-            style={{ flex: '1 1 220px', padding: '11px 16px', borderRadius: 40, border: '1.5px solid var(--s-border)', fontSize: 14, fontFamily: 'var(--s-font)', color: 'var(--s-text)', backgroundColor: 'var(--s-bg)', outline: 'none' }}
+            style={{ width: '100%', maxWidth: 400, padding: '11px 16px', borderRadius: 40, border: '1.5px solid var(--s-border)', fontSize: 14, fontFamily: 'var(--s-font)', color: 'var(--s-text)', backgroundColor: 'var(--s-bg)', outline: 'none' }}
           />
-          {categories.length > 0 && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {['all', ...categories].map(cat => (
-                <button key={cat} onClick={() => setActiveCategory(cat)} style={{ padding: '8px 18px', borderRadius: 40, border: '1.5px solid', borderColor: activeCategory === cat ? 'var(--s-primary)' : '#E5E7EB', backgroundColor: activeCategory === cat ? 'var(--s-primary)' : '#fff', color: activeCategory === cat ? '#fff' : 'var(--s-text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--s-font)', transition: 'all 0.15s' }}>
-                  {cat === 'all' ? 'Tout voir' : cat}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
+        {/* Product grid */}
         {filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '80px 20px' }}>
             <ShoppingBag size={48} style={{ color: '#D1D5DB', marginBottom: 16 }} />
             <p style={{ fontSize: 16, color: 'var(--s-text2)' }}>Aucun produit trouvé.</p>
+            {activeCategory !== 'all' && (
+              <button onClick={() => setActiveCategory('all')} style={{
+                marginTop: 12, padding: '10px 24px', borderRadius: 40, border: 'none',
+                backgroundColor: 'var(--s-primary)', color: '#fff', fontSize: 14,
+                fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--s-font)',
+              }}>Voir tous les produits</button>
+            )}
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16 }}>
             {filtered.map(p => <MemoizedProductCard key={p._id} product={p} prefix={prefix} store={store} subdomain={store?.subdomain} />)}
           </div>
         )}
