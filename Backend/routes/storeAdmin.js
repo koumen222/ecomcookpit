@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Workspace from '../models/Workspace.js';
 import StoreOrder from '../models/StoreOrder.js';
 import StoreProduct from '../models/StoreProduct.js';
+import StoreAnalytics from '../models/StoreAnalytics.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { emitThemeUpdate } from '../services/socketService.js';
 
@@ -78,6 +79,30 @@ router.get('/analytics/summary', requireEcomAuth, requireWorkspace, async (req, 
 
     const todayData = todayStats && todayStats.length > 0 ? todayStats[0] : { todayOrders: 0, todaySales: 0 };
 
+    // Calculate conversion rate: unique visitors (StoreAnalytics) vs orders (StoreOrder)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const wsIdStr = workspaceId.toString();
+    const [uniqueVisitorIds, uniqueSessionIds, recentOrderCount] = await Promise.all([
+      StoreAnalytics.distinct('visitorId', {
+        workspaceId: wsIdStr,
+        visitorId: { $ne: '' },
+        timestamp: { $gte: thirtyDaysAgo }
+      }),
+      StoreAnalytics.distinct('sessionId', {
+        workspaceId: wsIdStr,
+        visitorId: '',
+        timestamp: { $gte: thirtyDaysAgo }
+      }),
+      StoreOrder.countDocuments({
+        workspaceId: new mongoose.Types.ObjectId(workspaceId),
+        createdAt: { $gte: thirtyDaysAgo }
+      })
+    ]);
+    const totalUniqueVisitors = uniqueVisitorIds.length + uniqueSessionIds.length;
+    const conversionRate = totalUniqueVisitors > 0
+      ? (recentOrderCount / totalUniqueVisitors)
+      : 0;
+
     res.json({
       success: true,
       data: {
@@ -86,7 +111,9 @@ router.get('/analytics/summary', requireEcomAuth, requireWorkspace, async (req, 
         todayOrders: todayData.todayOrders || 0,
         todaySales: todayData.todaySales || 0,
         totalProducts: productCount,
-        byStatus: stats.byStatus || []
+        byStatus: stats.byStatus || [],
+        conversionRate,
+        totalVisitors: totalUniqueVisitors,
       }
     });
   } catch (error) {
@@ -363,9 +390,60 @@ router.put('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
 
 router.post('/domains/check-dns', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
+    const { domain } = req.body;
+    if (!domain || typeof domain !== 'string') {
+      return res.status(400).json({ success: false, message: 'Domain required' });
+    }
+
+    const cleanDomain = domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+
+    // Railway target — customers should CNAME to this
+    const CNAME_TARGET = process.env.RAILWAY_DOMAIN || 'ecomcookpit-production-0ec4.up.railway.app';
+    // Accepted IPs (Railway + Cloudflare proxy for shops.scalor.net)
+    const ACCEPTED_IPS = (process.env.ACCEPTED_DNS_IPS || '151.101.2.15,104.21.75.212,172.67.182.57').split(',').map(s => s.trim());
+
+    const dns = await import('dns');
+    const dnsPromises = dns.promises;
+
+    const results = { aRecords: [], cnameRecords: [], aOk: false, cnameOk: false };
+
+    // Check A records
+    try {
+      results.aRecords = await dnsPromises.resolve4(cleanDomain);
+      results.aOk = results.aRecords.some(ip => ACCEPTED_IPS.includes(ip));
+    } catch { /* ENODATA or ENOTFOUND — no A record */ }
+
+    // Check CNAME records
+    try {
+      results.cnameRecords = await dnsPromises.resolveCname(cleanDomain);
+      results.cnameOk = results.cnameRecords.some(cname => {
+        const c = cname.toLowerCase().replace(/\.$/, '');
+        return c === CNAME_TARGET || c.endsWith('.scalor.net') || c.endsWith('.railway.app');
+      });
+    } catch { /* ENODATA or ENOTFOUND — no CNAME record */ }
+
+    const ok = results.aOk || results.cnameOk;
+
+    // If DNS is OK, update SSL status
+    if (ok) {
+      await Workspace.findByIdAndUpdate(req.workspaceId, {
+        $set: { 'storeDomains.sslStatus': 'active', 'storeDomains.dnsVerified': true }
+      });
+    }
+
     res.json({
       success: true,
-      data: { ok: false }
+      data: {
+        ok,
+        aRecords: results.aRecords,
+        cnameRecords: results.cnameRecords,
+        aOk: results.aOk,
+        cnameOk: results.cnameOk,
+        expected: {
+          cnameTarget: CNAME_TARGET,
+          acceptedIps: ACCEPTED_IPS
+        }
+      }
     });
   } catch (error) {
     console.error('Error POST /store/domains/check-dns:', error);

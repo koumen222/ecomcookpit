@@ -202,6 +202,8 @@ function injectHeadMeta(html, meta) {
 function resolveStoreRouteContext(req) {
   const parts = String(req.path || '/').split('/').filter(Boolean);
 
+  // Both regular subdomains and custom domains are resolved by the subdomain middleware
+  // req.subdomain is set for both *.scalor.net and custom domains
   if (req.isStoreDomain && req.subdomain) {
     if (parts[0] === 'product' && parts[1]) {
       return { subdomain: req.subdomain, pageType: 'product', slug: decodeSegment(parts[1]) };

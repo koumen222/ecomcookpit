@@ -10,92 +10,162 @@
  * - Attaches req.subdomain for downstream use
  * - Detects api.scalor.net → req.isApiDomain = true (API-only, no React build)
  * - Detects *.scalor.net → req.isStoreDomain = true (serve React build)
- * - Lightweight and performant (no DB queries)
+ * - Detects custom domains → resolves workspace from DB
+ * - Lightweight and performant (no DB queries for known domains, cached for custom)
  * 
  * Routing matrix:
  *   scalor.net          → isRootDomain=true  (redirect to Cloudflare Pages)
  *   api.scalor.net      → isApiDomain=true   (API routes only)
  *   koumen.scalor.net   → isStoreDomain=true (serve React build + API)
+ *   maboutique.com      → isStoreDomain=true, isCustomDomain=true (resolve via DB)
  *   *.railway.app       → isRootDomain=true  (health checks, internal)
  */
+
+import Workspace from '../models/Workspace.js';
 
 // System subdomains that are NOT tenant stores
 const SYSTEM_SUBDOMAINS = ['api', 'admin', 'mail', 'smtp', 'ftp', 'cdn', 'static'];
 
-export const extractSubdomain = (req, res, next) => {
+// Known platform domains — NOT custom domains
+const PLATFORM_SUFFIXES = ['.scalor.net', '.scalor.site', '.ecomcookpit.pages.dev', '.railway.app', '.railway.internal'];
+const PLATFORM_ROOTS = ['scalor.net', 'scalor.site', 'ecomcookpit.pages.dev', 'localhost', '127.0.0.1'];
+
+// Simple cache for custom domain → subdomain lookups (TTL: 5min)
+const customDomainCache = new Map();
+const CUSTOM_DOMAIN_TTL = 5 * 60 * 1000;
+
+function getCachedCustomDomain(hostname) {
+  const entry = customDomainCache.get(hostname);
+  if (!entry) return undefined; // undefined = not cached
+  if (Date.now() > entry.expires) {
+    customDomainCache.delete(hostname);
+    return undefined;
+  }
+  return entry.subdomain; // null = cached "not found"
+}
+
+function setCachedCustomDomain(hostname, subdomain) {
+  customDomainCache.set(hostname, { subdomain, expires: Date.now() + CUSTOM_DOMAIN_TTL });
+}
+
+// Cleanup every 10 min
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of customDomainCache.entries()) {
+    if (now > v.expires) customDomainCache.delete(k);
+  }
+}, 10 * 60 * 1000);
+
+function isPlatformHost(hostname) {
+  if (PLATFORM_ROOTS.includes(hostname)) return true;
+  for (const suffix of PLATFORM_SUFFIXES) {
+    if (hostname.endsWith(suffix)) return true;
+  }
+  // Also match www.scalor.net etc.
+  for (const root of PLATFORM_ROOTS) {
+    if (hostname === `www.${root}`) return true;
+  }
+  return hostname.startsWith('192.168.') || hostname.startsWith('10.');
+}
+
+export const extractSubdomain = async (req, res, next) => {
   try {
-    // Get host from headers (works behind Cloudflare / Railway proxy)
-    // Priority: X-Forwarded-Host (set by Cloudflare/proxy) > Host > hostname
     const host = req.headers['x-forwarded-host'] || req.headers.host || req.hostname || '';
-    
-    // Remove port if present (e.g., localhost:8080)
     const hostname = host.split(':')[0].toLowerCase();
-    
-    // Split by dots
-    const parts = hostname.split('.');
     
     // Default flags
     req.subdomain = null;
     req.isRootDomain = false;
     req.isApiDomain = false;
     req.isStoreDomain = false;
+    req.isCustomDomain = false;
     
-    // Ignore Railway internal domains (e.g., ecomcookpit-production.up.railway.app)
+    // ── Railway internal domains ──
     if (hostname.endsWith('.railway.app') || hostname.endsWith('.railway.internal')) {
       req.isRootDomain = true;
       return next();
     }
     
-    // Root domain patterns to ignore
-    const rootDomains = ['scalor.net', 'localhost', '127.0.0.1'];
-    const isRootDomain = rootDomains.some(domain => hostname === domain || hostname === `www.${domain}`);
-    
+    // ── Root domain patterns ──
+    const isRootDomain = PLATFORM_ROOTS.some(d => hostname === d || hostname === `www.${d}`);
     if (isRootDomain) {
       req.isRootDomain = true;
       return next();
     }
     
-    // Extract subdomain from *.scalor.net
-    // For nike.scalor.net → parts = ['nike', 'scalor', 'net']
-    // For www.nike.scalor.net → parts = ['www', 'nike', 'scalor', 'net']
-    let subdomain = null;
-    
-    if (parts.length >= 3) {
-      // Get first part, ignore 'www'
-      subdomain = parts[0] === 'www' ? parts[1] : parts[0];
-    }
-    
-    // Validate subdomain format (alphanumeric, hyphens, 1-63 chars)
-    if (subdomain) {
-      const isValid = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(subdomain);
-      if (!isValid) {
+    // ── Platform subdomain (*.scalor.net) ──
+    if (isPlatformHost(hostname)) {
+      const parts = hostname.split('.');
+      let subdomain = null;
+      
+      if (parts.length >= 3) {
+        subdomain = parts[0] === 'www' ? parts[1] : parts[0];
+      }
+      
+      if (subdomain && !/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(subdomain)) {
         subdomain = null;
       }
-    }
-    
-    // Detect api.scalor.net → API-only domain (no React build serving)
-    if (subdomain === 'api') {
-      req.isApiDomain = true;
-      req.subdomain = null;
-      req.isRootDomain = false;
+      
+      if (subdomain === 'api') {
+        req.isApiDomain = true;
+        return next();
+      }
+      
+      if (subdomain && SYSTEM_SUBDOMAINS.includes(subdomain)) {
+        req.isRootDomain = true;
+        return next();
+      }
+      
+      req.subdomain = subdomain || null;
+      req.isRootDomain = !subdomain;
+      req.isStoreDomain = !!subdomain;
+      
+      if (subdomain) {
+        console.log(`🌐 [subdomain] ${hostname} → Store: ${subdomain}`);
+      }
       return next();
     }
     
-    // Detect other system subdomains (admin, cdn, etc.)
-    if (subdomain && SYSTEM_SUBDOMAINS.includes(subdomain)) {
-      req.subdomain = null;
+    // ── Custom domain (maboutique.com) ──
+    // Not a platform host → try to resolve as custom domain
+    const cached = getCachedCustomDomain(hostname);
+    
+    if (cached !== undefined) {
+      // Cache hit
+      if (cached) {
+        req.subdomain = cached;
+        req.isStoreDomain = true;
+        req.isCustomDomain = true;
+        console.log(`🌐 [custom-domain] ${hostname} → Store: ${cached} (cached)`);
+      } else {
+        // Cached "not found"
+        req.isRootDomain = true;
+      }
+      return next();
+    }
+    
+    // Cache miss → DB lookup
+    try {
+      const workspace = await Workspace.findOne({
+        'storeDomains.customDomain': hostname,
+        isActive: true,
+        'storeSettings.isStoreEnabled': true
+      }).select('subdomain').lean();
+      
+      if (workspace?.subdomain) {
+        setCachedCustomDomain(hostname, workspace.subdomain);
+        req.subdomain = workspace.subdomain;
+        req.isStoreDomain = true;
+        req.isCustomDomain = true;
+        console.log(`🌐 [custom-domain] ${hostname} → Store: ${workspace.subdomain} (DB lookup)`);
+      } else {
+        setCachedCustomDomain(hostname, null); // Cache the miss
+        req.isRootDomain = true;
+        console.log(`🌐 [custom-domain] ${hostname} → not found`);
+      }
+    } catch (err) {
+      console.error('❌ Custom domain lookup error:', err.message);
       req.isRootDomain = true;
-      return next();
-    }
-    
-    // Valid tenant subdomain → store domain
-    req.subdomain = subdomain || null;
-    req.isRootDomain = !subdomain;
-    req.isStoreDomain = !!subdomain;
-    
-    // Debug logging (reduce in production later)
-    if (process.env.NODE_ENV !== 'production' || subdomain) {
-      console.log(`🌐 [subdomain] Host: ${hostname} → ${subdomain ? `Store: ${subdomain}` : 'root'} | API: ${req.isApiDomain}`);
     }
     
     next();
@@ -105,6 +175,7 @@ export const extractSubdomain = (req, res, next) => {
     req.isRootDomain = true;
     req.isApiDomain = false;
     req.isStoreDomain = false;
+    req.isCustomDomain = false;
     next();
   }
 };

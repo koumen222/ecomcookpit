@@ -10,7 +10,7 @@ const BoutiqueDomains = () => {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [checking, setChecking] = useState(false);
-  const [dnsOk, setDnsOk] = useState(null);
+  const [dnsResult, setDnsResult] = useState(null);
   const [generating, setGenerating] = useState(false);
   const subdomainGeneratedRef = useRef(false);
 
@@ -105,12 +105,12 @@ const BoutiqueDomains = () => {
   const checkDns = async () => {
     if (!customDomain) return;
     setChecking(true);
-    setDnsOk(null);
+    setDnsResult(null);
     try {
       const res = await api.post('/store/domains/check-dns', { domain: customDomain });
-      setDnsOk(res.data?.data?.ok ?? false);
+      setDnsResult(res.data?.data || { ok: false });
     } catch {
-      setDnsOk(false);
+      setDnsResult({ ok: false });
     } finally {
       setChecking(false);
     }
@@ -230,7 +230,7 @@ const BoutiqueDomains = () => {
           <input
             type="text"
             value={customDomain}
-            onChange={(e) => { setCustomDomain(e.target.value.trim()); setSaved(false); setDnsOk(null); }}
+            onChange={(e) => { setCustomDomain(e.target.value.trim()); setSaved(false); setDnsResult(null); }}
             placeholder="maboutique.com"
             className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent transition bg-gray-50 focus:bg-white font-mono"
           />
@@ -245,42 +245,94 @@ const BoutiqueDomains = () => {
             </button>
           )}
 
-          {dnsOk !== null && (
-            <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl ${dnsOk ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
-              {dnsOk ? (
-                <>
-                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                  <span className="text-sm text-green-700 font-semibold">DNS configuré correctement !</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                  <span className="text-sm text-red-700 font-semibold">DNS pas encore configuré</span>
-                </>
+          {dnsResult !== null && (
+            <div className={`px-4 py-3 rounded-xl space-y-2 ${dnsResult.ok ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+              <div className="flex items-center gap-2">
+                {dnsResult.ok ? (
+                  <>
+                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    <span className="text-sm text-green-700 font-semibold">DNS configuré correctement !</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    <span className="text-sm text-red-700 font-semibold">DNS pas encore configuré</span>
+                  </>
+                )}
+              </div>
+              {/* Show detected records */}
+              {dnsResult.aRecords?.length > 0 && (
+                <div className="text-xs text-gray-600">
+                  <span className="font-semibold">A records détectés :</span> {dnsResult.aRecords.join(', ')}
+                  {dnsResult.aOk ? <span className="text-green-600 ml-1">✓</span> : <span className="text-red-600 ml-1">✗</span>}
+                </div>
+              )}
+              {dnsResult.cnameRecords?.length > 0 && (
+                <div className="text-xs text-gray-600">
+                  <span className="font-semibold">CNAME détecté :</span> {dnsResult.cnameRecords.join(', ')}
+                  {dnsResult.cnameOk ? <span className="text-green-600 ml-1">✓</span> : <span className="text-red-600 ml-1">✗</span>}
+                </div>
+              )}
+              {!dnsResult.ok && !dnsResult.aRecords?.length && !dnsResult.cnameRecords?.length && (
+                <p className="text-xs text-red-600">Aucun enregistrement DNS détecté. Vérifiez que les enregistrements sont bien configurés.</p>
               )}
             </div>
           )}
         </div>
 
         {/* DNS instructions */}
-        <div className="mt-4 bg-gray-50 rounded-xl p-4">
-          <p className="text-xs font-bold text-gray-700 mb-2">Configuration DNS requise :</p>
-          <div className="space-y-2">
-            <div className="flex items-center gap-3 text-xs font-mono">
-              <span className="px-2 py-0.5 bg-gray-200 rounded text-gray-700 font-bold">CNAME</span>
-              <span className="text-gray-500">@</span>
-              <span className="text-gray-500">→</span>
-              <span className="text-gray-900 font-bold">shops.scalor.net</span>
-            </div>
-            <div className="flex items-center gap-3 text-xs font-mono">
-              <span className="px-2 py-0.5 bg-gray-200 rounded text-gray-700 font-bold">CNAME</span>
-              <span className="text-gray-500">www</span>
-              <span className="text-gray-500">→</span>
-              <span className="text-gray-900 font-bold">shops.scalor.net</span>
+        <div className="mt-4 bg-gray-50 rounded-xl p-4 space-y-4">
+          <p className="text-xs font-bold text-gray-700">Configuration DNS requise :</p>
+
+          {/* Option 1: A Records */}
+          <div>
+            <p className="text-[11px] font-semibold text-gray-600 mb-1.5 flex items-center gap-1">
+              <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-bold">OPTION 1</span>
+              Enregistrement A (recommandé)
+            </p>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-3 text-xs font-mono">
+                <span className="px-2 py-0.5 bg-gray-200 rounded text-gray-700 font-bold w-14 text-center">A</span>
+                <span className="text-gray-500 w-8">@</span>
+                <span className="text-gray-500">→</span>
+                <span className="text-gray-900 font-bold">151.101.2.15</span>
+              </div>
+              <div className="flex items-center gap-3 text-xs font-mono">
+                <span className="px-2 py-0.5 bg-gray-200 rounded text-gray-700 font-bold w-14 text-center">CNAME</span>
+                <span className="text-gray-500 w-8">www</span>
+                <span className="text-gray-500">→</span>
+                <span className="text-gray-900 font-bold">shops.scalor.net</span>
+              </div>
             </div>
           </div>
-          <p className="text-[11px] text-gray-500 mt-2">
-            Ajoutez ces enregistrements dans votre gestionnaire DNS (Namecheap, GoDaddy, Cloudflare...). La propagation peut prendre 24-48h.
+
+          <div className="border-t border-gray-200"></div>
+
+          {/* Option 2: CNAME only */}
+          <div>
+            <p className="text-[11px] font-semibold text-gray-600 mb-1.5 flex items-center gap-1">
+              <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-[10px] font-bold">OPTION 2</span>
+              CNAME (Cloudflare, Netlify DNS)
+            </p>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-3 text-xs font-mono">
+                <span className="px-2 py-0.5 bg-gray-200 rounded text-gray-700 font-bold w-14 text-center">CNAME</span>
+                <span className="text-gray-500 w-8">@</span>
+                <span className="text-gray-500">→</span>
+                <span className="text-gray-900 font-bold">shops.scalor.net</span>
+              </div>
+              <div className="flex items-center gap-3 text-xs font-mono">
+                <span className="px-2 py-0.5 bg-gray-200 rounded text-gray-700 font-bold w-14 text-center">CNAME</span>
+                <span className="text-gray-500 w-8">www</span>
+                <span className="text-gray-500">→</span>
+                <span className="text-gray-900 font-bold">shops.scalor.net</span>
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1">CNAME @ fonctionne uniquement avec les DNS qui supportent le CNAME flattening</p>
+          </div>
+
+          <p className="text-[11px] text-gray-500">
+            Ajoutez ces enregistrements dans votre gestionnaire DNS (Namecheap, GoDaddy, Cloudflare...). La propagation peut prendre jusqu'à 48h.
           </p>
         </div>
       </div>

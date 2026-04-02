@@ -103,6 +103,7 @@ const BoutiqueDashboard = () => {
   const todaySales = stats?.todaySales || stats?.totalRevenue || 0;
   const totalOrders = stats?.todayOrders || stats?.totalOrders || 0;
   const conversionRate = stats?.conversionRate || 0;
+  const totalVisitors = stats?.totalVisitors || 0;
   const topProduct = stats?.topProduct || null;
 
   return (
@@ -133,7 +134,7 @@ const BoutiqueDashboard = () => {
         <StatCard
           label="Taux conversion"
           value={`${(conversionRate * 100).toFixed(1)}%`}
-          sub="Visiteurs → Clients"
+          sub={totalVisitors > 0 ? `${fmt(totalVisitors)} visiteurs (30j)` : 'Visiteurs → Clients'}
           color="#059669"
           icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>}
         />
