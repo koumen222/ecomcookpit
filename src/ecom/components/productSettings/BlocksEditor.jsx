@@ -1,13 +1,14 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Eye, EyeOff } from 'lucide-react';
+import { GripVertical, Eye, EyeOff, ChevronDown, Plus, Trash2 } from 'lucide-react';
 
 const SECTION_META = {
   heroSlogan:       { icon: '✍️', desc: 'Sous-titre marketing généré par IA' },
   heroBaseline:     { icon: '✅', desc: 'Phrase de réassurance sous le titre' },
   reviews:          { icon: '⭐', desc: 'Étoiles et nombre d\'avis' },
+  orderForm:        { icon: '🛒', desc: 'Bouton / Formulaire de commande' },
   statsBar:         { icon: '📊', desc: 'Chiffres de preuve sociale' },
   stockCounter:     { icon: '📦', desc: 'Stock restant urgence' },
   urgencyBadge:     { icon: '🔥', desc: 'Badge d\'urgence IA' },
@@ -26,8 +27,173 @@ const SECTION_META = {
   orderBump:        { icon: '🛒', desc: 'Produit complémentaire' },
 };
 
-const SortableBlock = ({ section, index, onToggle }) => {
+// ── Which sections have editable content ──────────────────────────────────────
+const EDITABLE_SECTIONS = {
+  heroSlogan:      { fields: [{ key: 'text', label: 'Slogan marketing', placeholder: 'Ex: Découvrez le secret des pros…', type: 'text' }] },
+  heroBaseline:    { fields: [{ key: 'text', label: 'Phrase de réassurance', placeholder: 'Ex: Résultats visibles en 7 jours', type: 'text' }] },
+  urgencyBadge:    { fields: [{ key: 'text', label: 'Texte d\'urgence', placeholder: 'Ex: ⚡ Dernières pièces — 3 restants !', type: 'text' }] },
+  statsBar:        { fields: 'stats' },
+  benefitsBullets: { fields: 'list', label: 'Bénéfices', placeholder: 'Ex: Résultats en 7 jours' },
+  problemSection:  { fields: [
+    { key: 'title', label: 'Titre', placeholder: 'Ex: Le problème', type: 'text' },
+    { key: 'painPoints', label: 'Points', type: 'list', placeholder: 'Ex: Maux de dos fréquents' },
+  ]},
+  solutionSection: { fields: [
+    { key: 'title', label: 'Titre', placeholder: 'Ex: La solution', type: 'text' },
+    { key: 'description', label: 'Description', placeholder: 'Paragraphe explicatif…', type: 'textarea' },
+  ]},
+  offerBlock:      { fields: [
+    { key: 'offerLabel', label: 'Titre de l\'offre', placeholder: 'Ex: Offre spéciale', type: 'text' },
+    { key: 'guaranteeText', label: 'Texte garantie', placeholder: 'Ex: Satisfait ou remboursé 30 jours', type: 'text' },
+  ]},
+  faq:             { fields: 'faq' },
+};
+
+// ── Inline content editor for a section ───────────────────────────────────────
+const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200 transition-all bg-white";
+
+const SectionContentEditor = ({ section, onChange }) => {
+  const schema = EDITABLE_SECTIONS[section.id];
+  if (!schema) return (
+    <div className="text-[11px] text-gray-400 italic py-1">Contenu généré automatiquement par l'IA</div>
+  );
+
+  const content = section.content || {};
+  const update = (key, val) => onChange({ ...section, content: { ...content, [key]: val } });
+
+  // ── Stats editor ──
+  if (schema.fields === 'stats') {
+    const stats = content.stats || [{ value: '', label: '' }, { value: '', label: '' }, { value: '', label: '' }];
+    const updateStat = (i, key, val) => {
+      const copy = [...stats];
+      copy[i] = { ...copy[i], [key]: val };
+      update('stats', copy);
+    };
+    return (
+      <div className="space-y-2">
+        <div className="text-[11px] font-semibold text-gray-500 mb-1">Statistiques (3 max)</div>
+        {stats.slice(0, 3).map((st, i) => (
+          <div key={i} className="flex gap-2">
+            <input className={inputCls + " w-20 shrink-0"} value={st.value} onChange={e => updateStat(i, 'value', e.target.value)}
+              placeholder="1200+" />
+            <input className={inputCls + " flex-1"} value={st.label} onChange={e => updateStat(i, 'label', e.target.value)}
+              placeholder="Clients satisfaits" />
+          </div>
+        ))}
+        <div className="text-[10px] text-gray-400">Laissez vide pour utiliser les données IA</div>
+      </div>
+    );
+  }
+
+  // ── List editor (benefits, pain points) ──
+  if (schema.fields === 'list') {
+    const items = content.items || [''];
+    const updateItem = (i, val) => { const copy = [...items]; copy[i] = val; update('items', copy); };
+    const addItem = () => update('items', [...items, '']);
+    const removeItem = (i) => update('items', items.filter((_, idx) => idx !== i));
+    return (
+      <div className="space-y-1.5">
+        <div className="text-[11px] font-semibold text-gray-500 mb-1">{schema.label || 'Éléments'}</div>
+        {items.map((item, i) => (
+          <div key={i} className="flex gap-1.5 items-center">
+            <input className={inputCls + " flex-1"} value={item} onChange={e => updateItem(i, e.target.value)}
+              placeholder={schema.placeholder} />
+            {items.length > 1 && (
+              <button onClick={() => removeItem(i)} className="p-1 text-gray-300 hover:text-red-400 transition-colors shrink-0"><Trash2 size={12} /></button>
+            )}
+          </div>
+        ))}
+        <button onClick={addItem} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700 mt-1">
+          <Plus size={12} /> Ajouter
+        </button>
+        <div className="text-[10px] text-gray-400">Laissez vide pour utiliser les données IA</div>
+      </div>
+    );
+  }
+
+  // ── FAQ editor ──
+  if (schema.fields === 'faq') {
+    const items = content.faqItems || [{ question: '', answer: '' }];
+    const updateFaq = (i, key, val) => { const copy = [...items]; copy[i] = { ...copy[i], [key]: val }; update('faqItems', copy); };
+    const addFaq = () => update('faqItems', [...items, { question: '', answer: '' }]);
+    const removeFaq = (i) => update('faqItems', items.filter((_, idx) => idx !== i));
+    return (
+      <div className="space-y-2">
+        <div className="text-[11px] font-semibold text-gray-500 mb-1">Questions fréquentes</div>
+        {items.map((item, i) => (
+          <div key={i} className="rounded-lg border border-gray-100 p-2 bg-gray-50/50 space-y-1.5">
+            <div className="flex gap-1.5 items-center">
+              <input className={inputCls + " flex-1"} value={item.question} onChange={e => updateFaq(i, 'question', e.target.value)}
+                placeholder="Question…" />
+              {items.length > 1 && (
+                <button onClick={() => removeFaq(i)} className="p-1 text-gray-300 hover:text-red-400 transition-colors shrink-0"><Trash2 size={12} /></button>
+              )}
+            </div>
+            <textarea className={inputCls + " resize-none"} rows={2} value={item.answer} onChange={e => updateFaq(i, 'answer', e.target.value)}
+              placeholder="Réponse…" />
+          </div>
+        ))}
+        <button onClick={addFaq} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700 mt-1">
+          <Plus size={12} /> Ajouter une question
+        </button>
+        <div className="text-[10px] text-gray-400">Laissez vide pour utiliser les données IA / produit</div>
+      </div>
+    );
+  }
+
+  // ── Standard fields (text, textarea, nested list) ──
+  return (
+    <div className="space-y-3">
+      {schema.fields.map(field => {
+        if (field.type === 'list') {
+          const items = content[field.key] || [''];
+          const updateItem = (i, val) => { const copy = [...items]; copy[i] = val; update(field.key, copy); };
+          const addItem = () => update(field.key, [...items, '']);
+          const removeItem = (i) => update(field.key, items.filter((_, idx) => idx !== i));
+          return (
+            <div key={field.key}>
+              <div className="text-[11px] font-semibold text-gray-500 mb-1">{field.label}</div>
+              {items.map((item, i) => (
+                <div key={i} className="flex gap-1.5 items-center mb-1">
+                  <input className={inputCls + " flex-1"} value={item} onChange={e => updateItem(i, e.target.value)}
+                    placeholder={field.placeholder} />
+                  {items.length > 1 && (
+                    <button onClick={() => removeItem(i)} className="p-1 text-gray-300 hover:text-red-400 transition-colors shrink-0"><Trash2 size={12} /></button>
+                  )}
+                </div>
+              ))}
+              <button onClick={addItem} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700">
+                <Plus size={12} /> Ajouter
+              </button>
+            </div>
+          );
+        }
+        if (field.type === 'textarea') {
+          return (
+            <div key={field.key}>
+              <div className="text-[11px] font-semibold text-gray-500 mb-1">{field.label}</div>
+              <textarea className={inputCls + " resize-none"} rows={3} value={content[field.key] || ''}
+                onChange={e => update(field.key, e.target.value)} placeholder={field.placeholder} />
+            </div>
+          );
+        }
+        return (
+          <div key={field.key}>
+            <div className="text-[11px] font-semibold text-gray-500 mb-1">{field.label}</div>
+            <input className={inputCls} value={content[field.key] || ''}
+              onChange={e => update(field.key, e.target.value)} placeholder={field.placeholder} />
+          </div>
+        );
+      })}
+      <div className="text-[10px] text-gray-400">Laissez vide pour utiliser les données IA</div>
+    </div>
+  );
+};
+
+// ── Sortable block with expandable content editor ─────────────────────────────
+const SortableBlock = ({ section, index, onToggle, isExpanded, onExpand, onContentChange }) => {
   const meta = SECTION_META[section.id] || { icon: '📄', desc: '' };
+  const hasEditor = !!EDITABLE_SECTIONS[section.id];
   const {
     attributes, listeners, setNodeRef, transform, transition, isDragging,
   } = useSortable({ id: section.id });
@@ -43,7 +209,7 @@ const SortableBlock = ({ section, index, onToggle }) => {
     <div
       ref={setNodeRef}
       style={style}
-      className={`group flex items-center gap-3 px-3.5 py-2.5 rounded-xl border transition-all ${
+      className={`rounded-xl border transition-all ${
         isDragging ? 'shadow-lg ring-2 ring-indigo-300/40' : ''
       } ${
         section.enabled
@@ -51,52 +217,72 @@ const SortableBlock = ({ section, index, onToggle }) => {
           : 'border-gray-100 bg-gray-50/50 hover:bg-gray-50'
       }`}
     >
-      {/* Drag handle */}
-      <button
-        {...attributes}
-        {...listeners}
-        className="p-1 -ml-1 rounded-lg cursor-grab active:cursor-grabbing hover:bg-white/70 transition-colors touch-none"
-        tabIndex={-1}
-      >
-        <GripVertical size={14} className="text-gray-300 group-hover:text-gray-400" />
-      </button>
+      <div className="group flex items-center gap-3 px-3.5 py-2.5">
+        {/* Drag handle */}
+        <button
+          {...attributes}
+          {...listeners}
+          className="p-1 -ml-1 rounded-lg cursor-grab active:cursor-grabbing hover:bg-white/70 transition-colors touch-none"
+          tabIndex={-1}
+        >
+          <GripVertical size={14} className="text-gray-300 group-hover:text-gray-400" />
+        </button>
 
-      {/* Position */}
-      <span className="w-5 h-5 rounded-md bg-white text-gray-400 text-[10px] font-bold flex items-center justify-center shrink-0 border border-gray-100 shadow-sm">
-        {index + 1}
-      </span>
-
-      {/* Icon */}
-      <span className="text-sm shrink-0">{meta.icon}</span>
-
-      {/* Label + desc */}
-      <div className="flex-1 min-w-0">
-        <span className={`text-[13px] font-semibold leading-tight block ${
-          section.enabled ? 'text-gray-800' : 'text-gray-400'
-        }`}>
-          {section.label}
+        {/* Position */}
+        <span className="w-5 h-5 rounded-md bg-white text-gray-400 text-[10px] font-bold flex items-center justify-center shrink-0 border border-gray-100 shadow-sm">
+          {index + 1}
         </span>
-        <span className="text-[10px] text-gray-400 leading-tight block mt-0.5 truncate">
-          {meta.desc}
-        </span>
+
+        {/* Icon */}
+        <span className="text-sm shrink-0">{meta.icon}</span>
+
+        {/* Label + desc — clickable to expand */}
+        <button
+          onClick={() => hasEditor && section.enabled && onExpand(section.id)}
+          className={`flex-1 min-w-0 text-left ${hasEditor && section.enabled ? 'cursor-pointer' : 'cursor-default'}`}
+        >
+          <span className={`text-[13px] font-semibold leading-tight block ${
+            section.enabled ? 'text-gray-800' : 'text-gray-400'
+          }`}>
+            {section.label}
+          </span>
+          <span className="text-[10px] text-gray-400 leading-tight block mt-0.5 truncate">
+            {meta.desc}
+          </span>
+        </button>
+
+        {/* Expand indicator */}
+        {hasEditor && section.enabled && (
+          <button onClick={() => onExpand(section.id)} className="p-1 shrink-0 text-gray-300 hover:text-emerald-500 transition-colors">
+            <ChevronDown size={13} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+          </button>
+        )}
+
+        {/* Toggle */}
+        <button
+          onClick={() => onToggle(section.id)}
+          className={`relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
+            section.enabled ? 'bg-emerald-500' : 'bg-gray-200'
+          }`}
+        >
+          <span className={`inline-block h-[18px] w-[18px] rounded-full bg-white shadow-sm transition duration-200 ${
+            section.enabled ? 'translate-x-[18px]' : 'translate-x-0'
+          }`} />
+        </button>
       </div>
 
-      {/* Toggle */}
-      <button
-        onClick={() => onToggle(section.id)}
-        className={`relative inline-flex h-[22px] w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${
-          section.enabled ? 'bg-emerald-500' : 'bg-gray-200'
-        }`}
-      >
-        <span className={`inline-block h-[18px] w-[18px] rounded-full bg-white shadow-sm transition duration-200 ${
-          section.enabled ? 'translate-x-[18px]' : 'translate-x-0'
-        }`} />
-      </button>
+      {/* Expanded content editor */}
+      {isExpanded && section.enabled && (
+        <div className="px-4 pb-3 pt-1 border-t border-gray-100/60">
+          <SectionContentEditor section={section} onChange={onContentChange} />
+        </div>
+      )}
     </div>
   );
 };
 
 const BlocksEditor = ({ sections, onChange }) => {
+  const [expandedId, setExpandedId] = useState(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor),
@@ -114,6 +300,14 @@ const BlocksEditor = ({ sections, onChange }) => {
 
   const handleToggle = (id) => {
     onChange(sections.map(s => s.id === id ? { ...s, enabled: !s.enabled } : s));
+  };
+
+  const handleExpand = (id) => {
+    setExpandedId(prev => prev === id ? null : id);
+  };
+
+  const handleContentChange = (updatedSection) => {
+    onChange(sections.map(s => s.id === updatedSection.id ? updatedSection : s));
   };
 
   const enabledCount = sections.filter(s => s.enabled).length;
@@ -151,6 +345,9 @@ const BlocksEditor = ({ sections, onChange }) => {
                 section={section}
                 index={index}
                 onToggle={handleToggle}
+                isExpanded={expandedId === section.id}
+                onExpand={handleExpand}
+                onContentChange={handleContentChange}
               />
             ))}
           </div>

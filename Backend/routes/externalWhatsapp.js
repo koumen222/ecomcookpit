@@ -25,7 +25,7 @@ import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const FISH_AUDIO_DIRECT_API_KEY = process.env.FISH_AUDIO_API_KEY || '203f946aa7b3454184fd28fc7eb1f33b';
+const FISH_AUDIO_DIRECT_API_KEY = process.env.FISH_AUDIO_API_KEY;
 
 // ─── Multer config pour upload d'images/vidéos produit Rita ───────────────
 // On utilise memoryStorage pour envoyer directement à R2 (fallback disk si R2 indisponible)
@@ -478,7 +478,7 @@ function markImageAsSent(conversationKey, productName) {
 function isExplicitImageRequest(text) {
   const normalizedText = normalizeStr(text);
   return /(?:envoie|envoy|montre|montrer|voir|photo|image|picture|pic)/.test(normalizedText) &&
-         /(?:encore|autre|plus|toute|all|autre fois|à nouveau|again)/.test(normalizedText);
+    /(?:encore|autre|plus|toute|all|autre fois|à nouveau|again)/.test(normalizedText);
 }
 
 // ─── Buffer pour regrouper les messages rapides du même client ───
@@ -505,7 +505,7 @@ function addMessageToBuffer(conversationKey, messageData, processCallback) {
   buffer.timeout = setTimeout(async () => {
     const messagesToProcess = buffer.messages;
     messageBuffers.delete(conversationKey);
-    
+
     // Traiter tous les messages regroupés
     await processCallback(messagesToProcess);
   }, MESSAGE_BUFFER_DELAY);
@@ -618,10 +618,10 @@ router.post('/link', requireEcomAuth, async (req, res) => {
 
     const instance = await WhatsAppInstance.findOneAndUpdate(
       { instanceName },
-      { 
-        userId, 
+      {
+        userId,
         workspaceId,
-        instanceToken, 
+        instanceToken,
         customName: customName || instanceName,
         lastSeen: new Date(),
         isActive: true,
@@ -658,10 +658,10 @@ router.post('/link', requireEcomAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('❌ [LINK] Erreur lors du link WhatsApp:', error.message);
-    
+
     // Messages d'erreur clairs selon le type d'erreur
     let errorMessage = "Erreur lors de la liaison de l'instance";
-    
+
     if (error.message?.includes('ECONNREFUSED') || error.message?.includes('ENOTFOUND')) {
       errorMessage = "Impossible de contacter le serveur Evolution API. Vérifiez votre connexion internet.";
     } else if (error.message?.includes('timeout') || error.message?.includes('ETIMEDOUT')) {
@@ -673,7 +673,7 @@ router.post('/link', requireEcomAuth, async (req, res) => {
     } else if (error.message?.includes('instance') && error.message?.includes('not found')) {
       errorMessage = "Instance non disponible. Cette instance n'existe pas sur Evolution API.";
     }
-    
+
     res.status(500).json({
       success: false,
       error: errorMessage,
@@ -743,10 +743,10 @@ router.post('/verify-instance', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ [VERIFY] Erreur:', error.message);
-    
+
     // Messages d'erreur clairs
     let errorMessage = "Erreur lors de la vérification";
-    
+
     if (error.message?.includes('ECONNREFUSED') || error.message?.includes('ENOTFOUND')) {
       errorMessage = "Serveur Evolution API injoignable. Vérifiez votre connexion.";
     } else if (error.message?.includes('timeout')) {
@@ -756,7 +756,7 @@ router.post('/verify-instance', async (req, res) => {
     } else if (error.message?.includes('instance')) {
       errorMessage = "Instance non disponible actuellement.";
     }
-    
+
     res.status(500).json({ success: false, error: errorMessage, details: error.message });
   }
 });
@@ -794,14 +794,14 @@ router.delete('/instances/:id', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Erreur suppression instance:', error.message);
-    
+
     let errorMessage = "Erreur lors de la suppression";
     if (error.message?.includes('CastError') || error.message?.includes('ObjectId')) {
       errorMessage = "ID d'instance invalide.";
     } else if (error.message?.includes('not found')) {
       errorMessage = "Instance introuvable. Elle a peut-être déjà été supprimée.";
     }
-    
+
     res.status(500).json({ success: false, error: errorMessage, details: error.message });
   }
 });
@@ -872,10 +872,10 @@ router.post('/send', async (req, res) => {
     }
   } catch (error) {
     console.error('❌ Erreur lors de l\'envoi WhatsApp:', error.message);
-    
+
     // Messages d'erreur clairs
     let errorMessage = "Erreur lors de l'envoi du message";
-    
+
     if (error.message?.includes('token') || error.message?.includes('auth') || error.message?.includes('401')) {
       errorMessage = "Token d'accès erroné ou expiré. Vérifiez votre token.";
     } else if (error.message?.includes('instance') || error.message?.includes('404')) {
@@ -885,7 +885,7 @@ router.post('/send', async (req, res) => {
     } else if (error.message?.includes('ECONNREFUSED')) {
       errorMessage = "Serveur WhatsApp injoignable. Vérifiez votre connexion.";
     }
-    
+
     res.status(500).json({
       success: false,
       error: errorMessage,
@@ -935,12 +935,12 @@ router.get('/instances', requireEcomAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Erreur lors du listage WhatsApp:', error.message);
-    
+
     let errorMessage = "Erreur lors de la récupération des instances";
     if (error.message?.includes('Mongo') || error.message?.includes('connection')) {
       errorMessage = "Erreur de base de données. Réessayez dans quelques instants.";
     }
-    
+
     res.status(500).json({
       success: false,
       error: errorMessage,
@@ -957,7 +957,7 @@ router.get('/instances', requireEcomAuth, async (req, res) => {
 router.get('/instances/all', async (req, res) => {
   try {
     const allInstances = await WhatsAppInstance.find({});
-    
+
     console.log(`🔍 [DIAGNOSTIC] Total instances dans DB: ${allInstances.length}`);
     allInstances.forEach(inst => {
       console.log(`   - ${inst.instanceName} | userId: ${inst.userId} | workspaceId: ${inst.workspaceId || 'N/A'} | status: ${inst.status} | isActive: ${inst.isActive}`);
@@ -1428,6 +1428,23 @@ router.post('/incoming', async (req, res) => {
             }
           }
 
+          // ─── Détecter les annonces publicitaires Meta (Ad Reply) ───
+          if (contextInfo?.adReply) {
+             const adTitle = contextInfo.adReply.title || '';
+             const adDesc = contextInfo.adReply.description || '';
+             text = `[CONTEXTE: Le client vous contacte depuis une publicité WhatsApp. Produit/Annonce : "${adTitle}". Description: "${adDesc}"] ${text || ''}`;
+             console.log(`💬 [RITA] Publicité détectée: ${adTitle}`);
+          }
+
+          // ─── Détecter les clics depuis le catalogue (Order/Product Message) ───
+          const orderMsg = messageContent?.orderMessage || msg.message?.orderMessage || messageContent?.productMessage?.product?.title;
+          if (orderMsg) {
+             const productTitle = orderMsg.title || orderMsg.orderTitle || (typeof orderMsg === 'string' ? orderMsg : orderMsg.itemCount + ' article(s)');
+             const orderText = orderMsg.message || '';
+             text = `[CONTEXTE: Le client est intéressé par le produit du catalogue : "${productTitle}"] ${orderText ? orderText : text || ''}`;
+             console.log(`💬 [RITA] Catalogue détecté: ${productTitle}`);
+          }
+
           console.log(`📩 [WH INCOMING] Message — from=${from} fromMe=${fromMe} isAudio=${isAudio} text="${(text || '').substring(0, 80)}"`);
           if (pushName) {
             console.log(`📩 [WH INCOMING] pushName=${pushName}`);
@@ -1634,7 +1651,7 @@ router.post('/incoming', async (req, res) => {
           {
             const ritaCfgEsc = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
             const bossRaw = (ritaCfgEsc?.bossPhone || '').replace(/\D/g, '');
-              const fromRaw  = senderPhone;
+            const fromRaw = senderPhone;
             if (bossRaw && fromRaw === bossRaw) {
               // D'abord vérifier s'il y a une escalade en attente
               const pending = ritaCfgEsc?.bossEscalationEnabled ? shiftPendingEscalation(userId) : null;
@@ -1826,7 +1843,7 @@ router.post('/incoming', async (req, res) => {
           // ─── Regrouper les messages rapides du même client ───
           const bufferKey = `${userId}:${senderPhone}`;
           const workspaceId = instanceDoc?.workspaceId;
-          
+
           // Ajouter ce message au buffer et traiter après le délai
           addMessageToBuffer(bufferKey, {
             userId,
@@ -1842,7 +1859,7 @@ router.post('/incoming', async (req, res) => {
             // ─── Traiter tous les messages regroupés ───
             const combinedText = messages.map(m => m.text).join('\n\n');
             const firstMsg = messages[0];
-            
+
             // Déstructurer pour utiliser les variables comme avant
             const userId = firstMsg.userId;
             const agentId = firstMsg.agentId;
@@ -1850,7 +1867,7 @@ router.post('/incoming', async (req, res) => {
             const instanceDoc = firstMsg.instanceDoc;
             const from = firstMsg.from;
             const text = combinedText; // Le texte combiné de tous les messages
-            
+
             console.log(`📦 [RITA] Traitement groupé de ${messages.length} message(s) de ${firstMsg.senderPhone}`);
             if (messages.length > 1) {
               console.log(`📦 [RITA] Messages combinés: "${combinedText.substring(0, 200)}"`);
@@ -1885,395 +1902,259 @@ router.post('/incoming', async (req, res) => {
             // Extraire le numéro propre depuis le JID WhatsApp (ex: 33612345678@s.whatsapp.net)
             const cleanFrom = firstMsg.senderPhone;
 
-          // ─── Détecter tag [ORDER_DATA:{...}] pour enregistrer la commande ───
-          // Extraction robuste supportant le JSON imbriqué (ex: objets adresse)
-          function extractOrderDataTag(text) {
-            const startIdx = text.indexOf('[ORDER_DATA:');
-            if (startIdx === -1) return null;
-            let depth = 0;
-            let jsonStart = startIdx + 12; // longueur de '[ORDER_DATA:'
-            let jsonEnd = -1;
-            for (let i = jsonStart; i < text.length; i++) {
-              if (text[i] === '{') depth++;
-              if (text[i] === '}') {
-                depth--;
-                if (depth === 0) { jsonEnd = i + 1; break; }
+            // ─── Détecter tag [ORDER_DATA:{...}] pour enregistrer la commande ───
+            // Extraction robuste supportant le JSON imbriqué (ex: objets adresse)
+            function extractOrderDataTag(text) {
+              const startIdx = text.indexOf('[ORDER_DATA:');
+              if (startIdx === -1) return null;
+              let depth = 0;
+              let jsonStart = startIdx + 12; // longueur de '[ORDER_DATA:'
+              let jsonEnd = -1;
+              for (let i = jsonStart; i < text.length; i++) {
+                if (text[i] === '{') depth++;
+                if (text[i] === '}') {
+                  depth--;
+                  if (depth === 0) { jsonEnd = i + 1; break; }
+                }
               }
+              if (jsonEnd === -1) return null;
+              const tagEnd = text[jsonEnd] === ']' ? jsonEnd + 1 : jsonEnd;
+              return {
+                json: text.substring(jsonStart, jsonEnd),
+                fullTag: text.substring(startIdx, tagEnd),
+              };
             }
-            if (jsonEnd === -1) return null;
-            const tagEnd = text[jsonEnd] === ']' ? jsonEnd + 1 : jsonEnd;
-            return {
-              json: text.substring(jsonStart, jsonEnd),
-              fullTag: text.substring(startIdx, tagEnd),
-            };
-          }
-          const orderTagExtracted = extractOrderDataTag(reply);
-          let replyClean = reply;
+            const orderTagExtracted = extractOrderDataTag(reply);
+            let replyClean = reply;
 
-          if (orderTagExtracted) {
-            replyClean = reply.replace(orderTagExtracted.fullTag, '').trim();
-            try {
-              const orderData = JSON.parse(orderTagExtracted.json);
-              console.log(`📦 [RITA] Commande détectée:`, JSON.stringify(orderData));
-              
-              // Calculer la date programmée si fournie
-              let scheduledDate = null;
-              if (orderData.delivery_date && orderData.delivery_date !== 'dès que possible') {
-                try {
-                  scheduledDate = new Date(orderData.delivery_date);
-                  if (isNaN(scheduledDate.getTime())) scheduledDate = null;
-                } catch (e) { scheduledDate = null; }
-              }
-              
-              await WhatsAppOrder.create({
-                userId,
-                instanceName: instanceDoc.instanceName,
-                customerPhone: cleanFrom,
-                customerName: orderData.name || '',
-                customerCity: orderData.city || '',
-                pushName: pushName || '',
-                productName: orderData.product || '',
-                productPrice: orderData.price || '',
-                quantity: orderData.quantity || 1,
-                deliveryDate: orderData.delivery_date || '',
-                deliveryTime: orderData.delivery_time || '',
-                scheduledDeliveryDate: scheduledDate,
-                deliveryAddress: orderData.address || orderData.city || '',
-                status: 'pending',
-                conversationSummary: `${orderData.product} → ${orderData.name} (${orderData.city})`,
-              });
-              console.log(`✅ [RITA] WhatsAppOrder enregistrée pour ${cleanFrom}`);
-              logRitaActivity(userId, 'order_confirmed', { customerPhone: cleanFrom, customerName: orderData.name || '', product: orderData.product || '', price: orderData.price || '' });
-
-              // ─── Déclencher les flows sur order_confirmed ───
+            if (orderTagExtracted) {
+              replyClean = reply.replace(orderTagExtracted.fullTag, '').trim();
               try {
-                await processFlows(userId, 'order_confirmed', { text: text || '', phone: cleanFrom, pushName });
-              } catch (flowErr) { console.error('⚠️ [FlowEngine] order_confirmed:', flowErr.message); }
+                const orderData = JSON.parse(orderTagExtracted.json);
+                console.log(`📦 [RITA] Commande détectée:`, JSON.stringify(orderData));
 
-              // Marquer le contact comme ayant commandé + mettre à jour les stats
-              try {
-                const contactUpdate = { 
-                  hasOrdered: true,
-                  lastOrderDate: new Date(),
-                  $inc: { totalOrders: 1 }
-                };
-                if (orderData.name) contactUpdate.nom = orderData.name;
-                if (orderData.city) contactUpdate.ville = orderData.city;
-                if (orderData.address) contactUpdate.adresse = orderData.address;
-                
-                // Déterminer le statut
-                if (scheduledDate && scheduledDate > new Date()) {
-                  contactUpdate.status = 'scheduled';
-                } else {
-                  contactUpdate.status = 'prospect'; // Devient client seulement après livraison
+                // Calculer la date programmée si fournie
+                let scheduledDate = null;
+                if (orderData.delivery_date && orderData.delivery_date !== 'dès que possible') {
+                  try {
+                    scheduledDate = new Date(orderData.delivery_date);
+                    if (isNaN(scheduledDate.getTime())) scheduledDate = null;
+                  } catch (e) { scheduledDate = null; }
                 }
-                
-                await RitaContact.findOneAndUpdate(
-                  { userId, phone: cleanFrom },
-                  contactUpdate
-                );
-              } catch (_) { /* ignore */ }
 
-              // ─── Créer aussi une vraie commande dans ecom_orders (source: rita) ───
-              if (instanceDoc.workspaceId) {
+                await WhatsAppOrder.create({
+                  userId,
+                  instanceName: instanceDoc.instanceName,
+                  customerPhone: cleanFrom,
+                  customerName: orderData.name || '',
+                  customerCity: orderData.city || '',
+                  pushName: pushName || '',
+                  productName: orderData.product || '',
+                  productPrice: orderData.price || '',
+                  quantity: orderData.quantity || 1,
+                  deliveryDate: orderData.delivery_date || '',
+                  deliveryTime: orderData.delivery_time || '',
+                  scheduledDeliveryDate: scheduledDate,
+                  deliveryAddress: orderData.address || orderData.city || '',
+                  status: 'pending',
+                  conversationSummary: `${orderData.product} → ${orderData.name} (${orderData.city})`,
+                });
+                console.log(`✅ [RITA] WhatsAppOrder enregistrée pour ${cleanFrom}`);
+                logRitaActivity(userId, 'order_confirmed', { customerPhone: cleanFrom, customerName: orderData.name || '', product: orderData.product || '', price: orderData.price || '' });
+
+                // ─── Déclencher les flows sur order_confirmed ───
                 try {
-                  const phoneVal = cleanFrom || '';
-                  const priceVal = parseFloat(String(orderData.price || '0').replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
-                  const ritaOrder = new Order({
-                    workspaceId: instanceDoc.workspaceId,
-                    orderId: `#RITA_${Date.now().toString(36)}`,
-                    date: new Date(),
-                    clientName: orderData.name || pushName || '',
-                    clientPhone: phoneVal,
-                    clientPhoneNormalized: normalizePhone(phoneVal, '237'),
-                    city: orderData.city || '',
-                    product: orderData.product || '',
-                    quantity: 1,
-                    price: priceVal,
-                    status: 'confirmed',
-                    notes: `Via Rita WhatsApp — ${orderData.delivery_date || ''} ${orderData.delivery_time || ''}`.trim(),
-                    tags: ['rita'],
-                    source: 'rita',
-                    sheetRowId: `rita_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
-                    sheetRowIndex: 999999,
-                  });
-                  await ritaOrder.save();
-                  console.log(`✅ [RITA] Commande ecom créée: ${ritaOrder.orderId} (workspaceId=${instanceDoc.workspaceId})`);
-                } catch (orderErr) {
-                  console.error(`❌ [RITA] Erreur création commande ecom:`, orderErr.message);
-                }
-              } else {
-                console.warn(`⚠️ [RITA] Pas de workspaceId sur l'instance, commande ecom non créée`);
-              }
+                  await processFlows(userId, 'order_confirmed', { text: text || '', phone: cleanFrom, pushName });
+                } catch (flowErr) { console.error('⚠️ [FlowEngine] order_confirmed:', flowErr.message); }
 
-              // ─── Notification WhatsApp au boss ───
-              try {
-                const ritaCfgBoss = await RitaConfig.findOne({ userId }).lean();
-                if (ritaCfgBoss?.bossNotifications && ritaCfgBoss?.bossPhone && ritaCfgBoss?.notifyOnOrder) {
-                  const deliveryLocation = orderData.address || orderData.city || 'N/A';
-                  const bossMsg = `📦 *Nouvelle commande confirmée par Rita*\n\n👤 Client: ${orderData.name || 'N/A'}\n📱 Tél: ${cleanFrom}\n📍 Ville: ${orderData.city || 'N/A'}\n🏠 Lieu de livraison: ${deliveryLocation}\n🛍️ Produit: ${orderData.product || 'N/A'}\n💰 Prix: ${orderData.price || 'N/A'}\n📦 Quantité: ${orderData.quantity || 1}\n📅 Livraison: ${orderData.delivery_date || ''} ${orderData.delivery_time || ''}\n⏰ ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Douala' })}`;
-                  const bossPhone = ritaCfgBoss.bossPhone.replace(/\D/g, '');
-                  await sendMessageAndTrack(
-                    instanceDoc.instanceName,
-                    instanceDoc.instanceToken,
-                    bossPhone,
-                    bossMsg
+                // Marquer le contact comme ayant commandé + mettre à jour les stats
+                try {
+                  const contactUpdate = {
+                    hasOrdered: true,
+                    lastOrderDate: new Date(),
+                    $inc: { totalOrders: 1 }
+                  };
+                  if (orderData.name) contactUpdate.nom = orderData.name;
+                  if (orderData.city) contactUpdate.ville = orderData.city;
+                  if (orderData.address) contactUpdate.adresse = orderData.address;
+
+                  // Déterminer le statut
+                  if (scheduledDate && scheduledDate > new Date()) {
+                    contactUpdate.status = 'scheduled';
+                  } else {
+                    contactUpdate.status = 'prospect'; // Devient client seulement après livraison
+                  }
+
+                  await RitaContact.findOneAndUpdate(
+                    { userId, phone: cleanFrom },
+                    contactUpdate
                   );
-                  console.log(`✅ [RITA] Notification boss envoyée à ${bossPhone}`);
-                }
-              } catch (bossErr) {
-                console.error(`⚠️ [RITA] Erreur notification boss:`, bossErr.message);
-              }
+                } catch (_) { /* ignore */ }
 
-              // ─── Proposition d'ajout au groupe WhatsApp clients ───
-              try {
-                const flowConfig = await RitaFlow.findOne({ userId }).lean();
-                if (flowConfig?.groups?.length > 0) {
-                  // Chercher un groupe 'clients' ou le premier groupe disponible
-                  const clientGroup = flowConfig.groups.find(g => g.role === 'clients') || flowConfig.groups[0];
-                  
-                  if (clientGroup) {
-                    let inviteUrl = clientGroup.inviteUrl;
-                    
-                    // Si pas d'URL d'invitation en cache, la récupérer
-                    if (!inviteUrl && clientGroup.groupJid) {
-                      const inviteResult = await evolutionApiService.getGroupInviteCode(
-                        instanceDoc.instanceName,
-                        instanceDoc.instanceToken,
-                        clientGroup.groupJid
-                      );
-                      if (inviteResult.success) {
-                        inviteUrl = inviteResult.inviteUrl;
-                        // Mettre à jour le lien en cache
-                        await RitaFlow.updateOne(
-                          { userId, 'groups.groupJid': clientGroup.groupJid },
-                          { $set: { 'groups.$.inviteUrl': inviteUrl } }
+                // ─── Créer aussi une vraie commande dans ecom_orders (source: rita) ───
+                if (instanceDoc.workspaceId) {
+                  try {
+                    const phoneVal = cleanFrom || '';
+                    const priceVal = parseFloat(String(orderData.price || '0').replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
+                    const ritaOrder = new Order({
+                      workspaceId: instanceDoc.workspaceId,
+                      orderId: `#RITA_${Date.now().toString(36)}`,
+                      date: new Date(),
+                      clientName: orderData.name || pushName || '',
+                      clientPhone: phoneVal,
+                      clientPhoneNormalized: normalizePhone(phoneVal, '237'),
+                      city: orderData.city || '',
+                      product: orderData.product || '',
+                      quantity: 1,
+                      price: priceVal,
+                      status: 'confirmed',
+                      notes: `Via Rita WhatsApp — ${orderData.delivery_date || ''} ${orderData.delivery_time || ''}`.trim(),
+                      tags: ['rita'],
+                      source: 'rita',
+                      sheetRowId: `rita_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                      sheetRowIndex: 999999,
+                    });
+                    await ritaOrder.save();
+                    console.log(`✅ [RITA] Commande ecom créée: ${ritaOrder.orderId} (workspaceId=${instanceDoc.workspaceId})`);
+                  } catch (orderErr) {
+                    console.error(`❌ [RITA] Erreur création commande ecom:`, orderErr.message);
+                  }
+                } else {
+                  console.warn(`⚠️ [RITA] Pas de workspaceId sur l'instance, commande ecom non créée`);
+                }
+
+                // ─── Notification WhatsApp au boss ───
+                try {
+                  const ritaCfgBoss = await RitaConfig.findOne({ userId }).lean();
+                  if (ritaCfgBoss?.bossNotifications && ritaCfgBoss?.bossPhone && ritaCfgBoss?.notifyOnOrder) {
+                    const deliveryLocation = orderData.address || orderData.city || 'N/A';
+                    const bossMsg = `📦 *Nouvelle commande confirmée par Rita*\n\n👤 Client: ${orderData.name || 'N/A'}\n📱 Tél: ${cleanFrom}\n📍 Ville: ${orderData.city || 'N/A'}\n🏠 Lieu de livraison: ${deliveryLocation}\n🛍️ Produit: ${orderData.product || 'N/A'}\n💰 Prix: ${orderData.price || 'N/A'}\n📦 Quantité: ${orderData.quantity || 1}\n📅 Livraison: ${orderData.delivery_date || ''} ${orderData.delivery_time || ''}\n⏰ ${new Date().toLocaleString('fr-FR', { timeZone: 'Africa/Douala' })}`;
+                    const bossPhone = ritaCfgBoss.bossPhone.replace(/\D/g, '');
+                    await sendMessageAndTrack(
+                      instanceDoc.instanceName,
+                      instanceDoc.instanceToken,
+                      bossPhone,
+                      bossMsg
+                    );
+                    console.log(`✅ [RITA] Notification boss envoyée à ${bossPhone}`);
+                  }
+                } catch (bossErr) {
+                  console.error(`⚠️ [RITA] Erreur notification boss:`, bossErr.message);
+                }
+
+                // ─── Proposition d'ajout au groupe WhatsApp clients ───
+                try {
+                  const flowConfig = await RitaFlow.findOne({ userId }).lean();
+                  if (flowConfig?.groups?.length > 0) {
+                    // Chercher un groupe 'clients' ou le premier groupe disponible
+                    const clientGroup = flowConfig.groups.find(g => g.role === 'clients') || flowConfig.groups[0];
+
+                    if (clientGroup) {
+                      let inviteUrl = clientGroup.inviteUrl;
+
+                      // Si pas d'URL d'invitation en cache, la récupérer
+                      if (!inviteUrl && clientGroup.groupJid) {
+                        const inviteResult = await evolutionApiService.getGroupInviteCode(
+                          instanceDoc.instanceName,
+                          instanceDoc.instanceToken,
+                          clientGroup.groupJid
                         );
+                        if (inviteResult.success) {
+                          inviteUrl = inviteResult.inviteUrl;
+                          // Mettre à jour le lien en cache
+                          await RitaFlow.updateOne(
+                            { userId, 'groups.groupJid': clientGroup.groupJid },
+                            { $set: { 'groups.$.inviteUrl': inviteUrl } }
+                          );
+                        }
+                      }
+
+                      if (inviteUrl) {
+                        await new Promise(r => setTimeout(r, 1500)); // Petit délai après le récap commande
+                        const groupName = clientGroup.name || 'notre groupe WhatsApp';
+                        const groupMsg = `🎉 Merci pour ta commande !\n\nRejoins ${groupName} pour suivre ta livraison et profiter des offres exclusives 👇\n\n${inviteUrl}`;
+                        await sendMessageAndTrack(
+                          instanceDoc.instanceName,
+                          instanceDoc.instanceToken,
+                          cleanFrom,
+                          groupMsg
+                        );
+                        console.log(`✅ [RITA] Lien groupe WhatsApp envoyé à ${cleanFrom} (${groupName})`);
+                        logRitaActivity(userId, 'group_invite_sent', { customerPhone: cleanFrom, details: groupName });
                       }
                     }
-                    
-                    if (inviteUrl) {
-                      await new Promise(r => setTimeout(r, 1500)); // Petit délai après le récap commande
-                      const groupName = clientGroup.name || 'notre groupe WhatsApp';
-                      const groupMsg = `🎉 Merci pour ta commande !\n\nRejoins ${groupName} pour suivre ta livraison et profiter des offres exclusives 👇\n\n${inviteUrl}`;
-                      await sendMessageAndTrack(
-                        instanceDoc.instanceName,
-                        instanceDoc.instanceToken,
-                        cleanFrom,
-                        groupMsg
-                      );
-                      console.log(`✅ [RITA] Lien groupe WhatsApp envoyé à ${cleanFrom} (${groupName})`);
-                      logRitaActivity(userId, 'group_invite_sent', { customerPhone: cleanFrom, details: groupName });
+                  }
+                } catch (groupErr) {
+                  console.error(`⚠️ [RITA] Erreur invitation groupe:`, groupErr.message);
+                }
+              } catch (parseErr) {
+                console.error(`❌ [RITA] Erreur parsing ORDER_DATA:`, parseErr.message);
+              }
+            }
+
+            // ─── Filet de sécurité image (code-level) ───
+            // Cas 1 : Rita a demandé "Tu veux voir l'image ?" sans envoyer le tag → on remplace par le tag
+            if (!replyClean.includes('[IMAGE:') && /tu veux voir l[a']? ?image|voir (la |une )?photo|je t'envoie (la |une )?image/i.test(replyClean)) {
+              try {
+                const ritaCfgSafeImg = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
+                const safeImgCatalog = (ritaCfgSafeImg?.productCatalog || []).filter(p => p.name && p.images?.length);
+                const allProducts = ritaCfgSafeImg?.productCatalog || [];
+                const safeImgMatched = findProductByName(safeImgCatalog, replyClean);
+                if (safeImgMatched) {
+                  replyClean = replyClean
+                    .replace(/[,.]?\s*Tu veux voir l[a']? ?image\s*[?!]?/gi, '')
+                    .replace(/[,.]?\s*Tu veux voir (la |une )?photo\s*[?!]?/gi, '')
+                    .trim();
+                  replyClean += ` [IMAGE:${safeImgMatched.name}]`;
+                  console.log(`🔧 [RITA] Filet sécurité: question image remplacée par tag [IMAGE:${safeImgMatched.name}]`);
+                } else {
+                  // Produit sans image
+                  replyClean = replyClean
+                    .replace(/[,.]?\s*Tu veux voir l[a']? ?image\s*[?!]?/gi, '')
+                    .replace(/[,.]?\s*Tu veux voir (la |une )?photo\s*[?!]?/gi, '')
+                    .trim();
+                  replyClean += `\n\nDésolé, on n'a pas encore la photo de ce produit 🙏`;
+                  console.log(`🔧 [RITA] Filet sécurité: pas d'image disponible pour ce produit`);
+                }
+              } catch (safeImgErr) { console.error('❌ [RITA] Filet image cas 1:', safeImgErr.message); }
+            }
+            // Cas 2 : Client répond "oui" à une question d'image → forcer l'envoi
+            const isAffirmative = /^(oui|yes|ok|ouais|yep|d'accord|dac|oki|okay|y|si|sure|yeah|mh|mhm)[\s!.]*$/i.test(text.trim());
+            if (isAffirmative && !replyClean.includes('[IMAGE:')) {
+              try {
+                const lastBot = getLastAssistantMessage(userId, from, agentId);
+                if (lastBot && /image|photo|voir/i.test(lastBot)) {
+                  const ritaCfgSafeImg2 = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
+                  const safeImgCatalog2 = (ritaCfgSafeImg2?.productCatalog || []).filter(p => p.name && p.images?.length);
+                  const allProds2 = ritaCfgSafeImg2?.productCatalog || [];
+                  const safeImgMatched2 = findProductByName(safeImgCatalog2, lastBot);
+                  if (safeImgMatched2) {
+                    replyClean = replyClean.replace(/[,.]?\s*Tu veux voir l[a']? ?image\s*[?!]?/gi, '').trim();
+                    replyClean += ` [IMAGE:${safeImgMatched2.name}]`;
+                    console.log(`🔧 [RITA] Filet sécurité: "oui" → image injectée [IMAGE:${safeImgMatched2.name}]`);
+                  } else {
+                    const noImgProduct = findProductByName(allProds2, lastBot);
+                    if (noImgProduct) {
+                      replyClean += `\n\nDésolé, on n'a pas encore la photo de ce produit 🙏`;
+                      console.log(`🔧 [RITA] Filet sécurité: pas d'image pour ${noImgProduct.name}`);
                     }
                   }
                 }
-              } catch (groupErr) {
-                console.error(`⚠️ [RITA] Erreur invitation groupe:`, groupErr.message);
-              }
-            } catch (parseErr) {
-              console.error(`❌ [RITA] Erreur parsing ORDER_DATA:`, parseErr.message);
+              } catch (safeImgErr2) { console.error('❌ [RITA] Filet image cas 2:', safeImgErr2.message); }
             }
-          }
 
-          // ─── Filet de sécurité image (code-level) ───
-          // Cas 1 : Rita a demandé "Tu veux voir l'image ?" sans envoyer le tag → on remplace par le tag
-          if (!replyClean.includes('[IMAGE:') && /tu veux voir l[a']? ?image|voir (la |une )?photo|je t'envoie (la |une )?image/i.test(replyClean)) {
-            try {
-              const ritaCfgSafeImg = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
-              const safeImgCatalog = (ritaCfgSafeImg?.productCatalog || []).filter(p => p.name && p.images?.length);
-              const allProducts = ritaCfgSafeImg?.productCatalog || [];
-              const safeImgMatched = findProductByName(safeImgCatalog, replyClean);
-              if (safeImgMatched) {
-                replyClean = replyClean
-                  .replace(/[,.]?\s*Tu veux voir l[a']? ?image\s*[?!]?/gi, '')
-                  .replace(/[,.]?\s*Tu veux voir (la |une )?photo\s*[?!]?/gi, '')
-                  .trim();
-                replyClean += ` [IMAGE:${safeImgMatched.name}]`;
-                console.log(`🔧 [RITA] Filet sécurité: question image remplacée par tag [IMAGE:${safeImgMatched.name}]`);
-              } else {
-                // Produit sans image
-                replyClean = replyClean
-                  .replace(/[,.]?\s*Tu veux voir l[a']? ?image\s*[?!]?/gi, '')
-                  .replace(/[,.]?\s*Tu veux voir (la |une )?photo\s*[?!]?/gi, '')
-                  .trim();
-                replyClean += `\n\nDésolé, on n'a pas encore la photo de ce produit 🙏`;
-                console.log(`🔧 [RITA] Filet sécurité: pas d'image disponible pour ce produit`);
-              }
-            } catch (safeImgErr) { console.error('❌ [RITA] Filet image cas 1:', safeImgErr.message); }
-          }
-          // Cas 2 : Client répond "oui" à une question d'image → forcer l'envoi
-          const isAffirmative = /^(oui|yes|ok|ouais|yep|d'accord|dac|oki|okay|y|si|sure|yeah|mh|mhm)[\s!.]*$/i.test(text.trim());
-          if (isAffirmative && !replyClean.includes('[IMAGE:')) {
-            try {
-              const lastBot = getLastAssistantMessage(userId, from, agentId);
-              if (lastBot && /image|photo|voir/i.test(lastBot)) {
-                const ritaCfgSafeImg2 = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
-                const safeImgCatalog2 = (ritaCfgSafeImg2?.productCatalog || []).filter(p => p.name && p.images?.length);
-                const allProds2 = ritaCfgSafeImg2?.productCatalog || [];
-                const safeImgMatched2 = findProductByName(safeImgCatalog2, lastBot);
-                if (safeImgMatched2) {
-                  replyClean = replyClean.replace(/[,.]?\s*Tu veux voir l[a']? ?image\s*[?!]?/gi, '').trim();
-                  replyClean += ` [IMAGE:${safeImgMatched2.name}]`;
-                  console.log(`🔧 [RITA] Filet sécurité: "oui" → image injectée [IMAGE:${safeImgMatched2.name}]`);
-                } else {
-                  const noImgProduct = findProductByName(allProds2, lastBot);
-                  if (noImgProduct) {
-                    replyClean += `\n\nDésolé, on n'a pas encore la photo de ce produit 🙏`;
-                    console.log(`🔧 [RITA] Filet sécurité: pas d'image pour ${noImgProduct.name}`);
-                  }
-                }
-              }
-            } catch (safeImgErr2) { console.error('❌ [RITA] Filet image cas 2:', safeImgErr2.message); }
-          }
-
-          // ─── Détecter tag [ASK_BOSS:question] pour escalade boss ───
-          const askBossMatch = replyClean.match(/\[ASK_BOSS:(.+?)\]/);
-          if (askBossMatch) {
-            replyClean = replyClean.replace(/\s*\[ASK_BOSS:.+?\]/g, '').trim();
-            try {
-              const ritaCfgEsc2 = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
-              if (ritaCfgEsc2?.bossEscalationEnabled && ritaCfgEsc2?.bossPhone) {
-                const question = askBossMatch[1].trim();
-                const bossPhone = ritaCfgEsc2.bossPhone.replace(/\D/g, '');
-                const currentCleanFrom = from.replace(/@.*$/, '');
-                const timeoutMin = ritaCfgEsc2.bossEscalationTimeoutMin || 5;
-                // Stocker l'escalade
-                addPendingEscalation(userId, {
-                  clientPhone: currentCleanFrom,
-                  question,
-                  askedAt: Date.now(),
-                  timeoutMin,
-                  instanceName: instanceDoc.instanceName,
-                  instanceToken: instanceDoc.instanceToken,
-                });
-                // Notifier le boss
-                const bossMsg = `❓ *Question client sans réponse — Rita*\n\n📱 Client: ${currentCleanFrom}\n❓ Question: ${question}\n\nRéponds à ce message pour que Rita transmette ta réponse automatiquement au client.\n_(Si pas de réponse dans ${timeoutMin} min, Rita improvisera.)_`;
-                await sendMessageAndTrack(
-                  instanceDoc.instanceName,
-                  instanceDoc.instanceToken,
-                  bossPhone,
-                  bossMsg
-                );
-                console.log(`🤝 [BOSS] Escalade envoyée au boss (${bossPhone}) pour client ${currentCleanFrom}: ${question}`);
-                logRitaActivity(userId, 'escalation', { customerPhone: currentCleanFrom, details: question });
-              } else {
-                console.log(`ℹ️ [BOSS] Escalade détectée mais bossEscalationEnabled=false ou bossPhone absent — Rita répond normalement`);
-              }
-            } catch (escErr) {
-              console.error(`❌ [BOSS] Erreur escalade:`, escErr.message);
-            }
-          }
-
-          // ─── Détecter tag [IMAGES_ALL:Nom du produit] pour envoi de TOUTES les photos ───
-          const imagesAllTagMatch = replyClean.match(/\[IMAGES_ALL:(.+?)\]/);
-          // ─── Détecter tag [IMAGE:Nom du produit] pour envoi de photos ───
-          const imageTagMatch = !imagesAllTagMatch ? replyClean.match(/\[IMAGE:(.+?)\]/) : null;
-          // ─── Détecter tag [VIDEO:Nom du produit] pour envoi de vidéos ───
-          const videoTagMatch = replyClean.match(/\[VIDEO:(.+?)\]/);
-          let textToSend = replyClean;
-          let imageUrl = null;
-          let imageProductName = null;
-          let videoUrl = null;
-          let videoProductName = null;
-          let matchedProductForMedia = null;
-          let sendAllImages = false; // flag pour envoyer toutes les images
-
-          // ─── Créer la clé de conversation pour le tracking des images ───
-          const conversationKey = `${userId}:${cleanFrom}`;
-          const isExplicitRequest = isExplicitImageRequest(text);
-
-          if (imagesAllTagMatch) {
-            // Mode: envoyer TOUTES les images du produit
-            imageProductName = imagesAllTagMatch[1].trim();
-            textToSend = textToSend.replace(/\s*\[IMAGES_ALL:.+?\]/g, '').trim();
-            console.log(`📸📸 [RITA] Tag IMAGES_ALL détecté pour produit: "${imageProductName}"`);
-
-            const ritaCfg = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
-            const catalog = ritaCfg?.productCatalog || [];
-            const product = findProductByName(catalog, imageProductName);
-            console.log(`📸📸 [RITA] Produit trouvé: ${product ? product.name : 'AUCUN'} | images: ${product?.images?.length || 0}`);
-
-            if (product?.images?.length) {
-              // Vérifier si les images ont déjà été envoyées (sauf demande explicite)
-              if (!isExplicitRequest && hasImageBeenSent(conversationKey, product.name)) {
-                console.log(`⏭️ [RITA] Photos de "${product.name}" déjà envoyées dans cette conversation — ignoré`);
-                imageUrl = null;
-                matchedProductForMedia = null;
-              } else {
-                imageUrl = product.images[0];
-                if (imageUrl && imageUrl.startsWith('/')) {
-                  imageUrl = `https://api.scalor.net${imageUrl}`;
-                }
-                matchedProductForMedia = product;
-                sendAllImages = true;
-                console.log(`📸📸 [RITA] ${product.images.length} image(s) à envoyer pour ${product.name}`);
-              }
-            } else {
-              console.log(`📸📸 [RITA] Aucune image pour "${imageProductName}"`);
-              const noImgMsg = `Désolé, on n'a pas encore de photos de ce produit 🙏 Mais je peux te donner tous les détails !`;
-              if (!textToSend) { textToSend = noImgMsg; } else { textToSend += `\n\n${noImgMsg}`; }
-            }
-          } else if (imageTagMatch) {
-            imageProductName = imageTagMatch[1].trim();
-            textToSend = textToSend.replace(/\s*\[IMAGE:.+?\]/g, '').trim();
-            console.log(`📸 [RITA] Tag image détecté pour produit: "${imageProductName}"`);
-
-            const ritaCfg = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
-            const catalog = ritaCfg?.productCatalog || [];
-            const product = findProductByName(catalog, imageProductName);
-            console.log(`📸 [RITA] Produit trouvé: ${product ? product.name : 'AUCUN'} | images: ${product?.images?.length || 0}`);
-
-            if (product?.images?.length) {
-              // Vérifier si les photos ont déjà été envoyées (sauf demande explicite)
-              if (!isExplicitRequest && hasImageBeenSent(conversationKey, product.name)) {
-                console.log(`⏭️ [RITA] Photos de "${product.name}" déjà envoyées dans cette conversation — ignoré`);
-                imageUrl = null;
-                matchedProductForMedia = null;
-              } else {
-                imageUrl = product.images[0];
-                if (imageUrl && imageUrl.startsWith('/')) {
-                  imageUrl = `https://api.scalor.net${imageUrl}`;
-                }
-                matchedProductForMedia = product;
-                console.log(`📸 [RITA] Image trouvée: ${imageUrl}`);
-              }
-            } else {
-              console.log(`📸 [RITA] Aucune image pour "${imageProductName}"`);
-              const noImgMsg = `Désolé, on n'a pas encore la photo de ce produit 🙏 Mais je peux te donner tous les détails !`;
-              if (!textToSend) {
-                textToSend = noImgMsg;
-              } else {
-                textToSend += `\n\n${noImgMsg}`;
-              }
-            }
-          }
-
-          if (videoTagMatch && !imageTagMatch && !imagesAllTagMatch) {
-            videoProductName = videoTagMatch[1].trim();
-            textToSend = textToSend.replace(/\s*\[VIDEO:.+?\]/g, '').trim();
-            console.log(`🎬 [RITA] Tag vidéo détecté pour produit: "${videoProductName}"`);
-
-            const ritaCfgV = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
-            const catalogV = ritaCfgV?.productCatalog || [];
-            const productV = findProductByName(catalogV, videoProductName);
-            console.log(`🎬 [RITA] Produit vidéo trouvé: ${productV ? productV.name : 'AUCUN'} | vidéos: ${productV?.videos?.length || 0}`);
-            if (productV?.videos?.length) {
-              videoUrl = productV.videos[0];
-              if (videoUrl && videoUrl.startsWith('/')) {
-                videoUrl = `https://api.scalor.net${videoUrl}`;
-              }
-              matchedProductForMedia = productV;
-              console.log(`🎬 [RITA] Vidéo trouvée: ${videoUrl}`);
-            } else {
-              console.log(`🎬 [RITA] Aucune vidéo trouvée pour "${videoProductName}"`);
-              // Essayer d'escalader vers le boss si activé
+            // ─── Détecter tag [ASK_BOSS:question] pour escalade boss ───
+            const askBossMatch = replyClean.match(/\[ASK_BOSS:(.+?)\]/);
+            if (askBossMatch) {
+              replyClean = replyClean.replace(/\s*\[ASK_BOSS:.+?\]/g, '').trim();
               try {
-                const ritaCfgNoVid = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
-                if (ritaCfgNoVid?.bossEscalationEnabled && ritaCfgNoVid?.bossPhone) {
-                  const bossPhone = ritaCfgNoVid.bossPhone.replace(/\D/g, '');
+                const ritaCfgEsc2 = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
+                if (ritaCfgEsc2?.bossEscalationEnabled && ritaCfgEsc2?.bossPhone) {
+                  const question = askBossMatch[1].trim();
+                  const bossPhone = ritaCfgEsc2.bossPhone.replace(/\D/g, '');
                   const currentCleanFrom = from.replace(/@.*$/, '');
-                  const timeoutMin = ritaCfgNoVid.bossEscalationTimeoutMin || 5;
-                  const question = `Le client demande la vidéo du produit "${videoProductName}" — aucune vidéo configurée`;
+                  const timeoutMin = ritaCfgEsc2.bossEscalationTimeoutMin || 5;
+                  // Stocker l'escalade
                   addPendingEscalation(userId, {
                     clientPhone: currentCleanFrom,
                     question,
@@ -2282,6 +2163,7 @@ router.post('/incoming', async (req, res) => {
                     instanceName: instanceDoc.instanceName,
                     instanceToken: instanceDoc.instanceToken,
                   });
+                  // Notifier le boss
                   const bossMsg = `❓ *Question client sans réponse — Rita*\n\n📱 Client: ${currentCleanFrom}\n❓ Question: ${question}\n\nRéponds à ce message pour que Rita transmette ta réponse automatiquement au client.\n_(Si pas de réponse dans ${timeoutMin} min, Rita improvisera.)_`;
                   await sendMessageAndTrack(
                     instanceDoc.instanceName,
@@ -2289,16 +2171,160 @@ router.post('/incoming', async (req, res) => {
                     bossPhone,
                     bossMsg
                   );
-                  console.log(`🤝 [BOSS] Escalade vidéo envoyée au boss pour client ${currentCleanFrom}`);
+                  console.log(`🤝 [BOSS] Escalade envoyée au boss (${bossPhone}) pour client ${currentCleanFrom}: ${question}`);
                   logRitaActivity(userId, 'escalation', { customerPhone: currentCleanFrom, details: question });
-                  // Message rassurant pour le client
-                  const reassureMsg = `Je vérifie avec mon responsable si on a une vidéo pour ce produit, patiente 🙏`;
-                  if (!textToSend) {
-                    textToSend = reassureMsg;
-                  } else if (!textToSend.includes('responsable') && !textToSend.includes('vérif')) {
-                    textToSend += `\n\n${reassureMsg}`;
-                  }
                 } else {
+                  console.log(`ℹ️ [BOSS] Escalade détectée mais bossEscalationEnabled=false ou bossPhone absent — Rita répond normalement`);
+                }
+              } catch (escErr) {
+                console.error(`❌ [BOSS] Erreur escalade:`, escErr.message);
+              }
+            }
+
+            // ─── Détecter tag [IMAGES_ALL:Nom du produit] pour envoi de TOUTES les photos ───
+            const imagesAllTagMatch = replyClean.match(/\[IMAGES_ALL:(.+?)\]/);
+            // ─── Détecter tag [IMAGE:Nom du produit] pour envoi de photos ───
+            const imageTagMatch = !imagesAllTagMatch ? replyClean.match(/\[IMAGE:(.+?)\]/) : null;
+            // ─── Détecter tag [VIDEO:Nom du produit] pour envoi de vidéos ───
+            const videoTagMatch = replyClean.match(/\[VIDEO:(.+?)\]/);
+            let textToSend = replyClean;
+            let imageUrl = null;
+            let imageProductName = null;
+            let videoUrl = null;
+            let videoProductName = null;
+            let matchedProductForMedia = null;
+            let sendAllImages = false; // flag pour envoyer toutes les images
+
+            // ─── Créer la clé de conversation pour le tracking des images ───
+            const conversationKey = `${userId}:${cleanFrom}`;
+            const isExplicitRequest = isExplicitImageRequest(text);
+
+            if (imagesAllTagMatch) {
+              // Mode: envoyer TOUTES les images du produit
+              imageProductName = imagesAllTagMatch[1].trim();
+              textToSend = textToSend.replace(/\s*\[IMAGES_ALL:.+?\]/g, '').trim();
+              console.log(`📸📸 [RITA] Tag IMAGES_ALL détecté pour produit: "${imageProductName}"`);
+
+              const ritaCfg = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
+              const catalog = ritaCfg?.productCatalog || [];
+              const product = findProductByName(catalog, imageProductName);
+              console.log(`📸📸 [RITA] Produit trouvé: ${product ? product.name : 'AUCUN'} | images: ${product?.images?.length || 0}`);
+
+              if (product?.images?.length) {
+                // Vérifier si les images ont déjà été envoyées (sauf demande explicite)
+                if (!isExplicitRequest && hasImageBeenSent(conversationKey, product.name)) {
+                  console.log(`⏭️ [RITA] Photos de "${product.name}" déjà envoyées dans cette conversation — ignoré`);
+                  imageUrl = null;
+                  matchedProductForMedia = null;
+                } else {
+                  imageUrl = product.images[0];
+                  if (imageUrl && imageUrl.startsWith('/')) {
+                    imageUrl = `https://api.scalor.net${imageUrl}`;
+                  }
+                  matchedProductForMedia = product;
+                  sendAllImages = true;
+                  console.log(`📸📸 [RITA] ${product.images.length} image(s) à envoyer pour ${product.name}`);
+                }
+              } else {
+                console.log(`📸📸 [RITA] Aucune image pour "${imageProductName}"`);
+                const noImgMsg = `Désolé, on n'a pas encore de photos de ce produit 🙏 Mais je peux te donner tous les détails !`;
+                if (!textToSend) { textToSend = noImgMsg; } else { textToSend += `\n\n${noImgMsg}`; }
+              }
+            } else if (imageTagMatch) {
+              imageProductName = imageTagMatch[1].trim();
+              textToSend = textToSend.replace(/\s*\[IMAGE:.+?\]/g, '').trim();
+              console.log(`📸 [RITA] Tag image détecté pour produit: "${imageProductName}"`);
+
+              const ritaCfg = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
+              const catalog = ritaCfg?.productCatalog || [];
+              const product = findProductByName(catalog, imageProductName);
+              console.log(`📸 [RITA] Produit trouvé: ${product ? product.name : 'AUCUN'} | images: ${product?.images?.length || 0}`);
+
+              if (product?.images?.length) {
+                // Vérifier si les photos ont déjà été envoyées (sauf demande explicite)
+                if (!isExplicitRequest && hasImageBeenSent(conversationKey, product.name)) {
+                  console.log(`⏭️ [RITA] Photos de "${product.name}" déjà envoyées dans cette conversation — ignoré`);
+                  imageUrl = null;
+                  matchedProductForMedia = null;
+                } else {
+                  imageUrl = product.images[0];
+                  if (imageUrl && imageUrl.startsWith('/')) {
+                    imageUrl = `https://api.scalor.net${imageUrl}`;
+                  }
+                  matchedProductForMedia = product;
+                  console.log(`📸 [RITA] Image trouvée: ${imageUrl}`);
+                }
+              } else {
+                console.log(`📸 [RITA] Aucune image pour "${imageProductName}"`);
+                const noImgMsg = `Désolé, on n'a pas encore la photo de ce produit 🙏 Mais je peux te donner tous les détails !`;
+                if (!textToSend) {
+                  textToSend = noImgMsg;
+                } else {
+                  textToSend += `\n\n${noImgMsg}`;
+                }
+              }
+            }
+
+            if (videoTagMatch && !imageTagMatch && !imagesAllTagMatch) {
+              videoProductName = videoTagMatch[1].trim();
+              textToSend = textToSend.replace(/\s*\[VIDEO:.+?\]/g, '').trim();
+              console.log(`🎬 [RITA] Tag vidéo détecté pour produit: "${videoProductName}"`);
+
+              const ritaCfgV = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
+              const catalogV = ritaCfgV?.productCatalog || [];
+              const productV = findProductByName(catalogV, videoProductName);
+              console.log(`🎬 [RITA] Produit vidéo trouvé: ${productV ? productV.name : 'AUCUN'} | vidéos: ${productV?.videos?.length || 0}`);
+              if (productV?.videos?.length) {
+                videoUrl = productV.videos[0];
+                if (videoUrl && videoUrl.startsWith('/')) {
+                  videoUrl = `https://api.scalor.net${videoUrl}`;
+                }
+                matchedProductForMedia = productV;
+                console.log(`🎬 [RITA] Vidéo trouvée: ${videoUrl}`);
+              } else {
+                console.log(`🎬 [RITA] Aucune vidéo trouvée pour "${videoProductName}"`);
+                // Essayer d'escalader vers le boss si activé
+                try {
+                  const ritaCfgNoVid = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
+                  if (ritaCfgNoVid?.bossEscalationEnabled && ritaCfgNoVid?.bossPhone) {
+                    const bossPhone = ritaCfgNoVid.bossPhone.replace(/\D/g, '');
+                    const currentCleanFrom = from.replace(/@.*$/, '');
+                    const timeoutMin = ritaCfgNoVid.bossEscalationTimeoutMin || 5;
+                    const question = `Le client demande la vidéo du produit "${videoProductName}" — aucune vidéo configurée`;
+                    addPendingEscalation(userId, {
+                      clientPhone: currentCleanFrom,
+                      question,
+                      askedAt: Date.now(),
+                      timeoutMin,
+                      instanceName: instanceDoc.instanceName,
+                      instanceToken: instanceDoc.instanceToken,
+                    });
+                    const bossMsg = `❓ *Question client sans réponse — Rita*\n\n📱 Client: ${currentCleanFrom}\n❓ Question: ${question}\n\nRéponds à ce message pour que Rita transmette ta réponse automatiquement au client.\n_(Si pas de réponse dans ${timeoutMin} min, Rita improvisera.)_`;
+                    await sendMessageAndTrack(
+                      instanceDoc.instanceName,
+                      instanceDoc.instanceToken,
+                      bossPhone,
+                      bossMsg
+                    );
+                    console.log(`🤝 [BOSS] Escalade vidéo envoyée au boss pour client ${currentCleanFrom}`);
+                    logRitaActivity(userId, 'escalation', { customerPhone: currentCleanFrom, details: question });
+                    // Message rassurant pour le client
+                    const reassureMsg = `Je vérifie avec mon responsable si on a une vidéo pour ce produit, patiente 🙏`;
+                    if (!textToSend) {
+                      textToSend = reassureMsg;
+                    } else if (!textToSend.includes('responsable') && !textToSend.includes('vérif')) {
+                      textToSend += `\n\n${reassureMsg}`;
+                    }
+                  } else {
+                    const noVideoMsg = `Désolé, on n'a pas encore de vidéo pour ce produit 🙏 Mais je peux te montrer les photos ou te donner plus de détails !`;
+                    if (!textToSend) {
+                      textToSend = noVideoMsg;
+                    } else {
+                      textToSend += `\n\n${noVideoMsg}`;
+                    }
+                  }
+                } catch (noVidErr) {
+                  console.error(`❌ [RITA] Erreur escalade vidéo manquante:`, noVidErr.message);
                   const noVideoMsg = `Désolé, on n'a pas encore de vidéo pour ce produit 🙏 Mais je peux te montrer les photos ou te donner plus de détails !`;
                   if (!textToSend) {
                     textToSend = noVideoMsg;
@@ -2306,494 +2332,485 @@ router.post('/incoming', async (req, res) => {
                     textToSend += `\n\n${noVideoMsg}`;
                   }
                 }
-              } catch (noVidErr) {
-                console.error(`❌ [RITA] Erreur escalade vidéo manquante:`, noVidErr.message);
-                const noVideoMsg = `Désolé, on n'a pas encore de vidéo pour ce produit 🙏 Mais je peux te montrer les photos ou te donner plus de détails !`;
-                if (!textToSend) {
-                  textToSend = noVideoMsg;
-                } else {
-                  textToSend += `\n\n${noVideoMsg}`;
+              }
+            }
+
+            // ─── Détecter tag [TESTIMONIAL:index] pour envoi de médias témoignage ───
+            const testimonialTagMatch = replyClean.match(/\[TESTIMONIAL:(\d+)\]/);
+            let testimonialMediaUrl = null;
+            let testimonialMediaType = null; // 'image' ou 'video'
+            if (testimonialTagMatch && !imageTagMatch && !imagesAllTagMatch && !videoTagMatch) {
+              const tIdx = parseInt(testimonialTagMatch[1], 10);
+              textToSend = textToSend.replace(/\s*\[TESTIMONIAL:\d+\]/g, '').trim();
+              console.log(`🗣️ [RITA] Tag TESTIMONIAL détecté, index: ${tIdx}`);
+
+              const ritaCfgT = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
+              const testimonial = ritaCfgT?.testimonials?.[tIdx];
+              if (testimonial) {
+                if (testimonial.videos?.length) {
+                  testimonialMediaUrl = testimonial.videos[0];
+                  testimonialMediaType = 'video';
+                } else if (testimonial.images?.length) {
+                  testimonialMediaUrl = testimonial.images[0];
+                  testimonialMediaType = 'image';
                 }
+                if (testimonialMediaUrl && testimonialMediaUrl.startsWith('/')) {
+                  testimonialMediaUrl = `https://api.scalor.net${testimonialMediaUrl}`;
+                }
+                console.log(`🗣️ [RITA] Témoignage #${tIdx} média: ${testimonialMediaType || 'aucun'} → ${testimonialMediaUrl || 'N/A'}`);
+              } else {
+                console.log(`🗣️ [RITA] Témoignage #${tIdx} non trouvé`);
               }
             }
-          }
 
-          // ─── Détecter tag [TESTIMONIAL:index] pour envoi de médias témoignage ───
-          const testimonialTagMatch = replyClean.match(/\[TESTIMONIAL:(\d+)\]/);
-          let testimonialMediaUrl = null;
-          let testimonialMediaType = null; // 'image' ou 'video'
-          if (testimonialTagMatch && !imageTagMatch && !imagesAllTagMatch && !videoTagMatch) {
-            const tIdx = parseInt(testimonialTagMatch[1], 10);
-            textToSend = textToSend.replace(/\s*\[TESTIMONIAL:\d+\]/g, '').trim();
-            console.log(`🗣️ [RITA] Tag TESTIMONIAL détecté, index: ${tIdx}`);
+            // ─── Détecter tag [PAYMENT_COORDS] pour envoi coordonnées paiement expédition ───
+            const paymentCoordsMatch = replyClean.match(/\[PAYMENT_COORDS\]/);
+            if (paymentCoordsMatch) {
+              textToSend = textToSend.replace(/\s*\[PAYMENT_COORDS\]/g, '').trim();
+              console.log(`💳 [RITA] Tag PAYMENT_COORDS détecté — envoi des coordonnées de paiement`);
 
-            const ritaCfgT = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
-            const testimonial = ritaCfgT?.testimonials?.[tIdx];
-            if (testimonial) {
-              if (testimonial.videos?.length) {
-                testimonialMediaUrl = testimonial.videos[0];
-                testimonialMediaType = 'video';
-              } else if (testimonial.images?.length) {
-                testimonialMediaUrl = testimonial.images[0];
-                testimonialMediaType = 'image';
-              }
-              if (testimonialMediaUrl && testimonialMediaUrl.startsWith('/')) {
-                testimonialMediaUrl = `https://api.scalor.net${testimonialMediaUrl}`;
-              }
-              console.log(`🗣️ [RITA] Témoignage #${tIdx} média: ${testimonialMediaType || 'aucun'} → ${testimonialMediaUrl || 'N/A'}`);
-            } else {
-              console.log(`🗣️ [RITA] Témoignage #${tIdx} non trouvé`);
-            }
-          }
+              const ritaCfgPayment = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
+              if (ritaCfgPayment?.expeditionEnabled && ritaCfgPayment?.paymentCoordinates) {
+                const coords = ritaCfgPayment.paymentCoordinates;
+                let paymentInfo = '\n\n💳 *Coordonnées de paiement :*\n\n';
 
-          // ─── Détecter tag [PAYMENT_COORDS] pour envoi coordonnées paiement expédition ───
-          const paymentCoordsMatch = replyClean.match(/\[PAYMENT_COORDS\]/);
-          if (paymentCoordsMatch) {
-            textToSend = textToSend.replace(/\s*\[PAYMENT_COORDS\]/g, '').trim();
-            console.log(`💳 [RITA] Tag PAYMENT_COORDS détecté — envoi des coordonnées de paiement`);
+                // Mobile Money
+                if (coords.mobileMoney?.length) {
+                  coords.mobileMoney.forEach((mm, idx) => {
+                    if (mm.provider && mm.number) {
+                      paymentInfo += `${idx + 1}. *${mm.provider}*\n`;
+                      paymentInfo += `   📱 ${mm.number}\n`;
+                      if (mm.name) paymentInfo += `   👤 ${mm.name}\n`;
+                      paymentInfo += '\n';
+                    }
+                  });
+                }
 
-            const ritaCfgPayment = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
-            if (ritaCfgPayment?.expeditionEnabled && ritaCfgPayment?.paymentCoordinates) {
-              const coords = ritaCfgPayment.paymentCoordinates;
-              let paymentInfo = '\n\n💳 *Coordonnées de paiement :*\n\n';
-
-              // Mobile Money
-              if (coords.mobileMoney?.length) {
-                coords.mobileMoney.forEach((mm, idx) => {
-                  if (mm.provider && mm.number) {
-                    paymentInfo += `${idx + 1}. *${mm.provider}*\n`;
-                    paymentInfo += `   📱 ${mm.number}\n`;
-                    if (mm.name) paymentInfo += `   👤 ${mm.name}\n`;
-                    paymentInfo += '\n';
+                // Compte bancaire (optionnel)
+                if (coords.bankAccount?.bankName && coords.bankAccount?.accountNumber) {
+                  paymentInfo += `🏦 *Compte bancaire*\n`;
+                  paymentInfo += `   Banque : ${coords.bankAccount.bankName}\n`;
+                  paymentInfo += `   Compte : ${coords.bankAccount.accountNumber}\n`;
+                  if (coords.bankAccount.accountName) {
+                    paymentInfo += `   Nom : ${coords.bankAccount.accountName}\n`;
                   }
-                });
-              }
-
-              // Compte bancaire (optionnel)
-              if (coords.bankAccount?.bankName && coords.bankAccount?.accountNumber) {
-                paymentInfo += `🏦 *Compte bancaire*\n`;
-                paymentInfo += `   Banque : ${coords.bankAccount.bankName}\n`;
-                paymentInfo += `   Compte : ${coords.bankAccount.accountNumber}\n`;
-                if (coords.bankAccount.accountName) {
-                  paymentInfo += `   Nom : ${coords.bankAccount.accountName}\n`;
+                  paymentInfo += '\n';
                 }
-                paymentInfo += '\n';
+
+                paymentInfo += `💰 *Montant total :* ${matchedProductForMedia?.price || 'À confirmer'}\n`;
+                paymentInfo += `\n📸 Envoie-moi la capture d'écran du paiement pour confirmer 👍`;
+
+                textToSend += paymentInfo;
+                console.log(`💳 [RITA] Coordonnées de paiement envoyées`);
+              } else {
+                console.log(`⚠️ [RITA] Expédition non activée ou coordonnées manquantes`);
+                const fallbackMsg = `\n\nContacte-nous pour les coordonnées de paiement 😊`;
+                textToSend += fallbackMsg;
               }
-
-              paymentInfo += `💰 *Montant total :* ${matchedProductForMedia?.price || 'À confirmer'}\n`;
-              paymentInfo += `\n📸 Envoie-moi la capture d'écran du paiement pour confirmer 👍`;
-
-              textToSend += paymentInfo;
-              console.log(`💳 [RITA] Coordonnées de paiement envoyées`);
-            } else {
-              console.log(`⚠️ [RITA] Expédition non activée ou coordonnées manquantes`);
-              const fallbackMsg = `\n\nContacte-nous pour les coordonnées de paiement 😊`;
-              textToSend += fallbackMsg;
             }
-          }
 
-          // ─── Déterminer le mode de réponse ───
-          const ritaCfgVoice = await RitaConfig.findOne({ userId }).lean();
-          // Utiliser la clé API de la config Rita OU celle du .env en fallback
-          const effectiveApiKey = ritaCfgVoice?.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY || '';
-          const effectiveFishKey = ritaCfgVoice?.fishAudioApiKey || FISH_AUDIO_DIRECT_API_KEY;
-          const ttsConfig = { ...ritaCfgVoice, elevenlabsApiKey: effectiveApiKey, fishAudioApiKey: effectiveFishKey };
-          // responseMode: 'text' | 'voice' | 'both'. Legacy compat: voiceMode=true → 'voice'
-          const responseMode = ritaCfgVoice?.responseMode || (ritaCfgVoice?.voiceMode ? 'voice' : 'text');
-          const mixedVoiceReplyChance = Math.max(0, Math.min(100, Number(ritaCfgVoice?.mixedVoiceReplyChance ?? 65) || 65));
-          const isFishAudio = ritaCfgVoice?.ttsProvider === 'fishaudio';
-          const canDoVoice = !!((isFishAudio ? effectiveFishKey : effectiveApiKey) && textToSend);
+            // ─── Déterminer le mode de réponse ───
+            const ritaCfgVoice = await RitaConfig.findOne({ userId }).lean();
+            // Utiliser la clé API de la config Rita OU celle du .env en fallback
+            const effectiveApiKey = ritaCfgVoice?.elevenlabsApiKey || process.env.ELEVENLABS_API_KEY || '';
+            const effectiveFishKey = ritaCfgVoice?.fishAudioApiKey || FISH_AUDIO_DIRECT_API_KEY;
+            const ttsConfig = { ...ritaCfgVoice, elevenlabsApiKey: effectiveApiKey, fishAudioApiKey: effectiveFishKey };
+            // responseMode: 'text' | 'voice' | 'both'. Legacy compat: voiceMode=true → 'voice'
+            const responseMode = ritaCfgVoice?.responseMode || (ritaCfgVoice?.voiceMode ? 'voice' : 'text');
+            const mixedVoiceReplyChance = Math.max(0, Math.min(100, Number(ritaCfgVoice?.mixedVoiceReplyChance ?? 65) || 65));
+            const isFishAudio = ritaCfgVoice?.ttsProvider === 'fishaudio';
+            const canDoVoice = !!((isFishAudio ? effectiveFishKey : effectiveApiKey) && textToSend);
 
-          // Détecter le tag [VOICE] dans la réponse → Rita a décidé d'envoyer un vocal
-          const hasVoiceTag = /\[VOICE\]/i.test(textToSend);
-          if (hasVoiceTag) {
-            textToSend = textToSend.replace(/\[VOICE\]\s*/gi, '').trim();
-            console.log(`🎙️ [RITA] Tag [VOICE] détecté — forçage vocal pour ce tour`);
-          }
+            // Détecter le tag [VOICE] dans la réponse → Rita a décidé d'envoyer un vocal
+            const hasVoiceTag = /\[VOICE\]/i.test(textToSend);
+            if (hasVoiceTag) {
+              textToSend = textToSend.replace(/\[VOICE\]\s*/gi, '').trim();
+              console.log(`🎙️ [RITA] Tag [VOICE] détecté — forçage vocal pour ce tour`);
+            }
 
-          // Délai de réponse configuré (en secondes) → converti en ms pour Evolution API
-          const responseDelayMs = Math.max(500, Math.min(30000, (ritaCfgVoice?.responseDelay || 2) * 1000));
-          if (responseDelayMs > 1500) {
-            // Attendre avant d'envoyer (simule une vraie frappe humaine)
-            await new Promise(r => setTimeout(r, responseDelayMs - 1000));
-          }
+            // Délai de réponse configuré (en secondes) → converti en ms pour Evolution API
+            const responseDelayMs = Math.max(500, Math.min(30000, (ritaCfgVoice?.responseDelay || 2) * 1000));
+            if (responseDelayMs > 1500) {
+              // Attendre avant d'envoyer (simule une vraie frappe humaine)
+              await new Promise(r => setTimeout(r, responseDelayMs - 1000));
+            }
 
-          // Déterminer vocal vs texte pour ce tour :
-          // 1. Si mode "voice" → toujours vocal
-          // 2. Si mode "both" → plus de vocal sur confirmations, tags [VOICE] et réponses longues
-          // 3. Si mode "text" → toujours texte
-          let useVoiceThisTurn = false;
-          if (responseMode === 'voice' && canDoVoice) {
-            // Mode full vocal : toujours vocal
-            useVoiceThisTurn = true;
-          } else if (responseMode === 'both' && canDoVoice) {
-            const isLongExplanation =
-              textToSend.length >= 180 ||
-              /\n|•|▪|◦|\d+\.\s|:/.test(textToSend) ||
-              splitWhatsAppMessage(textToSend, 220).length > 1;
-            const voiceChance = hasVoiceTag
-              ? 1
-              : isLongExplanation
-                ? mixedVoiceReplyChance / 100
-                : Math.max(0.15, Math.min(0.5, mixedVoiceReplyChance / 200));
-
-            if (orderTagExtracted) {
+            // Déterminer vocal vs texte pour ce tour :
+            // 1. Si mode "voice" → toujours vocal
+            // 2. Si mode "both" → plus de vocal sur confirmations, tags [VOICE] et réponses longues
+            // 3. Si mode "text" → toujours texte
+            let useVoiceThisTurn = false;
+            if (responseMode === 'voice' && canDoVoice) {
+              // Mode full vocal : toujours vocal
               useVoiceThisTurn = true;
-              console.log(`🎙️ [RITA] Commande confirmée — vocal pour confirmation (mode both)`);
-            } else {
-              const randomChance = Math.random() < voiceChance;
-              if (randomChance) {
+            } else if (responseMode === 'both' && canDoVoice) {
+              const isLongExplanation =
+                textToSend.length >= 180 ||
+                /\n|•|▪|◦|\d+\.\s|:/.test(textToSend) ||
+                splitWhatsAppMessage(textToSend, 220).length > 1;
+              const voiceChance = hasVoiceTag
+                ? 1
+                : isLongExplanation
+                  ? mixedVoiceReplyChance / 100
+                  : Math.max(0.15, Math.min(0.5, mixedVoiceReplyChance / 200));
+
+              if (orderTagExtracted) {
                 useVoiceThisTurn = true;
-                console.log(`🎙️ [RITA] Vocal accordé (${Math.round(voiceChance * 100)}%, mode both${isLongExplanation ? ', réponse longue' : ''})`);
+                console.log(`🎙️ [RITA] Commande confirmée — vocal pour confirmation (mode both)`);
               } else {
-                console.log(`🔇 [RITA] Texte cette fois (tirage ${Math.round(voiceChance * 100)}%, mode both${isLongExplanation ? ', réponse longue' : ''})`);
+                const randomChance = Math.random() < voiceChance;
+                if (randomChance) {
+                  useVoiceThisTurn = true;
+                  console.log(`🎙️ [RITA] Vocal accordé (${Math.round(voiceChance * 100)}%, mode both${isLongExplanation ? ', réponse longue' : ''})`);
+                } else {
+                  console.log(`🔇 [RITA] Texte cette fois (tirage ${Math.round(voiceChance * 100)}%, mode both${isLongExplanation ? ', réponse longue' : ''})`);
+                }
               }
             }
-          }
-          let sendText  = responseMode === 'text' || (!useVoiceThisTurn && responseMode !== 'voice');
-          let sendVoice = (responseMode === 'voice' || useVoiceThisTurn) && canDoVoice;
+            let sendText = responseMode === 'text' || (!useVoiceThisTurn && responseMode !== 'voice');
+            let sendVoice = (responseMode === 'voice' || useVoiceThisTurn) && canDoVoice;
 
-          if ((responseMode === 'voice' || useVoiceThisTurn) && !canDoVoice) {
-            console.warn(`⚠️ [RITA] Mode vocal demandé mais aucune voix n'est disponible — fallback texte pour ${cleanFrom}`);
-            sendText = !!textToSend;
-            sendVoice = false;
-          }
-
-          console.log(`🎚️ [RITA] Mode: ${responseMode} | tour: ${useVoiceThisTurn ? 'vocal' : 'texte'} | voiceTag: ${hasVoiceTag} | mixChance: ${mixedVoiceReplyChance}% | apiKey: ${effectiveApiKey ? 'oui' : 'non'}`);
-
-
-          // ── Envoyer le texte (avec découpage [SPLIT] puis splitWhatsAppMessage) ──
-          if (textToSend && sendText) {
-            // 1. Découpage par tag [SPLIT] (décidé par Rita dans sa réponse)
-            const splitParts = textToSend.split(/\s*\[SPLIT\]\s*/).map(p => p.trim()).filter(Boolean);
-            // 2. Chaque partie est ensuite découpée si encore trop longue (> 1500 chars)
-            const messageParts = splitParts.flatMap(p => splitWhatsAppMessage(p, 1500));
-            console.log(`📤 [RITA] Envoi réponse texte à ${cleanFrom} (${messageParts.length} partie(s), délai: ${responseDelayMs}ms)...`);
-            for (let partIdx = 0; partIdx < messageParts.length; partIdx++) {
-              const part = messageParts[partIdx];
-              const sendResult = await sendMessageAndTrack(
-                instanceDoc.instanceName,
-                instanceDoc.instanceToken,
-                cleanFrom,
-                part,
-                2,
-                partIdx === 0 ? responseDelayMs : 1500
-              );
-              if (sendResult.success) {
-                console.log(`✅ [RITA] Réponse texte partie ${partIdx + 1}/${messageParts.length} envoyée`);
-              } else {
-                console.error(`❌ [RITA] Échec envoi texte partie ${partIdx + 1}:`, sendResult.error);
-              }
-              // Délai entre les parties pour lisibilité sur WhatsApp
-              if (partIdx < messageParts.length - 1) {
-                await new Promise(r => setTimeout(r, 1200));
-              }
+            if ((responseMode === 'voice' || useVoiceThisTurn) && !canDoVoice) {
+              console.warn(`⚠️ [RITA] Mode vocal demandé mais aucune voix n'est disponible — fallback texte pour ${cleanFrom}`);
+              sendText = !!textToSend;
+              sendVoice = false;
             }
-            logRitaActivity(userId, 'message_replied', { customerPhone: cleanFrom, details: textToSend.substring(0, 200) });
-          }
 
-          // ── Envoyer la note vocale ──
-          if (textToSend && sendVoice && canDoVoice) {
-            console.log(`🎙️ [RITA] Génération TTS...`);
-            try {
-              const audioBuffer = await textToSpeech(textToSend, ttsConfig);
-              if (audioBuffer) {
-                const audioBase64 = audioBuffer.toString('base64');
-                const audioResult = await evolutionApiService.sendAudio(
+            console.log(`🎚️ [RITA] Mode: ${responseMode} | tour: ${useVoiceThisTurn ? 'vocal' : 'texte'} | voiceTag: ${hasVoiceTag} | mixChance: ${mixedVoiceReplyChance}% | apiKey: ${effectiveApiKey ? 'oui' : 'non'}`);
+
+
+            // ── Envoyer le texte (avec découpage [SPLIT] puis splitWhatsAppMessage) ──
+            if (textToSend && sendText) {
+              // 1. Découpage par tag [SPLIT] (décidé par Rita dans sa réponse)
+              const splitParts = textToSend.split(/\s*\[SPLIT\]\s*/).map(p => p.trim()).filter(Boolean);
+              // 2. Chaque partie est ensuite découpée si encore trop longue (> 1500 chars)
+              const messageParts = splitParts.flatMap(p => splitWhatsAppMessage(p, 1500));
+              console.log(`📤 [RITA] Envoi réponse texte à ${cleanFrom} (${messageParts.length} partie(s), délai: ${responseDelayMs}ms)...`);
+              for (let partIdx = 0; partIdx < messageParts.length; partIdx++) {
+                const part = messageParts[partIdx];
+                const sendResult = await sendMessageAndTrack(
                   instanceDoc.instanceName,
                   instanceDoc.instanceToken,
                   cleanFrom,
-                  `data:audio/mpeg;base64,${audioBase64}`
+                  part,
+                  2,
+                  partIdx === 0 ? responseDelayMs : 1500
                 );
-                if (audioResult.success) {
-                  console.log(`✅ [RITA] Note vocale envoyée`);
-                  logRitaActivity(userId, 'vocal_sent', { customerPhone: cleanFrom });
+                if (sendResult.success) {
+                  console.log(`✅ [RITA] Réponse texte partie ${partIdx + 1}/${messageParts.length} envoyée`);
                 } else {
-                  console.error(`❌ [RITA] Échec vocal, fallback texte:`, audioResult.error);
+                  console.error(`❌ [RITA] Échec envoi texte partie ${partIdx + 1}:`, sendResult.error);
+                }
+                // Délai entre les parties pour lisibilité sur WhatsApp
+                if (partIdx < messageParts.length - 1) {
+                  await new Promise(r => setTimeout(r, 1200));
+                }
+              }
+              logRitaActivity(userId, 'message_replied', { customerPhone: cleanFrom, details: textToSend.substring(0, 200) });
+            }
+
+            // ── Envoyer la note vocale ──
+            if (textToSend && sendVoice && canDoVoice) {
+              console.log(`🎙️ [RITA] Génération TTS...`);
+              try {
+                const audioBuffer = await textToSpeech(textToSend, ttsConfig);
+                if (audioBuffer) {
+                  const audioBase64 = audioBuffer.toString('base64');
+                  const audioResult = await evolutionApiService.sendAudio(
+                    instanceDoc.instanceName,
+                    instanceDoc.instanceToken,
+                    cleanFrom,
+                    `data:audio/mpeg;base64,${audioBase64}`
+                  );
+                  if (audioResult.success) {
+                    console.log(`✅ [RITA] Note vocale envoyée`);
+                    logRitaActivity(userId, 'vocal_sent', { customerPhone: cleanFrom });
+                  } else {
+                    console.error(`❌ [RITA] Échec vocal, fallback texte:`, audioResult.error);
+                    await sendMessageAndTrack(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
+                  }
+                } else {
+                  console.warn(`⚠️ [RITA] TTS null, fallback texte`);
                   await sendMessageAndTrack(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
                 }
-              } else {
-                console.warn(`⚠️ [RITA] TTS null, fallback texte`);
+              } catch (ttsErr) {
+                console.error(`❌ [RITA] Erreur TTS:`, ttsErr.message);
                 await sendMessageAndTrack(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
               }
-            } catch (ttsErr) {
-              console.error(`❌ [RITA] Erreur TTS:`, ttsErr.message);
-              await sendMessageAndTrack(instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom, textToSend);
             }
-          }
 
-          // ─── Détection et envoi automatique de photos pour les LISTES DE PRODUITS ───
-          if (!imageUrl && !videoUrl && !imagesAllTagMatch) {
-            // Détecter si le message contient une liste de produits (lignes avec numéros ou tirets)
-            // Note: on capture toute la ligne après le marqueur, le nettoyage du prix est fait après
-            const catalogListPattern = /(?:^|\n)\s*(?:[\d]+[\.\)]\s*|[-•▪◦]\s*)(.+)/gm;
-            const productLines = [];
-            let match;
-            
-            while ((match = catalogListPattern.exec(textToSend)) !== null) {
-              const line = match[1].trim();
-              // Filtrer les lignes trop courtes ou qui ressemblent à des phrases (pas des produits)
-              if (line.length >= 3 && !line.match(/^(vous|tu |on |je |nous |voir|merci|bonjour)/i)) {
-                productLines.push(line);
+            // ─── Détection et envoi automatique de photos pour les LISTES DE PRODUITS ───
+            if (!imageUrl && !videoUrl && !imagesAllTagMatch) {
+              // Détecter si le message contient une liste de produits (lignes avec numéros ou tirets)
+              // Note: on capture toute la ligne après le marqueur, le nettoyage du prix est fait après
+              const catalogListPattern = /(?:^|\n)\s*(?:[\d]+[\.\)]\s*|[-•▪◦]\s*)(.+)/gm;
+              const productLines = [];
+              let match;
+
+              while ((match = catalogListPattern.exec(textToSend)) !== null) {
+                const line = match[1].trim();
+                // Filtrer les lignes trop courtes ou qui ressemblent à des phrases (pas des produits)
+                if (line.length >= 3 && !line.match(/^(vous|tu |on |je |nous |voir|merci|bonjour)/i)) {
+                  productLines.push(line);
+                }
+              }
+
+              // Si on a détecté au moins 2 lignes de produits, c'est probablement un catalogue
+              if (productLines.length >= 2) {
+                console.log(`📋 [RITA] Liste de produits détectée (${productLines.length} lignes) — envoi des photos...`);
+
+                const ritaCfgForCatalog = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
+                const catalogForImages = ritaCfgForCatalog?.productCatalog || [];
+                let catalogImagesSent = 0;
+
+                // Vérifier si c'est une demande explicite de réenvoyer les images
+                const isExplicitRequest = isExplicitImageRequest(messageBody);
+
+                for (let lineIdx = 0; lineIdx < productLines.length; lineIdx++) {
+                  const line = productLines[lineIdx];
+                  // Extraire le nom du produit (avant le prix si présent)
+                  // Utilise \s+[-–—]\s+ pour les tirets (requiert des espaces autour) et [:：] pour les deux-points
+                  const productNameMatch = line.match(/^(.+?)(?:\s+[-–—]\s+\d|\s*[:：]\s*\d|\s*[–—]\s*\d|$)/);
+                  if (!productNameMatch) continue;
+
+                  const potentialProductName = productNameMatch[1].trim();
+                  // Chercher le produit dans le catalogue
+                  const foundProduct = findProductByName(catalogForImages, potentialProductName);
+
+                  if (foundProduct && foundProduct.images?.length > 0) {
+                    // ── Vérifier si l'image a déjà été envoyée dans cette conversation ──
+                    if (!isExplicitRequest && hasImageBeenSent(conversationKey, foundProduct.name)) {
+                      console.log(`⏭️ [RITA] Photo catalogue "${foundProduct.name}" déjà envoyée dans cette conversation — saut`);
+                      continue;
+                    }
+
+                    let photoUrl = foundProduct.images[0];
+                    if (photoUrl.startsWith('/')) photoUrl = `https://api.scalor.net${photoUrl}`;
+
+                    const ext = (photoUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
+
+                    try {
+                      await new Promise(r => setTimeout(r, 600)); // Délai pour éviter le flood
+                      const result = await evolutionApiService.sendMedia(
+                        instanceDoc.instanceName,
+                        instanceDoc.instanceToken,
+                        cleanFrom,
+                        photoUrl,
+                        foundProduct.name,
+                        `catalog_${lineIdx + 1}.${ext}`
+                      );
+
+                      if (result.success) {
+                        catalogImagesSent++;
+                        markImageAsSent(conversationKey, foundProduct.name); // Marquer comme envoyée
+                        console.log(`✅ [RITA] Photo catalogue ${lineIdx + 1}/${productLines.length} envoyée (${foundProduct.name})`);
+                        logRitaActivity(userId, 'catalog_image_sent', { customerPhone: cleanFrom, product: foundProduct.name });
+                      } else {
+                        console.error(`❌ [RITA] Échec photo catalogue ${lineIdx + 1}: ${result.error}`);
+                      }
+                    } catch (imgErr) {
+                      console.error(`❌ [RITA] Erreur envoi photo catalogue ${lineIdx + 1}:`, imgErr.message);
+                    }
+                  } else {
+                    console.log(`⚠️ [RITA] Produit "${potentialProductName}" non trouvé ou sans image dans le catalogue`);
+                  }
+                }
+
+                if (catalogImagesSent > 0) {
+                  console.log(`📸 [RITA] ${catalogImagesSent}/${productLines.length} photo(s) de catalogue envoyée(s) à ${cleanFrom}`);
+                }
               }
             }
 
-            // Si on a détecté au moins 2 lignes de produits, c'est probablement un catalogue
-            if (productLines.length >= 2) {
-              console.log(`📋 [RITA] Liste de produits détectée (${productLines.length} lignes) — envoi des photos...`);
-              
-              const ritaCfgForCatalog = await RitaConfig.findOne(agentId ? { agentId } : { userId }).lean();
-              const catalogForImages = ritaCfgForCatalog?.productCatalog || [];
-              let catalogImagesSent = 0;
-              
-              // Vérifier si c'est une demande explicite de réenvoyer les images
-              const isExplicitRequest = isExplicitImageRequest(messageBody);
-
-              for (let lineIdx = 0; lineIdx < productLines.length; lineIdx++) {
-                const line = productLines[lineIdx];
-                // Extraire le nom du produit (avant le prix si présent)
-                // Utilise \s+[-–—]\s+ pour les tirets (requiert des espaces autour) et [:：] pour les deux-points
-                const productNameMatch = line.match(/^(.+?)(?:\s+[-–—]\s+\d|\s*[:：]\s*\d|\s*[–—]\s*\d|$)/);
-                if (!productNameMatch) continue;
-                
-                const potentialProductName = productNameMatch[1].trim();
-                // Chercher le produit dans le catalogue
-                const foundProduct = findProductByName(catalogForImages, potentialProductName);
-                
-                if (foundProduct && foundProduct.images?.length > 0) {
-                  // ── Vérifier si l'image a déjà été envoyée dans cette conversation ──
-                  if (!isExplicitRequest && hasImageBeenSent(conversationKey, foundProduct.name)) {
-                    console.log(`⏭️ [RITA] Photo catalogue "${foundProduct.name}" déjà envoyée dans cette conversation — saut`);
-                    continue;
-                  }
-                  
-                  let photoUrl = foundProduct.images[0];
-                  if (photoUrl.startsWith('/')) photoUrl = `https://api.scalor.net${photoUrl}`;
-                  
-                  const ext = (photoUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
-                  
+            // Envoyer l'image (ou TOUTES les images) si disponible
+            if (imageUrl) {
+              if (sendAllImages && matchedProductForMedia?.images?.length > 1) {
+                // ─── MODE TOUTES LES IMAGES ───
+                console.log(`📸📸 [RITA] Envoi de ${matchedProductForMedia.images.length} images à ${cleanFrom}`);
+                let imagesSentCount = 0;
+                for (let imgIdx = 0; imgIdx < matchedProductForMedia.images.length; imgIdx++) {
+                  let imgUrl = matchedProductForMedia.images[imgIdx];
+                  if (!imgUrl) continue;
+                  if (imgUrl.startsWith('/')) imgUrl = `https://api.scalor.net${imgUrl}`;
+                  const ext = (imgUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
                   try {
-                    await new Promise(r => setTimeout(r, 600)); // Délai pour éviter le flood
                     const result = await evolutionApiService.sendMedia(
                       instanceDoc.instanceName,
                       instanceDoc.instanceToken,
                       cleanFrom,
-                      photoUrl,
-                      foundProduct.name,
-                      `catalog_${lineIdx + 1}.${ext}`
+                      imgUrl,
+                      matchedProductForMedia.name,
+                      `product_${imgIdx + 1}.${ext}`
                     );
-                    
                     if (result.success) {
-                      catalogImagesSent++;
-                      markImageAsSent(conversationKey, foundProduct.name); // Marquer comme envoyée
-                      console.log(`✅ [RITA] Photo catalogue ${lineIdx + 1}/${productLines.length} envoyée (${foundProduct.name})`);
-                      logRitaActivity(userId, 'catalog_image_sent', { customerPhone: cleanFrom, product: foundProduct.name });
+                      imagesSentCount++;
+                      console.log(`✅ [RITA] Image ${imgIdx + 1}/${matchedProductForMedia.images.length} envoyée`);
+                      logRitaActivity(userId, 'image_sent', { customerPhone: cleanFrom });
                     } else {
-                      console.error(`❌ [RITA] Échec photo catalogue ${lineIdx + 1}: ${result.error}`);
+                      console.error(`❌ [RITA] Échec image ${imgIdx + 1}: ${result.error}`);
+                    }
+                    // Petit délai entre chaque image pour éviter le flood
+                    if (imgIdx < matchedProductForMedia.images.length - 1) {
+                      await new Promise(r => setTimeout(r, 800));
                     }
                   } catch (imgErr) {
-                    console.error(`❌ [RITA] Erreur envoi photo catalogue ${lineIdx + 1}:`, imgErr.message);
+                    console.error(`❌ [RITA] Erreur envoi image ${imgIdx + 1}:`, imgErr.message);
                   }
+                }
+                if (imagesSentCount === 0) {
+                  await sendMessageAndTrack(
+                    instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom,
+                    `Désolé, je n'arrive pas à envoyer les photos en ce moment 🙏 Mais le produit est bien disponible !`
+                  );
                 } else {
-                  console.log(`⚠️ [RITA] Produit "${potentialProductName}" non trouvé ou sans image dans le catalogue`);
+                  // Marquer les images comme envoyées
+                  markImageAsSent(conversationKey, matchedProductForMedia.name);
+                  console.log(`📸📸 [RITA] ${imagesSentCount}/${matchedProductForMedia.images.length} images envoyées à ${cleanFrom}`);
                 }
-              }
-
-              if (catalogImagesSent > 0) {
-                console.log(`📸 [RITA] ${catalogImagesSent}/${productLines.length} photo(s) de catalogue envoyée(s) à ${cleanFrom}`);
-              }
-            }
-          }
-
-          // Envoyer l'image (ou TOUTES les images) si disponible
-          if (imageUrl) {
-            if (sendAllImages && matchedProductForMedia?.images?.length > 1) {
-              // ─── MODE TOUTES LES IMAGES ───
-              console.log(`📸📸 [RITA] Envoi de ${matchedProductForMedia.images.length} images à ${cleanFrom}`);
-              let imagesSentCount = 0;
-              for (let imgIdx = 0; imgIdx < matchedProductForMedia.images.length; imgIdx++) {
-                let imgUrl = matchedProductForMedia.images[imgIdx];
-                if (!imgUrl) continue;
-                if (imgUrl.startsWith('/')) imgUrl = `https://api.scalor.net${imgUrl}`;
-                const ext = (imgUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
-                try {
-                  const result = await evolutionApiService.sendMedia(
-                    instanceDoc.instanceName,
-                    instanceDoc.instanceToken,
-                    cleanFrom,
-                    imgUrl,
-                    matchedProductForMedia.name,
-                    `product_${imgIdx + 1}.${ext}`
-                  );
-                  if (result.success) {
-                    imagesSentCount++;
-                    console.log(`✅ [RITA] Image ${imgIdx + 1}/${matchedProductForMedia.images.length} envoyée`);
-                    logRitaActivity(userId, 'image_sent', { customerPhone: cleanFrom });
-                  } else {
-                    console.error(`❌ [RITA] Échec image ${imgIdx + 1}: ${result.error}`);
-                  }
-                  // Petit délai entre chaque image pour éviter le flood
-                  if (imgIdx < matchedProductForMedia.images.length - 1) {
-                    await new Promise(r => setTimeout(r, 800));
-                  }
-                } catch (imgErr) {
-                  console.error(`❌ [RITA] Erreur envoi image ${imgIdx + 1}:`, imgErr.message);
-                }
-              }
-              if (imagesSentCount === 0) {
-                await sendMessageAndTrack(
-                  instanceDoc.instanceName, instanceDoc.instanceToken, cleanFrom,
-                  `Désolé, je n'arrive pas à envoyer les photos en ce moment 🙏 Mais le produit est bien disponible !`
-                );
               } else {
-                // Marquer les images comme envoyées
-                markImageAsSent(conversationKey, matchedProductForMedia.name);
-                console.log(`📸📸 [RITA] ${imagesSentCount}/${matchedProductForMedia.images.length} images envoyées à ${cleanFrom}`);
-              }
-            } else {
-              // ─── MODE IMAGE: Envoyer jusqu'à 3 photos minimum (ou toutes si moins de 3) ───
-              const imagesToSend = matchedProductForMedia?.images?.length || 0;
-              const numberOfImagesToSend = Math.min(3, imagesToSend);
-              
-              console.log(`📸📸 [RITA] Mode IMAGE: envoi de ${numberOfImagesToSend} photo(s) (${imagesToSend} dispo) à ${cleanFrom}`);
-              let imagesSentCount = 0;
-              
-              // Envoyer les images (jusqu'à 3 ou toutes si moins de 3)
-              for (let imgIdx = 0; imgIdx < numberOfImagesToSend; imgIdx++) {
-                let imgUrl = matchedProductForMedia.images[imgIdx];
-                if (!imgUrl) continue;
-                if (imgUrl.startsWith('/')) imgUrl = `https://api.scalor.net${imgUrl}`;
-                const ext = (imgUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
-                
-                try {
-                  const result = await evolutionApiService.sendMedia(
+                // ─── MODE IMAGE: Envoyer jusqu'à 3 photos minimum (ou toutes si moins de 3) ───
+                const imagesToSend = matchedProductForMedia?.images?.length || 0;
+                const numberOfImagesToSend = Math.min(3, imagesToSend);
+
+                console.log(`📸📸 [RITA] Mode IMAGE: envoi de ${numberOfImagesToSend} photo(s) (${imagesToSend} dispo) à ${cleanFrom}`);
+                let imagesSentCount = 0;
+
+                // Envoyer les images (jusqu'à 3 ou toutes si moins de 3)
+                for (let imgIdx = 0; imgIdx < numberOfImagesToSend; imgIdx++) {
+                  let imgUrl = matchedProductForMedia.images[imgIdx];
+                  if (!imgUrl) continue;
+                  if (imgUrl.startsWith('/')) imgUrl = `https://api.scalor.net${imgUrl}`;
+                  const ext = (imgUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
+
+                  try {
+                    const result = await evolutionApiService.sendMedia(
+                      instanceDoc.instanceName,
+                      instanceDoc.instanceToken,
+                      cleanFrom,
+                      imgUrl,
+                      matchedProductForMedia.name,
+                      `product_${imgIdx + 1}.${ext}`
+                    );
+                    if (result.success) {
+                      imagesSentCount++;
+                      console.log(`✅ [RITA] Image ${imgIdx + 1}/${numberOfImagesToSend} envoyée`);
+                      logRitaActivity(userId, 'image_sent', { customerPhone: cleanFrom });
+                    } else {
+                      console.error(`❌ [RITA] Échec image ${imgIdx + 1}: ${result.error}`);
+                    }
+                    // Petit délai entre chaque image pour éviter le flood
+                    if (imgIdx < numberOfImagesToSend - 1) {
+                      await new Promise(r => setTimeout(r, 800));
+                    }
+                  } catch (imgErr) {
+                    console.error(`❌ [RITA] Erreur envoi image ${imgIdx + 1}:`, imgErr.message);
+                  }
+                }
+
+                if (imagesSentCount === 0) {
+                  console.error(`❌ [RITA] Toutes les tentatives d'envoi image ont échoué pour ${cleanFrom}`);
+                  console.error(`   Produit: ${matchedProductForMedia?.name || 'N/A'}, Images: ${JSON.stringify(matchedProductForMedia?.images || [])}`);
+                  await sendMessageAndTrack(
                     instanceDoc.instanceName,
                     instanceDoc.instanceToken,
                     cleanFrom,
-                    imgUrl,
-                    matchedProductForMedia.name,
-                    `product_${imgIdx + 1}.${ext}`
+                    `Désolé, je n'arrive pas à envoyer les photos en ce moment 🙏 Mais le produit est bien disponible, tu veux qu'on te le réserve ?`
                   );
-                  if (result.success) {
-                    imagesSentCount++;
-                    console.log(`✅ [RITA] Image ${imgIdx + 1}/${numberOfImagesToSend} envoyée`);
-                    logRitaActivity(userId, 'image_sent', { customerPhone: cleanFrom });
-                  } else {
-                    console.error(`❌ [RITA] Échec image ${imgIdx + 1}: ${result.error}`);
-                  }
-                  // Petit délai entre chaque image pour éviter le flood
-                  if (imgIdx < numberOfImagesToSend - 1) {
-                    await new Promise(r => setTimeout(r, 800));
-                  }
-                } catch (imgErr) {
-                  console.error(`❌ [RITA] Erreur envoi image ${imgIdx + 1}:`, imgErr.message);
+                } else {
+                  // Marquer les images comme envoyées
+                  markImageAsSent(conversationKey, matchedProductForMedia.name);
+                  console.log(`📸 [RITA] ${imagesSentCount}/${numberOfImagesToSend} photos envoyées à ${cleanFrom}`);
                 }
               }
 
-              if (imagesSentCount === 0) {
-                console.error(`❌ [RITA] Toutes les tentatives d'envoi image ont échoué pour ${cleanFrom}`);
-                console.error(`   Produit: ${matchedProductForMedia?.name || 'N/A'}, Images: ${JSON.stringify(matchedProductForMedia?.images || [])}`);
+              // ─── RELANCE après image: proposer achat avec prix ───
+              // Seulement si le texte de Rita ne contient pas déjà une offre de closing
+              // ET si le texte de Rita est vide/très court (image seule)
+              const textAlreadyCloses = /confirm|réserv|commande|livr|veux qu|tu veux|on fait|je te prépare|prix|fcfa|\d{3,}/i.test(textToSend);
+              const textAlreadySubstantial = textToSend && textToSend.length > 30;
+              if (matchedProductForMedia && !textAlreadyCloses && !textAlreadySubstantial && !sendAllImages) {
+                const p = matchedProductForMedia;
+                const followUp = p.price
+                  ? `${p.name} à ${p.price} 👍 Tu veux qu'on te le réserve ?`
+                  : `Tu veux qu'on te réserve le ${p.name} ? 👍`;
+
+                await new Promise(r => setTimeout(r, 1500));
                 await sendMessageAndTrack(
                   instanceDoc.instanceName,
                   instanceDoc.instanceToken,
                   cleanFrom,
-                  `Désolé, je n'arrive pas à envoyer les photos en ce moment 🙏 Mais le produit est bien disponible, tu veux qu'on te le réserve ?`
+                  followUp
                 );
+                console.log(`📤 [RITA] Relance après image envoyée à ${cleanFrom}`);
               } else {
-                // Marquer les images comme envoyées
-                markImageAsSent(conversationKey, matchedProductForMedia.name);
-                console.log(`📸 [RITA] ${imagesSentCount}/${numberOfImagesToSend} photos envoyées à ${cleanFrom}`);
+                console.log(`ℹ️ [RITA] Pas de relance après image — texte Rita déjà suffisant (${textToSend.length} chars, closes=${textAlreadyCloses})`);
               }
             }
 
-            // ─── RELANCE après image: proposer achat avec prix ───
-            // Seulement si le texte de Rita ne contient pas déjà une offre de closing
-            // ET si le texte de Rita est vide/très court (image seule)
-            const textAlreadyCloses = /confirm|réserv|commande|livr|veux qu|tu veux|on fait|je te prépare|prix|fcfa|\d{3,}/i.test(textToSend);
-            const textAlreadySubstantial = textToSend && textToSend.length > 30;
-            if (matchedProductForMedia && !textAlreadyCloses && !textAlreadySubstantial && !sendAllImages) {
-              const p = matchedProductForMedia;
-              const followUp = p.price
-                ? `${p.name} à ${p.price} 👍 Tu veux qu'on te le réserve ?`
-                : `Tu veux qu'on te réserve le ${p.name} ? 👍`;
-
-              await new Promise(r => setTimeout(r, 1500));
-              await sendMessageAndTrack(
+            // Envoyer la vidéo si disponible
+            if (videoUrl) {
+              console.log(`🎬 [RITA] Envoi vidéo à ${cleanFrom}...`);
+              await new Promise(r => setTimeout(r, 1000));
+              const videoResult = await evolutionApiService.sendVideo(
                 instanceDoc.instanceName,
                 instanceDoc.instanceToken,
                 cleanFrom,
-                followUp
+                videoUrl,
+                matchedProductForMedia?.name || '',
+                'product.mp4'
               );
-              console.log(`📤 [RITA] Relance après image envoyée à ${cleanFrom}`);
-            } else {
-              console.log(`ℹ️ [RITA] Pas de relance après image — texte Rita déjà suffisant (${textToSend.length} chars, closes=${textAlreadyCloses})`);
-            }
-          }
-
-          // Envoyer la vidéo si disponible
-          if (videoUrl) {
-            console.log(`🎬 [RITA] Envoi vidéo à ${cleanFrom}...`);
-            await new Promise(r => setTimeout(r, 1000));
-            const videoResult = await evolutionApiService.sendVideo(
-              instanceDoc.instanceName,
-              instanceDoc.instanceToken,
-              cleanFrom,
-              videoUrl,
-              matchedProductForMedia?.name || '',
-              'product.mp4'
-            );
-            if (videoResult.success) {
-              console.log(`✅ [RITA] Vidéo envoyée avec succès à ${cleanFrom}`);
-              logRitaActivity(userId, 'video_sent', { customerPhone: cleanFrom });
-            } else {
-              console.error(`❌ [RITA] Échec envoi vidéo à ${cleanFrom}:`, videoResult.error);
-            }
-          }
-
-          // ─── Envoi média de témoignage si détecté ───
-          if (testimonialMediaUrl) {
-            console.log(`🗣️ [RITA] Envoi média témoignage (${testimonialMediaType}) à ${cleanFrom}...`);
-            await new Promise(r => setTimeout(r, 1000));
-            if (testimonialMediaType === 'video') {
-              const tResult = await evolutionApiService.sendVideo(
-                instanceDoc.instanceName,
-                instanceDoc.instanceToken,
-                cleanFrom,
-                testimonialMediaUrl,
-                '',
-                'testimonial.mp4'
-              );
-              if (tResult.success) {
-                console.log(`✅ [RITA] Vidéo témoignage envoyée à ${cleanFrom}`);
-                logRitaActivity(userId, 'testimonial_video_sent', { customerPhone: cleanFrom });
+              if (videoResult.success) {
+                console.log(`✅ [RITA] Vidéo envoyée avec succès à ${cleanFrom}`);
+                logRitaActivity(userId, 'video_sent', { customerPhone: cleanFrom });
               } else {
-                console.error(`❌ [RITA] Échec envoi vidéo témoignage:`, tResult.error);
-              }
-            } else {
-              const tExt = (testimonialMediaUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
-              const tResult = await evolutionApiService.sendMedia(
-                instanceDoc.instanceName,
-                instanceDoc.instanceToken,
-                cleanFrom,
-                testimonialMediaUrl,
-                '',
-                `testimonial.${tExt}`
-              );
-              if (tResult.success) {
-                console.log(`✅ [RITA] Image témoignage envoyée à ${cleanFrom}`);
-                logRitaActivity(userId, 'testimonial_image_sent', { customerPhone: cleanFrom });
-              } else {
-                console.error(`❌ [RITA] Échec envoi image témoignage:`, tResult.error);
+                console.error(`❌ [RITA] Échec envoi vidéo à ${cleanFrom}:`, videoResult.error);
               }
             }
-          }
 
-          // ─── Déclencher les flows sur message_received ───
-          try {
-            await processFlows(userId, 'message_received', { text: text || '', phone: cleanFrom, pushName });
-          } catch (flowErr) { console.error('⚠️ [FlowEngine] message_received:', flowErr.message); }
+            // ─── Envoi média de témoignage si détecté ───
+            if (testimonialMediaUrl) {
+              console.log(`🗣️ [RITA] Envoi média témoignage (${testimonialMediaType}) à ${cleanFrom}...`);
+              await new Promise(r => setTimeout(r, 1000));
+              if (testimonialMediaType === 'video') {
+                const tResult = await evolutionApiService.sendVideo(
+                  instanceDoc.instanceName,
+                  instanceDoc.instanceToken,
+                  cleanFrom,
+                  testimonialMediaUrl,
+                  '',
+                  'testimonial.mp4'
+                );
+                if (tResult.success) {
+                  console.log(`✅ [RITA] Vidéo témoignage envoyée à ${cleanFrom}`);
+                  logRitaActivity(userId, 'testimonial_video_sent', { customerPhone: cleanFrom });
+                } else {
+                  console.error(`❌ [RITA] Échec envoi vidéo témoignage:`, tResult.error);
+                }
+              } else {
+                const tExt = (testimonialMediaUrl.split('?')[0].split('.').pop() || 'jpg').toLowerCase();
+                const tResult = await evolutionApiService.sendMedia(
+                  instanceDoc.instanceName,
+                  instanceDoc.instanceToken,
+                  cleanFrom,
+                  testimonialMediaUrl,
+                  '',
+                  `testimonial.${tExt}`
+                );
+                if (tResult.success) {
+                  console.log(`✅ [RITA] Image témoignage envoyée à ${cleanFrom}`);
+                  logRitaActivity(userId, 'testimonial_image_sent', { customerPhone: cleanFrom });
+                } else {
+                  console.error(`❌ [RITA] Échec envoi image témoignage:`, tResult.error);
+                }
+              }
+            }
 
-          console.log(`💬 [RITA] ══════════════════════════════════════`);
+            // ─── Déclencher les flows sur message_received ───
+            try {
+              await processFlows(userId, 'message_received', { text: text || '', phone: cleanFrom, pushName });
+            } catch (flowErr) { console.error('⚠️ [FlowEngine] message_received:', flowErr.message); }
+
+            console.log(`💬 [RITA] ══════════════════════════════════════`);
           }); // Fin du callback de traitement groupé
         }
       } else if (normalizedEvent === 'MESSAGES_UPDATE') {
@@ -3348,8 +3365,8 @@ router.get('/agent-dashboard-stats', requireEcomAuth, async (req, res) => {
 
     // Ne compter que les commandes confirmées (pending ou accepted), pas les refusées
     const [ordersToday, messageStats] = await Promise.all([
-      WhatsAppOrder.find({ 
-        userId, 
+      WhatsAppOrder.find({
+        userId,
         createdAt: { $gte: today, $lt: tomorrow },
         status: { $in: ['pending', 'accepted'] } // Exclure les commandes refusées
       }).lean(),

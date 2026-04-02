@@ -78,6 +78,11 @@ const ritaConfigSchema = new mongoose.Schema({
   customInstructionsEnabled: { type: Boolean, default: false },
   customInstructions: { type: String, default: '' },
 
+  // ─── Relance Automatique ───
+  autoRelanceEnabled: { type: Boolean, default: false },
+  autoRelanceDelayHours: { type: Number, default: 2 },
+  autoRelanceMaxCount: { type: Number, default: 1 },
+
   // ─── Premier message (règles d'accueil) ───
   firstMessageRulesEnabled: { type: Boolean, default: false },
   firstMessageRules: [{
