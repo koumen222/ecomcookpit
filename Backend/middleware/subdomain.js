@@ -132,49 +132,56 @@ export const extractSubdomain = (req, res, next) => {
     }
     
     // ── Custom domain (maboutique.com) ──
+    // Normalize custom hostname (strip www.)
+    const normalizedHostname = hostname.startsWith('www.') ? hostname.slice(4) : hostname;
+    console.log(`🔍 [subdomain] HOST: ${host} | Normalized: ${normalizedHostname}`);
+
     // Not a platform host → try to resolve as custom domain
     // Check cache first (sync)
-    const cached = getCachedCustomDomain(hostname);
+    const cached = getCachedCustomDomain(normalizedHostname);
     
     if (cached !== undefined) {
       if (cached) {
         req.subdomain = cached;
         req.isStoreDomain = true;
         req.isCustomDomain = true;
-        console.log(`🌐 [custom-domain] ${hostname} → Store: ${cached} (cached)`);
+        console.log(`🌐 [custom-domain] ${normalizedHostname} → Store: ${cached} (cached)`);
+        return next();
       } else {
-        req.isRootDomain = true;
-        console.log(`🌐 [custom-domain] ${hostname} → not found (cached miss)`);
+        console.log(`🌐 [custom-domain] ${normalizedHostname} → not found (cached miss)`);
+        // Fallback explicit instead of root domain UI
+        return res.status(404).send("Boutique introuvable ❌");
       }
-      return next();
     }
     
     // Cache miss → async DB lookup
     // Check if MongoDB is connected before querying
     if (mongoose.connection.readyState !== 1) {
-      console.warn(`🌐 [custom-domain] ${hostname} → MongoDB not ready (state=${mongoose.connection.readyState}), treating as root`);
+      console.warn(`🌐 [custom-domain] ${normalizedHostname} → MongoDB not ready (state=${mongoose.connection.readyState}), treating as root`);
       req.isRootDomain = true;
       return next();
     }
     
     Workspace.findOne({
-      'storeDomains.customDomain': hostname,
+      'storeDomains.customDomain': normalizedHostname,
       isActive: true,
       'storeSettings.isStoreEnabled': true
     }).select('subdomain').lean()
       .then(workspace => {
+        console.log(`🔍 [subdomain] DOMAIN FOUND:`, workspace || null);
+        
         if (workspace?.subdomain) {
-          setCachedCustomDomain(hostname, workspace.subdomain);
+          setCachedCustomDomain(normalizedHostname, workspace.subdomain);
           req.subdomain = workspace.subdomain;
           req.isStoreDomain = true;
           req.isCustomDomain = true;
-          console.log(`🌐 [custom-domain] ${hostname} → Store: ${workspace.subdomain} (DB)`);
+          console.log(`🌐 [custom-domain] ${normalizedHostname} → Store: ${workspace.subdomain} (DB)`);
+          next();
         } else {
-          setCachedCustomDomain(hostname, null);
-          req.isRootDomain = true;
-          console.log(`🌐 [custom-domain] ${hostname} → not found (DB)`);
+          setCachedCustomDomain(normalizedHostname, null);
+          console.log(`🌐 [custom-domain] ${normalizedHostname} → not found (DB)`);
+          return res.status(404).send("Boutique introuvable ❌");
         }
-        next();
       })
       .catch(err => {
         console.error('❌ Custom domain lookup error:', err.message);
