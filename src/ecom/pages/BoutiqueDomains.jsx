@@ -4,7 +4,7 @@ import api from '../../lib/api';
 
 // DNS target constants (mirrors backend env)
 // VPS_IP = Caddy reverse proxy VPS that auto-provisions SSL
-const VPS_IP = import.meta.env.VITE_CUSTOM_DOMAIN_IP || '66.42.84.166';
+const VPS_IP = import.meta.env.VITE_CUSTOM_DOMAIN_IP || '45.76.27.120';
 const CNAME_TARGET = 'shops.scalor.net';
 const A_RECORDS = [VPS_IP];
 
