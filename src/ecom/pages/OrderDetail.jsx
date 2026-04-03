@@ -16,6 +16,20 @@ const SC = {
   reported: 'bg-purple-50 text-purple-700 border-purple-100'
 };
 
+// Résout le nom du produit depuis order.product ou rawData.line_items (Shopify/Skelo)
+const getDisplayProduct = (order) => {
+  if (!order) return '—';
+  const isValid = (v) => v && typeof v === 'string' && v.trim() && isNaN(v.trim());
+  if (isValid(order.product)) return order.product.trim();
+  if (order.rawData?.line_items?.length) {
+    const names = order.rawData.line_items
+      .map(li => { const t = li.title || li.name || ''; const q = li.quantity > 1 ? ` x${li.quantity}` : ''; return t ? `${t}${q}` : null; })
+      .filter(Boolean);
+    if (names.length) return names.join(', ');
+  }
+  return '—';
+};
+
 // Extrait le téléphone depuis rawData quand clientPhone est vide
 const getEffectivePhone = (order) => {
   if (!order) return '';
@@ -164,9 +178,7 @@ const OrderDetail = () => {
     msg += `Jour de la livraison : aujourd'hui ${todayName}\n\n`;
     msg += `Numéro : ${getEffectivePhone(order) || '—'}\n\n`;
     msg += `Heure de livraison : ${editData.deliveryTime || order.deliveryTime || 'Disponible maintenant'}\n\n`;
-    const productName = (!order.product || !isNaN(order.product)) ? '' : order.product;
-    const rawProduct = order.rawData ? Object.entries(order.rawData).find(([k, v]) => v && isNaN(v) && /produit|product|article|item|désignation|designation/i.test(k))?.[1] : '';
-    msg += `Article : ${productName || rawProduct || '—'}\n\n`;
+    msg += `Article : ${getDisplayProduct(order)}\n\n`;
     msg += `Quantité : ${String(order.quantity || 1).padStart(2, '0')}\n\n`;
     msg += `Montant : ${total.toLocaleString('fr-FR')} ${order.currency || symbol}`;
     if (order.notes) msg += `\n\nNotes : ${order.notes}`;
@@ -743,7 +755,7 @@ const OrderDetail = () => {
             <div className="space-y-2.5">
               <div className="flex justify-between">
                 <span className="text-xs text-gray-500">Produit</span>
-                <span className="text-xs font-medium text-gray-900">{order.product || '—'}</span>
+                <span className="text-xs font-medium text-gray-900">{getDisplayProduct(order)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-xs text-gray-500">Prix unitaire</span>
@@ -951,7 +963,7 @@ const OrderDetail = () => {
               </thead>
               <tbody>
                 <tr>
-                  <td>{order.product || '—'}</td>
+                  <td>{getDisplayProduct(order)}</td>
                   <td style={{textAlign: 'center'}}>{order.quantity || 1}</td>
                   <td style={{textAlign: 'right'}}>{fmtOrder(order.price, order.currency)}</td>
                   <td style={{textAlign: 'right'}}>{fmtOrder((order.price || 0) * (order.quantity || 1), order.currency)}</td>
@@ -1023,7 +1035,7 @@ const OrderDetail = () => {
                   <p>👤 Client: {order.clientName}</p>
                   <p>📞 Téléphone: {getEffectivePhone(order)}</p>
                   <p>📍 Ville: {order.city}</p>
-                  <p>📦 Produit: {order.product}</p>
+                  <p>📦 Produit: {getDisplayProduct(order)}</p>
                   <p>🔢 Quantité: {order.quantity}</p>
                   <p>💰 Total: {fmtOrder((order.price || 0) * (order.quantity || 1), order.currency)}</p>
                   <p>📋 Statut: {order.status}</p>

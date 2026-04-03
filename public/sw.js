@@ -131,16 +131,9 @@ self.addEventListener('push', (event) => {
     // Vibrations sur mobile (si supporté)
     vibrate: [200, 100, 200],
     // Actions de notification (si supporté)
-    actions: [
-      {
-        action: 'open',
-        title: 'Ouvrir',
-        icon: '/icons/icon-96x96.png'
-      },
-      {
-        action: 'close',
-        title: 'Fermer'
-      }
+    actions: notificationData.actions?.length ? notificationData.actions : [
+      { action: 'view', title: 'Voir la commande' },
+      { action: 'dismiss', title: 'Ignorer' }
     ],
     // Timestamp
     timestamp: notificationData.data.timestamp
@@ -189,11 +182,11 @@ self.addEventListener('notificationclick', (event) => {
   const urlToOpen = event.notification.data?.url || '/';
   
   // Gérer les actions de notification
-  if (event.action === 'close') {
-    // L'utilisateur a cliqué sur "Fermer", ne rien faire
-    console.log('[Service Worker] Notification fermée');
+  if (event.action === 'dismiss' || event.action === 'close') {
+    console.log('[Service Worker] Notification ignorée');
     return;
   }
+  // 'view' ou clic direct → ouvrir l'URL
   
   // Ouvrir ou focaliser la fenêtre/onglet
   event.waitUntil(

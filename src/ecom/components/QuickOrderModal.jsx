@@ -28,7 +28,6 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
 
   const themeColor = getComputedStyle(document.documentElement).getPropertyValue('--s-primary').trim() || store?.primaryColor || '#0F6B4F';
   const currency = product?.currency || 'XAF';
-  const total = (product?.price || 0) * form.quantity;
 
   // ── Resolve config with safe fallbacks ──────────────────────────────────────
   const design = productPageConfig?.design || {};
@@ -50,6 +49,19 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
 
   const configQuantities = conversionConfig.quantities || [];
   const useQuantityButtons = configQuantities.length > 0;
+  const offersEnabled = conversionConfig.offersEnabled && conversionConfig.offers?.length > 0;
+  const offers = conversionConfig.offers || [];
+  const defaultOfferIdx = offers.findIndex(o => o.selected);
+  const [selectedOfferIdx, setSelectedOfferIdx] = useState(Math.max(0, defaultOfferIdx));
+
+  // Compute total: use offer price if offers enabled, else simple product.price * qty
+  const getTotal = () => {
+    if (offersEnabled && offers[selectedOfferIdx]?.price > 0) {
+      return offers[selectedOfferIdx].price;
+    }
+    return (product?.price || 0) * form.quantity;
+  };
+  const total = getTotal();
 
   const set = (field, value) => { setForm(prev => ({ ...prev, [field]: value })); setError(''); };
 
@@ -61,6 +73,11 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
     setSubmitting(true);
     setError('');
     try {
+      // Build offer price override if applicable
+      const offerPriceOverride = offersEnabled && offers[selectedOfferIdx]?.price > 0
+        ? { offerPrice: offers[selectedOfferIdx].price, offerQty: offers[selectedOfferIdx].qty }
+        : {};
+
       const res = await publicStoreApi.placeOrder(subdomain, {
         customerName: form.customerName.trim(),
         phone: form.phone.trim(),
@@ -68,7 +85,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
         address: form.address.trim(),
         city: form.city.trim(),
         notes: form.notes.trim(),
-        products: [{ productId: product._id, quantity: form.quantity }],
+        products: [{ productId: product._id, quantity: form.quantity, ...offerPriceOverride }],
         channel: 'store',
       });
       setOrderResult(res.data?.data);
@@ -168,10 +185,48 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
             </div>
           )}
 
-          {/* Quantité */}
+          {/* Quantité / Offres */}
           <div>
-            <label style={{ fontSize: 12.5, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Quantité</label>
-            {useQuantityButtons ? (
+            <label style={{ fontSize: 12.5, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>
+              {offersEnabled ? 'Choisissez votre offre' : 'Quantité'}
+            </label>
+            {offersEnabled ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {offers.map((offer, i) => {
+                  const disc = offer.comparePrice > offer.price && offer.price > 0
+                    ? Math.round((1 - offer.price / offer.comparePrice) * 100) : 0;
+                  const sel = selectedOfferIdx === i;
+                  return (
+                    <div key={i} onClick={() => { setSelectedOfferIdx(i); set('quantity', offer.qty); }}
+                      style={{
+                        padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
+                        border: sel ? `2px solid ${btnColor}` : '1.5px solid #E5E7EB',
+                        backgroundColor: sel ? `${btnColor}08` : '#fff',
+                        display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s ease',
+                      }}>
+                      <div style={{ width: 18, height: 18, borderRadius: '50%', border: sel ? `5px solid ${btnColor}` : '2px solid #D1D5DB', flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {offer.qty} {offer.qty === 1 ? 'unité' : 'unités'}
+                          {offer.badge && <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', backgroundColor: btnColor, padding: '2px 8px', borderRadius: 20 }}>{offer.badge}</span>}
+                        </div>
+                        {offer.price > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 2 }}>
+                            <span style={{ fontSize: 15, fontWeight: 800, color: btnColor }}>{fmt(offer.price, currency)}</span>
+                            {disc > 0 && (
+                              <>
+                                <span style={{ fontSize: 12, color: '#9CA3AF', textDecoration: 'line-through' }}>{fmt(offer.comparePrice, currency)}</span>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: '#EF4444', backgroundColor: '#FEE2E2', padding: '1px 6px', borderRadius: 10 }}>-{disc}%</span>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : useQuantityButtons ? (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {configQuantities.map(qty => (
                   <button key={qty} type="button" onClick={() => set('quantity', qty)} style={{

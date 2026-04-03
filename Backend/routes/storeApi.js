@@ -494,6 +494,11 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
     let total = 0;
     const orderProducts = [];
 
+    // Load store productPageConfig for offer validation
+    const storeSettings = workspace.storeSettings || {};
+    const ppConversion = storeSettings.productPageConfig?.conversion || {};
+    const storeOffers = ppConversion.offersEnabled ? (ppConversion.offers || []) : [];
+
     for (const item of products) {
       const dbProduct = productMap.get(item.productId);
       if (!dbProduct) {
@@ -511,6 +516,15 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
         });
       }
 
+      // Check if an offer price was sent and validate it against configured offers
+      let itemTotal = dbProduct.price * qty;
+      if (item.offerPrice != null && item.offerQty != null) {
+        const matchingOffer = storeOffers.find(o => o.qty === item.offerQty && o.price === item.offerPrice);
+        if (matchingOffer) {
+          itemTotal = matchingOffer.price;
+        }
+      }
+
       orderProducts.push({
         productId: dbProduct._id,
         name: dbProduct.name,
@@ -519,7 +533,7 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
         image: dbProduct.images?.[0]?.url || ''
       });
 
-      total += dbProduct.price * qty;
+      total += itemTotal;
     }
 
     const order = new StoreOrder({

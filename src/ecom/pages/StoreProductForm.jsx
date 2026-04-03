@@ -6,6 +6,17 @@ import AlibabaImportModal from '../components/AlibabaImportModal.jsx';
 import RichTextEditor from '../components/RichTextEditor.jsx';
 
 /**
+ * Convert markdown image syntax to HTML <img> tags
+ * e.g. ![alt](url) → <img src="url" alt="alt" style="max-width:100%;height:auto;" />
+ */
+function markdownImagesToHtml(md) {
+  if (!md) return md;
+  return md.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, src) =>
+    `<img src="${src}" alt="${alt}" style="max-width:100%;height:auto;border-radius:6px;margin:8px 0;" loading="lazy" />`
+  );
+}
+
+/**
  * StoreProductForm — Create or edit a store catalog product.
  * Handles image uploads via /store-products/upload,
  * system product picker (link to main catalogue),
@@ -84,7 +95,7 @@ const StoreProductForm = () => {
     setForm(prev => ({
       ...prev,
       name: aiGenerated.name || prev.name,
-      description: processedDescription || prev.description,
+      description: markdownImagesToHtml(processedDescription) || prev.description,
       category: aiGenerated.category || prev.category,
       tags: (aiGenerated.tags || []).join(', '),
       seoTitle: aiGenerated.seoTitle || prev.seoTitle,
@@ -152,7 +163,7 @@ const StoreProductForm = () => {
       return {
         ...prev,
         name: productData.name || prev.name,
-        description: processedDescription || prev.description,
+        description: markdownImagesToHtml(processedDescription) || prev.description,
         price: productData.price || prev.price,
         category: productData.category || prev.category,
         tags: productData.tags || prev.tags,
