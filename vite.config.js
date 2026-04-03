@@ -58,7 +58,7 @@ export default defineConfig({
     cssCodeSplit: true,
     cssMinify: 'esbuild',
     reportCompressedSize: false,
-    modulePreload: { polyfill: false },
+    modulePreload: true,
     // Aggressive optimization for mobile
     assetsInlineLimit: 4096, // Inline small assets
     rollupOptions: {
@@ -106,7 +106,7 @@ export default defineConfig({
       },
       // Tree shaking optimization
       treeshake: {
-        moduleSideEffects: true,
+        moduleSideEffects: 'no-external',
         propertyReadSideEffects: false,
         unknownGlobalSideEffects: false
       },

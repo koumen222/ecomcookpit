@@ -802,23 +802,36 @@ NO arrows, NO heavy graphic overlays, NO empty margins, NO price, NO CTA.
 Mood: Trustworthy, convincing, high-conversion, impossible to ignore in a Facebook or TikTok feed.`;
 
     const sceneRules = `
-Create a scroll-stopping ecommerce ad image. Ultra realistic, 4K quality, sharp focus, advertising photography style.
-Square 1:1 illustrative marketing visual, tight crop, subject fills the entire frame, ZERO empty space.
+Create a premium MARKETPLACE INFOGRAPHIC image for an ecommerce product listing. This is a GRAPHIC DESIGN composition — NOT a lifestyle photo.
+Style reference: Amazon A+ Content, premium marketplace listings (Ozon, Wildberries top sellers).
+USE THE EXACT REAL PRODUCT IMAGE PROVIDED — NEVER invent, recreate or redesign the product.
+Square 1:1, clean professional layout, ZERO clutter.
 
-Visual style: Clean, modern, premium brand aesthetic. Minimalist or contextual African environment. Professional lighting with soft shadows. Depth of field for a premium look.
+VISUAL STYLE:
+- Background: white or very light cream (#FAFAF5), clean and airy with lots of whitespace
+- Product: shown LARGE and DOMINANT with professional studio lighting, 3D rendering feel, soft shadow, sharp details
+- Typography: bold condensed modern sans-serif font (like Montserrat Black). Headlines in dark navy blue (#1B2A4A), UPPERCASE. Body text in gray (#555). ONE accent color matching the product
+- Decorative elements: realistic olive branches with green olives framing 2-3 corners. Premium botanical frame effect
+- Badges/seals: round stamp-style badges with solid color fill (dark green, dark red, accent color) + white icon + text in arc. Certification/quality seal aesthetic
+- Icons: clean modern line icons, monochrome, thin stroke
+- Layout: grid-based, aligned, structured. Clear visual hierarchy. Information organized in clean blocks
 
-PRODUCT VISIBILITY (CRITICAL): The product MUST be clearly visible, large, and sharp in the image. It should be recognizable, prominent, and take up significant space in the frame. Every detail — color, texture, label — must be visible.
+INFOGRAPHIC RULES:
+- This is a DESIGNED composition with typography, icons, and graphic elements — NOT a raw photograph
+- Product occupies 40-60% of the frame, always sharp and dominant
+- Text elements are integral to the design (headlines, labels, short descriptions)
+- Maximum 3 text elements: 1 headline + 1-2 supporting labels or short descriptions
+- Everything is perfectly aligned, spaced, and balanced
 
-Human element (MANDATORY): Include an authentic Black African model (dark brown skin, natural African hair, African facial features). Natural expression showing confidence, satisfaction, or the benefit of the product. Realistic skin and features — not fake or plastic. The person is ACTIVELY interacting with or benefiting from the product.
+Human element (ONLY when the prompt specifically asks for a person):
+- Authentic Black African model (dark brown skin, natural African hair)
+- Integrated into the infographic composition, not a separate photo
+- Studio lighting, clean background, natural confident expression
 
-Composition: Rich visual storytelling — show the CONTEXT (problem or need) → PRODUCT as clear solution → visible RESULT on the person. Product and person together in the same tight frame, both clearly visible.
+ALL French text MUST be 100% PERFECTLY spelled with every accent (é, è, à, ê, û, ç). ZERO spelling errors.
+NO price, NO phone number, NO URL, NO fake CTA button, NO watermark.
 
-Text overlay (modern bold font): 1 bold French headline (4-5 words max) capturing the key benefit at the top or bottom. Optional supporting line (8 words max). Optional small badge: "BEST SELLER" or "NOUVEAU".
-⚠️ CRITICAL SPELLING REQUIREMENT: All French text in the image MUST be 100% PERFECT — ZERO spelling errors, ZERO grammar mistakes, ZERO missing accents (é, è, ê, à, ç, ù, etc.). Every French word must be correctly written and properly accented. This is MANDATORY and NON-NEGOTIABLE.
-NO price, NO phone number, NO CTA button, NO URL. Keep it clean.
-
-Mood: Trustworthy, premium, high-conversion ecommerce ad, clean and attractive, impossible to ignore in a Facebook or TikTok feed.
-Strong emotional impact. Eye-catching composition. Clear problem → solution → result.`;
+Mood: premium marketplace listing, trustworthy, clean, professional graphic design. Think top Amazon seller infographic carousel.`;
 
     const productRefRule = originalImageBuffer
       ? `\nCRITICAL: A reference image of the EXACT real product is provided. You MUST include THIS SPECIFIC product (same shape, color, packaging, design) in the generated image. NEVER invent, replace, or redesign the product. The product in the output MUST be recognizably the same as the reference.\n`
@@ -877,7 +890,8 @@ export async function uploadBufferToR2(buffer, mimeType, workspaceId, userId) {
     const result = await uploadImage(buffer, filename, {
       workspaceId: String(workspaceId || 'unknown'),
       uploadedBy: String(userId || 'system'),
-      mimeType: mimeType || 'image/jpeg'
+      mimeType: mimeType || 'image/jpeg',
+      optimize: false,
     });
     return result?.url ? { url: result.url, key: result.key || result.id } : null;
   } catch (err) {

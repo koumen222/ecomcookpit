@@ -25,8 +25,8 @@ const router = express.Router();
 // ─── Image prompt builders ────────────────────────────────────────────────────
 
 /**
- * Hero PRO — African Facebook-ads layout matching the reference style:
- * TOP: bold headline (keyword in red) | LEFT: product large | RIGHT: person showing problem
+ * Hero PRO — African Facebook-ads layout:
+ * TOP: bold headline (keyword in red) | LEFT: product large | RIGHT: person showing RESULT
  * LEFT overlay: red CTA badge + curved arrow pointing to product
  */
 function buildHeroPrompt(gptResult, hasProductRef) {
@@ -45,7 +45,7 @@ MANDATORY EXACT LAYOUT:
 1. TOP SECTION (20% of frame): Large bold black headline text centered: "${hookText}". The KEY transformation word or last phrase is in bold RED color. Text is perfectly readable, no distortion.
 2. MAIN SCENE (bottom 80% of frame):
    - LEFT HALF: ${productBlock}. The product stands tall and dominant, occupying the full left side.
-   - RIGHT HALF: Realistic ${targetPerson}. Authentic Black African person, dark brown skin, natural hair, standing in a simple modern African home interior. Looking down at or holding the problem area (e.g. belly, skin, hair) with a concerned/frustrated expression.
+   - RIGHT HALF: Realistic ${targetPerson}. Authentic Black African person, dark brown skin, natural hair, in a bright modern setting. HAPPY, CONFIDENT, RADIANT expression — showing the POSITIVE RESULT of using the product. Big natural smile, glowing energy, satisfaction visible. The person looks transformed, healthy, and proud.
 3. LEFT SIDE OVERLAY (on top of product area): A bold red rounded-rectangle badge with white bold text: "${ctaText}". Directly below the badge: a thick curved red arrow pointing DOWN toward the product.
 
 Text rules: ALL French text must have PERFECT spelling with every accent (é, è, à, ê, û, ç etc). Zero spelling errors.
@@ -54,94 +54,100 @@ Style: commercial Facebook advertising style, bright clean white background, hig
 }
 
 /**
- * 4 flash prompts — adaptés à la MÉTHODE copywriting + au PRODUIT RÉEL.
- * Les scènes illustrent les étapes de la méthode (PAS, AIDA, BAB).
- * WITH product ref: reference product stays visible in every scene.
- * WITHOUT: pure lifestyle / emotion scenes, no brand.
+ * 4 flash prompts — INFOGRAPHIES MARKETPLACE style listing Amazon/Ozon Premium.
+ * Chaque image est une infographie graphique (PAS une photo lifestyle).
+ * WITH product ref: le vrai produit est intégré dans l'infographie.
+ * WITHOUT: produit générique stylisé.
  */
 function buildFlashPrompts(gptResult, hasProductRef, method = 'PAS') {
   const title = gptResult.title || 'product';
   const targetPerson = gptResult.hero_target_person || 'authentic African person';
+  const benefits = gptResult.benefits_bullets || [];
+  const b1 = (benefits[0] || '').replace(/^[^\w]*/,'');
+  const b2 = (benefits[1] || '').replace(/^[^\w]*/,'');
+  const b3 = (benefits[2] || '').replace(/^[^\w]*/,'');
+  const b4 = (benefits[3] || '').replace(/^[^\w]*/,'');
   const productNote = hasProductRef
-    ? `THE EXACT REFERENCE PRODUCT ("${title}") must be clearly visible — same packaging, shape, color, label.`
-    : '';
-  const productTag = hasProductRef
-    ? `holding or near THE EXACT REFERENCE PRODUCT — ${productNote}`
-    : 'the product category context visible, no brand label';
+    ? `THE EXACT REFERENCE PRODUCT ("${title}") must be shown large, sharp, dominant — same packaging, shape, color, label. Use the provided product image as reference.`
+    : `A premium product packaging for "${title}" shown large, sharp, dominant.`;
 
-  const baseStyle = 'commercial advertising photography, ultra realistic, 4K quality, sharp focus, no watermark, no text overlay, square 1:1';
+  const infographicBase = `Square 1:1 MARKETPLACE INFOGRAPHIC for "${title}". Mix of GRAPHIC DESIGN and REAL PHOTOGRAPHY — infographic layout with integrated photos of real people. Style: premium marketplace listing (Amazon A+ content, Ozon top sellers). White or very light background. Professional product rendering. Bold modern typography. Clean iconography. Authentic Black African people integrated naturally into the design. Premium feel.`;
 
-  // Prompts adaptés à chaque méthode copywriting
-  const methodPrompts = {
-    PAS: [
-      // P — Problème : la personne vit le problème
-      {
-        prompt: `${targetPerson} clearly showing frustration or discomfort from the problem this product solves. Realistic everyday situation, natural African home or work environment, visible struggle or concern on face. The problem area is clearly shown. ${baseStyle}`,
-        type: 'problem',
-      },
-      // A — Agitation : les conséquences de ne rien faire
-      {
-        prompt: `${targetPerson} dealing with the worsened consequences of not solving the problem. Stressed, uncomfortable, or embarrassed expression. Realistic scene showing the negative impact on daily life. Close-up on the affected area. ${baseStyle}`,
-        type: 'agitation',
-      },
-      // S — Solution : le produit résout tout
-      {
-        prompt: `${targetPerson} happily using or holding the product with visible relief and satisfaction. ${productTag}. Clean bright environment, confident smile, the product is the clear solution. Natural warm lighting, modern African setting. ${baseStyle}`,
-        type: 'solution',
-      },
-      // Résultat : transformation visible
-      {
-        prompt: `${targetPerson} showing the positive result after using the product. Radiant, confident, satisfied. The improvement is clearly visible on the relevant body area. ${productTag}. Bright optimistic lighting, premium feel. ${baseStyle}`,
-        type: 'result',
-      },
-    ],
-    AIDA: [
-      // A — Attention : image accrocheuse
-      {
-        prompt: `Eye-catching scroll-stopping image: ${targetPerson} in a dramatic or surprising moment related to this product category. Bold composition, high contrast, vivid colors. ${productTag}. ${baseStyle}`,
-        type: 'attention',
-      },
-      // I — Intérêt : détail fascinant
-      {
-        prompt: `Close-up detail shot showing the unique quality or texture of the product being used by ${targetPerson}. Macro-style detail, fascinating texture, premium materials visible. ${productTag}. Soft studio lighting. ${baseStyle}`,
-        type: 'interest',
-      },
-      // D — Désir : transformation émotionnelle
-      {
-        prompt: `${targetPerson} experiencing the emotional transformation from using this product. Pure joy, confidence, or pride visible on face. Aspirational lifestyle scene, warm golden lighting, modern African setting. ${productTag}. ${baseStyle}`,
-        type: 'desire',
-      },
-      // A — Action : social proof / facilité
-      {
-        prompt: `${targetPerson} confidently recommending or showcasing the product to others. Group scene or testimonial-style portrait, authentic warm expressions, trust and satisfaction. ${productTag}. Natural community setting. ${baseStyle}`,
-        type: 'action',
-      },
-    ],
-    BAB: [
-      // B — Before : vie avant le produit
-      {
-        prompt: `${targetPerson} in their daily life BEFORE discovering this product. Visible frustration, discomfort, or dissatisfaction with current situation. Muted colors, dull lighting, realistic everyday African setting. ${baseStyle}`,
-        type: 'before',
-      },
-      // A — After : vie après le produit
-      {
-        prompt: `${targetPerson} enjoying life AFTER using this product. Radiant, happy, transformed. Bright warm colors, golden hour lighting, premium feel. The improvement is clearly visible. ${productTag}. Modern African setting. ${baseStyle}`,
-        type: 'after',
-      },
-      // B — Bridge : le produit fait le pont
-      {
-        prompt: `${targetPerson} actively using or applying the product — the bridge between the old and new life. Clear product interaction, focused expression turning to smile. ${productTag}. Clean bright environment. ${baseStyle}`,
-        type: 'bridge',
-      },
-      // Confiance : crédibilité
-      {
-        prompt: `Premium product showcase: the product displayed beautifully in a clean, trustworthy setting. ${productTag}. Professional product photography, premium packaging visible, quality feel, soft studio lighting, elegant composition. ${baseStyle}`,
-        type: 'trust',
-      },
-    ],
-  };
+  return [
+    // Slide 1: Produit + Titre + Badges bénéfices + personne
+    {
+      prompt: `${infographicBase}
 
-  return methodPrompts[method] || methodPrompts.PAS;
+COMPOSITION: Product hero infographic — WHY THIS PRODUCT.
+- BACKGROUND: Clean white or very light cream
+- TOP: Bold dark navy blue headline in UPPERCASE condensed font: "POURQUOI" + product name/promise in French. Large, dominant
+- CENTER: ${productNote} Product shown LARGE, 3D style, dramatic studio lighting, soft shadow. Olive branches framing naturally
+- LEFT OF PRODUCT: 3-4 round certification SEAL BADGES (dark green "naturel", dark red "sans..."). Solid color circle + white icon + text in arc. Stamp/seal style
+  Benefits: "${b1}", "${b2}", "${b3}", "${b4}"
+- INTEGRATED PERSON: ${targetPerson} — authentic Black African person with dark skin, visible in the composition (behind or beside the product), looking confident, warm smile. Photo-quality portrait integrated into the infographic layout. The person adds trust and human connection
+
+ALL text PERFECT French. Airy, premium. Product + person + badges = visual story.`,
+      type: 'benefits_infographic',
+    },
+    // Slide 2: Composition/Formule + personne africaine utilisant le produit
+    {
+      prompt: `${infographicBase}
+
+COMPOSITION: Product formula/ingredients infographic with person.
+- BACKGROUND: White, clean and airy
+- TOP-LEFT: Bold dark navy headline UPPERCASE: "FORMULE AMÉLIORÉE" or product-specific formula title
+- RIGHT SIDE: ${productNote} Product at medium-large scale with golden/amber drops or ingredient particles floating around. Premium lighting
+- LEFT SIDE: 3 key ingredients/features listed vertically:
+  • Colored dot/icon + ingredient name BOLD + 2-line gray description
+  • Thin lines/arrows from ingredients to the product
+- BOTTOM or SIDE: ${targetPerson} — authentic Black African person, close-up portrait or hands applying/holding the product. Natural expression, warm studio lighting. Shows the product being USED by a real person
+- Olive leaves as subtle decoration
+- Navigation tabs at top ("produit | composition | action") with "composition" highlighted
+
+PERFECT French. Infographic + real person photo integrated. Premium marketplace.`,
+      type: 'formula_infographic',
+    },
+    // Slide 3: Mode d'emploi / Action (personne africaine dominante)
+    {
+      prompt: `${infographicBase}
+
+COMPOSITION: How-to-use infographic — PERSON DOMINANT.
+- BACKGROUND: White to very light green subtle gradient
+- TOP-LEFT: "MODE D'EMPLOI" MASSIVE UPPERCASE bold dark navy — dominates upper-left quarter
+- SUBTITLE: "Découvrez des résultats MAXIMUM" in italic gray
+- RIGHT SIDE (50-60% of image): ${targetPerson} — authentic Black African person, dark skin, natural African hair (afro, braids, locks), BIG warm smile, holding or showing the product confidently. Mi-body portrait, studio lighting. This person is the MAIN VISUAL ELEMENT of this slide
+- LEFT SIDE: 2 numbered steps:
+  • Circle with "1" in accent color + action in French
+  • Circle with "2" + action in French
+  • Small icons next to each (pill, clock...)
+- BOTTOM-LEFT: Round green "100% NATUREL" seal badge
+- Product also visible near the person's hands
+- Olive branches behind person and bottom-left
+
+The PERSON dominates this image. Infographic elements support. PERFECT French.`,
+      type: 'howto_infographic',
+    },
+    // Slide 4: Lifestyle/Résultat — personne africaine + produit + stats
+    {
+      prompt: `${infographicBase}
+
+COMPOSITION: Lifestyle result with stats — person showing transformation.
+- BACKGROUND: White/cream, clean
+- TOP: Bold dark navy headline in French: inspiring phrase about taking control, regaining confidence, or achieving results
+- CENTER: ${targetPerson} — authentic Black African person, dark skin, ACTIVE and DYNAMIC (jogging, stretching, smiling confidently, or showing results). Full of energy and confidence. Mid-body shot, warm natural lighting. The person is the HERO of this slide
+- NEAR THE PERSON: ${productNote} Product visible next to or held by the person. Arrow or visual connection between them
+- RIGHT SIDE or around: 3 stat badges/circles:
+  • "100%" + short description
+  • "98%" + short description  
+  • Number + short description
+  Each stat in a clean circle or rounded rectangle
+- BOTTOM: 3 round benefit icons in a row with short French labels
+- Olive branches in 2 corners
+
+Person + product + stats = trustworthy visual proof. PERFECT French. Premium marketplace.`,
+      type: 'lifestyle_stats',
+    },
+  ];
 }
 
 // Plusieurs générations simultanées autorisées — lock supprimé
@@ -352,7 +358,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         const uploaded = await uploadImage(imageBuffer, resizedFilename, {
           workspaceId: req.workspaceId,
           uploadedBy: userId,
-          mimeType: 'image/jpeg'
+          mimeType: 'image/jpeg',
+          optimize: false,
         });
         if (!uploaded?.url) throw new Error('Upload retourné sans URL');
         return uploaded.url;

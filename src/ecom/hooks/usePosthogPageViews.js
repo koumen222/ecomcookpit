@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { track } from '../services/posthog.js';
+
+// Lazy import — keeps posthog-js out of the critical bundle
+const _track = (...args) => import('../services/posthog.js').then(m => m.track(...args)).catch(() => {});
 
 /**
  * Hook that automatically tracks:
@@ -20,7 +22,7 @@ export function usePosthogPageViews() {
     // Only send if > 500ms (ignore instant redirects)
     if (durationMs > 500) {
       const workspace = JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
-      track('page_duration', {
+      _track('page_duration', {
         path,
         durationMs,
         durationSec: Math.round(durationMs / 1000),
@@ -37,7 +39,7 @@ export function usePosthogPageViews() {
     }
 
     // Track pageview for the new page
-    track('$pageview', {
+    _track('$pageview', {
       $current_url: window.location.href,
       path: location.pathname,
     });

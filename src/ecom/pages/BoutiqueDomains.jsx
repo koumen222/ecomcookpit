@@ -430,7 +430,7 @@ const BoutiqueDomains = () => {
                   <div className="flex items-center gap-2">
                     {dnsResult.ok ? (
                       <><svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                      <span className="text-sm text-green-700 font-semibold">DNS configuré correctement — votre domaine est connecté !</span></>
+                      <span className="text-sm text-green-700 font-semibold">DNS configuré correctement — <a href={`https://${customDomain}`} target="_blank" rel="noopener noreferrer" className="hover:underline">https://{customDomain}</a></span></>
                     ) : (
                       <><svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                       <span className="text-sm text-red-700 font-semibold">DNS pas encore propagés</span></>
@@ -459,10 +459,10 @@ const BoutiqueDomains = () => {
 
               {isConnected && !dnsResult && (
                 <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                  <span className="text-sm text-green-700 font-semibold">
-                    Votre domaine <span className="font-mono">{customDomain}</span> est connecté à votre boutique.
-                  </span>
+                  <svg className="w-4 h-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                  <a href={`https://${customDomain}`} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-green-700 hover:underline">
+                    https://{customDomain}
+                  </a>
                 </div>
               )}
 

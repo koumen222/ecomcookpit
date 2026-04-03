@@ -1191,11 +1191,16 @@ const StoreProductPage = () => {
 
       {/* ── Témoignages clients ── full-width ──────────────── */}
       {showTestimonials && (() => {
-        const t = product?._pageData?.testimonials?.length > 0
-          ? product._pageData.testimonials
-          : product?.testimonials?.length > 0
-            ? product.testimonials
-            : getDefaultTestimonials(store?.country);
+        // Priority: custom testimonials from builder > AI-generated > product > country defaults
+        const testimonialsSection = productPageConfig?.general?.sections?.find(s => s.id === 'testimonials');
+        const customT = testimonialsSection?.content?.items;
+        const t = (customT?.length > 0)
+          ? customT
+          : product?._pageData?.testimonials?.length > 0
+            ? product._pageData.testimonials
+            : product?.testimonials?.length > 0
+              ? product.testimonials
+              : getDefaultTestimonials(store?.country);
         const prodImg = product?._pageData?.heroImage || product?.images?.[0]?.url || product?.images?.[0] || null;
         return (
           <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>

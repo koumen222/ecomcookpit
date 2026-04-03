@@ -164,6 +164,81 @@ const FormFieldsEditor = ({ config, onChange }) => {
   );
 };
 
+// ── Product selector ──────────────────────────────────────────────────────────
+const ProductSelector = ({ products, selected, onSelect, storeSubdomain }) => {
+  const [open, setOpen] = useState(false);
+  const product = selected;
+
+  const productUrl = product?.slug && storeSubdomain
+    ? `https://${storeSubdomain}.scalor.net/product/${product.slug}`
+    : product?.slug ? `/product/${product.slug}` : null;
+
+  return (
+    <div className="border-b border-gray-100 px-4 py-3 bg-gray-50/60">
+      {/* Selector row */}
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] font-semibold text-gray-500 shrink-0">Aperçu avec :</span>
+        <div className="relative flex-1 min-w-0">
+          <button
+            onClick={() => setOpen(o => !o)}
+            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:border-emerald-300 transition-colors text-left"
+          >
+            {product?.images?.[0]?.url && (
+              <img src={product.images[0].url} alt="" className="w-5 h-5 rounded object-cover shrink-0" />
+            )}
+            <span className="text-[12px] font-medium text-gray-800 truncate flex-1">
+              {product?.name || 'Choisir un produit…'}
+            </span>
+            <ChevronRight size={12} className={`text-gray-400 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} />
+          </button>
+          {open && products.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto">
+              {products.map(p => (
+                <button
+                  key={p._id}
+                  onClick={() => { onSelect(p); setOpen(false); }}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 transition-colors text-left ${p._id === product?._id ? 'bg-emerald-50' : ''}`}
+                >
+                  {p.images?.[0]?.url && (
+                    <img src={p.images[0].url} alt="" className="w-7 h-7 rounded object-cover shrink-0" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-[12px] font-semibold text-gray-800 truncate">{p.name}</div>
+                    <div className="text-[10px] text-gray-400 font-mono truncate">/product/{p.slug}</div>
+                  </div>
+                  {p._id === product?._id && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* URL stable info */}
+      {productUrl && (
+        <div className="mt-2 flex items-center gap-2 px-2 py-1.5 bg-emerald-50 rounded-lg border border-emerald-100">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+          <span className="text-[10px] text-emerald-700 font-medium truncate flex-1">{productUrl}</span>
+          <a
+            href={productUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 text-emerald-600 hover:text-emerald-800 transition-colors"
+            title="Voir la page produit"
+          >
+            <ExternalLink size={11} />
+          </a>
+        </div>
+      )}
+      {productUrl && (
+        <p className="text-[10px] text-gray-400 mt-1 px-1">
+          🔗 Cette URL ne change jamais — vos pubs et partages restent valides même si vous modifiez le produit.
+        </p>
+      )}
+    </div>
+  );
+};
+
 // ── Main Builder ──────────────────────────────────────────────────────────────
 const ProductSettingsPage = () => {
   const [config, setConfig] = useState(() => deepClone(defaultConfig));
@@ -174,27 +249,31 @@ const ProductSettingsPage = () => {
   const [saveError, setSaveError] = useState('');
   const [showMobilePreview, setShowMobilePreview] = useState(false);
   const [previewProduct, setPreviewProduct] = useState(null);
+  const [allProducts, setAllProducts] = useState([]);
+  const [storeSubdomain, setStoreSubdomain] = useState('');
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await storeManageApi.getStoreConfig();
-        const raw = res.data?.data || res.data || {};
+        const [configRes, productsRes, storeRes] = await Promise.all([
+          storeManageApi.getStoreConfig(),
+          storeProductsApi.getProducts({ limit: 50 }),
+          storeManageApi.getStoreConfig(),
+        ]);
+        const raw = configRes.data?.data || configRes.data || {};
         const stored = raw.storeSettings?.productPageConfig || raw.productPageConfig;
         if (stored) setConfig(mergeWithDefaults(stored));
+
+        const list = productsRes.data?.data?.products || productsRes.data?.data || productsRes.data || [];
+        setAllProducts(list);
+        if (list.length > 0) setPreviewProduct(list[0]);
+
+        const sub = raw.storeSettings?.subdomain || raw.subdomain || '';
+        setStoreSubdomain(sub);
       } catch (e) {
         console.error('Failed to load product page config:', e);
       } finally {
         setLoading(false);
-      }
-    })();
-    (async () => {
-      try {
-        const res = await storeProductsApi.getProducts({ limit: 1 });
-        const list = res.data?.data?.products || res.data?.data || res.data || [];
-        if (list.length > 0) setPreviewProduct(list[0]);
-      } catch (e) {
-        console.error('ProductSettingsPage: failed to load preview product', e);
       }
     })();
   }, []);
@@ -258,6 +337,7 @@ const ProductSettingsPage = () => {
           <OffersEditor
             config={config.conversion}
             onChange={(conv) => handleChange({ ...config, conversion: conv })}
+            basePrice={previewProduct?.price || 0}
           />
         );
       case 'form':
@@ -324,9 +404,9 @@ const ProductSettingsPage = () => {
               <Smartphone size={13} /> Aperçu
             </button>
 
-            {previewProduct?.slug && (
+            {previewProduct?.slug && storeSubdomain && (
               <a
-                href={`/product/${previewProduct.slug}`}
+                href={`https://${storeSubdomain}.scalor.net/product/${previewProduct.slug}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-500 border border-gray-200 bg-white hover:bg-gray-50 transition-colors"
@@ -371,6 +451,12 @@ const ProductSettingsPage = () => {
       <div className={`flex-1 flex overflow-hidden ${showMobilePreview ? 'hidden lg:flex' : ''}`}>
         {/* Left: Editor panel */}
         <div className="w-full lg:w-[420px] xl:w-[460px] flex-none overflow-y-auto border-r border-gray-200 bg-white">
+          <ProductSelector
+            products={allProducts}
+            selected={previewProduct}
+            onSelect={setPreviewProduct}
+            storeSubdomain={storeSubdomain}
+          />
           <div className="p-3 sm:p-4">
             {/* Accordion sections */}
             <div className="space-y-1.5">

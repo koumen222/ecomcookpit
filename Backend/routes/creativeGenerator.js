@@ -187,38 +187,283 @@ IMPORTANT:
 }
 
 /**
- * Build image prompt — ULTRA SHORT ≤200 chars
- * Coût ÷4 vs prompts longs. Décrit le VISUEL seulement.
+ * Build image prompt — Professional e-commerce listing design
+ * Each template generates a specific layout matching Amazon/Shopify listing standards
  */
 function buildCreativePrompt(analysis, format, hasRefImage) {
-  const { productName, keyBenefits, painPoints, usageSteps, targetAudience, brandColors } = analysis;
+  const { productName, keyBenefits, painPoints, usageSteps, targetAudience, brandColors, slogans, emotionalHook } = analysis;
   const name = productName || 'produit';
-  const b = (keyBenefits || []).slice(0, 3).join(', ') || 'efficace, naturel, premium';
-  const problems = (painPoints || []).slice(0, 2).join(', ') || 'fatigue, stress';
+  const benefits = (keyBenefits || []).slice(0, 3);
+  const b1 = benefits[0] || 'Efficace';
+  const b2 = benefits[1] || 'Naturel';
+  const b3 = benefits[2] || 'Premium';
+  const problems = (painPoints || []).slice(0, 4);
+  const p1 = problems[0] || 'Fatigue';
+  const p2 = problems[1] || 'Stress';
+  const p3 = problems[2] || 'Inconfort';
+  const p4 = problems[3] || 'Routine difficile';
   const steps = (usageSteps || []).slice(0, 3);
-  const accent = brandColors || 'lavande doux';
-  const audience = targetAudience || 'personne africaine';
+  const s1 = steps[0] || 'Ouvrir';
+  const s2 = steps[1] || 'Appliquer';
+  const s3 = steps[2] || 'Profiter du résultat';
+  const accent = brandColors || 'vert menthe et blanc';
+  const audience = targetAudience || 'jeune femme africaine';
+  const slogan = (slogans || [])[0] || emotionalHook || `Découvrez ${name}`;
 
-  const needsProduct = SLIDES_WITH_PRODUCT_IMAGE.has(format.slideType);
-  const productRef = needsProduct && hasRefImage ? 'Utilise cette photo produit.' : '';
+  const refImageInstruction = hasRefImage
+    ? 'CRITICAL — PRODUCT IMAGE: A reference product image is provided. You MUST reproduce the exact real product packaging faithfully: same colors, same logo, same label design, same shape. Never invent a generic product.'
+    : 'No reference image provided — create a realistic professional product render consistent with the product description.';
+
+  const COMMON_RULES = `
+═══════════════════════════════════════════════════════════════
+STYLE OBLIGATOIRE — Listing E-commerce Premium HD (réf: BCAA 1000 Amazon)
+═══════════════════════════════════════════════════════════════
+
+${refImageInstruction}
+
+QUALITÉ & RÉSOLUTION:
+- Image CARRÉE 1:1, rendu ULTRA HD photoréaliste, qualité impression magazine
+- Netteté maximale sur tous les éléments: texte razor-sharp, produit hyper-détaillé
+- Zéro flou, zéro pixélisation, zéro artefact de génération
+- Eclairage studio professionnel 3 points: fill light doux + key light latéral + rim light pour le produit
+
+FOND:
+- Fond BLANC PUR ou blanc très légèrement teinté selon la couleur accent du produit
+- Dégradé subtil radial: centre très légèrement plus lumineux. JAMAIS de texture ou motif
+- Propre, aéré, premium — le fond ne doit jamais attirer l'attention
+
+PRODUIT (élément le plus important):
+- TOUJOURS intégrer l'image réelle du produit fournie en référence. Reproduire fidèlement le packaging: couleurs, logo, étiquette, forme exacte
+- Rendu 3D hyper-réaliste: éclairage studio dramatique, ombres douces portées au sol, reflets subtils sur les surfaces
+- Le produit occupe 40-60% de l'espace visuel selon le type de slide
+- JAMAIS de produit générique ou inventé si une image de référence est fournie
+
+ÉLÉMENTS DÉCORATIFS NATURELS (signature du style):
+- Feuilles vertes brillantes et tiges végétales décoratives dans 2-3 coins de l'image
+- Style botanique réaliste: feuilles d'eucalyptus, menthe, olivier ou plante selon le produit
+- Grandes feuilles détaillées qui encadrent élégamment la composition
+- Couleur: vert vif à vert foncé, brillant, réaliste
+
+BADGE "ALL NATURAL" (présent sur CHAQUE slide):
+- Badge rond vert foncé (vert forêt #1a5c2a) style tampon officiel en haut de l'image
+- Texte en arc: "ALL NATURAL" en haut + icône feuille/nature au centre + texte secondaire en bas
+- Effet gaufré, ombre légère, look sceau officiel certifié
+
+AUTRES BADGES & SCEAUX:
+- Style tampon rond, fond plein vert foncé ou couleur accent ${accent}
+- Icône blanche au centre, texte court en arc autour
+- Disposition: colonnes verticales à gauche du produit OU arc autour du produit
+
+TYPOGRAPHIE:
+- Titres: Police sans-serif BOLD CONDENSÉE très épaisse (style Impact / Montserrat ExtraBold)
+- MAJUSCULES, couleur noir charbon ou bleu marine très foncé (#0d1b2e)
+- Titres GRANDS et dominants — doivent être lus en premier
+- Corps: police propre lisible, jamais inférieur à ce qui serait lisible sur mobile
+- Texte UNIQUEMENT en FRANÇAIS. AUCUN texte anglais sauf badges génériques (ALL NATURAL, GMO FREE etc.)
+- AUCUN Lorem ipsum, AUCUN placeholder, AUCUN texte inventé illisible
+
+PERSONNAGES (quand présents):
+- Personnes noires africaines, peau foncée à ébène, traits africains authentiques
+- Coiffures naturelles africaines: tresses, locks, afro, turban wax
+- Expressions vivantes, sourires naturels confiants, énergie positive
+- Qualité portrait magazine: éclairage studio chaud, mise au point nette, pas de flou artistique excessif
+- Tenue moderne et propre
+═══════════════════════════════════════════════════════════════`;
 
   const slidePrompts = {
-    'benefits': `${productRef} Listing carré 1:1. 3 colonnes: GAUCHE ${audience} fatiguée "${problems}" fond sombre, CENTRE produit "${name}" grand sur fond blanc, DROITE ${audience} souriante "${b}" fond lumineux. Flèche problème→produit→solution. Titre bold haut.`,
+    // ── 1. Problème / Solution ──────────────────────────────────────────────────
+    'problem-solution': `
+Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" — Before/After split screen style. Ultra-sharp, photorealistic, print-quality render.
 
-    'social-proof': `${productRef} Listing carré 1:1. Fond ${accent} pastel. Titre bold noir "ILS NOUS FONT CONFIANCE". Grille 2x2: 4 photos ${audience} souriants tenant le produit "${name}". Chaque photo dans carte blanche arrondie. Étoiles ★★★★★ sous chaque photo.`,
+LAYOUT — SPLIT SCREEN vertical, 2 equal halves:
 
-    'target': `Listing carré. Fond blanc. SANS produit. Gauche: titre bold "POURQUOI L'ADORER" + icônes ${b}. Droite: ${audience} épanouie lifestyle. Français.`,
+LEFT HALF "LE PROBLÈME" (before):
+- Background: cold desaturated grey-white
+- Top label: "LE PROBLÈME" in large bold condensed uppercase black letters
+- Scene: African person (dark ebony skin) with expression of fatigue/stress/discomfort. Cold studio lighting, slightly desaturated mood
+- 2-3 floating rounded pill-badges in dark red (#8b1a1a), white icon + white text: "${p1}" / "${p2}" / "${p3}"
 
-    'problem-solution': `Listing carré. Fond ${accent} pastel. SANS produit. Titre bold. Grille 2x2 photos lifestyle: ${problems}. Cartes label blanc. Français.`,
+RIGHT HALF "LA SOLUTION" (after):
+- Background: bright warm white with very subtle golden-green radial glow
+- Top label: "LA SOLUTION" in large bold condensed uppercase dark green letters
+- Product "${name}": exact faithful reproduction of the provided reference product image. Hero shot 3D: dramatic studio lighting, soft ground shadow, subtle reflections. LARGE and prominent
+- 3 round dark-green (#1a5c2a) certification badges in vertical column (left of product): white icon center + text in arc: "${b1}" / "${b2}" / "Résultats Garantis"
+- Decorative green botanical leaves (eucalyptus/mint style) in top-right and bottom-right corners
 
-    'how-to-use': `${productRef} Listing carré. Fond ${accent}. Titre bold blanc "MODE D'EMPLOI". 3 étapes cartes blanches: ${steps.map((s,i) => `${i+1}.${s}`).join(' ')}. Produit petit en bas.`,
+CENTER DIVIDER:
+- Bold curved arrow or gradient transition stripe (red → green) between the two halves
 
-    'trust': `${productRef} Listing carré. Fond blanc. Titre bold "FORMULÉ PAR LA NATURE". Produit centré grand. 4 callouts: ${b}. Badges: Sans OGM, Naturel, Premium. Français.`,
+TOP of full image:
+- Round green badge "ALL NATURAL" dark green (#1a5c2a), embossed stamp style, leaf icon center
 
-    'comparison': `${productRef} Listing carré. Fond blanc. Titre bold "POURQUOI ${name.toUpperCase()} GAGNE". Tableau 6 lignes ✓/✗ notre produit gagne. En-têtes ${accent}. Français.`,
+Typography: bold condensed sans-serif, ultra-sharp, French only. Zero blur, zero artifacts.
+${COMMON_RULES}`,
+
+    // ── 2. Pourquoi l'adorer ────────────────────────────────────────────────────
+    'benefits': `
+Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" — lifestyle benefits style. Ultra-sharp, photorealistic, print-quality render.
+
+LAYOUT:
+- Background: pure white, clean, airy — bright radial center glow
+- TOP-LEFT: Round green badge "ALL NATURAL" dark green (#1a5c2a), embossed stamp, leaf icon
+- HEADLINE top-center: "${slogan}" in LARGE bold condensed uppercase very dark navy (#0d1b2e). Dominant
+- SUBTITLE below headline: "Simplifie votre quotidien" italic dark grey
+
+- RIGHT SIDE (60% width): Product "${name}" — exact faithful reproduction of the provided reference product image. 3D hero shot, dramatic studio lighting (3-point), soft drop shadow, subtle packaging reflections. VERY LARGE, fills right portion
+- LEFT SIDE: African person (dark ebony skin, natural African hairstyle — braids/afro/locs), genuine smile of satisfaction and confidence, holding or using "${name}". Warm studio lighting, magazine portrait quality
+
+- 4 round certification badges in vertical column along left edge, dark green (#1a5c2a) or brand accent, each: white icon + text in arc:
+  "${b1}" / "${b2}" / "${b3}" / "Qualité Premium"
+
+- Large decorative green botanical leaves (eucalyptus/olive style) in top-right and bottom-left corners, realistic detailed
+
+- BOTTOM: Pill badge "${accent}" color: ★★★★★ + "Approuvé par nos clients"
+
+Typography: bold condensed sans-serif, ultra-sharp, French only.
+${COMMON_RULES}`,
+
+    // ── 3. Situations d'usage (grille 2×2) ─────────────────────────────────────
+    'target': `
+Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" — 4 usage situations grid. Ultra-sharp, photorealistic, print-quality render.
+
+LAYOUT — 2×2 equal grid with thin separator lines:
+
+TOP BANNER (full width, above grid):
+- Background: dark navy (#0d1b2e) or brand accent ${accent}
+- Text: "${name.toUpperCase()} — Partout avec vous" bold condensed white, large
+
+GRID (4 equal cells, consistent warm lighting and color palette across all):
+
+TOP-LEFT "À LA MAISON":
+- Warm interior setting (kitchen/living room)
+- African person (dark ebony skin) using "${name}" at home, natural expression
+- Bottom overlay label: white bold "🏠 Maison" on dark semi-transparent strip
+
+TOP-RIGHT "AU TRAVAIL":
+- Modern bright office setting
+- African person focused, product used in professional context
+- Bottom overlay label: white bold "💼 Travail"
+
+BOTTOM-LEFT "EN DÉPLACEMENT":
+- Outdoor / urban / transport setting, bright daylight
+- African person in movement, product easily accessible
+- Bottom overlay label: white bold "🚗 Déplacement"
+
+BOTTOM-RIGHT "AU QUOTIDIEN":
+- Simple everyday life scene, authentic
+- Product "${name}" clearly visible (exact packaging from reference if provided)
+- Bottom overlay label: white bold "⭐ Quotidien"
+
+TOP corner of full image: Round green badge "ALL NATURAL" stamp style
+
+Typography: bold condensed sans-serif, ultra-sharp, French only.
+${COMMON_RULES}`,
+
+    // ── 4. Mode d'emploi ────────────────────────────────────────────────────────
+    'how-to-use': `
+Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" — how to use / step-by-step style. Ultra-sharp, photorealistic, print-quality render.
+
+LAYOUT (inspired by premium Amazon supplement listings):
+- Background: pure white, very clean and airy
+- TOP-LEFT: Round badge "ALL NATURAL" dark green (#1a5c2a) embossed stamp style
+- TOP-LEFT HEADLINE: "MODE D'EMPLOI" in VERY LARGE bold condensed uppercase dark navy — dominates upper-left quarter
+- SUBTITLE: "Découvrez des résultats MAXIMUM" italic grey, word MAXIMUM in bold ${accent} color
+
+- TOP-RIGHT: African woman (dark ebony skin, afro or braids), confident warm smile, holding "${name}" product. Half-bust. Warm studio lighting, magazine quality
+
+- CENTER-LEFT area: 3 steps with large numbered circles (solid ${accent} fill, white number):
+  ① Large circle "1" + icon above + text: "${s1}"
+  ② Large circle "2" + icon above + text: "${s2}"
+  ③ Large circle "3" + icon above + text: "${s3}"
+  Thin arrows connecting the 3 steps horizontally
+
+- BOTTOM-CENTER: Product "${name}" — exact faithful reproduction of reference image. Flat lay or standing, elegant studio lighting
+
+- Large decorative green botanical leaves in top-right (behind person) and bottom-left
+
+Typography: bold condensed sans-serif, ultra-sharp, French only.
+${COMMON_RULES}`,
+
+    // ── 5. Confiance & Qualité ──────────────────────────────────────────────────
+    'trust': `
+Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" — trust and quality style. Ultra-sharp, photorealistic, print-quality render.
+
+LAYOUT (inspired by premium Amazon "Potent & Effective" slides):
+- Background: pure white, radial center glow
+- TOP-LEFT: Round badge "ALL NATURAL" dark green (#1a5c2a), embossed stamp, leaf icon
+- HEADLINE: "PUISSANT & EFFICACE" in VERY LARGE bold condensed uppercase dark navy — dominant
+- SUBTITLE: "${b1} · ${b2} · ${b3}" condensed bold, brand color ${accent}
+
+- CENTER: Product "${name}" — exact faithful reproduction of the reference product image. MASSIVE central hero shot. 3D hyper-realistic studio lighting (dramatic, 3-point), soft drop shadow at base, subtle reflections on packaging surface. The product IS the star.
+
+- 4 round certification badges arranged in arc around the product (left column + right column):
+  Each badge: dark green (#1a5c2a) or accent ${accent}, white icon center, text in arc, embossed stamp look
+  "${b1}" / "${b2}" / "${b3}" / "Testé & Approuvé"
+  Thin curved connecting lines from badges to product
+
+- Large decorative botanical leaves (olive/eucalyptus) in top-right and bottom-left corners, realistic detailed, vivid green
+
+Typography: bold condensed sans-serif, ultra-sharp, French only.
+${COMMON_RULES}`,
+
+    // ── 6. Comparaison ──────────────────────────────────────────────────────────
+    'comparison': `
+Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" — comparison table style. Ultra-sharp, photorealistic, print-quality render.
+
+LAYOUT (inspired by premium Amazon "Compare with Others" slides):
+- Background: pure white, clean
+- TOP-LEFT: Round badge "ALL NATURAL" dark green (#1a5c2a), embossed stamp
+- HEADLINE: "COMPAREZ AVEC LES AUTRES" VERY LARGE bold condensed uppercase dark navy — dominant
+
+- TWO PRODUCTS side by side (upper half):
+  LEFT — OUR PRODUCT: "${name}" — exact faithful reproduction of reference image. Beautiful 3D hero shot, studio lighting, vivid colors, sharp packaging. Label below: "Notre Produit" bold ${accent}. Decorative green leaves around it.
+  RIGHT — OTHER BRANDS: Generic/blurred grey bottle/package, no logo, faded, desaturated. Label below: "Autres Marques" grey italic
+
+- COMPARISON TABLE (lower half), 2 columns clearly separated:
+  Column headers: "${name}" (${accent} background, white bold) | "Autres" (grey background, white)
+  6 rows, criteria on left, check/cross on right:
+  "Facile à utiliser" → ✅ | ❌
+  "Résultats rapides" → ✅ | ❌
+  "${b1}" → ✅ | ❌
+  "${b2}" → ✅ | ❌
+  "Qualité Premium" → ✅ | ❌
+  "Satisfaction Garantie" → ✅ | ❌
+
+- BOTTOM: Pill badge "${name} — Le Meilleur Choix" ${accent} background, white bold text
+
+Visual contrast OBVIOUS: our product beautiful and vibrant vs other grey and faded.
+Typography: bold condensed sans-serif, ultra-sharp, French only.
+${COMMON_RULES}`,
+
+    // ── 7. Preuve sociale ───────────────────────────────────────────────────────
+    'social-proof': `
+Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" — social proof testimonials style. Ultra-sharp, photorealistic, print-quality render.
+
+LAYOUT:
+- Background: pure white, airy
+- TOP-LEFT: Round badge "ALL NATURAL" dark green (#1a5c2a), embossed stamp
+- HEADLINE: "ILS ADORENT CE PRODUIT" VERY LARGE bold condensed uppercase dark navy — dominant
+- ★★★★★ golden stars row directly below headline
+
+- 4 TESTIMONIAL CARDS in 2×2 grid, each card:
+  • White background, rounded corners (12px), soft drop shadow
+  • Round profile photo (border ${accent}): African person, dark ebony skin (woman with braids / man with beard / woman with wax turban / woman with afro). Natural expressions — genuine satisfaction, real-life feel, NOT stock photo look
+  • ★★★★★ golden stars below photo
+  • Short bold quote in quotes:
+    "Franchement ça m'a changé la vie !" | "Je l'utilise tous les jours" | "Super pratique et efficace !" | "Résultats visibles rapidement"
+  • First name: "— Aminata K." | "— Ousmane D." | "— Fatou M." | "— Grâce T."
+
+- Product "${name}" — exact reference image reproduction — visible bottom-center, small but recognizable
+
+- Decorative green botanical leaves in top-right and bottom-left
+
+- BOTTOM: Wide pill badge: ★ "Plus de 2 000 clients satisfaits" ${accent} background, white bold text
+
+Typography: bold condensed sans-serif, ultra-sharp, French only.
+${COMMON_RULES}`,
   };
 
-  return (slidePrompts[format.slideType] || slidePrompts['benefits']) + '\nImage carrée 1:1. Texte FRANÇAIS.';
+  return slidePrompts[format.slideType] || slidePrompts['benefits'];
 }
 
 /**
@@ -458,8 +703,24 @@ router.post('/', requireEcomAuth, upload.single('productImage'), async (req, res
     const analysis = await analyzeProduct({ url, description });
     console.log('✅ Analysis done:', analysis.productName);
 
+    // Step 1b: If no image uploaded but URL provided, try scraping product image
+    let resolvedImageBuffer = productImageBuffer;
+    if (!resolvedImageBuffer && url) {
+      console.log('🔍 No image uploaded — scraping product image from URL...');
+      try {
+        resolvedImageBuffer = await scrapeProductImage(url);
+        if (resolvedImageBuffer) {
+          console.log(`✅ Scraped product image: ${Math.round(resolvedImageBuffer.length / 1024)}KB`);
+        } else {
+          console.log('⚠️ No product image found from URL, continuing text-only');
+        }
+      } catch (scrapeErr) {
+        console.warn('⚠️ Image scraping failed:', scrapeErr.message);
+      }
+    }
+
     // Step 2: Generate creatives — smart image usage
-    const hasImage = !!productImageBuffer;
+    const hasImage = !!resolvedImageBuffer;
     console.log(`🖼️ Step 2: Génération de ${selectedFormats.length} créa(s)${hasImage ? ' avec image produit' : ' (text-to-image)'}...`);
     const creatives = [];
     const statsBefore = getImageGenerationStats();
@@ -472,7 +733,7 @@ router.post('/', requireEcomAuth, upload.single('productImage'), async (req, res
         
         let imageDataUrl;
         if (useProductImage) {
-          imageDataUrl = await generateNanoBananaImageToImage(imagePrompt, productImageBuffer, format.aspectRatio, 1);
+          imageDataUrl = await generateNanoBananaImageToImage(imagePrompt, resolvedImageBuffer, format.aspectRatio, 1);
         } else {
           imageDataUrl = await generateNanoBananaImage(imagePrompt, format.aspectRatio, 1);
         }
@@ -480,8 +741,17 @@ router.post('/', requireEcomAuth, upload.single('productImage'), async (req, res
         if (imageDataUrl) {
           let finalUrl = imageDataUrl;
           try {
-            const uploaded = await uploadImage(imageDataUrl);
-            if (uploaded?.url) finalUrl = uploaded.url;
+            // Convert data URL to buffer for R2 upload
+            const base64Match = imageDataUrl.match(/^data:image\/\w+;base64,(.+)$/);
+            if (base64Match) {
+              const imgBuffer = Buffer.from(base64Match[1], 'base64');
+              const uploaded = await uploadImage(imgBuffer, `creative-${format.id}.png`, {
+                workspaceId: req.workspaceId || 'creative',
+                uploadedBy: req.userId || 'creative-generator',
+                optimize: false,
+              });
+              if (uploaded?.url) finalUrl = uploaded.url;
+            }
           } catch (uploadErr) {
             console.warn('⚠️ Upload R2 failed, returning base64:', uploadErr.message);
           }
@@ -491,7 +761,7 @@ router.post('/', requireEcomAuth, upload.single('productImage'), async (req, res
             label: format.label,
             aspectRatio: format.aspectRatio,
             imageUrl: finalUrl,
-            usedProductImage: hasImage,
+            usedProductImage: useProductImage,
           });
           console.log(`  ✅ ${format.id} generated`);
         } else {
