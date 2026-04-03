@@ -102,7 +102,6 @@ export const notifyNewOrder = async (workspaceId, order) => {
   const priceStr = order.price ? `FCFA${new Intl.NumberFormat('fr-FR').format(order.price)}` : '';
   const qtyStr = `${order.quantity || 1} article${(order.quantity || 1) > 1 ? 's' : ''}`;
   const body = `${priceStr ? priceStr + ', ' : ''}${qtyStr} • ${order.clientName || 'Client'}`;
-  const pushTitle = `tr ? priceStr + ', ' : ''}${qtyStr} • ${order.clientName || 'Client'}`;
   const pushTitle = `Commande #${order.orderId || ''}${sourceLabel}`;
 
   // Créer la notification interne
