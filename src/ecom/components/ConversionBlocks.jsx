@@ -1,4 +1,23 @@
 import React from 'react';
+import { Truck, Zap, Phone, ShieldCheck, Star, Clock, Package } from 'lucide-react';
+
+const ICON_MAP = {
+  '✅': Package,
+  '🚚': Truck,
+  '📞': Phone,
+  '🔒': ShieldCheck,
+  '⚡': Zap,
+  '⭐': Star,
+  '⏱️': Clock,
+};
+
+function BlockIcon({ icon, color }) {
+  const LucideIcon = ICON_MAP[icon];
+  if (LucideIcon) {
+    return <LucideIcon size={22} color={color} strokeWidth={2.2} />;
+  }
+  return <span style={{ fontSize: 20, lineHeight: 1 }}>{icon}</span>;
+}
 
 /**
  * Blocs de conversion pour rassurer et pousser à l'achat
@@ -41,11 +60,10 @@ export default function ConversionBlocks({ blocks = null }) {
           className="conversion-block"
         >
           <span style={{
-            fontSize: 20,
             marginBottom: 6,
             lineHeight: 1,
           }}>
-            {block.icon}
+            <BlockIcon icon={block.icon} color="var(--s-primary)" />
           </span>
           <p style={{
             fontSize: 13,
@@ -98,7 +116,7 @@ export function UrgencyBadge({ stockLimited = false, socialProofCount = null, qu
           color: '#92400E',
           fontFamily: 'var(--s-font)',
         }}>
-          <span style={{ fontSize: 18 }}>⚡</span>
+          <Zap size={18} color="#92400E" />
           <span>Stock limité - Commandez maintenant</span>
         </div>
       )}
@@ -117,7 +135,7 @@ export function UrgencyBadge({ stockLimited = false, socialProofCount = null, qu
           color: '#1E40AF',
           fontFamily: 'var(--s-font)',
         }}>
-          <span style={{ fontSize: 18 }}>⭐</span>
+          <Star size={18} color="#1E40AF" />
           <span>{socialProofCount} clients satisfaits</span>
         </div>
       )}
@@ -136,7 +154,7 @@ export function UrgencyBadge({ stockLimited = false, socialProofCount = null, qu
           color: '#065F46',
           fontFamily: 'var(--s-font)',
         }}>
-          <span style={{ fontSize: 18 }}>⏱️</span>
+          <Clock size={18} color="#065F46" />
           <span>{quickResult}</span>
         </div>
       )}
