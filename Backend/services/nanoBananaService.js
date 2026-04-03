@@ -9,8 +9,8 @@ import sharp from 'sharp';
 const GEMINI_API_KEY = process.env.NANOBANANA_API_KEY;
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
-// Gemini 2.0 Flash (image generation native)
-const MODEL = 'gemini-2.0-flash-exp-image-generation';
+// Gemini 3 Pro Image Preview
+const MODEL = 'gemini-3-pro-image-preview';
 const MODEL_COST_USD = 0.04;
 const USD_TO_FCFA = 600;
 
