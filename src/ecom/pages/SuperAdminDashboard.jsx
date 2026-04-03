@@ -341,6 +341,7 @@ const SuperAdminDashboard = () => {
             { to: '/ecom/super-admin/push', label: 'Push', icon: Bell },
             { to: '/ecom/super-admin/whatsapp-postulations', label: 'WhatsApp', icon: MessageSquare },
             { to: '/ecom/super-admin/whatsapp-logs', label: 'WA Logs', icon: FileText },
+            { to: '/ecom/super-admin/feature-analytics', label: 'Features', icon: Zap },
             { to: '/ecom/super-admin/settings', label: 'Config', icon: Settings },
           ].map(({ to, label, icon: NavIcon }) => {
             const isActive = location.pathname === to;
