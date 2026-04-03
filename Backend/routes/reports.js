@@ -84,6 +84,7 @@ async function getGlobalOverview({ workspaceId, date, startDate, endDate }) {
           totalProfit: { $sum: '$_fProfit' },
           totalOrdersReceived: { $sum: '$ordersReceived' },
           totalOrdersDelivered: { $sum: '$_qty' },
+          totalOrdersReturned: { $sum: { $ifNull: ['$ordersReturned', 0] } },
           reportsCount: { $sum: 1 }
         }
       },
@@ -1096,7 +1097,7 @@ router.post('/',
       console.log('👤 Utilisateur:', req.ecomUser?.email);
       console.log('📋 Corps de la requête:', req.body);
       
-      const { date, productId, ordersReceived, ordersDelivered, adSpend, notes, deliveries, priceExceptions, whatsappNumber } = req.body;
+      const { date, productId, ordersReceived, ordersDelivered, ordersReturned, adSpend, notes, deliveries, priceExceptions, whatsappNumber } = req.body;
 
       // Vérifier que le produit existe dans le même workspace
       const product = await Product.findOne({ _id: productId, workspaceId: req.workspaceId });
@@ -1151,13 +1152,17 @@ router.post('/',
       }
 
       // Calculer les valeurs financières à stocker
-      const computedRevenue = customRevenue !== null ? customRevenue : sellingPrice * ordersDelivered;
+      // Les retours réduisent le CA mais les coûts restent engagés
+      const effectiveDelivered = ordersDelivered - (parseInt(ordersReturned) || 0);
+      const computedRevenue = customRevenue !== null 
+        ? customRevenue - ((parseInt(ordersReturned) || 0) * sellingPrice)
+        : sellingPrice * effectiveDelivered;
       const computedProductCost = productCost * ordersDelivered;
       const computedDeliveryCost = deliveryCost * ordersDelivered;
       const computedCost = computedProductCost + computedDeliveryCost + (adSpend || 0);
       const computedProfit = computedRevenue - computedCost;
       const unitBenefit = sellingPrice - totalCostPerUnit;
-      const totalBenefit = customBenefit !== null ? customBenefit : unitBenefit * ordersDelivered;
+      const totalBenefit = customBenefit !== null ? customBenefit : unitBenefit * effectiveDelivered;
 
       console.log(`💰 Financier: revenue=${computedRevenue}, productCost=${computedProductCost}, deliveryCost=${computedDeliveryCost}, cost=${computedCost}, profit=${computedProfit}`);
 
@@ -1167,6 +1172,7 @@ router.post('/',
         productId,
         ordersReceived,
         ordersDelivered,
+        ordersReturned: parseInt(ordersReturned) || 0,
         quantity: ordersDelivered,
         adSpend,
         notes,
@@ -1500,6 +1506,7 @@ router.put('/:id',
       if (req.body.productId !== undefined) report.productId = req.body.productId;
       if (req.body.ordersReceived !== undefined) report.ordersReceived = req.body.ordersReceived;
       if (req.body.ordersDelivered !== undefined) report.ordersDelivered = req.body.ordersDelivered;
+      if (req.body.ordersReturned !== undefined) report.ordersReturned = req.body.ordersReturned;
       if (req.body.adSpend !== undefined) report.adSpend = req.body.adSpend;
       if (req.body.notes !== undefined) report.notes = req.body.notes;
       if (req.body.deliveries !== undefined) {
@@ -1515,8 +1522,10 @@ router.put('/:id',
         const pc = productForCalc.productCost || 0;
         const dc = productForCalc.deliveryCost || 0;
         const qty = report.ordersDelivered || 0;
+        const returned = report.ordersReturned || 0;
+        const effectiveQty = qty - returned;
         const ad = report.adSpend || 0;
-        report.revenue = sp * qty;
+        report.revenue = sp * effectiveQty;
         report.productCost = pc * qty;
         report.deliveryCost = dc * qty;
         report.cost = (pc + dc) * qty + ad;

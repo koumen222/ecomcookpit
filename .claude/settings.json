@@ -13,7 +13,9 @@
       "Bash(git cherry-pick:*)",
       "Bash(grep -l \"domain\\\\|customDomain\\\\|subdomain\" /Users/macbookpro/ecomcookpit/src/ecom/pages/*.jsx /Users/macbookpro/ecomcookpit/src/ecom/components/*.jsx)",
       "Bash(node --input-type=module)",
-      "Bash(grep -E '\\\\.\\(jsx|js|ts|tsx\\)$')"
+      "Bash(grep -E '\\\\.\\(jsx|js|ts|tsx\\)$')",
+      "Bash(grep -r \"Scalor\" /Users/macbookpro/ecomcookpit/Backend/routes/*.js)",
+      "Bash(grep -n \"Order.model\\\\|orderNumber\\\\|StoreOrder\" /Users/macbookpro/ecomcookpit/Backend/models/*.js)"
     ]
   }
 }

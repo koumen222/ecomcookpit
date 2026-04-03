@@ -262,17 +262,7 @@ const EcomLayoutComponent = ({ children }) => {
       roles: ['ecom_admin'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 00.659 1.591L19 14.5M14.25 3.104c.251.023.501.05.75.082M19 14.5l-2.47 2.47a2.25 2.25 0 01-1.59.659H9.06a2.25 2.25 0 01-1.591-.659L5 14.5m14 0V17a2 2 0 01-2 2H7a2 2 0 01-2-2v-2.5" /></svg>
     },
-    {
-      name: 'Automation Flows', shortName: 'Flows', href: '/ecom/rita-flows', primary: false,
-      roles: ['ecom_admin'],
-      requiresRitaAccess: true,
-      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-    },
-        {
-      name: 'Fournisseurs', shortName: 'Fournisseurs', href: '/ecom/suppliers', primary: false,
-      roles: ['ecom_admin'],
-      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-    },
+
     {
       name: 'Équipe', shortName: 'Équipe', href: '/ecom/users', primary: false,
       roles: ['ecom_admin'],
@@ -283,11 +273,7 @@ const EcomLayoutComponent = ({ children }) => {
       roles: ['ecom_admin'],
       icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
     },
-    {
-      name: 'Suivi livraisons', shortName: 'Livraisons', href: '/ecom/livreur-management', primary: false,
-      roles: ['ecom_admin', 'ecom_closeuse'],
-      icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" /></svg>
-    },
+
     {
       name: 'API Développeur', shortName: 'Dev API', href: '/ecom/developer', primary: false,
       roles: ['ecom_admin'],
@@ -841,7 +827,7 @@ const getPageTitle = (pathname) => {
   if (pathname.includes('/reports')) return 'Rapports';
   if (pathname.includes('/stock/orders/new')) return 'Nouvelle commande';
   if (pathname.includes('/stock/orders') && pathname.includes('/edit')) return 'Modifier commande';
-  if (pathname.includes('/suppliers')) return 'Fournisseurs';
+
   if (pathname.includes('/transactions/new')) return 'Nouvelle transaction';
   if (pathname.includes('/transactions') && pathname.includes('/edit')) return 'Modifier transaction';
   if (pathname.match(/\/transactions\/[a-f0-9]+$/)) return 'Détail transaction';
@@ -859,7 +845,7 @@ const getPageTitle = (pathname) => {
   if (pathname.includes('/whatsapp/conversations')) return 'Conversations Rita';
   if (pathname.includes('/whatsapp/service')) return 'Service WhatsApp';
   if (pathname.includes('/whatsapp/connexion')) return 'Service WhatsApp';
-  if (pathname.includes('/rita-flows')) return 'Automation Flows';
+
   if (pathname.includes('/campaigns')) return 'Marketing';
   if (pathname.includes('/super-admin/billing')) return 'Suivi Facturation';
   if (pathname.includes('/super-admin/users')) return 'Gestion des utilisateurs';

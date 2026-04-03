@@ -28,6 +28,11 @@ const dailyReportSchema = new mongoose.Schema({
     min: 0,
     default: 0
   },
+  ordersReturned: {
+    type: Number,
+    min: 0,
+    default: 0
+  },
   adSpend: {
     type: Number,
     required: true,

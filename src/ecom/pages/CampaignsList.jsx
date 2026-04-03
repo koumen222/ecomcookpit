@@ -131,6 +131,7 @@ const CampaignsList = () => {
   const [previewSending, setPreviewSending] = useState(false);
   const [showInstanceSelector, setShowInstanceSelector] = useState(false);
   const [pendingCampaignId, setPendingCampaignId] = useState(null);
+  const [pendingInstanceId, setPendingInstanceId] = useState(null); // instance déjà connue (reprise)
   const [instances, setInstances] = useState([]);
   const [loadingInstances, setLoadingInstances] = useState(false);
   const [manualPhone, setManualPhone] = useState('');
@@ -232,17 +233,13 @@ const CampaignsList = () => {
     setShowInstanceSelector(true);
   };
 
-  const handleInstanceSelected = async (instance) => {
-    const id = pendingCampaignId;
-    if (!id || !instance) return;
-
-    setShowInstanceSelector(false);
-    setPendingCampaignId(null);
+  // Lance le streaming SSE pour une campagne + instance données
+  const startSendStream = async (id, instanceId) => {
     setSending(id);
     setShowProgress(id);
+    setIsProgressMinimized(false);
     setSendProgress({ sent: 0, failed: 0, skipped: 0, total: 0, campaignName: '', instance: '', status: 'starting', log: [] });
     setIsPausing(false);
-    const selectedInstanceId = instance._id;
 
     try {
       const baseUrl = ecomApi.defaults.baseURL;
@@ -253,13 +250,12 @@ const CampaignsList = () => {
       const response = await fetch(`${baseUrl}/marketing/campaigns/${id}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ workspaceId: wsId, whatsappInstanceId: selectedInstanceId })
+        body: JSON.stringify({ workspaceId: wsId, whatsappInstanceId: instanceId })
       });
 
       if (!response.ok) {
         const err = await response.json();
-        const errorMsg = err.message || err.error || 'Erreur envoi';
-        setError(errorMsg);
+        setError(err.message || err.error || 'Erreur envoi');
         setSending(null); setShowProgress(null); setSendProgress(null);
         return;
       }
@@ -267,7 +263,6 @@ const CampaignsList = () => {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      let lastEventType = 'message';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -284,11 +279,9 @@ const CampaignsList = () => {
             if (line.startsWith('event: ')) eventType = line.slice(7).trim();
             else if (line.startsWith('data: ')) { try { eventData = JSON.parse(line.slice(6)); } catch {} }
           }
-          lastEventType = eventType;
           if (!eventData) continue;
 
           if (eventType === 'start') {
-            console.log('📡 SSE start:', eventData);
             setSendProgress(p => ({ ...p, total: eventData.total, campaignName: eventData.campaignName, instance: eventData.instance, status: 'sending' }));
           } else if (eventType === 'substep') {
             const { name, phone, step, status, error } = eventData;
@@ -299,36 +292,42 @@ const CampaignsList = () => {
             }));
           } else if (eventType === 'progress') {
             const { sent, failed, skipped, total, index, current } = eventData;
-            console.log(`📡 SSE progress: ${index}/${total} - ${current.name} (${current.status})`);
             setSendProgress(p => ({
               ...p, sent, failed, skipped, total, status: 'sending', currentIndex: index,
               log: [{ ...current, index, ts: Date.now() }, ...(p.log || [])].slice(0, 50)
             }));
           } else if (eventType === 'paused') {
-            console.log('📡 SSE paused:', eventData);
             setSendProgress(p => ({ ...p, sent: eventData.sent, failed: eventData.failed, skipped: eventData.skipped, status: 'paused' }));
             setIsPausing(false);
           } else if (eventType === 'done') {
-            console.log('📡 SSE done:', eventData);
             setSendProgress(p => ({ ...p, sent: eventData.sent, failed: eventData.failed, skipped: eventData.skipped, total: eventData.total, status: 'done' }));
           }
         }
       }
     } catch (err) {
       if (err.name !== 'AbortError') {
-        setSendProgress(p => p ? { ...p, status: 'interrupted' } : null);
+        setSendProgress(p => p ? { ...p, status: 'interrupted' } : { sent: 0, failed: 0, skipped: 0, total: 0, campaignName: '', instance: '', status: 'interrupted', log: [] });
         setError(err?.message || 'Erreur lors de l\'envoi de la campagne');
       }
     } finally {
       setSending(null);
       fetchCampaigns();
+      // Ne pas effacer sendProgress ici — l'utilisateur doit fermer manuellement le modal/widget
     }
+  };
+
+  const handleInstanceSelected = async (instance) => {
+    const id = pendingCampaignId;
+    if (!id || !instance) return;
+    setShowInstanceSelector(false);
+    setPendingCampaignId(null);
+    await startSendStream(id, instance._id);
   };
 
   const handlePause = async (id) => {
     setIsPausing(true);
     try {
-      await ecomApi.post(`marketing/campaigns/${id}/pause`);
+      await ecomApi.post(`/marketing/campaigns/${id}/pause`);
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur pause');
       setIsPausing(false);
@@ -337,19 +336,22 @@ const CampaignsList = () => {
 
   const handleResume = async (id) => {
     try {
-      await ecomApi.post(`marketing/campaigns/${id}/resume`);
-      setSuccess('Campagne prête. Relance en cours...');
-      fetchCampaigns();
-      setTimeout(() => handleSend(id), 500);
+      await ecomApi.post(`/marketing/campaigns/${id}/resume`);
+      // Ouvrir le sélecteur d'instance pour reprendre
+      setPendingCampaignId(id);
+      await loadInstances();
+      setShowInstanceSelector(true);
     } catch (err) { setError(err.response?.data?.message || 'Erreur reprise'); }
   };
 
   const handleRestart = async (id) => {
     if (!confirm('Relancer la campagne depuis le début ?')) return;
     try {
-      await ecomApi.post(`marketing/campaigns/${id}/restart`);
-      fetchCampaigns();
-      setTimeout(() => handleSend(id), 500);
+      await ecomApi.post(`/marketing/campaigns/${id}/restart`);
+      // Ouvrir le sélecteur d'instance pour relancer
+      setPendingCampaignId(id);
+      await loadInstances();
+      setShowInstanceSelector(true);
     } catch (err) { setError(err.response?.data?.message || 'Erreur relance'); }
   };
 
@@ -402,8 +404,6 @@ const CampaignsList = () => {
       setPreviewSending(false);
     }
   };
-
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -815,8 +815,18 @@ const CampaignsList = () => {
               </span>
             </div>
           )}
-          {/* Restore icon */}
+          {/* Expand icon */}
           <svg className="w-4 h-4 flex-shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"/></svg>
+          {/* Close button when terminal */}
+          {['done', 'paused', 'interrupted'].includes(sendProgress.status) && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowProgress(null); setSendProgress(null); setIsProgressMinimized(false); }}
+              className="p-1 hover:bg-white/30 rounded-full transition flex-shrink-0"
+              title="Fermer"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+          )}
         </div>
       )}
 
@@ -852,8 +862,8 @@ const CampaignsList = () => {
                 <button onClick={() => setIsProgressMinimized(true)} title="Réduire" className="p-1.5 hover:bg-white/20 rounded-lg transition">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4"/></svg>
                 </button>
-                {(sendProgress.status === 'done' || sendProgress.status === 'paused' || sendProgress.status === 'interrupted') && (
-                  <button onClick={() => { setShowProgress(null); setSendProgress(null); setIsProgressMinimized(false); }} className="p-1.5 hover:bg-white/20 rounded-lg transition">
+                {(['done', 'paused', 'interrupted'].includes(sendProgress.status)) && (
+                  <button onClick={() => { setShowProgress(null); setSendProgress(null); setIsProgressMinimized(false); }} title="Fermer" className="p-1.5 hover:bg-white/20 rounded-lg transition">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
                   </button>
                 )}

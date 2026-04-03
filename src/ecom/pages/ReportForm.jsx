@@ -19,6 +19,7 @@ const ReportForm = () => {
     productId: '',
     ordersReceived: '',
     ordersDelivered: '',
+    ordersReturned: '0',
     adSpend: '0',
     notes: '',
     whatsappNumber: '',
@@ -49,6 +50,7 @@ const ReportForm = () => {
         productId: report.productId?._id || report.productId,
         ordersReceived: report.ordersReceived?.toString() || '',
         ordersDelivered: report.ordersDelivered?.toString() || '',
+        ordersReturned: report.ordersReturned?.toString() || '0',
         adSpend: report.adSpend?.toString() || '0',
         notes: report.notes || '',
         whatsappNumber: report.whatsappNumber || '',
@@ -111,18 +113,21 @@ const ReportForm = () => {
     }));
   };
 
-  // Calcul du CA avec exceptions
+  // Calcul du CA avec exceptions (retours déduits)
   const calcRevenue = () => {
     const delivered = parseInt(formData.ordersDelivered) || 0;
+    const returned = parseInt(formData.ordersReturned) || 0;
+    const effectiveDelivered = delivered - returned;
     const exceptions = formData.priceExceptions.filter(e => e.quantity && e.unitPrice);
     if (exceptions.length === 0) {
-      return delivered * (selectedProduct?.sellingPrice || 0);
+      return effectiveDelivered * (selectedProduct?.sellingPrice || 0);
     }
     const exceptionQty = exceptions.reduce((s, e) => s + (parseInt(e.quantity) || 0), 0);
     const exceptionRevenue = exceptions.reduce((s, e) => s + (parseInt(e.quantity) || 0) * (parseFloat(e.unitPrice) || 0), 0);
     const normalQty = Math.max(0, delivered - exceptionQty);
     const normalRevenue = normalQty * (selectedProduct?.sellingPrice || 0);
-    return normalRevenue + exceptionRevenue;
+    // Déduire les retours du CA total
+    return normalRevenue + exceptionRevenue - (returned * (selectedProduct?.sellingPrice || 0));
   };
 
   const calcBenefit = () => {
@@ -131,6 +136,7 @@ const ReportForm = () => {
     const deliveryCost = selectedProduct?.deliveryCost || 0;
     const totalCostPerUnit = productCost + deliveryCost;
     const revenue = calcRevenue();
+    // Les coûts sont sur TOUTES les commandes livrées (y compris retournées car déjà engagés)
     return revenue - (totalCostPerUnit * delivered) - (parseFloat(formData.adSpend) || 0);
   };
 
@@ -174,6 +180,7 @@ const ReportForm = () => {
         productId: formData.productId,
         ordersReceived: parseInt(formData.ordersReceived),
         ordersDelivered: parseInt(formData.ordersDelivered),
+        ordersReturned: parseInt(formData.ordersReturned) || 0,
         adSpend: parseFloat(formData.adSpend) || 0,
         notes: formData.notes,
         whatsappNumber: formData.whatsappNumber,
@@ -299,6 +306,23 @@ const ReportForm = () => {
               onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-emerald-600 focus:border-emerald-600"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Commandes retournées / remboursées
+            </label>
+            <input
+              type="number"
+              name="ordersReturned"
+              min="0"
+              value={formData.ordersReturned}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-red-500 focus:border-red-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Retours, remboursements ou livraisons échouées (impact négatif sur le bénéfice)
+            </p>
           </div>
         </div>
 
@@ -508,9 +532,9 @@ const ReportForm = () => {
 
         {/* Calcul du taux de livraison */}
         {formData.ordersReceived && formData.ordersDelivered && (
-          <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-            <h3 className="text-sm font-semibold text-emerald-900 mb-3">Statistiques calculées</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+          <div className={`${parseInt(formData.ordersReturned) > 0 ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'} p-4 rounded-xl border`}>
+            <h3 className={`text-sm font-semibold ${parseInt(formData.ordersReturned) > 0 ? 'text-red-900' : 'text-emerald-900'} mb-3`}>Statistiques calculées</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
               <div className="bg-white rounded-lg p-2.5">
                 <p className="text-xs text-gray-500 mb-0.5">Taux de livraison</p>
                 <p className="font-bold text-gray-900">{((parseInt(formData.ordersDelivered) / parseInt(formData.ordersReceived)) * 100).toFixed(1)}%</p>
@@ -519,11 +543,17 @@ const ReportForm = () => {
                 <p className="text-xs text-gray-500 mb-0.5">En attente</p>
                 <p className="font-bold text-gray-900">{parseInt(formData.ordersReceived) - parseInt(formData.ordersDelivered)}</p>
               </div>
+              {parseInt(formData.ordersReturned) > 0 && (
+                <div className="bg-white rounded-lg p-2.5 border border-red-200">
+                  <p className="text-xs text-red-500 mb-0.5">Retours</p>
+                  <p className="font-bold text-red-600">-{parseInt(formData.ordersReturned)}</p>
+                </div>
+              )}
               {selectedProduct && (
                 <>
                   <div className="bg-white rounded-lg p-2.5">
                     <p className="text-xs text-gray-500 mb-0.5">CA estimé</p>
-                    <p className="font-bold text-emerald-600">{calcRevenue().toLocaleString('fr-FR')} FCFA</p>
+                    <p className={`font-bold ${calcRevenue() >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{calcRevenue().toLocaleString('fr-FR')} FCFA</p>
                   </div>
                   <div className="bg-white rounded-lg p-2.5">
                     <p className="text-xs text-gray-500 mb-0.5">Bénéfice estimé</p>

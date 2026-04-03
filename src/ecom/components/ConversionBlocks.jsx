@@ -41,8 +41,8 @@ export default function ConversionBlocks({ blocks = null }) {
           className="conversion-block"
         >
           <span style={{
-            fontSize: 32,
-            marginBottom: 8,
+            fontSize: 20,
+            marginBottom: 6,
             lineHeight: 1,
           }}>
             {block.icon}

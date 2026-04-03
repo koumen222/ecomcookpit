@@ -540,7 +540,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
 ⚠️ seo.meta_title : max 60 caractères, bénéfice principal + produit${storeCountry ? ` + ${storeCountry}` : ''}.
 ⚠️ seo.meta_description : max 155 caractères, accrocheur et informatif.
 ⚠️ seo.slug : URL en kebab-case, sans accents, max 6 mots, ex: "creme-eclaircissante-peau-noire".
-⚠️ FAQ : Les questions doivent couvrir : Quand voir résultats ? Est-ce naturel ? Effets secondaires ? Peut-on combiner ? Livraison ? Paiement à la livraison ? + 1 question spécifique au produit.
+⚠️ FAQ : Les questions doivent couvrir : Quand voir résultats ? Est-ce naturel ? Effets secondaires ? Peut-on combiner ? Livraison ? Paiement à la livraison ? + 1 question spécifique au produit. ⛔ NE PAS poser de question sur l'entretien du produit ni sur comment l'utiliser — ces infos sont déjà couvertes par d'autres sections de la page.
 ⚠️ FAQ : Les réponses doivent être SIMPLES, RASSURANTES, SANS JARGON — affichées directement (pas de dropdown fermé).
 ⚠️ guide_utilisation.applicable = false si le produit n'a pas besoin d'explication.
 ⚠️ Adapte prompt_avant_apres au PROBLÈME RÉEL que résout CE produit spécifique.
@@ -706,11 +706,11 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     result.faq = result.faq || [];
     const productName = title || 'produit';
     const defaultFaq = [
-      { question: `Comment utiliser ce ${productName} efficacement ?`, reponse: `Ce ${productName} s'utilise très simplement. Suivez les instructions fournies pour des résultats optimaux dès la première utilisation.` },
+      { question: `Quand vais-je voir les premiers résultats avec ce ${productName} ?`, reponse: `La plupart de nos clients constatent des résultats visibles dès les premières utilisations. Pour des résultats optimaux, une utilisation régulière est recommandée.` },
       { question: `Quelle est la durée de vie de ce ${productName} ?`, reponse: `Fabriqué avec des matériaux de haute qualité, ce ${productName} est conçu pour durer plusieurs années avec un usage normal.` },
-      { question: `Ce ${productName} est-il adapté à mon climat ?`, reponse: `Oui, ce ${productName} est conçu pour fonctionner parfaitement dans les conditions climatiques africaines.` },
+      { question: `Ce ${productName} est-il naturel et sans danger ?`, reponse: `Oui, ce ${productName} est conçu avec des ingrédients soigneusement sélectionnés, sans composants nocifs. Adapté à un usage quotidien.` },
       { question: `Quelle est la politique de retour ?`, reponse: `Nous offrons une garantie satisfaction de 14 jours. Retour possible si le produit ne vous convient pas.` },
-      { question: `Comment entretenir ce ${productName} ?`, reponse: `Un simple entretien régulier suffit. Utilisez les produits recommandés pour préserver la performance et l'apparence.` }
+      { question: `Le paiement à la livraison est-il disponible ?`, reponse: `Oui ! Vous pouvez payer à la réception de votre commande. Aucun paiement en ligne requis.` }
     ];
     while (result.faq.length < 5) {
       result.faq.push(defaultFaq[result.faq.length % defaultFaq.length]);
