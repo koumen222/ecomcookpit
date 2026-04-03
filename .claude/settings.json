@@ -20,7 +20,10 @@
       "Bash(node -e \"import\\('./Backend/routes/creativeGenerator.js'\\).then\\(\\(\\) => console.log\\('OK'\\)\\).catch\\(e => console.error\\(e.message\\)\\)\")",
       "Bash(node -e \"import\\('./routes/creativeGenerator.js'\\).then\\(\\(\\) => console.log\\('OK'\\)\\).catch\\(e => console.error\\(e.message\\)\\)\")",
       "Bash(node --check routes/creativeGenerator.js)",
-      "Bash(node --check src/ecom/pages/StoreProductForm.jsx)"
+      "Bash(node --check src/ecom/pages/StoreProductForm.jsx)",
+      "Bash(grep -n \"import.*FeatureUsageLog\\\\|FeatureUsageLog\" /Users/macbookpro/ecomcookpit/Backend/routes/*.js)",
+      "Bash(npx --no-install tsc --noEmit --jsx react)",
+      "Bash(node_modules/.bin/tsc --noEmit)"
     ]
   }
 }

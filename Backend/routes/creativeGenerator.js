@@ -14,6 +14,7 @@ import { requireEcomAuth } from '../middleware/ecomAuth.js';
 import { generateNanoBananaImage, generateNanoBananaImageToImage, getImageGenerationStats } from '../services/nanoBananaService.js';
 import { uploadImage } from '../services/cloudflareImagesService.js';
 import { extractProductInfo } from '../services/geminiProductExtractor.js';
+import FeatureUsageLog from '../models/FeatureUsageLog.js';
 
 // Slides qui incluent la photo produit dans le visuel
 const SLIDES_WITH_PRODUCT_IMAGE = new Set(['benefits', 'how-to-use', 'trust', 'comparison', 'social-proof']);
@@ -407,195 +408,257 @@ AMBIANCE GLOBALE: ${style.mood}
   const styleAccent = style.accentColor;
   const styleBadge = style.badge;
   const styleDecorations = style.decorativeElements;
+  const benefitIcons = style.benefitIcons || [`✅ ${b1}`, `⚡ ${b2}`, `🌟 ${b3}`, `🛡️ ${b4}`];
+  const bi1 = benefitIcons[0];
+  const bi2 = benefitIcons[1];
+  const bi3 = benefitIcons[2];
+  const bi4 = benefitIcons[3];
+  const trustBadges = style.trustBadges || ['QUALITÉ PREMIUM', 'CERTIFIÉ', 'GARANTI', 'APPROUVÉ'];
+  const tb1 = trustBadges[0]; const tb2 = trustBadges[1]; const tb3 = trustBadges[2]; const tb4 = trustBadges[3];
+  const cmpCriteria = style.comparisonCriteria || ['Qualité', 'Efficacité', 'Durabilité', 'Rapport qualité/prix', 'Service', 'Garantie'];
+  const c1 = cmpCriteria[0]; const c2 = cmpCriteria[1]; const c3 = cmpCriteria[2];
+  const c4 = cmpCriteria[3]; const c5 = cmpCriteria[4]; const c6 = cmpCriteria[5];
+  const solutionHighlight = style.solutionHighlight || 'soft accent color glow around product';
+  const layoutStyle = style.layoutStyle || 'generic-premium';
 
   const slidePrompts = {
     // ── 1. Problème / Solution ──────────────────────────────────────────────────
     'problem-solution': `
-Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" — Before/After split screen style. Ultra-sharp, photorealistic, print-quality render.
+Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — Before/After split screen. Ultra-sharp, photorealistic, print-quality.
 
-LAYOUT — SPLIT SCREEN vertical, 2 equal halves:
+LAYOUT STYLE: ${layoutStyle} — SPLIT SCREEN vertical, 2 equal halves
 
-LEFT HALF "LE PROBLÈME" (before):
-- Background: cold desaturated grey-white
+LEFT HALF "LE PROBLÈME" (before state):
+- Background: cold desaturated grey-white (#f0f0f0), slightly dark and bleak atmosphere
 - Top label: "LE PROBLÈME" in large bold condensed uppercase black letters
-- Scene: African person (dark ebony skin) with expression of fatigue/stress/discomfort. Cold studio lighting, slightly desaturated mood
-- 2-3 floating rounded pill-badges in dark red (#8b1a1a), white icon + white text: "${p1}" / "${p2}" / "${p3}"
+- Scene: African person (dark ebony skin) with expression matching the problem context for ${name}. Cold flat lighting, desaturated, slightly blurred background
+- 3 floating rounded pill-badges in dark red (#8b1a1a), white icon + white text:
+  "😔 ${p1}" / "😓 ${p2}" / "😩 ${p3}"
+- Subtle cold color grading: slight blue-grey tint on entire left half
 
-RIGHT HALF "LA SOLUTION" (after):
-- Background: ${style.bgStyle}
-- Top label: "LA SOLUTION" in large bold condensed uppercase letters, color: ${styleAccent}
-- Product "${name}": exact faithful reproduction of the provided reference product image. Hero shot 3D: dramatic studio lighting, soft ground shadow, subtle reflections. LARGE and prominent
-- 3 certification badges in vertical column (left of product): ${styleAccent} fill, white icon + text in arc: "${b1}" / "${b2}" / "Résultats Garantis"
+RIGHT HALF "LA SOLUTION" (after state):
+- Background: ${style.bgStyle} — vibrant, warm, bright
+- Top label: "LA SOLUTION" in large bold condensed uppercase, color: ${styleAccent}
+- Product "${name}": exact faithful reproduction of reference image. Hero shot 3D: ${solutionHighlight}. LARGE and prominent — 50% of right half
+- ${style.personStyle}, transformed expression — relief, happiness, confidence
+- 3 certification badges in vertical column (left of product): ${styleAccent} fill, white icon + text:
+  "${bi1}" / "${bi2}" / "${bi3}"
 - ${styleDecorations}
 
 CENTER DIVIDER:
-- Bold curved arrow or gradient transition stripe between the two halves
+- Bold curved arrow (${styleAccent} color) with text "LA DIFFÉRENCE ${name.toUpperCase()}" pointing right
+- Gradient transition stripe using ${styleAccent}
 
-TOP of full image:
-- ${styleBadge}
+TOP-LEFT corner: ${styleBadge}
+
+BOTTOM full width: pill badge "${slogan}" — ${styleAccent} background, white bold text
 
 Typography: bold condensed sans-serif, ultra-sharp, French only. Zero blur, zero artifacts.
 ${COMMON_RULES}`,
 
     // ── 2. Bénéfices ────────────────────────────────────────────────────────────
     'benefits': `
-Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" — lifestyle benefits style. Ultra-sharp, photorealistic, print-quality render.
+Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — key benefits lifestyle style. Ultra-sharp, photorealistic, print-quality.
 
-LAYOUT:
-- Background: ${style.bgStyle}
-- TOP-LEFT: ${styleBadge}
-- HEADLINE top-center: "${slogan}" in LARGE bold condensed uppercase very dark navy (#0d1b2e). Dominant
-- SUBTITLE below headline: "Simplifie votre quotidien" italic dark grey
+LAYOUT STYLE: ${layoutStyle} — hero product + person + 4 benefit icons
 
-- RIGHT SIDE (60% width): Product "${name}" — exact faithful reproduction of the provided reference product image. 3D hero shot, dramatic studio lighting (3-point), soft drop shadow, subtle packaging reflections. VERY LARGE, fills right portion
-- LEFT SIDE: ${style.personStyle}, holding or using "${name}". Warm studio lighting, magazine portrait quality
+Background: ${style.bgStyle}
+TOP-LEFT corner: ${styleBadge}
 
-- 4 round certification badges in vertical column along left edge, color ${styleAccent}, each: white icon + text in arc:
-  "${b1}" / "${b2}" / "${b3}" / "Qualité Premium"
+HEADLINE (top-center, VERY LARGE bold condensed uppercase dark navy #0d1b2e):
+"${slogan}"
+SUBTITLE below: "${b1} · ${b2} · ${b3}" in bold condensed ${styleAccent} color
 
-- ${styleDecorations}
+RIGHT SIDE (55% width): Product "${name}" — exact faithful reproduction of reference image. 3D hero shot with ${solutionHighlight}. VERY LARGE, fills right portion. Ultra-detailed packaging.
 
-- BOTTOM: Pill badge color ${styleAccent}: ★★★★★ + "Approuvé par nos clients"
+LEFT SIDE: ${style.personStyle}, naturally holding or using "${name}" in context appropriate for ${category || 'le produit'}. Half-body, warm studio lighting, magazine portrait quality.
 
-Typography: bold condensed sans-serif, ultra-sharp, French only.
+4 BENEFIT ICON BLOCKS (arranged vertically on left, or 2×2 grid at bottom):
+Each block: rounded square card (white or semi-transparent), icon above, short text below — color ${styleAccent}
+  Card 1: ${bi1}
+  Card 2: ${bi2}
+  Card 3: ${bi3}
+  Card 4: ${bi4}
+
+${styleDecorations}
+
+BOTTOM: pill badge (${styleAccent} bg, white text): ★★★★★ "Approuvé par des milliers de clients"
+
+Typography: bold condensed sans-serif, ultra-sharp, French only. Every benefit text in French, clear and large.
 ${COMMON_RULES}`,
 
     // ── 3. Situations d'usage (grille 2×2) ─────────────────────────────────────
     'target': `
-Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" — 4 usage situations grid. Ultra-sharp, photorealistic, print-quality render.
+Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — 4 real-life usage situations grid. Ultra-sharp, photorealistic, print-quality.
 
-LAYOUT — 2×2 equal grid with thin separator lines:
+LAYOUT STYLE: ${layoutStyle} — 2×2 grid showing product in context
 
 TOP BANNER (full width, above grid):
-- Background: ${styleAccent} — dark, rich color
-- Text: "${name.toUpperCase()} — Partout avec vous" bold condensed white, large
+- Background: ${styleAccent} — rich, deep color fill
+- Text: "${name.toUpperCase()} — ${slogan}" bold condensed white, very large
 
-GRID (4 equal cells, consistent lighting and color palette matching the brand):
+GRID — 4 equal square cells, thin ${styleAccent} separator lines between:
+Consistent warm lighting and brand color palette across all 4 cells.
 
-TOP-LEFT "À LA MAISON":
-- Setting appropriate for "${name}" home use
-- ${style.personStyle} using "${name}" at home, natural expression
-- Bottom overlay label: white bold "🏠 Maison" on dark semi-transparent strip
+TOP-LEFT cell — "LA MAISON":
+- ${style.personStyle} using "${name}" in a home context relevant to this product
+- Product visible (faithfully reproduced packaging if reference provided)
+- Bottom label strip (${styleAccent} semi-transparent): white bold "🏠 À la maison"
 
-TOP-RIGHT "AU TRAVAIL":
-- Modern bright professional setting
-- African person focused, product used in professional context
-- Bottom overlay label: white bold "💼 Travail"
+TOP-RIGHT cell — "AU TRAVAIL" ou "EN SOCIÉTÉ":
+- African person in professional or social setting using "${name}"
+- Modern bright African office or outdoor urban space
+- Bottom label strip: white bold "💼 Au travail"
 
-BOTTOM-LEFT "EN DÉPLACEMENT":
-- Outdoor / urban / transport setting, bright daylight
-- African person in movement, product easily accessible
-- Bottom overlay label: white bold "🚗 Déplacement"
+BOTTOM-LEFT cell — "EN DÉPLACEMENT":
+- Outdoor scene (market, street, car), African person on the move with "${name}"
+- Bright natural daylight, vibrant colors
+- Bottom label strip: white bold "🚶 En déplacement"
 
-BOTTOM-RIGHT "AU QUOTIDIEN":
-- Simple everyday life scene, authentic
-- Product "${name}" clearly visible (exact packaging from reference if provided)
-- Bottom overlay label: white bold "⭐ Quotidien"
+BOTTOM-RIGHT cell — "CHAQUE JOUR":
+- Simple authentic everyday moment, product used naturally
+- Product "${name}" clearly visible and prominent
+- Bottom label strip: white bold "⭐ Chaque jour"
 
-TOP corner of full image: ${styleBadge}
+TOP-LEFT corner of full image: ${styleBadge}
 
 Typography: bold condensed sans-serif, ultra-sharp, French only.
 ${COMMON_RULES}`,
 
     // ── 4. Mode d'emploi ────────────────────────────────────────────────────────
     'how-to-use': `
-Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" — how to use / step-by-step style. Ultra-sharp, photorealistic, print-quality render.
+Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — step-by-step how-to-use. Ultra-sharp, photorealistic, print-quality.
 
-LAYOUT:
-- Background: ${style.bgStyle}
-- TOP-LEFT: ${styleBadge}
-- TOP-LEFT HEADLINE: "MODE D'EMPLOI" in VERY LARGE bold condensed uppercase dark navy — dominates upper-left quarter
-- SUBTITLE: "Découvrez des résultats MAXIMUM" italic grey, word MAXIMUM in bold ${styleAccent} color
+LAYOUT STYLE: ${layoutStyle} — numbered steps with product + person
 
-- TOP-RIGHT: ${style.personStyle}, holding "${name}" product. Half-bust. Warm studio lighting, magazine quality
+Background: ${style.bgStyle}
+TOP-LEFT: ${styleBadge}
 
-- CENTER-LEFT area: 3 steps with large numbered circles (solid ${styleAccent} fill, white number):
-  ① Large circle "1" + icon above + text: "${s1}"
-  ② Large circle "2" + icon above + text: "${s2}"
-  ③ Large circle "3" + icon above + text: "${s3}"
-  Thin arrows connecting the 3 steps horizontally
+TOP area:
+- LEFT: HEADLINE "MODE D'EMPLOI" in VERY LARGE bold condensed uppercase dark navy (#0d1b2e) — dominant
+- SUBTITLE: "Résultats GARANTIS en ${s3.length < 30 ? '3 étapes simples' : 'quelques étapes'}" italic grey, word GARANTIS in ${styleAccent}
+- RIGHT: ${style.personStyle}, holding or using "${name}" — half-bust portrait, warm magazine lighting
 
-- BOTTOM-CENTER: Product "${name}" — exact faithful reproduction of reference image. Flat lay or standing, elegant studio lighting
+CENTER — 3 NUMBERED STEPS horizontal flow:
+Step 1: Large numbered circle (${styleAccent} fill, white "1"), relevant icon above (🖐️ or 📦 or 🌿 depending on context), bold text: "${s1}"
+→ Arrow (${styleAccent} color, right-pointing)
+Step 2: Large numbered circle (${styleAccent} fill, white "2"), relevant icon above (💧 or ✋ or 🔧), bold text: "${s2}"
+→ Arrow (${styleAccent} color, right-pointing)
+Step 3: Large numbered circle (${styleAccent} fill, white "3"), relevant icon above (✨ or 💪 or ⚡), bold text: "${s3}"
 
-- ${styleDecorations}
+BOTTOM-CENTER: Product "${name}" — exact faithful reproduction of reference image. Flat lay or standing on surface with ${solutionHighlight}. Surrounded by ${styleDecorations}
 
-Typography: bold condensed sans-serif, ultra-sharp, French only.
+BOTTOM-RIGHT: pill badge "${tb1}" — ${styleAccent} background, white bold
+
+Typography: bold condensed sans-serif, ultra-sharp, French only. Steps large and easy to read.
 ${COMMON_RULES}`,
 
     // ── 5. Confiance & Qualité ──────────────────────────────────────────────────
     'trust': `
-Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" — trust and quality style. Ultra-sharp, photorealistic, print-quality render.
+Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — trust, quality, certification style. Ultra-sharp, photorealistic, print-quality.
 
-LAYOUT:
-- Background: ${style.bgStyle}
-- TOP-LEFT: ${styleBadge}
-- HEADLINE: "PUISSANT & EFFICACE" in VERY LARGE bold condensed uppercase dark navy — dominant
-- SUBTITLE: "${b1} · ${b2} · ${b3}" condensed bold, color ${styleAccent}
+LAYOUT STYLE: ${layoutStyle} — centered product surrounded by certification badges
 
-- CENTER: Product "${name}" — exact faithful reproduction of the reference product image. MASSIVE central hero shot. 3D hyper-realistic studio lighting (dramatic, 3-point), soft drop shadow at base, subtle reflections on packaging surface. The product IS the star.
+Background: ${style.bgStyle}
+TOP-LEFT: ${styleBadge}
 
-- 4 round certification badges arranged in arc around the product (left column + right column):
-  Each badge: ${styleAccent} fill, white icon center, text in arc, embossed stamp look
-  "${b1}" / "${b2}" / "${b3}" / "Testé & Approuvé"
-  Thin curved connecting lines from badges to product
+HEADLINE (top, VERY LARGE bold condensed uppercase dark navy #0d1b2e):
+"${b1.toUpperCase()} & ${b2.toUpperCase()}"
+SUBTITLE: "${b3} · ${b4}" condensed bold, color ${styleAccent}
 
-- ${styleDecorations}
+CENTER: Product "${name}" — MASSIVE central hero shot. Exact faithful reproduction of reference image. 3D hyper-realistic: ${solutionHighlight}, soft drop shadow, subtle packaging reflections. Product IS the star — occupies 50-60% of frame.
+
+${styleDecorations} placed in corners and edges, not covering the product
+
+6 ROUND CERTIFICATION BADGES arranged symmetrically (3 left column + 3 right column) flanking the product:
+Each badge: ${styleAccent} fill, white icon center, text in arc, embossed wax stamp look, thin curved line connecting to product
+  LEFT: "${tb1}" (with relevant icon) / "${bi1}" / "${b1}"
+  RIGHT: "${tb2}" (with relevant icon) / "${bi2}" / "${b2}"
+
+BOTTOM: Horizontal strip of 4 quality trust seals (dark navy background):
+  "${tb1}" | "${tb2}" | "${tb3}" | "${tb4}"
 
 Typography: bold condensed sans-serif, ultra-sharp, French only.
 ${COMMON_RULES}`,
 
     // ── 6. Comparaison ──────────────────────────────────────────────────────────
     'comparison': `
-Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" — comparison table style. Ultra-sharp, photorealistic, print-quality render.
+Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — vs competition comparison table. Ultra-sharp, photorealistic, print-quality.
 
-LAYOUT:
-- Background: ${style.bgStyle}
-- TOP-LEFT: ${styleBadge}
-- HEADLINE: "COMPAREZ AVEC LES AUTRES" VERY LARGE bold condensed uppercase dark navy — dominant
+LAYOUT STYLE: ${layoutStyle} — comparison split
 
-- TWO PRODUCTS side by side (upper half):
-  LEFT — OUR PRODUCT: "${name}" — exact faithful reproduction of reference image. Beautiful 3D hero shot, studio lighting, vivid colors, sharp packaging. Label below: "Notre Produit" bold ${styleAccent}. ${styleDecorations} around it.
-  RIGHT — OTHER BRANDS: Generic/blurred grey bottle/package, no logo, faded, desaturated. Label below: "Autres Marques" grey italic
+Background: ${style.bgStyle}
+TOP-LEFT: ${styleBadge}
 
-- COMPARISON TABLE (lower half), 2 columns clearly separated:
-  Column headers: "${name}" (${styleAccent} background, white bold) | "Autres" (grey background, white)
-  6 rows, criteria on left, check/cross on right:
-  "Facile à utiliser" → ✅ | ❌
-  "Résultats rapides" → ✅ | ❌
-  "${b1}" → ✅ | ❌
-  "${b2}" → ✅ | ❌
-  "Qualité Premium" → ✅ | ❌
-  "Satisfaction Garantie" → ✅ | ❌
+HEADLINE (VERY LARGE bold condensed uppercase dark navy):
+"POURQUOI CHOISIR ${name.toUpperCase()} ?"
 
-- BOTTOM: Pill badge "${name} — Le Meilleur Choix" ${styleAccent} background, white bold text
+TWO PRODUCTS side by side (upper 40% of image):
+LEFT — "${name}" (OUR PRODUCT):
+  • Exact faithful reproduction of reference image, vivid colors, brilliant studio lighting with ${solutionHighlight}
+  • ${styleDecorations} surrounding it
+  • Label below: "✅ ${name}" bold ${styleAccent}
 
-Visual contrast OBVIOUS: our product beautiful and vibrant vs other grey and faded.
+RIGHT — "Autres Marques" (COMPETITION):
+  • Generic grey/blurred product silhouette, no logo, faded and desaturated, cold lighting
+  • Label below: "❌ Autres marques" grey italic
+
+COMPARISON TABLE (lower 50% of image), clear white background, 3 columns:
+  Header left: "Critères" (grey) | Header center: "${name}" (${styleAccent} bg, white bold) | Header right: "Autres" (grey bg, white)
+  Row 1: "${c1}" → ✅ Excellent | ❌ Insuffisant
+  Row 2: "${c2}" → ✅ Prouvé | ❌ Non garanti
+  Row 3: "${c3}" → ✅ Oui | ❌ Rare
+  Row 4: "${c4}" → ✅ Meilleur | ❌ Médiocre
+  Row 5: "${c5}" → ✅ Inclus | ❌ Absent
+  Row 6: "${c6}" → ✅ Garanti | ❌ Aucune
+
+BOTTOM: Wide pill badge "${name} — LE MEILLEUR CHOIX" ${styleAccent} background, white bold text, star icons
+
+Visual contrast EXTREME: our product luminous and vibrant vs others dull and grey.
 Typography: bold condensed sans-serif, ultra-sharp, French only.
 ${COMMON_RULES}`,
 
     // ── 7. Preuve sociale ───────────────────────────────────────────────────────
     'social-proof': `
-Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" — social proof testimonials style. Ultra-sharp, photorealistic, print-quality render.
+Generate a ULTRA HD square 1:1 professional e-commerce listing image for "${name}" (category: ${category || 'général'}) — customer testimonials social proof. Ultra-sharp, photorealistic, print-quality.
 
-LAYOUT:
-- Background: ${style.bgStyle}
-- TOP-LEFT: ${styleBadge}
-- HEADLINE: "ILS ADORENT CE PRODUIT" VERY LARGE bold condensed uppercase dark navy — dominant
-- ★★★★★ golden stars row directly below headline
+LAYOUT STYLE: ${layoutStyle} — testimonial grid
 
-- 4 TESTIMONIAL CARDS in 2×2 grid, each card:
-  • White background, rounded corners (12px), soft drop shadow
-  • Round profile photo (border ${styleAccent}): African person, dark ebony skin (woman with braids / man with beard / woman with wax turban / woman with afro). Natural expressions — genuine satisfaction, real-life feel, NOT stock photo look
-  • ★★★★★ golden stars below photo
-  • Short bold quote in quotes:
-    "Franchement ça m'a changé la vie !" | "Je l'utilise tous les jours" | "Super pratique et efficace !" | "Résultats visibles rapidement"
-  • First name: "— Aminata K." | "— Ousmane D." | "— Fatou M." | "— Grâce T."
+Background: ${style.bgStyle}
+TOP-LEFT: ${styleBadge}
 
-- Product "${name}" — exact reference image reproduction — visible bottom-center, small but recognizable
+HEADLINE (VERY LARGE bold condensed uppercase dark navy):
+"ILS ADORENT ${name.toUpperCase()}"
+★★★★★ row of 5 golden stars directly below headline (bright golden yellow)
 
-- ${styleDecorations}
+4 TESTIMONIAL CARDS — 2×2 grid (each card white rounded rectangle, 12px radius, soft drop shadow):
+Card 1:
+  • Round profile photo (${styleAccent} border): African woman, dark ebony skin, natural braids, genuine happy expression
+  • ★★★★★ golden stars
+  • Quote: "« Vraiment efficace, je recommande à 100% ! »"
+  • Name: "— Aminata K., Dakar"
 
-- BOTTOM: Wide pill badge: ★ "Plus de 2 000 clients satisfaits" ${styleAccent} background, white bold text
+Card 2:
+  • Round profile photo: African man, beard, warm confident smile
+  • ★★★★★
+  • Quote: "« Je l'utilise tous les jours, c'est devenu indispensable »"
+  • Name: "— Ousmane D., Abidjan"
+
+Card 3:
+  • Round profile photo: African woman, wax turban, radiant expression
+  • ★★★★★
+  • Quote: "« Les résultats sont visibles très rapidement ! »"
+  • Name: "— Fatou M., Bamako"
+
+Card 4:
+  • Round profile photo: Young African woman, afro hair, natural smile
+  • ★★★★★
+  • Quote: "« Qualité exceptionnelle, livraison rapide »"
+  • Name: "— Grâce T., Lomé"
+
+CENTER (between/below cards): Product "${name}" — exact reference image, ${solutionHighlight}, small but clearly recognizable. ${styleDecorations} around it.
+
+BOTTOM: Wide pill badge: ★ "Plus de 2 000 clients satisfaits en Afrique" ${styleAccent} background, white bold text
 
 Typography: bold condensed sans-serif, ultra-sharp, French only.
 ${COMMON_RULES}`,
@@ -926,6 +989,19 @@ router.post('/', requireEcomAuth, upload.single('productImage'), async (req, res
       costFcfa: statsAfter.totalCostFcfa - statsBefore.totalCostFcfa,
     };
     console.log(`💰 Batch total: ${batchCost.images} images → ~$${batchCost.costUsd} (~${batchCost.costFcfa} FCFA)`);
+
+    // Track feature usage
+    if (req.workspaceId && req.userId) {
+      FeatureUsageLog.create({
+        workspaceId: req.workspaceId,
+        userId: req.userId,
+        feature: 'creative_generator',
+        meta: {
+          slideCount: creatives.length,
+          success: true
+        }
+      }).catch(() => {});
+    }
 
     res.json({
       success: true,

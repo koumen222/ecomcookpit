@@ -37,6 +37,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
   const btnColor = design.buttonColor || themeColor;
   const bgColor = design.backgroundColor || '#ffffff';
   const textColor = design.textColor || '#111827';
+  const inputTextColor = '#111827'; // Always dark for inputs on white/light backgrounds
   const borderRadius = design.borderRadius || '12px';
   const boxShadow = design.shadow !== false ? '0 24px 64px rgba(0,0,0,0.18)' : 'none';
 
@@ -121,7 +122,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
           <div style={{ width: 64, height: 64, borderRadius: '50%', margin: '0 auto 20px', backgroundColor: btnColor + '18', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <CheckCircle size={32} color={btnColor} />
           </div>
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: textColor, margin: '0 0 6px' }}>Commande confirmée !</h2>
+          <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: '0 0 6px' }}>Commande confirmée !</h2>
           <p style={{ fontSize: 13.5, color: '#6B7280', margin: '0 0 24px' }}>Merci {form.customerName.split(' ')[0]} 🙏</p>
 
           <div style={{ backgroundColor: '#F9FAFB', borderRadius: 14, padding: '16px 20px', marginBottom: 24, textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -133,7 +134,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
             ].map(([label, value]) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
                 <span style={{ color: '#6B7280' }}>{label}</span>
-                <span style={{ fontWeight: 700, color: textColor }}>{value}</span>
+                <span style={{ fontWeight: 700, color: '#111827' }}>{value}</span>
               </div>
             ))}
           </div>
@@ -157,7 +158,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
 
         {/* Header */}
         <div style={{ position: 'sticky', top: 0, backgroundColor: bgColor, borderBottom: '1px solid #F3F4F6', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderRadius: '20px 20px 0 0' }}>
-          <h2 style={{ fontSize: 16, fontWeight: 800, color: textColor, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 800, color: '#111827', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             <ShoppingCart size={18} color={btnColor} /> {productPageConfig?.button?.text || 'Commander maintenant'}
           </h2>
           <button onClick={handleClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#9CA3AF', display: 'flex' }}>
@@ -171,7 +172,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
             <img src={product.images[0].url} alt={product?.name} style={{ width: 60, height: 60, borderRadius: 10, objectFit: 'cover', border: '1px solid #E5E7EB' }} />
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: textColor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product?.name}</p>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product?.name}</p>
             <p style={{ margin: '3px 0 0', fontSize: 12, color: '#6B7280' }}>Qté: {form.quantity}</p>
           </div>
           <span style={{ fontSize: 15, fontWeight: 800, color: btnColor, flexShrink: 0 }}>{fmt(total, currency)}</span>
@@ -260,7 +261,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
               <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', display: 'flex' }}><User size={15} /></span>
               <input type="text" value={form.customerName} onChange={e => set('customerName', e.target.value)}
                 placeholder="Nom complet *" required
-                style={{ width: '100%', padding: '12px 14px 12px 36px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: textColor, transition: 'border-color 0.15s' }}
+                style={{ width: '100%', padding: '12px 14px 12px 36px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: inputTextColor, backgroundColor: '#fff', transition: 'border-color 0.15s' }}
                 onFocus={e => e.currentTarget.style.borderColor = btnColor}
                 onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
             </div>
@@ -271,7 +272,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
               <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', display: 'flex' }}><Phone size={15} /></span>
               <input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)}
                 placeholder="Numéro de téléphone *" required
-                style={{ width: '100%', padding: '12px 14px 12px 36px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: textColor, transition: 'border-color 0.15s' }}
+                style={{ width: '100%', padding: '12px 14px 12px 36px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: inputTextColor, backgroundColor: '#fff', transition: 'border-color 0.15s' }}
                 onFocus={e => e.currentTarget.style.borderColor = btnColor}
                 onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
             </div>
@@ -282,7 +283,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
             <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', display: 'flex' }}><MapPin size={15} /></span>
             <input type="text" value={form.city} onChange={e => set('city', e.target.value)}
               placeholder="Ville *" required
-              style={{ width: '100%', padding: '12px 14px 12px 36px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: textColor, transition: 'border-color 0.15s' }}
+              style={{ width: '100%', padding: '12px 14px 12px 36px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: inputTextColor, backgroundColor: '#fff', transition: 'border-color 0.15s' }}
               onFocus={e => e.currentTarget.style.borderColor = btnColor}
               onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
           </div>
@@ -292,7 +293,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
               <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', display: 'flex' }}><MapPin size={15} /></span>
               <input type="text" value={form.address} onChange={e => set('address', e.target.value)}
                 placeholder="Lieu de livraison *" required
-                style={{ width: '100%', padding: '12px 14px 12px 36px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: textColor, transition: 'border-color 0.15s' }}
+                style={{ width: '100%', padding: '12px 14px 12px 36px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: inputTextColor, backgroundColor: '#fff', transition: 'border-color 0.15s' }}
                 onFocus={e => e.currentTarget.style.borderColor = btnColor}
                 onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
             </div>
@@ -301,7 +302,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
           {isFieldEnabled('note') && (
             <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
               placeholder="Note ou instruction particulière…" rows={2}
-              style={{ width: '100%', padding: '12px 14px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: textColor, resize: 'none', transition: 'border-color 0.15s' }}
+              style={{ width: '100%', padding: '12px 14px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: inputTextColor, backgroundColor: '#fff', resize: 'none', transition: 'border-color 0.15s' }}
               onFocus={e => e.currentTarget.style.borderColor = btnColor}
               onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
           )}

@@ -34,6 +34,7 @@ import { notifyNewOrder } from '../services/notificationHelper.js';
 import { memCache } from '../services/memoryCache.js';
 import { sendClientOrderConfirmation } from '../services/shopifyWhatsappService.js';
 import { normalizeCity } from '../utils/cityNormalizer.js';
+import FeatureUsageLog from '../models/FeatureUsageLog.js';
 
 const router = express.Router();
 
@@ -694,6 +695,23 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
         memCache.delByPrefix(`filterOpts:${workspaceId.toString()}`);
 
         console.log(`✅ [Scalor Store] Commande ${order.orderNumber} → Order créée (${mainOrder._id})`);
+
+        // Track feature usage — find workspace owner to log userId
+        EcomUser.findOne({ workspaceId }).select('_id').lean()
+          .then(owner => {
+            if (owner) {
+              return FeatureUsageLog.create({
+                workspaceId,
+                userId: owner._id,
+                feature: 'order_skelor',
+                meta: {
+                  orderSource: 'skelor',
+                  orderTotal: mainOrder.price,
+                  success: true
+                }
+              });
+            }
+          }).catch(() => {});
 
         // Notification interne
         notifyNewOrder(workspaceId, mainOrder)

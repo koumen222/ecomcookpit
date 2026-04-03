@@ -786,6 +786,67 @@ const StoreProductPage = () => {
     };
   }, [subdomain]);
 
+  // ── Inject category-based theme overrides ─────────────────────────────────
+  useEffect(() => {
+    if (!product?.category) return;
+    const cat = product.category.toLowerCase();
+    const r = document.documentElement.style;
+
+    if (/tech|electron|phone|mobile|laptop|gadget|accessoire|câble|cable|casque|earphone|smartwatch/.test(cat)) {
+      r.setProperty('--s-primary', '#0066ff');
+      r.setProperty('--s-accent', '#3385ff');
+      r.setProperty('--s-bg', '#0a0f1e');
+      r.setProperty('--s-text', '#ffffff');
+      r.setProperty('--s-text2', '#a0aec0');
+      r.setProperty('--s-border', '#1e2a3a');
+      document.documentElement.style.backgroundColor = '#0a0f1e';
+    } else if (/mode|vêtement|vetement|robe|wax|tissu|fashion|clothing|bijou|sac|chaussure|shoe|bag|jewel/.test(cat)) {
+      r.setProperty('--s-primary', '#c9a84c');
+      r.setProperty('--s-accent', '#d4b46e');
+      r.setProperty('--s-bg', '#faf7f2');
+      r.setProperty('--s-text', '#2d1f0e');
+      r.setProperty('--s-text2', '#7a6a52');
+      r.setProperty('--s-border', '#e8e0d0');
+      document.documentElement.style.backgroundColor = '#faf7f2';
+    } else if (/beaut|cosmét|soin|skin|crème|creme|sérum|serum|makeup|maquillage|parfum|cheveux|hair/.test(cat)) {
+      r.setProperty('--s-primary', '#1a5c2a');
+      r.setProperty('--s-accent', '#2e7d32');
+      r.setProperty('--s-bg', '#fffdf9');
+      r.setProperty('--s-text', '#0d2b14');
+      r.setProperty('--s-text2', '#5a7a60');
+      r.setProperty('--s-border', '#d4e8d6');
+      document.documentElement.style.backgroundColor = '#fffdf9';
+    } else if (/aliment|food|nutri|santé|sante|supplement|complément|protéine|protein|minceur|régime|diet|bio|organic/.test(cat)) {
+      r.setProperty('--s-primary', '#2e7d32');
+      r.setProperty('--s-accent', '#e65100');
+      r.setProperty('--s-bg', '#ffffff');
+      r.setProperty('--s-text', '#1a2e1b');
+      r.setProperty('--s-text2', '#5a7a5e');
+      r.setProperty('--s-border', '#c8e6c9');
+      document.documentElement.style.backgroundColor = '#ffffff';
+    } else if (/maison|home|deco|décor|cuisine|kitchen|ménage|menage|électroménager|electromenager/.test(cat)) {
+      r.setProperty('--s-primary', '#c0622a');
+      r.setProperty('--s-accent', '#d4845a');
+      r.setProperty('--s-bg', '#f5f0e8');
+      r.setProperty('--s-text', '#2d1a0e');
+      r.setProperty('--s-text2', '#7a6252');
+      r.setProperty('--s-border', '#e0d0c0');
+      document.documentElement.style.backgroundColor = '#f5f0e8';
+    } else if (/bébé|bebe|enfant|child|kids|maternité|maternite|jouet|toy/.test(cat)) {
+      r.setProperty('--s-primary', '#2a7a6a');
+      r.setProperty('--s-accent', '#4db6ac');
+      r.setProperty('--s-bg', '#e8f4fd');
+      r.setProperty('--s-text', '#0d2b26');
+      r.setProperty('--s-text2', '#4a8a80');
+      r.setProperty('--s-border', '#b2dfdb');
+      document.documentElement.style.backgroundColor = '#e8f4fd';
+    }
+    // Restore store theme on unmount
+    return () => {
+      if (store) injectStoreCssVars(store);
+    };
+  }, [product?.category, store]);
+
   const images = product?.images?.length ? product.images : [];
   const hasDiscount = product?.compareAtPrice && product.compareAtPrice > product.price;
   const pct = hasDiscount ? Math.round((1 - product.price / product.compareAtPrice) * 100) : 0;
@@ -958,15 +1019,28 @@ const StoreProductPage = () => {
           <div className="product-info">
             {product ? (
               <>
-                {/* Category */}
-                {product.category && (
-                  <span style={{
-                    fontSize: 11, fontWeight: 700, color: 'var(--s-primary)',
-                    textTransform: 'uppercase', letterSpacing: '0.08em',
-                  }}>
-                    {product.category}
-                  </span>
-                )}
+                {/* Category badge */}
+                {product.category && (() => {
+                  const cat = product.category.toLowerCase();
+                  let icon = '🛍️';
+                  if (/tech|electron|phone|mobile|laptop|gadget|accessoire|câble|cable|casque|earphone|smartwatch/.test(cat)) icon = '⚡';
+                  else if (/mode|vêtement|vetement|robe|wax|tissu|fashion|clothing|bijou|sac|chaussure|shoe|bag|jewel/.test(cat)) icon = '👑';
+                  else if (/beaut|cosmét|soin|skin|crème|creme|sérum|serum|makeup|maquillage|parfum|cheveux|hair/.test(cat)) icon = '🌿';
+                  else if (/aliment|food|nutri|santé|sante|supplement|complément|protéine|protein|minceur|régime|diet|bio|organic/.test(cat)) icon = '💪';
+                  else if (/maison|home|deco|décor|cuisine|kitchen|ménage|menage|électroménager|electromenager/.test(cat)) icon = '🏠';
+                  else if (/bébé|bebe|enfant|child|kids|maternité|maternite|jouet|toy/.test(cat)) icon = '👶';
+                  return (
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      fontSize: 11, fontWeight: 700, color: 'var(--s-primary)',
+                      textTransform: 'uppercase', letterSpacing: '0.08em',
+                      backgroundColor: 'color-mix(in srgb, var(--s-primary) 12%, transparent)',
+                      padding: '3px 10px', borderRadius: 20, marginBottom: 4,
+                    }}>
+                      {icon} {product.category}
+                    </span>
+                  );
+                })()}
 
                 {/* Name */}
                 <h1 style={{
