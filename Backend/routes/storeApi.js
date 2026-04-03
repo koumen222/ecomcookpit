@@ -28,9 +28,12 @@ import Workspace from '../models/Workspace.js';
 import StoreProduct from '../models/StoreProduct.js';
 import StoreOrder from '../models/StoreOrder.js';
 import Order from '../models/Order.js';
+import OrderSource from '../models/OrderSource.js';
+import EcomUser from '../models/EcomUser.js';
 import { notifyNewOrder } from '../services/notificationHelper.js';
 import { memCache } from '../services/memoryCache.js';
 import { sendClientOrderConfirmation } from '../services/shopifyWhatsappService.js';
+import { normalizeCity } from '../utils/cityNormalizer.js';
 
 const router = express.Router();
 
@@ -535,61 +538,7 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
 
     await order.save();
 
-    // Sync to main system orders (non-blocking — don't fail the response if this errors)
-    try {
-      const productSummary = orderProducts.map(p => `${p.name} x${p.quantity}`).join(', ');
-      const normalizedPhone = order.phone.replace(/\D/g, '');
-      const mainOrder = new Order({
-        workspaceId: workspace._id,
-        orderId: order.orderNumber,
-        clientName: order.customerName,
-        clientPhone: order.phone,
-        clientPhoneNormalized: normalizedPhone || order.phone,
-        city: order.city,
-        address: order.address,
-        product: productSummary,
-        quantity: orderProducts.reduce((sum, p) => sum + p.quantity, 0),
-        price: order.total,
-        currency: order.currency,
-        status: 'pending',
-        source: 'skelor',
-        sheetRowId: `store_${order._id.toString()}`,
-        sheetRowIndex: 999999,
-        storeOrderId: order._id,
-        notes: [order.orderNumber, order.notes].filter(Boolean).join(' — '),
-        date: order.createdAt || new Date()
-      });
-      await mainOrder.save();
-      order.linkedOrderId = mainOrder._id;
-      await order.save();
-      memCache.delByPrefix(`stats:${workspace._id.toString()}`);
-      memCache.delByPrefix(`filterOpts:${workspace._id.toString()}`);
-      notifyNewOrder(workspace._id, mainOrder)
-        .catch((notifErr) => {
-          console.warn('⚠️ Could not send new order notification for store order:', notifErr.message);
-        });
-
-      // WhatsApp auto-confirm (non-blocking)
-      if (workspace.whatsappAutoConfirm && mainOrder.clientPhone) {
-        const fakePayload = {
-          order_number: order.orderNumber,
-          currency: order.currency,
-          customer: { first_name: (order.customerName || '').split(' ')[0] || 'Client' },
-          line_items: orderProducts.map(p => ({ title: p.name, quantity: p.quantity })),
-        };
-        sendClientOrderConfirmation(mainOrder, fakePayload, workspace._id.toString(), {
-          storeName:      workspace.storeSettings?.storeName || workspace.name || '',
-          instanceId:     workspace.whatsappAutoInstanceId || null,
-          customTemplate: workspace.whatsappOrderTemplate || null,
-          imageUrl:       workspace.whatsappAutoImageUrl || null,
-          audioUrl:       workspace.whatsappAutoAudioUrl || null,
-        }).catch(err => console.error('⚠️ WhatsApp auto-confirm failed for skelor order:', err.message));
-      }
-    } catch (syncErr) {
-      console.error('⚠️ Could not sync store order to main orders:', syncErr.message);
-    }
-
-    // Decrement stock atomically
+    // Decrement stock atomically (synchronous — must complete before confirming)
     const bulkOps = products.map(item => ({
       updateOne: {
         filter: { _id: new mongoose.Types.ObjectId(item.productId), workspaceId: workspace._id },
@@ -598,6 +547,7 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
     }));
     await StoreProduct.bulkWrite(bulkOps);
 
+    // ── Répondre immédiatement (comme un webhook Shopify) ────────────────────
     res.status(201).json({
       success: true,
       message: 'Commande passée avec succès',
@@ -609,38 +559,180 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       }
     });
 
-    // ── Meta Conversions API (server-side, non-blocking) ─────────────────────
-    const metaAccessToken = workspace.storePixels?.metaAccessToken;
-    const metaPixelId = workspace.storePixels?.metaPixelId;
-    if (metaAccessToken && metaPixelId) {
-      const { createHash } = await import('crypto');
-      const hash = (v) => v ? createHash('sha256').update(v.trim().toLowerCase()).digest('hex') : undefined;
-      const capiPayload = {
-        data: [{
-          event_name: 'Purchase',
-          event_time: Math.floor(Date.now() / 1000),
-          action_source: 'website',
-          event_id: order._id.toString(),
-          user_data: {
-            ph: [hash(phone)],
-            em: email ? [hash(email)] : undefined,
-          },
-          custom_data: {
-            value: order.total,
-            currency: order.currency,
-            order_id: order.orderNumber,
-            contents: orderProducts.map(p => ({ id: p.productId.toString(), quantity: p.quantity })),
-            num_items: orderProducts.reduce((s, p) => s + p.quantity, 0),
+    // ── Traitement asynchrone en arrière-plan (pattern webhook Shopify) ──────
+    setImmediate(async () => {
+      try {
+        const workspaceId = workspace._id;
+
+        // Créer ou récupérer la source "Scalor Store" pour ce workspace
+        let orderSource = await OrderSource.findOne({
+          workspaceId,
+          'metadata.type': 'scalor_store'
+        });
+
+        if (!orderSource) {
+          const adminUser = await EcomUser.findOne({
+            workspaceId,
+            role: { $in: ['ecom_admin', 'super_admin'] },
+            isActive: true
+          }).select('_id').lean();
+
+          if (adminUser) {
+            try {
+              orderSource = await OrderSource.create({
+                name: `Scalor Store`,
+                description: `Commandes reçues via la boutique en ligne Scalor`,
+                color: '#0F6B4F',
+                icon: '🛒',
+                workspaceId,
+                createdBy: adminUser._id,
+                isActive: true,
+                metadata: { type: 'scalor_store', createdAt: new Date() }
+              });
+              console.log(`📦 [Scalor Store] Source créée: ${orderSource.name} (${orderSource._id})`);
+            } catch (srcErr) {
+              console.error(`❌ [Scalor Store] Erreur création OrderSource:`, srcErr.message);
+            }
           }
-        }]
-      };
-      const capiUrl = `https://graph.facebook.com/v18.0/${metaPixelId}/events?access_token=${metaAccessToken}`;
-      fetch(capiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(capiPayload),
-      }).catch(err => console.warn('⚠️ Meta CAPI error:', err.message));
-    }
+        }
+
+        // Dédoublonnage — évite les doublons si la route est appelée deux fois
+        const existing = await Order.findOne({
+          orderId: order.orderNumber,
+          source: 'skelor',
+          workspaceId
+        }).lean();
+
+        if (existing) {
+          console.log(`ℹ️ [Scalor Store] Commande ${order.orderNumber} déjà existante, ignorée`);
+          return;
+        }
+
+        // Construire le payload structuré — comme un webhook Shopify
+        const shopifyStylePayload = {
+          order_number: order.orderNumber,
+          currency: order.currency,
+          created_at: order.createdAt?.toISOString() || new Date().toISOString(),
+          customer: {
+            first_name: (order.customerName || '').split(' ')[0] || 'Client',
+            last_name: (order.customerName || '').split(' ').slice(1).join(' ') || '',
+            phone: order.phone,
+            email: order.email || ''
+          },
+          shipping_address: {
+            name: order.customerName,
+            address1: order.address,
+            city: order.city,
+            country: order.country || ''
+          },
+          line_items: orderProducts.map(p => ({
+            title: p.name,
+            quantity: p.quantity,
+            price: String(p.price),
+            product_id: p.productId.toString()
+          })),
+          total_price: String(order.total),
+          financial_status: 'pending',
+          fulfillment_status: null,
+          note: order.notes || '',
+          channel: order.channel || 'store',
+          delivery_type: order.deliveryType || '',
+          delivery_cost: order.deliveryCost || 0
+        };
+
+        const productSummary = orderProducts.map(p => {
+          const qty = p.quantity > 1 ? ` x${p.quantity}` : '';
+          return `${p.name}${qty}`;
+        }).join(', ');
+
+        const normalizedPhone = order.phone.replace(/\D/g, '');
+        const normalizedCityVal = normalizeCity(order.city || '');
+
+        const mainOrder = new Order({
+          workspaceId,
+          sourceId: orderSource?._id || null,
+          sourceName: orderSource?.name || 'Scalor Store',
+          orderId: order.orderNumber,
+          date: order.createdAt || new Date(),
+          clientName: order.customerName,
+          clientPhone: normalizedPhone || order.phone,
+          clientPhoneNormalized: normalizedPhone || order.phone,
+          city: normalizedCityVal || order.city,
+          address: order.address,
+          product: productSummary,
+          quantity: orderProducts.reduce((sum, p) => sum + p.quantity, 0),
+          price: order.total,
+          currency: order.currency,
+          status: 'pending',
+          source: 'skelor',
+          storeOrderId: order._id,
+          notes: [order.orderNumber, order.notes].filter(Boolean).join(' — '),
+          rawData: shopifyStylePayload
+        });
+
+        await mainOrder.save();
+
+        // Lier la StoreOrder à la Order principale
+        order.linkedOrderId = mainOrder._id;
+        await order.save();
+
+        memCache.delByPrefix(`stats:${workspaceId.toString()}`);
+        memCache.delByPrefix(`filterOpts:${workspaceId.toString()}`);
+
+        console.log(`✅ [Scalor Store] Commande ${order.orderNumber} → Order créée (${mainOrder._id})`);
+
+        // Notification interne
+        notifyNewOrder(workspaceId, mainOrder)
+          .catch(err => console.warn('⚠️ [Scalor Store] Notification échouée:', err.message));
+
+        // WhatsApp auto-confirm
+        if (workspace.whatsappAutoConfirm && mainOrder.clientPhone) {
+          sendClientOrderConfirmation(mainOrder, shopifyStylePayload, workspaceId.toString(), {
+            storeName:      workspace.storeSettings?.storeName || workspace.name || '',
+            instanceId:     workspace.whatsappAutoInstanceId || null,
+            customTemplate: workspace.whatsappOrderTemplate || null,
+            imageUrl:       workspace.whatsappAutoImageUrl || null,
+            audioUrl:       workspace.whatsappAutoAudioUrl || null,
+          }).catch(err => console.error('⚠️ [Scalor Store] WhatsApp auto-confirm échoué:', err.message));
+        }
+
+        // ── Meta Conversions API ─────────────────────────────────────────────
+        const metaAccessToken = workspace.storePixels?.metaAccessToken;
+        const metaPixelId = workspace.storePixels?.metaPixelId;
+        if (metaAccessToken && metaPixelId) {
+          const { createHash } = await import('crypto');
+          const hash = (v) => v ? createHash('sha256').update(v.trim().toLowerCase()).digest('hex') : undefined;
+          const capiPayload = {
+            data: [{
+              event_name: 'Purchase',
+              event_time: Math.floor(Date.now() / 1000),
+              action_source: 'website',
+              event_id: order._id.toString(),
+              user_data: {
+                ph: [hash(order.phone)],
+                em: order.email ? [hash(order.email)] : undefined,
+              },
+              custom_data: {
+                value: order.total,
+                currency: order.currency,
+                order_id: order.orderNumber,
+                contents: orderProducts.map(p => ({ id: p.productId.toString(), quantity: p.quantity })),
+                num_items: orderProducts.reduce((s, p) => s + p.quantity, 0),
+              }
+            }]
+          };
+          const capiUrl = `https://graph.facebook.com/v18.0/${metaPixelId}/events?access_token=${metaAccessToken}`;
+          fetch(capiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(capiPayload),
+          }).catch(err => console.warn('⚠️ [Scalor Store] Meta CAPI error:', err.message));
+        }
+      } catch (asyncErr) {
+        console.error(`❌ [Scalor Store] Erreur traitement async commande ${order.orderNumber}:`, asyncErr.message);
+        console.error(asyncErr.stack);
+      }
+    });
 
   } catch (error) {
     console.error('❌ POST /api/store/:subdomain/orders error:', error.message);

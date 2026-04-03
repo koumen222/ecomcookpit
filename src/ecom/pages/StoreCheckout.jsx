@@ -204,6 +204,19 @@ const StoreCheckout = () => {
   const themeColor = store?.themeColor || '#0F6B4F';
   const currency = store?.currency || 'XAF';
 
+  // Input focus ring using themeColor (CSS custom property approach)
+  const [focusedField, setFocusedField] = useState(null);
+  const inputStyle = (field) => ({
+    outline: 'none',
+    borderColor: focusedField === field ? themeColor : '',
+    boxShadow: focusedField === field ? `0 0 0 2px ${themeColor}33` : '',
+  });
+  const inputProps = (field) => ({
+    onFocus: () => setFocusedField(field),
+    onBlur: () => setFocusedField(null),
+    style: inputStyle(field),
+  });
+
   const subtotal = cartProducts.reduce((sum, p) => sum + (p.price * p.quantity), 0);
   const deliveryCost = deliveryStatus.cost || 0;
   const total = subtotal + deliveryCost;
@@ -275,7 +288,7 @@ const StoreCheckout = () => {
 
   // Order confirmation screen
   if (orderResult) {
-    const whatsappMsg = `Bonjour, j'ai passé la commande *${orderResult.orderNumber}* d'un montant de ${formatPrice(orderResult.total)} ${orderResult.currency}.\n\nNom: ${form.customerName}\nTéléphone: ${form.phone}${form.country ? `\nPays: ${form.country}` : ''}${form.city ? `\nVille: ${form.city}` : ''}${form.address ? `\nAdresse: ${form.address}` : ''}${deliveryStatus.type === 'livraison' ? '\nMode: Livraison (paiement à la réception)' : deliveryStatus.type === 'expedition' ? '\nMode: Expédition (paiement avant envoi)' : ''}`;
+    const whatsappMsg = `Bonjour ! 👋\n\nJe viens de passer une commande sur votre boutique.\n\n📦 *Commande N° ${orderResult.orderNumber}*\n💰 *Montant : ${formatPrice(orderResult.total)} ${orderResult.currency}*\n\n👤 Nom : ${form.customerName}\n📞 Téléphone : ${form.phone}${form.country ? `\n🌍 Pays : ${form.country}` : ''}${form.city ? `\n📍 Ville : ${form.city}` : ''}${form.address ? `\nAdresse : ${form.address}` : ''}${form.notes ? `\n📝 Notes : ${form.notes}` : ''}${deliveryStatus.type === 'livraison' ? '\n🚚 Mode : Livraison (paiement à la réception)' : deliveryStatus.type === 'expedition' ? '\n📦 Mode : Expédition (paiement avant envoi)' : ''}\n\nMerci de confirmer ma commande ! 🙏`;
 
     const storeWhatsapp = (store?.whatsapp || store?.phone || '').replace(/[^0-9+]/g, '');
     const whatsappLink = storeWhatsapp
@@ -283,72 +296,123 @@ const StoreCheckout = () => {
       : null;
 
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-2xl border border-gray-200 p-6 text-center space-y-5">
-          <div className="w-16 h-16 rounded-full mx-auto flex items-center justify-center" style={{ backgroundColor: themeColor + '15' }}>
-            <CheckCircle className="w-8 h-8" style={{ color: themeColor }} />
-          </div>
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: `linear-gradient(135deg, ${themeColor}08 0%, ${themeColor}15 100%)` }}>
+        <style>{`
+          @keyframes confetti-fall {
+            0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(80px) rotate(360deg); opacity: 0; }
+          }
+          @keyframes pop-in {
+            0% { transform: scale(0.5); opacity: 0; }
+            70% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+          }
+          @keyframes slide-up {
+            0% { transform: translateY(20px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+          }
+          @keyframes wa-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 #25D36655; }
+            50% { box-shadow: 0 0 0 10px #25D36600; }
+          }
+          .pop-in { animation: pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+          .slide-up-1 { animation: slide-up 0.4s ease forwards 0.2s; opacity: 0; }
+          .slide-up-2 { animation: slide-up 0.4s ease forwards 0.35s; opacity: 0; }
+          .slide-up-3 { animation: slide-up 0.4s ease forwards 0.5s; opacity: 0; }
+          .wa-pulse { animation: wa-pulse 2s ease-in-out infinite; }
+          .confetti { position: absolute; width: 8px; height: 8px; border-radius: 2px; animation: confetti-fall 1.2s ease-out forwards; }
+        `}</style>
 
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Commande confirmée !</h1>
-            <p className="text-sm text-gray-500 mt-1">Merci pour votre commande</p>
-          </div>
+        <div className="max-w-md w-full relative">
+          {/* Confetti particles */}
+          {[...Array(12)].map((_, i) => (
+            <div
+              key={i}
+              className="confetti"
+              style={{
+                left: `${8 + i * 8}%`,
+                top: '0',
+                backgroundColor: [themeColor, '#25D366', '#FFD700', '#FF6B6B', '#4ECDC4'][i % 5],
+                animationDelay: `${i * 0.08}s`,
+                animationDuration: `${0.9 + (i % 3) * 0.2}s`,
+              }}
+            />
+          ))}
 
-          <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-left">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">N° commande</span>
-              <span className="font-bold text-gray-900">{orderResult.orderNumber}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Total</span>
-              <span className="font-bold" style={{ color: themeColor }}>
-                {formatPrice(orderResult.total)} {orderResult.currency}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Statut</span>
-              <span className="text-amber-600 font-medium">En attente de confirmation</span>
-            </div>
-            {deliveryStatus.type === 'livraison' && (
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Mode</span>
-                <span className="text-emerald-600 font-medium">Livraison (paiement à la réception)</span>
+          <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
+            {/* Top colored banner */}
+            <div className="h-2" style={{ background: `linear-gradient(90deg, ${themeColor}, #25D366)` }} />
+
+            <div className="p-6 text-center space-y-5">
+              {/* Animated success icon */}
+              <div className="pop-in mx-auto w-20 h-20 rounded-full flex items-center justify-center relative" style={{ backgroundColor: themeColor + '18' }}>
+                <div className="absolute inset-0 rounded-full" style={{ background: `radial-gradient(circle, ${themeColor}30 0%, transparent 70%)` }} />
+                <CheckCircle className="w-10 h-10 relative z-10" style={{ color: themeColor }} />
               </div>
-            )}
-            {deliveryStatus.type === 'expedition' && (
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Mode</span>
-                <span className="text-amber-600 font-medium">Expédition (paiement avant envoi)</span>
+
+              {/* Thank you message */}
+              <div className="slide-up-1">
+                <div className="text-3xl mb-2">🎉</div>
+                <h1 className="text-2xl font-extrabold text-gray-900">Merci {form.customerName.split(' ')[0]} !</h1>
+                <p className="text-gray-500 mt-1 text-sm leading-relaxed">
+                  Votre commande a bien été enregistrée.<br/>
+                  Confirmez-la sur WhatsApp pour un traitement rapide.
+                </p>
               </div>
-            )}
-          </div>
 
-          {whatsappLink && (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
-              <p className="text-sm text-green-800 font-medium">
-                Confirmez votre commande sur WhatsApp pour un traitement rapide
-              </p>
-              <a
-                href={whatsappLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-2.5 px-4 py-3.5 bg-[#25D366] hover:bg-[#20BD5A] text-white rounded-xl font-bold text-sm transition shadow-md"
-              >
-                <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                </svg>
-                Confirmer sur WhatsApp
-              </a>
+              {/* Order recap */}
+              <div className="slide-up-2 rounded-2xl p-4 space-y-2 text-left" style={{ backgroundColor: themeColor + '08', border: `1px solid ${themeColor}25` }}>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">N° commande</span>
+                  <span className="font-bold text-gray-900">{orderResult.orderNumber}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Total</span>
+                  <span className="font-bold text-lg" style={{ color: themeColor }}>
+                    {formatPrice(orderResult.total)} {orderResult.currency}
+                  </span>
+                </div>
+                {deliveryStatus.type === 'livraison' && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Livraison</span>
+                    <span className="text-emerald-600 font-medium">Paiement à la réception 🚚</span>
+                  </div>
+                )}
+                {deliveryStatus.type === 'expedition' && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Mode</span>
+                    <span className="text-amber-600 font-medium">Paiement avant envoi 📦</span>
+                  </div>
+                )}
+              </div>
+
+              {/* WhatsApp CTA — main action */}
+              <div className="slide-up-3 space-y-3">
+                {whatsappLink ? (
+                  <a
+                    href={whatsappLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="wa-pulse w-full flex items-center justify-center gap-3 px-5 py-4 rounded-2xl text-white font-bold text-base transition-all active:scale-95"
+                    style={{ backgroundColor: '#25D366' }}
+                  >
+                    <svg className="w-6 h-6 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                    </svg>
+                    <span>Valider sur WhatsApp</span>
+                  </a>
+                ) : (
+                  <p className="text-xs text-gray-400 text-center">Nous vous contacterons bientôt.</p>
+                )}
+
+                <button
+                  onClick={() => navigate(storePath('/'))}
+                  className="w-full px-4 py-3 border border-gray-200 text-gray-500 rounded-xl text-sm hover:bg-gray-50 transition"
+                >
+                  Continuer les achats
+                </button>
+              </div>
             </div>
-          )}
-
-          <div className="space-y-3">
-            <button
-              onClick={() => navigate(storePath('/'))}
-              className="w-full px-4 py-3 border border-gray-200 text-gray-700 rounded-xl font-medium text-sm hover:bg-gray-50 transition"
-            >
-              Continuer les achats
-            </button>
           </div>
         </div>
       </div>
@@ -438,8 +502,8 @@ const StoreCheckout = () => {
               onChange={(e) => handleChange('customerName', e.target.value)}
               placeholder="Votre nom"
               required
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-              style={{ '--tw-ring-color': themeColor }}
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm transition-all"
+              {...inputProps('customerName')}
             />
           </div>
 
@@ -453,8 +517,8 @@ const StoreCheckout = () => {
               onChange={(e) => handleChange('phone', e.target.value)}
               placeholder="+237 6XX XXX XXX"
               required
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-              style={{ '--tw-ring-color': themeColor }}
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm transition-all"
+              {...inputProps('phone')}
             />
           </div>
 
@@ -468,8 +532,8 @@ const StoreCheckout = () => {
                 value={form.country}
                 onChange={(e) => handleChange('country', e.target.value)}
                 required
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent bg-white"
-                style={{ '--tw-ring-color': themeColor }}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white transition-all"
+                {...inputProps('country')}
               >
                 <option value="">Sélectionnez votre pays</option>
                 {deliveryCountries.map(c => (
@@ -498,8 +562,8 @@ const StoreCheckout = () => {
                 onChange={(e) => handleChange('city', e.target.value)}
                 placeholder="Douala"
                 required={hasDeliveryConfig}
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-                style={{ '--tw-ring-color': themeColor }}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm transition-all"
+                {...inputProps('city')}
               />
             </div>
             <div>
@@ -509,8 +573,8 @@ const StoreCheckout = () => {
                 value={form.email}
                 onChange={(e) => handleChange('email', e.target.value)}
                 placeholder="optionnel"
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-                style={{ '--tw-ring-color': themeColor }}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm transition-all"
+                {...inputProps('email')}
               />
             </div>
           </div>
@@ -546,8 +610,8 @@ const StoreCheckout = () => {
               value={form.address}
               onChange={(e) => handleChange('address', e.target.value)}
               placeholder="Quartier, rue, repère..."
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-              style={{ '--tw-ring-color': themeColor }}
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm transition-all"
+              {...inputProps('address')}
             />
           </div>
 
@@ -560,8 +624,8 @@ const StoreCheckout = () => {
               onChange={(e) => handleChange('notes', e.target.value)}
               placeholder="Instructions de livraison, taille, couleur..."
               rows={2}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:border-transparent resize-none"
-              style={{ '--tw-ring-color': themeColor }}
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm resize-none transition-all"
+              {...inputProps('notes')}
             />
           </div>
 

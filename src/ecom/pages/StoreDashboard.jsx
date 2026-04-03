@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  TrendingUp, Eye, ShoppingCart, DollarSign, Users, 
+import { useNavigate, Link } from 'react-router-dom';
+import {
+  TrendingUp, Eye, ShoppingCart, DollarSign, Users,
   Package, Clock, ExternalLink, Download, RefreshCw,
   Monitor, Smartphone, Tablet, ArrowUp, ArrowDown,
   Calendar, TrendingDown, Activity, BarChart3, PieChart
@@ -12,6 +12,7 @@ import { useEcomAuth } from '../hooks/useEcomAuth';
 export default function StoreDashboard() {
   const navigate = useNavigate();
   const { workspace } = useEcomAuth();
+  const [storeUrl, setStoreUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
@@ -24,15 +25,15 @@ export default function StoreDashboard() {
   const loadDashboard = async () => {
     try {
       setLoading(true);
-      console.log('📊 Loading dashboard for workspace:', workspace?._id, 'period:', period);
-      const response = await ecomApi.get('/store-analytics/dashboard', {
-        params: { 
-          workspaceId: workspace?._id,
-          period 
-        }
-      });
-      console.log('✅ Dashboard data loaded:', response.data);
+      const [response, configRes] = await Promise.all([
+        ecomApi.get('/store-analytics/dashboard', { params: { workspaceId: workspace?._id, period } }),
+        ecomApi.get('/store/config').catch(() => null),
+      ]);
       setDashboardData(response.data);
+      const subdomain = configRes?.data?.data?.subdomain;
+      const storeUrlFromApi = configRes?.data?.data?.storeUrl;
+      if (storeUrlFromApi) setStoreUrl(storeUrlFromApi);
+      else if (subdomain) setStoreUrl(`https://${subdomain}.scalor.net`);
     } catch (error) {
       console.error('❌ Erreur chargement dashboard:', error.response?.status, error.response?.data || error.message);
       // Initialiser avec des données vides pour éviter les erreurs d'affichage
@@ -135,7 +136,18 @@ export default function StoreDashboard() {
           </div>
         
         <div className="flex flex-wrap items-center gap-2">
-          {/* Période */}
+          {storeUrl && (
+            <a
+              href={storeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition font-medium"
+            >
+              <ExternalLink size={13} />
+              Voir ma boutique
+            </a>
+          )}
+
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
@@ -208,20 +220,20 @@ export default function StoreDashboard() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-900">Bonjour ! C'est parti.</h2>
-            <button className="text-sm text-gray-500 hover:text-gray-700">Tout afficher</button>
+            <Link to="/ecom/boutique/orders" className="text-sm text-emerald-600 hover:text-emerald-700 font-medium">Tout afficher</Link>
           </div>
           <div className="space-y-3">
             <TaskCard
               icon="📦"
               title={`${orders.pending || 0} commande${(orders.pending || 0) > 1 ? 's' : ''} à traiter`}
               description="Confirmez et préparez vos commandes en attente"
-              link="/ecom/store/orders"
+              link="/ecom/boutique/orders"
             />
             <TaskCard
               icon="💰"
               title={`${orders.processing || 0} paiement${(orders.processing || 0) > 1 ? 's' : ''} à saisir`}
               description="Enregistrez les paiements reçus"
-              link="/ecom/store/orders"
+              link="/ecom/boutique/orders"
             />
           </div>
         </div>
@@ -442,17 +454,17 @@ const MiniSparkline = ({ data, color }) => {
 };
 
 const TaskCard = ({ icon, title, description, link }) => (
-  <a href={link} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors group">
+  <Link to={link} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors group">
     <div className="text-2xl">{icon}</div>
     <div className="flex-1 min-w-0">
       <p className="text-sm font-medium text-gray-900 group-hover:text-emerald-600 transition-colors">{title}</p>
       <p className="text-xs text-gray-500 mt-0.5">{description}</p>
     </div>
     <ExternalLink size={16} className="text-gray-400 group-hover:text-emerald-600 transition-colors flex-shrink-0" />
-  </a>
+  </Link>
 );
 
-const SuggestionCard = ({ title, description, action, illustration }) => (
+const SuggestionCard = ({ title, description, action, illustration, link }) => (
   <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-gradient-to-br from-amber-50 to-orange-50 p-5">
     <div className="relative z-10">
       <div className="flex items-start justify-between mb-3">
@@ -462,9 +474,15 @@ const SuggestionCard = ({ title, description, action, illustration }) => (
       <p className="text-xs text-gray-600 mb-3">{description}</p>
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium text-gray-700">{action}</p>
-        <button className="text-xs font-medium text-emerald-600 hover:text-emerald-700 transition-colors">
-          Démarrer
-        </button>
+        {link ? (
+          <Link to={link} className="text-xs font-medium text-emerald-600 hover:text-emerald-700 transition-colors">
+            Démarrer →
+          </Link>
+        ) : (
+          <Link to="/ecom/campaigns/new" className="text-xs font-medium text-emerald-600 hover:text-emerald-700 transition-colors">
+            Démarrer →
+          </Link>
+        )}
       </div>
     </div>
   </div>
@@ -495,9 +513,10 @@ const SimpleLineChart = ({ data }) => {
   if (!data || data.length === 0) return null;
   
   const groupedByDate = data.reduce((acc, item) => {
-    const date = item._id.date;
+    const date = item._id?.date || item.date;
+    if (!date) return acc;
     if (!acc[date]) acc[date] = { date, total: 0 };
-    acc[date].total += item.count;
+    acc[date].total += item.count || 0;
     return acc;
   }, {});
   
