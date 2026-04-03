@@ -199,7 +199,7 @@ const notifyRealtimeEvent = async (workspaceId, eventType, eventData) => {
   const notifications = {
     'new_order': {
       title: '🛒 Nouvelle commande',
-      body: `Commande #${eventData.orderId} de ${eventData.clientName}`,
+      body: `${eventData.productName || eventData.amount || ''} ${eventData.amount && eventData.productName ? '— ' : ''}${eventData.clientName}`.trim() || `Commande #${eventData.orderId} de ${eventData.clientName}`,
       icon: '/icons/new-order.png',
       tag: 'new-order',
       data: { orderId: eventData.orderId, type: 'new_order' },

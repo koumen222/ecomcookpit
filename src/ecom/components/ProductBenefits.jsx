@@ -32,11 +32,10 @@ export default function ProductBenefits({ benefits = [], title = "💥 Les bén�
         gap: 14,
       }}>
         {benefits.map((benefit, index) => {
-          // Extraire l'emoji et le texte
+          // Supprimer l'emoji de début si présent, garder uniquement le texte
           const emojiMatch = benefit.match(/^([\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}])\s*/u);
-          const emoji = emojiMatch ? emojiMatch[0].trim() : '✅';
           const text = emojiMatch ? benefit.slice(emojiMatch[0].length).trim() : benefit;
-          
+
           return (
             <div
               key={index}
@@ -53,12 +52,20 @@ export default function ProductBenefits({ benefits = [], title = "💥 Les bén�
               className="benefit-item"
             >
               <span style={{
-                fontSize: 24,
-                lineHeight: 1,
+                width: 22,
+                height: 22,
+                borderRadius: '50%',
+                backgroundColor: 'var(--s-primary)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 13,
+                fontWeight: 700,
                 flexShrink: 0,
                 marginTop: 2,
               }}>
-                {emoji}
+                ✓
               </span>
               <p style={{
                 fontSize: 15,
@@ -99,12 +106,23 @@ export function ProductBenefitsCompact({ benefits = [] }) {
     }}>
       {benefits.slice(0, 5).map((benefit, index) => {
         const emojiMatch = benefit.match(/^([\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}])\s*/u);
-        const emoji = emojiMatch ? emojiMatch[0].trim() : '✅';
         const text = emojiMatch ? benefit.slice(emojiMatch[0].length).trim() : benefit;
-        
+
         return (
           <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>{emoji}</span>
+            <span style={{
+              width: 18,
+              height: 18,
+              borderRadius: '50%',
+              backgroundColor: 'var(--s-primary)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 11,
+              fontWeight: 700,
+              flexShrink: 0,
+            }}>✓</span>
             <p style={{
               fontSize: 13,
               lineHeight: 1.4,
