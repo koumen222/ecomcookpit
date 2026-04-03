@@ -1,5 +1,5 @@
 /**
- * Nano Banana 2 — Gemini 3.1 Flash Image Generation Service
+ * Nano Banana 2 — Gemini 2.0 Flash Image Generation Service
  * - Un seul modèle, zéro fallback, zéro latence perdue
  */
 
@@ -9,9 +9,9 @@ import sharp from 'sharp';
 const GEMINI_API_KEY = process.env.NANOBANANA_API_KEY;
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
-// Nano Banana 2 — Gemini 3.1 Flash Image
-const MODEL = 'gemini-3.1-flash-image-preview';
-const MODEL_COST_USD = 0.02;
+// Gemini 2.0 Flash (image generation native)
+const MODEL = 'gemini-2.0-flash-exp-image-generation';
+const MODEL_COST_USD = 0.04;
 const USD_TO_FCFA = 600;
 
 // Compteur de session
