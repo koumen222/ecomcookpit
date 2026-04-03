@@ -596,7 +596,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     // Track feature usage
     if (req.workspaceId && req.user) {
-      const genType = freeRemaining > 0 ? 'free' : 'paid';
+      const currentFree = workspace?.freeGenerationsRemaining || 0;
+      const genType = currentFree > 0 ? 'free' : 'paid';
       FeatureUsageLog.create({
         workspaceId: req.workspaceId,
         userId: req.user._id || req.user.id,
