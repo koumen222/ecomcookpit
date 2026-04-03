@@ -51,18 +51,45 @@ export const createNotification = async ({ workspaceId, userId = null, type, tit
 };
 
 /**
+ * Résout le nom du produit depuis order.product ou rawData.line_items
+ */
+const resolveProductName = (order) => {
+  const isValid = (v) => v && typeof v === 'string' && v.trim() && isNaN(v.trim());
+  if (isValid(order.product)) return order.product.trim();
+  if (order.rawData?.line_items?.length) {
+    const names = order.rawData.line_items
+      .map(li => { const t = li.title || li.name || ''; const q = li.quantity > 1 ? ` x${li.quantity}` : ''; return t ? `${t}${q}` : null; })
+      .filter(Boolean);
+    if (names.length) return names.join(', ');
+  }
+  return 'Produit';
+};
+
+/**
  * Notify all workspace members about a new order
  */
 export const notifyNewOrder = async (workspaceId, order) => {
+  const productName = resolveProductName(order);
+
+  // Label source pour distinguer Skelo / Shopify / manual
+  const sourceLabel = order.source === 'skelo'
+    ? ' • Skelo'
+    : order.source === 'shopify'
+    ? ' • Shopify'
+    : '';
+
+  const body = `${order.clientName || 'Client'} — ${productName} (${order.quantity || 1}x)`;
+  const pushTitle = `🛒 Nouvelle commande${sourceLabel} !`;
+
   // Créer la notification interne
   const notification = await createNotification({
     workspaceId,
     type: 'order_new',
-    title: 'Nouvelle commande',
-    message: `${order.clientName || 'Client'} — ${order.product || 'Produit'} (${order.quantity || 1}x)`,
+    title: `Nouvelle commande${sourceLabel}`,
+    message: body,
     icon: 'order',
     link: `/ecom/orders/${order._id}`,
-    metadata: { orderId: order._id }
+    metadata: { orderId: order._id, source: order.source }
   });
 
   // Envoyer la notification push
@@ -70,30 +97,25 @@ export const notifyNewOrder = async (workspaceId, order) => {
     await sendPushNotification(
       workspaceId,
       {
-        title: '🛒 Nouvelle commande !',
-        body: `${order.clientName || 'Client'} — ${order.product || 'Produit'} (${order.quantity || 1}x)`,
+        title: pushTitle,
+        body,
         icon: '/icons/order-new.png',
+        badge: '/icons/badge.png',
         tag: `order-new-${order._id}`,
         data: {
           type: 'order_new',
-          orderId: order._id,
+          orderId: String(order._id),
           url: `/ecom/orders/${order._id}`
         },
         requireInteraction: true,
         actions: [
-          {
-            action: 'view',
-            title: 'Voir la commande'
-          },
-          {
-            action: 'dismiss',
-            title: 'Ignorer'
-          }
+          { action: 'view', title: 'Voir la commande' },
+          { action: 'dismiss', title: 'Ignorer' }
         ]
       },
       'push_new_orders'
     );
-    console.log(`📱 Push notification envoyée pour nouvelle commande: ${order._id}`);
+    console.log(`📱 Push notification envoyée pour nouvelle commande: ${order._id} (${order.source || 'manual'})`);
   } catch (pushError) {
     console.warn('⚠️ Erreur envoi notification push nouvelle commande:', pushError.message);
   }

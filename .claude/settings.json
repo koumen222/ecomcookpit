@@ -15,7 +15,12 @@
       "Bash(node --input-type=module)",
       "Bash(grep -E '\\\\.\\(jsx|js|ts|tsx\\)$')",
       "Bash(grep -r \"Scalor\" /Users/macbookpro/ecomcookpit/Backend/routes/*.js)",
-      "Bash(grep -n \"Order.model\\\\|orderNumber\\\\|StoreOrder\" /Users/macbookpro/ecomcookpit/Backend/models/*.js)"
+      "Bash(grep -n \"Order.model\\\\|orderNumber\\\\|StoreOrder\" /Users/macbookpro/ecomcookpit/Backend/models/*.js)",
+      "Bash(grep -E \"\\\\.\\(jsx|js|tsx|ts\\)$\")",
+      "Bash(node -e \"import\\('./Backend/routes/creativeGenerator.js'\\).then\\(\\(\\) => console.log\\('OK'\\)\\).catch\\(e => console.error\\(e.message\\)\\)\")",
+      "Bash(node -e \"import\\('./routes/creativeGenerator.js'\\).then\\(\\(\\) => console.log\\('OK'\\)\\).catch\\(e => console.error\\(e.message\\)\\)\")",
+      "Bash(node --check routes/creativeGenerator.js)",
+      "Bash(node --check src/ecom/pages/StoreProductForm.jsx)"
     ]
   }
 }

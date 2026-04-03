@@ -1429,17 +1429,33 @@ const OrdersList = () => {
 
   
   const getProductName = (o) => {
-    if (o.product && typeof o.product === 'string' && o.product.trim()) {
-      return o.product.trim();
+    // Ignorer les valeurs purement numériques (montants mal mappés)
+    const isValidProduct = (v) => v && typeof v === 'string' && v.trim() && isNaN(v.trim());
+
+    if (isValidProduct(o.product)) return o.product.trim();
+
+    // Chercher dans rawData.line_items (commandes Shopify / Skelo)
+    if (o.rawData?.line_items?.length) {
+      const names = o.rawData.line_items
+        .map(li => {
+          const title = li.title || li.name || '';
+          const qty = (li.quantity > 1) ? ` x${li.quantity}` : '';
+          return title ? `${title}${qty}` : null;
+        })
+        .filter(Boolean);
+      if (names.length) return names.join(', ');
     }
+
+    // Chercher dans rawData par clé générique
     if (o.rawData && typeof o.rawData === 'object') {
       const entry = Object.entries(o.rawData).find(([k, v]) => {
-        if (typeof v !== 'string' || !v.trim()) return false;
+        if (!isValidProduct(v)) return false;
         return /produit|product|article|item|d[éé]signation|libell[éé]/i.test(k);
       });
-      if (entry && entry[1]) return entry[1].trim();
+      if (entry?.[1]) return entry[1].trim();
     }
-    return o.product || 'Non spécifié';
+
+    return isValidProduct(o.product) ? o.product.trim() : '—';
   };
 
   const getClientName = (o) => {
