@@ -10,13 +10,14 @@ import { normalizeCity, deduplicateCities } from '../utils/cityNormalizer.js';
 import { checkMessageLimit, incrementMessageCount } from '../services/messageLimitService.js';
 import { sendWhatsAppMessage } from '../services/whatsappService.js';
 import { formatInternationalPhone, normalizePhone } from '../utils/phoneUtils.js';
-import { 
-  groupRecipientsByCountry, 
-  filterRecipientsByCountry, 
+import {
+  groupRecipientsByCountry,
+  filterRecipientsByCountry,
   excludeRecipientsByCountry,
   generateCountryReport,
   parseCountryFilters
 } from '../utils/campaignCountryUtils.js';
+import FeatureUsageLog from '../models/FeatureUsageLog.js';
 
 // Helper pour convertir en ObjectId
 const toObjectId = (v) => {
@@ -1695,6 +1696,20 @@ router.post('/:id/send', requireEcomAuth, async (req, res) => {
       invalidNumbers: invalidNumbers.length
     };
     await campaign.save();
+
+    // Track feature usage
+    if (req.workspaceId && req.user) {
+      FeatureUsageLog.create({
+        workspaceId: req.workspaceId,
+        userId: req.user._id || req.user.id,
+        feature: 'whatsapp_campaign',
+        meta: {
+          campaignId: campaign._id?.toString(),
+          recipientCount: sent,
+          success: sent > 0
+        }
+      }).catch(() => {});
+    }
 
     // Mettre à jour le lastSeen de l'instance
     await WhatsAppInstance.findByIdAndUpdate(instanceId, { lastSeen: new Date(), status: 'connected' });

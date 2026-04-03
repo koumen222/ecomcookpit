@@ -27,6 +27,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
 
   const btnColor = design.buttonColor || themeColor;
   const textColor = design.textColor || '#111827';
+  const inputTextColor = '#111827'; // Always dark for inputs on white/light backgrounds
   const borderRadius = design.borderRadius || '12px';
 
   const configFields = formConfig.fields || [];
@@ -101,7 +102,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
         <div style={{ width: 56, height: 56, borderRadius: '50%', margin: '0 auto 14px', backgroundColor: `${btnColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <CheckCircle size={28} color={btnColor} />
         </div>
-        <h3 style={{ fontSize: 18, fontWeight: 800, color: textColor, margin: '0 0 4px' }}>Commande confirmée !</h3>
+        <h3 style={{ fontSize: 18, fontWeight: 800, color: '#111827', margin: '0 0 4px' }}>Commande confirmée !</h3>
         <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 16px' }}>Merci {form.customerName.split(' ')[0]} 🙏</p>
         <div style={{ backgroundColor: '#fff', borderRadius: 12, padding: '12px 16px', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
           {[
@@ -111,7 +112,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
           ].map(([label, value]) => (
             <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
               <span style={{ color: '#6B7280' }}>{label}</span>
-              <span style={{ fontWeight: 700, color: textColor }}>{value}</span>
+              <span style={{ fontWeight: 700, color: '#111827' }}>{value}</span>
             </div>
           ))}
         </div>
@@ -211,7 +212,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
             <span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', display: 'flex' }}><User size={15} /></span>
             <input type="text" value={form.customerName} onChange={e => set('customerName', e.target.value)}
               placeholder="Nom complet *" required
-              style={{ width: '100%', padding: '11px 14px 11px 34px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: textColor, transition: 'border-color 0.15s' }}
+              style={{ width: '100%', padding: '11px 14px 11px 34px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: inputTextColor, backgroundColor: '#fff', transition: 'border-color 0.15s' }}
               onFocus={e => e.currentTarget.style.borderColor = btnColor}
               onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
           </div>
@@ -222,7 +223,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
             <span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', display: 'flex' }}><Phone size={15} /></span>
             <input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)}
               placeholder="Numéro de téléphone *" required
-              style={{ width: '100%', padding: '11px 14px 11px 34px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: textColor, transition: 'border-color 0.15s' }}
+              style={{ width: '100%', padding: '11px 14px 11px 34px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: inputTextColor, backgroundColor: '#fff', transition: 'border-color 0.15s' }}
               onFocus={e => e.currentTarget.style.borderColor = btnColor}
               onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
           </div>
@@ -232,7 +233,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
           <span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', display: 'flex' }}><MapPin size={15} /></span>
           <input type="text" value={form.city} onChange={e => set('city', e.target.value)}
             placeholder="Ville *" required
-            style={{ width: '100%', padding: '11px 14px 11px 34px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: textColor, transition: 'border-color 0.15s' }}
+            style={{ width: '100%', padding: '11px 14px 11px 34px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: inputTextColor, backgroundColor: '#fff', transition: 'border-color 0.15s' }}
             onFocus={e => e.currentTarget.style.borderColor = btnColor}
             onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
         </div>
@@ -242,7 +243,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
             <span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', display: 'flex' }}><MapPin size={15} /></span>
             <input type="text" value={form.address} onChange={e => set('address', e.target.value)}
               placeholder="Lieu de livraison *" required
-              style={{ width: '100%', padding: '11px 14px 11px 34px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: textColor, transition: 'border-color 0.15s' }}
+              style={{ width: '100%', padding: '11px 14px 11px 34px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: inputTextColor, backgroundColor: '#fff', transition: 'border-color 0.15s' }}
               onFocus={e => e.currentTarget.style.borderColor = btnColor}
               onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
           </div>
@@ -251,7 +252,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
         {isFieldEnabled('note') && (
           <textarea value={form.notes} onChange={e => set('notes', e.target.value)}
             placeholder="Note ou instruction…" rows={2}
-            style={{ width: '100%', padding: '11px 14px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: textColor, resize: 'none', transition: 'border-color 0.15s' }}
+            style={{ width: '100%', padding: '11px 14px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: inputTextColor, backgroundColor: '#fff', resize: 'none', transition: 'border-color 0.15s' }}
             onFocus={e => e.currentTarget.style.borderColor = btnColor}
             onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
         )}

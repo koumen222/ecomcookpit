@@ -1,6 +1,8 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import EcomUser from '../models/EcomUser.js';
 import Workspace from '../models/Workspace.js';
+import FeatureUsageLog from '../models/FeatureUsageLog.js';
 import PlanPayment from '../models/PlanPayment.js';
 import WhatsAppLog from '../models/WhatsAppLog.js';
 import SupportConversation from '../models/SupportConversation.js';
@@ -1142,5 +1144,79 @@ router.post('/deactivate-trial', requireEcomAuth, requireSuperAdmin, async (req,
     res.status(500).json({ success: false, message: err.message });
   }
 });
+
+// GET /api/ecom/super-admin/feature-analytics
+router.get('/feature-analytics',
+  requireEcomAuth,
+  requireSuperAdmin,
+  async (req, res) => {
+    try {
+      const { days = 30, workspaceId } = req.query;
+      const since = new Date(Date.now() - Number(days) * 24 * 3600 * 1000);
+      const matchBase = { createdAt: { $gte: since } };
+      if (workspaceId) matchBase.workspaceId = new mongoose.Types.ObjectId(workspaceId);
+
+      const [
+        topFeatures,
+        dailyActivity,
+        perWorkspace,
+        topUsers,
+        recentGenerations
+      ] = await Promise.all([
+        // Top features by usage count
+        FeatureUsageLog.aggregate([
+          { $match: matchBase },
+          { $group: { _id: '$feature', count: { $sum: 1 }, successCount: { $sum: { $cond: ['$meta.success', 1, 0] } } } },
+          { $sort: { count: -1 } }
+        ]),
+
+        // Daily usage per feature (last N days)
+        FeatureUsageLog.aggregate([
+          { $match: matchBase },
+          { $group: {
+            _id: { date: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, feature: '$feature' },
+            count: { $sum: 1 }
+          }},
+          { $sort: { '_id.date': 1 } }
+        ]),
+
+        // Per workspace: which features they use most
+        FeatureUsageLog.aggregate([
+          { $match: matchBase },
+          { $group: { _id: { workspaceId: '$workspaceId', feature: '$feature' }, count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+          { $limit: 100 },
+          { $lookup: { from: 'workspaces', localField: '_id.workspaceId', foreignField: '_id', as: 'ws' } },
+          { $addFields: { workspaceName: { $arrayElemAt: ['$ws.name', 0] } } },
+          { $project: { ws: 0 } }
+        ]),
+
+        // Top users by usage
+        FeatureUsageLog.aggregate([
+          { $match: matchBase },
+          { $group: { _id: '$userId', count: { $sum: 1 }, features: { $addToSet: '$feature' } } },
+          { $sort: { count: -1 } },
+          { $limit: 20 },
+          { $lookup: { from: 'ecomusers', localField: '_id', foreignField: '_id', as: 'user' } },
+          { $addFields: { email: { $arrayElemAt: ['$user.email', 0] }, name: { $arrayElemAt: ['$user.name', 0] } } },
+          { $project: { user: 0 } }
+        ]),
+
+        // Recent product page generations with details
+        FeatureUsageLog.find({ ...matchBase, feature: 'product_page_generator' })
+          .sort({ createdAt: -1 })
+          .limit(50)
+          .populate('workspaceId', 'name')
+          .populate('userId', 'email name')
+          .lean()
+      ]);
+
+      res.json({ success: true, topFeatures, dailyActivity, perWorkspace, topUsers, recentGenerations });
+    } catch (err) {
+      console.error('[SuperAdmin] feature-analytics error:', err.message);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  }
+);
 
 export default router;

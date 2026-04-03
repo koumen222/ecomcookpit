@@ -19,6 +19,7 @@ import { analyzeWithVision, generatePosterImage } from '../services/productPageG
 import { uploadImage } from '../services/cloudflareImagesService.js';
 import { extractProductInfo } from '../services/geminiProductExtractor.js';
 import EcomWorkspace from '../models/Workspace.js';
+import FeatureUsageLog from '../models/FeatureUsageLog.js';
 
 const router = express.Router();
 
@@ -592,6 +593,22 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     };
 
     console.log('✅ Page produit générée avec succès');
+
+    // Track feature usage
+    if (req.workspaceId && req.user) {
+      const genType = freeRemaining > 0 ? 'free' : 'paid';
+      FeatureUsageLog.create({
+        workspaceId: req.workspaceId,
+        userId: req.user._id || req.user.id,
+        feature: 'product_page_generator',
+        meta: {
+          generationType: genType,
+          productUrl: cleanUrl || null,
+          productName: gptResult?.title || scraped?.title || null,
+          success: true
+        }
+      }).catch(() => {});
+    }
     
     // Récupérer le nombre de générations restantes pour l'inclure dans la réponse
     const updatedWorkspace = workspace ? await EcomWorkspace.findById(workspace._id)

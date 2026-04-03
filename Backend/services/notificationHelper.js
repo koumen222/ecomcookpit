@@ -54,8 +54,11 @@ export const createNotification = async ({ workspaceId, userId = null, type, tit
  * Résout le nom du produit depuis order.product ou rawData.line_items
  */
 const resolveProductName = (order) => {
-  const isValid = (v) => v && typeof v === 'string' && v.trim() && isNaN(v.trim());
-  if (isValid(order.product)) return order.product.trim();
+  // Direct product string
+  if (order.product && typeof order.product === 'string' && order.product.trim()) {
+    return order.product.trim();
+  }
+  // Fallback: rawData line_items
   if (order.rawData?.line_items?.length) {
     const names = order.rawData.line_items
       .map(li => { const t = li.title || li.name || ''; const q = li.quantity > 1 ? ` x${li.quantity}` : ''; return t ? `${t}${q}` : null; })
@@ -71,9 +74,9 @@ const resolveProductName = (order) => {
 export const notifyNewOrder = async (workspaceId, order) => {
   const productName = resolveProductName(order);
 
-  // Label source pour distinguer Skelo / Shopify / manual
-  const sourceLabel = order.source === 'skelo'
-    ? ' • Skelo'
+  // Label source pour distinguer Scalor / Shopify / manual
+  const sourceLabel = order.source === 'skelor'
+    ? ' • Scalor'
     : order.source === 'shopify'
     ? ' • Shopify'
     : '';

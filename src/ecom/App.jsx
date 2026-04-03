@@ -102,6 +102,7 @@ const SuperAdminWhatsAppLogs = lazy(() => import('./pages/SuperAdminWhatsAppLogs
 const SuperAdminPushCenter = lazy(() => import('./pages/SuperAdminPushCenter.jsx'));
 const SuperAdminSupport = lazy(() => import('./pages/SuperAdminSupport.jsx'));
 const SuperAdminBilling = lazy(() => import('./pages/SuperAdminBilling.jsx'));
+const SuperAdminFeatureAnalytics = lazy(() => import('./pages/SuperAdminFeatureAnalytics.jsx'));
 const WhyScalor = lazy(() => import('./pages/WhyScalor.jsx'));
 const Tarifs = lazy(() => import('./pages/Tarifs.jsx'));
 const SourcingStats = lazy(() => import('./pages/SourcingStats.jsx'));
@@ -234,6 +235,7 @@ const PLATFORM_TITLE_RULES = [
   { path: '/ecom/super-admin/users', title: 'Utilisateurs super admin' },
   { path: '/ecom/super-admin/workspaces', title: 'Workspaces super admin' },
   { path: '/ecom/super-admin/analytics', title: 'Analytics super admin' },
+  { path: '/ecom/super-admin/feature-analytics', title: 'Features super admin' },
   { path: '/ecom/super-admin/activity', title: 'Activité super admin' },
   { path: '/ecom/super-admin/settings', title: 'Paramètres super admin' },
   { path: '/ecom/super-admin/whatsapp-postulations', title: 'Postulations WhatsApp' },
@@ -629,6 +631,7 @@ const EcomApp = () => {
               <Route path="/ecom/super-admin/push" element={<LayoutRoute requiredRole="super_admin"><SuperAdminPushCenter /></LayoutRoute>} />
               <Route path="/ecom/super-admin/support" element={<LayoutRoute requiredRole="super_admin"><SuperAdminSupport /></LayoutRoute>} />
               <Route path="/ecom/super-admin/billing" element={<LayoutRoute requiredRole="super_admin"><SuperAdminBilling /></LayoutRoute>} />
+              <Route path="/ecom/super-admin/feature-analytics" element={<LayoutRoute requiredRole="super_admin"><SuperAdminFeatureAnalytics /></LayoutRoute>} />
 
               {/* Routes boutique - Utilise sa propre sidebar via BoutiqueLayout */}
               <Route path="/ecom/boutique/wizard" element={<ProtectedRoute requiredRole="ecom_admin"><StoreCreationWizard /></ProtectedRoute>} />
