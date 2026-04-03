@@ -64,6 +64,8 @@ const defaultConfig = {
       { name: 'note', label: 'Note', enabled: false },
     ],
   },
+  // Custom testimonials — overrides product._pageData.testimonials and defaults when set
+  testimonials: [],
 };
 
 export default defaultConfig;

@@ -1,25 +1,32 @@
 import React from 'react';
-import { Plus, X, Tag, Star, Flame, Check } from 'lucide-react';
+import { Plus, X, Tag, Flame, Check, Wand2 } from 'lucide-react';
 import ToggleSwitch from './ToggleSwitch';
 
 const fmt = (n) => new Intl.NumberFormat('fr-FR').format(n);
 
-const OffersEditor = ({ config, onChange }) => {
+const OffersEditor = ({ config, onChange, basePrice = 0 }) => {
   const { offersEnabled, offers } = config;
 
   const update = (key, val) => onChange({ ...config, [key]: val });
 
+  const autofillPrices = () => {
+    if (!basePrice) return;
+    const discounts = [0, 0.05, 0.10];
+    const filled = offers.map((o, i) => {
+      const disc = discounts[i] ?? 0.10;
+      const unitPrice = Math.round(basePrice * (1 - disc) / 100) * 100;
+      return { ...o, price: unitPrice * o.qty, comparePrice: basePrice * o.qty };
+    });
+    update('offers', filled);
+  };
+
   const updateOffer = (idx, key, val) => {
-    const next = offers.map((o, i) => i === idx ? { ...o, [key]: val } : o);
-    update('offers', next);
+    update('offers', offers.map((o, i) => i === idx ? { ...o, [key]: val } : o));
   };
 
   const addOffer = () => {
     const maxQty = offers.reduce((m, o) => Math.max(m, o.qty), 0);
-    update('offers', [
-      ...offers,
-      { qty: maxQty + 1, price: 0, comparePrice: 0, badge: '', selected: false },
-    ]);
+    update('offers', [...offers, { qty: maxQty + 1, price: 0, comparePrice: 0, badge: '', selected: false }]);
   };
 
   const removeOffer = (idx) => {
@@ -42,6 +49,22 @@ const OffersEditor = ({ config, onChange }) => {
         onChange={(v) => update('offersEnabled', v)}
       />
 
+      {offersEnabled && basePrice > 0 && (
+        <button
+          onClick={autofillPrices}
+          className="mt-3 w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-dashed border-emerald-300 text-[12px] font-semibold text-emerald-700 hover:bg-emerald-50 transition-colors"
+        >
+          <Wand2 size={13} />
+          Pré-remplir depuis le prix du produit ({fmt(basePrice)} F)
+        </button>
+      )}
+
+      {offersEnabled && basePrice === 0 && (
+        <p className="mt-2 text-[10px] text-gray-400 italic px-1">
+          Sélectionnez un produit en haut pour activer le pré-remplissage automatique des prix.
+        </p>
+      )}
+
       {offersEnabled && (
         <div className="mt-4 space-y-3">
           {offers.map((offer, idx) => {
@@ -57,14 +80,12 @@ const OffersEditor = ({ config, onChange }) => {
                     : 'border-gray-150 bg-white hover:border-gray-200'
                 }`}
               >
-                {/* Selected indicator */}
                 {offer.selected && (
                   <div className="absolute -top-2.5 left-4 px-2.5 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center gap-1">
                     <Check size={9} /> Par défaut
                   </div>
                 )}
 
-                {/* Header: qty + badge + actions */}
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2.5">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg ${
@@ -104,12 +125,9 @@ const OffersEditor = ({ config, onChange }) => {
                   </div>
                 </div>
 
-                {/* Inputs grid */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-semibold text-gray-500 mb-1 uppercase tracking-wider">
-                      Quantité
-                    </label>
+                    <label className="block text-[10px] font-semibold text-gray-500 mb-1 uppercase tracking-wider">Quantité</label>
                     <input
                       type="number" min="1"
                       value={offer.qty}
@@ -118,9 +136,7 @@ const OffersEditor = ({ config, onChange }) => {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-semibold text-gray-500 mb-1 uppercase tracking-wider">
-                      Prix
-                    </label>
+                    <label className="block text-[10px] font-semibold text-gray-500 mb-1 uppercase tracking-wider">Prix</label>
                     <input
                       type="number" min="0"
                       value={offer.price || ''}
@@ -130,9 +146,7 @@ const OffersEditor = ({ config, onChange }) => {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-semibold text-gray-500 mb-1 uppercase tracking-wider">
-                      Prix barré
-                    </label>
+                    <label className="block text-[10px] font-semibold text-gray-500 mb-1 uppercase tracking-wider">Prix barré</label>
                     <input
                       type="number" min="0"
                       value={offer.comparePrice || ''}
@@ -142,9 +156,7 @@ const OffersEditor = ({ config, onChange }) => {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-semibold text-gray-500 mb-1 uppercase tracking-wider">
-                      Badge
-                    </label>
+                    <label className="block text-[10px] font-semibold text-gray-500 mb-1 uppercase tracking-wider">Badge</label>
                     <div className="relative">
                       <Tag size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300" />
                       <input
@@ -158,7 +170,6 @@ const OffersEditor = ({ config, onChange }) => {
                   </div>
                 </div>
 
-                {/* Price summary */}
                 {offer.price > 0 && (
                   <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
                     <div className="flex items-baseline gap-2">
@@ -167,7 +178,7 @@ const OffersEditor = ({ config, onChange }) => {
                         <span className="text-xs text-gray-400 line-through">{fmt(offer.comparePrice)} F</span>
                       )}
                     </div>
-                    {offer.qty > 1 && offer.price > 0 && (
+                    {offer.qty > 1 && (
                       <span className="text-[10px] font-medium text-gray-400">
                         {fmt(Math.round(offer.price / offer.qty))} F/unité
                       </span>
@@ -178,7 +189,6 @@ const OffersEditor = ({ config, onChange }) => {
             );
           })}
 
-          {/* Add offer button */}
           <button
             onClick={addOffer}
             className="w-full py-3 rounded-2xl border-2 border-dashed border-gray-200 text-sm font-medium text-gray-400 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50/30 transition-all flex items-center justify-center gap-2"

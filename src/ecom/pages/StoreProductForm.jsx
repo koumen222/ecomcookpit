@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, Save, Image, Plus, X, Loader2, AlertCircle, CheckCircle, Search, PackageSearch, Link, Sparkles, Globe, FileText, ChevronDown, ChevronUp, ShoppingBag } from 'lucide-react';
 import { storeProductsApi } from '../services/storeApi.js';
 import AlibabaImportModal from '../components/AlibabaImportModal.jsx';
+import RichTextEditor from '../components/RichTextEditor.jsx';
 
 /**
  * StoreProductForm — Create or edit a store catalog product.
@@ -31,19 +32,6 @@ const StoreProductForm = () => {
   const [pickerProducts, setPickerProducts] = useState([]);
   const [pickerSearch, setPickerSearch] = useState('');
   const [pickerLoading, setPickerLoading] = useState(false);
-  const [showImageDropdown, setShowImageDropdown] = useState(false);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (showImageDropdown && !event.target.closest('.relative')) {
-        setShowImageDropdown(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showImageDropdown]);
   const [linkedProduct, setLinkedProduct] = useState(null);
   const searchTimeout = useRef(null);
 
@@ -883,115 +871,13 @@ const StoreProductForm = () => {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <div className="border border-gray-300 rounded-lg overflow-hidden">
-              {/* Toolbar */}
-              <div className="flex items-center gap-1 p-2 bg-gray-50 border-b border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => document.execCommand('bold')}
-                  className="p-1.5 hover:bg-gray-200 rounded text-gray-700"
-                  title="Gras"
-                >
-                  <strong className="text-sm font-bold">B</strong>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => document.execCommand('italic')}
-                  className="p-1.5 hover:bg-gray-200 rounded text-gray-700"
-                  title="Italique"
-                >
-                  <em className="text-sm">I</em>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => document.execCommand('underline')}
-                  className="p-1.5 hover:bg-gray-200 rounded text-gray-700"
-                  title="Souligné"
-                >
-                  <span className="text-sm underline">U</span>
-                </button>
-                <div className="w-px h-6 bg-gray-300 mx-1" />
-                <button
-                  type="button"
-                  onClick={() => document.execCommand('insertUnorderedList')}
-                  className="p-1.5 hover:bg-gray-200 rounded text-gray-700"
-                  title="Liste à puces"
-                >
-                  <span className="text-sm">• Liste</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => document.execCommand('insertOrderedList')}
-                  className="p-1.5 hover:bg-gray-200 rounded text-gray-700"
-                  title="Liste numérotée"
-                >
-                  <span className="text-sm">1. Liste</span>
-                </button>
-                <div className="w-px h-6 bg-gray-300 mx-1" />
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowImageDropdown(!showImageDropdown)}
-                    className="p-1.5 hover:bg-gray-200 rounded text-gray-700"
-                    title="Insérer une image"
-                  >
-                    <Image className="w-4 h-4" />
-                  </button>
-                  
-                  {showImageDropdown && (
-                    <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-50 min-w-[180px]">
-                      <button
-                        type="button"
-                        onClick={handleImageUploadNew}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                        </svg>
-                        Uploader une image
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleImageUrlNew}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center gap-2"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                        </svg>
-                        URL de l'image
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-              {/* Editor */}
-              <div
-                contentEditable="true"
-                suppressContentEditableWarning
-                dir="ltr"
-                onInput={(e) => {
-                  handleChange('description', e.currentTarget.innerHTML);
-                }}
-                onPaste={(e) => {
-                  e.preventDefault();
-                  const text = e.clipboardData.getData('text/plain');
-                  document.execCommand('insertText', false, text);
-                }}
-                className="min-h-[120px] max-h-[300px] overflow-y-auto px-3 py-2 text-sm focus:outline-none"
-                style={{ 
-                  direction: 'ltr',
-                  textAlign: 'left',
-                  whiteSpace: 'pre-wrap'
-                }}
-                key={`editor-${form.description?.length || 0}`}
-                ref={(el) => {
-                  if (el && !el.hasAttribute('data-initialized')) {
-                    el.innerHTML = form.description || '';
-                    el.setAttribute('data-initialized', 'true');
-                  }
-                }}
-              />
-            </div>
+            <RichTextEditor
+              value={form.description}
+              onChange={(html) => handleChange('description', html)}
+              placeholder="Décrivez votre produit : avantages, matière, utilisation…"
+              minHeight={140}
+              maxHeight={400}
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

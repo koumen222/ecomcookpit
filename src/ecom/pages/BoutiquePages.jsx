@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { storeManageApi } from '../services/storeApi.js';
+import RichTextEditor from '../components/RichTextEditor.jsx';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES DE SECTIONS SUPPORTÉES (même structure que PublicStorefront)
@@ -122,7 +123,7 @@ const SectionEditor = ({ section, onSave, onClose }) => {
         return (
           <>
             <Field label="Titre" value={config.title} onChange={v => updateField('title', v)} />
-            <Field label="Sous-titre" value={config.subtitle} onChange={v => updateField('subtitle', v)} multiline />
+            <Field label="Sous-titre" value={config.subtitle} onChange={v => updateField('subtitle', v)} rich />
             <Field label="Texte du bouton" value={config.ctaText} onChange={v => updateField('ctaText', v)} />
             <Field label="Lien du bouton" value={config.ctaLink} onChange={v => updateField('ctaLink', v)} />
           </>
@@ -161,7 +162,7 @@ const SectionEditor = ({ section, onSave, onClose }) => {
         return (
           <>
             <Field label="Titre" value={config.title} onChange={v => updateField('title', v)} />
-            <Field label="Sous-titre" value={config.subtitle} onChange={v => updateField('subtitle', v)} />
+            <Field label="Sous-titre" value={config.subtitle} onChange={v => updateField('subtitle', v)} rich />
             <Field label="WhatsApp" value={config.whatsapp} onChange={v => updateField('whatsapp', v)} />
           </>
         );
@@ -169,7 +170,7 @@ const SectionEditor = ({ section, onSave, onClose }) => {
         return (
           <>
             <Field label="Titre" value={config.title} onChange={v => updateField('title', v)} />
-            <Field label="Contenu" value={config.content} onChange={v => updateField('content', v)} multiline />
+            <Field label="Contenu" value={config.content} onChange={v => updateField('content', v)} rich />
           </>
         );
     }
@@ -207,10 +208,18 @@ const SectionEditor = ({ section, onSave, onClose }) => {
   );
 };
 
-const Field = ({ label, value, onChange, multiline, type = 'text' }) => (
+const Field = ({ label, value, onChange, multiline, rich, type = 'text' }) => (
   <div>
     <label className="text-xs font-semibold text-gray-600 mb-1 block">{label}</label>
-    {multiline ? (
+    {rich ? (
+      <RichTextEditor
+        value={value || ''}
+        onChange={onChange}
+        minHeight={100}
+        maxHeight={280}
+        placeholder={`${label}…`}
+      />
+    ) : multiline ? (
       <textarea
         value={value || ''}
         onChange={e => onChange(e.target.value)}

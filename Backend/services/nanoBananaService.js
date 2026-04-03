@@ -1,5 +1,5 @@
 /**
- * Gemini 3 Pro Image Generation Service
+ * Nano Banana 2 — Gemini 3.1 Flash Image Generation Service
  * - Un seul modèle, zéro fallback, zéro latence perdue
  */
 
@@ -9,9 +9,9 @@ import sharp from 'sharp';
 const GEMINI_API_KEY = process.env.NANOBANANA_API_KEY;
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
-// Un seul modèle — celui qui marche
-const MODEL = 'gemini-3-pro-image-preview';
-const MODEL_COST_USD = 0.04;
+// Nano Banana 2 — Gemini 3.1 Flash Image
+const MODEL = 'gemini-3.1-flash-image-preview';
+const MODEL_COST_USD = 0.02;
 const USD_TO_FCFA = 600;
 
 // Compteur de session
@@ -33,8 +33,8 @@ export function getImageGenerationStats() { return { ...sessionStats }; }
 async function resizeForApi(buffer) {
   try {
     const resized = await sharp(buffer)
-      .resize(512, 512, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 80 })
+      .resize(768, 768, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 85 })
       .toBuffer();
     console.log(`📐 Image resized: ${Math.round(buffer.length / 1024)}KB → ${Math.round(resized.length / 1024)}KB`);
     return { buffer: resized, mimeType: 'image/jpeg' };
@@ -52,7 +52,7 @@ async function callGemini(parts) {
     `${GEMINI_BASE_URL}/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,
     {
       contents: [{ parts }],
-      generationConfig: { responseModalities: ['IMAGE', 'TEXT'], temperature: 0.4 }
+      generationConfig: { responseModalities: ['IMAGE', 'TEXT'], temperature: 0.6 }
     },
     { headers: { 'Content-Type': 'application/json' }, timeout: 90000 }
   );

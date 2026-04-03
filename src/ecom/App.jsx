@@ -4,7 +4,7 @@ import { EcomAuthProvider } from './hooks/useEcomAuth.jsx';
 import { CurrencyProvider } from './contexts/CurrencyContext.jsx';
 import { ThemeProvider } from './contexts/ThemeContext.jsx';
 import { useEcomAuth } from './hooks/useEcomAuth.jsx';
-import { trackPageView } from './services/analytics.js';
+// analytics imported lazily in PageViewTracker — keeps axios out of the critical bundle
 import { usePosthogPageViews } from './hooks/usePosthogPageViews.js';
 import { useSubdomain } from './hooks/useSubdomain.js';
 import { setDocumentMeta } from './utils/pageMeta.js';
@@ -381,24 +381,24 @@ const RootRedirect = () => {
 
 const PageLoader = ({ storeMode = false }) => (
   <div style={{
-    minHeight: '100vh',
-    backgroundColor: storeMode ? '#FFFFFF' : '#F9FAFB',
+    minHeight: '100dvh',
+    backgroundColor: storeMode ? '#FFFFFF' : '#0F1115',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
   }}>
     <div style={{
-      padding: '10px 14px',
-      borderRadius: 999,
-      backgroundColor: storeMode ? 'rgba(15,107,79,0.08)' : '#E5E7EB',
-      color: storeMode ? '#0F6B4F' : '#4B5563',
-      fontSize: 12,
-      fontWeight: 600,
-      letterSpacing: '0.01em',
-    }}>
-      Chargement…
-    </div>
+      width: 40,
+      height: 40,
+      borderRadius: '50%',
+      border: storeMode
+        ? '3px solid rgba(15,107,79,0.15)'
+        : '3px solid rgba(15,107,79,0.2)',
+      borderTopColor: '#0F6B4F',
+      animation: '_page-spin 0.6s linear infinite',
+    }} />
+    <style>{`@keyframes _page-spin { to { transform: rotate(360deg); } }`}</style>
   </div>
 );
 
@@ -427,7 +427,8 @@ const PageViewTracker = () => {
   usePosthogPageViews();
 
   React.useEffect(() => {
-    trackPageView(location.pathname);
+    // Lazy-import analytics — keeps axios/ecommApi out of the critical bundle
+    import('./services/analytics.js').then(m => m.trackPageView(location.pathname)).catch(() => {});
 
     // Also track with our custom analytics service
     import('../utils/analytics.js').then(m => {
@@ -495,7 +496,7 @@ const EcomApp = () => {
   return (
     <CurrencyProvider>
       <ThemeProvider>
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen">
           <PageViewTracker />
           <PlatformPageMeta enabled={!isStoreDomain} />
 

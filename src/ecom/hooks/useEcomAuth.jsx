@@ -1,7 +1,11 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
 import { authApi } from '../services/ecommApi.js';
 import { logAuthEvent, logWorkspace, logUserAction } from '../services/prodLogger.js';
-import { identifyUser as phIdentify, track as phTrack, resetAnalytics as phReset } from '../services/posthog.js';
+// Lazy posthog — keeps posthog-js out of the critical auth bundle
+const _ph = () => import('../services/posthog.js');
+const phIdentify = (...a) => _ph().then(m => m.identifyUser(...a)).catch(() => {});
+const phTrack = (...a) => _ph().then(m => m.track(...a)).catch(() => {});
+const phReset = () => _ph().then(m => m.resetAnalytics()).catch(() => {});
 
 // Contexte d'authentification e-commerce
 const EcomAuthContext = createContext();

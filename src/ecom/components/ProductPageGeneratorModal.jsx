@@ -1285,13 +1285,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                 ))}
               </div>
 
-              {/* Tech badges */}
-              <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
-                <div className="w-2 h-2 bg-violet-500 rounded-full animate-pulse" />
-                <span className="font-medium">Vision GPT-4o • NanoBanana IA • Groq</span>
-                <div className="w-2 h-2 bg-violet-500 rounded-full animate-pulse" style={{ animationDelay: '0.5s' }} />
-              </div>
-
               {/* Cancel button */}
               <button
                 type="button"

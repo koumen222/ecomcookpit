@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Eye, EyeOff, ChevronDown, Plus, Trash2 } from 'lucide-react';
+import { GripVertical, Eye, EyeOff, ChevronDown, Plus, Trash2, Star } from 'lucide-react';
 
 const SECTION_META = {
   heroSlogan:       { icon: '✍️', desc: 'Sous-titre marketing généré par IA' },
@@ -47,10 +47,13 @@ const EDITABLE_SECTIONS = {
     { key: 'guaranteeText', label: 'Texte garantie', placeholder: 'Ex: Satisfait ou remboursé 30 jours', type: 'text' },
   ]},
   faq:             { fields: 'faq' },
+  testimonials:    { fields: 'testimonials' },
 };
 
 // ── Inline content editor for a section ───────────────────────────────────────
 const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200 transition-all bg-white";
+
+const EMPTY_TESTIMONIAL = { name: '', location: '', rating: 5, text: '', verified: true, date: '' };
 
 const SectionContentEditor = ({ section, onChange }) => {
   const schema = EDITABLE_SECTIONS[section.id];
@@ -137,6 +140,54 @@ const SectionContentEditor = ({ section, onChange }) => {
           <Plus size={12} /> Ajouter une question
         </button>
         <div className="text-[10px] text-gray-400">Laissez vide pour utiliser les données IA / produit</div>
+      </div>
+    );
+  }
+
+  // ── Testimonials editor ──
+  if (schema.fields === 'testimonials') {
+    const items = content.items || [];
+    const updateT = (i, key, val) => { const copy = [...items]; copy[i] = { ...copy[i], [key]: val }; update('items', copy); };
+    const addT = () => update('items', [...items, { ...EMPTY_TESTIMONIAL }]);
+    const removeT = (i) => update('items', items.filter((_, idx) => idx !== i));
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[11px] font-semibold text-gray-500">Témoignages clients</span>
+          <span className="text-[10px] text-gray-400">{items.length} ajouté{items.length !== 1 ? 's' : ''}</span>
+        </div>
+        {items.length === 0 && (
+          <div className="text-[11px] text-gray-400 italic py-1 text-center">
+            Aucun témoignage — les données IA / produit seront utilisées
+          </div>
+        )}
+        {items.map((t, i) => (
+          <div key={i} className="rounded-lg border border-gray-100 p-2.5 bg-gray-50/50 space-y-1.5">
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Avis #{i + 1}</span>
+              <button onClick={() => removeT(i)} className="p-0.5 text-gray-300 hover:text-red-400 transition-colors"><Trash2 size={12} /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <input className={inputCls} value={t.name} onChange={e => updateT(i, 'name', e.target.value)} placeholder="Prénom Nom" />
+              <input className={inputCls} value={t.location || ''} onChange={e => updateT(i, 'location', e.target.value)} placeholder="Ville" />
+            </div>
+            <textarea className={inputCls + ' resize-none'} rows={2} value={t.text} onChange={e => updateT(i, 'text', e.target.value)} placeholder="Texte du témoignage…" />
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1">
+                {[1,2,3,4,5].map(n => (
+                  <button key={n} type="button" onClick={() => updateT(i, 'rating', n)}
+                    className={`transition-colors ${n <= (t.rating || 5) ? 'text-amber-400' : 'text-gray-200'}`}>
+                    <Star size={14} fill="currentColor" />
+                  </button>
+                ))}
+              </div>
+              <input className={inputCls + ' flex-1'} value={t.date || ''} onChange={e => updateT(i, 'date', e.target.value)} placeholder="Ex: Il y a 2 jours" />
+            </div>
+          </div>
+        ))}
+        <button onClick={addT} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700 mt-1">
+          <Plus size={12} /> Ajouter un témoignage
+        </button>
       </div>
     );
   }
