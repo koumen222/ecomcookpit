@@ -53,17 +53,35 @@ export const createNotification = async ({ workspaceId, userId = null, type, tit
 /**
  * Résout le nom du produit depuis order.product ou rawData.line_items
  */
+const isEasySellPlaceholder = (title) => /easysell|cod form|via import/i.test(title || '');
+
 const resolveProductName = (order) => {
-  // Direct product string
-  if (order.product && typeof order.product === 'string' && order.product.trim()) {
+  // Direct product string (skip if it's just an EasySell placeholder)
+  if (order.product && typeof order.product === 'string' && order.product.trim() && !isEasySellPlaceholder(order.product)) {
     return order.product.trim();
   }
-  // Fallback: rawData line_items
+  // Check note_attributes for real product name (EasySell stores it there)
+  const noteAttrs = order.rawData?.note_attributes || [];
+  const easySellName = noteAttrs.find(a => /product|item|produit/i.test(a.name))?.value;
+  if (easySellName) return easySellName;
+  // Check line item properties
+  if (order.rawData?.line_items?.length) {
+    for (const li of order.rawData.line_items) {
+      const propName = (li.properties || []).find(p => /product|item|produit|name/i.test(p.name))?.value;
+      if (propName) return propName;
+    }
+  }
+  // Fallback: rawData line_items (filter out EasySell placeholders)
   if (order.rawData?.line_items?.length) {
     const names = order.rawData.line_items
+      .filter(li => !isEasySellPlaceholder(li.title))
       .map(li => { const t = li.title || li.name || ''; const q = li.quantity > 1 ? ` x${li.quantity}` : ''; return t ? `${t}${q}` : null; })
       .filter(Boolean);
     if (names.length) return names.join(', ');
+  }
+  // Last fallback: use the raw product even if EasySell
+  if (order.product && typeof order.product === 'string' && order.product.trim()) {
+    return order.product.trim();
   }
   return 'Produit';
 };
@@ -81,8 +99,11 @@ export const notifyNewOrder = async (workspaceId, order) => {
     ? ' • Shopify'
     : '';
 
-  const body = `${order.clientName || 'Client'} — ${productName} (${order.quantity || 1}x)`;
-  const pushTitle = `🛒 Nouvelle commande${sourceLabel} !`;
+  const priceStr = order.price ? `FCFA${new Intl.NumberFormat('fr-FR').format(order.price)}` : '';
+  const qtyStr = `${order.quantity || 1} article${(order.quantity || 1) > 1 ? 's' : ''}`;
+  const body = `${priceStr ? priceStr + ', ' : ''}${qtyStr} • ${order.clientName || 'Client'}`;
+  const pushTitle = `tr ? priceStr + ', ' : ''}${qtyStr} • ${order.clientName || 'Client'}`;
+  const pushTitle = `Commande #${order.orderId || ''}${sourceLabel}`;
 
   // Créer la notification interne
   const notification = await createNotification({

@@ -101,10 +101,21 @@ export async function saveShopifyOrder(shopifyOrder, shopDomain, workspaceId, wo
     console.warn(`⚠️ [Shopify WH] Commande #${shopifyOrder.order_number || shopifyOrderId} — AUCUN téléphone trouvé dans le payload Shopify`);
   }
 
-  const product = lineItems.map(li => {
-    const qty = li.quantity > 1 ? ` x${li.quantity}` : '';
-    return `${li.title || li.name}${qty}`;
-  }).join(', ') || 'Produit Shopify';
+  // Filter out EasySell COD Form / import placeholder items to get real product names
+  const isEasySellPlaceholder = (title) => /easysell|cod form|via import/i.test(title || '');
+  const realItems = lineItems.filter(li => !isEasySellPlaceholder(li.title));
+  const displayItems = realItems.length > 0 ? realItems : lineItems;
+
+  // Also check note_attributes for real product name (EasySell stores it there)
+  const noteAttrs = shopifyOrder.note_attributes || [];
+  const easySellProductName = noteAttrs.find(a => /product|item|produit/i.test(a.name))?.value;
+
+  const product = easySellProductName
+    || displayItems.map(li => {
+      const qty = li.quantity > 1 ? ` x${li.quantity}` : '';
+      return `${li.title || li.name}${qty}`;
+    }).join(', ')
+    || 'Produit Shopify';
 
   const totalQuantity = lineItems.reduce((sum, li) => sum + (li.quantity || 1), 0);
 
@@ -144,8 +155,10 @@ export async function saveShopifyOrder(shopifyOrder, shopDomain, workspaceId, wo
         quantity: li.quantity,
         price: li.price,
         sku: li.sku,
-        variant_title: li.variant_title
+        variant_title: li.variant_title,
+        properties: li.properties || []
       })),
+      note_attributes: noteAttrs,
       shipping_address: shipping,
       customer: {
         id: customer.id,
