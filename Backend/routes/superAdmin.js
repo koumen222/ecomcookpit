@@ -1093,8 +1093,13 @@ router.post('/notify-workspace', requireEcomAuth, requireSuperAdmin, async (req,
       }
     }
 
-    await logAudit(req, 'NOTIFY_WORKSPACE', `Manual ${templateKey} (${channel}) sent to ${owner.email}`, 'workspace', workspace._id);
-    res.json({ success: true, results, email: owner.email });
+    // Vérifier si au moins un canal a réussi
+    const emailOk = results.email ? results.email.success : true;
+    const pushOk = results.push ? results.push.success : true;
+    const allSuccess = emailOk && pushOk;
+
+    await logAudit(req, 'NOTIFY_WORKSPACE', `Manual ${templateKey} (${channel}) sent to ${owner.email} — ${allSuccess ? 'OK' : 'FAILED'}`, 'workspace', workspace._id);
+    res.json({ success: allSuccess, results, email: owner.email, message: allSuccess ? undefined : (results.email?.error || results.push?.error || 'Échec envoi') });
   } catch (err) {
     console.error('[SuperAdmin] POST /notify-workspace error:', err.message);
     res.status(500).json({ success: false, message: err.message });

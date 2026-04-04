@@ -8,7 +8,7 @@ import mongoose from 'mongoose';
  */
 const featureUsageSchema = new mongoose.Schema({
   // Contexte
-  workspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace', required: true, index: true },
+  workspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'EcomWorkspace', required: true, index: true },
   userId:      { type: mongoose.Schema.Types.ObjectId, ref: 'EcomUser', required: true, index: true },
 
   // Feature trackée
