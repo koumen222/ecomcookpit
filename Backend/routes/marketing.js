@@ -16,6 +16,51 @@ const sanitizePhoneNumber = (phone) => {
   return result.success ? result.formatted : null;
 };
 
+// Caractères invisibles unicode pour varier la longueur du message sans changer le rendu
+const INVISIBLE_CHARS = ['\u200B', '\u200C', '\u200D', '\uFEFF'];
+
+// Synonymes et variantes pour rendre chaque message unique
+const SYNONYMS = {
+  bonjour: ['Bonjour', 'Bonsoir', 'Salut', 'Hello', 'Coucou'],
+  merci: ['Merci', 'Merci beaucoup', 'Grand merci', 'Mille mercis'],
+  cordialement: ['Cordialement', 'Bonne journée', 'À bientôt', 'Bien à vous'],
+  profitez: ['Profitez', 'Bénéficiez', 'Saisissez', 'Utilisez'],
+  disponible: ['disponible', 'en stock', 'prêt', 'accessible'],
+  rapidement: ['rapidement', 'vite', 'au plus tôt', 'dès que possible'],
+  commande: ['commande', 'achat', 'livraison'],
+  produit: ['produit', 'article', 'colis'],
+};
+
+function pick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function varyMessage(text) {
+  // 1. Remplacer les mots-clés par des synonymes (insensible à la casse)
+  let result = text;
+  for (const [word, variants] of Object.entries(SYNONYMS)) {
+    const regex = new RegExp(`\\b${word}\\b`, 'gi');
+    result = result.replace(regex, (match) => {
+      const variant = pick(variants);
+      // Conserver la casse du début si le mot original commence par majuscule
+      return match[0] === match[0].toUpperCase() ? variant.charAt(0).toUpperCase() + variant.slice(1) : variant.toLowerCase();
+    });
+  }
+
+  // 2. Insérer 1-3 caractères invisibles à des positions aléatoires dans le texte
+  const numInvisible = Math.floor(Math.random() * 3) + 1;
+  for (let i = 0; i < numInvisible; i++) {
+    const pos = Math.floor(Math.random() * result.length);
+    const invisChar = pick(INVISIBLE_CHARS);
+    result = result.slice(0, pos) + invisChar + result.slice(pos);
+  }
+
+  // 3. Varier légèrement la ponctuation finale (. → ! ou rien, etc.)
+  result = result.replace(/\.(\s*)$/, () => pick(['.', '!', ' !', '.']).trimEnd() + '\n'.repeat(0));
+
+  return result;
+}
+
 function renderMessage(template, client, orderData = null) {
   const orderInfo = orderData || client;
   return template
@@ -498,7 +543,7 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
           continue;
         }
 
-        const message = renderMessage(campaign.messageTemplate, client, orderData);
+        const message = varyMessage(renderMessage(campaign.messageTemplate, client, orderData));
         
         // Envoyer le média si présent (image ou vocal)
         let result;
