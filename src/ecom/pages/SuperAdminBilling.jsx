@@ -194,7 +194,9 @@ const SuperAdminBilling = () => {
         setNotifSuccess(`${channel === 'email' ? 'Email' : channel === 'push' ? 'Push' : 'Email + Push'} envoyé à ${res.data.email}`);
         setTimeout(() => setNotifSuccess(''), 4000);
       } else {
-        setError(res.data?.message || 'Erreur envoi notification');
+        const details = res.data?.results;
+        const errMsg = details?.email?.error || details?.push?.error || res.data?.message || 'Erreur envoi notification';
+        setError(errMsg);
       }
     } catch (e) {
       setError(e.response?.data?.message || e.message);
