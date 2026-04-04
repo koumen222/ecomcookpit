@@ -438,38 +438,46 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
       res.setHeader('Connection', 'keep-alive');
       res.flushHeaders();
 
+      let clientConnected = true;
+      req.on('close', () => { clientConnected = false; });
+
       const emit = (event, data) => {
+        if (!clientConnected) return;
         try {
           res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
           if (res.flush) res.flush();
-        } catch (_) {}
+        } catch (_) { clientConnected = false; }
       };
 
-      let interrupted = false;
-      req.on('close', () => { interrupted = true; });
+      // Ne jamais interrompre la boucle à cause d'une déconnexion client
+      // La campagne continue en arrière-plan même si le client se déconnecte
 
       campaign.status = 'sending';
       campaign.pauseRequested = false;
       await campaign.save();
 
-      emit('start', { total: recipients.length, campaignName: campaign.name, instance: instance.customName || instance.instanceName });
       console.log(`📤 Envoi SSE "${campaign.name}" → ${recipients.length} destinataires via ${instance.instanceName}`);
 
-      let sent = 0, failed = 0, skipped = 0;
-      const BATCH_SIZE = 10;          // pause tous les N messages envoyés
+      const BATCH_SIZE = 10;
       const BATCH_PAUSE_MS = 20 * 60 * 1000; // 20 minutes
-      const MSG_DELAY_MS = 5 * 60 * 1000; // 5 minutes entre chaque message
+      const MSG_DELAY_MS = 30000; // 30 secondes entre chaque message
+
+      // Si reprise (paused/interrupted/failed), skip les déjà traités
+      const alreadyProcessed = (campaign.sendProgress?.sent || 0) + (campaign.sendProgress?.failed || 0) + (campaign.sendProgress?.skipped || 0);
+      let sent = campaign.sendProgress?.sent || 0;
+      let failed = campaign.sendProgress?.failed || 0;
+      let skipped = campaign.sendProgress?.skipped || 0;
+      const totalRecipients = recipients.length;
+
+      if (alreadyProcessed > 0 && alreadyProcessed < recipients.length) {
+        console.log(`⏩ [CAMPAIGN] Reprise depuis le destinataire #${alreadyProcessed + 1} (${sent} envoyés, ${failed} échecs, ${skipped} ignorés)`);
+        recipients = recipients.slice(alreadyProcessed);
+      }
+
+      emit('start', { total: totalRecipients, campaignName: campaign.name, instance: instance.customName || instance.instanceName, resumeFrom: alreadyProcessed, sent, failed, skipped });
 
       for (const { phone, client, orderData } of recipients) {
-        // Vérifier interruption client
-        if (interrupted) {
-          campaign.status = 'interrupted';
-          campaign.sendProgress = { sent, failed, skipped, targeted: recipients.length };
-          await campaign.save();
-          return;
-        }
-
-        // Vérifier demande de pause
+        // Vérifier demande de pause (seulement via DB, pas via déconnexion client)
         const fresh = await Campaign.findById(campaign._id).select('pauseRequested').lean();
         if (fresh?.pauseRequested) {
           campaign.status = 'paused';
@@ -541,21 +549,25 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
           result = { success: false, error: sendError.message || 'Exception lors de l\'envoi' };
         }
 
-        const index = sent + failed + skipped + 1;
+        const index = alreadyProcessed + sent + failed + skipped;
         if (result.success) {
           sent++;
-          emit('progress', { sent, failed, skipped, total: recipients.length, index, current: { name: clientName, phone: cleanNumber, status: 'sent', reason: 'Envoyé' } });
+          emit('progress', { sent, failed, skipped, total: totalRecipients, index, current: { name: clientName, phone: cleanNumber, status: 'sent', reason: 'Envoyé' } });
         } else if (result.noWhatsApp) {
           skipped++;
-          emit('progress', { sent, failed, skipped, total: recipients.length, index, current: { name: clientName, phone: cleanNumber, status: 'skipped', reason: 'Pas sur WhatsApp' } });
+          emit('progress', { sent, failed, skipped, total: totalRecipients, index, current: { name: clientName, phone: cleanNumber, status: 'skipped', reason: 'Pas sur WhatsApp' } });
         } else {
           failed++;
-          emit('progress', { sent, failed, skipped, total: recipients.length, index, current: { name: clientName, phone: cleanNumber, status: 'failed', reason: String(result.error || 'Erreur inconnue') } });
+          emit('progress', { sent, failed, skipped, total: totalRecipients, index, current: { name: clientName, phone: cleanNumber, status: 'failed', reason: String(result.error || 'Erreur inconnue') } });
         }
 
-        // Pause de 5 min tous les 10 messages envoyés avec succès
-        if (result.success && sent % BATCH_SIZE === 0 && sent < recipients.length) {
-          console.log(`⏸️ [CAMPAIGN] Pause 5 min après ${sent} messages envoyés...`);
+        // Sauvegarder le progress après chaque message pour permettre la reprise
+        campaign.sendProgress = { sent, failed, skipped, targeted: totalRecipients };
+        await campaign.save().catch(() => {});
+
+        // Pause de 20 min tous les 10 messages envoyés avec succès
+        if (result.success && sent % BATCH_SIZE === 0 && (alreadyProcessed + sent + failed + skipped) < totalRecipients) {
+          console.log(`⏸️ [CAMPAIGN] Pause 20 min après ${sent} messages envoyés...`);
           emit('substep', { name: '', phone: '', step: 'batch_pause', status: 'pausing', detail: `Pause anti-spam 20 min (${sent} envoyés)` });
           await new Promise(r => setTimeout(r, BATCH_PAUSE_MS));
           emit('substep', { name: '', phone: '', step: 'batch_pause', status: 'done' });
@@ -564,14 +576,14 @@ router.post('/campaigns/:id/send', requireMarketingAccess, async (req, res) => {
         }
       }
 
-      campaign.status = (sent === 0 && failed > 0) ? 'failed' : 'sent';
+      campaign.status = 'sent';
       campaign.sentAt = new Date();
-      campaign.sendProgress = { sent, failed, skipped, targeted: recipients.length };
-      campaign.stats = { ...(campaign.stats?.toObject?.() || campaign.stats || {}), sent, failed, targeted: recipients.length };
+      campaign.sendProgress = { sent, failed, skipped, targeted: totalRecipients };
+      campaign.stats = { ...(campaign.stats?.toObject?.() || campaign.stats || {}), sent, failed, targeted: totalRecipients };
       await campaign.save();
       await WhatsAppInstance.findByIdAndUpdate(instance._id, { lastSeen: new Date(), status: 'connected' });
 
-      emit('done', { sent, failed, skipped, total: recipients.length, campaignName: campaign.name });
+      emit('done', { sent, failed, skipped, total: totalRecipients, campaignName: campaign.name });
       console.log(`✅ Campagne SSE terminée : ${sent} envoyés, ${failed} échecs, ${skipped} ignorés`);
       res.end();
       return;

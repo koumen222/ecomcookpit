@@ -227,10 +227,29 @@ const CampaignsList = () => {
       return;
     }
 
-    // Demander de sélectionner une instance WhatsApp
+    // Charger les instances WhatsApp
     setPendingCampaignId(id);
-    await loadInstances();
-    setShowInstanceSelector(true);
+    setLoadingInstances(true);
+    try {
+      const user = JSON.parse(localStorage.getItem('ecomUser') || '{}');
+      const userId = user._id || user.id;
+      const response = await ecomApi.get(`/v1/external/whatsapp/instances?userId=${userId}`);
+      const loadedInstances = response.data.success ? (response.data.instances || []) : [];
+      setInstances(loadedInstances);
+
+      // Auto-sélection si une seule instance
+      if (loadedInstances.length === 1) {
+        setPendingCampaignId(null);
+        await startSendStream(id, loadedInstances[0]._id);
+      } else {
+        setShowInstanceSelector(true);
+      }
+    } catch (err) {
+      setError('Erreur chargement instances WhatsApp');
+      setPendingCampaignId(null);
+    } finally {
+      setLoadingInstances(false);
+    }
   };
 
   // Lance le streaming SSE pour une campagne + instance données
@@ -306,8 +325,17 @@ const CampaignsList = () => {
       }
     } catch (err) {
       if (err.name !== 'AbortError') {
-        setSendProgress(p => p ? { ...p, status: 'interrupted' } : { sent: 0, failed: 0, skipped: 0, total: 0, campaignName: '', instance: '', status: 'interrupted', log: [] });
-        setError(err?.message || 'Erreur lors de l\'envoi de la campagne');
+        // Ne pas marquer "interrupted" immédiatement — la campagne continue peut-être en arrière-plan
+        // Vérifier le vrai statut depuis la DB après un court délai
+        console.warn('[Campaign] Stream coupé:', err.message, '— vérification statut en cours...');
+        setTimeout(async () => {
+          try {
+            await fetchCampaigns();
+            // fetchCampaigns va mettre à jour la liste, on peut vérifier si la campagne est toujours "sending"
+          } catch {}
+        }, 2000);
+        // Afficher juste un warning, pas une interruption
+        setSendProgress(p => p ? { ...p, status: 'reconnecting' } : null);
       }
     } finally {
       setSending(null);
@@ -337,10 +365,15 @@ const CampaignsList = () => {
   const handleResume = async (id) => {
     try {
       await ecomApi.post(`/marketing/campaigns/${id}/resume`);
-      // Ouvrir le sélecteur d'instance pour reprendre
+      // Charger les instances et auto-sélectionner si une seule
       setPendingCampaignId(id);
       await loadInstances();
-      setShowInstanceSelector(true);
+      if (instances.length === 1) {
+        setPendingCampaignId(null);
+        await startSendStream(id, instances[0]._id);
+      } else {
+        setShowInstanceSelector(true);
+      }
     } catch (err) { setError(err.response?.data?.message || 'Erreur reprise'); }
   };
 
@@ -348,10 +381,15 @@ const CampaignsList = () => {
     if (!confirm('Relancer la campagne depuis le début ?')) return;
     try {
       await ecomApi.post(`/marketing/campaigns/${id}/restart`);
-      // Ouvrir le sélecteur d'instance pour relancer
+      // Charger les instances et auto-sélectionner si une seule
       setPendingCampaignId(id);
       await loadInstances();
-      setShowInstanceSelector(true);
+      if (instances.length === 1) {
+        setPendingCampaignId(null);
+        await startSendStream(id, instances[0]._id);
+      } else {
+        setShowInstanceSelector(true);
+      }
     } catch (err) { setError(err.response?.data?.message || 'Erreur relance'); }
   };
 
@@ -785,6 +823,7 @@ const CampaignsList = () => {
             sendProgress.status === 'done' ? 'bg-green-600' :
             sendProgress.status === 'paused' ? 'bg-orange-500' :
             sendProgress.status === 'interrupted' ? 'bg-purple-600' :
+            sendProgress.status === 'reconnecting' ? 'bg-yellow-600' :
             'bg-emerald-600'
           }`}
           onClick={() => setIsProgressMinimized(false)}
@@ -800,6 +839,7 @@ const CampaignsList = () => {
                 ? `${sendProgress.currentIndex || 0}/${sendProgress.total || '?'} envoyés`
                 : sendProgress.status === 'done' ? 'Terminée'
                 : sendProgress.status === 'paused' ? 'En pause'
+                : sendProgress.status === 'reconnecting' ? 'Connexion perdue — envoi en cours...'
                 : 'Interrompue'}
             </p>
           </div>
@@ -817,8 +857,17 @@ const CampaignsList = () => {
           )}
           {/* Expand icon */}
           <svg className="w-4 h-4 flex-shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"/></svg>
+          {/* Reprendre button when reconnecting/interrupted */}
+          {['reconnecting', 'interrupted'].includes(sendProgress.status) && showProgress && (
+            <button
+              onClick={(e) => { e.stopPropagation(); handleResume(showProgress); }}
+              className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-xs font-bold transition flex-shrink-0"
+            >
+              Reprendre
+            </button>
+          )}
           {/* Close button when terminal */}
-          {['done', 'paused', 'interrupted'].includes(sendProgress.status) && (
+          {['done', 'paused', 'interrupted', 'reconnecting'].includes(sendProgress.status) && (
             <button
               onClick={(e) => { e.stopPropagation(); setShowProgress(null); setSendProgress(null); setIsProgressMinimized(false); }}
               className="p-1 hover:bg-white/30 rounded-full transition flex-shrink-0"
@@ -839,6 +888,7 @@ const CampaignsList = () => {
               sendProgress.status === 'done' ? 'bg-green-600' :
               sendProgress.status === 'paused' ? 'bg-orange-500' :
               sendProgress.status === 'interrupted' ? 'bg-purple-600' :
+              sendProgress.status === 'reconnecting' ? 'bg-yellow-600' :
               'bg-emerald-600'
             } text-white`}>
               <div className="flex-1 min-w-0">
@@ -846,12 +896,13 @@ const CampaignsList = () => {
                   {sendProgress.status === 'sending' && <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse flex-shrink-0"></div>}
                   {sendProgress.status === 'done' && <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>}
                   {sendProgress.status === 'paused' && <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>}
-                  {sendProgress.status === 'interrupted' && <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>}
+                  {(sendProgress.status === 'interrupted' || sendProgress.status === 'reconnecting') && <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>}
                   <h3 className="font-semibold text-sm truncate">
                     {sendProgress.status === 'starting' ? 'Préparation...' :
                      sendProgress.status === 'sending' ? `Envoi ${sendProgress.currentIndex || 0}/${sendProgress.total || '?'} — ${sendProgress.campaignName}` :
                      sendProgress.status === 'done' ? `Campagne terminée — ${sendProgress.campaignName}` :
                      sendProgress.status === 'paused' ? `Campagne en pause — ${sendProgress.campaignName}` :
+                     sendProgress.status === 'reconnecting' ? `Connexion perdue — ${sendProgress.campaignName}` :
                      `Campagne interrompue — ${sendProgress.campaignName}`}
                   </h3>
                 </div>
@@ -996,9 +1047,19 @@ const CampaignsList = () => {
                 ⏸️ Campagne en pause. Utilisez "Reprendre" pour continuer.
               </div>
             )}
-            {sendProgress.status === 'interrupted' && (
-              <div className="px-5 py-3 border-t bg-purple-50 text-center text-sm text-purple-700 font-medium">
-                ⚡ Campagne interrompue. Utilisez "Reprendre" pour relancer.
+            {(sendProgress.status === 'interrupted' || sendProgress.status === 'reconnecting') && (
+              <div className="px-5 py-3 border-t bg-yellow-50 flex items-center justify-between gap-3">
+                <span className="text-sm text-yellow-800 font-medium">
+                  ⚡ {sendProgress.status === 'reconnecting' ? 'Connexion perdue — l\'envoi peut continuer en arrière-plan.' : 'Campagne interrompue.'}
+                </span>
+                {showProgress && (
+                  <button
+                    onClick={() => handleResume(showProgress)}
+                    className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold rounded-lg transition flex-shrink-0"
+                  >
+                    ▶ Reprendre
+                  </button>
+                )}
               </div>
             )}
           </div>
