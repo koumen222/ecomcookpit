@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import EcomUser from '../models/EcomUser.js';
+import Store from '../models/Store.js';
 
 // Clé secrète pour les tokens e-commerce (différente du système principal)
 // WARNING: ECOM_JWT_SECRET must be set in production! Fallback is for development only.
@@ -156,7 +157,23 @@ export const requireEcomAuth = async (req, res, next) => {
       req.ecomUserRole = user.getRoleInWorkspace ? (user.getRoleInWorkspace(user.workspaceId) || user.role) : user.role;
     }
     
-    console.log('🔐 Final workspaceId:', req.workspaceId, 'Role:', req.ecomUserRole);
+    // Résoudre activeStoreId depuis le header X-Store-Id (multi-store)
+    const requestedStoreId = req.headers['x-store-id'];
+    if (requestedStoreId && /^[0-9a-fA-F]{24}$/.test(requestedStoreId)) {
+      try {
+        const store = await Store.findOne({
+          _id: requestedStoreId,
+          workspaceId: req.workspaceId,
+          isActive: true
+        }).select('_id').lean();
+        req.activeStoreId = store?._id || null;
+      } catch (e) {
+        req.activeStoreId = null;
+      }
+    } else {
+      req.activeStoreId = null;
+    }
+
     next();
   } catch (error) {
     console.error('❌ Erreur requireEcomAuth:', error.message);

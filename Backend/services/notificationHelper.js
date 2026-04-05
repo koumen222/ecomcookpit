@@ -1,6 +1,7 @@
 import Notification from '../models/Notification.js';
 import EcomUser from '../models/EcomUser.js';
 import CloseuseAssignment from '../models/CloseuseAssignment.js';
+import OrderSource from '../models/OrderSource.js';
 import { getIO } from './socketService.js';
 import { sendPushNotification, sendPushNotificationToUser } from './pushService.js';
 
@@ -114,6 +115,28 @@ export const notifyNewOrder = async (workspaceId, order) => {
     link: `/ecom/orders/${order._id}`,
     metadata: { orderId: order._id, source: order.source }
   });
+
+  // Envoyer des notifications ciblées aux closeuses assignées
+  try {
+    const responsibleCloseuses = await findResponsibleCloseuses(workspaceId, order);
+    for (const closeuse of responsibleCloseuses) {
+      await createNotification({
+        workspaceId,
+        userId: closeuse._id,
+        type: 'order_new',
+        title: `Nouvelle commande${sourceLabel}`,
+        message: body,
+        icon: 'order',
+        link: `/ecom/orders/${order._id}`,
+        metadata: { orderId: order._id, source: order.source }
+      });
+    }
+    if (responsibleCloseuses.length > 0) {
+      console.log(`👩 Notification envoyée à ${responsibleCloseuses.length} closeuse(s) pour commande ${order._id}`);
+    }
+  } catch (closeuseErr) {
+    console.warn('⚠️ Erreur notification closeuse:', closeuseErr.message);
+  }
 
   // Envoyer la notification push
   try {
@@ -496,23 +519,47 @@ const findResponsibleCloseuses = async (workspaceId, order) => {
   }
 
   // 2. Look through CloseuseAssignment to find who handles this order
-  const assignments = await CloseuseAssignment.find({ workspaceId, isActive: true }).lean();
+  const [assignments, orderSources] = await Promise.all([
+    CloseuseAssignment.find({ workspaceId, isActive: true }).lean(),
+    OrderSource.find({ workspaceId, isActive: true }).select('_id metadata type').lean()
+  ]);
+
+  // Build source type map: ObjectId -> type (scalor_store, shopify, etc.)
+  const sourceTypeMap = {};
+  for (const os of orderSources) {
+    sourceTypeMap[os._id.toString()] = os.metadata?.type || os.type || 'webhook';
+  }
+
   const matchedIds = new Set();
 
   for (const assignment of assignments) {
     let matched = false;
 
     // Match by source
-    if (!matched && order.sheetRowId) {
-      for (const src of assignment.orderSources || []) {
-        const sid = String(src.sourceId);
-        if (sid === 'legacy' && !/^source_/.test(order.sheetRowId)) { matched = true; break; }
-        if (sid !== 'legacy' && order.sheetRowId.startsWith(`source_${sid}_`)) { matched = true; break; }
+    for (const src of assignment.orderSources || []) {
+      if (matched) break;
+      const sid = String(src.sourceId);
+      const srcType = sourceTypeMap[sid];
+
+      // Scalor Store source -> match orders with source 'skelor' or 'boutique'
+      if (srcType === 'scalor_store' && ['skelor', 'boutique'].includes(order.source)) {
+        matched = true; break;
       }
-    }
-    if (!matched && order.source === 'webhook') {
-      for (const src of assignment.orderSources || []) {
-        if (String(src.sourceId) === 'webhook') { matched = true; break; }
+      // Shopify source -> match orders with source 'shopify'
+      if (srcType === 'shopify' && order.source === 'shopify') {
+        matched = true; break;
+      }
+      // Legacy source
+      if (sid === 'legacy' && order.sheetRowId && !/^source_/.test(order.sheetRowId)) {
+        matched = true; break;
+      }
+      // Google Sheets custom source
+      if (sid !== 'legacy' && order.sheetRowId && order.sheetRowId.startsWith(`source_${sid}_`)) {
+        matched = true; break;
+      }
+      // Webhook source by sourceId field
+      if (order.sourceId && String(order.sourceId) === sid) {
+        matched = true; break;
       }
     }
 

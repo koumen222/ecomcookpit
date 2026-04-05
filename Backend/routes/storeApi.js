@@ -25,6 +25,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import rateLimit from 'express-rate-limit';
 import Workspace from '../models/Workspace.js';
+import Store from '../models/Store.js';
 import StoreProduct from '../models/StoreProduct.js';
 import StoreOrder from '../models/StoreOrder.js';
 import Order from '../models/Order.js';
@@ -92,30 +93,62 @@ function setCacheHeaders(res, ttl = 300) {
   res.set('Cache-Control', `public, s-maxage=${ttl}, stale-while-revalidate=${ttl * 2}, max-age=0`);
 }
 
-// ─── Helper: resolve workspace from subdomain param ───────────────────────────
+// ─── Helper: resolve workspace/store from subdomain param ────────────────────
 async function resolveStore(subdomain) {
   if (!subdomain) return null;
 
   const clean = subdomain.toLowerCase().trim();
 
   // Check cache
-  let workspace = getCachedStore(clean);
-  if (workspace) return workspace;
+  let cached = getCachedStore(clean);
+  if (cached) return cached;
 
-  // Query DB with compound index
-  workspace = await Workspace.findOne({
+  // 1. Try Store model first (multi-store)
+  const store = await Store.findOne({
     subdomain: clean,
     isActive: true,
     'storeSettings.isStoreEnabled': true
   })
-  .select('_id name subdomain storeSettings storeTheme storePages storePixels storePayments')
+  .select('_id workspaceId name subdomain storeSettings storeTheme storePages storePixels storePayments storeDomains storeDeliveryZones whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules')
+  .lean();
+
+  if (store) {
+    const result = { ...store, _storeId: store._id, _workspaceId: store.workspaceId, _id: store.workspaceId };
+    setCachedStore(clean, result);
+    return result;
+  }
+
+  // 2. Fallback: legacy Workspace (pre-migration or disabled stores)
+  const workspace = await Workspace.findOne({
+    subdomain: clean,
+    isActive: true,
+    'storeSettings.isStoreEnabled': true
+  })
+  .select('_id name subdomain storeSettings storeTheme storePages storePixels storePayments storeDomains storeDeliveryZones whatsappAutoConfirm whatsappOrderTemplate whatsappAutoInstanceId whatsappAutoImageUrl whatsappAutoAudioUrl whatsappAutoVideoUrl whatsappAutoDocumentUrl whatsappAutoSendOrder whatsappAutoProductMediaRules')
   .lean();
 
   if (workspace) {
-    setCachedStore(clean, workspace);
+    const result = { ...workspace, _workspaceId: workspace._id, _storeId: null };
+    setCachedStore(clean, result);
+    return result;
   }
 
-  return workspace;
+  return null;
+}
+
+// Helper: get product filter for a resolved store (supports multi-store + legacy)
+function getProductFilter(resolvedStore) {
+  if (resolvedStore._storeId) {
+    // Multi-store: filter by storeId, or legacy products without storeId in same workspace
+    return {
+      $or: [
+        { storeId: resolvedStore._storeId },
+        { workspaceId: resolvedStore._workspaceId, storeId: null }
+      ]
+    };
+  }
+  // Legacy: filter by workspaceId only
+  return { workspaceId: resolvedStore._workspaceId };
 }
 
 /**
@@ -131,16 +164,29 @@ router.get('/resolve-domain/:hostname', readLimiter, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid hostname' });
     }
 
-    // Look up workspace by custom domain
-    const workspace = await Workspace.findOne({
+    // Look up store by custom domain — check Store first, then Workspace (legacy)
+    let foundSubdomain = null, foundName = null;
+    const storeByDomain = await Store.findOne({
       'storeDomains.customDomain': hostname,
       isActive: true,
       'storeSettings.isStoreEnabled': true
-    })
-    .select('subdomain name storeSettings.storeName')
-    .lean();
+    }).select('subdomain name storeSettings.storeName').lean();
+    if (storeByDomain?.subdomain) {
+      foundSubdomain = storeByDomain.subdomain;
+      foundName = storeByDomain.storeSettings?.storeName || storeByDomain.name;
+    } else {
+      const workspace = await Workspace.findOne({
+        'storeDomains.customDomain': hostname,
+        isActive: true,
+        'storeSettings.isStoreEnabled': true
+      }).select('subdomain name storeSettings.storeName').lean();
+      if (workspace?.subdomain) {
+        foundSubdomain = workspace.subdomain;
+        foundName = workspace.storeSettings?.storeName || workspace.name;
+      }
+    }
 
-    if (!workspace || !workspace.subdomain) {
+    if (!foundSubdomain) {
       return res.status(404).json({
         success: false,
         message: 'Domain not linked to any store',
@@ -151,10 +197,7 @@ router.get('/resolve-domain/:hostname', readLimiter, async (req, res) => {
     setCacheHeaders(res, 60); // Cache for 1 minute
     res.json({
       success: true,
-      data: {
-        subdomain: workspace.subdomain,
-        storeName: workspace.storeSettings?.storeName || workspace.name
-      }
+      data: { subdomain: foundSubdomain, storeName: foundName }
     });
   } catch (error) {
     console.error('Error GET /api/store/resolve-domain:', error);
@@ -182,28 +225,19 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
     }
 
     const settings = workspace.storeSettings || {};
+    const prodFilter = getProductFilter(workspace);
 
     // Fetch initial products + categories in parallel
     const [products, categories, totalProducts] = await Promise.all([
-      StoreProduct.find({
-        workspaceId: workspace._id,
-        isPublished: true
-      })
+      StoreProduct.find({ ...prodFilter, isPublished: true })
       .select('name slug price compareAtPrice currency stock images category tags')
       .sort('-createdAt')
       .limit(20)
       .lean(),
 
-      StoreProduct.distinct('category', {
-        workspaceId: workspace._id,
-        isPublished: true,
-        category: { $ne: '' }
-      }),
+      StoreProduct.distinct('category', { ...prodFilter, isPublished: true, category: { $ne: '' } }),
 
-      StoreProduct.countDocuments({
-        workspaceId: workspace._id,
-        isPublished: true
-      })
+      StoreProduct.countDocuments({ ...prodFilter, isPublished: true })
     ]);
 
     const storeCurrency = settings.storeCurrency || settings.currency || 'XAF';
@@ -308,10 +342,7 @@ router.get('/:subdomain/products', readLimiter, async (req, res) => {
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(50, Math.max(1, parseInt(limit) || 20));
 
-    const filter = {
-      workspaceId: workspace._id,
-      isPublished: true
-    };
+    const filter = { ...getProductFilter(workspace), isPublished: true };
 
     if (category) filter.category = category;
     if (search) {
@@ -382,7 +413,7 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
     }
 
     const product = await StoreProduct.findOne({
-      workspaceId: workspace._id,
+      ...getProductFilter(workspace),
       slug: req.params.slug,
       isPublished: true
     })
@@ -438,7 +469,7 @@ router.get('/:subdomain/categories', readLimiter, async (req, res) => {
     }
 
     const categories = await StoreProduct.distinct('category', {
-      workspaceId: workspace._id,
+      ...getProductFilter(workspace),
       isPublished: true,
       category: { $ne: '' }
     });
@@ -537,7 +568,8 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
     }
 
     const order = new StoreOrder({
-      workspaceId: workspace._id,
+      workspaceId: workspace._workspaceId || workspace._id,
+      storeId: workspace._storeId || null,
       customerName: customerName.trim(),
       phone: phone.trim(),
       email: email?.trim() || '',
@@ -555,7 +587,7 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
     // Decrement stock atomically (synchronous — must complete before confirming)
     const bulkOps = products.map(item => ({
       updateOne: {
-        filter: { _id: new mongoose.Types.ObjectId(item.productId), workspaceId: workspace._id },
+        filter: { _id: new mongoose.Types.ObjectId(item.productId), workspaceId: workspace._workspaceId || workspace._id },
         update: { $inc: { stock: -(parseInt(item.quantity) || 1) } }
       }
     }));
@@ -576,7 +608,7 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
     // ── Traitement asynchrone en arrière-plan (pattern webhook Shopify) ──────
     setImmediate(async () => {
       try {
-        const workspaceId = workspace._id;
+        const workspaceId = workspace._workspaceId || workspace._id;
 
         // Créer ou récupérer la source "Scalor Store" pour ce workspace
         let orderSource = await OrderSource.findOne({

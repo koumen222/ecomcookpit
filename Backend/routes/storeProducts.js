@@ -470,7 +470,7 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
       name, description, price, compareAtPrice, stock,
       images, category, tags, isPublished,
       seoTitle, seoDescription, linkedProductId, currency,
-      testimonials, faq, _pageData
+      testimonials, faq, _pageData, pageBuilder
     } = req.body;
 
     // Build update object — only include provided fields
@@ -497,15 +497,19 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
     if (testimonials !== undefined) update.testimonials = normalizeTestimonials(testimonials);
     if (faq !== undefined) update.faq = normalizeFaq(faq);
     if (_pageData !== undefined) update._pageData = _pageData;
+    if (pageBuilder !== undefined) update.pageBuilder = pageBuilder;
 
-    // Regenerate slug if name changed
+    // Only regenerate slug if name actually changed
     if (name) {
-      update.slug = name
-        .toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '')
-        + '-' + Date.now().toString(36);
+      const existing = await StoreProduct.findOne({ _id: req.params.id, workspaceId: req.workspaceId }).select('name').lean();
+      if (existing && existing.name !== name) {
+        update.slug = name
+          .toLowerCase()
+          .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '')
+          + '-' + Date.now().toString(36);
+      }
     }
 
     const product = await StoreProduct.findOneAndUpdate(
@@ -557,6 +561,49 @@ router.delete('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
     res.json({ success: true, message: 'Produit supprimé' });
   } catch (error) {
     console.error('Erreur DELETE /store-products/:id:', error.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+/**
+ * POST /store-products/:id/duplicate
+ * Clone a store product (1-click duplication).
+ */
+router.post('/:id/duplicate', requireEcomAuth, requireWorkspace, requireStoreOwner, async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
+    const original = await StoreProduct.findOne({
+      _id: req.params.id,
+      workspaceId: req.workspaceId
+    }).lean();
+
+    if (!original) {
+      return res.status(404).json({ success: false, message: 'Produit introuvable' });
+    }
+
+    const { _id, createdAt, updatedAt, slug, ...rest } = original;
+    const clonedName = `${rest.name} (copie)`;
+
+    const cloned = new StoreProduct({
+      ...rest,
+      name: clonedName,
+      isPublished: false,
+      createdBy: req.user._id,
+      workspaceId: req.workspaceId,
+    });
+
+    await cloned.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Produit dupliqué',
+      data: cloned.toObject()
+    });
+  } catch (error) {
+    console.error('Erreur POST /store-products/:id/duplicate:', error.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });

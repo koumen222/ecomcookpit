@@ -55,12 +55,11 @@ Style: commercial Facebook advertising style, bright clean white background, hig
 }
 
 /**
- * 4 flash prompts — INFOGRAPHIES MARKETPLACE style listing Amazon/Ozon Premium.
- * Chaque image est une infographie graphique (PAS une photo lifestyle).
- * WITH product ref: le vrai produit est intégré dans l'infographie.
- * WITHOUT: produit générique stylisé.
+ * 4 flash prompts — INFOGRAPHIES avec des designs UNIQUES par slide ET par catégorie produit.
+ * Chaque template (beauty, tech, fashion, health, home, general) a sa propre structure visuelle.
+ * TOUJOURS: personnes africaines cibles + produit visible + texte français.
  */
-function buildFlashPrompts(gptResult, hasProductRef, method = 'PAS') {
+function buildFlashPrompts(gptResult, hasProductRef, method = 'PAS', template = 'general') {
   const title = gptResult.title || 'product';
   const targetPerson = gptResult.hero_target_person || 'authentic African person';
   const benefits = gptResult.benefits_bullets || [];
@@ -72,81 +71,401 @@ function buildFlashPrompts(gptResult, hasProductRef, method = 'PAS') {
     ? `THE EXACT REFERENCE PRODUCT ("${title}") must be shown large, sharp, dominant — same packaging, shape, color, label. Use the provided product image as reference.`
     : `A premium product packaging for "${title}" shown large, sharp, dominant.`;
 
-  const infographicBase = `Square 1:1 MARKETPLACE INFOGRAPHIC for "${title}". Mix of GRAPHIC DESIGN and REAL PHOTOGRAPHY — infographic layout with integrated photos of real people. Style: premium marketplace listing (Amazon A+ content, Ozon top sellers). White or very light background. Professional product rendering. Bold modern typography. Clean iconography. Authentic Black African people integrated naturally into the design. Premium feel.`;
+  // ─── BEAUTY / COSMÉTIQUE ─────────────────────────────────────────────
+  if (template === 'beauty') {
+    return [
+      {
+        prompt: `Square 1:1 LUXURY BEAUTY INFOGRAPHIC for "${title}". Premium beauty editorial with real photography. Ultra HD, 4K.
 
+COMPOSITION: Elegant skincare/beauty hero.
+- BACKGROUND: Soft blush pink (#FFF0F0) to warm ivory (#FFF8F2) gradient. Clean, luxurious, feminine energy
+- TOP: Elegant serif headline in deep rose gold (#8B4558): product name + French beauty promise. Refined, not loud
+- CENTER: ${productNote} Product with soft pink studio glow, delicate light reflections, cream texture drops floating around it
+- 4 benefit badges as elegant pill shapes with thin rose gold borders:
+  "${b1}", "${b2}", "${b3}", "${b4}"
+- PERSON (45% of frame): ${targetPerson} — African woman with glowing radiant skin, close-up beauty portrait, warm soft studio light with golden rim, natural confident beauty expression, skin texture visible and luminous
+
+ALL text PERFECT French. Elegant, clean, beauty editorial feel. NO heavy graphics.`,
+        type: 'beauty_hero',
+      },
+      {
+        prompt: `Square 1:1 BEAUTY INGREDIENTS INFOGRAPHIC for "${title}". Clean cosmetic science layout. Ultra HD, 4K.
+
+COMPOSITION: Ingredients spotlight.
+- BACKGROUND: Pure white (#FFFFFF) with very subtle warm pink radial glow at center
+- LAYOUT: Asymmetric — product LEFT (40%), ingredient info RIGHT (60%)
+- LEFT: ${productNote} Product with cosmetic texture swatches (cream, serum drops, powder) artfully arranged around the product. Macro photography quality
+- RIGHT: 3 key ingredients in clean vertical list. Each: elegant circular icon (watercolor style in soft pink/green/gold) + ingredient name in bold + short French benefit. Connected to product with thin dotted lines
+- PERSON: ${targetPerson} — African woman applying product to skin, hands visible, close-up beauty shot, warm directional lighting creating skin luminosity
+- BOTTOM: thin elegant bar — rose gold background, white text: French quality tagline
+
+Clean, scientific yet feminine. NO heavy badges. PERFECT French.`,
+        type: 'beauty_ingredients',
+      },
+      {
+        prompt: `Square 1:1 BEAUTY ROUTINE INFOGRAPHIC for "${title}". Warm bathroom/vanity lifestyle. Ultra HD, 4K.
+
+COMPOSITION: Beauty routine steps.
+- BACKGROUND: Warm lifestyle scene — modern bathroom vanity with marble surface, warm ambient morning light through window, soft bokeh. NOT studio white
+- PERSON (dominant 55%): ${targetPerson} — African woman in her beauty routine moment, natural hair wrapped in silk scarf or loose, applying or admiring the product, genuine self-care smile, warm golden morning light on skin
+- PRODUCT: visible on the vanity surface or in hands — ${productNote}
+- OVERLAY: 3 numbered frosted-glass rounded steps floating elegantly:
+  Step 1: brief French action (applying/preparing)
+  Step 2: brief French action (using)
+  Step 3: brief French result (glowing/radiant)
+  Each step: soft white glass card with rose gold number
+- Color palette: warm golden, champagne, soft pink accents
+
+Warm, intimate, aspirational beauty moment. PERFECT French.`,
+        type: 'beauty_routine',
+      },
+      {
+        prompt: `Square 1:1 BEAUTY RESULTS INFOGRAPHIC for "${title}". Bold transformation energy. Ultra HD, 4K.
+
+COMPOSITION: Glowing results social proof.
+- BACKGROUND: Rich gradient — deep burgundy (#5B1A2A) fading to warm rose (#C27083). Luxurious, dramatic, premium
+- TOP: Bold white condensed headline: inspiring French phrase about beauty transformation. LARGE and punchy
+- CENTER-LEFT: ${targetPerson} — African woman with RADIANTLY glowing skin, confidence pose, looking at camera with pride. Dramatic beauty lighting with warm rim light. Her skin GLOWS against the dark gradient
+- CENTER-RIGHT: ${productNote} Product with white glow aura, floating elegantly
+- STAT BADGES (3): Large white numbers on glass-morphism dark circles:
+  • "97%" + "peau plus éclatante"
+  • "+3000" + "clientes satisfaites"
+  • "14 jours" + "résultats visibles"
+- BOTTOM: 3 small white benefit pills with soft pink icons
+
+Dramatic, luxurious, confidence-boosting beauty energy. PERFECT French.`,
+        type: 'beauty_results',
+      },
+    ];
+  }
+
+  // ─── TECH / ÉLECTRONIQUE ───────────────────────────────────────────
+  if (template === 'tech') {
+    return [
+      {
+        prompt: `Square 1:1 TECH PRODUCT INFOGRAPHIC for "${title}". Dark premium tech aesthetic. Ultra HD, 4K.
+
+COMPOSITION: Tech hero showcase.
+- BACKGROUND: Deep dark gradient — midnight blue (#0A0E1A) to charcoal (#1A1A2E). Subtle circuit board line pattern faintly visible. Tech premium feel
+- TOP: Bold white condensed uppercase headline + ONE keyword in electric blue (#00AAFF). Product name + French tech promise
+- CENTER: ${productNote} Product with dramatic blue-white rim lighting, floating on dark reflective surface, electric blue glow emanating from behind. The product DOMINATES — sharp, futuristic
+- 4 feature badges as dark glass-morphism rectangles with electric blue borders:
+  "${b1}", "${b2}", "${b3}", "${b4}"
+  Each with a thin neon-style icon
+- PERSON (35%): ${targetPerson} — African man or woman in modern casual outfit, interacting with the device, face lit by screen glow, focused confident expression
+
+Dark, sleek, futuristic tech feel. NO botanical elements. PERFECT French.`,
+        type: 'tech_hero',
+      },
+      {
+        prompt: `Square 1:1 TECH SPECS INFOGRAPHIC for "${title}". Clean technical layout. Ultra HD, 4K.
+
+COMPOSITION: Technical specifications.
+- BACKGROUND: Clean dark navy (#0D1B2A) with very subtle blue-grey grid pattern
+- LAYOUT: Product centered with specs radiating outward
+- CENTER: ${productNote} Product large, sharp, 3D render feel with dramatic lighting. Blue accent lights on edges
+- AROUND PRODUCT: 4-5 specification callout lines extending from product to labels:
+  Each: thin blue line from product feature → small icon + bold spec label in white + detail in grey
+  (e.g., battery icon → "AUTONOMIE" → detail, bluetooth icon → "CONNECTIVITÉ" → detail)
+- PERSON: ${targetPerson} — African tech professional, modern style, holding or unboxing the product, warm confident expression. Small inset or lower portion
+- BOTTOM: thin electric blue bar with tech certification badges
+
+Clean technical design, dark premium tech. PERFECT French specs labels.`,
+        type: 'tech_specs',
+      },
+      {
+        prompt: `Square 1:1 TECH LIFESTYLE INFOGRAPHIC for "${title}". Modern usage context. Ultra HD, 4K.
+
+COMPOSITION: Tech in everyday life.
+- BACKGROUND: Modern African indoor scene — sleek living room, bright coworking space, or home office with warm LED lighting and clean modern furniture. NOT studio
+- PERSON (dominant 60%): ${targetPerson} — African person in modern casual outfit, ACTIVELY using "${title}" in a natural tech context (gaming, working, listening, computing). Engaged expression, natural pose, warm mixed lighting (ambient + device glow)
+- PRODUCT: clearly visible in use — ${productNote}
+- OVERLAY: 3 floating dark glass-morphism cards with blue accent:
+  "CONFIGURATION" + step 1, "UTILISATION" + step 2, "PERFORMANCE" + step 3
+  Each card: thin rounded rectangle, dark transparent, white text, electric blue icon
+- Color palette: dark navy, electric blue, warm ambient orange from environment
+
+Modern tech lifestyle, NOT studio. PERFECT French.`,
+        type: 'tech_lifestyle',
+      },
+      {
+        prompt: `Square 1:1 TECH PERFORMANCE AD for "${title}". Vibrant dynamic energy. Ultra HD, 4K.
+
+COMPOSITION: Performance results.
+- BACKGROUND: Electric gradient — deep blue (#0044AA) to vivid cyan (#00DDFF) to dark teal. Geometric light rays and subtle particle effects. High-energy, dynamic
+- TOP: Bold white condensed headline about performance/speed/power in French. PUNCHY
+- CENTER-LEFT: ${targetPerson} — African person in dynamic confident pose, tech-savvy look, illuminated by the gradient colors reflecting on their skin
+- CENTER-RIGHT: ${productNote} Product with white-blue glow effect, sharp and dominant
+- PERFORMANCE STATS (3 badges): Large bold white numbers on dark translucent circles:
+  • Performance metric ("10h+" autonomie, etc.)
+  • User count ("+5000 utilisateurs")
+  • Speed/quality metric
+- BOTTOM: 3 small dark cards with blue icons + French tech labels
+
+High-energy tech ad. Electric blue dominant. PERFECT French.`,
+        type: 'tech_performance',
+      },
+    ];
+  }
+
+  // ─── MODE / FASHION ──────────────────────────────────────────────
+  if (template === 'fashion') {
+    return [
+      {
+        prompt: `Square 1:1 FASHION EDITORIAL INFOGRAPHIC for "${title}". High-fashion African editorial. Ultra HD, 4K.
+
+COMPOSITION: Fashion lookbook hero.
+- BACKGROUND: Warm cream to champagne gold (#FFF8E7 to #F0E4CC) gradient. Elegant fashion editorial warmth
+- TOP: Refined serif headline in deep charcoal with gold accent on key word. Product name + French fashion promise. Elegant, NOT loud
+- CENTER: ${productNote} Product displayed beautifully — flat lay on textured surface OR worn/held by model
+- GOLD ACCENTS: thin elegant gold foil lines at 2 corners, minimal and luxurious
+- PERSON (50%): ${targetPerson} — African model in editorial fashion pose, wearing or showcasing the product, confident sophisticated expression, dramatic fashion photography lighting with warm tones. Magazine cover quality
+- 3 style badges as elegant gold-bordered pills: "STYLE UNIQUE", "QUALITÉ PREMIUM", "ÉDITION LIMITÉE" or product-specific
+
+Fashion editorial, warm gold tones, African haute couture energy. PERFECT French.`,
+        type: 'fashion_editorial',
+      },
+      {
+        prompt: `Square 1:1 FASHION DETAIL INFOGRAPHIC for "${title}". Product craft details. Ultra HD, 4K.
+
+COMPOSITION: Craftsmanship spotlight.
+- BACKGROUND: Split — LEFT soft cream (#FAF5EB), RIGHT rich terracotta (#A0522D to #8B4513) creating a warm African-luxury contrast
+- LEFT (45%): Close-up detail shots of the product — texture, stitching, fabric, material quality. Macro photography feel. ${productNote}
+- RIGHT (55%): ${targetPerson} — African model wearing/holding the product in a styling context, confident editorial pose, warm golden studio light
+- 3 quality callouts on the LEFT with thin gold connecting lines to product details:
+  • Material/fabric quality
+  • Design detail
+  • Unique craftsmanship point
+  Each: small gold icon + bold French label + thin description
+- BOTTOM: elegant terracotta bar with white text "FAIT AVEC PASSION" or similar
+
+Craftsmanship, warm African luxury. PERFECT French.`,
+        type: 'fashion_craft',
+      },
+      {
+        prompt: `Square 1:1 FASHION STYLING INFOGRAPHIC for "${title}". Street style / lifestyle. Ultra HD, 4K.
+
+COMPOSITION: How to style / wear.
+- BACKGROUND: Vibrant urban African scene — colorful market street, modern African city backdrop, bright natural daylight with warm golden tones. NOT studio white
+- PERSON (dominant 65%): ${targetPerson} — African fashion-forward person, confidently wearing/using "${title}" in street-style context. Dynamic pose (walking, turning, posing). Bright natural light, vivid colors. This IS the image
+- PRODUCT: worn or held prominently — ${productNote}
+- OVERLAY: 2-3 floating gold-accent glass cards:
+  "COMMENT PORTER" or "STYLE TIP 1" + brief French styling advice
+  Connected with thin gold dotted lines to relevant parts of the outfit
+- Color palette: warm gold, terracotta, vibrant African prints/colors in background
+
+Vibrant African street style energy. PERFECT French.`,
+        type: 'fashion_styling',
+      },
+      {
+        prompt: `Square 1:1 FASHION SOCIAL PROOF AD for "${title}". Bold aspirational energy. Ultra HD, 4K.
+
+COMPOSITION: Fashion social proof.
+- BACKGROUND: Rich warm gradient — deep chocolate brown (#3E2723) to warm gold (#C9A84C). Luxurious, aspirational
+- TOP: Bold cream/gold condensed headline about style/confidence/exclusivity in French
+- CENTER: ${targetPerson} — African model in confident pose with the product, looking directly at camera, editorial lighting with warm golden rim light. Aspirational, powerful
+- PRODUCT: visible alongside person — ${productNote}
+- STATS (3): Cream/gold numbers on dark translucent badges:
+  • "EXCLUSIVE" + limited edition note
+  • Customer count + satisfaction
+  • Style rating or similar
+- BOTTOM: gold accent line + 3 small cream quality icons
+
+Luxurious African fashion ad. PERFECT French.`,
+        type: 'fashion_social',
+      },
+    ];
+  }
+
+  // ─── SANTÉ / NUTRITION ───────────────────────────────────────────
+  if (template === 'health') {
+    return [
+      {
+        prompt: `Square 1:1 HEALTH & WELLNESS INFOGRAPHIC for "${title}". Clean energetic health design. Ultra HD, 4K.
+
+COMPOSITION: Wellness hero.
+- BACKGROUND: Fresh gradient — white (#FFFFFF) to light mint green (#E8F5E9) to soft teal (#B2DFDB). Clean, fresh, healthy energy
+- TOP: Bold condensed headline in deep emerald green (#1B5E20): product name + French health promise. Strong but not aggressive
+- CENTER: ${productNote} Product with fresh green/golden glow aura, surrounded by photorealistic ingredients (fruits, herbs, seeds) floating naturally around it
+- 4 benefit badges as green-tinted rounded cards:
+  "${b1}", "${b2}", "${b3}", "${b4}"
+  Each with clean health icon (leaf, shield, lightning, heart)
+- PERSON (40%): ${targetPerson} — African person in sporty/active wear, energetic confident expression, healthy glowing look, full of vitality. Bright natural lighting
+
+Fresh, clean, energetic health design. NO dark/heavy graphics. PERFECT French.`,
+        type: 'health_hero',
+      },
+      {
+        prompt: `Square 1:1 HEALTH INGREDIENTS INFOGRAPHIC for "${title}". Natural science layout. Ultra HD, 4K.
+
+COMPOSITION: Natural ingredients spotlight.
+- BACKGROUND: Pure white with subtle green radial glow. Ultra clean
+- LAYOUT: Product upper-center, ingredients fanning out below
+- TOP-CENTER: ${productNote} Product hero shot with soft shadow, surrounded by REAL photorealistic natural ingredients (specific to THIS product — fruits, plants, vitamins, minerals)
+- BELOW PRODUCT: 4 ingredient cards arranged in a 2x2 grid:
+  Each card: rounded white card with green accent border, realistic ingredient photo icon + ingredient name BOLD + 1-line French benefit
+- PERSON: ${targetPerson} — African person holding or taking the product, healthy glow, natural smile. Positioned to the side or bottom, complementing the ingredients focus
+- CERTIFICATION SEAL: "100% NATUREL" green stamp badge, upper-left
+
+Clean, natural, trustworthy health design. PERFECT French.`,
+        type: 'health_ingredients',
+      },
+      {
+        prompt: `Square 1:1 HEALTH LIFESTYLE INFOGRAPHIC for "${title}". Active natural context. Ultra HD, 4K.
+
+COMPOSITION: Healthy lifestyle in action.
+- BACKGROUND: Bright outdoor African scene — morning jog in park, yoga on terrace, or fresh kitchen with fruits. Bright natural daylight, warm and energetic. NOT studio
+- PERSON (dominant 60%): ${targetPerson} — African person in active/healthy context, using or taking "${title}" during their wellness routine. Genuine energetic smile, full of life. Natural morning sunlight creating warm highlights
+- PRODUCT: visible in hands or nearby — ${productNote}
+- OVERLAY: 3 floating frosted-glass green-accent cards:
+  "MATIN" + routine step 1, "JOUR" + step 2, "RÉSULTAT" + step 3
+  Clean glass-morphism, white text, green icons
+- Color palette: natural green, warm gold, fresh white
+
+Active, natural, healthy lifestyle. NOT clinical. PERFECT French.`,
+        type: 'health_lifestyle',
+      },
+      {
+        prompt: `Square 1:1 HEALTH RESULTS AD for "${title}". Bold energetic transformation. Ultra HD, 4K.
+
+COMPOSITION: Health transformation results.
+- BACKGROUND: Vibrant gradient — electric teal (#00C9A7) to deep emerald (#028A6E) to forest (#064635). Energetic, fresh, powerful
+- TOP: Bold white condensed headline about health transformation/energy/results in French
+- CENTER: ${targetPerson} — African person FULL OF ENERGY — dynamic active pose, celebrating health, flexing, stretching, or running. Gradient colors reflecting on their skin. Radiating vitality
+- PRODUCT: floating/held with white glow aura — ${productNote}
+- HEALTH STATS (3): Large bold white numbers on dark translucent circles:
+  • Energy/result metric
+  • Customer satisfaction count
+  • Speed of results
+- BOTTOM: 3 small white cards with green icons + French health labels
+
+Vibrant, energetic, transformational health ad. PERFECT French.`,
+        type: 'health_results',
+      },
+    ];
+  }
+
+  // ─── MAISON / HOME ──────────────────────────────────────────────
+  if (template === 'home') {
+    return [
+      {
+        prompt: `Square 1:1 HOME PRODUCT INFOGRAPHIC for "${title}". Warm cozy home design. Ultra HD, 4K.
+
+COMPOSITION: Home product hero.
+- BACKGROUND: Warm beige (#F5F0E8) to soft terracotta tint (#FFF0E6). Cozy, inviting, home warmth. Subtle wood texture strip at bottom
+- TOP: Bold condensed headline in dark warm brown (#3E2723): product name + French home promise. Warm and trustworthy
+- CENTER: ${productNote} Product large on wooden surface, warm ambient lighting, soft shadow. Small indoor plant (monstera/succulent) as subtle prop
+- 4 benefit badges as warm-toned rounded cards (terracotta/brown):
+  "${b1}", "${b2}", "${b3}", "${b4}"
+  Each with home-related icon (house, clock, sparkle, shield)
+- PERSON (40%): ${targetPerson} — African person in comfortable home setting, using the product naturally, warm genuine smile, cozy home lighting
+
+Warm, cozy, trustworthy home design. PERFECT French.`,
+        type: 'home_hero',
+      },
+      {
+        prompt: `Square 1:1 HOME FEATURES INFOGRAPHIC for "${title}". Clean practical layout. Ultra HD, 4K.
+
+COMPOSITION: Practical features spotlight.
+- BACKGROUND: Soft warm white (#FAFAF5) with warm wood accents on edges
+- LAYOUT: Left panel (info) / Right panel (product in context)
+- LEFT (45%): 3 practical features listed with generous spacing. Each: terracotta icon + bold French feature name + short practical benefit. Clean warm typography
+- RIGHT (55%): ${productNote} Product shown IN USE in a realistic home context (kitchen counter, living room shelf, bathroom). Warm ambient home lighting
+- PERSON: ${targetPerson} — African person using the product in their home, natural comfortable pose, warm genuine expression
+- BOTTOM: warm terracotta bar with quality badge and French tagline
+
+Practical, warm, trustworthy home product feel. PERFECT French.`,
+        type: 'home_features',
+      },
+      {
+        prompt: `Square 1:1 HOME LIFESTYLE INFOGRAPHIC for "${title}". Real home context. Ultra HD, 4K.
+
+COMPOSITION: Product in home life.
+- BACKGROUND: Real African home interior — modern warm living room, bright kitchen, or cozy bedroom. Warm natural light through windows, lived-in but clean. NOT studio
+- PERSON (dominant 60%): ${targetPerson} — African person in comfortable home clothes, NATURALLY using "${title}" in their everyday home routine. Relaxed genuine smile, warm atmosphere. This person is LIVING with the product
+- PRODUCT: in use or prominently placed — ${productNote}
+- OVERLAY: 2-3 small frosted-glass warm-toned cards:
+  "FACILE" + usage step, "RAPIDE" + benefit, "EFFICACE" + result
+  Warm brown/terracotta accents
+
+Warm real home life energy. NOT commercial. PERFECT French.`,
+        type: 'home_lifestyle',
+      },
+      {
+        prompt: `Square 1:1 HOME SOCIAL PROOF AD for "${title}". Warm family trust. Ultra HD, 4K.
+
+COMPOSITION: Family trust & satisfaction.
+- BACKGROUND: Warm gradient — soft terracotta (#C0622A) to warm brown (#5D4037) to deep chocolate. Cozy, warm, trustworthy
+- TOP: Bold cream condensed headline about home comfort/family/daily life in French
+- CENTER: ${targetPerson} — African person or family in warm home setting, happy with the product result, genuine satisfied expression, warm golden lighting
+- PRODUCT: visible in context — ${productNote}
+- STATS (3): Cream numbers on warm dark translucent badges:
+  • Family satisfaction metric
+  • Customer count
+  • Daily usage or durability metric
+- BOTTOM: 3 small cream cards with terracotta icons + French home labels
+
+Warm, family-oriented, trustworthy. PERFECT French.`,
+        type: 'home_social',
+      },
+    ];
+  }
+
+  // ─── GÉNÉRAL / DEFAULT ───────────────────────────────────────────
   return [
-    // Slide 1: Produit + Titre + Badges bénéfices + personne
     {
-      prompt: `${infographicBase}
+      prompt: `Square 1:1 BOLD ADVERTISING INFOGRAPHIC for "${title}". Premium graphic design with real photography. Ultra HD, 4K.
 
-COMPOSITION: Product hero infographic — WHY THIS PRODUCT.
-- BACKGROUND: Clean white or very light cream
-- TOP: Bold dark navy blue headline in UPPERCASE condensed font: "POURQUOI" + product name/promise in French. Large, dominant
-- CENTER: ${productNote} Product shown LARGE, 3D style, dramatic studio lighting, soft shadow. Olive branches framing naturally
-- LEFT OF PRODUCT: 3-4 round certification SEAL BADGES (dark green "naturel", dark red "sans..."). Solid color circle + white icon + text in arc. Stamp/seal style
-  Benefits: "${b1}", "${b2}", "${b3}", "${b4}"
-- INTEGRATED PERSON: ${targetPerson} — authentic Black African person with dark skin, visible in the composition (behind or beside the product), looking confident, warm smile. Photo-quality portrait integrated into the infographic layout. The person adds trust and human connection
+COMPOSITION: Dark premium poster — WHY THIS PRODUCT.
+- BACKGROUND: Rich deep gradient (dark midnight blue #0a1628 fading to charcoal black #1a1a2e). Dramatic, cinematic, premium
+- TOP: Bold UPPERCASE white headline with ONE keyword in vibrant accent color (electric blue, gold, or coral). Product name + French promise
+- CENTER: ${productNote} Product with dramatic cinematic rim lighting, warm product glow effect, soft reflection on dark glossy surface
+- 4 benefit badges as luminous glass-morphism rounded rectangles:
+  "${b1}", "${b2}", "${b3}", "${b4}"
+  Connected with thin luminous lines
+- PERSON (40%): ${targetPerson} — dramatic rim lighting, confident powerful expression, studio-quality portrait with cinematic color grading
 
-ALL text PERFECT French. Airy, premium. Product + person + badges = visual story.`,
-      type: 'benefits_infographic',
+Dark, bold, scroll-stopping. ALL text PERFECT French.`,
+      type: 'general_hero',
     },
-    // Slide 2: Composition/Formule + personne africaine utilisant le produit
     {
-      prompt: `${infographicBase}
+      prompt: `Square 1:1 SPLIT-SCREEN EDITORIAL INFOGRAPHIC for "${title}". Clean modern magazine layout. Ultra HD, 4K.
 
-COMPOSITION: Product formula/ingredients infographic with person.
-- BACKGROUND: White, clean and airy
-- TOP-LEFT: Bold dark navy headline UPPERCASE: "FORMULE AMÉLIORÉE" or product-specific formula title
-- RIGHT SIDE: ${productNote} Product at medium-large scale with golden/amber drops or ingredient particles floating around. Premium lighting
-- LEFT SIDE: 3 key ingredients/features listed vertically:
-  • Colored dot/icon + ingredient name BOLD + 2-line gray description
-  • Thin lines/arrows from ingredients to the product
-- BOTTOM or SIDE: ${targetPerson} — authentic Black African person, close-up portrait or hands applying/holding the product. Natural expression, warm studio lighting. Shows the product being USED by a real person
-- Olive leaves as subtle decoration
-- Navigation tabs at top ("produit | composition | action") with "composition" highlighted
+COMPOSITION: Split-screen editorial — FEATURES.
+- LAYOUT: Vertical split — LEFT 45% info panel, RIGHT 55% product + person
+- LEFT: Background soft warm beige (#F5F0E8). Bold headline in dark charcoal. 3 key features listed vertically with accent dots + bold names + descriptions
+- RIGHT: Background contrasting warm cream. ${productNote} Product large with premium lighting. ${targetPerson} applying/holding the product, warm studio lighting, confident expression
+- Geometric frame accent (gold or accent color)
 
-PERFECT French. Infographic + real person photo integrated. Premium marketplace.`,
-      type: 'formula_infographic',
+Clean editorial magazine feel. PERFECT French.`,
+      type: 'general_editorial',
     },
-    // Slide 3: Mode d'emploi / Action (personne africaine dominante)
     {
-      prompt: `${infographicBase}
+      prompt: `Square 1:1 LIFESTYLE INFOGRAPHIC for "${title}". Warm contextual photography. Ultra HD, 4K.
 
-COMPOSITION: How-to-use infographic — PERSON DOMINANT.
-- BACKGROUND: White to very light green subtle gradient
-- TOP-LEFT: "MODE D'EMPLOI" MASSIVE UPPERCASE bold dark navy — dominates upper-left quarter
-- SUBTITLE: "Découvrez des résultats MAXIMUM" in italic gray
-- RIGHT SIDE (50-60% of image): ${targetPerson} — authentic Black African person, dark skin, natural African hair (afro, braids, locks), BIG warm smile, holding or showing the product confidently. Mi-body portrait, studio lighting. This person is the MAIN VISUAL ELEMENT of this slide
-- LEFT SIDE: 2 numbered steps:
-  • Circle with "1" in accent color + action in French
-  • Circle with "2" + action in French
-  • Small icons next to each (pill, clock...)
-- BOTTOM-LEFT: Round green "100% NATUREL" seal badge
-- Product also visible near the person's hands
-- Olive branches behind person and bottom-left
+COMPOSITION: Lifestyle how-to — PERSON IS THE HERO.
+- BACKGROUND: Warm natural scene — modern African home, bright terrace, or cozy space. NOT studio white
+- PERSON (dominant 60%): ${targetPerson} — African person actively using "${title}" in a natural everyday moment. Genuine warm smile, warm golden natural lighting
+- PRODUCT: visible in hands or nearby — ${productNote}
+- OVERLAY: 2-3 numbered frosted-glass steps floating around the person with dotted lines
+- Color palette: warm amber, golden, soft accents
 
-The PERSON dominates this image. Infographic elements support. PERFECT French.`,
-      type: 'howto_infographic',
+Warm, human, relatable lifestyle. PERFECT French.`,
+      type: 'general_lifestyle',
     },
-    // Slide 4: Lifestyle/Résultat — personne africaine + produit + stats
     {
-      prompt: `${infographicBase}
+      prompt: `Square 1:1 VIBRANT SOCIAL MEDIA AD for "${title}". Bold colorful energy. Ultra HD, 4K.
 
-COMPOSITION: Lifestyle result with stats — person showing transformation.
-- BACKGROUND: White/cream, clean
-- TOP: Bold dark navy headline in French: inspiring phrase about taking control, regaining confidence, or achieving results
-- CENTER: ${targetPerson} — authentic Black African person, dark skin, ACTIVE and DYNAMIC (jogging, stretching, smiling confidently, or showing results). Full of energy and confidence. Mid-body shot, warm natural lighting. The person is the HERO of this slide
-- NEAR THE PERSON: ${productNote} Product visible next to or held by the person. Arrow or visual connection between them
-- RIGHT SIDE or around: 3 stat badges/circles:
-  • "100%" + short description
-  • "98%" + short description  
-  • Number + short description
-  Each stat in a clean circle or rounded rectangle
-- BOTTOM: 3 round benefit icons in a row with short French labels
-- Olive branches in 2 corners
+COMPOSITION: Results & social proof — DYNAMIC ENERGY.
+- BACKGROUND: Bold vibrant gradient (coral #FF6B6B → magenta #C850C0 → purple #6C63FF). Alive, energetic, modern
+- TOP: Bold white condensed headline about transformation/results in French
+- CENTER-LEFT: ${targetPerson} — ACTIVE dynamic pose, full of positive energy, gradient colors reflected on skin
+- CENTER-RIGHT: ${productNote} Product with white glow effect
+- STAT BADGES (3): Large bold white numbers on dark glass-morphism circles
+- BOTTOM: 3 small white benefit pills
 
-Person + product + stats = trustworthy visual proof. PERFECT French. Premium marketplace.`,
-      type: 'lifestyle_stats',
+BOLD, vibrant, energetic. PERFECT French.`,
+      type: 'general_vibrant',
     },
   ];
 }
@@ -170,6 +489,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     description: userDescription,
     skipScraping,
     marketingApproach,
+    visualTemplate: rawVisualTemplate,
     // Paramètres copywriting simplifiés
     targetAvatar,
     mainProblem,
@@ -177,7 +497,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     language
   } = req.body || {};
   const imageFiles = req.files || [];
-  const approach = marketingApproach || 'PAS'; // Default to PAS
+  const approach = marketingApproach || 'PAS';
+  const visualTemplate = rawVisualTemplate || 'general';
 
   // Contexte copywriting simplifié : méthode + avatar + problème
   const copywritingContext = {
@@ -190,7 +511,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
   // ── Validation selon le mode ──────────────────────────────────────────────
   const isDescriptionMode = skipScraping === 'true' || skipScraping === true;
-  
+
   if (isDescriptionMode) {
     // Mode description directe
     if (!userDescription || typeof userDescription !== 'string' || userDescription.trim().length < 20) {
@@ -223,7 +544,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     if (req.workspaceId) {
       workspace = await EcomWorkspace.findById(req.workspaceId)
         .select('storeSettings.country storeSettings.city storeSettings.storeName name freeGenerationsRemaining paidGenerationsRemaining totalGenerations');
-      
+
       if (!workspace) {
         return res.status(404).json({ success: false, message: 'Workspace introuvable' });
       }
@@ -244,8 +565,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       const totalRemaining = freeRemaining + paidRemaining;
 
       if (totalRemaining <= 0) {
-        return res.status(403).json({ 
-          success: false, 
+        return res.status(403).json({
+          success: false,
           limitReached: true,
           message: '🎯 Tu as utilisé tes 3 générations gratuites !\n\nPour continuer à générer des pages produit optimisées, débloque une nouvelle génération pour seulement 1500 FCFA.',
           freeRemaining: 0,
@@ -260,7 +581,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       } else if (paidRemaining > 0) {
         workspace.paidGenerationsRemaining = paidRemaining - 1;
       }
-      
+
       workspace.totalGenerations = (workspace.totalGenerations || 0) + 1;
       workspace.lastGenerationAt = new Date();
       await workspace.save();
@@ -289,11 +610,11 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     // ÉTAPE 2 : GPT-4o Vision → JSON structuré
     // ══════════════════════════════════════════════════════════════════════════
     console.log('🧠 Étape 2: GPT-4o analyse + copywriting, photos:', imageFiles.length);
-    
+
     const imageBuffers = (imageFiles || []).map(f => f.buffer);
-    
+
     gptResult = await analyzeWithVision(scraped, imageBuffers, approach, storeContext, copywritingContext);
-    
+
     console.log('✅ GPT OK:', {
       title: gptResult.title?.slice(0, 40),
       angles: gptResult.angles?.length,
@@ -454,7 +775,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     }
 
     // ── 4 Flash images — adaptés à la méthode copywriting (total = 1 hero + 1 avant/après + 4 flash) ─
-    const flashPrompts = buildFlashPrompts(gptResult, !!baseImageBuffer, approach);
+    const flashPrompts = buildFlashPrompts(gptResult, !!baseImageBuffer, approach, visualTemplate);
     for (let i = 0; i < flashPrompts.length; i++) {
       const flash = flashPrompts[i];
       const angle = gptResult.angles?.[i] || null;
@@ -537,9 +858,9 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     // ÉTAPE 5 : Assembler la description avec les images
     // ══════════════════════════════════════════════════════════════════════════
     console.log('📝 Étape 5: Assemblage de la description');
-    
+
     let description = '';
-    
+
     // Replace {{IMAGE_X}} with actual poster URLs
     for (let i = 1; i <= 4; i++) {
       const poster = posterImages[i - 1];
@@ -608,22 +929,22 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
           productName: gptResult?.title || scraped?.title || null,
           success: true
         }
-      }).catch(() => {});
+      }).catch(() => { });
     }
-    
+
     // Récupérer le nombre de générations restantes pour l'inclure dans la réponse
     const updatedWorkspace = workspace ? await EcomWorkspace.findById(workspace._id)
       .select('freeGenerationsRemaining paidGenerationsRemaining totalGenerations')
       .lean() : null;
-    
+
     const generationsInfo = updatedWorkspace ? {
       freeRemaining: updatedWorkspace.freeGenerationsRemaining || 0,
       paidRemaining: updatedWorkspace.paidGenerationsRemaining || 0,
       totalUsed: updatedWorkspace.totalGenerations || 0
     } : null;
 
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       product: productPage,
       generations: generationsInfo
     });
@@ -631,7 +952,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   } catch (error) {
     console.error('❌ Erreur génération:', error.message);
     console.error('❌ Stack:', error.stack);
-    
+
     return res.status(500).json({
       success: false,
       error: error.message || 'Erreur lors de la génération'

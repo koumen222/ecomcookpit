@@ -58,7 +58,7 @@ console.log('🔧 [API] ECOM_API_BASE_URL =', ECOM_API_BASE_URL, '| VITE_API_URL
 
 const ecomApi = axios.create({
   baseURL: ECOM_API_BASE_URL,
-  timeout: 60000,
+  timeout: 30000,
   withCredentials: false,
   headers: {
     'Content-Type': 'application/json'
@@ -97,8 +97,9 @@ ecomApi.interceptors.request.use(
       // Ajouter workspaceId aux params si c'est une requête GET
       if (config.method === 'get' && config.params) {
         config.params.workspaceId = wsId;
+        config.params._t = Date.now();
       } else if (config.method === 'get' && !config.params) {
-        config.params = { workspaceId: wsId };
+        config.params = { workspaceId: wsId, _t: Date.now() };
       }
       // Ajouter workspaceId au body si c'est une requête POST/PUT/DELETE
       else if (['post', 'put', 'patch'].includes(config.method) && isFormData) {
@@ -106,10 +107,18 @@ ecomApi.interceptors.request.use(
           config.data.append('workspaceId', wsId);
         }
       } else if (['post', 'put', 'patch'].includes(config.method) && config.data) {
-        config.data.workspaceId = wsId;
+        if (!config.data.workspaceId) {
+          config.data.workspaceId = wsId;
+        }
       } else if (['post', 'put', 'patch'].includes(config.method) && !config.data) {
         config.data = { workspaceId: wsId };
       }
+    }
+
+    // Inject X-Store-Id for multi-store routing (set by StoreContext)
+    const storeId = window.__activeStoreId__;
+    if (storeId && !isSuperAdminEndpoint) {
+      config.headers['X-Store-Id'] = storeId;
     }
 
     // Marquer le timestamp de départ pour mesurer la durée

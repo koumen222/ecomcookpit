@@ -1,8 +1,24 @@
 import express from 'express';
 import Groq from 'groq-sdk';
 import EcomWorkspace from '../models/Workspace.js';
+import Store from '../models/Store.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { requireStoreOwner } from '../middleware/storeAuth.js';
+
+// Helper: get active Store for the current request (from activeStoreId or primaryStoreId)
+async function getActiveStore(req) {
+  const storeId = req.activeStoreId;
+  if (storeId) {
+    const store = await Store.findOne({ _id: storeId, workspaceId: req.workspaceId });
+    if (store) return store;
+  }
+  // Fallback: primary store
+  const ws = await EcomWorkspace.findById(req.workspaceId).select('primaryStoreId').lean();
+  if (ws?.primaryStoreId) {
+    return Store.findOne({ _id: ws.primaryStoreId, workspaceId: req.workspaceId });
+  }
+  return null;
+}
 
 // ─── Groq client (lazy) ──────────────────────────────────────────────────────
 let _groq = null;
@@ -244,39 +260,31 @@ const RESERVED_SUBDOMAINS = [
  */
 router.get('/config', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
-    const workspace = await EcomWorkspace.findById(req.workspaceId)
-      .select('name subdomain storeSettings')
-      .lean();
+    // Try Store first (multi-store), fallback to Workspace (legacy)
+    const store = await getActiveStore(req);
+    const workspace = await EcomWorkspace.findById(req.workspaceId).select('name subdomain storeSettings').lean();
 
     if (!workspace) {
       return res.status(404).json({ success: false, message: 'Workspace introuvable' });
     }
 
+    const source = store || workspace;
+    const subdomain = store?.subdomain || workspace?.subdomain || null;
+    const defaultSettings = {
+      isStoreEnabled: false, storeName: '', storeDescription: '', storeLogo: '', storeBanner: '',
+      storePhone: '', storeWhatsApp: '', storeThemeColor: '#0F6B4F', storeCurrency: 'XAF',
+      productType: '', audience: { gender: [], ageRange: [], region: [], origin: [] },
+      tone: '', city: '', country: '', secondaryColor: '', productDescription: ''
+    };
+
     res.json({
       success: true,
       data: {
-        name: workspace.name,
-        subdomain: workspace.subdomain || null,
-        storeSettings: workspace.storeSettings || {
-          isStoreEnabled: false,
-          storeName: '',
-          storeDescription: '',
-          storeLogo: '',
-          storeBanner: '',
-          storePhone: '',
-          storeWhatsApp: '',
-          storeThemeColor: '#0F6B4F',
-          storeCurrency: 'XAF',
-          // Nouveaux champs
-          productType: '',
-          audience: { gender: [], ageRange: [], region: [], origin: [] },
-          tone: '',
-          city: '',
-          country: '',
-          secondaryColor: '',
-          productDescription: ''
-        },
-        storeUrl: workspace.subdomain ? `https://${workspace.subdomain}.scalor.net` : null
+        storeId: store?._id || null,
+        name: source.name || workspace.name,
+        subdomain,
+        storeSettings: source.storeSettings || defaultSettings,
+        storeUrl: subdomain ? `https://${subdomain}.scalor.net` : null
       }
     });
   } catch (error) {
@@ -328,26 +336,41 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
     // Product page builder config
     if (productPageConfig !== undefined) update['storeSettings.productPageConfig'] = productPageConfig;
 
-    const workspace = await EcomWorkspace.findByIdAndUpdate(
-      req.workspaceId,
-      { $set: update },
-      { new: true }
-    ).select('name subdomain storeSettings').lean();
-
-    if (!workspace) {
-      return res.status(404).json({ success: false, message: 'Workspace introuvable' });
+    // Write to Store if available, fallback to Workspace (legacy)
+    const store = await getActiveStore(req);
+    let subdomain;
+    if (store) {
+      await Store.findByIdAndUpdate(store._id, { $set: update });
+      const updated = await Store.findById(store._id).select('name subdomain storeSettings').lean();
+      subdomain = updated?.subdomain || null;
+      res.json({
+        success: true,
+        message: 'Configuration boutique mise à jour',
+        data: {
+          storeId: store._id,
+          name: updated?.name || updated?.storeSettings?.storeName,
+          subdomain,
+          storeSettings: updated?.storeSettings,
+          storeUrl: subdomain ? `https://${subdomain}.scalor.net` : null
+        }
+      });
+    } else {
+      const workspace = await EcomWorkspace.findByIdAndUpdate(
+        req.workspaceId, { $set: update }, { new: true }
+      ).select('name subdomain storeSettings').lean();
+      if (!workspace) return res.status(404).json({ success: false, message: 'Workspace introuvable' });
+      subdomain = workspace.subdomain;
+      res.json({
+        success: true,
+        message: 'Configuration boutique mise à jour',
+        data: {
+          name: workspace.name,
+          subdomain,
+          storeSettings: workspace.storeSettings,
+          storeUrl: subdomain ? `https://${subdomain}.scalor.net` : null
+        }
+      });
     }
-
-    res.json({
-      success: true,
-      message: 'Configuration boutique mise à jour',
-      data: {
-        name: workspace.name,
-        subdomain: workspace.subdomain,
-        storeSettings: workspace.storeSettings,
-        storeUrl: workspace.subdomain ? `https://${workspace.subdomain}.scalor.net` : null
-      }
-    });
   } catch (error) {
     console.error('Erreur PUT /store-manage/config:', error.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
@@ -384,24 +407,25 @@ router.put('/subdomain', requireEcomAuth, requireWorkspace, requireStoreOwner, a
       });
     }
 
-    // Check uniqueness
-    const existing = await EcomWorkspace.findOne({
-      subdomain,
-      _id: { $ne: req.workspaceId }
-    });
+    // Check uniqueness across Store + Workspace
+    const [storeConflict, wsConflict] = await Promise.all([
+      Store.findOne({ subdomain, workspaceId: { $ne: req.workspaceId } }).select('_id').lean(),
+      EcomWorkspace.findOne({ subdomain, _id: { $ne: req.workspaceId } }).select('_id').lean()
+    ]);
 
-    if (existing) {
-      return res.status(409).json({
-        success: false,
-        message: 'Ce sous-domaine est déjà pris'
-      });
+    if (storeConflict || wsConflict) {
+      return res.status(409).json({ success: false, message: 'Ce sous-domaine est déjà pris' });
     }
 
+    // Update Store if available, otherwise Workspace
+    const store = await getActiveStore(req);
+    if (store) {
+      await Store.findByIdAndUpdate(store._id, { $set: { subdomain } });
+    }
+    // Always keep workspace.subdomain in sync for legacy public resolver fallback
     const workspace = await EcomWorkspace.findByIdAndUpdate(
-      req.workspaceId,
-      { $set: { subdomain } },
-      { new: true }
-    ).select('name subdomain storeSettings').lean();
+      req.workspaceId, { $set: { subdomain } }, { new: true }
+    ).select('subdomain').lean();
 
     res.json({
       success: true,
@@ -481,12 +505,11 @@ router.post('/generate-subdomain', requireEcomAuth, requireWorkspace, async (req
     let isAvailable = false;
     
     while (!isAvailable && suffix <= 99) {
-      const existing = await EcomWorkspace.findOne({
-        subdomain: finalSubdomain,
-        _id: { $ne: req.workspaceId }
-      }).select('_id').lean();
-      
-      if (!existing) {
+      const [wsEx, storeEx] = await Promise.all([
+        EcomWorkspace.findOne({ subdomain: finalSubdomain, _id: { $ne: req.workspaceId } }).select('_id').lean(),
+        Store.findOne({ subdomain: finalSubdomain }).select('_id').lean()
+      ]);
+      if (!wsEx && !storeEx) {
         isAvailable = true;
       } else {
         finalSubdomain = `${subdomain}-${suffix}`.substring(0, 30);
@@ -528,10 +551,13 @@ router.get('/subdomain/check/:subdomain', requireEcomAuth, async (req, res) => {
       return res.json({ success: true, data: { available: false } });
     }
 
-    const existing = await EcomWorkspace.findOne({ subdomain }).select('_id').lean();
+    const [wsExisting, storeExisting] = await Promise.all([
+      EcomWorkspace.findOne({ subdomain }).select('_id').lean(),
+      Store.findOne({ subdomain }).select('_id').lean()
+    ]);
     res.json({
       success: true,
-      data: { available: !existing }
+      data: { available: !wsExisting && !storeExisting }
     });
   } catch (error) {
     console.error('Erreur GET /store-manage/subdomain/check:', error.message);
@@ -671,11 +697,12 @@ RÈGLES:
  */
 router.post('/regenerate-homepage', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
-    // Reset existing pages first
-    await EcomWorkspace.findByIdAndUpdate(
-      req.workspaceId,
-      { $set: { storePages: null } }
-    );
+    // Reset existing pages first (Store + Workspace)
+    const activeStoreForRegen = await getActiveStore(req);
+    if (activeStoreForRegen) {
+      await Store.findByIdAndUpdate(activeStoreForRegen._id, { $set: { storePages: null } });
+    }
+    await EcomWorkspace.findByIdAndUpdate(req.workspaceId, { $set: { storePages: null } });
 
     const workspace = await EcomWorkspace.findById(req.workspaceId)
       .select('storeSettings')
@@ -776,11 +803,13 @@ RÈGLES:
       sections = buildFallbackSections(s);
     }
 
-    // Save the new sections
-    await EcomWorkspace.findByIdAndUpdate(
-      req.workspaceId,
-      { $set: { storePages: { sections } } }
-    );
+    // Save the new sections — to Store if available, else Workspace
+    const activeStore = await getActiveStore(req);
+    if (activeStore) {
+      await Store.findByIdAndUpdate(activeStore._id, { $set: { storePages: { sections } } });
+    } else {
+      await EcomWorkspace.findByIdAndUpdate(req.workspaceId, { $set: { storePages: { sections } } });
+    }
 
     console.log(`✅ Homepage regenerated: ${sections.length} sections for workspace ${req.workspaceId}`);
     res.json({ success: true, sections });

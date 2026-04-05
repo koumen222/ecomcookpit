@@ -6,6 +6,7 @@ import EcomUser from '../models/EcomUser.js';
 import Product from '../models/Product.js';
 import WorkspaceSettings from '../models/WorkspaceSettings.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
+import { getIO } from '../services/socketService.js';
 
 const router = express.Router();
 
@@ -371,10 +372,14 @@ router.post('/sheet-cities', requireEcomAuth, async (req, res) => {
 
 // ===== GESTION DES SOURCES DE COMMANDES =====
 
-// Lister toutes les sources du workspace (depuis WorkspaceSettings uniquement)
+// Lister toutes les sources du workspace (Google Sheets + OrderSource : Scalor, webhook, shopify)
 router.get('/sources', requireEcomAuth, async (req, res) => {
   try {
-    const settings = await WorkspaceSettings.findOne({ workspaceId: req.workspaceId });
+    const [settings, orderSources] = await Promise.all([
+      WorkspaceSettings.findOne({ workspaceId: req.workspaceId }),
+      OrderSource.find({ workspaceId: req.workspaceId, isActive: true }).sort({ name: 1 }).lean()
+    ]);
+
     const allSources = [];
 
     if (settings) {
@@ -389,15 +394,11 @@ router.get('/sources', requireEcomAuth, async (req, res) => {
           icon: '📊',
           isActive: true,
           workspaceId: req.workspaceId,
-          metadata: {
-            type: 'google_sheets',
-            spreadsheetId: settings.googleSheets.spreadsheetId,
-            sheetName: settings.googleSheets.sheetName || 'Sheet1'
-          }
+          metadata: { type: 'google_sheets', spreadsheetId: settings.googleSheets.spreadsheetId, sheetName: settings.googleSheets.sheetName || 'Sheet1' }
         });
       }
 
-      // Custom sources from settings
+      // Custom Google Sheets sources
       if (settings.sources?.length > 0) {
         settings.sources.forEach((source) => {
           if (source.isActive && source.spreadsheetId) {
@@ -405,26 +406,91 @@ router.get('/sources', requireEcomAuth, async (req, res) => {
               _id: source._id.toString(),
               sourceType: 'custom',
               name: source.name || 'Source Google Sheets',
-              description: 'Source synchronisée depuis Google Sheets',
+              description: 'Source Google Sheets',
               color: source.color || '#3B82F6',
               icon: source.icon || '📱',
               isActive: true,
               workspaceId: req.workspaceId,
-              metadata: {
-                type: 'google_sheets',
-                spreadsheetId: source.spreadsheetId,
-                sheetName: source.sheetName || 'Sheet1'
-              }
+              metadata: { type: 'google_sheets', spreadsheetId: source.spreadsheetId, sheetName: source.sheetName || 'Sheet1' }
             });
           }
         });
       }
     }
 
-    res.json({
-      success: true,
-      data: allSources
-    });
+    // Auto-créer la source "Scalor Store" si elle n'existe pas encore
+    const hasScalorSource = orderSources.some(os => os.metadata?.type === 'scalor_store');
+    if (!hasScalorSource) {
+      try {
+        const adminUser = await EcomUser.findOne({
+          workspaceId: req.workspaceId,
+          role: { $in: ['ecom_admin', 'super_admin'] },
+          isActive: true
+        }).select('_id').lean();
+        if (adminUser) {
+          const created = await OrderSource.create({
+            name: 'Scalor Store',
+            description: 'Commandes reçues via la boutique en ligne Scalor',
+            color: '#0F6B4F',
+            icon: '🛒',
+            workspaceId: req.workspaceId,
+            createdBy: adminUser._id,
+            isActive: true,
+            metadata: { type: 'scalor_store', createdAt: new Date() }
+          });
+          orderSources.push(created.toObject());
+          console.log(`📦 [Assignments] Source Scalor Store auto-créée pour workspace ${req.workspaceId}`);
+        }
+      } catch (seedErr) {
+        console.error('❌ [Assignments] Erreur auto-création Scalor Store:', seedErr.message);
+      }
+    }
+
+    // Auto-créer la source "Shopify" si elle n'existe pas encore
+    const hasShopifySource = orderSources.some(os => os.metadata?.type === 'shopify' || os.type === 'shopify');
+    if (!hasShopifySource) {
+      try {
+        const adminUser = await EcomUser.findOne({
+          workspaceId: req.workspaceId,
+          role: { $in: ['ecom_admin', 'super_admin'] },
+          isActive: true
+        }).select('_id').lean();
+        if (adminUser) {
+          const created = await OrderSource.create({
+            name: 'Shopify',
+            description: 'Commandes reçues via Shopify',
+            color: '#95BF47',
+            icon: '🛍️',
+            type: 'shopify',
+            workspaceId: req.workspaceId,
+            createdBy: adminUser._id,
+            isActive: true,
+            metadata: { type: 'shopify', createdAt: new Date() }
+          });
+          orderSources.push(created.toObject());
+          console.log(`📦 [Assignments] Source Shopify auto-créée pour workspace ${req.workspaceId}`);
+        }
+      } catch (seedErr) {
+        console.error('❌ [Assignments] Erreur auto-création Shopify:', seedErr.message);
+      }
+    }
+
+    // OrderSource : Scalor Store, webhooks nommés, Shopify
+    for (const os of orderSources) {
+      allSources.push({
+        _id: os._id.toString(),
+        sourceType: os.type || 'webhook',
+        name: os.name,
+        description: os.description || '',
+        color: os.color || '#6366F1',
+        icon: os.icon || '🔗',
+        isActive: os.isActive,
+        workspaceId: req.workspaceId,
+        metadata: os.metadata || {}
+      });
+    }
+
+    res.json({ success: true, data: allSources });
   } catch (error) {
     console.error('Erreur liste sources:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
@@ -501,21 +567,41 @@ router.put('/sources/:id', requireEcomAuth, async (req, res) => {
 // Lister toutes les affectations du workspace
 router.get('/', requireEcomAuth, async (req, res) => {
   try {
-    const assignments = await CloseuseAssignment.find({ 
-      workspaceId: req.workspaceId, 
-      isActive: true 
-    })
-    .populate('closeuseId', 'name email')
-    .populate('orderSources.assignedBy', 'name email')
-    .populate('productAssignments.productIds', 'name sellingPrice stock')
-    .populate('productAssignments.assignedBy', 'name email')
-    .populate('cityAssignments.assignedBy', 'name email')
-    .sort({ 'closeuseId.name': 1 });
+    const [assignments, settings, orderSources] = await Promise.all([
+      CloseuseAssignment.find({ workspaceId: req.workspaceId, isActive: true })
+        .populate('closeuseId', 'name email')
+        .populate('orderSources.assignedBy', 'name email')
+        
+        .populate('productAssignments.assignedBy', 'name email')
+        .populate('cityAssignments.assignedBy', 'name email')
+        .sort({ 'closeuseId.name': 1 })
+        .lean(),
+      WorkspaceSettings.findOne({ workspaceId: req.workspaceId }).lean(),
+      OrderSource.find({ workspaceId: req.workspaceId, isActive: true }).lean()
+    ]);
 
-    res.json({
-      success: true,
-      data: assignments
+    // Construire un map sourceId → {name, icon, color} pour enrichir orderSources
+    const sourceMap = {};
+    if (settings?.googleSheets?.spreadsheetId) {
+      sourceMap['legacy'] = { name: 'Commandes Zendo', icon: '📊', color: '#10B981' };
+    }
+    (settings?.sources || []).forEach(s => {
+      sourceMap[s._id.toString()] = { name: s.name, icon: s.icon || '📱', color: s.color || '#3B82F6' };
     });
+    orderSources.forEach(os => {
+      sourceMap[os._id.toString()] = { name: os.name, icon: os.icon || '🔗', color: os.color || '#6366F1' };
+    });
+
+    // Enrichir chaque assignment avec les infos de source
+    const enriched = assignments.map(a => ({
+      ...a,
+      orderSources: (a.orderSources || []).map(os => ({
+        ...os,
+        sourceInfo: sourceMap[String(os.sourceId)] || { name: String(os.sourceId), icon: '❓', color: '#9CA3AF' }
+      }))
+    }));
+
+    res.json({ success: true, data: enriched });
   } catch (error) {
     console.error('Erreur liste affectations:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
@@ -534,7 +620,7 @@ router.get('/closeuse/:closeuseId', requireEcomAuth, async (req, res) => {
     })
     .populate('closeuseId', 'name email')
     .populate('orderSources.assignedBy', 'name email')
-    .populate('productAssignments.productIds', 'name sellingPrice stock')
+    
     .populate('productAssignments.assignedBy', 'name email')
     .populate('cityAssignments.assignedBy', 'name email');
 
@@ -583,7 +669,7 @@ router.post('/', requireEcomAuth, async (req, res) => {
 
     // Filtrer les sourceId vides pour éviter les erreurs de cast ObjectId
     const validOrderSources = (orderSources || [])
-      .filter(s => s.sourceId && s.sourceId.length >= 24)
+      .filter(s => s.sourceId && (s.sourceId === 'legacy' || s.sourceId.length >= 24))
       .map(source => ({
         sourceId: source.sourceId,
         assignedBy: req.ecomUser._id,
@@ -591,12 +677,21 @@ router.post('/', requireEcomAuth, async (req, res) => {
       }));
 
     const validProductAssignments = (productAssignments || [])
-      .filter(pa => pa.sourceId && pa.sourceId.length >= 24)
+      .filter(pa => pa.sourceId && (pa.sourceId === 'legacy' || pa.sourceId.length >= 24))
       .map(pa => {
         const allIds = pa.productIds || [];
-        // Séparer les ObjectIds (24 hex chars) des noms de produits (strings)
-        const objectIds = allIds.filter(id => /^[a-f0-9]{24}$/i.test(id));
-        const sheetNames = allIds.filter(id => !/^[a-f0-9]{24}$/i.test(id) && id.trim());
+        const objectIds = [];
+        const sheetNames = [];
+        for (const id of allIds) {
+          try {
+            const oid = new mongoose.Types.ObjectId(String(id));
+            objectIds.push(oid);
+          } catch(e) {
+            const s = String(id).trim();
+            if (s) sheetNames.push(s);
+          }
+        }
+        console.log(`📦 [PA POST] sourceId=${pa.sourceId} allIds=${allIds.length} typeof0="${typeof allIds[0]}" sample="${String(allIds[0]||'')}" objectIds=${objectIds.length}`);
         return {
           sourceId: pa.sourceId,
           productIds: objectIds,
@@ -645,8 +740,18 @@ router.post('/', requireEcomAuth, async (req, res) => {
     const populatedAssignment = await CloseuseAssignment.findById(assignment._id)
       .populate('closeuseId', 'name email')
       .populate('orderSources.assignedBy', 'name email')
-      .populate('productAssignments.productIds', 'name sellingPrice stock')
+      
       .populate('productAssignments.assignedBy', 'name email');
+
+    // Notifier la closeuse en temps réel
+    const io = getIO();
+    if (io) {
+      io.to(`user:${closeuseId}`).emit('assignment:updated', {
+        assignmentId: assignment._id,
+        action: 'created',
+        workspaceId: req.workspaceId
+      });
+    }
 
     res.json({
       success: true,
@@ -693,11 +798,21 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
 
     if (Array.isArray(productAssignments)) {
       assignment.productAssignments = productAssignments
-        .filter(item => item.sourceId && item.sourceId.length >= 24)
+        .filter(item => item.sourceId && (item.sourceId === 'legacy' || item.sourceId.length >= 24))
         .map(item => {
           const allIds = item.productIds || [];
-          const objectIds = allIds.filter(id => /^[a-f0-9]{24}$/i.test(id));
-          const sheetNames = allIds.filter(id => !/^[a-f0-9]{24}$/i.test(id) && id.trim());
+          const objectIds = [];
+          const sheetNames = [];
+          for (const id of allIds) {
+            try {
+              const oid = new mongoose.Types.ObjectId(String(id));
+              objectIds.push(oid);
+            } catch(e) {
+              const s = String(id).trim();
+              if (s) sheetNames.push(s);
+            }
+          }
+          console.log(`📦 [PA PUT] sourceId=${item.sourceId} allIds=${allIds.length} typeof0="${typeof allIds[0]}" sample="${String(allIds[0]||'')}" objectIds=${objectIds.length} sheetNames=${sheetNames.length}`);
           return {
             sourceId: item.sourceId,
             productIds: objectIds,
@@ -725,8 +840,19 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
     const populatedAssignment = await CloseuseAssignment.findById(assignment._id)
       .populate('closeuseId', 'name email')
       .populate('orderSources.assignedBy', 'name email')
-      .populate('productAssignments.productIds', 'name sellingPrice stock')
+      
       .populate('productAssignments.assignedBy', 'name email');
+
+    // Notifier la closeuse en temps réel
+    const io = getIO();
+    if (io) {
+      const targetCloseuseId = String(assignment.closeuseId);
+      io.to(`user:${targetCloseuseId}`).emit('assignment:updated', {
+        assignmentId: assignment._id,
+        action: 'updated',
+        workspaceId: req.workspaceId
+      });
+    }
 
     res.json({
       success: true,
@@ -756,8 +882,19 @@ router.delete('/:id', requireEcomAuth, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Affectation non trouvée' });
     }
 
+    const targetCloseuseId = String(assignment.closeuseId);
     assignment.isActive = false;
     await assignment.save();
+
+    // Notifier la closeuse en temps réel
+    const io = getIO();
+    if (io) {
+      io.to(`user:${targetCloseuseId}`).emit('assignment:updated', {
+        assignmentId: assignment._id,
+        action: 'deleted',
+        workspaceId: req.workspaceId
+      });
+    }
 
     res.json({
       success: true,
@@ -793,15 +930,11 @@ router.get('/my-sources', requireEcomAuth, async (req, res) => {
       });
     }
 
-    // Récupérer les sources depuis WorkspaceSettings
-    const settings = await WorkspaceSettings.findOne({ workspaceId: req.workspaceId });
-    
-    if (!settings) {
-      return res.json({
-        success: true,
-        data: { sources: [] }
-      });
-    }
+    // Récupérer les sources depuis WorkspaceSettings + OrderSource
+    const [settings, orderSources] = await Promise.all([
+      WorkspaceSettings.findOne({ workspaceId: req.workspaceId }),
+      OrderSource.find({ workspaceId: req.workspaceId, isActive: true }).lean()
+    ]);
 
     // Merge all assigned source IDs from all assignments
     const assignedSourceIds = [...new Set(
@@ -811,7 +944,7 @@ router.get('/my-sources', requireEcomAuth, async (req, res) => {
     const matchingSources = [];
     
     // Legacy source
-    if (assignedSourceIds.includes('legacy') && settings.googleSheets?.spreadsheetId) {
+    if (assignedSourceIds.includes('legacy') && settings?.googleSheets?.spreadsheetId) {
       matchingSources.push({
         _id: 'legacy',
         name: 'Commandes Zendo',
@@ -823,8 +956,8 @@ router.get('/my-sources', requireEcomAuth, async (req, res) => {
       });
     }
 
-    // Custom sources
-    if (settings.sources && settings.sources.length > 0) {
+    // Custom Google Sheets sources from WorkspaceSettings
+    if (settings?.sources && settings.sources.length > 0) {
       settings.sources.forEach(source => {
         if (source.isActive && assignedSourceIds.includes(source._id.toString())) {
           matchingSources.push({
@@ -835,6 +968,23 @@ router.get('/my-sources', requireEcomAuth, async (req, res) => {
             lastSyncAt: source.lastSyncAt,
             detectedHeaders: source.detectedHeaders || [],
             detectedColumns: source.detectedColumns || {}
+          });
+        }
+      });
+    }
+
+    // OrderSource entries (Scalor Store, Shopify, webhooks, etc.)
+    if (orderSources && orderSources.length > 0) {
+      orderSources.forEach(os => {
+        if (assignedSourceIds.includes(os._id.toString())) {
+          matchingSources.push({
+            _id: os._id.toString(),
+            name: os.name,
+            sourceType: os.type || 'webhook',
+            description: os.description || '',
+            color: os.color || '#6366F1',
+            icon: os.icon || '🔗',
+            metadata: os.metadata || {}
           });
         }
       });
@@ -863,7 +1013,7 @@ router.get('/my-assignments', requireEcomAuth, async (req, res) => {
       workspaceId: req.workspaceId, 
       isActive: true 
     })
-    .populate('productAssignments.productIds', 'name sellingPrice stock status');
+    ;
 
     if (!allAssignments || allAssignments.length === 0) {
       return res.json({
@@ -888,6 +1038,34 @@ router.get('/my-assignments', requireEcomAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('Erreur mes affectations:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// GET /assignments/my — retourne l'assignment + commission de la closeuse connectée
+router.get('/my', requireEcomAuth, async (req, res) => {
+  try {
+    const assignment = await CloseuseAssignment.findOne({
+      closeuseId: req.ecomUser._id,
+      workspaceId: req.workspaceId,
+      isActive: true
+    }).lean();
+
+    if (!assignment) {
+      return res.json({ success: true, data: null });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        commission: assignment.commission || 0,
+        commissionType: assignment.commissionType || 'percentage',
+        orderSources: assignment.orderSources || [],
+        notes: assignment.notes || ''
+      }
+    });
+  } catch (error) {
+    console.error('Erreur /my:', error);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });

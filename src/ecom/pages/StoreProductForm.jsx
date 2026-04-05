@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, Image, Plus, X, Loader2, AlertCircle, CheckCircle, Search, PackageSearch, Link, Sparkles, Globe, FileText, ChevronDown, ChevronUp, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, Save, Image, Plus, X, Loader2, AlertCircle, CheckCircle, Search, PackageSearch, Link, Sparkles, Globe, FileText, ChevronDown, ChevronUp, ShoppingBag, Layers } from 'lucide-react';
 import { storeProductsApi } from '../services/storeApi.js';
 import AlibabaImportModal from '../components/AlibabaImportModal.jsx';
 import RichTextEditor from '../components/RichTextEditor.jsx';
@@ -561,6 +561,16 @@ const StoreProductForm = () => {
           </h1>
         </div>
         <div className="flex items-center gap-2">
+          {isEdit && (
+            <button
+              type="button"
+              onClick={() => navigate(`${basePath}/products/${id}/builder`)}
+              className="inline-flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm"
+            >
+              <Layers className="w-4 h-4" />
+              <span className="hidden sm:inline">Page Builder</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setShowAlibabaModal(true)}

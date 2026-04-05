@@ -802,36 +802,12 @@ NO arrows, NO heavy graphic overlays, NO empty margins, NO price, NO CTA.
 Mood: Trustworthy, convincing, high-conversion, impossible to ignore in a Facebook or TikTok feed.`;
 
     const sceneRules = `
-Create a premium MARKETPLACE INFOGRAPHIC image for an ecommerce product listing. This is a GRAPHIC DESIGN composition — NOT a lifestyle photo.
-Style reference: Amazon A+ Content, premium marketplace listings (Ozon, Wildberries top sellers).
-USE THE EXACT REAL PRODUCT IMAGE PROVIDED — NEVER invent, recreate or redesign the product.
-Square 1:1, clean professional layout, ZERO clutter.
-
-VISUAL STYLE:
-- Background: white or very light cream (#FAFAF5), clean and airy with lots of whitespace
-- Product: shown LARGE and DOMINANT with professional studio lighting, 3D rendering feel, soft shadow, sharp details
-- Typography: bold condensed modern sans-serif font (like Montserrat Black). Headlines in dark navy blue (#1B2A4A), UPPERCASE. Body text in gray (#555). ONE accent color matching the product
-- Decorative elements: realistic olive branches with green olives framing 2-3 corners. Premium botanical frame effect
-- Badges/seals: round stamp-style badges with solid color fill (dark green, dark red, accent color) + white icon + text in arc. Certification/quality seal aesthetic
-- Icons: clean modern line icons, monochrome, thin stroke
-- Layout: grid-based, aligned, structured. Clear visual hierarchy. Information organized in clean blocks
-
-INFOGRAPHIC RULES:
-- This is a DESIGNED composition with typography, icons, and graphic elements — NOT a raw photograph
-- Product occupies 40-60% of the frame, always sharp and dominant
-- Text elements are integral to the design (headlines, labels, short descriptions)
-- Maximum 3 text elements: 1 headline + 1-2 supporting labels or short descriptions
-- Everything is perfectly aligned, spaced, and balanced
-
-Human element (ONLY when the prompt specifically asks for a person):
-- Authentic Black African model (dark brown skin, natural African hair)
-- Integrated into the infographic composition, not a separate photo
-- Studio lighting, clean background, natural confident expression
-
-ALL French text MUST be 100% PERFECTLY spelled with every accent (é, è, à, ê, û, ç). ZERO spelling errors.
-NO price, NO phone number, NO URL, NO fake CTA button, NO watermark.
-
-Mood: premium marketplace listing, trustworthy, clean, professional graphic design. Think top Amazon seller infographic carousel.`;
+QUALITY: Ultra HD 4K, razor-sharp, zero blur. Square 1:1.
+PERSON: ALWAYS include authentic Black African person (dark skin, natural hair, confident expression).
+PRODUCT: Large, dominant, sharp, 40-60% of frame.
+TEXT: French only, 100% perfect spelling with accents. Max 3 text elements.
+NO price, NO phone, NO URL, NO CTA button, NO watermark.
+CRITICAL: Follow the SPECIFIC visual style described above — unique background, unique decorations, unique mood for THIS image.`;
 
     const productRefRule = originalImageBuffer
       ? `\nCRITICAL: A reference image of the EXACT real product is provided. You MUST include THIS SPECIFIC product (same shape, color, packaging, design) in the generated image. NEVER invent, replace, or redesign the product. The product in the output MUST be recognizably the same as the reference.\n`
@@ -841,14 +817,10 @@ Mood: premium marketplace listing, trustworthy, clean, professional graphic desi
     if (mode === 'hero') modeRules = heroRules;
     else if (mode === 'hero_poster') modeRules = heroPosterRules;
     else if (mode === 'before_after') modeRules = beforeAfterRules;
-    else if (mode === 'scene' && !originalImageBuffer) {
-      // Pas d'image de référence : supprimer l'injonction de montrer le produit
-      modeRules = sceneRules
-        .replace(/PRODUCT VISIBILITY \(CRITICAL\):.*?\n\n/s, '')
-        .replace(/The person is ACTIVELY interacting with or benefiting from the product\./,
-          'The person shows confidence, satisfaction or the benefit associated with the product category.');
-    } else modeRules = sceneRules;
+    else modeRules = sceneRules;
 
+    // CRITICAL: flash prompt FIRST (contains unique design), then short quality rules, then ref rule
+    // This ensures the unique design instructions are at the START and survive any prompt truncation
     const posterPrompt = `${promptAffiche}
 ${productRefRule}
 ${modeRules}`;
@@ -866,7 +838,7 @@ ${modeRules}`;
     } else {
       console.log('📝 Text-to-image poster generation...');
       result = await generateNanoBananaImage(
-        posterPrompt.slice(0, 4000),
+        posterPrompt,
         '1:1',
         1
       );

@@ -1,6 +1,7 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import Order from '../models/Order.js';
+import StoreProduct from '../models/StoreProduct.js';
 import { memCache } from '../services/memoryCache.js';
 import Client from '../models/Client.js';
 import WorkspaceSettings from '../models/WorkspaceSettings.js';
@@ -19,6 +20,82 @@ import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import { EventEmitter } from 'events';
 
 const router = express.Router();
+
+/**
+ * Construit la condition MongoDB pour filtrer par sourceId.
+ * - 'legacy'  → sheetRowId sans préfixe source_
+ * - 'scalor'  → source in ['skelor', 'boutique']
+ * - ObjectId valide (24 hex) → vérifie le type de source (scalor_store, shopify, etc.)
+ * - autre (ancien format sheet id)  → sheetRowId regex
+ */
+function buildSourceCondition(sid, sourceTypeMap) {
+  if (!sid) return null;
+  if (sid === 'legacy') return { sheetRowId: { $not: /^source_/ } };
+  if (sid === 'scalor') return { source: { $in: ['skelor', 'boutique'] } };
+  if (/^[0-9a-fA-F]{24}$/.test(sid)) {
+    // Vérifier le type via le map pré-chargé
+    const sourceType = sourceTypeMap?.[sid];
+    if (sourceType === 'scalor_store') {
+      return { source: { $in: ['skelor', 'boutique'] } };
+    }
+    if (sourceType === 'shopify') {
+      return { source: 'shopify' };
+    }
+    // Source ObjectId générique (webhook nommé, etc.)
+    return { sourceId: new mongoose.Types.ObjectId(sid) };
+  }
+  // Fallback: ancien format Google Sheets
+  return { sheetRowId: { $regex: `^source_${sid}_` } };
+}
+
+/**
+ * Charge un map sourceId → metadata.type pour un workspace donné.
+ * Utilisé par buildSourceCondition pour résoudre les types de source.
+ */
+async function loadSourceTypeMap(workspaceId) {
+  const cacheKey = `sourceTypeMap:${workspaceId}`;
+  const cached = memCache.get(cacheKey);
+  if (cached) return cached;
+  const sources = await OrderSource.find({ workspaceId, isActive: true }).select('_id metadata type').lean();
+  const map = {};
+  for (const s of sources) {
+    map[s._id.toString()] = s.metadata?.type || s.type || 'webhook';
+  }
+  memCache.set(cacheKey, map, 60000); // cache 60s
+  return map;
+}
+
+/**
+ * Résout les noms de produits pour le filtre closeuse.
+ * Gère Product (interne) ET StoreProduct (boutique).
+ * Retourne un tableau de noms de produits (strings).
+ */
+async function resolveProductNames(assignments) {
+  const sheetNames = assignments.flatMap(a => (a.productAssignments || []).flatMap(pa => pa.sheetProductNames || []));
+  const allProductIds = assignments.flatMap(a => (a.productAssignments || []).flatMap(pa => pa.productIds || []));
+
+  // IDs déjà populés (objets avec .name) — modèle Product interne
+  const populatedNames = allProductIds
+    .filter(pid => pid && typeof pid === 'object' && pid.name)
+    .map(pid => pid.name);
+
+  // IDs non résolus (encore ObjectId) — tenter StoreProduct
+  const unresolvedIds = allProductIds
+    .filter(pid => pid && typeof pid !== 'object')
+    .map(id => id.toString())
+    .filter(id => /^[0-9a-fA-F]{24}$/.test(id));
+
+  let storeProductNames = [];
+  if (unresolvedIds.length > 0) {
+    const storeProds = await StoreProduct.find(
+      { _id: { $in: unresolvedIds.map(id => new mongoose.Types.ObjectId(id)) } },
+      'name'
+    ).lean();
+    storeProductNames = storeProds.map(p => p.name);
+  }
+
+  return [...new Set([...sheetNames, ...populatedNames, ...storeProductNames])];
+}
 
 // Helper: récupère le téléphone depuis rawData si clientPhone est vide
 const PHONE_RAWDATA_KEYS = /^(tel|telephone|phone|mobile|whatsapp|gsm|portable|contact|numero|cellulaire)/i;
@@ -400,6 +477,9 @@ router.delete('/bulk', requireEcomAuth, validateEcomAccess('products', 'write'),
     if (sourceId) {
       if (sourceId === 'legacy') {
         filter.sheetRowId = { $not: /^source_/ };
+      } else if (sourceId === 'scalor') {
+        // 'scalor' est l'alias unifié pour skelor + boutique
+        filter.source = { $in: ['skelor', 'boutique'] };
       } else if (['webhook', 'shopify', 'skelor', 'boutique', 'rita'].includes(sourceId)) {
         filter.source = sourceId;
       } else {
@@ -441,14 +521,14 @@ router.get('/filter-options', requireEcomAuth, async (req, res) => {
     if (cached) return res.json({ success: true, data: cached });
 
     const filter = { workspaceId: req.workspaceId };
+    const sourceTypeMap = await loadSourceTypeMap(req.workspaceId);
 
     if (sourceId) {
-      if (sourceId === 'legacy') {
-        filter.sheetRowId = { $not: /^source_/ };
-      } else if (sourceId === 'webhook') {
-        filter.source = 'webhook';
+      if (['webhook', 'shopify', 'skelor', 'boutique', 'rita'].includes(sourceId)) {
+        filter.source = sourceId;
       } else {
-        filter.sheetRowId = { $regex: `^source_${sourceId}_` };
+        const cond = buildSourceCondition(sourceId, sourceTypeMap);
+        if (cond) Object.assign(filter, cond);
       }
     }
 
@@ -456,22 +536,20 @@ router.get('/filter-options', requireEcomAuth, async (req, res) => {
     if (req.ecomUser.role === 'ecom_closeuse') {
       const allAssignments = await CloseuseAssignment.find({
         closeuseId: req.ecomUser._id, workspaceId: req.workspaceId, isActive: true
-      }).populate('productAssignments.productIds', 'name');
+      });
 
       if (allAssignments.length > 0) {
         const allConditions = [];
-        const sheetProductNames = allAssignments.flatMap(a => (a.productAssignments || []).flatMap(pa => pa.sheetProductNames || []));
-        const assignedProductIds = allAssignments.flatMap(a => (a.productAssignments || []).flatMap(pa => pa.productIds || []));
         const assignedCityNames = allAssignments.flatMap(a => (a.cityAssignments || []).flatMap(ca => ca.cityNames || []));
         const assignedSourceIds = [...new Set(allAssignments.flatMap(a => (a.orderSources || []).map(os => String(os.sourceId)).filter(Boolean)))];
-        const dbProductNames = assignedProductIds.filter(pid => pid && typeof pid === 'object' && pid.name).map(pid => pid.name);
+        const allProductNames = await resolveProductNames(allAssignments);
 
         assignedSourceIds.forEach(sid => {
-          if (sid === 'legacy') allConditions.push({ sheetRowId: { $not: /^source_/ } });
-          else allConditions.push({ sheetRowId: { $regex: `^source_${sid}_` } });
+          const cond = buildSourceCondition(sid, sourceTypeMap);
+          if (cond) allConditions.push(cond);
         });
-        if (sheetProductNames.length > 0 || dbProductNames.length > 0) {
-          [...sheetProductNames, ...dbProductNames].forEach(name => allConditions.push({
+        if (allProductNames.length > 0) {
+          allProductNames.forEach(name => allConditions.push({
             product: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' }
           }));
         }
@@ -513,11 +591,15 @@ router.get('/quick', requireEcomAuth, async (req, res) => {
   try {
     const { sourceId, sortOrder } = req.query;
     const filter = { workspaceId: req.workspaceId };
+    const sourceTypeMap = await loadSourceTypeMap(req.workspaceId);
     if (sourceId) {
-      if (['webhook', 'shopify', 'skelor', 'boutique', 'rita'].includes(sourceId)) {
+      if (sourceId === 'scalor') {
+        filter.source = { $in: ['skelor', 'boutique'] };
+      } else if (['webhook', 'shopify', 'skelor', 'boutique', 'rita'].includes(sourceId)) {
         filter.source = sourceId;
       } else {
-        filter.sheetRowId = { $regex: `^source_${sourceId}_` };
+        const cond = buildSourceCondition(sourceId, sourceTypeMap);
+        if (cond) Object.assign(filter, cond);
       }
     }
 
@@ -528,19 +610,19 @@ router.get('/quick', requireEcomAuth, async (req, res) => {
     if (req.ecomUser.role === 'ecom_closeuse') {
       const allAssignments = await CloseuseAssignment.find({
         closeuseId: req.ecomUser._id, workspaceId: req.workspaceId, isActive: true
-      }).populate('productAssignments.productIds', 'name');
+      });
 
       if (allAssignments.length > 0) {
         const allConditions = [];
-        const sheetProductNames = allAssignments.flatMap(a => (a.productAssignments || []).flatMap(pa => pa.sheetProductNames || []));
         const assignedCityNames = allAssignments.flatMap(a => (a.cityAssignments || []).flatMap(ca => ca.cityNames || []));
         const assignedSourceIds = [...new Set(allAssignments.flatMap(a => (a.orderSources || []).map(os => String(os.sourceId)).filter(Boolean)))];
+        const allProductNames = await resolveProductNames(allAssignments);
 
         assignedSourceIds.forEach(sid => {
-          if (sid === 'legacy') allConditions.push({ sheetRowId: { $not: /^source_/ } });
-          else allConditions.push({ sheetRowId: { $regex: `^source_${sid}_` } });
+          const cond = buildSourceCondition(sid, sourceTypeMap);
+          if (cond) allConditions.push(cond);
         });
-        sheetProductNames.forEach(name => allConditions.push({ product: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' } }));
+        allProductNames.forEach(name => allConditions.push({ product: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' } }));
         assignedCityNames.forEach(name => allConditions.push({ city: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' } }));
 
         if (allConditions.length > 0) filter.$or = allConditions;
@@ -551,7 +633,7 @@ router.get('/quick', requireEcomAuth, async (req, res) => {
     }
 
     const orders = await Order.find(filter)
-      .select('orderId clientName clientPhone city address product quantity price status date createdAt notes tags source sheetRowId rawData deliveryTime')
+      .select('orderId clientName clientPhone city address product quantity price status date createdAt notes tags source sourceId sourceName closerId closerStatus sheetRowId rawData deliveryTime currency')
       .sort({ createdAt: sortDirection, _id: sortDirection })
       .limit(20)
       .lean();
@@ -587,7 +669,9 @@ router.get('/new-since', requireEcomAuth, async (req, res) => {
       if (['webhook', 'shopify', 'skelor', 'boutique', 'rita'].includes(sourceId)) {
         filter.source = sourceId;
       } else {
-        filter.sheetRowId = { $regex: `^source_${sourceId}_` };
+        const sourceTypeMap = await loadSourceTypeMap(req.workspaceId);
+        const cond = buildSourceCondition(sourceId, sourceTypeMap);
+        if (cond) Object.assign(filter, cond);
       }
     }
 
@@ -597,7 +681,7 @@ router.get('/new-since', requireEcomAuth, async (req, res) => {
         closeuseId: req.ecomUser._id,
         workspaceId: req.workspaceId,
         isActive: true
-      }).populate('productAssignments.productIds', 'name');
+      });
 
       if (assignment) {
         const sheetProductNames = (assignment.productAssignments || []).flatMap(pa => pa.sheetProductNames || []);
@@ -680,29 +764,30 @@ router.get('/my-commissions', requireEcomAuth, async (req, res) => {
 
     const { period = 'month' } = req.query;
 
-    // Récupérer le taux de commission du workspace
-    const settings = await WorkspaceSettings.findOne({ workspaceId: req.workspaceId });
-    const commissionRate = settings?.commissionRate ?? 1000;
-
     // Récupérer toutes les affectations de la closeuse
     const allAssignments = await CloseuseAssignment.find({
       closeuseId: req.ecomUser._id,
       workspaceId: req.workspaceId,
       isActive: true
-    }).populate('productAssignments.productIds', 'name');
+    });
 
     if (!allAssignments.length) {
-      return res.json({ success: true, data: { commissionRate, periods: {}, total: 0, totalOrders: 0 } });
+      return res.json({ success: true, data: { commissionRate: 0, commissionType: 'percentage', periods: {}, total: 0, totalOrders: 0 } });
     }
 
-    // Extraire toutes les assignations (sources, produits, villes) - même logique que la liste des commandes
+    // Commission individuelle de la closeuse (premier assignment trouvé)
+    const mainAssignment = allAssignments[0];
+    const commissionRate = mainAssignment.commission || 0;
+    const commissionType = mainAssignment.commissionType || 'percentage';
+
+    // Extraire toutes les assignations (sources, produits, villes)
     const sheetProductNames = allAssignments.flatMap(a => (a.productAssignments || []).flatMap(pa => pa.sheetProductNames || []));
     const assignedProductIds = allAssignments.flatMap(a => (a.productAssignments || []).flatMap(pa => pa.productIds || []));
     const assignedCityNames = allAssignments.flatMap(a => (a.cityAssignments || []).flatMap(ca => ca.cityNames || []));
     const assignedSourceIds = [...new Set(
       allAssignments.flatMap(a => (a.orderSources || []).map(os => String(os.sourceId)).filter(Boolean))
     )];
-    
+
     // Extraire les noms des produits de la base de données
     const dbProductNames = assignedProductIds
       .filter(pid => pid && typeof pid === 'object' && pid.name)
@@ -711,34 +796,26 @@ router.get('/my-commissions', requireEcomAuth, async (req, res) => {
     // Construire toutes les conditions (sources, produits, villes)
     const allConditions = [];
 
-    // Condition 1: Commandes des sources assignées
-    if (assignedSourceIds.length > 0) {
-      for (const sourceId of assignedSourceIds) {
-        if (sourceId === 'legacy') {
-          allConditions.push({ sheetRowId: { $not: /^source_/ } });
-        } else {
-          allConditions.push({ sheetRowId: { $regex: `^source_${sourceId}_` } });
-        }
-      }
+    // Condition 1: Commandes des sources assignées (utilise buildSourceCondition)
+    const sourceTypeMap = await loadSourceTypeMap(req.workspaceId);
+    for (const sourceId of assignedSourceIds) {
+      const cond = buildSourceCondition(sourceId, sourceTypeMap);
+      if (cond) allConditions.push(cond);
     }
 
     // Condition 2: Commandes des produits assignés
-    if (sheetProductNames.length > 0 || dbProductNames.length > 0) {
-      const allProductNames = [...sheetProductNames, ...dbProductNames];
-      for (const name of allProductNames) {
-        allConditions.push({
-          product: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' }
-        });
-      }
+    const allProductNames = [...sheetProductNames, ...dbProductNames];
+    for (const name of allProductNames) {
+      allConditions.push({
+        product: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' }
+      });
     }
 
     // Condition 3: Commandes des villes assignées
-    if (assignedCityNames.length > 0) {
-      for (const name of assignedCityNames) {
-        allConditions.push({
-          city: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' }
-        });
-      }
+    for (const name of assignedCityNames) {
+      allConditions.push({
+        city: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').trim()}$`, $options: 'i' }
+      });
     }
 
     // Filtre de date selon la période
@@ -783,18 +860,22 @@ router.get('/my-commissions', requireEcomAuth, async (req, res) => {
     });
 
     const deliveredCount = byStatus['delivered']?.count || 0;
-    const totalCommission = deliveredCount * commissionRate;
+    const deliveredRevenue = byStatus['delivered']?.revenue || 0;
+    // Calcul commission selon type (% sur chiffre d'affaires ou montant fixe par livraison)
+    const totalCommission = commissionType === 'percentage'
+      ? Math.round(deliveredRevenue * (commissionRate / 100))
+      : deliveredCount * commissionRate;
 
     // Historique mensuel (12 derniers mois)
     const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
     const monthlyStats = await Order.aggregate([
-      { $match: { 
-        workspaceId: new mongoose.Types.ObjectId(req.workspaceId), 
-        date: { $gte: twelveMonthsAgo }, 
-        status: 'delivered', 
-        ...(allConditions.length > 0 ? { $or: allConditions } : { _id: null }) 
+      { $match: {
+        workspaceId: new mongoose.Types.ObjectId(req.workspaceId),
+        date: { $gte: twelveMonthsAgo },
+        status: 'delivered',
+        ...(allConditions.length > 0 ? { $or: allConditions } : { _id: null })
       } },
-      { $group: { _id: { year: { $year: '$date' }, month: { $month: '$date' } }, count: { $sum: 1 } } },
+      { $group: { _id: { year: { $year: '$date' }, month: { $month: '$date' } }, count: { $sum: 1 }, revenue: { $sum: { $multiply: ['$price', { $ifNull: ['$quantity', 1] }] } } } },
       { $sort: { '_id.year': 1, '_id.month': 1 } }
     ]);
 
@@ -802,16 +883,21 @@ router.get('/my-commissions', requireEcomAuth, async (req, res) => {
       success: true,
       data: {
         commissionRate,
+        commissionType,
         period,
         byStatus,
         totalOrders,
         deliveredCount,
+        deliveredRevenue,
         totalCommission,
         monthlyHistory: monthlyStats.map(m => ({
           year: m._id.year,
           month: m._id.month,
           count: m.count,
-          commission: m.count * commissionRate
+          revenue: m.revenue,
+          commission: commissionType === 'percentage'
+            ? Math.round(m.revenue * (commissionRate / 100))
+            : m.count * commissionRate
         }))
       }
     });
@@ -883,12 +969,15 @@ router.get('/', requireEcomAuth, async (req, res) => {
     if (product) filter.product = { $regex: product, $options: 'i' };
     if (tag) filter.tags = tag;
     if (sourceId) {
-      if (sourceId === 'legacy') {
-        filter.sheetRowId = { $not: /^source_/ };
+      if (sourceId === 'scalor') {
+        // 'scalor' est l'alias unifié pour skelor + boutique
+        filter.source = { $in: ['skelor', 'boutique'] };
       } else if (['webhook', 'shopify', 'skelor', 'boutique', 'rita'].includes(sourceId)) {
         filter.source = sourceId;
       } else {
-        filter.sheetRowId = { $regex: `^source_${sourceId}_` };
+        const sourceTypeMap = await loadSourceTypeMap(req.workspaceId);
+        const cond = buildSourceCondition(sourceId, sourceTypeMap);
+        if (cond) Object.assign(filter, cond);
       }
     }
     if (search) {
@@ -909,7 +998,7 @@ router.get('/', requireEcomAuth, async (req, res) => {
         closeuseId: req.ecomUser._id,
         workspaceId: req.workspaceId,
         isActive: true
-      }).populate('productAssignments.productIds', 'name');
+      });
 
       if (allAssignments.length > 0) {
         // Merge all assignments
@@ -926,19 +1015,14 @@ router.get('/', requireEcomAuth, async (req, res) => {
           .filter(pid => pid && typeof pid === 'object' && pid.name)
           .map(pid => pid.name);
         
+        const sourceTypeMap = await loadSourceTypeMap(req.workspaceId);
 
         const allConditions = [];
 
-        // Condition 1: Commandes des sources assignées
-        if (assignedSourceIds.length > 0) {
-          for (const sourceId of assignedSourceIds) {
-            if (sourceId === 'legacy') {
-              // Legacy orders: sheetRowId does NOT start with 'source_'
-              allConditions.push({ sheetRowId: { $not: /^source_/ } });
-            } else {
-              allConditions.push({ sheetRowId: { $regex: `^source_${sourceId}_` } });
-            }
-          }
+        // Condition 1: Commandes des sources assignées (buildSourceCondition gère legacy, ObjectId, et sheets)
+        for (const sid of assignedSourceIds) {
+          const cond = buildSourceCondition(sid, sourceTypeMap);
+          if (cond) allConditions.push(cond);
         }
 
         // Condition 2: Commandes des produits assignés
@@ -985,7 +1069,7 @@ router.get('/', requireEcomAuth, async (req, res) => {
 
 
     const orders = await Order.find(filter)
-      .select('orderId clientName clientPhone city address product quantity price status date createdAt updatedAt notes tags source sheetRowId assignedLivreur readyForDelivery rawData deliveryTime deliveryStartedAt deliveryStartLat deliveryStartLng deliveryEndLat deliveryEndLng deliveryEndAddress deliveryDistanceKm deliveryCostFcfa')
+      .select('orderId clientName clientPhone city address product quantity price status date createdAt updatedAt notes tags source sourceId sourceName closerId closerStatus sheetRowId assignedLivreur readyForDelivery rawData deliveryTime deliveryStartedAt deliveryStartLat deliveryStartLng deliveryEndLat deliveryEndLng deliveryEndAddress deliveryDistanceKm deliveryCostFcfa currency')
       .sort({ createdAt: sortDirection, _id: sortDirection })
       .limit(limitNum)
       .skip((pageNum - 1) * limitNum)
@@ -2642,6 +2726,20 @@ router.delete('/sources/:sourceId', requireEcomAuth, validateEcomAccess('product
       return res.status(404).json({ success: false, message: 'Source non trouvée.' });
     }
 
+    // Cas 1 : OrderSource (ObjectId 24 hex) — Scalor Store, webhook nommé
+    if (/^[0-9a-fA-F]{24}$/.test(sourceId)) {
+      const orderSource = await OrderSource.findOne({ _id: sourceId, workspaceId: req.workspaceId });
+      if (!orderSource) {
+        return res.status(404).json({ success: false, message: 'Source non trouvée.' });
+      }
+      const sourceName = orderSource.name;
+      await orderSource.deleteOne();
+      const deleteResult = await Order.deleteMany({ workspaceId: req.workspaceId, sourceId: new mongoose.Types.ObjectId(sourceId) });
+      memCache.delByPrefix(`settings:${req.workspaceId}`);
+      return res.json({ success: true, message: `Source "${sourceName}" supprimée avec ${deleteResult.deletedCount} commande(s)`, data: { deletedOrders: deleteResult.deletedCount } });
+    }
+
+    // Cas 2 : Source WorkspaceSettings (Google Sheets)
     const sourceIndex = settings.sources.findIndex(s => String(s._id) === sourceId);
     if (sourceIndex === -1) {
       return res.status(404).json({ success: false, message: 'Source non trouvée.' });
@@ -3997,59 +4095,52 @@ router.get('/:id', requireEcomAuth, async (req, res) => {
 
     // Vérifier les permissions pour les closeuses
     if (req.ecomUser.role === 'ecom_closeuse') {
-      console.log('🔒 [order detail] Closeuse access check - userId:', req.ecomUser._id, 'orderId:', req.params.id);
       const assignment = await CloseuseAssignment.findOne({
         closeuseId: req.ecomUser._id,
         workspaceId: req.workspaceId,
         isActive: true
-      }).populate('productAssignments.productIds', 'name');
+      });
 
-      console.log('🔒 [order detail] Assignment found:', !!assignment);
-      if (assignment) {
-        const sheetProductNames = (assignment.productAssignments || []).flatMap(pa => pa.sheetProductNames || []);
-        const assignedProductIds = (assignment.productAssignments || []).flatMap(pa => pa.productIds || []);
-        const assignedCityNames = (assignment.cityAssignments || []).flatMap(ca => ca.cityNames || []);
-        const assignedSourceIds = (assignment.orderSources || []).map(os => String(os.sourceId)).filter(Boolean);
-        
-        // Extraire les noms des produits de la base de données
-        const dbProductNames = assignedProductIds
-          .filter(pid => pid && typeof pid === 'object' && pid.name) // Filtrer les produits peuplés
-          .map(pid => pid.name);
-        
-        // Combiner tous les noms de produits (sheets + DB)
-        const allProductNames = [...sheetProductNames, ...dbProductNames];
-        
-        console.log('🔒 [order detail] Checking access - order product:', order.product, 'assigned products:', allProductNames, 'assigned cities:', assignedCityNames, 'assigned sources:', assignedSourceIds);
-
-        // Vérifier si le produit de la commande est dans les produits assignés
-        const productMatch = allProductNames.some(assignedProduct => 
-          assignedProduct && order.product && 
-          order.product.trim().toLowerCase() === assignedProduct.trim().toLowerCase()
-        );
-
-        // Vérifier si la ville de la commande est dans les villes assignées
-        const cityMatch = assignedCityNames.some(assignedCity => 
-          assignedCity && order.city && 
-          order.city.trim().toLowerCase() === assignedCity.trim().toLowerCase()
-        );
-
-        // Vérifier si la source de la commande est dans les sources assignées
-        const sourceMatch = assignedSourceIds.some(sourceId => {
-          if (sourceId === 'legacy') {
-            return order.sheetRowId && !order.sheetRowId.startsWith('source_');
-          }
-          return order.sheetRowId && order.sheetRowId.startsWith(`source_${sourceId}_`);
-        });
-
-        if (!productMatch && !cityMatch && !sourceMatch) {
-          console.log('🔒 [order detail] Access denied - product, city or source not assigned');
-          return res.status(403).json({ success: false, message: 'Accès refusé: cette commande ne vous est pas assignée.' });
-        }
-
-        console.log('🔒 [order detail] Access granted - product, city or source match found');
-      } else {
-        console.log('🔒 [order detail] Access denied - no assignment found');
+      if (!assignment) {
         return res.status(403).json({ success: false, message: 'Accès refusé: aucune affectation trouvée.' });
+      }
+
+      const assignedSourceIds = (assignment.orderSources || []).map(os => String(os.sourceId)).filter(Boolean);
+      const assignedCityNames = (assignment.cityAssignments || []).flatMap(ca => ca.cityNames || []);
+
+      // Résoudre tous les noms de produits (sheets + DB Products + StoreProducts)
+      const allProductNames = await resolveProductNames([assignment]);
+
+      // Source match: utilise buildSourceCondition pour gérer scalor_store, shopify, legacy, sheets
+      let sourceMatch = false;
+      if (assignedSourceIds.length > 0) {
+        const sourceTypeMap = await loadSourceTypeMap(req.workspaceId);
+        sourceMatch = assignedSourceIds.some(sourceId => {
+          const cond = buildSourceCondition(sourceId, sourceTypeMap);
+          if (!cond) return false;
+          // Évaluer la condition sur l'order en mémoire
+          if (cond.source?.$in) return cond.source.$in.includes(order.source);
+          if (typeof cond.source === 'string') return order.source === cond.source;
+          if (cond.sourceId) return String(order.sourceId) === String(cond.sourceId);
+          if (cond.sheetRowId?.$not) return order.sheetRowId && !order.sheetRowId.startsWith('source_');
+          if (cond.sheetRowId?.$regex) return order.sheetRowId && new RegExp(cond.sheetRowId.$regex).test(order.sheetRowId);
+          return false;
+        });
+      }
+
+      const productMatch = allProductNames.length === 0 || allProductNames.some(name =>
+        name && order.product && order.product.trim().toLowerCase() === name.trim().toLowerCase()
+      );
+
+      const cityMatch = assignedCityNames.length === 0 || assignedCityNames.some(city =>
+        city && order.city && order.city.trim().toLowerCase() === city.trim().toLowerCase()
+      );
+
+      // Accès si source assignée OU (produit et ville correspondent, ou pas de restriction)
+      const hasAccess = sourceMatch || (productMatch && cityMatch);
+
+      if (!hasAccess) {
+        return res.status(403).json({ success: false, message: 'Accès refusé: cette commande ne vous est pas assignée.' });
       }
     }
 

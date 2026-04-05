@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
-import { storeManageApi } from '../services/storeApi.js';
 import { useDmUnread } from '../hooks/useDmUnread';
+import { useStore } from '../contexts/StoreContext.jsx';
+import StoreSwitcher from './StoreSwitcher.jsx';
 
 // ── Boutique Sidebar Navigation ──────────────────────────────────────────────
 const BOUTIQUE_NAV = [
@@ -80,11 +81,11 @@ const BOUTIQUE_NAV = [
     ),
   },
   {
-    name: 'Page Produit',
-    href: '/ecom/boutique/product-settings',
+    name: 'Thème & Design',
+    href: '/ecom/boutique/theme',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
       </svg>
     ),
   },
@@ -112,14 +113,13 @@ const BOUTIQUE_NAV = [
 // ── Mobile bottom tabs (5 max) ───────────────────────────────────────────────
 const MOBILE_TABS = ['Dashboard', 'Produits', 'Commandes', 'Pages', 'Paramètres'];
 
-const BoutiqueLayout = () => {
+const BoutiqueLayoutInner = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, workspace } = useEcomAuth();
+  const { stores, activeStore, loading: storeLoading } = useStore();
   const [moreOpen, setMoreOpen] = useState(false);
   const [entering, setEntering] = useState(true);
-  const [storeSubdomain, setStoreSubdomain] = useState(null);
-  const [storeChecked, setStoreChecked] = useState(false);
 
   // Toast notification (nouvelle commande)
   const [toast, setToast] = useState(null);
@@ -144,29 +144,21 @@ const BoutiqueLayout = () => {
     return () => window.removeEventListener('ecom:notification', handler);
   }, [showToast]);
 
-  // Load store subdomain on mount — redirect to wizard if no store exists
+  // Redirect to wizard only once after loading finishes with no stores
+  const redirectedRef = useRef(false);
   useEffect(() => {
-    const loadSubdomain = async () => {
-      try {
-        const res = await storeManageApi.getStoreConfig();
-        const subdomain = res?.data?.data?.subdomain;
-        setStoreSubdomain(subdomain || null);
-        if (!subdomain) {
-          navigate('/ecom/boutique/wizard', { replace: true });
-        }
-      } catch (err) {
-        console.error('Failed to load subdomain:', err);
-      } finally {
-        setStoreChecked(true);
-      }
-    };
-    loadSubdomain();
-  }, [navigate]);
+    if (!storeLoading && workspace?._id && stores.length === 0 && !redirectedRef.current) {
+      redirectedRef.current = true;
+      navigate('/ecom/boutique/wizard', { replace: true });
+    }
+    if (stores.length > 0) redirectedRef.current = false;
+  }, [storeLoading, stores.length, workspace?._id, navigate]);
 
-  // Build store URLs (use loaded subdomain)
+  // Build store URL from active store subdomain
   const storeUrl = (path = '/') => {
-    if (!storeSubdomain) return '#';
-    return `https://${storeSubdomain}.scalor.net${path}`;
+    const sub = activeStore?.subdomain;
+    if (!sub) return '#';
+    return `https://${sub}.scalor.net${path}`;
   };
 
   // Entry animation
@@ -183,11 +175,11 @@ const BoutiqueLayout = () => {
   const mobileTabs = useMemo(() => BOUTIQUE_NAV.filter(i => MOBILE_TABS.includes(i.name)), []);
   const mobileMore = useMemo(() => BOUTIQUE_NAV.filter(i => !MOBILE_TABS.includes(i.name)), []);
 
-  const storeName = workspace?.storeSettings?.name || workspace?.name || 'Ma Boutique';
-  const themeColor = workspace?.storeSettings?.themeColor || '#0F6B4F';
+  const storeName = activeStore?.storeSettings?.storeName || activeStore?.name || workspace?.name || 'Ma Boutique';
+  const themeColor = activeStore?.storeSettings?.storeThemeColor || '#0F6B4F';
 
-  // Attendre la vérification du store avant d'afficher le layout
-  if (!storeChecked) {
+  // Show spinner only while stores are actively loading
+  if (storeLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-gray-200 rounded-full animate-spin" style={{ borderTopColor: '#0F6B4F' }} />
@@ -219,10 +211,14 @@ const BoutiqueLayout = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                 </svg>
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold text-gray-900 truncate">{storeName}</p>
                 <p className="text-[10px] text-gray-400 font-medium">Module Boutique</p>
               </div>
+            </div>
+            {/* Store switcher (only when multiple stores) */}
+            <div className="mt-2">
+              <StoreSwitcher />
             </div>
           </div>
 
@@ -435,9 +431,10 @@ const getBoutiquePageTitle = (pathname) => {
   if (pathname.includes('/boutique/delivery-zones')) return 'Zones de livraison';
   if (pathname.includes('/boutique/domains')) return 'Domaines';
   if (pathname.includes('/boutique/product-settings')) return 'Paramètres Page Produit';
+  if (pathname.includes('/boutique/theme')) return 'Thème & Design';
   if (pathname.includes('/creative-generator')) return 'Générateur de Créas';
   if (pathname.includes('/boutique/settings')) return 'Paramètres & Branding';
   return 'Boutique';
 };
 
-export default BoutiqueLayout;
+export default BoutiqueLayoutInner;

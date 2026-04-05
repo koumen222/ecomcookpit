@@ -79,7 +79,7 @@ export async function generateNanoBananaImage(prompt, aspectRatio = '1:1', numIm
 
   try {
     console.log(`🎨 ${MODEL} text-to-image...`);
-    const dataUrl = await callGemini([{ text: fullPrompt.slice(0, 4000) }]);
+    const dataUrl = await callGemini([{ text: fullPrompt.slice(0, 8000) }]);
     logCost('text-to-image');
     console.log(`✅ Image générée`);
     return dataUrl;
@@ -116,7 +116,7 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
   try {
     console.log(`🎨 ${MODEL} image-to-image (${Math.round((base64Image?.length || 0) * 0.75 / 1024)}Ko)...`);
     const dataUrl = await callGemini([
-      { text: fullPrompt.slice(0, 4000) },
+      { text: fullPrompt.slice(0, 8000) },
       { inlineData: { mimeType: imageMimeType, data: base64Image } }
     ]);
     logCost('image-to-image');

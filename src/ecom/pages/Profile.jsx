@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
 import { authApi, workspacesApi } from '../services/ecommApi.js';
+import { useWorkspaceSwitch, SwitchOverlay } from '../hooks/useWorkspaceSwitch.jsx';
 import { useMoney } from '../hooks/useMoney.js';
 import { usePushNotifications } from '../hooks/usePushNotifications.jsx';
 import { getContextualError } from '../utils/errorMessages';
@@ -72,12 +73,12 @@ const PushSection = () => {
 
 const Profile = () => {
   const { user, workspace, logout, loadUser } = useEcomAuth();
+  const { switchingId: switchingWsId, switchingName, handleSwitch: doWorkspaceSwitch } = useWorkspaceSwitch();
   const { fmt } = useMoney();
   const fileInputRef = useRef(null);
 
   const [myWorkspaces, setMyWorkspaces] = useState([]);
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(false);
-  const [switchingWsId, setSwitchingWsId] = useState(null);
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -135,25 +136,9 @@ const Profile = () => {
 
   const handleSwitchWorkspace = async (wsId) => {
     if (!wsId) return;
-    try {
-      setSwitchingWsId(wsId);
-      const res = await workspacesApi.switchWorkspace(wsId);
-      if (res.data?.success) {
-        const token = res.data?.data?.token;
-        const nextUser = res.data?.data?.user;
-        const nextWorkspace = res.data?.data?.workspace;
-
-        if (token) localStorage.setItem('ecomToken', token);
-        if (nextUser) localStorage.setItem('ecomUser', JSON.stringify(nextUser));
-        if (nextWorkspace) localStorage.setItem('ecomWorkspace', JSON.stringify(nextWorkspace));
-
-        if (loadUser) await loadUser();
-        window.location.href = '/ecom/dashboard';
-      }
-    } catch {
-    } finally {
-      setSwitchingWsId(null);
-    }
+    const ws = myWorkspaces.find(w => (w._id || w.id) === wsId);
+    if (!ws) return;
+    doWorkspaceSwitch(ws);
   };
 
   const loadSessions = async () => {
@@ -363,6 +348,7 @@ const Profile = () => {
 
   return (
     <div className="ecom-mobile-container max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 safe-area-top safe-area-bottom">
+      {switchingWsId && <SwitchOverlay name={switchingName} />}
       {/* Header avec avatar */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden mb-6">
         <div className="h-24 bg-gradient-to-r from-emerald-600 via-emerald-600 to-emerald-700"></div>

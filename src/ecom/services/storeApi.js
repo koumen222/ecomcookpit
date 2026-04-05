@@ -54,7 +54,13 @@ export const storeProductsApi = {
     const formData = new FormData();
     files.forEach(file => formData.append('images', file));
     return ecomApi.post('/store-products/upload', formData);
-  }
+  },
+
+  // ─── Product Page Builder ─────────────────────────────────────────────
+  savePageBuilder: (id, pageBuilder) =>
+    ecomApi.put(`/store-products/${id}`, { pageBuilder }),
+  duplicateProduct: (id) =>
+    ecomApi.post(`/store-products/${id}/duplicate`),
 };
 
 export const storeOrdersApi = {
@@ -107,4 +113,20 @@ export const publicStoreApi = {
 
   // Place a public order (guest checkout)
   placeOrder: (subdomain, orderData) => publicApi.post(`/${subdomain}/orders`, orderData),
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MULTI-STORE APIs (authenticated — CRUD on Store documents)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const storesApi = {
+  getStores:      ()              => ecomApi.get('/stores'),
+  createStore:    (data)          => ecomApi.post('/stores', data),
+  getStore:       (id)            => ecomApi.get(`/stores/${id}`),
+  updateStore:    (id, data)      => ecomApi.put(`/stores/${id}`, data),
+  setSubdomain:   (id, subdomain) => ecomApi.put(`/stores/${id}/subdomain`, { subdomain }),
+  checkSubdomain: (subdomain, excludeStoreId) => ecomApi.get(`/stores/check-subdomain/${subdomain}${excludeStoreId ? `?excludeStoreId=${excludeStoreId}` : ''}`),
+  setPrimary:     (id)            => ecomApi.post(`/stores/${id}/set-primary`),
+  deleteStore:    (id)            => ecomApi.delete(`/stores/${id}`),
 };

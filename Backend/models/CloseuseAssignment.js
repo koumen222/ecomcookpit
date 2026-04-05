@@ -34,8 +34,7 @@ const assignmentSchema = new mongoose.Schema({
       required: true
     },
     productIds: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Product'
+      type: mongoose.Schema.Types.ObjectId
     }],
     sheetProductNames: [{
       type: String,

@@ -128,6 +128,36 @@ const orderSchema = new mongoose.Schema({
     enum: ['google_sheets', 'manual', 'boutique', 'shopify', 'webhook', 'rita', 'skelor'],
     default: 'manual'
   },
+  // Source tagging — identifiant et nom de la source (boutique Shopify, webhook nommé, etc.)
+  sourceId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'OrderSource',
+    default: null
+  },
+  sourceName: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  // Closer assigné à cette commande
+  closerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'EcomUser',
+    default: null
+  },
+  closerStatus: {
+    type: String,
+    enum: ['pending', 'called', 'sold', 'refused', 'unreachable'],
+    default: 'pending'
+  },
+  closerNote: {
+    type: String,
+    default: ''
+  },
+  closerUpdatedAt: {
+    type: Date,
+    default: null
+  },
   storeOrderId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'StoreOrder',

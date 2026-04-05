@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useStore } from '../contexts/StoreContext.jsx';
 import {
   Check, ArrowRight, ArrowLeft, Loader2, Store, Palette, MapPin,
   Sparkles, Users, MessageSquare, ChevronRight, Zap, Crown,
   Leaf, Target, TrendingUp, Heart, Globe2, Phone, Upload, X
 } from 'lucide-react';
-import { storeManageApi } from '../services/storeApi.js';
+import { storeManageApi, storesApi } from '../services/storeApi.js';
 import { storeProductsApi } from '../services/storeApi.js';
 import { createEmptyStore } from '../utils/storeDefaults.js';
 
@@ -317,8 +318,11 @@ const Textarea = ({ label, hint, error, ...props }) => (
 
 const StoreCreationWizard = ({ onComplete }) => {
   const navigate = useNavigate();
+  const { stores, loading: storesLoading, refreshStores, switchStore } = useStore();
   const [searchParams] = useSearchParams();
   const isResetMode = searchParams.get('reset') === 'true';
+  // "nouvelle" mode = creating a new additional store (not editing the primary)
+  const isNewStoreMode = searchParams.get('mode') === 'new' || window.location.pathname.includes('/boutique/nouvelle');
 
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
@@ -356,15 +360,29 @@ const StoreCreationWizard = ({ onComplete }) => {
   const containerRef = useRef(null);
 
   // ── Charger données existantes ────────────────────────────────────────────────
+  const initDoneRef = useRef(false);
   useEffect(() => {
+    // Wait for StoreContext to finish loading before deciding
+    if (storesLoading) return;
+    // Run only once
+    if (initDoneRef.current) return;
+    initDoneRef.current = true;
+
+    // If stores already exist, redirect away (unless new/reset mode)
+    if (!isNewStoreMode && !isResetMode && stores.length > 0) {
+      navigate('/ecom/boutique', { replace: true });
+      return;
+    }
+
+    if (isResetMode) { setLoading(false); return; }
+
     const loadExisting = async () => {
-      if (isResetMode) { setLoading(false); return; }
       try {
         const res = await storeManageApi.getStoreConfig();
         const data = res.data?.data || res.data;
         const s = data?.storeSettings || {};
 
-        if (s?.storeName) {
+        if (s?.storeName && !isNewStoreMode) {
           const existingSub = data.subdomain || '';
           setOriginalSubdomain(existingSub);
           setForm(prev => ({
@@ -393,7 +411,7 @@ const StoreCreationWizard = ({ onComplete }) => {
       }
     };
     loadExisting();
-  }, [isResetMode]);
+  }, [storesLoading]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
   const set = (key, val) => {
@@ -530,10 +548,25 @@ const StoreCreationWizard = ({ onComplete }) => {
         whatsapp: form.storeWhatsApp,
       });
 
+      // ── NEW STORE MODE: create a new Store document, then configure it ──────
+      if (isNewStoreMode) {
+        setSavingStep('Création de votre nouvelle boutique...');
+        const createRes = await storesApi.createStore({
+          name: form.storeName,
+          subdomain: form.subdomain
+        });
+        const newStore = createRes.data?.data;
+        if (newStore?._id) {
+          // Set as active store in window so subsequent API calls target it
+          window.__activeStoreId__ = newStore._id;
+          switchStore(newStore);
+        }
+      }
+
       // Étape 1 : Sous-domaine
       setSavingStep('Création de votre boutique...');
-      if (!isEditMode || isResetMode) {
-        await storeManageApi.setSubdomain(form.subdomain);
+      if (!isEditMode || isResetMode || isNewStoreMode) {
+        if (!isNewStoreMode) await storeManageApi.setSubdomain(form.subdomain);
       }
 
       // Étape 2 : Config boutique
@@ -586,10 +619,11 @@ const StoreCreationWizard = ({ onComplete }) => {
 
       setSavingStep('Votre boutique est prête !');
       onComplete?.();
-      
+      refreshStores();
+
       // Redirection directe vers la boutique publique
       const storeUrl = `https://${form.subdomain}.scalor.net`;
-      
+
       // Petit délai pour laisser voir le message de succès
       setTimeout(() => {
         window.open(storeUrl, '_blank');
@@ -604,7 +638,7 @@ const StoreCreationWizard = ({ onComplete }) => {
   };
 
   // ── Loading ───────────────────────────────────────────────────────────────────
-  if (loading) {
+  if (storesLoading || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
