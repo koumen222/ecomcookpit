@@ -854,6 +854,7 @@ const StoreProductPage = () => {
 
   // ── productPageConfig — from saved settings ────────────────────────────────
   const productPageConfig = store?.productPageConfig || {};
+  const ppTheme = productPageConfig?.theme || 'classic';
   const ppGeneral = productPageConfig?.general || {};
   const ppDesign = productPageConfig?.design || {};
   const ppButton = productPageConfig?.button || {};
@@ -950,16 +951,47 @@ const StoreProductPage = () => {
         @keyframes pp-bounce-kf { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
         @keyframes pp-shake-kf { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-3px)} 75%{transform:translateX(3px)} }
         @keyframes pp-glow-kf { 0%,100%{box-shadow:0 0 5px rgba(255,255,255,0.2)} 50%{box-shadow:0 0 20px rgba(255,255,255,0.5)} }
-        /* Mobile first: single column */
-        .product-grid { display:grid; grid-template-columns:1fr; gap:0; align-items:start; }
-        .product-gallery { position:relative; }
-        .product-info { padding:16px 16px 48px; }
-        /* Desktop: 2 columns */
+
+        /* ═══ THEME: CLASSIC ═══ */
+        .product-grid.theme-classic { display:grid; grid-template-columns:1fr; gap:0; align-items:start; }
+        .theme-classic .product-gallery { position:relative; }
+        .theme-classic .product-info { padding:16px 16px 48px; }
         @media(min-width:769px){
-          .product-grid { grid-template-columns:1fr 1fr; gap:40px; }
-          .product-gallery { position:sticky; top:72px; }
-          .product-info { padding:0 24px 48px 0; }
+          .product-grid.theme-classic { grid-template-columns:1fr 1fr; gap:40px; }
+          .theme-classic .product-gallery { position:sticky; top:72px; }
+          .theme-classic .product-info { padding:0 24px 48px 0; }
         }
+
+        /* ═══ THEME: LANDING PAGE ═══ */
+        .product-grid.theme-landing { display:flex; flex-direction:column; gap:0; }
+        .theme-landing .product-gallery { position:relative; max-height:60vh; overflow:hidden; }
+        .theme-landing .product-gallery img { width:100%; height:100%; object-fit:cover; }
+        .theme-landing .product-info { padding:24px 16px 48px; max-width:680px; margin:0 auto; width:100%; text-align:center; }
+        @media(min-width:769px){
+          .theme-landing .product-gallery { max-height:70vh; }
+          .theme-landing .product-info { padding:40px 24px 60px; max-width:720px; }
+        }
+
+        /* ═══ THEME: MAGAZINE ═══ */
+        .product-grid.theme-magazine { display:flex; flex-direction:column; gap:0; position:relative; }
+        .theme-magazine .product-gallery { position:relative; max-height:75vh; overflow:hidden; }
+        .theme-magazine .product-gallery::after {
+          content:''; position:absolute; bottom:0; left:0; right:0; height:40%;
+          background:linear-gradient(transparent, var(--s-bg)); pointer-events:none;
+        }
+        .theme-magazine .product-info {
+          position:relative; z-index:2; margin:-60px 16px 0; padding:28px 24px 48px;
+          background:var(--s-bg); border-radius:24px 24px 0 0;
+          box-shadow:0 -8px 40px rgba(0,0,0,0.08);
+        }
+        @media(min-width:769px){
+          .theme-magazine .product-gallery { max-height:80vh; }
+          .theme-magazine .product-info {
+            margin:-100px auto 0; max-width:720px; padding:40px 40px 60px;
+            border-radius:28px 28px 0 0; box-shadow:0 -12px 60px rgba(0,0,0,0.1);
+          }
+        }
+
         .ai-desc h3 { font-size:18px; font-weight:800; color:var(--s-text); margin:0 0 10px; line-height:1.3; }
         .ai-desc h3 strong { font-weight:800; }
         .ai-desc p { font-size:14px; line-height:1.75; color:var(--s-text2); margin:0 0 12px; }
@@ -1003,9 +1035,9 @@ const StoreProductPage = () => {
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
 
       {/* Product Detail */}
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0' }}>
-        <div className="product-grid">
-          {/* ── Left: Gallery ─────────────────────────────────────────────── */}
+      <div style={{ maxWidth: ppTheme === 'landing' || ppTheme === 'magazine' ? '100%' : 1200, margin: '0 auto', padding: '0' }}>
+        <div className={`product-grid theme-${ppTheme}`}>
+          {/* ── Gallery ────────────────────────────────────────────────────── */}
           <div className="product-gallery">
             <ImageGallery images={images} />
           </div>
