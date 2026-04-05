@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   ArrowLeft, Save, Eye, EyeOff, Plus, Trash2, GripVertical,
-  ChevronUp, ChevronDown, Settings, Code, Star, MessageSquare,
+  ChevronUp, ChevronDown, ChevronLeft, Settings, Code, Star, MessageSquare,
   HelpCircle, Zap, Image, Type, Layout, Copy, CheckCircle,
   AlertCircle, Loader2, Layers, Smartphone, Monitor, X,
   ChevronRight, Package, ShoppingCart, BarChart3, Box, Flame,
@@ -104,6 +104,12 @@ const EDITABLE_SECTIONS = {
 
 const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200 transition-all bg-white";
 
+const DEFAULT_TESTIMONIALS = [
+  { name: 'Thierry M.', location: 'Douala', rating: 5, text: 'Produit vraiment excellent ! J\'ai vu des résultats en moins d\'une semaine. Je recommande à 100%.', verified: true, date: 'Il y a 3 jours' },
+  { name: 'Astride N.', location: 'Yaoundé', rating: 5, text: 'Avant j\'avais essayé plein de produits sans résultats. Depuis que j\'utilise celui-ci, la différence est flagrante !', verified: true, date: 'Il y a 5 jours' },
+  { name: 'Rodrigue K.', location: 'Bafoussam', rating: 5, text: 'Super qualité, livraison rapide. Le produit dépasse mes attentes. Je vais en commander encore.', verified: true, date: 'Il y a 1 semaine' },
+];
+
 // ─── Resolve default content from product data (same logic as LivePreview) ──
 const getDefaultContent = (sectionId, product) => {
   if (!product) return {};
@@ -149,9 +155,17 @@ const getDefaultContent = (sectionId, product) => {
       return faqItems.length > 0 ? { faqItems } : {};
     }
     case 'testimonials': {
-      const testimonials = (pd.testimonials?.length > 0 ? pd.testimonials : product.testimonials?.length > 0 ? product.testimonials : [])
-        .map(t => ({ name: t.name || '', location: t.location || '', rating: t.rating || 5, text: t.text || t.content || '', verified: t.verified ?? true, date: t.date || '' }));
-      return testimonials.length > 0 ? { items: testimonials } : {};
+      const raw = pd.testimonials?.length > 0
+        ? pd.testimonials
+        : product.testimonials?.length > 0
+          ? product.testimonials
+          : DEFAULT_TESTIMONIALS;
+      const testimonials = raw.map(t => ({
+        name: t.name || '', location: t.location || '',
+        rating: t.rating || 5, text: t.text || t.content || '',
+        verified: t.verified ?? true, date: t.date || '',
+      }));
+      return { items: testimonials };
     }
     default:
       return {};
@@ -165,8 +179,12 @@ const SectionContentEditor = ({ section, onChange, product }) => {
   );
 
   // Merge: saved content takes priority, fallback to product data
+  // For testimonials: if no saved items, always load defaults so user can edit them
   const defaults = getDefaultContent(section.id, product);
-  const content = { ...defaults, ...section.content };
+  const savedContent = section.content || {};
+  const content = section.id === 'testimonials'
+    ? { ...defaults, ...(savedContent.items?.length > 0 ? savedContent : {}) }
+    : { ...defaults, ...savedContent };
   const update = (key, val) => onChange({ ...section, content: { ...content, [key]: val } });
 
   if (schema.fields === 'stats') {
@@ -234,42 +252,66 @@ const SectionContentEditor = ({ section, onChange, product }) => {
   if (schema.fields === 'testimonials') {
     const items = content.items || [];
     const updateT = (i, key, val) => { const copy = [...items]; copy[i] = { ...copy[i], [key]: val }; update('items', copy); };
-    const addT = () => update('items', [...items, { name: '', location: '', rating: 5, text: '', verified: true, date: '' }]);
+    const addT = () => update('items', [...items, { name: '', location: '', rating: 5, text: '', verified: true, date: 'Il y a 2 jours' }]);
     const removeT = (i) => update('items', items.filter((_, idx) => idx !== i));
+    const dupT = (i) => update('items', [...items.slice(0, i + 1), { ...items[i] }, ...items.slice(i + 1)]);
     return (
       <div className="space-y-2">
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-[11px] font-semibold text-gray-500">Témoignages clients</span>
-          <span className="text-[10px] text-gray-400">{items.length} ajouté{items.length !== 1 ? 's' : ''}</span>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[11px] font-semibold text-gray-700">{items.length} avis client{items.length !== 1 ? 's' : ''}</span>
+          <button onClick={addT} className="flex items-center gap-1 text-[11px] text-emerald-600 font-semibold hover:text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">
+            <Plus size={11} /> Ajouter
+          </button>
         </div>
-        {items.length === 0 && <div className="text-[11px] text-gray-400 italic py-1 text-center">Aucun — données IA / produit utilisées</div>}
         {items.map((t, i) => (
-          <div key={i} className="rounded-lg border border-gray-100 p-2.5 bg-gray-50/50 space-y-1.5">
-            <div className="flex items-center justify-between mb-0.5">
-              <span className="text-[10px] font-bold text-gray-500 uppercase">Avis #{i + 1}</span>
-              <button onClick={() => removeT(i)} className="p-0.5 text-gray-300 hover:text-red-400"><Trash2 size={12} /></button>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <input className={inputCls} value={t.name} onChange={e => updateT(i, 'name', e.target.value)} placeholder="Prénom Nom" />
-              <input className={inputCls} value={t.location || ''} onChange={e => updateT(i, 'location', e.target.value)} placeholder="Ville" />
-            </div>
-            <textarea className={inputCls + ' resize-none'} rows={2} value={t.text} onChange={e => updateT(i, 'text', e.target.value)} placeholder="Texte du témoignage…" />
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1">
-                {[1,2,3,4,5].map(n => (
-                  <button key={n} type="button" onClick={() => updateT(i, 'rating', n)}
-                    className={`transition-colors ${n <= (t.rating || 5) ? 'text-amber-400' : 'text-gray-200'}`}>
-                    <Star size={14} fill="currentColor" />
-                  </button>
-                ))}
+          <div key={i} className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            {/* Avis header */}
+            <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-100">
+              <div className="flex items-center gap-1.5">
+                <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold flex items-center justify-center uppercase">
+                  {(t.name || '?')[0]}
+                </div>
+                <span className="text-[11px] font-semibold text-gray-700">Avis #{i + 1}</span>
               </div>
-              <input className={inputCls + ' flex-1'} value={t.date || ''} onChange={e => updateT(i, 'date', e.target.value)} placeholder="Il y a 2 jours" />
+              <div className="flex gap-1">
+                <button onClick={() => dupT(i)} className="p-1 text-gray-300 hover:text-blue-400 transition" title="Dupliquer"><Copy size={11} /></button>
+                <button onClick={() => removeT(i)} className="p-1 text-gray-300 hover:text-red-400 transition"><Trash2 size={11} /></button>
+              </div>
+            </div>
+            <div className="p-2.5 space-y-2">
+              {/* Étoiles */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-0.5">
+                  {[1,2,3,4,5].map(n => (
+                    <button key={n} type="button" onClick={() => updateT(i, 'rating', n)}
+                      className={`transition-colors ${n <= (t.rating || 5) ? 'text-amber-400' : 'text-gray-200'}`}>
+                      <Star size={15} fill="currentColor" />
+                    </button>
+                  ))}
+                </div>
+                <label className="flex items-center gap-1.5 cursor-pointer ml-auto">
+                  <input type="checkbox" checked={!!t.verified} onChange={e => updateT(i, 'verified', e.target.checked)}
+                    className="w-3.5 h-3.5 accent-emerald-500" />
+                  <span className="text-[10px] text-gray-500">Achat vérifié ✓</span>
+                </label>
+              </div>
+              {/* Nom + Ville */}
+              <div className="grid grid-cols-2 gap-1.5">
+                <input className={inputCls} value={t.name || ''} onChange={e => updateT(i, 'name', e.target.value)} placeholder="Prénom Nom" />
+                <input className={inputCls} value={t.location || ''} onChange={e => updateT(i, 'location', e.target.value)} placeholder="Ville, Pays" />
+              </div>
+              {/* Texte */}
+              <textarea className={inputCls + ' resize-none'} rows={3} value={t.text || ''} onChange={e => updateT(i, 'text', e.target.value)} placeholder="Témoignage client…" />
+              {/* Date */}
+              <input className={inputCls} value={t.date || ''} onChange={e => updateT(i, 'date', e.target.value)} placeholder="Il y a 3 jours" />
             </div>
           </div>
         ))}
-        <button onClick={addT} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700 mt-1">
-          <Plus size={12} /> Ajouter un témoignage
-        </button>
+        {items.length === 0 && (
+          <button onClick={addT} className="w-full py-6 border-2 border-dashed border-gray-200 rounded-xl text-[12px] text-gray-400 hover:border-emerald-300 hover:text-emerald-600 transition">
+            + Ajouter un premier avis
+          </button>
+        )}
       </div>
     );
   }
@@ -1097,12 +1139,32 @@ const ProductPageBuilder = () => {
   const [error, setError] = useState('');
   const [iframeKey, setIframeKey] = useState(0);
   const [storeSubdomain, setStoreSubdomain] = useState(''); // fallback subdomain from config API
+  const iframeRef = useRef(null);
 
   // Compute merged config for LivePreview
   const mergedConfig = (() => {
     const base = mergeWithDefaults(storeConfig);
     return { ...base, general: { ...base.general, sections: configSections } };
   })();
+
+  const subdomain = activeStore?.subdomain || storeSubdomain;
+
+  // postMessage live preview — Shopify-style: parent → iframe, no server round-trip
+  const broadcastLive = useCallback((updatedConfig, updatedSections) => {
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) return;
+    const liveConfig = {
+      ...mergeWithDefaults(updatedConfig),
+      general: {
+        ...mergeWithDefaults(updatedConfig).general,
+        sections: updatedSections,
+      },
+    };
+    iframe.contentWindow.postMessage(
+      { type: 'PAGE_PREVIEW_UPDATE', payload: liveConfig },
+      '*'
+    );
+  }, []);
 
   // Load product + store config
   useEffect(() => {
@@ -1160,19 +1222,20 @@ const ProductPageBuilder = () => {
   // Auto-save productPageConfig sections with debounce
   const configSaveTimer = useRef(null);
   const autoSaveConfig = useCallback((newConfigSections) => {
+    // Broadcast live immediately (debounced 150ms)
+    broadcastLive(storeConfig, newConfigSections);
     clearTimeout(configSaveTimer.current);
     configSaveTimer.current = setTimeout(async () => {
       try {
         const updatedConfig = { ...mergeWithDefaults(storeConfig), general: { ...mergeWithDefaults(storeConfig).general, sections: newConfigSections } };
         await storeManageApi.updateStoreConfig({ productPageConfig: updatedConfig });
         setSaveStatus('saved');
-        setIframeKey(k => k + 1);
         setTimeout(() => setSaveStatus(null), 2000);
       } catch {
         setSaveStatus('error');
       }
     }, 1200);
-  }, [storeConfig]);
+  }, [storeConfig, broadcastLive]);
 
   // Config section handlers
   const handleConfigMove = useCallback((index, direction) => {
@@ -1206,6 +1269,8 @@ const ProductPageBuilder = () => {
     setStoreConfig(prev => {
       const merged = mergeWithDefaults(prev);
       const next = { ...merged, design: updatedConfig.design, button: updatedConfig.button };
+      // Broadcast live immediately
+      broadcastLive(next, configSections);
       // Auto-save design changes
       clearTimeout(configSaveTimer.current);
       configSaveTimer.current = setTimeout(async () => {
@@ -1217,7 +1282,7 @@ const ProductPageBuilder = () => {
       }, 1200);
       return next;
     });
-  }, [configSections]);
+  }, [configSections, broadcastLive]);
 
   const updateSections = useCallback((newSections) => {
     setSections(newSections);
@@ -1425,47 +1490,153 @@ const ProductPageBuilder = () => {
         </div>
       )}
 
-      {/* ─── Main layout: left panel + right editor ──────────────────────── */}
+      {/* ─── Main layout: Shopify-style sidebar + iframe preview ────────── */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left: sections list */}
-        <div className="w-72 bg-white border-r border-gray-200 flex flex-col overflow-y-auto flex-shrink-0">
-          <div className="p-4 border-b border-gray-100">
-            <div className="flex items-center justify-between mb-1">
-              <h2 className="text-sm font-bold text-gray-900">Sections de la page</h2>
-              <span className="text-xs text-gray-400">{configSections.filter(s => s.enabled).length}/{configSections.length} actives</span>
-            </div>
-            <p className="text-[11px] text-gray-400">Activez, désactivez et réordonnez les sections</p>
-          </div>
 
-          <div className="flex-1 p-3 space-y-2 overflow-y-auto">
-            {configSections.map((section, idx) => (
-              <ConfigSectionCard
-                key={section.id}
-                section={section}
-                index={idx}
-                total={configSections.length}
-                onMove={handleConfigMove}
-                onToggle={handleConfigToggle}
-                isActive={activeConfigSection === section.id}
-                onClick={() => setActiveConfigSection(activeConfigSection === section.id ? null : section.id)}
-              />
-            ))}
-          </div>
+        {/* ── LEFT SIDEBAR (Shopify-style: sections list OR section editor) ── */}
+        <div className="w-80 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 overflow-hidden">
+
+          {activeConfigSection === '__design__' ? (
+            /* ── DESIGN EDITOR (global) ── */
+            <>
+              <div className="flex items-center gap-2 px-3 py-3 border-b border-gray-100 bg-gray-50 flex-shrink-0">
+                <button onClick={() => setActiveConfigSection(null)}
+                  className="flex items-center gap-1.5 text-[12px] text-gray-500 hover:text-gray-900 font-medium transition">
+                  <ChevronLeft className="w-4 h-4" />
+                  Sections
+                </button>
+                <span className="text-gray-300 text-sm">·</span>
+                <span className="text-[12px] font-semibold text-gray-800">🎨 Design & Bouton</span>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                <DesignEditor config={mergedConfig} onChange={handleConfigDesignChange} />
+              </div>
+            </>
+          ) : activeConfigSection ? (() => {
+            /* ── SECTION EDITOR (inline, replaces list) ── */
+            const sec = configSections.find(s => s.id === activeConfigSection);
+            if (!sec) return null;
+            const meta = SECTION_META[sec.id] || { emoji: '⬜', label: sec.label, desc: '' };
+            return (
+              <>
+                {/* Back button header */}
+                <div className="flex items-center gap-2 px-3 py-3 border-b border-gray-100 bg-gray-50 flex-shrink-0">
+                  <button onClick={() => setActiveConfigSection(null)}
+                    className="flex items-center gap-1.5 text-[12px] text-gray-500 hover:text-gray-900 font-medium transition">
+                    <ChevronLeft className="w-4 h-4" />
+                    Sections
+                  </button>
+                  <span className="text-gray-300 text-sm">·</span>
+                  <span className="text-[12px] font-semibold text-gray-800 truncate">{meta.emoji} {meta.label}</span>
+                  <div className="ml-auto">
+                    <button onClick={() => handleConfigToggle(sec.id)}
+                      className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${sec.enabled !== false ? 'bg-[#0F6B4F]' : 'bg-gray-300'}`}>
+                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${sec.enabled !== false ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Editor content */}
+                <div className="flex-1 overflow-y-auto">
+                  <div className="p-4">
+                    <SectionContentEditor
+                      section={sec}
+                      onChange={handleConfigContentChange}
+                      product={product}
+                    />
+                  </div>
+
+                  {/* Design & Bouton — toujours disponible en bas */}
+                  <div className="border-t border-gray-100 mx-4 pt-4 pb-6">
+                    <div className="flex items-center gap-1.5 mb-3">
+                      <Palette className="w-3.5 h-3.5 text-gray-400" />
+                      <h4 className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Design & Bouton</h4>
+                    </div>
+                    <DesignEditor
+                      config={mergedConfig}
+                      onChange={handleConfigDesignChange}
+                    />
+                  </div>
+                </div>
+              </>
+            );
+          })() : (
+            /* ── SECTIONS LIST ── */
+            <>
+              <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-bold text-gray-900">Sections</h2>
+                  <span className="text-[11px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                    {configSections.filter(s => s.enabled !== false).length}/{configSections.length}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                {configSections.map((section, idx) => {
+                  const meta = SECTION_META[section.id] || { emoji: '⬜', label: section.id, desc: '', color: 'bg-gray-100 text-gray-700' };
+                  const isEnabled = section.enabled !== false;
+                  return (
+                    <div key={section.id}
+                      className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all border ${
+                        isEnabled
+                          ? 'border-transparent hover:bg-gray-50 hover:border-gray-200'
+                          : 'border-transparent opacity-50 hover:opacity-70 hover:bg-gray-50'
+                      }`}
+                      onClick={() => setActiveConfigSection(section.id)}
+                    >
+                      <span className="text-base flex-shrink-0 w-6 text-center">{meta.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12.5px] font-semibold text-gray-800 truncate">{meta.label}</p>
+                        {!isEnabled && <p className="text-[10px] text-gray-400">Masquée</p>}
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={e => { e.stopPropagation(); handleConfigMove(idx, -1); }} disabled={idx === 0}
+                          className="p-1 rounded hover:bg-gray-200 disabled:opacity-20">
+                          <ChevronUp className="w-3 h-3 text-gray-500" />
+                        </button>
+                        <button onClick={e => { e.stopPropagation(); handleConfigMove(idx, 1); }} disabled={idx === configSections.length - 1}
+                          className="p-1 rounded hover:bg-gray-200 disabled:opacity-20">
+                          <ChevronDown className="w-3 h-3 text-gray-500" />
+                        </button>
+                        <button onClick={e => { e.stopPropagation(); handleConfigToggle(section.id); }}
+                          className="p-1 rounded hover:bg-gray-200">
+                          {isEnabled ? <Eye className="w-3 h-3 text-gray-500" /> : <EyeOff className="w-3 h-3 text-gray-400" />}
+                        </button>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Design global en bas de la liste */}
+              <div className="border-t border-gray-100 p-3 flex-shrink-0">
+                <button
+                  onClick={() => setActiveConfigSection('__design__')}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all"
+                >
+                  <span className="text-base w-6 text-center">🎨</span>
+                  <span className="text-[12.5px] font-semibold text-gray-800 flex-1 text-left">Design & Bouton</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
+                </button>
+              </div>
+            </>
+          )}
+
         </div>
 
-        {/* Right: live preview (real product page in iframe) + slide-over editor */}
-        <div className="flex-1 overflow-hidden relative flex flex-col">
-          {/* Iframe preview of the real product page */}
+        {/* ── RIGHT: iframe live preview ────────────────��─────────────────── */}
+        <div className="flex-1 overflow-hidden flex flex-col">
           {(() => {
-            const subdomain = activeStore?.subdomain || storeSubdomain;
             const slug = product?.slug;
             const iframeSrc = subdomain && slug ? `/store/${subdomain}/product/${slug}` : null;
             const deviceConfig = {
-              desktop: { width: '100%', height: '100%', label: null },
-              tablet:  { width: '768px', height: '100%', label: 'Tablette — 768px' },
-              mobile:  { width: '390px', height: '100%', label: 'Mobile — 390px' },
+              desktop: { width: '100%', label: null },
+              tablet:  { width: '768px', label: 'Tablette — 768px' },
+              mobile:  { width: '390px', label: 'Mobile — 390px' },
             };
-            const { width, height, label } = deviceConfig[previewDevice] || deviceConfig.desktop;
+            const { width, label } = deviceConfig[previewDevice] || deviceConfig.desktop;
 
             if (!iframeSrc) {
               return (
@@ -1482,16 +1653,14 @@ const ProductPageBuilder = () => {
             return (
               <div className="flex-1 bg-[#e8eaed] flex flex-col overflow-hidden">
                 {label && (
-                  <div className="flex justify-center pt-2 pb-1 text-xs text-gray-400 font-medium select-none">
-                    {label}
-                  </div>
+                  <div className="flex justify-center pt-2 pb-1 text-xs text-gray-400 font-medium select-none">{label}</div>
                 )}
                 <div className="flex-1 flex items-start justify-center overflow-auto p-3 pt-1">
                   <div
                     className="shadow-xl rounded-t-lg overflow-hidden bg-white"
                     style={{ width, maxWidth: '100%', height: previewDevice === 'desktop' ? 'calc(100vh - 120px)' : 'calc(100vh - 140px)' }}
                   >
-                    {/* Browser chrome bar */}
+                    {/* Browser chrome */}
                     <div className="h-8 bg-gray-100 border-b border-gray-200 flex items-center px-3 gap-2 select-none shrink-0">
                       <div className="flex gap-1.5">
                         <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
@@ -1501,11 +1670,8 @@ const ProductPageBuilder = () => {
                       <div className="flex-1 bg-white rounded px-2 py-0.5 text-[10px] text-gray-400 font-mono border border-gray-200 truncate">
                         {subdomain}.scalor.net/product/{slug}
                       </div>
-                      <button
-                        onClick={() => setIframeKey(k => k + 1)}
-                        className="p-1 hover:bg-gray-200 rounded transition"
-                        title="Rafraîchir l'aperçu"
-                      >
+                      <button onClick={() => setIframeKey(k => k + 1)}
+                        className="p-1 hover:bg-gray-200 rounded transition" title="Rafraîchir">
                         <svg className="w-3 h-3 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" />
                           <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
@@ -1515,64 +1681,13 @@ const ProductPageBuilder = () => {
 
                     <iframe
                       key={iframeKey}
+                      ref={iframeRef}
                       src={iframeSrc}
                       title="Aperçu page produit"
                       className="block w-full border-0"
                       style={{ height: 'calc(100% - 32px)' }}
                       sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                    />
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Slide-over section editor */}
-          {activeConfigSection && (() => {
-            const sec = configSections.find(s => s.id === activeConfigSection);
-            if (!sec) return null;
-            const meta = SECTION_META[sec.id] || { emoji: '⬜', label: sec.label, desc: '' };
-            return (
-              <div className="fixed top-0 right-0 w-96 h-full bg-white border-l border-gray-200 shadow-2xl z-20 flex flex-col overflow-hidden">
-                <div className="flex items-center gap-3 p-4 border-b border-gray-100">
-                  <span className="text-xl">{meta.emoji}</span>
-                  <div className="flex-1">
-                    <h3 className="font-bold text-gray-900 text-sm">{meta.label}</h3>
-                    <p className="text-xs text-gray-400">{meta.desc}</p>
-                  </div>
-                  <button onClick={() => setActiveConfigSection(null)} className="p-2 hover:bg-gray-100 rounded-lg">
-                    <X className="w-4 h-4 text-gray-400" />
-                  </button>
-                </div>
-
-                {/* Visibility toggle */}
-                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
-                  <span className="text-xs text-gray-600">Section active</span>
-                  <button onClick={() => handleConfigToggle(sec.id)}
-                    className={`relative w-10 h-5 rounded-full transition-colors ${sec.enabled !== false ? 'bg-[#0F6B4F]' : 'bg-gray-300'}`}>
-                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${sec.enabled !== false ? 'translate-x-5' : 'translate-x-0'}`} />
-                  </button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-4">
-                  {/* Section-specific content editor */}
-                  <div className="mb-6">
-                    <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-3">Contenu de la section</h4>
-                    <SectionContentEditor
-                      section={sec}
-                      onChange={handleConfigContentChange}
-                      product={product}
-                    />
-                  </div>
-
-                  {/* Design settings (always available) */}
-                  <div className="border-t border-gray-100 pt-4">
-                    <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                      <Palette className="w-3.5 h-3.5" /> Design & Bouton
-                    </h4>
-                    <DesignEditor
-                      config={mergedConfig}
-                      onChange={handleConfigDesignChange}
+                      onLoad={() => broadcastLive(storeConfig, configSections)}
                     />
                   </div>
                 </div>

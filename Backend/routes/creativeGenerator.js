@@ -323,7 +323,7 @@ function getCategoryStyle(category = '', brandColors = '') {
   };
 }
 
-function buildCreativePrompt(analysis, format, hasRefImage) {
+function buildCreativePrompt(analysis, format, hasRefImage, visualTemplate = 'general') {
   const { productName, keyBenefits, painPoints, usageSteps, targetAudience, brandColors, slogans, emotionalHook, category } = analysis;
   const name = productName || 'produit';
   const benefits = (keyBenefits || []).slice(0, 4);
@@ -344,8 +344,9 @@ function buildCreativePrompt(analysis, format, hasRefImage) {
   const audience = targetAudience || 'jeune femme africaine';
   const slogan = (slogans || [])[0] || emotionalHook || `Découvrez ${name}`;
 
-  // Adapt visual style based on product category
-  const style = getCategoryStyle(category, brandColors);
+  // Adapt visual style based on template choice (fallback to AI category)
+  const finalCategory = (visualTemplate && visualTemplate !== 'general') ? visualTemplate : category;
+  const style = getCategoryStyle(finalCategory, brandColors);
 
   const refImageInstruction = hasRefImage
     ? 'CRITICAL — PRODUCT IMAGE: A reference product image is provided. You MUST reproduce the exact real product packaging faithfully: same colors, same logo, same label design, same shape. Never invent a generic product.'
@@ -876,7 +877,7 @@ async function scrapeProductImage(url) {
 // ── POST /api/ecom/ai/creative-generator ──────────────────────────────────────
 router.post('/', requireEcomAuth, upload.single('productImage'), async (req, res) => {
   try {
-    const { url, description, formats: formatsRaw } = req.body;
+    const { url, description, formats: formatsRaw, visualTemplate } = req.body;
     const formats = typeof formatsRaw === 'string' ? JSON.parse(formatsRaw) : formatsRaw;
     const productImageBuffer = req.file?.buffer || null;
 
@@ -928,7 +929,7 @@ router.post('/', requireEcomAuth, upload.single('productImage'), async (req, res
 
     for (const format of selectedFormats) {
       try {
-        const imagePrompt = buildCreativePrompt(analysis, format, hasImage);
+        const imagePrompt = buildCreativePrompt(analysis, format, hasImage, visualTemplate);
         const useProductImage = hasImage && SLIDES_WITH_PRODUCT_IMAGE.has(format.slideType);
         console.log(`  🎨 Generating ${format.id} (${useProductImage ? 'image-to-image' : 'text-only'})...`);
         

@@ -476,14 +476,44 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   ],
   "testimonials": [
     {
-      "name": "Prénom N. (nom africain crédible et réaliste)",
+      "name": "Prénom N. (nom africain)",
       "location": "${testimonialLocationTemplate}",
       "rating": 5,
-      "text": "Témoignage réaliste et spécifique (2-3 phrases). Problème initial vécu → résultat concret après usage. Langage naturel humain (comme WhatsApp). Jamais marketing.",
+      "text": "1er témoignage (problème précis avant → soulagement/résultat exceptionnel avec CE produit spécifique).",
       "verified": true,
-      "date": "Il y a X jours/semaines",
+      "date": "Il y a 2 jours",
       "image": "",
-      "image_prompt": "realistic portrait photo of african woman/man holding the product, natural smile, casual setting, warm lighting"
+      "image_prompt": "realistic portrait photo of african woman/man, natural smile, casual setting"
+    },
+    {
+      "name": "Autre Pronom (nom africain)",
+      "location": "${testimonialLocationTemplate}",
+      "rating": 5,
+      "text": "2ème témoignage (insiste sur le bénéfice secondaire spécifique au produit, ex: texture, rapidité, confort).",
+      "verified": true,
+      "date": "Il y a 1 semaine",
+      "image": "",
+      "image_prompt": "realistic portrait photo of african person, professional yet casual, warm lighting"
+    },
+    {
+      "name": "Prénom N. (nom africain)",
+      "location": "${testimonialLocationTemplate}",
+      "rating": 4,
+      "text": "3ème témoignage (très factuel et authentique sur l'utilisation quotidienne de ce produit précis).",
+      "verified": true,
+      "date": "Il y a 3 semaines",
+      "image": "",
+      "image_prompt": "realistic portrait photo of african person, outdoor lighting, confident"
+    },
+    {
+      "name": "Nom de Famille (africain)",
+      "location": "${testimonialLocationTemplate}",
+      "rating": 5,
+      "text": "4ème témoignage (focus sur la confiance retrouvée ou la qualité supérieure du produit par rapport aux autres).",
+      "verified": true,
+      "date": "Il y a 1 mois",
+      "image": "",
+      "image_prompt": "realistic portrait photo of older african person, reassuring smile"
     }
   ],
   "conversion_blocks": [
@@ -717,13 +747,84 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     }
   }
 
-  // Fallback testimonials if not generated or less than 4
-  if (!result.testimonials || result.testimonials.length < 4) {
+  // Filter out empty/invalid testimonials
+  if (Array.isArray(result.testimonials)) {
+    result.testimonials = result.testimonials.filter(t =>
+      t && typeof t.text === 'string' && t.text.trim().length > 10 &&
+      typeof t.name === 'string' && t.name.trim().length > 1
+    );
+  }
+
+  // Build product-aware fallback testimonials using generated content
+  if (!result.testimonials || result.testimonials.length < 8) {
     const productName = title || 'produit';
-    const defaultTestimonials = buildDefaultTestimonials(productName, storeCountry, storeCity);
+    const locations = getLocalizedTestimonialLocations(storeCountry, storeCity);
+
+    // Extract real product details from what Groq generated
+    const benefit1 = (result.benefits_bullets?.[0] || '').replace(/^[^\w]*/,'').slice(0, 80);
+    const benefit2 = (result.benefits_bullets?.[1] || '').replace(/^[^\w]*/,'').slice(0, 80);
+    const problem = result.problem_section?.pain_points?.[0] || '';
+    const quickResult = result.urgency_elements?.quick_result || '';
+    const slogan = result.hero_slogan || '';
+
+    const smartFallbacks = [
+      {
+        name: 'Mireille K.', location: locations[0], rating: 5, verified: true, date: 'Il y a 2 jours',
+        text: problem
+          ? `Avant j'avais vraiment ce problème : "${problem.slice(0,60)}". Depuis que j'utilise ${productName}, la différence est vraiment visible. Je suis contente de mon achat.`
+          : `J'utilise ${productName} depuis quelques jours et je suis déjà satisfaite. La qualité est au rendez-vous et ça correspond exactement à ce que je voulais.`,
+        image: '', image_prompt: 'realistic portrait photo of african woman 28-35, natural hair, warm smile, casual home setting'
+      },
+      {
+        name: 'Armand T.', location: locations[1], rating: 5, verified: true, date: 'Il y a 5 jours',
+        text: benefit1
+          ? `Ce que j'apprécie le plus avec ${productName} c'est vraiment le côté "${benefit1}". Très facile à utiliser et la livraison s'est bien passée. Je recommande.`
+          : `Très bon produit. ${productName} fait exactement ce qui est annoncé, sans mauvaise surprise. Je vais en recommander pour ma famille.`,
+        image: '', image_prompt: 'realistic portrait photo of african man 30-40, casual shirt, confident satisfied expression, warm lighting'
+      },
+      {
+        name: 'Awa D.', location: locations[2], rating: 4, verified: true, date: 'Il y a 1 semaine',
+        text: quickResult
+          ? `J'étais sceptique au départ mais après utilisation j'ai vraiment vu des résultats. ${quickResult}. ${productName} tient vraiment ses promesses.`
+          : `Bonne surprise avec ${productName}. Je l'utilise au quotidien et le résultat est là. La qualité est sérieuse et le prix est correct par rapport à ce qu'on reçoit.`,
+        image: '', image_prompt: 'realistic portrait photo of african woman 22-30, braided hair, happy expression, outdoor setting'
+      },
+      {
+        name: 'Koffi A.', location: locations[3], rating: 5, verified: true, date: 'Il y a 2 semaines',
+        text: benefit2
+          ? `Ce qui m'a convaincu c'est "${benefit2}". ${productName} est vraiment bien pensé pour un usage quotidien. Franchement satisfait et je referai confiance à cette boutique.`
+          : `Franchement satisfait de ${productName}. Le produit est conforme à la description, la livraison était rapide et le service client a répondu rapidement à mes questions.`,
+        image: '', image_prompt: 'realistic portrait photo of african man 35-45, relaxed look, genuine smile, modern setting'
+      },
+      {
+        name: 'Christelle B.', location: locations[0], rating: 5, verified: true, date: 'Il y a 3 jours',
+        text: slogan
+          ? `"${slogan.slice(0,60)}" — c'est exactement ça avec ${productName}. Je l'ai reçu rapidement, essayé tout de suite, et je ne suis pas déçue. Très bonne qualité.`
+          : `Excellente qualité pour ${productName}. Je l'ai reçu rapidement, bien emballé, et il correspond parfaitement à ce que je cherchais. Je le recommande sans hésiter.`,
+        image: '', image_prompt: 'realistic portrait photo of african woman 30-42, professional look, warm smile'
+      },
+      {
+        name: 'Moussa S.', location: locations[1], rating: 5, verified: true, date: 'Il y a 4 jours',
+        text: `${productName} est vraiment efficace. J'en avais entendu parler et j'ai finalement sauté le pas — bonne décision. La qualité dépasse ce que j'espérais pour ce prix.`,
+        image: '', image_prompt: 'realistic portrait photo of african man 28-38, modern casual outfit, proud expression'
+      },
+      {
+        name: 'Fatou N.', location: locations[2], rating: 5, verified: true, date: 'Il y a 1 semaine',
+        text: problem
+          ? `Je cherchais une solution pour "${problem.slice(0,50)}" et ${productName} a réglé ça. Simple à utiliser, résultats visibles, et la boutique est sérieuse. Très contente !`
+          : `${productName} est top ! Ça fait exactement ce que la fiche produit décrit. Bonne qualité, bien livré, et ça s'utilise très facilement. Je rachèterai.`,
+        image: '', image_prompt: 'realistic portrait photo of african woman 25-35, natural makeup, glowing skin, happy'
+      },
+      {
+        name: 'Jean-Paul E.', location: locations[3], rating: 4, verified: true, date: 'Il y a 3 semaines',
+        text: `Bon produit dans l'ensemble. ${productName} est solide, bien conçu et facile à utiliser. J'aurais aimé le recevoir un peu plus tôt mais la qualité est là. Je recommande.`,
+        image: '', image_prompt: 'realistic portrait photo of african man 25-35, sporty style, energetic expression, casual setting'
+      },
+    ];
+
     result.testimonials = result.testimonials || [];
-    while (result.testimonials.length < 4) {
-      result.testimonials.push(defaultTestimonials[result.testimonials.length % defaultTestimonials.length]);
+    while (result.testimonials.length < 8) {
+      result.testimonials.push(smartFallbacks[result.testimonials.length % smartFallbacks.length]);
     }
   }
 
