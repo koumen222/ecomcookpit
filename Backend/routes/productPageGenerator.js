@@ -32,26 +32,227 @@ const router = express.Router();
  */
 function buildHeroPrompt(gptResult, hasProductRef) {
   const productName = gptResult.title || 'product';
-  const targetPerson = gptResult.hero_target_person || 'authentic Black African person';
-  const hookText = (gptResult.hero_headline || '').toUpperCase();
-  const ctaText = (gptResult.hero_cta || 'ÇA COMMENCE ICI').toUpperCase();
+  const targetPerson = gptResult.hero_target_person || 'beautiful young African woman';
+  const ctaText = (gptResult.hero_cta || 'JE COMMANDE MAINTENANT').toUpperCase();
 
+  // Headline: use the hero_headline or derive from the problem/solution
+  const headline = gptResult.hero_headline
+    ? gptResult.hero_headline.toUpperCase()
+    : (gptResult.problem_section?.pain_points?.[0]
+        ? `DITES ADIEU À ${gptResult.problem_section.pain_points[0].slice(0, 50).toUpperCase()} !`
+        : `DÉCOUVREZ ${productName.toUpperCase()} — RÉSULTATS EN 7 JOURS !`);
+
+  // Subheadline: hero_slogan or first sentence of solution
+  const subheadline = gptResult.hero_slogan
+    || gptResult.solution_section?.description?.split('.')[0]
+    || `Le produit qui transforme votre quotidien et révèle votre vraie beauté.`;
+
+  // Benefits: take the 4 benefits_bullets, strip emoji prefix for clean list
+  const benefits = (gptResult.benefits_bullets || []).slice(0, 4).map(b =>
+    b.replace(/^[\s\S]{1,3}/, '').trim().slice(0, 50)
+  );
+  while (benefits.length < 4) benefits.push('Résultats visibles rapidement');
+
+  // Social proof badge
+  const socialCount = gptResult.urgency_elements?.social_proof_count || '+5 000 clients satisfaits';
+  const storeCountry = gptResult._storeCountry || '';
+  const badgeText = storeCountry
+    ? `${socialCount} au ${storeCountry}`
+    : `${socialCount} — Avis vérifiés`;
+
+  // Bottom trust labels from conversion_blocks or defaults
+  const trustLabels = (gptResult.conversion_blocks || [])
+    .slice(0, 4)
+    .map(b => b.text || '')
+    .filter(Boolean);
+  if (trustLabels.length < 3) {
+    trustLabels.push('Paiement à la livraison', 'Livraison rapide', 'Satisfait ou remboursé');
+  }
+  const labelsLine = trustLabels.slice(0, 4).join('  •  ');
+
+  // Product placement description
   const productBlock = hasProductRef
-    ? `THE EXACT product from the reference image (same packaging, shape, color, label) — placed large on the LEFT half of the frame, clean studio lighting, sharp focus, ultra realistic`
-    : `premium product packaging of "${productName}" — placed large on the LEFT half of the frame, clean studio lighting, sharp focus, ultra realistic`;
+    ? `THE EXACT product from the reference image (same packaging, shape, colors, label, every detail identical) — placed large and dominant on the LEFT side of the frame, on a glossy surface, studio lighting, ultra sharp`
+    : `premium packaging of "${productName}" — placed large on the LEFT side, on a glossy surface, studio lighting, ultra sharp`;
 
-  return `Square 1:1 high-converting Facebook ads product image. White or very light gray background.
+  // Derive background color palette from product category
+  const text = `${productName} ${subheadline}`.toLowerCase();
+  let bgPalette, accentColor, personDescription;
+  if (text.includes('orange') || text.includes('vitamine c') || text.includes('agrume')) {
+    bgPalette = 'soft white to warm light orange gradient (#FFF8F0 to #FFE8CC)';
+    accentColor = 'vivid orange (#FF6B00)';
+  } else if (text.includes('blanc') || text.includes('éclat') || text.includes('glow') || text.includes('lumineux') || text.includes('tache') || text.includes('teint')) {
+    bgPalette = 'soft white to pale gold gradient (#FFFFFF to #FFF8E7)';
+    accentColor = 'warm gold (#D4A017)';
+  } else if (text.includes('vert') || text.includes('naturel') || text.includes('aloe') || text.includes('bio') || text.includes('plante')) {
+    bgPalette = 'soft white to light mint green gradient (#FFFFFF to #E8F5E9)';
+    accentColor = 'emerald green (#059669)';
+  } else if (text.includes('rose') || text.includes('femme') || text.includes('pink') || text.includes('beauty') || text.includes('beauté')) {
+    bgPalette = 'soft white to blush pink gradient (#FFFFFF to #FFF0F3)';
+    accentColor = 'deep rose (#C2185B)';
+  } else if (text.includes('noir') || text.includes('charbon') || text.includes('détox') || text.includes('purifiant')) {
+    bgPalette = 'soft white to light gray gradient (#FFFFFF to #F5F5F5)';
+    accentColor = 'charcoal black (#212121)';
+  } else {
+    bgPalette = 'clean white to very light warm gradient (#FFFFFF to #FFF9F0)';
+    accentColor = 'vibrant coral (#FF5722)';
+  }
 
-MANDATORY EXACT LAYOUT:
-1. TOP SECTION (20% of frame): Large bold black headline text centered: "${hookText}". The KEY transformation word or last phrase is in bold RED color. Text is perfectly readable, no distortion.
-2. MAIN SCENE (bottom 80% of frame):
-   - LEFT HALF: ${productBlock}. The product stands tall and dominant, occupying the full left side.
-   - RIGHT HALF: Realistic ${targetPerson}. Authentic Black African person, dark brown skin, natural hair, in a bright modern setting. HAPPY, CONFIDENT, RADIANT expression — showing the POSITIVE RESULT of using the product. Big natural smile, glowing energy, satisfaction visible. The person looks transformed, healthy, and proud.
-3. LEFT SIDE OVERLAY (on top of product area): A bold red rounded-rectangle badge with white bold text: "${ctaText}". Directly below the badge: a thick curved red arrow pointing DOWN toward the product.
+  // Person: adapt based on target
+  const personLower = targetPerson.toLowerCase();
+  if (personLower.includes('man') || personLower.includes('homme') || personLower.includes('male')) {
+    personDescription = `handsome young African man, dark skin, short clean haircut, confident radiant smile, showing the positive result of using the product, healthy glowing look`;
+  } else {
+    personDescription = `beautiful young African woman, dark glowing skin, natural hair (afro or braids or pressed), radiant confident smile, showing the positive result of using the product, healthy luminous complexion`;
+  }
 
-Text rules: ALL French text must have PERFECT spelling with every accent (é, è, à, ê, û, ç etc). Zero spelling errors.
+  return `Ultra realistic high-end skincare advertising poster. Square 1:1. Professional product photography meets graphic design. 4K quality, sharp details, cinematic lighting.
 
-Style: commercial Facebook advertising style, bright clean white background, high contrast, 4K quality, professional ad photography, scroll-stopping, no watermark, no price, no URL.`;
+═══ BACKGROUND ═══
+${bgPalette}. Clean minimal fresh atmosphere. Bright studio lighting.
+
+═══ LAYOUT (STRICT — 3 COLUMNS) ═══
+
+LEFT COLUMN (35% of frame):
+• ${productBlock}
+• Around the product: 2-3 natural prop elements related to the product ingredients (sliced fruits, leaves, botanicals, or cream swatches — must match the product type)
+• Clean glossy surface reflection under the product
+
+CENTER COLUMN (30% of frame):
+• ${personDescription}
+• Upper body portrait, face and shoulders visible
+• Warm professional studio lighting with soft rim light
+• Expression: happy, confident, radiant — genuinely loving the product result
+• Natural authentic African features
+
+RIGHT COLUMN (35% of frame):
+• 4 benefit items in a clean vertical list, each with a small colored icon:
+  ✓ ${benefits[0]}
+  ✓ ${benefits[1]}
+  ✓ ${benefits[2]}
+  ✓ ${benefits[3]}
+• Clean modern sans-serif typography
+• Icons in ${accentColor}
+
+═══ TEXT OVERLAYS (MANDATORY — CRITICAL SPELLING) ═══
+
+TOP of image (bold headline spanning full width):
+"${headline}"
+Font: large bold modern sans-serif, dark text with key transformation words in ${accentColor}
+
+Below headline (subheadline, smaller):
+"${subheadline}"
+Font: medium weight, dark gray
+
+CENTER TOP — Social proof badge (rounded pill shape, ${accentColor} background, white text):
+"${badgeText} ✓"
+
+BOTTOM STRIP (full width, light gray background):
+Labels separated by bullets: "${labelsLine}"
+Font: small, clean, professional
+
+BOTTOM CENTER — CTA button (${accentColor} background, white bold text, rounded corners):
+"${ctaText}"
+Below button (tiny text): "Offre spéciale – stock limité"
+
+═══ STYLE RULES ═══
+• ALL French text: 100% PERFECT spelling with every accent (é, è, ê, à, ù, ç, î, ô etc). ZERO errors.
+• NO price in numbers, NO phone number, NO URL, NO watermark
+• Ultra sharp product details — every label and texture of the packaging perfectly visible
+• Cinematic lighting with product glow and person rim light
+• Modern typography: clean sans-serif, high contrast, perfectly aligned
+• Mood: premium skincare brand launch, scroll-stopping, impossible to ignore`;
+}
+
+/**
+ * Builds an image prompt that visually illustrates the SPECIFIC angle text shown above it.
+ * The scene, person situation, and emotion are derived directly from the angle content.
+ */
+function buildAngleImagePrompt(angle, gptResult, hasProductRef, template = 'general') {
+  const title = gptResult.title || 'product';
+  const targetPerson = gptResult.hero_target_person || 'authentic Black African person';
+  const problemSection = gptResult.problem_section || {};
+  const solutionSection = gptResult.solution_section || {};
+
+  const productNote = hasProductRef
+    ? `THE EXACT SAME product from the reference image (same packaging, color, shape, label — critical) shown large and sharp`
+    : `"${title}" product shown large and sharp`;
+
+  // Extract angle content to drive the scene
+  const angleTitle = (angle.titre_angle || '').slice(0, 120);
+  const angleExplication = (angle.explication || angle.message_principal || '').slice(0, 200);
+  const anglePromesse = (angle.promesse || '').slice(0, 100);
+
+  // Detect the emotional/situational context from the angle text
+  const text = `${angleTitle} ${angleExplication} ${anglePromesse}`.toLowerCase();
+
+  // Determine scene situation based on angle content
+  let sceneSituation = '';
+  let personEmotion = '';
+  let sceneContext = '';
+
+  if (text.includes('problème') || text.includes('douleur') || text.includes('souffr') || text.includes('marre') || text.includes('fatiguée') || text.includes('terne')) {
+    // PROBLEM angle → show the person experiencing the problem, relatable frustration
+    sceneSituation = `African person showing the FRUSTRATION or PROBLEM described: "${angleTitle.slice(0, 80)}". Relatable real-life moment of experiencing this issue`;
+    personEmotion = 'concerned, frustrated, but relatable — not exaggerated';
+    sceneContext = 'everyday realistic setting where this problem occurs';
+  } else if (text.includes('résultat') || text.includes('transformation') || text.includes('après') || text.includes('visible') || text.includes('efficace')) {
+    // RESULT angle → show the clear positive outcome
+    sceneSituation = `African person showing the POSITIVE RESULT described: "${angleTitle.slice(0, 80)}". Clear visible transformation or benefit`;
+    personEmotion = 'radiant, confident, happy with results — genuine satisfaction';
+    sceneContext = 'bright clean setting showing the improvement clearly';
+  } else if (text.includes('naturel') || text.includes('ingrédient') || text.includes('formule') || text.includes('composition')) {
+    // INGREDIENTS angle → show product in natural context
+    sceneSituation = `African person with the product in a natural wellness context, ingredients or natural elements visible around them`;
+    personEmotion = 'calm, confident, glowing health';
+    sceneContext = 'natural setting with plants, warm light, clean aesthetic';
+  } else if (text.includes('confiance') || text.includes('soi') || text.includes('belle') || text.includes('beau') || text.includes('rayonn')) {
+    // CONFIDENCE angle → show person feeling great
+    sceneSituation = `African person exuding confidence and self-assurance as described: "${anglePromesse.slice(0, 60)}"`;
+    personEmotion = 'proud, confident, beaming — feeling their best';
+    sceneContext = 'modern stylish setting, good lighting on face/body';
+  } else if (text.includes('simple') || text.includes('facile') || text.includes('rapide') || text.includes('quotidien') || text.includes('routine')) {
+    // SIMPLICITY angle → show easy everyday use
+    sceneSituation = `African person using the product easily in their daily routine — showing how simple and natural it is`;
+    personEmotion = 'relaxed, at ease, casually happy';
+    sceneContext = 'everyday home or personal setting, morning or evening routine';
+  } else if (text.includes('garantie') || text.includes('qualité') || text.includes('fiable') || text.includes('conforme') || text.includes('sécurité')) {
+    // TRUST angle → show product quality, trust
+    sceneSituation = `African person holding the product with trust and satisfaction — product quality clearly visible`;
+    personEmotion = 'reassured, confident, nodding approval';
+    sceneContext = 'clean neutral setting emphasizing quality and trust';
+  } else {
+    // Default → show person benefiting from the product in the context of the angle
+    sceneSituation = `African person experiencing the benefit described: "${angleTitle.slice(0, 80)}"`;
+    personEmotion = 'happy, satisfied, authentic';
+    sceneContext = 'natural lifestyle setting matching the product category';
+  }
+
+  // Build the French overlay text from the actual angle content
+  const overlayTitle = angleTitle.split(' ').slice(0, 6).join(' ');
+  const overlaySubtext = anglePromesse.split(' ').slice(0, 8).join(' ');
+
+  return `Square 1:1 high-converting ecommerce lifestyle image for "${title}". Ultra HD, 4K, sharp, professional photography.
+
+SCENE: ${sceneSituation}
+PERSON: ${targetPerson} — ${personEmotion}. Authentic Black African, dark brown skin, natural features. Real person, not stock-photo generic.
+SETTING: ${sceneContext}
+PRODUCT: ${productNote}. Product MUST be clearly visible and prominent (minimum 30% of frame), held or used by the person or placed prominently in scene.
+
+TEXT OVERLAY (MANDATORY — overlay on image):
+- Main title (bold, large, high contrast): "${overlayTitle}"
+${overlaySubtext ? `- Sub-line (smaller, lighter): "${overlaySubtext}"` : ''}
+⚠️ CRITICAL: ALL French text must be 100% PERFECTLY SPELLED with correct accents (é,è,ê,à,ù,ç etc). ZERO spelling errors. ZERO typos.
+
+STYLE: Warm natural lighting. Tight composition, no empty margins. Authentic, not generic stock photo. ${
+  template === 'beauty' ? 'Soft feminine beauty aesthetic, warm rose/cream tones.' :
+  template === 'health' ? 'Fresh clean health aesthetic, green/white tones.' :
+  template === 'tech' ? 'Clean modern tech aesthetic, blue/white tones.' :
+  template === 'fitness' ? 'Energetic sporty aesthetic, bold colors.' :
+  'Clean modern lifestyle aesthetic.'
+}
+
+NO price, NO phone number, NO URL, NO CTA button. Mood: authentic, trustworthy, scroll-stopping.`;
 }
 
 /**
@@ -774,39 +975,87 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       );
     }
 
-    // ── 4 Flash images — adaptés à la méthode copywriting (total = 1 hero + 1 avant/après + 4 flash) ─
+    // ── 4 Flash images — chaque image illustre EXACTEMENT l'angle textuel au-dessus ─
+    const angles = gptResult.angles || [];
     const flashPrompts = buildFlashPrompts(gptResult, !!baseImageBuffer, approach, visualTemplate);
+
     for (let i = 0; i < flashPrompts.length; i++) {
       const flash = flashPrompts[i];
-      const angle = gptResult.angles?.[i] || null;
+      const angle = angles[i] || null;
+
+      // Build an angle-specific prompt that makes the image match the text above it
+      const anglePrompt = angle
+        ? buildAngleImagePrompt(angle, gptResult, !!baseImageBuffer, visualTemplate)
+        : flash.prompt;
+
       imagePromises.push(
-        generateAndUpload(flash.prompt, baseImageBuffer, `flash-${i + 1}-${Date.now()}.png`, 'scene')
+        generateAndUpload(anglePrompt, baseImageBuffer, `flash-${i + 1}-${Date.now()}.png`, 'scene')
           .then(url => ({ type: 'poster', index: i, url, angle, flashType: flash.type }))
       );
     }
 
-    // ── Testimonial avatars — generate portrait images for each testimonial ─
+    // ── Testimonial photos — person holding / using the product ─────────────
     const testimonials = gptResult.testimonials || [];
+    const productNameForAvatar = gptResult.title || 'the product';
+    const targetPersonBase = gptResult.hero_target_person || 'authentic Black African person';
+
     for (let i = 0; i < testimonials.length; i++) {
       const t = testimonials[i];
-      const avatarPrompt = t.image_prompt || `realistic portrait photo of african person, natural smile, casual setting, warm lighting, headshot, clean background`;
+
+      // Vary the gender/age to make testimonials look diverse and real
+      const personVariants = [
+        `african woman, 28-35 years old, natural hair, warm smile`,
+        `african man, 30-40 years old, casual shirt, confident expression`,
+        `african woman, 22-30 years old, braided hair, happy satisfied look`,
+        `african man, 35-45 years old, relaxed look, genuine smile`,
+        `african woman, 25-35 years old, natural makeup, glowing skin`,
+        `african man, 28-38 years old, modern casual outfit, proud expression`,
+        `african woman, 30-42 years old, professional look, warm smile`,
+        `african man, 25-35 years old, sporty style, energetic expression`,
+      ];
+      const personDesc = personVariants[i % personVariants.length];
+
+      // The product reference ensures we show the actual product being held
+      const productRef = baseImageBuffer
+        ? `holding or using THE EXACT SAME product shown in the reference image (same packaging, color, shape — this is crucial)`
+        : `holding or using "${productNameForAvatar}" product clearly visible in their hands`;
+
+      const avatarPrompt = `Square 1:1 ultra realistic lifestyle photo. ${personDesc}, ${productRef}.
+Natural indoor or outdoor African setting (modern home, bright terrace, or simple clean background).
+Warm natural lighting, golden hour or soft daylight. Authentic happy satisfied expression — showing they love the product result.
+The product is CLEARLY VISIBLE and prominent in the image — at least 30% of frame.
+Person looks real, skin texture visible, natural hair. NOT a stock photo look. Candid authentic feel.
+4K quality, sharp focus, no watermarks, no text overlays, no price, no URL.
+Mood: genuine customer who is very happy with their purchase and results.`;
+
       imagePromises.push(
         (async () => {
           try {
-            const { generateNanoBananaImage } = await import('../services/nanoBananaService.js');
-            const dataUrl = await generateNanoBananaImage(avatarPrompt, '1:1', 1);
+            const { generateNanoBananaImage, generateNanoBananaImageToImage } = await import('../services/nanoBananaService.js');
+
+            // Use image-to-image if we have a product reference (ensures product looks correct)
+            let dataUrl;
+            if (baseImageBuffer) {
+              dataUrl = await generateNanoBananaImageToImage(avatarPrompt, baseImageBuffer, '1:1', 1);
+            } else {
+              dataUrl = await generateNanoBananaImage(avatarPrompt, '1:1', 1);
+            }
+
             if (!dataUrl) return { type: 'avatar', index: i, url: null };
             let buf = dataUrl.startsWith('data:')
               ? Buffer.from(dataUrl.split(',')[1], 'base64')
               : Buffer.from((await axios.get(dataUrl, { responseType: 'arraybuffer', timeout: 15000 })).data);
-            buf = await sharp(buf).resize(256, 256, { fit: 'cover' }).jpeg({ quality: 85 }).toBuffer();
-            const url = await uploadImage(buf, `avatar-${i}-${Date.now()}.jpg`, {
+
+            // Keep full size (400x400) for testimonials — they appear larger on page
+            buf = await sharp(buf).resize(400, 400, { fit: 'cover', position: 'centre' }).jpeg({ quality: 88 }).toBuffer();
+
+            const uploadResult = await uploadImage(buf, `testimonial-${i}-${Date.now()}.jpg`, {
               workspaceId: req.workspaceId,
               uploadedBy: userId,
             });
-            return { type: 'avatar', index: i, url };
+            return { type: 'avatar', index: i, url: uploadResult?.url || null };
           } catch (err) {
-            console.warn(`⚠️ Avatar ${i} generation failed:`, err.message);
+            console.warn(`⚠️ Testimonial photo ${i} failed:`, err.message);
             return { type: 'avatar', index: i, url: null };
           }
         })()

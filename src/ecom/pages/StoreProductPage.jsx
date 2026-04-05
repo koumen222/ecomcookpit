@@ -172,7 +172,7 @@ const ImageGallery = ({ images = [] }) => {
 
       {/* Thumbnails */}
       {images.length > 1 && (
-        <div style={{ display: 'flex', gap: 8, marginTop: 8, overflowX: 'auto', paddingBottom: 4 }}>
+        <div className="thumb-track" style={{ display: 'flex', gap: 8, marginTop: 8, overflowX: 'auto', paddingBottom: 4 }}>
           {images.map((img, i) => (
             <button key={i} onClick={() => setActive(i)} style={{
               flexShrink: 0, width: 68, height: 68, overflow: 'hidden', padding: 0,
@@ -723,6 +723,7 @@ const StoreProductPage = () => {
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showStickyOrderBar, setShowStickyOrderBar] = useState(false);
   const ctaButtonsRef = useRef(null);
+  const [livePageConfig, setLivePageConfig] = useState(null); // real-time override from page builder
 
   // Inject pixel scripts and fire ViewContent when product loads
   useEffect(() => {
@@ -771,20 +772,30 @@ const StoreProductPage = () => {
     });
     
     socket.on('theme:update', (themeData) => {
-      console.log('[Store] Theme update reçu:', themeData);
       if (themeData) {
         injectStoreCssVars(themeData);
       }
     });
-    
+
     socket.on('connect_error', (err) => {
       console.log('[Store] Socket error:', err.message);
     });
-    
+
     return () => {
       socket.disconnect();
     };
   }, [subdomain]);
+
+  // Shopify-style postMessage listener — builder parent sends PAGE_PREVIEW_UPDATE
+  useEffect(() => {
+    const handler = (event) => {
+      if (event.data?.type === 'PAGE_PREVIEW_UPDATE' && event.data.payload) {
+        setLivePageConfig(event.data.payload);
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
 
 
   const images = product?.images?.length ? product.images : [];
@@ -797,8 +808,16 @@ const StoreProductPage = () => {
   const showTrustBadges = sectionToggles.showTrustBadges ?? true;
   const showRelatedProducts = sectionToggles.showRelatedProducts ?? true;
 
-  // ── productPageConfig — from saved settings ────────────────────────────────
-  const productPageConfig = store?.productPageConfig || {};
+  // ── productPageConfig — live preview > store global, conversion propre au produit en priorité ──
+  const productPageConfig = {
+    ...(store?.productPageConfig || {}),
+    ...(livePageConfig || {}),
+    conversion: {
+      ...(store?.productPageConfig?.conversion || {}),
+      ...(livePageConfig?.conversion || {}),
+      ...(product?.productPageConfig?.conversion || {}),
+    },
+  };
   const ppTheme = productPageConfig?.theme || 'classic';
   const ppGeneral = productPageConfig?.general || {};
   const ppDesign = productPageConfig?.design || {};
@@ -881,7 +900,7 @@ const StoreProductPage = () => {
   );
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: 'var(--s-bg)', fontFamily: 'var(--s-font)', color: 'var(--s-text)' }}>
+    <div className={ppTheme === 'landing' ? 'theme-landing-active' : ''} style={{ minHeight: '100vh', backgroundColor: 'var(--s-bg)', fontFamily: 'var(--s-font)', color: 'var(--s-text)' }}>
       <style>{`
         *{box-sizing:border-box} body{margin:0;padding:0}
         .sf-no-scrollbar { scrollbar-width:none; -ms-overflow-style:none; }
@@ -908,14 +927,34 @@ const StoreProductPage = () => {
         }
 
         /* ═══ THEME: LANDING PAGE ═══ */
-        .product-grid.theme-landing { display:flex; flex-direction:column; gap:0; }
-        .theme-landing .product-gallery { position:relative; max-height:60vh; overflow:hidden; }
-        .theme-landing .product-gallery img { width:100%; height:100%; object-fit:cover; }
-        .theme-landing .product-info { padding:24px 16px 48px; max-width:680px; margin:0 auto; width:100%; text-align:center; }
-        @media(min-width:769px){
-          .theme-landing .product-gallery { max-height:70vh; }
-          .theme-landing .product-info { padding:40px 24px 60px; max-width:720px; }
+        .product-grid.theme-landing { display:flex; flex-direction:column; gap:0; background:#fff; }
+        .theme-landing .product-gallery { position:relative; width:100%; height:75vh; min-height:500px; overflow:hidden; }
+        .theme-landing .product-gallery img { width:100%; height:100%; object-fit:cover; object-position:center; }
+        .theme-landing .product-gallery .thumb-track, .theme-landing .product-gallery .dots-track { display:none !important; }
+        .theme-landing .product-gallery button { display:none !important; } /* Hide gallery arrows on landing */
+        .theme-landing .product-gallery::after {
+          content:''; position:absolute; bottom:0; left:0; right:0; height:35vh;
+          background:linear-gradient(to top, #fff 0%, rgba(255,255,255,0.8) 40%, transparent 100%); pointer-events:none; z-index:5;
         }
+        .theme-landing .product-info {
+          padding:0 24px 80px; max-width:850px; margin:0 auto; width:100%; position:relative; z-index:10; margin-top:-15vh;
+        }
+        /* Top-level header elements centered */
+        .theme-landing h1, .theme-landing .price-wrapper, .theme-landing .hero-slogan, .theme-landing .hero-baseline { text-align:center !important; justify-content:center !important; }
+        .theme-landing h1 { font-size:clamp(38px, 6vw, 64px) !important; margin-bottom:20px !important; line-height:1.05 !important; letter-spacing:-0.04em !important; }
+        .theme-landing .price-wrapper span:first-child { font-size:42px !important; }
+        /* Blocks */
+        .theme-landing .ai-desc { text-align:left; margin-top:40px; background:#fff; padding:0; }
+        .theme-landing .ai-desc h3 { text-align:center; font-size:28px !important; margin:40px 0 24px !important; }
+        .theme-landing .ai-desc p { font-size:17px !important; line-height:1.8 !important; }
+        .theme-landing .ai-desc img { border-radius:16px; margin:32px 0 !important; box-shadow:0 12px 32px rgba(0,0,0,0.08); }
+        .theme-landing .order-btn-wrapper button { min-height:72px !important; font-size:20px !important; border-radius:100px !important; }
+        @media(min-width:769px){
+          .theme-landing .product-gallery { height:85vh; }
+          .theme-landing .product-info { padding:0 32px 100px; margin-top:-20vh; }
+        }
+        /* Hide navbar completely for landing pages to remove distractions */
+        .theme-landing-active .sf-header { display:none !important; }
 
         /* ═══ THEME: MAGAZINE ═══ */
         .product-grid.theme-magazine { display:flex; flex-direction:column; gap:0; position:relative; }
@@ -977,7 +1016,9 @@ const StoreProductPage = () => {
         </div>
       )}
 
-      <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
+      <div className="sf-header">
+        <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
+      </div>
 
       {/* Product Detail */}
       <div style={{ maxWidth: ppTheme === 'landing' || ppTheme === 'magazine' ? '100%' : 1200, margin: '0 auto', padding: '0' }}>
@@ -1025,18 +1066,18 @@ const StoreProductPage = () => {
 
                 {/* Hero slogan / baseline from AI or config content */}
                 {enabledSectionIds.includes('heroSlogan') && (sectionContentMap.heroSlogan?.text || product._pageData?.hero_slogan) && (
-                  <p style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 600, color: 'var(--s-text2)', fontFamily: 'var(--s-font)', lineHeight: 1.5 }}>
+                  <p className="hero-slogan" style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 600, color: 'var(--s-text2)', fontFamily: 'var(--s-font)', lineHeight: 1.5 }}>
                     {sectionContentMap.heroSlogan?.text || product._pageData.hero_slogan}
                   </p>
                 )}
                 {enabledSectionIds.includes('heroBaseline') && (sectionContentMap.heroBaseline?.text || product._pageData?.hero_baseline) && (
-                  <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--s-primary)', fontWeight: 700, fontFamily: 'var(--s-font)' }}>
+                  <p className="hero-baseline" style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--s-primary)', fontWeight: 700, fontFamily: 'var(--s-font)' }}>
                     ✅ {sectionContentMap.heroBaseline?.text || product._pageData.hero_baseline}
                   </p>
                 )}
 
                 {/* Price — always shown */}
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
+                <div className="price-wrapper" style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
                   <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--s-primary)', fontFamily: 'var(--s-font)', letterSpacing: '-0.02em' }}>
                     {fmt(product.price, product.currency || store?.currency || 'XAF')}
                   </span>
@@ -1060,7 +1101,7 @@ const StoreProductPage = () => {
 
                     case 'orderForm':
                       return (
-                        <div key={sectionId} ref={ctaButtonsRef} style={{ marginBottom: 20 }}>
+                        <div className="order-btn-wrapper" key={sectionId} ref={ctaButtonsRef} style={{ marginBottom: 20 }}>
                           {ppFormType === 'embedded' && inStock ? (
                             <EmbeddedOrderForm
                               product={product}

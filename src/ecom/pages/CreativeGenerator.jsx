@@ -21,6 +21,7 @@ const STEPS = [
 const CreativeGenerator = () => {
   const [url, setUrl] = useState('');
   const [description, setDescription] = useState('');
+  const [visualTemplate, setVisualTemplate] = useState('general');
   const [productImage, setProductImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [selectedFormats, setSelectedFormats] = useState(['hero-benefits', 'target-promise', 'problem-solution', 'how-to-use', 'ingredients-trust', 'comparison', 'social-proof']);
@@ -71,6 +72,7 @@ const CreativeGenerator = () => {
       if (productImage) formData.append('productImage', productImage);
       if (url.trim()) formData.append('url', url.trim());
       if (description.trim()) formData.append('description', description.trim());
+      formData.append('visualTemplate', visualTemplate);
       formData.append('formats', JSON.stringify(selectedFormats.length > 0 ? selectedFormats : undefined));
 
       const res = await ecomApi.post('/ai/creative-generator', formData, {
@@ -188,28 +190,63 @@ const CreativeGenerator = () => {
             </div>
           </div>
 
+          {/* Visual Template Selector */}
+          <div className="mb-6">
+            <label className="text-sm font-semibold text-gray-700 mb-2.5 block">Univers visuel <span className="text-gray-400 font-normal">(Structure créative)</span></label>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {[
+                { id: 'general', title: 'Général', icon: '🌟', desc: 'Design universel premium' },
+                { id: 'beauty', title: 'Beauté & Skincare', icon: '🌸', desc: 'Lumineux, féminin, glow' },
+                { id: 'health', title: 'Santé & Bien-être', icon: '🌿', desc: 'Frais, naturel, vitalité' },
+                { id: 'tech', title: 'Tech & Gadgets', icon: '⚡', desc: 'Sombre, néon, futuriste' },
+                { id: 'fashion', title: 'Mode & Accessoires', icon: '👗', desc: 'Éditorial magazine, doré' },
+                { id: 'home', title: 'Maison & Décoration', icon: '🏠', desc: 'Chaleureux, bois, cosy' },
+              ].map(tpl => (
+                <button
+                  key={tpl.id}
+                  onClick={() => setVisualTemplate(tpl.id)}
+                  className={`p-3 rounded-xl border text-left flex items-start gap-3 transition-all ${
+                    visualTemplate === tpl.id
+                      ? 'border-purple-500 bg-purple-50 shadow-sm ring-1 ring-purple-500'
+                      : 'border-gray-200 bg-white hover:border-purple-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="text-xl leading-none mt-0.5">{tpl.icon}</span>
+                  <div>
+                    <div className={`text-sm font-bold ${visualTemplate === tpl.id ? 'text-purple-900' : 'text-gray-700'}`}>{tpl.title}</div>
+                    <div className="text-[10px] text-gray-500 mt-0.5 leading-tight">{tpl.desc}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Format Selector */}
           <div>
-            <label className="text-sm font-semibold text-gray-700 mb-2.5 block">Formats à générer</label>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+            <div className="flex items-center justify-between mb-2.5">
+              <label className="text-sm font-semibold text-gray-700 block mt-0.5">Formats à générer</label>
+              <button 
+                onClick={() => setSelectedFormats(selectedFormats.length === FORMATS.length ? [] : FORMATS.map(f => f.id))}
+                className="text-xs font-semibold text-purple-600 hover:text-purple-700"
+              >
+                {selectedFormats.length === FORMATS.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+              </button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2.5">
               {FORMATS.map(f => {
                 const active = selectedFormats.includes(f.id);
                 return (
                   <button
                     key={f.id}
                     onClick={() => toggleFormat(f.id)}
-                    className={`p-3 rounded-xl border-2 text-left transition-all ${
+                    className={`p-3 rounded-xl border-2 text-left transition-all flex flex-col items-center justify-center text-center ${
                       active
                         ? 'border-purple-400 bg-purple-50/60 shadow-sm'
                         : 'border-gray-100 bg-gray-50/40 hover:border-gray-200 hover:bg-gray-50'
                     }`}
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-base">{f.icon}</span>
-                      <span className={`text-xs font-bold ${active ? 'text-purple-700' : 'text-gray-600'}`}>{f.label}</span>
-                    </div>
-                    <div className="text-[10px] text-gray-400">{f.desc}</div>
-                    <div className={`text-[10px] font-mono mt-1 ${active ? 'text-purple-500' : 'text-gray-300'}`}>{f.ratio}</div>
+                    <span className="text-2xl mb-1.5">{f.icon}</span>
+                    <span className={`text-[11px] leading-tight font-bold ${active ? 'text-purple-700' : 'text-gray-600'}`}>{f.label}</span>
                   </button>
                 );
               })}

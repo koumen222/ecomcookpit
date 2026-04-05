@@ -232,6 +232,17 @@ export function initSocketServer(httpServer) {
         // Invalid token — silently ignore
       }
     });
+
+    // Authenticated admins broadcast productPageConfig live (page builder preview)
+    socket.on('page:broadcast', ({ subdomain, productPageConfig, productId, token }) => {
+      if (!subdomain || !productPageConfig || !token) return;
+      try {
+        jwt.verify(token, JWT_SECRET);
+        storeLiveNamespace.to(`store:${subdomain.toLowerCase()}`).emit('page:update', { productPageConfig, productId });
+      } catch {
+        // Invalid token — silently ignore
+      }
+    });
   });
 
   console.log('[Socket] WebSocket server initialized');

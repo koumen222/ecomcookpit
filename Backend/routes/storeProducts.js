@@ -470,7 +470,7 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
       name, description, price, compareAtPrice, stock,
       images, category, tags, isPublished,
       seoTitle, seoDescription, linkedProductId, currency,
-      testimonials, faq, _pageData, pageBuilder
+      testimonials, faq, _pageData, pageBuilder, productPageConfig
     } = req.body;
 
     // Build update object — only include provided fields
@@ -498,6 +498,7 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
     if (faq !== undefined) update.faq = normalizeFaq(faq);
     if (_pageData !== undefined) update._pageData = _pageData;
     if (pageBuilder !== undefined) update.pageBuilder = pageBuilder;
+    if (productPageConfig !== undefined) update.productPageConfig = productPageConfig;
 
     // Only regenerate slug if name actually changed
     if (name) {

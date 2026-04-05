@@ -146,6 +146,7 @@ const BoutiquePayments = lazy(() => import('./pages/BoutiquePayments.jsx'));
 const BoutiqueDomains = lazy(() => import('./pages/BoutiqueDomains.jsx'));
 const BoutiqueSettings = lazy(() => import('./pages/BoutiqueSettings.jsx'));
 const BoutiqueDeliveryZones = lazy(() => import('./pages/BoutiqueDeliveryZones.jsx'));
+const BoutiqueFormBuilder = lazy(() => import('./pages/BoutiqueFormBuilder.jsx'));
 const StoreCreationWizard = lazy(() => import('./pages/StoreCreationWizard.jsx'));
 
 // ═══════════════════════════════════════════════════════════════
@@ -659,6 +660,7 @@ const EcomApp = () => {
                   <Route path="/ecom/boutique/settings" element={<BoutiqueSettings />} />
                   <Route path="/ecom/boutique/product-settings" element={<ProductSettingsPage />} />
                   <Route path="/ecom/boutique/theme" element={<ProductThemePage />} />
+                  <Route path="/ecom/boutique/form-builder" element={<BoutiqueFormBuilder />} />
                 </Route>
               </Route>
 

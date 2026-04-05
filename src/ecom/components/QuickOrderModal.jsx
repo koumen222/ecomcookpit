@@ -34,7 +34,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
   const formConfig = productPageConfig?.form || {};
   const conversionConfig = productPageConfig?.conversion || {};
 
-  const btnColor = design.buttonColor || themeColor;
+  const btnColor = conversionConfig.accentColor || design.buttonColor || themeColor;
   const bgColor = design.backgroundColor || '#ffffff';
   const textColor = design.textColor || '#111827';
   const inputTextColor = '#111827'; // Always dark for inputs on white/light backgrounds
@@ -194,8 +194,10 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
             {offersEnabled ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {offers.map((offer, i) => {
-                  const disc = offer.comparePrice > offer.price && offer.price > 0
-                    ? Math.round((1 - offer.price / offer.comparePrice) * 100) : 0;
+                  const displayPrice = offer.price > 0 ? offer.price : (product?.price || 0) * (offer.qty || 1);
+                  const displayCompare = offer.comparePrice > 0 ? offer.comparePrice : 0;
+                  const disc = displayCompare > displayPrice && displayPrice > 0
+                    ? Math.round((1 - displayPrice / displayCompare) * 100) : 0;
                   const sel = selectedOfferIdx === i;
                   return (
                     <div key={i} onClick={() => { setSelectedOfferIdx(i); set('quantity', offer.qty); }}
@@ -207,21 +209,19 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
                       }}>
                       <div style={{ width: 18, height: 18, borderRadius: '50%', border: sel ? `5px solid ${btnColor}` : '2px solid #D1D5DB', flexShrink: 0 }} />
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                           {offer.qty} {offer.qty === 1 ? 'unité' : 'unités'}
                           {offer.badge && <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', backgroundColor: btnColor, padding: '2px 8px', borderRadius: 20 }}>{offer.badge}</span>}
                         </div>
-                        {offer.price > 0 && (
-                          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 2 }}>
-                            <span style={{ fontSize: 15, fontWeight: 800, color: btnColor }}>{fmt(offer.price, currency)}</span>
-                            {disc > 0 && (
-                              <>
-                                <span style={{ fontSize: 12, color: '#9CA3AF', textDecoration: 'line-through' }}>{fmt(offer.comparePrice, currency)}</span>
-                                <span style={{ fontSize: 11, fontWeight: 700, color: '#EF4444', backgroundColor: '#FEE2E2', padding: '1px 6px', borderRadius: 10 }}>-{disc}%</span>
-                              </>
-                            )}
-                          </div>
-                        )}
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 2 }}>
+                          <span style={{ fontSize: 15, fontWeight: 800, color: btnColor }}>{fmt(displayPrice, currency)}</span>
+                          {disc > 0 && (
+                            <>
+                              <span style={{ fontSize: 12, color: '#9CA3AF', textDecoration: 'line-through' }}>{fmt(displayCompare, currency)}</span>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#EF4444', backgroundColor: '#FEE2E2', padding: '1px 6px', borderRadius: 10 }}>-{disc}%</span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );

@@ -163,6 +163,11 @@ const storeProductSchema = new mongoose.Schema({
       default: []
     },
     template: { type: String, default: null } // 'skincare' | 'fitness' | 'gadget' | null
+  },
+  // Per-product page configuration (conversion, design overrides)
+  productPageConfig: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
   }
 }, {
   collection: 'store_products',
