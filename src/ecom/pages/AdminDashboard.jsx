@@ -162,6 +162,7 @@ const AdminDashboard = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0); // Progression du chargement
   const [showLoadingScreen, setShowLoadingScreen] = useState(true);
+  const loadingTimeoutRef = useRef(null);
 
   // NOTE: early return moved to main render to avoid Rules of Hooks violation
   const [stats, setStats] = useState({
@@ -197,7 +198,7 @@ const AdminDashboard = () => {
   // CRITICAL: Create ref first, assign after function declaration
   const loadDashboardDataRef = useRef(null);
 
-  // Animation de progression du chargement
+  // Animation de progression du chargement + timeout de sécurité anti-infinite-loading
   useEffect(() => {
     if (loadingKpi || loadingSecondary) {
       setShowLoadingScreen(true);
@@ -207,8 +208,22 @@ const AdminDashboard = () => {
           return prev + Math.random() * 15;
         });
       }, 100);
-      return () => clearInterval(interval);
+
+      // Timeout de sécurité : forcer la fin du loading après 12s max
+      clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = setTimeout(() => {
+        setLoadingKpi(false);
+        setLoadingSecondary(false);
+        setShowLoadingScreen(false);
+        setLoadingProgress(100);
+      }, 12000);
+
+      return () => {
+        clearInterval(interval);
+        clearTimeout(loadingTimeoutRef.current);
+      };
     } else {
+      clearTimeout(loadingTimeoutRef.current);
       setLoadingProgress(100);
       const t = setTimeout(() => {
         setLoadingProgress(0);

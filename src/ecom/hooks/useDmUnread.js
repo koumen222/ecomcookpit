@@ -105,14 +105,22 @@ export function useDmUnread() {
       window.dispatchEvent(new CustomEvent('ecom:orderStatusChanged', { detail: data }));
     };
 
+    // Écouter les mises à jour d'affectation de sources (temps réel closeuse)
+    const onAssignmentUpdated = (data) => {
+      if (!data) return;
+      window.dispatchEvent(new CustomEvent('ecom:assignmentUpdated', { detail: data }));
+    };
+
     socket.on('message:new', onNewMessage);
     socket.on('notification:new', onNotification);
     socket.on('order:livreurUpdate', onOrderLivreurUpdate);
+    socket.on('assignment:updated', onAssignmentUpdated);
 
     return () => {
       socket.off('message:new', onNewMessage);
       socket.off('notification:new', onNotification);
       socket.off('order:livreurUpdate', onOrderLivreurUpdate);
+      socket.off('assignment:updated', onAssignmentUpdated);
     };
   }, [token]); // ✅ Seulement token - fetchUnread retiré
 

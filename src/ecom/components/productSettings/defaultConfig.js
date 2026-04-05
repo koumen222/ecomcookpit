@@ -1,4 +1,5 @@
 const defaultConfig = {
+  theme: 'classic',
   general: {
     formType: 'popup',
     sections: [

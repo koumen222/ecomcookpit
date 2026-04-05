@@ -265,6 +265,11 @@ router.get('/', requireEcomAuth, async (req, res) => {
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
     const filter = { workspaceId: req.workspaceId };
     
+    // Closeuse: ne voir que ses propres rapports
+    if (req.ecomUser.role === 'ecom_closeuse') {
+      filter.reportedBy = req.ecomUser._id;
+    }
+
     if (productId) filter.productId = productId;
     if (date) {
       // Filtre par date exacte (début et fin de la journée)

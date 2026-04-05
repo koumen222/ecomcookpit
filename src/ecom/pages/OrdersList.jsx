@@ -956,6 +956,18 @@ const OrdersList = () => {
     return () => window.removeEventListener('ecom:orderStatusChanged', handleOrderStatusChanged);
   }, []);
 
+  // ••• Temps réel: mise à jour des affectations sources (closeuse) •••••••••••
+  useEffect(() => {
+    if (!isCloseuse) return;
+    const handleAssignmentUpdated = () => {
+      console.log('📦 [Socket] Affectation mise à jour, rechargement des sources...');
+      fetchCloseuseSources();
+      fetchOrders(false);
+    };
+    window.addEventListener('ecom:assignmentUpdated', handleAssignmentUpdated);
+    return () => window.removeEventListener('ecom:assignmentUpdated', handleAssignmentUpdated);
+  }, [isCloseuse]);
+
   // Fermer le menu à trois points quand on clique ailleurs
   useEffect(() => {
     if (!expandedId) return;
@@ -2128,19 +2140,29 @@ const OrdersList = () => {
                 {isCloseuse ? 'Aucune source assignée' : 'Aucune source. Importer des commandes.'}
               </p>
             )}
-            {/* Source enum filters: Skelor / Shopify / Boutique */}
+            {/* Source enum filters: Scalor (skelor+boutique) / Shopify */}
             {(isAdmin || isSuperAdmin) && [
-              { id: 'skelor', label: 'Skelor', color: 'bg-violet-600 text-white', inactive: 'bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200' },
-              { id: 'shopify', label: 'Shopify', color: 'bg-green-700 text-white', inactive: 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200' },
-              { id: 'boutique', label: 'Boutique', color: 'bg-sky-600 text-white', inactive: 'bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200' },
+              { id: 'scalor', label: 'Scalor', color: 'bg-emerald-600 text-white', inactive: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200', deleteIds: ['skelor', 'boutique'] },
+              { id: 'shopify', label: 'Shopify', color: 'bg-green-700 text-white', inactive: 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200', deleteIds: ['shopify'] },
             ].map(src => (
-              <button
-                key={src.id}
-                onClick={() => { setSelectedSourceId(selectedSourceId === src.id ? '' : src.id); setPage(1); }}
-                className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${selectedSourceId === src.id ? src.color + ' shadow-sm' : src.inactive}`}
-              >
-                {src.label}
-              </button>
+              <div key={src.id} className="flex items-center gap-0.5">
+                <button
+                  onClick={() => { setSelectedSourceId(selectedSourceId === src.id ? '' : src.id); setPage(1); }}
+                  className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-semibold transition-all ${selectedSourceId === src.id ? src.color + ' shadow-sm' : src.inactive}`}
+                >
+                  {src.label}
+                </button>
+                <button
+                  onClick={() => {
+                    if (!window.confirm(`Supprimer TOUTES les commandes ${src.label} ? Irréversible.`)) return;
+                    Promise.all(src.deleteIds.map(did => ecomApi.delete(`/orders/bulk?sourceId=${did}`))).then(() => { fetchOrders(); setSuccess(`Commandes ${src.label} supprimées`); }).catch(() => setError('Erreur suppression'));
+                  }}
+                  className="p-0.5 sm:p-1 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 transition"
+                  title={`Supprimer toutes les commandes ${src.label}`}
+                >
+                  <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
             ))}
           </div>
         </div>
@@ -2608,9 +2630,9 @@ const OrdersList = () => {
                       )}
 
                       {/* Source badge */}
-                      {o.source === 'skelor' && (
+                      {(o.source === 'skelor' || o.source === 'boutique') && (
                         <div className="flex-shrink-0">
-                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200 uppercase tracking-wide">Skelor</span>
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 uppercase tracking-wide">Scalor</span>
                         </div>
                       )}
                       {o.source === 'shopify' && (
@@ -2618,9 +2640,10 @@ const OrdersList = () => {
                           <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 uppercase tracking-wide">Shopify</span>
                         </div>
                       )}
-                      {o.source === 'boutique' && (
+                      {/* Badge nom de source personnalisée (Scalor Store nommé, webhook, etc.) */}
+                      {o.sourceName && !['skelor','shopify','boutique'].includes(o.source) && (
                         <div className="flex-shrink-0">
-                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 border border-sky-200 uppercase tracking-wide">Boutique</span>
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 truncate max-w-[80px]" title={o.sourceName}>{o.sourceName}</span>
                         </div>
                       )}
 
@@ -2751,9 +2774,9 @@ const OrdersList = () => {
                     {o.readyForDelivery && !o.assignedLivreur && (
                       <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300">🚚 Pool</span>
                     )}
-                    {o.source === 'skelor' && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200 uppercase">Skelor</span>}
+                    {(o.source === 'skelor' || o.source === 'boutique') && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 uppercase">Scalor</span>}
                     {o.source === 'shopify' && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 uppercase">Shopify</span>}
-                    {o.source === 'boutique' && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700 border border-sky-200 uppercase">Boutique</span>}
+                    {o.sourceName && !['skelor','shopify','boutique'].includes(o.source) && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 truncate max-w-[70px]">{o.sourceName}</span>}
                     <select 
                       value={o.status} 
                       onChange={(e) => { 

@@ -49,6 +49,7 @@ const AssignmentsManager = () => {
   const [sources, setSources] = useState([]);
   const [closeuses, setCloseuses] = useState([]);
   const [products, setProducts] = useState([]);
+  const [storeProducts, setStoreProducts] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState(null);
@@ -76,16 +77,18 @@ const AssignmentsManager = () => {
     try {
       setLoading(true);
 
-      const [sourcesRes, closeusesRes, productsRes, assignmentsRes] = await Promise.all([
-        ecomApi.get('/assignments/sources'),
-        ecomApi.get('/users?role=ecom_closeuse'),
-        ecomApi.get('/products'),
-        ecomApi.get('/assignments')
+      const [sourcesRes, closeusesRes, productsRes, storeProductsRes, assignmentsRes] = await Promise.all([
+        ecomApi.get('/assignments/sources').catch(e => { console.error('sources err', e?.response?.data || e.message); return { data: { data: [] } }; }),
+        ecomApi.get('/users?role=ecom_closeuse').catch(e => { console.error('users err', e?.response?.data || e.message); return { data: { data: [] } }; }),
+        ecomApi.get('/products').catch(e => { console.error('products err', e?.response?.data || e.message); return { data: { data: [] } }; }),
+        ecomApi.get('/store-products?limit=200&published=false').catch(() => ({ data: { data: [] } })),
+        ecomApi.get('/assignments').catch(e => { console.error('assignments err', e?.response?.data || e.message); return { data: { data: [] } }; }),
       ]);
 
       const sourcesData = sourcesRes?.data?.data;
       const closeusesData = closeusesRes?.data?.data?.users ?? closeusesRes?.data?.data;
       const productsData = productsRes?.data?.data;
+      const storeProductsData = storeProductsRes?.data?.data?.products || storeProductsRes?.data?.data || [];
       const assignmentsData = assignmentsRes?.data?.data;
 
       console.log('📊 Données brutes:', {
@@ -98,11 +101,13 @@ const AssignmentsManager = () => {
       const sources = Array.isArray(sourcesData) ? sourcesData : [];
       const closeuses = Array.isArray(closeusesData) ? closeusesData : [];
       const products = Array.isArray(productsData) ? productsData : [];
+      const storeProds = Array.isArray(storeProductsData) ? storeProductsData : [];
       const assignments = Array.isArray(assignmentsData) ? assignmentsData : [];
 
       setSources(sources);
       setCloseuses(closeuses);
       setProducts(products);
+      setStoreProducts(storeProds);
       setAssignments(assignments);
       
       // Check Google Sheets sources and load their data
@@ -148,15 +153,19 @@ const AssignmentsManager = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage('');
-    
+
+    console.log('📤 [Submit] formData envoyé:', JSON.stringify(formData, null, 2));
+
     try {
+      let res;
       if (editingAssignment) {
-        await ecomApi.put(`/assignments/${editingAssignment._id}`, formData);
+        res = await ecomApi.put(`/assignments/${editingAssignment._id}`, formData);
         setMessage('Affectation mise à jour avec succès');
       } else {
-        await ecomApi.post('/assignments', formData);
+        res = await ecomApi.post('/assignments', formData);
         setMessage('Affectation créée avec succès');
       }
+      console.log('📥 [Submit] Réponse backend:', JSON.stringify(res.data, null, 2));
       
       setShowForm(false);
       setEditingAssignment(null);
@@ -181,14 +190,11 @@ const AssignmentsManager = () => {
     // Le backend sépare lui-même les ObjectIds valides des noms sheets
     const productAssignments = Array.isArray(assignment.productAssignments) ? assignment.productAssignments.map(pa => {
       const dbIds = Array.isArray(pa.productIds)
-        ? pa.productIds
-            .filter(p => p)
-            .map(p => (typeof p === 'object' ? p._id?.toString() : p))
-            .filter(Boolean)
+        ? pa.productIds.filter(Boolean).map(p => typeof p === 'object' ? String(p._id || p) : String(p)).filter(Boolean)
         : [];
       const sheetNames = Array.isArray(pa.sheetProductNames) ? pa.sheetProductNames : [];
       return {
-        sourceId: pa.sourceId?._id?.toString() || pa.sourceId?.toString() || pa.sourceId,
+        sourceId: String(pa.sourceId?._id || pa.sourceId),
         productIds: [...dbIds, ...sheetNames]
       };
     }) : [];
@@ -263,48 +269,57 @@ const AssignmentsManager = () => {
 
   // Toggle source : coche/décoche une source et crée/supprime son productAssignment
   const toggleSource = (sourceId, isSheetSource) => {
-    const isChecked = formData.orderSources.some(os => os.sourceId === sourceId);
-    if (isChecked) {
-      setFormData(prev => ({
-        ...prev,
-        orderSources: prev.orderSources.filter(os => os.sourceId !== sourceId),
-        productAssignments: prev.productAssignments.filter(p => p.sourceId !== sourceId)
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        orderSources: [...prev.orderSources, { sourceId }],
-        productAssignments: [...prev.productAssignments, { sourceId, productIds: [] }]
-      }));
-      if (isSheetSource) loadSheetProducts(sourceId);
-    }
+    const sid = String(sourceId);
+    setFormData(prev => {
+      const isChecked = prev.orderSources.some(os => String(os.sourceId) === sid);
+      if (isChecked) {
+        return {
+          ...prev,
+          orderSources: prev.orderSources.filter(os => String(os.sourceId) !== sid),
+          productAssignments: prev.productAssignments.filter(p => String(p.sourceId) !== sid)
+        };
+      } else {
+        if (isSheetSource) loadSheetProducts(sid);
+        return {
+          ...prev,
+          orderSources: [...prev.orderSources, { sourceId: sid }],
+          productAssignments: [...prev.productAssignments, { sourceId: sid, productIds: [] }]
+        };
+      }
+    });
   };
 
   // Toggle un produit dans une source
   const toggleProduct = (sourceId, productId) => {
-    setFormData(prev => ({
-      ...prev,
-      productAssignments: prev.productAssignments.map(p =>
-        p.sourceId === sourceId
-          ? {
+    const pid = String(productId);
+    const sid = String(sourceId);
+    setFormData(prev => {
+      const hasPa = prev.productAssignments.some(p => String(p.sourceId) === sid);
+      const assignments = hasPa
+        ? prev.productAssignments.map(p => {
+            if (String(p.sourceId) !== sid) return p;
+            const ids = p.productIds.map(String);
+            return {
               ...p,
-              productIds: p.productIds.includes(productId)
-                ? p.productIds.filter(id => id !== productId)
-                : [...p.productIds, productId]
-            }
-          : p
-      )
-    }));
+              productIds: ids.includes(pid) ? ids.filter(id => id !== pid) : [...ids, pid]
+            };
+          })
+        : [...prev.productAssignments, { sourceId: sid, productIds: [pid] }];
+      return { ...prev, productAssignments: assignments };
+    });
   };
 
   // Sélectionner / désélectionner tous les produits d'une source
   const selectAllProducts = (sourceId, allIds) => {
-    setFormData(prev => ({
-      ...prev,
-      productAssignments: prev.productAssignments.map(p =>
-        p.sourceId === sourceId ? { ...p, productIds: allIds } : p
-      )
-    }));
+    const sid = String(sourceId);
+    const ids = allIds.map(String);
+    setFormData(prev => {
+      const hasPa = prev.productAssignments.some(p => String(p.sourceId) === sid);
+      const assignments = hasPa
+        ? prev.productAssignments.map(p => String(p.sourceId) === sid ? { ...p, productIds: ids } : p)
+        : [...prev.productAssignments, { sourceId: sid, productIds: ids }];
+      return { ...prev, productAssignments: assignments };
+    });
   };
 
   const handleSyncGoogleSheets = async () => {
@@ -671,11 +686,11 @@ const AssignmentsManager = () => {
                   <div className="flex flex-wrap gap-1">
                     {assignment.orderSources.map((os) => (
                       <span
-                        key={os.sourceId?._id || os.sourceId}
+                        key={String(os.sourceId)}
                         className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                        style={{ backgroundColor: (os.sourceId?.color || '#000') + '20', color: os.sourceId?.color || '#374151' }}
+                        style={{ backgroundColor: (os.sourceInfo?.color || '#6366F1') + '20', color: os.sourceInfo?.color || '#374151' }}
                       >
-                        {os.sourceId?.icon || ''} {os.sourceId?.name || 'Source'}
+                        {os.sourceInfo?.icon || '🔗'} {os.sourceInfo?.name || String(os.sourceId)}
                       </span>
                     ))}
                   </div>
@@ -745,9 +760,9 @@ const AssignmentsManager = () => {
                   <td className="px-6 py-4">
                     <div className="flex flex-wrap gap-1">
                       {Array.isArray(assignment.orderSources) && assignment.orderSources.map((os) => (
-                        <span key={os.sourceId?._id || os.sourceId} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
-                          style={{ backgroundColor: (os.sourceId?.color || '#000') + '20', color: os.sourceId?.color || '#000' }}>
-                          {os.sourceId?.icon || ''} {os.sourceId?.name || 'Source inconnue'}
+                        <span key={String(os.sourceId)} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                          style={{ backgroundColor: (os.sourceInfo?.color || '#6366F1') + '20', color: os.sourceInfo?.color || '#374151' }}>
+                          {os.sourceInfo?.icon || '🔗'} {os.sourceInfo?.name || String(os.sourceId)}
                         </span>
                       ))}
                     </div>
@@ -870,17 +885,20 @@ const AssignmentsManager = () => {
 
                   <div className="space-y-3">
                     {Array.isArray(sources) && sources.map((source) => {
-                      const isSourceChecked = formData.orderSources.some(os => os.sourceId === source._id);
-                      const pa = formData.productAssignments.find(p => p.sourceId === source._id);
-                      const selectedProductIds = pa?.productIds || [];
+                      const sid = String(source._id);
+                      const isSourceChecked = formData.orderSources.some(os => String(os.sourceId) === sid);
+                      const pa = formData.productAssignments.find(p => String(p.sourceId) === sid);
+                      const selectedProductIds = (pa?.productIds || []).map(String);
                       const isSheetSource = source.metadata?.type === 'google_sheets';
-                      const srcProducts = sheetProducts[source._id];
-                      const isLoadingProds = loadingSheetProducts[source._id];
-                      const dbProducts = products;
-
+                      const isScalorSource = source.metadata?.type === 'scalor_store' || source.sourceType === 'scalor_store';
+                      const isShopifySource = source.sourceType === 'shopify';
+                      const srcProducts = sheetProducts[sid];
+                      const isLoadingProds = loadingSheetProducts[sid];
+                      const dbProducts = (isScalorSource || isShopifySource) ? storeProducts : products;
+                      // availableProducts : strings pour sheets, objets {_id,name} pour db
                       const availableProducts = isSheetSource
                         ? (srcProducts?.products || [])
-                        : dbProducts.map(p => p._id);
+                        : dbProducts;
 
                       return (
                         <div
@@ -894,7 +912,7 @@ const AssignmentsManager = () => {
                             <input
                               type="checkbox"
                               checked={isSourceChecked}
-                              onChange={() => toggleSource(source._id, isSheetSource)}
+                              onChange={() => toggleSource(sid, isSheetSource)}
                               className="w-4 h-4 rounded border-gray-300 text-emerald-600 cursor-pointer"
                             />
                             <span className="text-base">{source.icon}</span>
@@ -902,6 +920,13 @@ const AssignmentsManager = () => {
                             {isSheetSource && (
                               <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full">Google Sheets</span>
                             )}
+                            {source.sourceType === 'scalor_store' || source.metadata?.type === 'scalor_store' ? (
+                              <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-semibold">Scalor</span>
+                            ) : source.sourceType === 'webhook' && !isSheetSource ? (
+                              <span className="text-xs px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full">Webhook</span>
+                            ) : source.sourceType === 'shopify' ? (
+                              <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">Shopify</span>
+                            ) : null}
                             {isSourceChecked && selectedProductIds.length > 0 && (
                               <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-medium">
                                 {selectedProductIds.length} produit{selectedProductIds.length > 1 ? 's' : ''}
@@ -927,14 +952,19 @@ const AssignmentsManager = () => {
                                   <div className="flex gap-2 mb-2">
                                     <button
                                       type="button"
-                                      onClick={() => selectAllProducts(source._id, availableProducts)}
+                                      onClick={() => {
+                                        const allIds = isSheetSource
+                                          ? availableProducts
+                                          : availableProducts.map(p => String(p._id));
+                                        selectAllProducts(sid, allIds);
+                                      }}
                                       className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200"
                                     >
                                       Tout sélectionner ({availableProducts.length})
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => selectAllProducts(source._id, [])}
+                                      onClick={() => selectAllProducts(sid, [])}
                                       className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
                                     >
                                       Tout désélectionner
@@ -951,30 +981,34 @@ const AssignmentsManager = () => {
                                       {isSheetSource
                                         ? availableProducts.map((productName, idx) => (
                                             <label key={idx} className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm transition-colors ${
-                                              selectedProductIds.includes(productName) ? 'bg-emerald-100 text-emerald-800' : 'hover:bg-gray-100 text-gray-700'
+                                              selectedProductIds.includes(String(productName)) ? 'bg-emerald-100 text-emerald-800' : 'hover:bg-gray-100 text-gray-700'
                                             }`}>
                                               <input
                                                 type="checkbox"
-                                                checked={selectedProductIds.includes(productName)}
-                                                onChange={() => toggleProduct(source._id, productName)}
+                                                checked={selectedProductIds.includes(String(productName))}
+                                                onChange={() => toggleProduct(sid, String(productName))}
                                                 className="w-3.5 h-3.5 rounded border-gray-300 text-emerald-600"
                                               />
                                               <span className="truncate">{productName}</span>
                                             </label>
                                           ))
-                                        : dbProducts.map((product) => (
-                                            <label key={product._id} className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm transition-colors ${
-                                              selectedProductIds.includes(product._id) ? 'bg-emerald-100 text-emerald-800' : 'hover:bg-gray-100 text-gray-700'
-                                            }`}>
-                                              <input
-                                                type="checkbox"
-                                                checked={selectedProductIds.includes(product._id)}
-                                                onChange={() => toggleProduct(source._id, product._id)}
-                                                className="w-3.5 h-3.5 rounded border-gray-300 text-emerald-600"
-                                              />
-                                              <span className="truncate">{product.name}</span>
-                                            </label>
-                                          ))
+                                        : availableProducts.map((product) => {
+                                            const pid = String(product._id);
+                                            const isChecked = selectedProductIds.includes(pid);
+                                            return (
+                                              <label key={pid} className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm transition-colors ${
+                                                isChecked ? 'bg-emerald-100 text-emerald-800' : 'hover:bg-gray-100 text-gray-700'
+                                              }`}>
+                                                <input
+                                                  type="checkbox"
+                                                  checked={isChecked}
+                                                  onChange={() => toggleProduct(sid, pid)}
+                                                  className="w-3.5 h-3.5 rounded border-gray-300 text-emerald-600"
+                                                />
+                                                <span className="truncate">{product.name}</span>
+                                              </label>
+                                            );
+                                          })
                                       }
                                     </div>
                                   )}

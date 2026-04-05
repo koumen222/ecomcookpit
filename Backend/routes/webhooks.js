@@ -1,11 +1,18 @@
 import express from 'express';
+import crypto from 'crypto';
 import Order from '../models/Order.js';
 import OrderSource from '../models/OrderSource.js';
 import { notifyNewOrder } from '../services/notificationHelper.js';
 import { normalizeCity } from '../utils/cityNormalizer.js';
 import { sendOrderConfirmationToClient } from '../services/shopifyWhatsappService.js';
+import { requireEcomAuth } from '../middleware/ecomAuth.js';
 
 const router = express.Router();
+
+// ─── Helper: get workspaceId from auth middleware ─────────────────────────────
+function getWorkspaceId(req) {
+  return req.workspaceId || req.user?.workspaceId;
+}
 
 // Fonction pour normaliser les données de commande
 function normalizeOrderData(rawData, sourceConfig) {

@@ -18,6 +18,13 @@ const storeProductSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  // Multi-store: which store this product belongs to (null = legacy single-store)
+  storeId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Store',
+    index: true,
+    default: null
+  },
   name: {
     type: String,
     required: true,
@@ -147,15 +154,24 @@ const storeProductSchema = new mongoose.Schema({
   _pageData: {
     type: mongoose.Schema.Types.Mixed,
     default: null
+  },
+  // Product Page Builder — sections modulaires
+  pageBuilder: {
+    enabled: { type: Boolean, default: false },
+    sections: {
+      type: mongoose.Schema.Types.Mixed,
+      default: []
+    },
+    template: { type: String, default: null } // 'skincare' | 'fitness' | 'gadget' | null
   }
 }, {
   collection: 'store_products',
   timestamps: true
 });
 
-// Generate slug from name before save
+// Generate slug from name before save (only on creation)
 storeProductSchema.pre('save', function () {
-  if (this.isNew || this.isModified('name')) {
+  if (this.isNew && !this.slug) {
     this.slug = this.name
       .toLowerCase()
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove accents

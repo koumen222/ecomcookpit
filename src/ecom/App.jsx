@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation, matchPath } from 'react-router-do
 import { EcomAuthProvider } from './hooks/useEcomAuth.jsx';
 import { CurrencyProvider } from './contexts/CurrencyContext.jsx';
 import { ThemeProvider } from './contexts/ThemeContext.jsx';
+import { StoreProvider } from './contexts/StoreContext.jsx';
 import { useEcomAuth } from './hooks/useEcomAuth.jsx';
 // analytics imported lazily in PageViewTracker — keeps axios out of the critical bundle
 import { usePosthogPageViews } from './hooks/usePosthogPageViews.js';
@@ -119,12 +120,14 @@ const BillingPage = lazy(() => import('./pages/BillingPage.jsx'));
 const BillingSuccess = lazy(() => import('./pages/BillingSuccess.jsx'));
 const ProviderService = lazy(() => import('./pages/ProviderService.jsx'));
 const ProductSettingsPage = lazy(() => import('./pages/ProductSettingsPage.jsx'));
+const ProductThemePage = lazy(() => import('./pages/ProductThemePage.jsx'));
 const CreativeGenerator = lazy(() => import('./pages/CreativeGenerator.jsx'));
 
 // Store pages
 const StoreSetup = lazy(() => import('./pages/StoreSetup.jsx'));
 const StoreProductsList = lazy(() => import('./pages/StoreProductsList.jsx'));
 const StoreProductForm = lazy(() => import('./pages/StoreProductForm.jsx'));
+const ProductPageBuilder = lazy(() => import('./pages/ProductPageBuilder.jsx'));
 const StoreAnalytics = lazy(() => import('./pages/StoreAnalytics.jsx'));
 const StoreDashboard = lazy(() => import('./pages/StoreDashboard.jsx'));
 const StoreOrdersDashboard = lazy(() => import('./pages/StoreOrdersDashboard.jsx'));
@@ -255,6 +258,7 @@ const PLATFORM_TITLE_RULES = [
   { path: '/ecom/boutique/delivery-zones', title: 'Zones de livraison' },
   { path: '/ecom/boutique/settings', title: 'Paramètres boutique' },
   { path: '/ecom/boutique/product-settings', title: 'Paramètres page produit' },
+  { path: '/ecom/boutique/theme', title: 'Thème page produit' },
   { path: '/ecom/boutique', title: 'Boutique' },
   { path: '/ecom/developer', title: 'Développeur' },
   { path: '/ecom/agent-ia', title: 'Agents IA' },
@@ -633,23 +637,29 @@ const EcomApp = () => {
               <Route path="/ecom/super-admin/billing" element={<LayoutRoute requiredRole="super_admin"><SuperAdminBilling /></LayoutRoute>} />
               <Route path="/ecom/super-admin/feature-analytics" element={<LayoutRoute requiredRole="super_admin"><SuperAdminFeatureAnalytics /></LayoutRoute>} />
 
-              {/* Routes boutique - Utilise sa propre sidebar via BoutiqueLayout */}
-              <Route path="/ecom/boutique/wizard" element={<ProtectedRoute requiredRole="ecom_admin"><StoreCreationWizard /></ProtectedRoute>} />
-              <Route element={<ProtectedRoute requiredRole="ecom_admin"><BoutiqueLayout /></ProtectedRoute>}>
-                <Route path="/ecom/boutique" element={<StoreDashboard />} />
-                <Route path="/ecom/boutique/analytics" element={<StoreDashboard />} />
-                <Route path="/ecom/boutique/products" element={<StoreProductsList />} />
-                <Route path="/ecom/boutique/products/new" element={<StoreProductForm />} />
-                <Route path="/ecom/boutique/products/:id/edit" element={<StoreProductForm />} />
-                <Route path="/ecom/boutique/orders" element={<StoreOrdersDashboard />} />
-                <Route path="/ecom/boutique/old-analytics" element={<StoreAnalytics />} />
-                <Route path="/ecom/boutique/pages" element={<BoutiquePages />} />
-                <Route path="/ecom/boutique/pixel" element={<BoutiquePixel />} />
-                <Route path="/ecom/boutique/payments" element={<BoutiquePayments />} />
-                <Route path="/ecom/boutique/domains" element={<BoutiqueDomains />} />
-                <Route path="/ecom/boutique/delivery-zones" element={<BoutiqueDeliveryZones />} />
-                <Route path="/ecom/boutique/settings" element={<BoutiqueSettings />} />
-                <Route path="/ecom/boutique/product-settings" element={<ProductSettingsPage />} />
+              {/* Routes boutique - StoreProvider persists across wizard + layout navigations */}
+              <Route element={<StoreProvider />}>
+                <Route path="/ecom/boutique/wizard" element={<ProtectedRoute requiredRole="ecom_admin"><StoreCreationWizard /></ProtectedRoute>} />
+                <Route path="/ecom/boutique/nouvelle" element={<ProtectedRoute requiredRole="ecom_admin"><StoreCreationWizard /></ProtectedRoute>} />
+                {/* Builder — full screen, outside BoutiqueLayout */}
+                <Route path="/ecom/boutique/products/:id/builder" element={<ProtectedRoute requiredRole="ecom_admin"><ProductPageBuilder /></ProtectedRoute>} />
+                <Route element={<ProtectedRoute requiredRole="ecom_admin"><BoutiqueLayout /></ProtectedRoute>}>
+                  <Route path="/ecom/boutique" element={<StoreDashboard />} />
+                  <Route path="/ecom/boutique/analytics" element={<StoreDashboard />} />
+                  <Route path="/ecom/boutique/products" element={<StoreProductsList />} />
+                  <Route path="/ecom/boutique/products/new" element={<StoreProductForm />} />
+                  <Route path="/ecom/boutique/products/:id/edit" element={<StoreProductForm />} />
+                  <Route path="/ecom/boutique/orders" element={<StoreOrdersDashboard />} />
+                  <Route path="/ecom/boutique/old-analytics" element={<StoreAnalytics />} />
+                  <Route path="/ecom/boutique/pages" element={<BoutiquePages />} />
+                  <Route path="/ecom/boutique/pixel" element={<BoutiquePixel />} />
+                  <Route path="/ecom/boutique/payments" element={<BoutiquePayments />} />
+                  <Route path="/ecom/boutique/domains" element={<BoutiqueDomains />} />
+                  <Route path="/ecom/boutique/delivery-zones" element={<BoutiqueDeliveryZones />} />
+                  <Route path="/ecom/boutique/settings" element={<BoutiqueSettings />} />
+                  <Route path="/ecom/boutique/product-settings" element={<ProductSettingsPage />} />
+                  <Route path="/ecom/boutique/theme" element={<ProductThemePage />} />
+                </Route>
               </Route>
 
               {/* Générateur de Créas IA */}
@@ -678,6 +688,11 @@ const EcomApp = () => {
               <Route path="/scalor/login" element={<Navigate to="/ecom/developer" replace />} />
               <Route path="/scalor/register" element={<Navigate to="/ecom/developer" replace />} />
               <Route path="/scalor/dashboard" element={<Navigate to="/ecom/developer" replace />} />
+
+              {/* Public Store Routes (no auth, for iframe previews & dev) */}
+              <Route path="/store/:subdomain" element={<Suspense fallback={<PageLoader storeMode />}><PublicStorefront /></Suspense>} />
+              <Route path="/store/:subdomain/product/:slug" element={<Suspense fallback={<PageLoader storeMode />}><StoreProductPage /></Suspense>} />
+              <Route path="/store/:subdomain/checkout" element={<Suspense fallback={<PageLoader storeMode />}><StoreCheckout /></Suspense>} />
 
               {/* Catch-all */}
               <Route path="*" element={<Navigate to="/ecom/login" replace />} />

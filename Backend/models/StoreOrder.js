@@ -18,6 +18,13 @@ const storeOrderSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  // Multi-store: which store this order belongs to (null = legacy single-store)
+  storeId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Store',
+    index: true,
+    default: null
+  },
   // Auto-generated human-readable order number
   orderNumber: {
     type: String,

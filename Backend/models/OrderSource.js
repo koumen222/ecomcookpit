@@ -36,6 +36,34 @@ const orderSourceSchema = new mongoose.Schema({
   metadata: {
     type: mongoose.Schema.Types.Mixed,
     default: {}
+  },
+  // Type de source : manual (saisie), webhook (URL générique), shopify, scalot
+  type: {
+    type: String,
+    enum: ['manual', 'webhook', 'shopify', 'scalot'],
+    default: 'manual'
+  },
+  // Token unique pour l'URL webhook (généré automatiquement)
+  webhookToken: {
+    type: String,
+    unique: true,
+    sparse: true,
+    default: null
+  },
+  // Nom de la boutique externe (Shopify shop domain, Scalot store name)
+  shopName: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  // Statistiques rapides
+  ordersCount: {
+    type: Number,
+    default: 0
+  },
+  lastOrderAt: {
+    type: Date,
+    default: null
   }
 }, {
   collection: 'order_sources',
@@ -44,5 +72,6 @@ const orderSourceSchema = new mongoose.Schema({
 
 // Index pour recherche rapide
 orderSourceSchema.index({ workspaceId: 1, isActive: 1 });
+orderSourceSchema.index({ workspaceId: 1, type: 1 });
 
 export default mongoose.model('OrderSource', orderSourceSchema);

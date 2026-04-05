@@ -3,7 +3,7 @@ import {
   Save, RotateCcw, Loader2, LayoutDashboard, ClipboardList,
   Package, MessageCircle, Palette, AlignLeft, Plus, X,
   ChevronUp, ChevronDown, GripVertical, ExternalLink, Smartphone,
-  ChevronRight, MousePointerClick, Tag, Layers, Sparkles,
+  ChevronRight, MousePointerClick, Tag, Layers, Sparkles, Paintbrush,
 } from 'lucide-react';
 import defaultConfig from '../components/productSettings/defaultConfig';
 import { storeManageApi, storeProductsApi } from '../services/storeApi';
@@ -14,6 +14,7 @@ import DesignSettings from '../components/productSettings/DesignSettings';
 import AutomationSettings from '../components/productSettings/AutomationSettings';
 import ToggleSwitch from '../components/productSettings/ToggleSwitch';
 import LivePreview from '../components/productSettings/LivePreview';
+import ThemeSelector from '../components/productSettings/ThemeSelector';
 
 const deepClone = (obj) => JSON.parse(JSON.stringify(obj));
 
@@ -31,6 +32,7 @@ const mergeSections = (stored) => {
 const mergeWithDefaults = (stored) => ({
   ...deepClone(defaultConfig),
   ...stored,
+  theme: stored?.theme || defaultConfig.theme,
   general: {
     ...defaultConfig.general,
     ...(stored?.general || {}),
@@ -58,6 +60,7 @@ const mergeWithDefaults = (stored) => ({
 
 // ── Editor sections ───────────────────────────────────────────────────────────
 const EDITOR_SECTIONS = [
+  { id: 'theme', label: 'Thème page produit', icon: Paintbrush, desc: 'Style visuel global de la page' },
   { id: 'sections', label: 'Sections de la page', icon: Layers, desc: 'Blocs, ordre & visibilité' },
   { id: 'offers', label: 'Offres quantité', icon: Tag, desc: 'Lots, réductions & badges' },
   { id: 'form', label: 'Formulaire', icon: ClipboardList, desc: 'Champs, type & validation' },
@@ -242,7 +245,7 @@ const ProductSelector = ({ products, selected, onSelect, storeSubdomain }) => {
 // ── Main Builder ──────────────────────────────────────────────────────────────
 const ProductSettingsPage = () => {
   const [config, setConfig] = useState(() => deepClone(defaultConfig));
-  const [openSection, setOpenSection] = useState('sections');
+  const [openSection, setOpenSection] = useState('theme');
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -322,6 +325,13 @@ const ProductSettingsPage = () => {
   // Render the editor content for a given section
   const renderEditor = (sectionId) => {
     switch (sectionId) {
+      case 'theme':
+        return (
+          <ThemeSelector
+            config={config}
+            onChange={handleChange}
+          />
+        );
       case 'sections':
         return (
           <BlocksEditor

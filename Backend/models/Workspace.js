@@ -156,6 +156,13 @@ const workspaceSchema = new mongoose.Schema({
     }],
     default: []
   },
+  // Multi-store: reference to the default/primary Store for this workspace
+  primaryStoreId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Store',
+    default: null,
+    sparse: true
+  },
   isActive: {
     type: Boolean,
     default: true

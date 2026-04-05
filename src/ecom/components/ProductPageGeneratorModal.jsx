@@ -148,6 +148,15 @@ function TypingText({ text }) {
   );
 }
 
+const VISUAL_TEMPLATES = [
+  { id: 'beauty', label: 'Beauté & Cosmétique', icon: '💄', desc: 'Crèmes, sérums, soins peau, cheveux, maquillage', color: 'from-pink-500 to-rose-500', border: 'border-pink-400', bg: 'bg-pink-50' },
+  { id: 'health', label: 'Santé & Nutrition', icon: '💪', desc: 'Compléments, vitamines, minceur, bien-être', color: 'from-emerald-500 to-teal-500', border: 'border-emerald-400', bg: 'bg-emerald-50' },
+  { id: 'tech', label: 'Tech & Électronique', icon: '📱', desc: 'Gadgets, accessoires, appareils, audio', color: 'from-blue-500 to-cyan-500', border: 'border-blue-400', bg: 'bg-blue-50' },
+  { id: 'fashion', label: 'Mode & Accessoires', icon: '👗', desc: 'Vêtements, bijoux, sacs, chaussures, wax', color: 'from-amber-500 to-orange-500', border: 'border-amber-400', bg: 'bg-amber-50' },
+  { id: 'home', label: 'Maison & Cuisine', icon: '🏠', desc: 'Déco, cuisine, électroménager, nettoyage', color: 'from-orange-500 to-red-400', border: 'border-orange-400', bg: 'bg-orange-50' },
+  { id: 'general', label: 'Autre / Général', icon: '📦', desc: 'Tout type de produit — template polyvalent', color: 'from-violet-500 to-purple-500', border: 'border-violet-400', bg: 'bg-violet-50' },
+];
+
 const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const [phase, setPhase] = useState('input');
   const [step, setStep] = useState(1); // 1: Base info, 2: Copywriting, 3: Advanced (optional)
@@ -155,6 +164,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const [url, setUrl] = useState('');
   const [description, setDescription] = useState('');
   const [photos, setPhotos] = useState([]);
+  const [visualTemplate, setVisualTemplate] = useState('beauty');
   const [marketingApproach, setMarketingApproach] = useState('PAS'); // PAS, AIDA, BAB
   const [currentStep, setCurrentStep] = useState(0);
   const [stepLabel, setStepLabel] = useState('');
@@ -375,6 +385,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     
     formData.append('withImages', 'true');
     formData.append('marketingApproach', marketingApproach);
+    formData.append('visualTemplate', visualTemplate);
     
     // Paramètres copywriting simplifiés
     formData.append('tone', tone);
@@ -782,6 +793,36 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               {/* ÉTAPE 1: Informations produit */}
               {step === 1 && (
                 <>
+                  {/* Template de page produit */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      🎨 Template visuel
+                    </label>
+                    <p className="text-xs text-gray-500 mb-3">Choisis le type de produit — chaque template a son propre style d'images et de mise en page</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {VISUAL_TEMPLATES.map(t => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setVisualTemplate(t.id)}
+                          className={`p-3 rounded-xl border-2 text-left transition-all duration-200 ${
+                            visualTemplate === t.id
+                              ? `${t.border} ${t.bg} shadow-md scale-[1.02]`
+                              : 'border-gray-200 hover:border-gray-300 bg-white hover:shadow-sm'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-lg">{t.icon}</span>
+                            <span className={`text-xs font-bold ${
+                              visualTemplate === t.id ? 'text-gray-900' : 'text-gray-700'
+                            }`}>{t.label}</span>
+                          </div>
+                          <p className="text-[10px] text-gray-500 leading-tight">{t.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Mode Selection Tabs */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">

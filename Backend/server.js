@@ -332,6 +332,7 @@ const startServer = async () => {
       ['./routes/storeProducts.js',           '/api/ecom/store-products'],
       ['./routes/storeOrders.js',             '/api/ecom/store-orders'],
       ['./routes/storeManagement.js',         '/api/ecom/store-manage'],
+      ['./routes/stores.js',                  '/api/ecom/stores'],
       ['./routes/storeAdmin.js',              '/api/ecom/store'],
       ['./routes/storeAnalytics.js',          '/api/ecom/store-analytics'],
       ['./routes/publicStore.js',             '/api/public/store'],

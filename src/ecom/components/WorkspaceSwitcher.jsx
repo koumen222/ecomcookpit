@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
 import { useEcomAuth } from '../hooks/useEcomAuth';
+import { useWorkspaceSwitch, SwitchOverlay } from '../hooks/useWorkspaceSwitch';
 import ecomApi from '../services/ecommApi';
 
 const PALETTE = [
@@ -16,47 +17,12 @@ const roleLabels = {
   'ecom_livreur': 'Livreur'
 };
 
-const roleDashMap = {
-  'super_admin': '/ecom/super-admin',
-  'ecom_admin': '/ecom/dashboard/admin',
-  'ecom_closeuse': '/ecom/dashboard/closeuse',
-  'ecom_compta': '/ecom/dashboard/compta',
-  'ecom_livreur': '/ecom/livreur',
-  'livreur': '/ecom/livreur'
-};
-
-const navigateAfterSwitch = (role) => {
-  const target = roleDashMap[role] || '/ecom/dashboard';
-  if (window.location.pathname === target) {
-    window.location.reload();
-  } else {
-    window.location.href = target;
-  }
-};
-
-// Overlay plein écran pendant le switch
-const SwitchOverlay = ({ name }) => (
-  <div style={{
-    position: 'fixed', inset: 0, zIndex: 9999,
-    background: 'rgba(255,255,255,0.93)',
-    backdropFilter: 'blur(6px)',
-    display: 'flex', flexDirection: 'column',
-    alignItems: 'center', justifyContent: 'center', gap: 14
-  }}>
-    <div style={{ width: 40, height: 40, borderRadius: '50%', border: '3px solid #e5e7eb', borderTopColor: '#0F6B4F', animation: 'spin 0.7s linear infinite' }} />
-    <p style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>
-      Basculer vers <span style={{ color: '#0F6B4F' }}>{name}</span>…
-    </p>
-  </div>
-);
-
 const WorkspaceSwitcher = () => {
-  const { user, workspace, switchWorkspace } = useEcomAuth();
+  const { user, workspace } = useEcomAuth();
+  const { switchingId, switchingName, handleSwitch } = useWorkspaceSwitch();
   const [workspaces, setWorkspaces] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
-  const [switchingId, setSwitchingId] = useState(null);
-  const [switchingName, setSwitchingName] = useState('');
   const dropdownRef = useRef(null);
 
   useEffect(() => { fetchWorkspaces(); }, []);
@@ -80,25 +46,7 @@ const WorkspaceSwitcher = () => {
     finally { setLoading(false); }
   };
 
-  const handleSwitch = async (ws) => {
-    if (switchingId || ws._id === user?.workspaceId) return;
-    setSwitchingId(ws._id);
-    setSwitchingName(ws.name);
-    setIsOpen(false);
-    try {
-      const res = await ecomApi.post('/users/me/switch-workspace', { workspaceId: ws._id });
-      if (res.data.success) {
-        const { token, user: nextUser, workspace: nextWs } = res.data.data;
-        if (switchWorkspace) await switchWorkspace(token, nextUser, nextWs);
-        navigateAfterSwitch(nextUser?.role);
-      } else {
-        setSwitchingId(null);
-      }
-    } catch (err) {
-      alert(err.response?.data?.message || 'Erreur lors du changement d\'espace');
-      setSwitchingId(null);
-    }
-  };
+  const onSwitch = (ws) => handleSwitch(ws, { onBefore: () => setIsOpen(false) });
 
   const currentWorkspace = workspaces.find(w => w.isActive);
   const otherWorkspaces = workspaces.filter(w => !w.isActive);
@@ -164,7 +112,7 @@ const WorkspaceSwitcher = () => {
             {otherWorkspaces.map((ws) => (
               <button
                 key={ws._id}
-                onClick={() => handleSwitch(ws)}
+                onClick={() => onSwitch(ws)}
                 disabled={!!switchingId}
                 className="w-full px-3 py-2 hover:bg-gray-50 transition-colors text-left flex items-center gap-2.5 disabled:opacity-50"
               >

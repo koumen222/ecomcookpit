@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Package, Plus, Search, Edit, Trash2, Eye, EyeOff, ChevronLeft, ChevronRight, Loader2, AlertCircle, Image, Sparkles, ExternalLink, Zap } from 'lucide-react';
+import { Package, Plus, Search, Edit, Trash2, Eye, EyeOff, ChevronLeft, ChevronRight, Loader2, AlertCircle, Image, Sparkles, ExternalLink, Zap, Layers, Copy } from 'lucide-react';
 import { storeProductsApi, storeManageApi } from '../services/storeApi.js';
 import ecomApi from '../services/ecommApi.js';
 import ProductPageGeneratorModal from '../components/ProductPageGeneratorModal.jsx';
@@ -107,6 +107,19 @@ const StoreProductsList = () => {
       setPagination(prev => ({ ...prev, total: prev.total - 1 }));
     } catch (err) {
       setError('Erreur lors de la suppression');
+    }
+  };
+
+  const handleDuplicate = async (product) => {
+    try {
+      const res = await storeProductsApi.duplicateProduct(product._id);
+      const cloned = res.data?.data;
+      if (cloned) {
+        setProducts(prev => [cloned, ...prev]);
+        setPagination(prev => ({ ...prev, total: prev.total + 1 }));
+      }
+    } catch (err) {
+      setError('Erreur lors de la duplication');
     }
   };
 
@@ -257,6 +270,20 @@ const StoreProductsList = () => {
                           <ExternalLink className="w-4 h-4" />
                         </button>
                         <button
+                          onClick={() => navigate(`${basePath}/products/${product._id}/builder`)}
+                          className={`p-1.5 rounded-lg transition ${product.pageBuilder?.enabled ? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100' : 'text-gray-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                          title="Page Builder"
+                        >
+                          <Layers className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDuplicate(product)}
+                          className="p-1.5 text-gray-400 hover:text-amber-600 rounded-lg hover:bg-amber-50 transition"
+                          title="Dupliquer"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => navigate(`${basePath}/products/${product._id}/edit`)}
                           className="p-1.5 text-gray-400 hover:text-emerald-600 rounded-lg hover:bg-emerald-50 transition"
                           title="Modifier"
@@ -309,6 +336,8 @@ const StoreProductsList = () => {
                   >
                     Voir
                   </button>
+                  <button onClick={() => navigate(`${basePath}/products/${product._id}/builder`)} className={`px-3 py-1.5 text-xs font-medium rounded-lg ${product.pageBuilder?.enabled ? 'text-indigo-700 bg-indigo-50' : 'text-gray-600 bg-gray-100'}`}>Builder</button>
+                  <button onClick={() => handleDuplicate(product)} className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 rounded-lg">Copier</button>
                   <button onClick={() => navigate(`${basePath}/products/${product._id}/edit`)} className="px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg">Modifier</button>
                   <button onClick={() => handleDelete(product._id)} className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg">Supprimer</button>
                 </div>

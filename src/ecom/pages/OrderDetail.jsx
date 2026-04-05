@@ -99,8 +99,15 @@ const OrderDetail = () => {
       const res = await ecomApi.get(`/orders/${id}`);
       setOrder(res.data.data);
       setEditData(res.data.data);
-    } catch {
-      setError('Commande introuvable');
+    } catch (err) {
+      const status = err?.response?.status;
+      if (status === 403) {
+        setError('Accès refusé: cette commande ne vous est pas assignée.');
+      } else if (status === 404) {
+        setError('Commande introuvable');
+      } else {
+        setError('Erreur lors du chargement de la commande');
+      }
     } finally {
       setLoading(false);
     }

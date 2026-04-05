@@ -12,7 +12,26 @@ const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${c
 
 const FIELD_ICONS = { fullname: User, phone: Phone, address: MapPin, note: FileText };
 
-const LivePreview = ({ config, product: productProp }) => {
+const EditableWrap = ({ sectionId, onSectionClick, activeSectionId, children }) => {
+  if (!onSectionClick) return children;
+  const isActive = activeSectionId === sectionId;
+  return (
+    <div
+      onClick={(e) => { e.stopPropagation(); onSectionClick(sectionId); }}
+      style={{
+        position: 'relative', cursor: 'pointer', borderRadius: 6,
+        outline: isActive ? '2px solid #0F6B4F' : '1.5px dashed transparent',
+        outlineOffset: 2, transition: 'outline 0.15s ease',
+      }}
+      onMouseEnter={e => { if (!isActive) e.currentTarget.style.outline = '1.5px dashed #0F6B4F80'; }}
+      onMouseLeave={e => { if (!isActive) e.currentTarget.style.outline = '1.5px dashed transparent'; }}
+    >
+      {children}
+    </div>
+  );
+};
+
+const LivePreview = ({ config, product: productProp, onSectionClick, activeSectionId }) => {
   const { general, conversion, design, form, automation, button: btnCfg } = config;
   const BtnIcon = getIconComponent(btnCfg?.icon);
   const btnText = btnCfg?.text || 'Commander maintenant';
@@ -156,7 +175,7 @@ const LivePreview = ({ config, product: productProp }) => {
           Aperçu page produit
         </span>
         <span style={{ fontSize: 9, color: '#16A34A', backgroundColor: '#F0FDF4', padding: '2px 7px', borderRadius: 20, fontWeight: 600 }}>
-          Données réelles
+          {onSectionClick ? 'Cliquez pour modifier' : 'Données réelles'}
         </span>
       </div>
 
@@ -252,35 +271,42 @@ const LivePreview = ({ config, product: productProp }) => {
               case 'heroSlogan': {
                 const heroSloganText = s.content?.text || pd.hero_slogan;
                 return heroSloganText ? (
-                  <div key={s.id} style={{ fontSize: 9.5, fontWeight: 600, color: '#6B7280', marginBottom: 3, lineHeight: 1.4 }}>
-                    {heroSloganText}
-                  </div>
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{ fontSize: 9.5, fontWeight: 600, color: '#6B7280', marginBottom: 3, lineHeight: 1.4 }}>
+                      {heroSloganText}
+                    </div>
+                  </EditableWrap>
                 ) : null;
               }
 
               case 'heroBaseline': {
                 const heroBaselineText = s.content?.text || pd.hero_baseline;
                 return heroBaselineText ? (
-                  <div key={s.id} style={{ fontSize: 9, fontWeight: 700, color: btnColor, marginBottom: 8 }}>
-                    ✅ {heroBaselineText}
-                  </div>
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: btnColor, marginBottom: 8 }}>
+                      ✅ {heroBaselineText}
+                    </div>
+                  </EditableWrap>
                 ) : null;
               }
 
               case 'reviews':
                 return (
-                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
-                    <div style={{ display: 'flex', gap: 0.5 }}>
-                      {[1,2,3,4,5].map(i => <Star key={i} size={10} fill={i <= 4 ? '#FBBF24' : 'none'} color="#FBBF24" />)}
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
+                      <div style={{ display: 'flex', gap: 0.5 }}>
+                        {[1,2,3,4,5].map(i => <Star key={i} size={10} fill={i <= 4 ? '#FBBF24' : 'none'} color="#FBBF24" />)}
+                      </div>
+                      <span style={{ fontSize: 9, fontWeight: 600, color: '#111827' }}>{product.rating || 4.8}</span>
+                      <span style={{ fontSize: 9, color: '#9CA3AF' }}>({product.reviewCount || testimonials.length || 0} avis)</span>
                     </div>
-                    <span style={{ fontSize: 9, fontWeight: 600, color: '#111827' }}>{product.rating || 4.8}</span>
-                    <span style={{ fontSize: 9, color: '#9CA3AF' }}>({product.reviewCount || testimonials.length || 0} avis)</span>
-                  </div>
+                  </EditableWrap>
                 );
 
               case 'orderForm':
                 return (
-                  <div key={s.id} style={{ marginBottom: 10 }}>
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{ marginBottom: 10 }}>
                     {/* Offers cards */}
                     {offersEnabled && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
@@ -342,49 +368,57 @@ const LivePreview = ({ config, product: productProp }) => {
                       </>
                     )}
                   </div>
+                  </EditableWrap>
                 );
 
               case 'statsBar': {
                 const customStats = s.content?.stats?.filter(st => st.value && st.label);
                 const statsData = customStats?.length > 0 ? customStats : pd.stats_bar;
                 return statsData?.length > 0 ? (
-                  <div key={s.id} style={{ display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap' }}>
-                    {statsData.slice(0, 3).map((st, i) => (
-                      <div key={i} style={{
-                        flex: 1, minWidth: 60, textAlign: 'center', padding: '5px 4px',
-                        borderRadius: 8, backgroundColor: '#F0FAF5', border: '1px solid #D1FAE5',
-                      }}>
-                        <div style={{ fontSize: 11, fontWeight: 900, color: '#065F46' }}>{st.value}</div>
-                        <div style={{ fontSize: 7, color: '#6B7280', marginTop: 1 }}>{st.label}</div>
-                      </div>
-                    ))}
-                  </div>
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{ display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap' }}>
+                      {statsData.slice(0, 3).map((st, i) => (
+                        <div key={i} style={{
+                          flex: 1, minWidth: 60, textAlign: 'center', padding: '5px 4px',
+                          borderRadius: 8, backgroundColor: '#F0FAF5', border: '1px solid #D1FAE5',
+                        }}>
+                          <div style={{ fontSize: 11, fontWeight: 900, color: '#065F46' }}>{st.value}</div>
+                          <div style={{ fontSize: 7, color: '#6B7280', marginTop: 1 }}>{st.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </EditableWrap>
                 ) : null;
               }
 
               case 'stockCounter':
                 return stock > 0 && stock <= 10 ? (
-                  <div key={s.id} style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8, alignItems: 'center' }}>
-                    <span style={{ fontSize: 8.5, fontWeight: 700, color: '#D97706', backgroundColor: '#FEF3C7', padding: '3px 8px', borderRadius: 20 }}>
-                      ⚡ Plus que {stock} en stock
-                    </span>
-                  </div>
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8, alignItems: 'center' }}>
+                      <span style={{ fontSize: 8.5, fontWeight: 700, color: '#D97706', backgroundColor: '#FEF3C7', padding: '3px 8px', borderRadius: 20 }}>
+                        ⚡ Plus que {stock} en stock
+                      </span>
+                    </div>
+                  </EditableWrap>
                 ) : null;
 
               case 'urgencyBadge': {
                 const urgencyText = s.content?.text || pd.urgency_badge;
                 return urgencyText ? (
-                  <div key={s.id} style={{ marginBottom: 6 }}>
-                    <span style={{ fontSize: 8.5, fontWeight: 700, color: '#DC2626', backgroundColor: '#FEF2F2', padding: '3px 8px', borderRadius: 20, border: '1px solid #FECACA' }}>
-                      {urgencyText}
-                    </span>
-                  </div>
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{ marginBottom: 6 }}>
+                      <span style={{ fontSize: 8.5, fontWeight: 700, color: '#DC2626', backgroundColor: '#FEF2F2', padding: '3px 8px', borderRadius: 20, border: '1px solid #FECACA' }}>
+                        {urgencyText}
+                      </span>
+                    </div>
+                  </EditableWrap>
                 ) : null;
               }
 
               case 'urgencyElements':
                 return pd.urgency_elements ? (
-                  <div key={s.id} style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10 }}>
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10 }}>
                     {pd.urgency_elements.stock_limited && (
                       <div style={{ fontSize: 8, color: '#DC2626', display: 'flex', alignItems: 'center', gap: 4 }}>
                         <Clock size={9} /> {pd.urgency_elements.stock_limited}
@@ -401,67 +435,76 @@ const LivePreview = ({ config, product: productProp }) => {
                       </div>
                     )}
                   </div>
+                  </EditableWrap>
                 ) : null;
 
               case 'benefitsBullets': {
                 const customBullets = s.content?.items?.filter(Boolean);
                 const bulletsData = customBullets?.length > 0 ? customBullets : pd.benefits_bullets;
                 return bulletsData?.length > 0 ? (
-                  <div key={s.id} style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: '#374151', marginBottom: 4 }}>💥 Les bénéfices</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      {bulletsData.slice(0, 4).map((b, i) => (
-                        <div key={i} style={{ fontSize: 8.5, color: '#374151', display: 'flex', alignItems: 'flex-start', gap: 4, lineHeight: 1.4 }}>
-                          {b}
-                        </div>
-                      ))}
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{ marginBottom: 10 }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, color: '#374151', marginBottom: 4 }}>💥 Les bénéfices</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        {bulletsData.slice(0, 4).map((b, i) => (
+                          <div key={i} style={{ fontSize: 8.5, color: '#374151', display: 'flex', alignItems: 'flex-start', gap: 4, lineHeight: 1.4 }}>
+                            {b}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  </EditableWrap>
                 ) : null;
               }
 
               case 'conversionBlocks':
                 return pd.conversion_blocks?.length > 0 ? (
-                  <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 10 }}>
-                    {pd.conversion_blocks.slice(0, 4).map((b, i) => (
-                      <div key={i} style={{
-                        display: 'flex', alignItems: 'center', gap: 4, padding: '5px 6px',
-                        borderRadius: 8, backgroundColor: '#F9FAFB', border: '1px solid #F3F4F6',
-                      }}>
-                        <span style={{ fontSize: 12, flexShrink: 0 }}>{b.icon}</span>
-                        <span style={{ fontSize: 7.5, color: '#374151', lineHeight: 1.3 }}>{b.text}</span>
-                      </div>
-                    ))}
-                  </div>
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 10 }}>
+                      {pd.conversion_blocks.slice(0, 4).map((b, i) => (
+                        <div key={i} style={{
+                          display: 'flex', alignItems: 'center', gap: 4, padding: '5px 6px',
+                          borderRadius: 8, backgroundColor: '#F9FAFB', border: '1px solid #F3F4F6',
+                        }}>
+                          <span style={{ fontSize: 12, flexShrink: 0 }}>{b.icon}</span>
+                          <span style={{ fontSize: 7.5, color: '#374151', lineHeight: 1.3 }}>{b.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </EditableWrap>
                 ) : null;
 
               case 'offerBlock': {
                 const offerLabel = s.content?.offerLabel || pd.offer_block?.offer_label || 'Offre spéciale';
                 const guaranteeText = s.content?.guaranteeText || pd.offer_block?.guarantee_text;
                 return (pd.offer_block || s.content?.offerLabel || s.content?.guaranteeText) ? (
-                  <div key={s.id} style={{
-                    padding: '8px 10px', borderRadius: 10, marginBottom: 10,
-                    backgroundColor: '#FFFBEB', border: '1px solid #FDE68A',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
-                      <Gift size={10} color="#D97706" />
-                      <span style={{ fontSize: 9, fontWeight: 800, color: '#92400E' }}>{offerLabel}</span>
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{
+                      padding: '8px 10px', borderRadius: 10, marginBottom: 10,
+                      backgroundColor: '#FFFBEB', border: '1px solid #FDE68A',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
+                        <Gift size={10} color="#D97706" />
+                        <span style={{ fontSize: 9, fontWeight: 800, color: '#92400E' }}>{offerLabel}</span>
+                      </div>
+                      {guaranteeText && (
+                        <div style={{ fontSize: 8, color: '#78350F', lineHeight: 1.4 }}>{guaranteeText}</div>
+                      )}
                     </div>
-                    {guaranteeText && (
-                      <div style={{ fontSize: 8, color: '#78350F', lineHeight: 1.4 }}>{guaranteeText}</div>
-                    )}
-                  </div>
+                  </EditableWrap>
                 ) : null;
               }
 
               case 'description':
                 return product.description ? (
-                  <div key={s.id} style={{ marginBottom: 8, paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
-                    <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Description du produit</div>
-                    <p style={{ fontSize: 8, color: '#6B7280', lineHeight: 1.5, margin: '0 0 8px' }}>
-                      {product.description.replace(/<[^>]*>/g, '').slice(0, 180)}…
-                    </p>
-                  </div>
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{ marginBottom: 8, paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
+                      <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Description du produit</div>
+                      <p style={{ fontSize: 8, color: '#6B7280', lineHeight: 1.5, margin: '0 0 8px' }}>
+                        {product.description.replace(/<[^>]*>/g, '').slice(0, 180)}…
+                      </p>
+                    </div>
+                  </EditableWrap>
                 ) : null;
 
               case 'problemSection': {
@@ -469,17 +512,19 @@ const LivePreview = ({ config, product: productProp }) => {
                 const customPainPoints = s.content?.painPoints?.filter(Boolean);
                 const painPoints = customPainPoints?.length > 0 ? customPainPoints : pd.problem_section?.pain_points;
                 return (pd.problem_section || s.content?.title || customPainPoints?.length > 0) ? (
-                  <div key={s.id} style={{ padding: '8px 10px', borderRadius: 10, marginBottom: 8, backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                      <AlertTriangle size={10} color="#DC2626" />
-                      <span style={{ fontSize: 9, fontWeight: 800, color: '#991B1B' }}>{probTitle}</span>
-                    </div>
-                    {painPoints?.slice(0, 3).map((p, i) => (
-                      <div key={i} style={{ fontSize: 8, color: '#7F1D1D', marginBottom: 2, display: 'flex', gap: 3, alignItems: 'flex-start' }}>
-                        <span style={{ color: '#EF4444' }}>•</span> {p}
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{ padding: '8px 10px', borderRadius: 10, marginBottom: 8, backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                        <AlertTriangle size={10} color="#DC2626" />
+                        <span style={{ fontSize: 9, fontWeight: 800, color: '#991B1B' }}>{probTitle}</span>
                       </div>
-                    ))}
-                  </div>
+                      {painPoints?.slice(0, 3).map((p, i) => (
+                        <div key={i} style={{ fontSize: 8, color: '#7F1D1D', marginBottom: 2, display: 'flex', gap: 3, alignItems: 'flex-start' }}>
+                          <span style={{ color: '#EF4444' }}>•</span> {p}
+                        </div>
+                      ))}
+                    </div>
+                  </EditableWrap>
                 ) : null;
               }
 
@@ -487,17 +532,19 @@ const LivePreview = ({ config, product: productProp }) => {
                 const solTitle = s.content?.title || pd.solution_section?.title || 'La solution';
                 const solDesc = s.content?.description || pd.solution_section?.description;
                 return (pd.solution_section || s.content?.title || s.content?.description) ? (
-                  <div key={s.id} style={{ padding: '8px 10px', borderRadius: 10, marginBottom: 8, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                      <Lightbulb size={10} color="#16A34A" />
-                      <span style={{ fontSize: 9, fontWeight: 800, color: '#14532D' }}>{solTitle}</span>
-                    </div>
-                    {solDesc && (
-                      <div style={{ fontSize: 8, color: '#166534', lineHeight: 1.4 }}>
-                        {solDesc.slice(0, 150)}…
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{ padding: '8px 10px', borderRadius: 10, marginBottom: 8, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                        <Lightbulb size={10} color="#16A34A" />
+                        <span style={{ fontSize: 9, fontWeight: 800, color: '#14532D' }}>{solTitle}</span>
                       </div>
-                    )}
-                  </div>
+                      {solDesc && (
+                        <div style={{ fontSize: 8, color: '#166534', lineHeight: 1.4 }}>
+                          {solDesc.slice(0, 150)}…
+                        </div>
+                      )}
+                    </div>
+                  </EditableWrap>
                 ) : null;
               }
 
@@ -505,35 +552,40 @@ const LivePreview = ({ config, product: productProp }) => {
                 const customFaq = s.content?.faqItems?.filter(f => f.question && f.answer);
                 const faqData = customFaq?.length > 0 ? customFaq : faqItems;
                 return faqData.length > 0 ? (
-                  <div key={s.id} style={{ marginBottom: 8, paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
-                    <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Questions fréquentes</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {faqData.slice(0, 3).map((item, i) => (
-                        <div key={i} style={{ borderRadius: 8, border: '1px solid #F3F4F6', overflow: 'hidden' }}>
-                          <button onClick={() => setFaqOpen(faqOpen === i ? null : i)}
-                            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', background: '#FAFAFA', border: 'none', cursor: 'pointer' }}>
-                            <span style={{ fontSize: 8.5, fontWeight: 600, color: '#374151', textAlign: 'left' }}>{item.question || item.q}</span>
-                            {faqOpen === i ? <ChevronUp size={10} color="#6B7280" /> : <ChevronDown size={10} color="#6B7280" />}
-                          </button>
-                          {faqOpen === i && (
-                            <div style={{ padding: '5px 9px 7px', fontSize: 8, color: '#6B7280', backgroundColor: '#fff', lineHeight: 1.4 }}>
-                              {item.answer || item.reponse || item.a || ''}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{ marginBottom: 8, paddingTop: 10, borderTop: '1px solid #F3F4F6' }}>
+                      <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Questions fréquentes</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {faqData.slice(0, 3).map((item, i) => (
+                          <div key={i} style={{ borderRadius: 8, border: '1px solid #F3F4F6', overflow: 'hidden' }}>
+                            <button onClick={(e) => { e.stopPropagation(); setFaqOpen(faqOpen === i ? null : i); }}
+                              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', background: '#FAFAFA', border: 'none', cursor: 'pointer' }}>
+                              <span style={{ fontSize: 8.5, fontWeight: 600, color: '#374151', textAlign: 'left' }}>{item.question || item.q}</span>
+                              {faqOpen === i ? <ChevronUp size={10} color="#6B7280" /> : <ChevronDown size={10} color="#6B7280" />}
+                            </button>
+                            {faqOpen === i && (
+                              <div style={{ padding: '5px 9px 7px', fontSize: 8, color: '#6B7280', backgroundColor: '#fff', lineHeight: 1.4 }}>
+                                {item.answer || item.reponse || item.a || ''}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  </EditableWrap>
                 ) : null;
               }
 
-              case 'testimonials':
-                return testimonials.length > 0 ? (
-                  <div key={s.id} style={{ padding: '10px', borderRadius: 10, marginBottom: 8, background: 'linear-gradient(135deg, #F0FDF4, #ECFDF5)', border: '1px solid #D1FAE5' }}>
+              case 'testimonials': {
+                const customTestimonials = s.content?.items?.filter(t => t.name && t.text);
+                const testimonialsData = customTestimonials?.length > 0 ? customTestimonials : testimonials;
+                return testimonialsData.length > 0 ? (
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{ padding: '10px', borderRadius: 10, marginBottom: 8, background: 'linear-gradient(135deg, #F0FDF4, #ECFDF5)', border: '1px solid #D1FAE5' }}>
                     <div style={{ fontSize: 9, fontWeight: 700, color: '#065F46', marginBottom: 6, textAlign: 'center' }}>
                       Ce que disent nos clients
                     </div>
-                    {testimonials.slice(0, 2).map((t, i) => (
+                    {testimonialsData.slice(0, 2).map((t, i) => (
                       <div key={i} style={{ padding: '6px 8px', borderRadius: 8, backgroundColor: '#fff', border: '1px solid #E5E7EB', marginBottom: i === 0 ? 4 : 0 }}>
                         <div style={{ display: 'flex', gap: 1, marginBottom: 2 }}>
                           {[1,2,3,4,5].map(j => <Star key={j} size={7} fill={j <= (t.rating || 5) ? '#FBBF24' : 'none'} color="#FBBF24" />)}
@@ -547,11 +599,14 @@ const LivePreview = ({ config, product: productProp }) => {
                       </div>
                     ))}
                   </div>
+                  </EditableWrap>
                 ) : null;
+              }
 
               case 'relatedProducts':
                 return (
-                  <div key={s.id} style={{ marginBottom: 8 }}>
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{ marginBottom: 8 }}>
                     <div style={{ fontSize: 9.5, fontWeight: 700, color: '#374151', marginBottom: 6 }}>Vous aimerez aussi</div>
                     <div style={{ display: 'flex', gap: 6 }}>
                       {[1, 2, 3].map(i => (
@@ -565,15 +620,17 @@ const LivePreview = ({ config, product: productProp }) => {
                       ))}
                     </div>
                   </div>
+                  </EditableWrap>
                 );
 
               case 'upsell':
                 return (
-                  <div key={s.id} style={{
-                    padding: '8px 10px', borderRadius: 10, marginBottom: 8,
-                    border: '1px solid #DDD6FE', backgroundColor: '#F5F3FF',
-                    display: 'flex', alignItems: 'center', gap: 8,
-                  }}>
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{
+                      padding: '8px 10px', borderRadius: 10, marginBottom: 8,
+                      border: '1px solid #DDD6FE', backgroundColor: '#F5F3FF',
+                      display: 'flex', alignItems: 'center', gap: 8,
+                    }}>
                     <div style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#EDE9FE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <Star size={13} color="#7C3AED" />
                     </div>
@@ -582,15 +639,17 @@ const LivePreview = ({ config, product: productProp }) => {
                       <div style={{ fontSize: 7.5, color: '#7C3AED', marginTop: 1 }}>Pack complet + livraison offerte</div>
                     </div>
                   </div>
+                  </EditableWrap>
                 );
 
               case 'orderBump':
                 return (
-                  <div key={s.id} style={{
-                    padding: '6px 8px', border: '1.5px dashed #F97316', marginBottom: 8,
-                    borderRadius: 8, backgroundColor: '#FFF7ED',
-                    display: 'flex', alignItems: 'flex-start', gap: 5,
-                  }}>
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{
+                      padding: '6px 8px', border: '1.5px dashed #F97316', marginBottom: 8,
+                      borderRadius: 8, backgroundColor: '#FFF7ED',
+                      display: 'flex', alignItems: 'flex-start', gap: 5,
+                    }}>
                     <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: '#F97316', marginTop: 1, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Check size={7} color="#fff" />
                     </div>
@@ -599,6 +658,7 @@ const LivePreview = ({ config, product: productProp }) => {
                       <div style={{ fontSize: 7.5, color: '#EA580C', marginTop: 1 }}>Complément recommandé pour ce produit</div>
                     </div>
                   </div>
+                  </EditableWrap>
                 );
 
               default:
@@ -619,6 +679,7 @@ const LivePreview = ({ config, product: productProp }) => {
             ))}
           </div>
         </div>
+        {automation?.whatsapp?.enabled && (
           <div style={{ margin: '8px 12px', display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 8, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0' }}>
             <MessageCircle size={11} color="#16A34A" />
             <span style={{ fontSize: 8.5, fontWeight: 600, color: '#15803D' }}>Confirmation WhatsApp activée</span>
