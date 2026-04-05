@@ -786,61 +786,6 @@ const StoreProductPage = () => {
     };
   }, [subdomain]);
 
-  // ── Inject theme from productPageConfig OR category-based fallback ──────────
-  useEffect(() => {
-    const r = document.documentElement.style;
-
-    // Theme map matching ThemeSelector.jsx THEMES
-    const THEME_VARS = {
-      'classic':       { bg:'#ffffff', text:'#111827', text2:'#6b7280', primary:'#0F6B4F', border:'#e5e7eb' },
-      'dark-tech':     { bg:'#0a0f1e', text:'#ffffff', text2:'#a0aec0', primary:'#0066ff', border:'#1e2a3a' },
-      'luxury-gold':   { bg:'#faf7f2', text:'#2d1f0e', text2:'#7a6a52', primary:'#c9a84c', border:'#e8e0d0' },
-      'nature':        { bg:'#fffdf9', text:'#0d2b14', text2:'#5a7a60', primary:'#1a5c2a', border:'#d4e8d6' },
-      'health-energy': { bg:'#ffffff', text:'#1a2e1b', text2:'#5a7a5e', primary:'#2e7d32', border:'#c8e6c9' },
-      'warm-home':     { bg:'#f5f0e8', text:'#2d1a0e', text2:'#7a6252', primary:'#c0622a', border:'#e0d0c0' },
-      'rose-beauty':   { bg:'#fff5f5', text:'#3d1a2a', text2:'#8b6b7a', primary:'#c44569', border:'#f0d0d8' },
-      'minimalist':    { bg:'#ffffff', text:'#000000', text2:'#555555', primary:'#000000', border:'#e0e0e0' },
-    };
-
-    const savedTheme = store?.productPageConfig?.theme;
-    let vars = null;
-
-    // 1. Use explicitly saved theme if set (and not 'classic' or undefined)
-    if (savedTheme && THEME_VARS[savedTheme]) {
-      vars = THEME_VARS[savedTheme];
-    }
-    // 2. Fallback: auto-detect from product category (only if no theme saved)
-    else if (product?.category && !savedTheme) {
-      const cat = product.category.toLowerCase();
-      if (/tech|electron|phone|mobile|laptop|gadget|accessoire|câble|cable|casque|earphone|smartwatch/.test(cat)) {
-        vars = THEME_VARS['dark-tech'];
-      } else if (/mode|vêtement|vetement|robe|wax|tissu|fashion|clothing|bijou|sac|chaussure|shoe|bag|jewel/.test(cat)) {
-        vars = THEME_VARS['luxury-gold'];
-      } else if (/beaut|cosmét|soin|skin|crème|creme|sérum|serum|makeup|maquillage|parfum|cheveux|hair/.test(cat)) {
-        vars = THEME_VARS['nature'];
-      } else if (/aliment|food|nutri|santé|sante|supplement|complément|protéine|protein|minceur|régime|diet|bio|organic/.test(cat)) {
-        vars = THEME_VARS['health-energy'];
-      } else if (/maison|home|deco|décor|cuisine|kitchen|ménage|menage|électroménager|electromenager/.test(cat)) {
-        vars = THEME_VARS['warm-home'];
-      } else if (/bébé|bebe|enfant|child|kids|maternité|maternite|jouet|toy/.test(cat)) {
-        vars = { bg:'#e8f4fd', text:'#0d2b26', text2:'#4a8a80', primary:'#2a7a6a', border:'#b2dfdb' };
-      }
-    }
-
-    if (vars) {
-      r.setProperty('--s-primary', vars.primary);
-      r.setProperty('--s-bg', vars.bg);
-      r.setProperty('--s-text', vars.text);
-      r.setProperty('--s-text2', vars.text2);
-      r.setProperty('--s-border', vars.border);
-      document.documentElement.style.backgroundColor = vars.bg;
-    }
-
-    // Restore store theme on unmount
-    return () => {
-      if (store) injectStoreCssVars(store);
-    };
-  }, [product?.category, store]);
 
   const images = product?.images?.length ? product.images : [];
   const hasDiscount = product?.compareAtPrice && product.compareAtPrice > product.price;

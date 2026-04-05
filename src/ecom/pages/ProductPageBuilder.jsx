@@ -1096,6 +1096,7 @@ const ProductPageBuilder = () => {
   const [activeConfigSection, setActiveConfigSection] = useState(null);
   const [error, setError] = useState('');
   const [iframeKey, setIframeKey] = useState(0);
+  const [storeSubdomain, setStoreSubdomain] = useState(''); // fallback subdomain from config API
 
   // Compute merged config for LivePreview
   const mergedConfig = (() => {
@@ -1126,6 +1127,8 @@ const ProductPageBuilder = () => {
           setStoreConfig(ppc);
           const merged = mergeWithDefaults(ppc);
           setConfigSections(merged.general.sections);
+          // Extract subdomain as fallback for iframe preview
+          if (raw.subdomain) setStoreSubdomain(raw.subdomain);
         } else {
           setConfigSections(mergeWithDefaults(null).general.sections);
         }
@@ -1454,7 +1457,7 @@ const ProductPageBuilder = () => {
         <div className="flex-1 overflow-hidden relative flex flex-col">
           {/* Iframe preview of the real product page */}
           {(() => {
-            const subdomain = activeStore?.subdomain;
+            const subdomain = activeStore?.subdomain || storeSubdomain;
             const slug = product?.slug;
             const iframeSrc = subdomain && slug ? `/store/${subdomain}/product/${slug}` : null;
             const deviceConfig = {

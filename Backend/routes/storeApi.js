@@ -76,6 +76,11 @@ function setCachedStore(subdomain, data) {
   storeCache.set(subdomain, { data, expires: Date.now() + CACHE_TTL });
 }
 
+// Invalidate cache for a subdomain (called after admin saves config)
+export function invalidateStoreCache(subdomain) {
+  if (subdomain) storeCache.delete(subdomain.toLowerCase().trim());
+}
+
 // Cleanup expired entries every 10 minutes
 setInterval(() => {
   const now = Date.now();

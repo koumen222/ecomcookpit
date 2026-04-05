@@ -4,6 +4,7 @@ import EcomWorkspace from '../models/Workspace.js';
 import Store from '../models/Store.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { requireStoreOwner } from '../middleware/storeAuth.js';
+import { invalidateStoreCache } from './storeApi.js';
 
 // Helper: get active Store for the current request (from activeStoreId or primaryStoreId)
 async function getActiveStore(req) {
@@ -343,6 +344,8 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
       await Store.findByIdAndUpdate(store._id, { $set: update });
       const updated = await Store.findById(store._id).select('name subdomain storeSettings').lean();
       subdomain = updated?.subdomain || null;
+      // Invalidate public store cache so iframe preview reflects changes immediately
+      if (subdomain) invalidateStoreCache(subdomain);
       res.json({
         success: true,
         message: 'Configuration boutique mise à jour',
@@ -360,6 +363,7 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
       ).select('name subdomain storeSettings').lean();
       if (!workspace) return res.status(404).json({ success: false, message: 'Workspace introuvable' });
       subdomain = workspace.subdomain;
+      if (subdomain) invalidateStoreCache(subdomain);
       res.json({
         success: true,
         message: 'Configuration boutique mise à jour',
