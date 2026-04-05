@@ -165,94 +165,449 @@ Below button (tiny text): "Offre spéciale – stock limité"
 }
 
 /**
- * Builds an image prompt that visually illustrates the SPECIFIC angle text shown above it.
- * The scene, person situation, and emotion are derived directly from the angle content.
+ * Builds an INFOGRAPHIC image prompt that visually illustrates the SPECIFIC angle text.
+ * Each slide (index 0-3) gets a DIFFERENT infographic layout style.
+ * Category-specific design (beauty, tech, fashion, health, home, general).
  */
-function buildAngleImagePrompt(angle, gptResult, hasProductRef, template = 'general') {
+function buildAngleImagePrompt(angle, gptResult, hasProductRef, template = 'general', slideIndex = 0) {
   const title = gptResult.title || 'product';
   const targetPerson = gptResult.hero_target_person || 'authentic Black African person';
-  const problemSection = gptResult.problem_section || {};
-  const solutionSection = gptResult.solution_section || {};
+  const benefits = gptResult.benefits_bullets || gptResult.raisons_acheter || [];
+  const b1 = benefits[0]?.text || benefits[0] || '';
+  const b2 = benefits[1]?.text || benefits[1] || '';
+  const b3 = benefits[2]?.text || benefits[2] || '';
 
   const productNote = hasProductRef
     ? `THE EXACT SAME product from the reference image (same packaging, color, shape, label — critical) shown large and sharp`
     : `"${title}" product shown large and sharp`;
 
-  // Extract angle content to drive the scene
+  // Extract angle content
   const angleTitle = (angle.titre_angle || '').slice(0, 120);
   const angleExplication = (angle.explication || angle.message_principal || '').slice(0, 200);
   const anglePromesse = (angle.promesse || '').slice(0, 100);
 
-  // Detect the emotional/situational context from the angle text
-  const text = `${angleTitle} ${angleExplication} ${anglePromesse}`.toLowerCase();
+  // Short versions for text overlays
+  const headlineShort = angleTitle.split(' ').slice(0, 7).join(' ');
+  const promesseShort = anglePromesse.split(' ').slice(0, 8).join(' ');
 
-  // Determine scene situation based on angle content
-  let sceneSituation = '';
-  let personEmotion = '';
-  let sceneContext = '';
+  // ─── INFOGRAPHIC LAYOUTS PER SLIDE INDEX ──────────────────────
+  const layouts = getInfographicLayouts(template, {
+    title, productNote, targetPerson, headlineShort, promesseShort,
+    angleTitle, angleExplication, b1, b2, b3,
+  });
 
-  if (text.includes('problème') || text.includes('douleur') || text.includes('souffr') || text.includes('marre') || text.includes('fatiguée') || text.includes('terne')) {
-    // PROBLEM angle → show the person experiencing the problem, relatable frustration
-    sceneSituation = `African person showing the FRUSTRATION or PROBLEM described: "${angleTitle.slice(0, 80)}". Relatable real-life moment of experiencing this issue`;
-    personEmotion = 'concerned, frustrated, but relatable — not exaggerated';
-    sceneContext = 'everyday realistic setting where this problem occurs';
-  } else if (text.includes('résultat') || text.includes('transformation') || text.includes('après') || text.includes('visible') || text.includes('efficace')) {
-    // RESULT angle → show the clear positive outcome
-    sceneSituation = `African person showing the POSITIVE RESULT described: "${angleTitle.slice(0, 80)}". Clear visible transformation or benefit`;
-    personEmotion = 'radiant, confident, happy with results — genuine satisfaction';
-    sceneContext = 'bright clean setting showing the improvement clearly';
-  } else if (text.includes('naturel') || text.includes('ingrédient') || text.includes('formule') || text.includes('composition')) {
-    // INGREDIENTS angle → show product in natural context
-    sceneSituation = `African person with the product in a natural wellness context, ingredients or natural elements visible around them`;
-    personEmotion = 'calm, confident, glowing health';
-    sceneContext = 'natural setting with plants, warm light, clean aesthetic';
-  } else if (text.includes('confiance') || text.includes('soi') || text.includes('belle') || text.includes('beau') || text.includes('rayonn')) {
-    // CONFIDENCE angle → show person feeling great
-    sceneSituation = `African person exuding confidence and self-assurance as described: "${anglePromesse.slice(0, 60)}"`;
-    personEmotion = 'proud, confident, beaming — feeling their best';
-    sceneContext = 'modern stylish setting, good lighting on face/body';
-  } else if (text.includes('simple') || text.includes('facile') || text.includes('rapide') || text.includes('quotidien') || text.includes('routine')) {
-    // SIMPLICITY angle → show easy everyday use
-    sceneSituation = `African person using the product easily in their daily routine — showing how simple and natural it is`;
-    personEmotion = 'relaxed, at ease, casually happy';
-    sceneContext = 'everyday home or personal setting, morning or evening routine';
-  } else if (text.includes('garantie') || text.includes('qualité') || text.includes('fiable') || text.includes('conforme') || text.includes('sécurité')) {
-    // TRUST angle → show product quality, trust
-    sceneSituation = `African person holding the product with trust and satisfaction — product quality clearly visible`;
-    personEmotion = 'reassured, confident, nodding approval';
-    sceneContext = 'clean neutral setting emphasizing quality and trust';
-  } else {
-    // Default → show person benefiting from the product in the context of the angle
-    sceneSituation = `African person experiencing the benefit described: "${angleTitle.slice(0, 80)}"`;
-    personEmotion = 'happy, satisfied, authentic';
-    sceneContext = 'natural lifestyle setting matching the product category';
-  }
-
-  // Build the French overlay text from the actual angle content
-  const overlayTitle = angleTitle.split(' ').slice(0, 6).join(' ');
-  const overlaySubtext = anglePromesse.split(' ').slice(0, 8).join(' ');
-
-  return `Square 1:1 high-converting ecommerce lifestyle image for "${title}". Ultra HD, 4K, sharp, professional photography.
-
-SCENE: ${sceneSituation}
-PERSON: ${targetPerson} — ${personEmotion}. Authentic Black African, dark brown skin, natural features. Real person, not stock-photo generic.
-SETTING: ${sceneContext}
-PRODUCT: ${productNote}. Product MUST be clearly visible and prominent (minimum 30% of frame), held or used by the person or placed prominently in scene.
-
-TEXT OVERLAY (MANDATORY — overlay on image):
-- Main title (bold, large, high contrast): "${overlayTitle}"
-${overlaySubtext ? `- Sub-line (smaller, lighter): "${overlaySubtext}"` : ''}
-⚠️ CRITICAL: ALL French text must be 100% PERFECTLY SPELLED with correct accents (é,è,ê,à,ù,ç etc). ZERO spelling errors. ZERO typos.
-
-STYLE: Warm natural lighting. Tight composition, no empty margins. Authentic, not generic stock photo. ${
-  template === 'beauty' ? 'Soft feminine beauty aesthetic, warm rose/cream tones.' :
-  template === 'health' ? 'Fresh clean health aesthetic, green/white tones.' :
-  template === 'tech' ? 'Clean modern tech aesthetic, blue/white tones.' :
-  template === 'fitness' ? 'Energetic sporty aesthetic, bold colors.' :
-  'Clean modern lifestyle aesthetic.'
+  return layouts[slideIndex % layouts.length];
 }
 
-NO price, NO phone number, NO URL, NO CTA button. Mood: authentic, trustworthy, scroll-stopping.`;
+/**
+ * Returns 4 infographic layout prompts per category template.
+ * Each layout is a complete, unique infographic design.
+ */
+function getInfographicLayouts(template, ctx) {
+  const { title, productNote, targetPerson, headlineShort, promesseShort, angleTitle, angleExplication, b1, b2, b3 } = ctx;
+
+  // ─── BEAUTY ───────────────────────────────────────────────────
+  if (template === 'beauty') {
+    return [
+      // Slide 0: Hero showcase — product + headline + badges
+      `Square 1:1 LUXURY BEAUTY INFOGRAPHIC for "${title}". Premium editorial design. Ultra HD, 4K.
+
+COMPOSITION: Elegant beauty showcase infographic.
+- BACKGROUND: Soft gradient rose-gold (#F7E7DC) to warm blush (#FADBD8). Elegant, feminine, premium
+- TOP (20%): Bold dark headline: "${headlineShort}" — large serif font, elegant, with key word in rose-gold accent
+- CENTER (50%): ${productNote} displayed large with soft cinematic glow, rose-gold rim light, petals or cream swirl decorative elements around product
+- BOTTOM (30%): 3 horizontal glass-morphism benefit cards in a row:
+  "${b1}", "${b2}", "${b3}"
+  Each with a small beauty icon (sparkle, leaf, droplet). Soft pink/rose-gold accents
+${promesseShort ? `- BOTTOM STRIP: Subtle elegant text: "${promesseShort}"` : ''}
+
+Style: Luxury skincare brand campaign. Clean infographic layout, NOT a photo. PERFECT French with all accents.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+      // Slide 1: Ingredients / Features — clean science layout
+      `Square 1:1 BEAUTY INGREDIENTS INFOGRAPHIC for "${title}". Clean cosmetic science layout. Ultra HD, 4K.
+
+COMPOSITION: Clean ingredient/feature spotlight infographic.
+- BACKGROUND: Pure white (#FFFFFF) with soft rose accent lines and geometric shapes
+- HEADLINE (top center): "${headlineShort}" — bold modern sans-serif, dark text
+- LEFT PANEL (40%): 3 key features/ingredients listed vertically with generous spacing:
+  Each: elegant circular icon (leaf, molecule, droplet) + bold French label + 1-line description
+  Alternating soft pink/white background strips
+- RIGHT PANEL (60%): ${productNote} — product shown at angle with ingredient/botanical elements floating around it (leaves, flowers, droplets)
+- CONNECTING LINES: Thin elegant rose-gold lines from ingredient labels to relevant parts of the product
+- BOTTOM BAR: Soft blush strip with small trust icons (cruelty-free, natural, dermatologically tested)
+
+Clean, scientific, trustworthy beauty infographic. ALL text PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+      // Slide 2: Step-by-step / Routine — numbered process
+      `Square 1:1 BEAUTY ROUTINE INFOGRAPHIC for "${title}". Step-by-step guide layout. Ultra HD, 4K.
+
+COMPOSITION: Numbered routine/how-to infographic.
+- BACKGROUND: Warm cream (#FFF8F0) with soft watercolor blush accents in corners
+- HEADLINE (top): "${headlineShort}" — elegant dark serif, centered
+- MAIN AREA: Vertical or Z-shaped flow of 3 numbered steps:
+  STEP 1: Circled "1" in rose-gold + icon + short French instruction
+  STEP 2: Circled "2" in rose-gold + icon + short French instruction  
+  STEP 3: Circled "3" in rose-gold + icon + short French instruction
+  Connected by dotted rose-gold arrows between steps
+- PRODUCT: ${productNote} — shown alongside step 2 (the application step), glowing
+- RESULT BADGE (bottom right): Frosted glass rounded rectangle: "${promesseShort}" with sparkle icon
+- ${targetPerson} small portrait in corner showing happy result
+
+Warm, instructional, aspirational beauty infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+      // Slide 3: Results / Social proof — bold transformation
+      `Square 1:1 BEAUTY RESULTS INFOGRAPHIC for "${title}". Bold transformation energy. Ultra HD, 4K.
+
+COMPOSITION: Results & proof infographic with bold stats.
+- BACKGROUND: Bold gradient — deep plum (#2D1B36) to rich rose (#8B2252). Dark luxury
+- TOP: Large bold white condensed headline: "${headlineShort}" with one word in gold accent
+- CENTER: Split layout:
+  LEFT (45%): ${targetPerson} — African woman with radiant glowing skin, confident expression, golden rim lighting. Visible transformation/glow
+  RIGHT (45%): ${productNote} — product with dramatic lighting and golden glow effect
+- STAT BADGES (3): Large bold gold numbers on dark glass-morphism circles arranged below:
+  • "98%" + satisfaction metric
+  • "2x" + improvement metric
+  • "+500" + customer count
+- BOTTOM: 3 small gold pill-shaped benefit labels with sparkle icons
+
+Bold, premium, results-driven beauty infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+    ];
+  }
+
+  // ─── TECH ─────────────────────────────────────────────────────
+  if (template === 'tech') {
+    return [
+      // Slide 0: Dark premium tech showcase
+      `Square 1:1 TECH PRODUCT INFOGRAPHIC for "${title}". Dark premium tech aesthetic. Ultra HD, 4K.
+
+COMPOSITION: Premium tech product showcase infographic.
+- BACKGROUND: Dark gradient — midnight blue (#0A1628) to charcoal (#1A1A2E). Circuit board pattern subtly visible
+- TOP: Bold white UPPERCASE headline: "${headlineShort}" — one keyword in electric blue (#00D4FF) accent
+- CENTER (60%): ${productNote} — product with dramatic blue LED rim lighting, subtle reflection on dark glossy surface, tech glow effects
+- AROUND PRODUCT: 4 floating glass-morphism spec cards with thin blue borders:
+  "${b1}", "${b2}", each with a tech icon (chip, lightning, shield, speed)
+  Connected to product by thin luminous blue lines
+${promesseShort ? `- BOTTOM: Electric blue accent bar with text: "${promesseShort}"` : ''}
+
+Dark, futuristic, premium tech infographic. ALL text PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+      // Slide 1: Specs comparison layout
+      `Square 1:1 TECH SPECS INFOGRAPHIC for "${title}". Clean technical specification layout. Ultra HD, 4K.
+
+COMPOSITION: Technical specifications infographic with data visualization.
+- BACKGROUND: Clean dark (#141422) with subtle grid pattern overlay
+- HEADLINE (top): "${headlineShort}" — bold white, icon accent in blue
+- LEFT (45%): Vertical specs panel with 4 feature rows:
+  Each: blue icon → bold white feature name → metric/value in electric blue
+  Separated by subtle blue lines. Clean monospace-like font
+- RIGHT (55%): ${productNote} — exploded/angled view showing the product details, blue accent lighting
+  Thin labeled callout lines pointing to key product features
+- BOTTOM BAR: Dark glass-morphism strip with 3 tech badges (performance, durability, design)
+
+Clean, precise, data-driven tech infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+      // Slide 2: Lifestyle usage context
+      `Square 1:1 TECH LIFESTYLE INFOGRAPHIC for "${title}". Modern usage context. Ultra HD, 4K.
+
+COMPOSITION: Tech product in real usage infographic.
+- BACKGROUND: Modern workspace or daily-life setting — clean desk, city backdrop, or modern room. Blue/gray tones
+- HEADLINE (top overlay, frosted glass): "${headlineShort}" — white bold on dark semi-transparent bar
+- MAIN (60%): ${targetPerson} — African person using "${title}" in a modern context, natural tech-savvy pose, focused or impressed expression
+- PRODUCT: ${productNote} — in use, prominent, glowing screen or LED indicators visible
+- INFO CARDS: 3 floating frosted-glass dark cards around the scene:
+  "RAPIDE" + speed benefit, "FIABLE" + reliability, "DESIGN" + aesthetic
+  Each with thin blue icon and French label
+- BOTTOM: Subtle blue gradient bar with tech trust badges
+
+Modern, aspirational tech lifestyle infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+      // Slide 3: Performance stats & social proof
+      `Square 1:1 TECH PERFORMANCE INFOGRAPHIC for "${title}". Bold performance data. Ultra HD, 4K.
+
+COMPOSITION: Performance results infographic with bold metrics.
+- BACKGROUND: Electric gradient — deep navy (#0A1628) to electric blue (#0066FF) to purple (#6C63FF). Bold, energetic
+- TOP: Bold white headline: "${headlineShort}" — one word highlighted in bright cyan
+- CENTER: Horizontal layout:
+  LEFT: ${productNote} — product silhouette with electric blue/cyan glow radiating outward
+  RIGHT: ${targetPerson} — African person showing satisfaction with the tech product, blue-lit expression
+- STAT SECTION: 3 large bold stat circles in a row:
+  • Bold white number + metric label
+  • Bold white number + metric label  
+  • Bold white number + metric label
+  Glass-morphism circle backgrounds with blue glow
+- BOTTOM: 3 electric blue pill badges with white text: French benefits
+
+Bold, data-driven, high-performance tech infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+    ];
+  }
+
+  // ─── FASHION ──────────────────────────────────────────────────
+  if (template === 'fashion') {
+    return [
+      `Square 1:1 FASHION EDITORIAL INFOGRAPHIC for "${title}". High-fashion African editorial. Ultra HD, 4K.
+
+COMPOSITION: Bold fashion editorial infographic.
+- BACKGROUND: Split diagonal — rich warm gold (#C49A6C) top-left / deep dark brown (#2C1810) bottom-right
+- HEADLINE (top): "${headlineShort}" — bold condensed white uppercase, magazine-style editorial typography
+- CENTER: ${targetPerson} — African person styled fashion-forward, wearing/holding "${title}", powerful confident editorial pose, golden warm lighting
+- PRODUCT: ${productNote} — prominently displayed, texture and craftsmanship details visible
+- FEATURE CARDS: 3 elegant floating cards with gold borders:
+  Style, Quality, Design — each with a fashion icon + short French label
+- BOTTOM: Gold accent line + elegant French tagline: "${promesseShort}"
+
+High-fashion, bold, editorial infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+      `Square 1:1 FASHION CRAFT INFOGRAPHIC for "${title}". Product detail spotlight. Ultra HD, 4K.
+
+COMPOSITION: Craftsmanship details infographic.
+- BACKGROUND: Warm textured cream (#F5F0E8) with subtle fabric/leather texture pattern
+- HEADLINE: "${headlineShort}" — dark serif, elegant
+- MAIN: Close-up macro view of ${productNote} — showing material quality, stitching, texture, craftsmanship details
+  3-4 thin gold callout lines pointing from labels to specific product details
+  Labels: Material name, Finish quality, Design element — in elegant French
+- BOTTOM: 3 horizontal craft badges: "Fait main", "Qualité premium", "Design unique" — gold icons on dark cream cards
+
+Detailed, artisanal, quality-focused fashion infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+      `Square 1:1 FASHION STYLING INFOGRAPHIC for "${title}". Street style lookbook. Ultra HD, 4K.
+
+COMPOSITION: How-to-style infographic.
+- BACKGROUND: Modern urban setting — trendy African city street, modern architecture, warm natural light
+- HEADLINE (overlay): "${headlineShort}" — bold white on dark frosted bar
+- MAIN (60%): ${targetPerson} — African person styled head-to-toe, showing how "${title}" fits into a complete look, candid fashion-forward pose
+- PRODUCT: ${productNote} — highlighted with subtle outline or glow to draw attention
+- STYLE TIPS: 3 frosted-glass cards floating around:
+  Tip icons (shirt, palette, star) + short French styling advice
+- BOTTOM: Warm gold strip with style hashtags
+
+Trendy, aspirational, street-style fashion infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+      `Square 1:1 FASHION SOCIAL PROOF INFOGRAPHIC for "${title}". Bold results & influence. Ultra HD, 4K.
+
+COMPOSITION: Social proof & popularity infographic.
+- BACKGROUND: Gradient — rich gold (#C49A6C) to deep burgundy (#5D1A2C). Premium warmth
+- TOP: Bold white condensed headline: "${headlineShort}"
+- CENTER: ${targetPerson} — African person looking stunning with "${title}", warm golden glamour lighting, editorial expression
+- PRODUCT: ${productNote} — visible and glamorous
+- STATS (3): Large bold gold numbers on dark glass circles:
+  • Customer satisfaction %
+  • People wearing/using it
+  • Style rating
+- BOTTOM: 3 small gold pill badges: French style benefits
+
+Bold, influential, social-proof fashion infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+    ];
+  }
+
+  // ─── HEALTH / WELLNESS ────────────────────────────────────────
+  if (template === 'health') {
+    return [
+      `Square 1:1 HEALTH WELLNESS INFOGRAPHIC for "${title}". Clean energetic health design. Ultra HD, 4K.
+
+COMPOSITION: Health product showcase infographic.
+- BACKGROUND: Fresh gradient — white (#FFFFFF) to mint green (#E8F8F5). Clean, healthy, energetic
+- TOP: Bold dark headline: "${headlineShort}" — one keyword highlighted in emerald green (#27AE60)
+- CENTER: ${productNote} — product displayed large with natural elements (leaves, fruits, herbs) arranged around it
+- BENEFIT BADGES: 4 rounded green-bordered cards around the product:
+  "${b1}", "${b2}", "${b3}" — each with health icon (leaf, heart, shield, muscle)
+  Connected by thin green dotted lines
+${promesseShort ? `- BOTTOM: Green accent bar: "${promesseShort}" with leaf icon` : ''}
+
+Fresh, clean, health-focused infographic. ALL text PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+      `Square 1:1 HEALTH INGREDIENTS INFOGRAPHIC for "${title}". Natural science layout. Ultra HD, 4K.
+
+COMPOSITION: Natural ingredients spotlight infographic.
+- BACKGROUND: Clean white with soft green watercolor splashes in corners
+- HEADLINE: "${headlineShort}" — bold modern, dark green accent
+- LEFT PANEL (40%): 3-4 key ingredients/features listed vertically:
+  Each: circular nature icon (leaf, herb, molecule) + bold green label + benefit description
+  Clean, generous spacing, green accent dots
+- RIGHT PANEL (60%): ${productNote} — product surrounded by natural ingredient elements (fresh leaves, botanical illustrations, natural extracts)
+  Thin green callout lines from ingredients to product areas
+- BOTTOM: Clean green bar with trust badges (naturel, certifié, efficace)
+
+Clean, scientific, natural health infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+      `Square 1:1 HEALTH ROUTINE INFOGRAPHIC for "${title}". Active wellness lifestyle. Ultra HD, 4K.
+
+COMPOSITION: Daily health routine step-by-step infographic.
+- BACKGROUND: Bright natural scene — sunlit green tones, fresh morning energy, clean white overlay
+- HEADLINE (top): "${headlineShort}" — bold dark, green accent
+- FLOW: 3 numbered health steps in horizontal or Z-pattern:
+  STEP 1: Green circled "1" + icon + short French instruction
+  STEP 2: Green circled "2" + icon + short French instruction
+  STEP 3: Green circled "3" + icon + short French instruction
+  Connected by green dotted arrows
+- PRODUCT: ${productNote} — shown at the center step, highlighted
+- PERSON: ${targetPerson} — small portrait in corner, healthy energetic expression
+- RESULT BADGE: Frosted green glass badge: "${promesseShort}"
+
+Energetic, healthy, step-by-step infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+      `Square 1:1 HEALTH RESULTS INFOGRAPHIC for "${title}". Bold wellness results. Ultra HD, 4K.
+
+COMPOSITION: Health results & social proof infographic.
+- BACKGROUND: Bold gradient — deep forest green (#1B4332) to emerald (#2D6A4F). Dark wellness luxury
+- TOP: Large bold white headline: "${headlineShort}" with one word in bright lime green
+- CENTER: Split:
+  LEFT: ${targetPerson} — African person radiating health and energy, bright natural expression, green-tinted rim lighting  
+  RIGHT: ${productNote} — product with natural glow, leaf elements around it
+- STATS (3): Bold white numbers on dark glass-morphism circles:
+  • Satisfaction % + label
+  • Improvement metric + label
+  • Daily users + label
+- BOTTOM: 3 lime-green pill badges with white text: French health benefits
+
+Bold, results-driven, wellness infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+    ];
+  }
+
+  // ─── HOME ─────────────────────────────────────────────────────
+  if (template === 'home') {
+    return [
+      `Square 1:1 HOME PRODUCT INFOGRAPHIC for "${title}". Warm cozy home design. Ultra HD, 4K.
+
+COMPOSITION: Home product showcase infographic.
+- BACKGROUND: Warm soft gradient — cream (#FFF8F0) to warm sand (#F5E6D0). Cozy, inviting
+- TOP: Bold warm dark headline: "${headlineShort}" — one keyword in terracotta (#C0622A) accent
+- CENTER: ${productNote} — product displayed large in a warm home setting vignette (wooden table, soft fabric, warm light), cozy home-styling props
+- BENEFIT CARDS: 3 warm-toned rounded cards below product:
+  "${b1}", "${b2}", "${b3}" — each with home icon (house, clock, sparkle)
+  Terracotta/warm brown accents
+${promesseShort ? `- BOTTOM: Warm terracotta bar: "${promesseShort}"` : ''}
+
+Warm, cozy, home-focused infographic. ALL text PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+      `Square 1:1 HOME FEATURES INFOGRAPHIC for "${title}". Practical features layout. Ultra HD, 4K.
+
+COMPOSITION: Practical home features infographic.
+- BACKGROUND: Clean warm white (#FAFAF5) with warm wood-texture accent border
+- HEADLINE: "${headlineShort}" — bold warm serif, dark text
+- LEFT (40%): 3 practical features listed with generous spacing:
+  Each: terracotta circle icon + bold French label + short practical benefit
+  Alternating warm cream/white strips
+- RIGHT (60%): ${productNote} — product shown in realistic home context (kitchen counter, shelf, bathroom)
+  Thin warm lines connecting features to product areas
+- BOTTOM: Warm terracotta bar with quality badges (durable, pratique, élégant)
+
+Practical, warm, trustworthy home infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+      `Square 1:1 HOME LIFESTYLE INFOGRAPHIC for "${title}". Real home context. Ultra HD, 4K.
+
+COMPOSITION: Home lifestyle usage infographic.
+- BACKGROUND: Warm natural home interior — bright kitchen, cozy living room. Warm natural light
+- HEADLINE (overlay): "${headlineShort}" — bold on warm frosted bar
+- MAIN: ${targetPerson} — African person naturally using "${title}" in their home, comfortable warm expression
+- PRODUCT: ${productNote} — in use, prominent
+- INFO CARDS: 3 frosted warm-glass cards:
+  "FACILE" + usage tip, "RAPIDE" + benefit, "EFFICACE" + result
+  Terracotta/warm brown accents
+- BOTTOM: Warm strip with home trust icons
+
+Warm, authentic home-life infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+      `Square 1:1 HOME TRUST INFOGRAPHIC for "${title}". Family satisfaction design. Ultra HD, 4K.
+
+COMPOSITION: Home trust & satisfaction infographic.
+- BACKGROUND: Gradient — warm terracotta (#C0622A) to deep warm brown (#5D4037). Cozy, trustworthy
+- TOP: Bold cream condensed headline: "${headlineShort}"
+- CENTER: ${targetPerson} — African person or family in warm home setting, happy with product, golden warm lighting
+- PRODUCT: ${productNote} — visible in home context
+- STATS (3): Cream numbers on warm dark glass badges:
+  • Family satisfaction % + label
+  • Customer count + label
+  • Durability/daily use metric + label
+- BOTTOM: 3 small cream cards with terracotta icons: French home benefits
+
+Warm, family-focused, trustworthy home infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+    ];
+  }
+
+  // ─── GENERAL / DEFAULT ────────────────────────────────────────
+  return [
+    // Slide 0: Bold dark premium showcase
+    `Square 1:1 BOLD ADVERTISING INFOGRAPHIC for "${title}". Premium graphic design. Ultra HD, 4K.
+
+COMPOSITION: Dark premium product showcase infographic.
+- BACKGROUND: Rich deep gradient — midnight blue (#0A1628) to charcoal (#1A1A2E). Dramatic, cinematic
+- TOP: Bold UPPERCASE white headline: "${headlineShort}" — one keyword in vibrant accent color (electric blue, gold, or coral)
+- CENTER: ${productNote} — product with dramatic cinematic rim lighting, warm glow, soft reflection on dark surface
+- BENEFIT BADGES: 4 glass-morphism rounded rectangles:
+  "${b1}", "${b2}", "${b3}" — connected with thin luminous lines
+- PERSON (35%): ${targetPerson} — dramatic rim lighting, confident expression
+
+Dark, bold, scroll-stopping infographic. ALL text PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+    // Slide 1: Clean editorial split-screen
+    `Square 1:1 SPLIT-SCREEN EDITORIAL INFOGRAPHIC for "${title}". Clean magazine layout. Ultra HD, 4K.
+
+COMPOSITION: Split-screen features infographic.
+- LAYOUT: Vertical split — LEFT 45% info panel, RIGHT 55% product visual
+- LEFT: Soft warm beige (#F5F0E8) background. Bold dark headline: "${headlineShort}". 3 key features listed vertically with accent dots + bold names + descriptions
+- RIGHT: Contrasting warm cream. ${productNote} — product large with premium lighting
+  ${targetPerson} — holding/using the product, confident expression
+- GEOMETRIC ACCENT: Gold or accent color frame border
+
+Clean, editorial, magazine-style infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+    // Slide 2: Lifestyle how-to steps
+    `Square 1:1 LIFESTYLE HOW-TO INFOGRAPHIC for "${title}". Step-by-step guide. Ultra HD, 4K.
+
+COMPOSITION: Numbered how-to lifestyle infographic.
+- BACKGROUND: Warm cream (#FFF8F0) with soft accent watercolor corners
+- HEADLINE: "${headlineShort}" — bold dark centered
+- MAIN AREA: 3 numbered steps in Z-pattern flow:
+  STEP 1: Circled "1" in accent color + icon + short French instruction
+  STEP 2: Circled "2" in accent color + icon + short French instruction
+  STEP 3: Circled "3" in accent color + icon + short French instruction
+  Connected by dotted arrows
+- PRODUCT: ${productNote} — shown alongside main step, highlighted
+- RESULT: Frosted glass badge: "${promesseShort}"
+
+Warm, instructional, lifestyle infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+    // Slide 3: Vibrant results & stats
+    `Square 1:1 VIBRANT RESULTS INFOGRAPHIC for "${title}". Bold colorful energy. Ultra HD, 4K.
+
+COMPOSITION: Results & social proof infographic with bold metrics.
+- BACKGROUND: Bold gradient — coral (#FF6B6B) to magenta (#C850C0) to purple (#6C63FF). Energetic, modern
+- TOP: Bold white condensed headline: "${headlineShort}"
+- CENTER: Split:
+  LEFT: ${targetPerson} — African person with dynamic positive energy, gradient colors reflected on skin
+  RIGHT: ${productNote} — product with white glow effect
+- STAT BADGES (3): Large bold white numbers on dark glass circles:
+  • Satisfaction % + metric
+  • Improvement metric + label
+  • Customer count + label
+- BOTTOM: 3 white pill-shaped benefit labels: French benefits
+
+Bold, vibrant, data-driven infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+  ];
 }
 
 /**
@@ -983,9 +1338,9 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       const flash = flashPrompts[i];
       const angle = angles[i] || null;
 
-      // Build an angle-specific prompt that makes the image match the text above it
+      // Build an infographic prompt that visually illustrates the angle as an infographic
       const anglePrompt = angle
-        ? buildAngleImagePrompt(angle, gptResult, !!baseImageBuffer, visualTemplate)
+        ? buildAngleImagePrompt(angle, gptResult, !!baseImageBuffer, visualTemplate, i)
         : flash.prompt;
 
       imagePromises.push(
