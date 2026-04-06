@@ -95,7 +95,7 @@ const FIELD_ICON_MAP = {
   cart: ShoppingCart, file: FileText, hash: Hash, calendar: Calendar,
 };
 
-const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, shopColor, onDragStart, onDragOver, onDrop, isDragOver }) => {
+const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, shopColor, onDragStart, onDragOver, onDrop, onDragEnd, isDragOver, isDragging }) => {
   const [expanded, setExpanded] = useState(false);
   const isSpecial = field.editable === false;
   const FieldIcon = field.icon ? FIELD_ICON_MAP[field.icon] : null;
@@ -108,7 +108,9 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
       onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(index); }}
       onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver(index); }}
       onDrop={e => { e.preventDefault(); onDrop(index); }}
-      className={`bg-white rounded-xl border-2 transition-all ${isDragOver ? 'border-emerald-400 shadow-md' : field.enabled ? 'border-gray-200' : 'border-gray-100 opacity-60'}`}
+      onDragEnd={onDragEnd}
+      className={`bg-white rounded-xl border-2 transition-all ${isDragOver ? 'border-emerald-400 shadow-lg scale-[1.02]' : field.enabled ? 'border-gray-200' : 'border-gray-100 opacity-60'}`}
+      style={{ opacity: isDragging ? 0.4 : 1, cursor: 'grab' }}
     >
       {/* Header row */}
       <div className="flex items-center gap-2 px-3 py-2.5">
@@ -583,6 +585,7 @@ const BoutiqueFormBuilder = () => {
 
   const handleDragStart = (idx) => { setDragFromIdx(idx); };
   const handleDragOver = (idx) => { setDragOverIdx(idx); };
+  const handleDragEnd = () => { setDragFromIdx(null); setDragOverIdx(null); };
   const handleDrop = (toIdx) => {
     if (dragFromIdx !== null && dragFromIdx !== toIdx) {
       const next = [...config.form.fields];
@@ -899,7 +902,9 @@ const BoutiqueFormBuilder = () => {
                     onDragStart={handleDragStart}
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
+                    onDragEnd={handleDragEnd}
                     isDragOver={dragOverIdx === idx && dragFromIdx !== idx}
+                    isDragging={dragFromIdx === idx}
                   />
                 ))}
               </div>
