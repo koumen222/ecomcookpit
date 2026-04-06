@@ -61,8 +61,23 @@ export async function saveShopifyOrder(shopifyOrder, shopDomain, workspaceId, wo
       });
       console.log(`📦 [Shopify WH] Source créée: ${orderSource.name} (${orderSource._id})`);
     } catch (err) {
-      console.error(`❌ [Shopify WH] Erreur création OrderSource:`, err);
-      return null;
+      // Si erreur duplicate key, re-tenter la recherche (creation concurrente)
+      if (err.code === 11000) {
+        orderSource = await OrderSource.findOne({
+          workspaceId,
+          'metadata.type': 'shopify_webhook',
+          'metadata.shopDomain': shopDomain
+        });
+        if (orderSource) {
+          console.log(`📦 [Shopify WH] Source récupérée après conflit: ${orderSource.name} (${orderSource._id})`);
+        } else {
+          console.error(`❌ [Shopify WH] Erreur création OrderSource (duplicate key, source introuvable):`, err);
+          return null;
+        }
+      } else {
+        console.error(`❌ [Shopify WH] Erreur création OrderSource:`, err);
+        return null;
+      }
     }
   }
 

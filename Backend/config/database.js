@@ -43,6 +43,19 @@ export const connectDB = async () => {
       // Ignore si l'index n'existe pas
     }
 
+    // Nettoyer les webhookToken:null existants (sparse index ignore undefined, pas null)
+    try {
+      const res = await mongoose.connection.db.collection('order_sources').updateMany(
+        { webhookToken: null },
+        { $unset: { webhookToken: '' } }
+      );
+      if (res.modifiedCount > 0) {
+        console.log(`🧹 ${res.modifiedCount} OrderSource(s) avec webhookToken:null corrigé(s)`);
+      }
+    } catch (e) {
+      // Ignore
+    }
+
     // ── Multi-store migration ──────────────────────────────────────────────
     // For each workspace with a subdomain but no primaryStoreId yet,
     // create a Store document and link it back to the workspace.

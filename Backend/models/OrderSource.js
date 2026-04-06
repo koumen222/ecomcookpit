@@ -44,11 +44,11 @@ const orderSourceSchema = new mongoose.Schema({
     default: 'manual'
   },
   // Token unique pour l'URL webhook (généré automatiquement)
+  // PAS de default:null — sparse index ignore les champs absents, pas les null
   webhookToken: {
     type: String,
     unique: true,
-    sparse: true,
-    default: null
+    sparse: true
   },
   // Nom de la boutique externe (Shopify shop domain, Scalot store name)
   shopName: {
