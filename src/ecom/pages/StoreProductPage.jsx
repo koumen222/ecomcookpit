@@ -816,6 +816,11 @@ const StoreProductPage = () => {
       ...(store?.productPageConfig?.conversion || {}),
       ...(livePageConfig?.conversion || {}),
       ...(product?.productPageConfig?.conversion || {}),
+      // Quantity offers from QuantityOffer model take highest priority
+      ...(product?.quantityOffers?.length > 0 ? {
+        offersEnabled: true,
+        offers: product.quantityOffers,
+      } : {}),
     },
   };
   const ppTheme = productPageConfig?.theme || 'classic';

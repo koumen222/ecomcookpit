@@ -31,6 +31,7 @@ import StoreOrder from '../models/StoreOrder.js';
 import Order from '../models/Order.js';
 import OrderSource from '../models/OrderSource.js';
 import EcomUser from '../models/EcomUser.js';
+import QuantityOffer from '../models/QuantityOffer.js';
 import { notifyNewOrder } from '../services/notificationHelper.js';
 import { memCache } from '../services/memoryCache.js';
 import { sendClientOrderConfirmation } from '../services/shopifyWhatsappService.js';
@@ -429,6 +430,13 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
+    // Fetch active quantity offers for this product
+    const quantityOffer = await QuantityOffer.findOne({
+      workspaceId: workspace._workspaceId || workspace._id,
+      productId: product._id,
+      isActive: true
+    }).sort({ createdAt: -1 }).lean();
+
     // Product pages cached 10 minutes — they change rarely
     setCacheHeaders(res, 600);
 
@@ -454,7 +462,16 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
         faq: product.faq || [],
         testimonials: product.testimonials || [],
         _pageData: product._pageData || null,
-        productPageConfig: product.productPageConfig || null
+        productPageConfig: product.productPageConfig || null,
+        ...(quantityOffer?.offers?.length > 0 ? {
+          quantityOffers: quantityOffer.offers.map((o, i) => ({
+            qty: o.quantity,
+            price: o.price,
+            comparePrice: o.compare_price || 0,
+            badge: o.label || '',
+            selected: i === (quantityOffer.design?.highlight_offer ?? 0),
+          }))
+        } : {})
       }
     });
 
@@ -557,7 +574,17 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       // Merge store-level and per-product offers (per-product takes priority)
       const productConversion = dbProduct.productPageConfig?.conversion || {};
       const productOffers = productConversion.offersEnabled ? (productConversion.offers || []) : [];
-      const validOffers = productOffers.length > 0 ? productOffers : storeOffers;
+      let validOffers = productOffers.length > 0 ? productOffers : storeOffers;
+
+      // Also check QuantityOffer model (highest priority)
+      const qtyOffer = await QuantityOffer.findOne({
+        workspaceId: workspace._workspaceId || workspace._id,
+        productId: dbProduct._id,
+        isActive: true
+      }).sort({ createdAt: -1 }).lean();
+      if (qtyOffer?.offers?.length > 0) {
+        validOffers = qtyOffer.offers.map(o => ({ qty: o.quantity, price: o.price }));
+      }
 
       let itemTotal = dbProduct.price * qty;
       if (item.offerPrice != null && item.offerQty != null) {

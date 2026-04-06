@@ -13,6 +13,7 @@
 
 import StoreProduct from '../models/StoreProduct.js';
 import Workspace from '../models/Workspace.js';
+import QuantityOffer from '../models/QuantityOffer.js';
 
 /**
  * GET / - Public store homepage
@@ -149,6 +150,23 @@ export const getProductBySlug = async (req, res) => {
         success: false,
         message: 'Product not found'
       });
+    }
+
+    // Fetch active quantity offers for this product
+    const quantityOffer = await QuantityOffer.findOne({
+      workspaceId: req.workspaceId,
+      productId: product._id,
+      isActive: true
+    }).sort({ createdAt: -1 }).lean();
+
+    if (quantityOffer?.offers?.length > 0) {
+      product.quantityOffers = quantityOffer.offers.map((o, i) => ({
+        qty: o.quantity,
+        price: o.price,
+        comparePrice: o.compare_price || 0,
+        badge: o.label || '',
+        selected: i === (quantityOffer.design?.highlight_offer ?? 0),
+      }));
     }
 
     res.json({
