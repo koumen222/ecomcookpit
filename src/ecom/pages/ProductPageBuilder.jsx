@@ -100,6 +100,14 @@ const EDITABLE_SECTIONS = {
   ]},
   faq:             { fields: 'faq' },
   testimonials:    { fields: 'testimonials' },
+  urgencyElements: { fields: [
+    { key: 'stockLimited', label: 'Stock limité', type: 'checkbox' },
+    { key: 'socialProofCount', label: 'Nombre preuve sociale', placeholder: 'Ex: 42', type: 'number' },
+    { key: 'quickResult', label: 'Résultat rapide', placeholder: 'Ex: 7 jours', type: 'text' },
+  ]},
+  conversionBlocks: { fields: 'iconTextList', label: 'Blocs de réassurance', iconPlaceholder: '🚚', textPlaceholder: 'Livraison gratuite partout' },
+  description:     { fields: [{ key: 'text', label: 'Description', placeholder: 'Description détaillée du produit…', type: 'textarea' }] },
+  stockCounter:    { fields: [{ key: 'text', label: 'Texte stock', placeholder: 'Ex: ⚡ Plus que 5 en stock !', type: 'text' }] },
 };
 
 const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200 transition-all bg-white";
@@ -149,6 +157,21 @@ const getDefaultContent = (sectionId, product) => {
         ...(ob.guarantee_text ? { guaranteeText: ob.guarantee_text } : {}),
       };
     }
+    case 'urgencyElements': {
+      const ue = pd.urgency_elements;
+      if (!ue) return {};
+      return {
+        stockLimited: ue.stock_limited || false,
+        socialProofCount: ue.social_proof_count || 0,
+        quickResult: ue.quick_result || '',
+      };
+    }
+    case 'conversionBlocks':
+      return pd.conversion_blocks?.length > 0 ? { items: pd.conversion_blocks.map(b => ({ icon: b.icon || '', text: b.text || '' })) } : {};
+    case 'description':
+      return product.description ? { text: product.description } : {};
+    case 'stockCounter':
+      return {};
     case 'faq': {
       const faqItems = (product.faq?.length > 0 ? product.faq : pd.faq?.length > 0 ? pd.faq : [])
         .map(f => ({ question: f.question || f.q || '', answer: f.answer || f.reponse || f.a || '' }));
@@ -316,10 +339,48 @@ const SectionContentEditor = ({ section, onChange, product }) => {
     );
   }
 
-  // Standard fields (text, textarea, nested list)
+  // ── Icon+Text list editor (conversionBlocks) ──
+  if (schema.fields === 'iconTextList') {
+    const items = content.items || [{ icon: '', text: '' }];
+    const updateItem = (i, key, val) => { const copy = [...items]; copy[i] = { ...copy[i], [key]: val }; update('items', copy); };
+    const addItem = () => update('items', [...items, { icon: '', text: '' }]);
+    const removeItem = (i) => update('items', items.filter((_, idx) => idx !== i));
+    return (
+      <div className="space-y-2">
+        <div className="text-[11px] font-semibold text-gray-500 mb-1">{schema.label || 'Éléments'}</div>
+        {items.map((item, i) => (
+          <div key={i} className="flex gap-1.5 items-center">
+            <input className={inputCls + " w-12 text-center shrink-0"} value={item.icon || ''} onChange={e => updateItem(i, 'icon', e.target.value)} placeholder={schema.iconPlaceholder || '🚚'} />
+            <input className={inputCls + " flex-1"} value={item.text || ''} onChange={e => updateItem(i, 'text', e.target.value)} placeholder={schema.textPlaceholder || 'Texte'} />
+            {items.length > 1 && <button onClick={() => removeItem(i)} className="p-1 text-gray-300 hover:text-red-400"><Trash2 size={12} /></button>}
+          </div>
+        ))}
+        <button onClick={addItem} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700 mt-1"><Plus size={12} /> Ajouter</button>
+        <div className="text-[10px] text-gray-400">Laissez vide pour utiliser les données IA</div>
+      </div>
+    );
+  }
+
+  // Standard fields (text, textarea, nested list, checkbox, number)
   return (
     <div className="space-y-3">
       {schema.fields.map(field => {
+        if (field.type === 'checkbox') {
+          return (
+            <label key={field.key} className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={!!content[field.key]} onChange={e => update(field.key, e.target.checked)} className="w-4 h-4 accent-emerald-500" />
+              <span className="text-[12px] text-gray-600">{field.label}</span>
+            </label>
+          );
+        }
+        if (field.type === 'number') {
+          return (
+            <div key={field.key}>
+              <div className="text-[11px] font-semibold text-gray-500 mb-1">{field.label}</div>
+              <input type="number" min="0" className={inputCls + " w-28"} value={content[field.key] || ''} onChange={e => update(field.key, parseInt(e.target.value) || 0)} placeholder={field.placeholder} />
+            </div>
+          );
+        }
         if (field.type === 'list') {
           const items = content[field.key] || [''];
           const updateItem = (i, val) => { const copy = [...items]; copy[i] = val; update(field.key, copy); };
