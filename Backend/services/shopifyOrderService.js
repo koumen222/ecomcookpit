@@ -192,6 +192,10 @@ export async function saveShopifyOrder(shopifyOrder, shopDomain, workspaceId, wo
       instanceId:     workspaceSettings.whatsappAutoInstanceId || null,
       imageUrl:       workspaceSettings.whatsappAutoImageUrl || null,
       audioUrl:       workspaceSettings.whatsappAutoAudioUrl || null,
+      videoUrl:       workspaceSettings.whatsappAutoVideoUrl || null,
+      documentUrl:    workspaceSettings.whatsappAutoDocumentUrl || null,
+      sendOrder:      workspaceSettings.whatsappAutoSendOrder || ['text', 'image', 'audio'],
+      productMediaRules: workspaceSettings.whatsappAutoProductMediaRules || [],
     }).catch(err => console.error('❌ [Shopify WH] Erreur WhatsApp client:', err.message));
   } else if (!workspaceSettings.whatsappAutoConfirm) {
     console.log(`ℹ️ [Shopify WH] WhatsApp auto désactivé, message non envoyé`);

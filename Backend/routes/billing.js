@@ -303,8 +303,16 @@ router.post('/buy-generation', requireEcomAuth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Quantité invalide (1-100)' });
     }
 
-    const pricePerGeneration = 1500;
-    const amount = pricePerGeneration * quantity;
+    // Pricing: 1 crédit = 500 FCFA, pack 3 crédits = 1000 FCFA
+    let amount;
+    let pricePerGeneration;
+    if (quantity === 3) {
+      amount = 1000;
+      pricePerGeneration = Math.round(1000 / 3);
+    } else {
+      pricePerGeneration = 500;
+      amount = pricePerGeneration * quantity;
+    }
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://scalor.net';
     const backendUrl = process.env.BACKEND_URL || 'https://api.scalor.net';

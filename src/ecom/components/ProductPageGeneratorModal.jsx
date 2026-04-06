@@ -178,6 +178,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const [paymentPhone, setPaymentPhone] = useState('');
   const [paymentName, setPaymentName] = useState('');
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [selectedPack, setSelectedPack] = useState(null); // 'unit' | 'pack3'
+  const [pricing, setPricing] = useState({ unit: 500, pack3: 1000 });
   
   // États copywriting simplifiés
   const [tone, setTone] = useState('urgence');
@@ -429,6 +431,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               paidRemaining: 0,
               totalUsed: errorData.totalGenerations || 0
             });
+            if (errorData.pricing) setPricing(errorData.pricing);
+            setSelectedPack('unit');
             setError(errorData.message || 'Limite de générations atteinte');
             setPhase('input');
             clearTimeout(safetyTimer);
@@ -540,7 +544,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
           ...(wsId ? { 'X-Workspace-Id': wsId } : {})
         },
         body: JSON.stringify({
-          quantity: 1,
+          quantity: selectedPack === 'pack3' ? 3 : 1,
           phone: paymentPhone.trim(),
           clientName: paymentName.trim(),
           workspaceId: wsId
@@ -767,13 +771,12 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                 <Zap className="w-5 h-5 text-violet-600" />
                 <div className="flex flex-col">
                   <span className="text-xs font-bold text-violet-900">
-                    {generationsInfo.freeRemaining + generationsInfo.paidRemaining} génération{(generationsInfo.freeRemaining + generationsInfo.paidRemaining) !== 1 ? 's' : ''}
+                    {generationsInfo.freeRemaining + generationsInfo.paidRemaining} crédit{(generationsInfo.freeRemaining + generationsInfo.paidRemaining) !== 1 ? 's' : ''}
                   </span>
                   <span className="text-[10px] text-violet-600">
-                    {generationsInfo.freeRemaining > 0 && `${generationsInfo.freeRemaining} gratuite${generationsInfo.freeRemaining > 1 ? 's' : ''}`}
-                    {generationsInfo.freeRemaining > 0 && generationsInfo.paidRemaining > 0 && ' + '}
-                    {generationsInfo.paidRemaining > 0 && `${generationsInfo.paidRemaining} payée${generationsInfo.paidRemaining > 1 ? 's' : ''}`}
-                    {generationsInfo.freeRemaining === 0 && generationsInfo.paidRemaining === 0 && 'Épuisées'}
+                    {(generationsInfo.freeRemaining + generationsInfo.paidRemaining) > 0
+                      ? `${generationsInfo.freeRemaining + generationsInfo.paidRemaining} restant${(generationsInfo.freeRemaining + generationsInfo.paidRemaining) > 1 ? 's' : ''}`
+                      : 'Épuisés'}
                   </span>
                 </div>
               </div>
@@ -1122,93 +1125,111 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     : 'bg-red-50 border-red-200'
                 }`}>
                   {limitReached ? (
-                    <div className="space-y-3">
-                      <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
-                          <Zap className="w-5 h-5 text-white" />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="text-sm font-bold text-gray-900 mb-1">🎯 Tu as utilisé tes 3 générations gratuites !</h3>
-                          <p className="text-sm text-gray-700 leading-relaxed">
-                            Pour continuer à générer des pages produit optimisées avec IA, débloque une nouvelle génération pour seulement <strong className="text-amber-700">1500 FCFA</strong>.
-                          </p>
-                        </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
+                        <Zap className="w-5 h-5 text-white" />
                       </div>
-                      
-                      {!showPaymentForm ? (
-                        <button
-                          type="button"
-                          onClick={() => setShowPaymentForm(true)}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl hover:from-amber-600 hover:to-orange-600 transition shadow-lg"
-                        >
-                          <Zap className="w-4 h-4" />
-                          Débloquer une génération (1500 FCFA)
-                        </button>
-                      ) : (
-                        <div className="space-y-3 p-4 bg-white rounded-xl border border-gray-200">
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                              📱 Numéro de téléphone
-                            </label>
-                            <input
-                              type="tel"
-                              value={paymentPhone}
-                              onChange={(e) => setPaymentPhone(e.target.value)}
-                              placeholder="Ex: 0707070707"
-                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                              👤 Votre nom
-                            </label>
-                            <input
-                              type="text"
-                              value={paymentName}
-                              onChange={(e) => setPaymentName(e.target.value)}
-                              placeholder="Ex: Jean Dupont"
-                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-                            />
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setShowPaymentForm(false)}
-                              className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition text-sm"
-                            >
-                              Annuler
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleBuyGeneration}
-                              disabled={paymentLoading}
-                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-lg hover:from-amber-600 hover:to-orange-600 transition text-sm disabled:opacity-50"
-                            >
-                              {paymentLoading ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                  Chargement...
-                                </>
-                              ) : (
-                                <>
-                                  <Zap className="w-4 h-4" />
-                                  Payer 1500 FCFA
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                      
-                      <p className="text-xs text-center text-gray-500">
-                        Tu as déjà généré {generationsInfo?.totalUsed || 0} page{(generationsInfo?.totalUsed || 0) > 1 ? 's' : ''} produit avec succès 🎉
-                      </p>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-bold text-gray-900">🎯 Tu n'as plus de crédits !</h3>
+                        <p className="text-xs text-gray-500">Achète des crédits pour générer des pages produit IA.</p>
+                      </div>
+                      <button type="button" onClick={() => setShowPaymentForm(true)}
+                        className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl hover:from-amber-600 hover:to-orange-600 transition text-sm shadow-lg whitespace-nowrap">
+                        Acheter des crédits
+                      </button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 text-red-700 text-sm">
                       <AlertCircle className="w-4 h-4 shrink-0" /> {error}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* ─── MODAL ACHAT CRÉDITS ─── */}
+              {showPaymentForm && limitReached && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) setShowPaymentForm(false); }}>
+                  <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+                  <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                    {/* Header */}
+                    <div className="px-6 py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                            <Zap className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="text-base font-bold">Acheter des crédits</h3>
+                            <p className="text-xs text-white/80">1 crédit = 1 page produit IA complète</p>
+                          </div>
+                        </div>
+                        <button type="button" onClick={() => setShowPaymentForm(false)} className="p-1.5 rounded-lg hover:bg-white/20 transition">
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="p-6 space-y-4">
+                      {/* Pack selection */}
+                      <div className="grid gap-3">
+                        <button type="button" onClick={() => setSelectedPack('unit')}
+                          className={`flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all ${selectedPack === 'unit' ? 'border-amber-500 bg-amber-50 shadow-md' : 'border-gray-200 bg-white hover:border-amber-300'}`}>
+                          <div className="w-11 h-11 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                            <Zap className="w-5 h-5 text-amber-600" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-bold text-gray-900">1 crédit</p>
+                            <p className="text-xs text-gray-500">1 page produit complète avec visuels IA</p>
+                          </div>
+                          <span className="text-base font-extrabold text-amber-700">{pricing.unit} FCFA</span>
+                        </button>
+                        <button type="button" onClick={() => setSelectedPack('pack3')}
+                          className={`flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all relative ${selectedPack === 'pack3' ? 'border-emerald-500 bg-emerald-50 shadow-md' : 'border-gray-200 bg-white hover:border-emerald-300'}`}>
+                          <span className="absolute -top-2.5 right-4 text-[10px] font-bold bg-emerald-500 text-white px-2.5 py-0.5 rounded-full shadow">MEILLEURE OFFRE</span>
+                          <div className="w-11 h-11 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                            <Zap className="w-5 h-5 text-emerald-600" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-bold text-gray-900">Pack 3 crédits</p>
+                            <p className="text-xs text-gray-500">Économise {pricing.unit * 3 - pricing.pack3} FCFA — soit {Math.round(pricing.pack3 / 3)} FCFA/page</p>
+                          </div>
+                          <span className="text-base font-extrabold text-emerald-700">{pricing.pack3} FCFA</span>
+                        </button>
+                      </div>
+
+                      {/* Formulaire paiement */}
+                      <div className="space-y-3 pt-1">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-1.5">📱 Numéro de téléphone</label>
+                          <input type="tel" value={paymentPhone} onChange={(e) => setPaymentPhone(e.target.value)}
+                            placeholder="Ex: 0707070707"
+                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 mb-1.5">👤 Votre nom</label>
+                          <input type="text" value={paymentName} onChange={(e) => setPaymentName(e.target.value)}
+                            placeholder="Ex: Jean Dupont"
+                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500" />
+                        </div>
+                      </div>
+
+                      {/* Bouton payer */}
+                      <button type="button" onClick={handleBuyGeneration} disabled={paymentLoading || !selectedPack}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl hover:from-amber-600 hover:to-orange-600 transition text-sm disabled:opacity-50 shadow-lg">
+                        {paymentLoading ? (
+                          <><Loader2 className="w-4 h-4 animate-spin" /> Chargement...</>
+                        ) : (
+                          <><Zap className="w-4 h-4" /> Payer {selectedPack === 'pack3' ? pricing.pack3 : pricing.unit} FCFA</>
+                        )}
+                      </button>
+
+                      {(generationsInfo?.totalUsed || 0) > 0 && (
+                        <p className="text-xs text-center text-gray-400">
+                          Tu as déjà généré {generationsInfo.totalUsed} page{generationsInfo.totalUsed > 1 ? 's' : ''} produit 🎉
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

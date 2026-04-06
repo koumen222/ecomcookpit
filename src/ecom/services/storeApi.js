@@ -49,6 +49,10 @@ export const storeProductsApi = {
   generateProduct: (input, inputType) =>
     ecomApi.post('/store-products/generate', { input, inputType }),
 
+  // ─── AI review generation ─────────────────────────────────────────────
+  generateReviews: (data) =>
+    ecomApi.post('/store-products/generate-reviews', data),
+
   // ─── Image Upload via R2 ──────────────────────────────────────────────
   uploadImages: (files) => {
     const formData = new FormData();
@@ -69,6 +73,16 @@ export const storeOrdersApi = {
   getOrder: (id) => ecomApi.get(`/store-orders/${id}`),
   updateOrderStatus: (id, status) => ecomApi.put(`/store-orders/${id}/status`, { status }),
   getStats: () => ecomApi.get('/store-orders/stats'),
+};
+
+export const quantityOffersApi = {
+  // ─── Quantity Offers CRUD ──────────────────────────────────────────────
+  getOffers: (params = {}) => ecomApi.get('/quantity-offers', { params }),
+  getOffer: (id) => ecomApi.get(`/quantity-offers/${id}`),
+  createOffer: (data) => ecomApi.post('/quantity-offers', data),
+  updateOffer: (id, data) => ecomApi.put(`/quantity-offers/${id}`, data),
+  deleteOffer: (id) => ecomApi.delete(`/quantity-offers/${id}`),
+  duplicateOffer: (id, data = {}) => ecomApi.post(`/quantity-offers/${id}/duplicate`, data),
 };
 
 export const storeDeliveryZonesApi = {

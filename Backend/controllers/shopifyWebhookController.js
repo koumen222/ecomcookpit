@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import Workspace from '../models/Workspace.js';
+import Store from '../models/Store.js';
 import { saveShopifyOrder } from '../services/shopifyOrderService.js';
 
 const SHOPIFY_WEBHOOK_SECRET = process.env.SHOPIFY_WEBHOOK_SECRET;
@@ -87,11 +88,22 @@ export const handleOrderCreated = (req, res) => {
   // ── Traitement asynchrone en arrière-plan ────────────────────────────────
   setImmediate(async () => {
     try {
-      // Résoudre le workspace via le token
-      const workspace = await Workspace.findOne({
+      // Résoudre le workspace via le token (essayer Workspace puis Store)
+      let workspace = await Workspace.findOne({
         shopifyWebhookToken: webhookToken,
         isActive: true
       }).lean();
+
+      // Fallback: chercher dans le modèle Store (multi-store)
+      if (!workspace) {
+        const store = await Store.findOne({
+          shopifyWebhookToken: webhookToken,
+          isActive: true
+        }).lean();
+        if (store) {
+          workspace = { ...store, _id: store.workspaceId };
+        }
+      }
 
       if (!workspace) {
         console.error(`❌ [Shopify WH] Token invalide: ${webhookToken}`);
@@ -108,6 +120,10 @@ export const handleOrderCreated = (req, res) => {
         whatsappAutoInstanceId: workspace.whatsappAutoInstanceId || null,
         whatsappAutoImageUrl:   workspace.whatsappAutoImageUrl || null,
         whatsappAutoAudioUrl:   workspace.whatsappAutoAudioUrl || null,
+        whatsappAutoVideoUrl:   workspace.whatsappAutoVideoUrl || null,
+        whatsappAutoDocumentUrl: workspace.whatsappAutoDocumentUrl || null,
+        whatsappAutoSendOrder:  workspace.whatsappAutoSendOrder || ['text', 'image', 'audio'],
+        whatsappAutoProductMediaRules: workspace.whatsappAutoProductMediaRules || [],
         storeName:              workspace.storeSettings?.storeName || workspace.name || '',
       };
 
