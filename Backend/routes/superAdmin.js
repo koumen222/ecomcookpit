@@ -656,6 +656,7 @@ router.post('/support/:sessionId/reply', requireEcomAuth, requireSuperAdmin, asy
       {
         $push: { messages: { from: 'agent', text: text.trim().slice(0, 2000), agentName: agentName || 'Rita' } },
         $set:  { status: 'replied', lastMessageAt: new Date() },
+        $inc:  { unreadUser: 1 },
       },
       { new: true }
     );
@@ -684,6 +685,78 @@ router.put('/support/:sessionId/status', requireEcomAuth, requireSuperAdmin, asy
     res.json({ success: true, data: { conversation: conv } });
   } catch (err) {
     console.error('[Support Admin] PUT /support/:id/status:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// POST /api/ecom/super-admin/support/send-to-user — Envoyer un message à un utilisateur spécifique
+router.post('/support/send-to-user', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { userId, text, subject, agentName } = req.body;
+    if (!userId || !text?.trim()) {
+      return res.status(400).json({ success: false, message: 'userId et text requis' });
+    }
+    const user = await EcomUser.findById(userId).select('name email workspaceId');
+    if (!user) return res.status(404).json({ success: false, message: 'Utilisateur introuvable' });
+
+    const sessionId = `admin_to_${userId}_${Date.now()}`;
+    const conv = await SupportConversation.create({
+      sessionId,
+      userId: user._id,
+      userName: user.name || '',
+      userEmail: user.email || '',
+      workspaceId: user.workspaceId || null,
+      subject: (subject || '').trim().slice(0, 200) || 'Message du support',
+      category: 'general',
+      messages: [{ from: 'agent', text: text.trim().slice(0, 2000), agentName: agentName || 'Scalor' }],
+      unreadUser: 1,
+      status: 'replied',
+      lastMessageAt: new Date(),
+    });
+
+    res.json({ success: true, data: { conversation: conv } });
+  } catch (err) {
+    console.error('[Support Admin] POST /support/send-to-user:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+// POST /api/ecom/super-admin/support/broadcast — Envoyer un message à tous les utilisateurs actifs
+router.post('/support/broadcast', requireEcomAuth, requireSuperAdmin, async (req, res) => {
+  try {
+    const { text, subject, agentName } = req.body;
+    if (!text?.trim()) {
+      return res.status(400).json({ success: false, message: 'Message requis' });
+    }
+
+    const users = await EcomUser.find({ isActive: true, role: { $ne: 'super_admin' } })
+      .select('_id name email workspaceId')
+      .lean();
+
+    const safeText = text.trim().slice(0, 2000);
+    const safeSubject = (subject || '').trim().slice(0, 200) || 'Message de Scalor';
+    const agent = agentName || 'Scalor';
+    const now = new Date();
+
+    const docs = users.map(u => ({
+      sessionId: `broadcast_${u._id}_${now.getTime()}`,
+      userId: u._id,
+      userName: u.name || '',
+      userEmail: u.email || '',
+      workspaceId: u.workspaceId || null,
+      subject: safeSubject,
+      category: 'general',
+      messages: [{ from: 'agent', text: safeText, agentName: agent, createdAt: now }],
+      unreadUser: 1,
+      status: 'replied',
+      lastMessageAt: now,
+    }));
+
+    await SupportConversation.insertMany(docs, { ordered: false });
+
+    res.json({ success: true, data: { sent: docs.length } });
+  } catch (err) {
+    console.error('[Support Admin] POST /support/broadcast:', err.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });

@@ -11,9 +11,17 @@ const supportConversationSchema = new mongoose.Schema({
   sessionId:    { type: String, required: true, unique: true, index: true },
   visitorName:  { type: String, default: '' },
   visitorEmail: { type: String, default: '' },
+  // Authenticated user fields
+  userId:       { type: mongoose.Schema.Types.ObjectId, ref: 'EcomUser', default: null, index: true },
+  userName:     { type: String, default: '' },
+  userEmail:    { type: String, default: '' },
+  workspaceId:  { type: mongoose.Schema.Types.ObjectId, ref: 'EcomWorkspace', default: null },
+  subject:      { type: String, default: '' },
+  category:     { type: String, enum: ['general', 'bug', 'billing', 'feature', 'account', 'other'], default: 'general' },
   messages:     { type: [messageSchema], default: [] },
   status:       { type: String, enum: ['open', 'replied', 'closed'], default: 'open' },
   unreadAdmin:  { type: Number, default: 0 },  // visitor msgs not yet read by admin
+  unreadUser:   { type: Number, default: 0 },  // admin msgs not yet read by user
   lastMessageAt:{ type: Date, default: Date.now },
 }, { timestamps: true });
 

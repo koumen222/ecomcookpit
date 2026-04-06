@@ -13,6 +13,7 @@ import GlobalSearch from './GlobalSearch.jsx';
 import WorkspaceSwitcherMenu from './WorkspaceSwitcherMenu.jsx';
 import WorkspaceSwitcher from './WorkspaceSwitcher.jsx';
 import TopLoader from './TopLoader.jsx';
+import SupportChatWidget from './SupportChatWidget.jsx';
 
 const EcomLayoutComponent = ({ children }) => {
   const { user, workspace, logout } = useEcomAuth();
@@ -718,6 +719,9 @@ const EcomLayoutComponent = ({ children }) => {
         onClose={() => { setNotifModalOpen(false); refreshCount(); }}
         onMarkAllRead={refreshCount}
       />
+
+      {/* Support Chat Widget */}
+      {!isSuperAdmin && <SupportChatWidget />}
 
       {/* ── Mobile Bottom Tab Bar - Scalor style (hidden on chat page) ── */}
       <nav className={`lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 ${location.pathname.startsWith('/ecom/chat') ? 'hidden' : ''}`}>
