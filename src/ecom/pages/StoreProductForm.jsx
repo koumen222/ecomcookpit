@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, Save, Image, Plus, X, Loader2, AlertCircle, CheckCircle, Search, PackageSearch, Link, Sparkles, Globe, FileText, ChevronDown, ChevronUp, ShoppingBag, Layers } from 'lucide-react';
+import { ArrowLeft, Save, Image, Plus, X, Loader2, AlertCircle, CheckCircle, Search, PackageSearch, Link, Sparkles, Globe, FileText, ChevronDown, ChevronUp, ShoppingBag, Layers, ChevronRight, Target, Lightbulb, BarChart3, Star, Shield, Zap, BookOpen, Type, Trash2 } from 'lucide-react';
 import { storeProductsApi } from '../services/storeApi.js';
 import AlibabaImportModal from '../components/AlibabaImportModal.jsx';
 import RichTextEditor from '../components/RichTextEditor.jsx';
+import QuantityOffersManager from '../components/QuantityOffersManager.jsx';
+import ReviewGenerator from '../components/ReviewGenerator.jsx';
 
 /**
  * Convert markdown image syntax to HTML <img> tags
@@ -45,6 +47,10 @@ const StoreProductForm = () => {
   const [pickerLoading, setPickerLoading] = useState(false);
   const [linkedProduct, setLinkedProduct] = useState(null);
   const searchTimeout = useRef(null);
+
+  // ─── Rich sections (collapsible) ──────────────────────────────────────────
+  const [openSections, setOpenSections] = useState({});
+  const toggleSection = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
 
   // ─── Alibaba Import state ─────────────────────────────────────────────────
   const [showAlibabaModal, setShowAlibabaModal] = useState(false);
@@ -271,6 +277,15 @@ const StoreProductForm = () => {
     setForm(prev => ({ ...prev, [field]: value }));
     setError('');
     setSuccess('');
+  };
+
+  // ─── _pageData helpers ──────────────────────────────────────────────────
+  const getPageData = (key, fallback) => form._pageData?.[key] ?? fallback;
+  const setPageData = (key, value) => {
+    setForm(prev => ({
+      ...prev,
+      _pageData: { ...(prev._pageData || {}), [key]: value }
+    }));
   };
 
   // Image upload via existing media API
@@ -1078,6 +1093,210 @@ const StoreProductForm = () => {
 
           <p className="text-xs text-gray-400">Max 5 MB par image. Formats: JPG, PNG, WebP. Survolez une image pour la réorganiser ou la définir comme image principale (hero).</p>
         </div>
+
+        {/* ── Sections page produit (rich _pageData) ──────────────────── */}
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+              <Layers className="w-5 h-5 text-violet-600" />
+              Sections de la page produit
+            </h2>
+            <p className="text-xs text-gray-400 mt-1">Ajoutez du contenu marketing à votre fiche produit (même format que la génération IA)</p>
+          </div>
+
+          {/* Hero */}
+          <div className="border-b border-gray-100">
+            <button type="button" onClick={() => toggleSection('hero')} className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition">
+              <span className="flex items-center gap-2 text-sm font-medium text-gray-700"><Type className="w-4 h-4 text-violet-500" /> Hero (Accroche)</span>
+              {openSections.hero ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+            </button>
+            {openSections.hero && (
+              <div className="px-5 pb-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Slogan</label>
+                  <input type="text" value={getPageData('hero_slogan', '')} onChange={(e) => setPageData('hero_slogan', e.target.value)} placeholder="Ex: La solution naturelle pour votre peau" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Baseline (message de confiance)</label>
+                  <input type="text" value={getPageData('hero_baseline', '')} onChange={(e) => setPageData('hero_baseline', e.target.value)} placeholder="Ex: ✅ Livraison gratuite • Satisfait ou remboursé" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Problem Section */}
+          <div className="border-b border-gray-100">
+            <button type="button" onClick={() => toggleSection('problem')} className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition">
+              <span className="flex items-center gap-2 text-sm font-medium text-gray-700"><Target className="w-4 h-4 text-red-500" /> Problème</span>
+              {openSections.problem ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+            </button>
+            {openSections.problem && (
+              <div className="px-5 pb-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Titre</label>
+                  <input type="text" value={getPageData('problem_section', {})?.title || ''} onChange={(e) => setPageData('problem_section', { ...getPageData('problem_section', {}), title: e.target.value })} placeholder="Ex: Le problème" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Points de douleur (un par ligne)</label>
+                  <textarea value={(getPageData('problem_section', {})?.pain_points || []).join('\n')} onChange={(e) => setPageData('problem_section', { ...getPageData('problem_section', {}), pain_points: e.target.value.split('\n').filter(l => l.trim()) })} placeholder={"Peau sèche et irritée\nProduits chimiques inefficaces\nRésultats qui ne durent pas"} rows={4} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Solution Section */}
+          <div className="border-b border-gray-100">
+            <button type="button" onClick={() => toggleSection('solution')} className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition">
+              <span className="flex items-center gap-2 text-sm font-medium text-gray-700"><Lightbulb className="w-4 h-4 text-emerald-500" /> Solution</span>
+              {openSections.solution ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+            </button>
+            {openSections.solution && (
+              <div className="px-5 pb-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Titre</label>
+                  <input type="text" value={getPageData('solution_section', {})?.title || ''} onChange={(e) => setPageData('solution_section', { ...getPageData('solution_section', {}), title: e.target.value })} placeholder="Ex: La solution" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Description</label>
+                  <textarea value={getPageData('solution_section', {})?.description || ''} onChange={(e) => setPageData('solution_section', { ...getPageData('solution_section', {}), description: e.target.value })} placeholder="Décrivez comment votre produit résout le problème..." rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Stats Bar */}
+          <div className="border-b border-gray-100">
+            <button type="button" onClick={() => toggleSection('stats')} className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition">
+              <span className="flex items-center gap-2 text-sm font-medium text-gray-700"><BarChart3 className="w-4 h-4 text-blue-500" /> Statistiques</span>
+              {openSections.stats ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+            </button>
+            {openSections.stats && (
+              <div className="px-5 pb-4 space-y-3">
+                {(getPageData('stats_bar', []) || []).map((stat, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input type="text" value={stat.value || ''} onChange={(e) => { const arr = [...(getPageData('stats_bar', []))]; arr[i] = { ...arr[i], value: e.target.value }; setPageData('stats_bar', arr); }} placeholder="1000+" className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                    <input type="text" value={stat.label || ''} onChange={(e) => { const arr = [...(getPageData('stats_bar', []))]; arr[i] = { ...arr[i], label: e.target.value }; setPageData('stats_bar', arr); }} placeholder="Clients satisfaits" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                    <button type="button" onClick={() => { const arr = getPageData('stats_bar', []).filter((_, j) => j !== i); setPageData('stats_bar', arr); }} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                ))}
+                <button type="button" onClick={() => setPageData('stats_bar', [...(getPageData('stats_bar', []) || []), { value: '', label: '' }])} className="text-sm text-violet-600 hover:text-violet-700 font-medium flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Ajouter une stat</button>
+              </div>
+            )}
+          </div>
+
+          {/* Benefits Bullets */}
+          <div className="border-b border-gray-100">
+            <button type="button" onClick={() => toggleSection('benefits')} className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition">
+              <span className="flex items-center gap-2 text-sm font-medium text-gray-700"><Star className="w-4 h-4 text-yellow-500" /> Avantages clés</span>
+              {openSections.benefits ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+            </button>
+            {openSections.benefits && (
+              <div className="px-5 pb-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Avantages (un par ligne)</label>
+                  <textarea value={(getPageData('benefits_bullets', []) || []).join('\n')} onChange={(e) => setPageData('benefits_bullets', e.target.value.split('\n').filter(l => l.trim()))} placeholder={"✅ 100% naturel\n✅ Résultats visibles en 7 jours\n✅ Sans effets secondaires"} rows={4} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Conversion Blocks */}
+          <div className="border-b border-gray-100">
+            <button type="button" onClick={() => toggleSection('conversion')} className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition">
+              <span className="flex items-center gap-2 text-sm font-medium text-gray-700"><Zap className="w-4 h-4 text-orange-500" /> Blocs de conversion</span>
+              {openSections.conversion ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+            </button>
+            {openSections.conversion && (
+              <div className="px-5 pb-4 space-y-3">
+                {(getPageData('conversion_blocks', []) || []).map((block, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input type="text" value={block.icon || ''} onChange={(e) => { const arr = [...(getPageData('conversion_blocks', []))]; arr[i] = { ...arr[i], icon: e.target.value }; setPageData('conversion_blocks', arr); }} placeholder="🚚" className="w-14 px-2 py-2 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                    <input type="text" value={block.text || ''} onChange={(e) => { const arr = [...(getPageData('conversion_blocks', []))]; arr[i] = { ...arr[i], text: e.target.value }; setPageData('conversion_blocks', arr); }} placeholder="Livraison gratuite partout" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                    <button type="button" onClick={() => { const arr = getPageData('conversion_blocks', []).filter((_, j) => j !== i); setPageData('conversion_blocks', arr); }} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                ))}
+                <button type="button" onClick={() => setPageData('conversion_blocks', [...(getPageData('conversion_blocks', []) || []), { icon: '', text: '' }])} className="text-sm text-violet-600 hover:text-violet-700 font-medium flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Ajouter un bloc</button>
+              </div>
+            )}
+          </div>
+
+          {/* Offer Block */}
+          <div className="border-b border-gray-100">
+            <button type="button" onClick={() => toggleSection('offer')} className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition">
+              <span className="flex items-center gap-2 text-sm font-medium text-gray-700"><Shield className="w-4 h-4 text-emerald-500" /> Offre & Garantie</span>
+              {openSections.offer ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+            </button>
+            {openSections.offer && (
+              <div className="px-5 pb-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Label de l'offre</label>
+                  <input type="text" value={getPageData('offer_block', {})?.offer_label || ''} onChange={(e) => setPageData('offer_block', { ...getPageData('offer_block', {}), offer_label: e.target.value })} placeholder="Ex: Offre spéciale" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Texte de garantie</label>
+                  <input type="text" value={getPageData('offer_block', {})?.guarantee_text || ''} onChange={(e) => setPageData('offer_block', { ...getPageData('offer_block', {}), guarantee_text: e.target.value })} placeholder="Ex: Satisfait ou remboursé sous 30 jours" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Urgency */}
+          <div className="border-b border-gray-100">
+            <button type="button" onClick={() => toggleSection('urgency')} className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition">
+              <span className="flex items-center gap-2 text-sm font-medium text-gray-700"><AlertCircle className="w-4 h-4 text-red-500" /> Urgence</span>
+              {openSections.urgency ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+            </button>
+            {openSections.urgency && (
+              <div className="px-5 pb-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Badge d'urgence</label>
+                  <input type="text" value={getPageData('urgency_badge', '')} onChange={(e) => setPageData('urgency_badge', e.target.value)} placeholder="Ex: 🔥 Plus que 3 en stock !" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" checked={getPageData('urgency_elements', {})?.stock_limited || false} onChange={(e) => setPageData('urgency_elements', { ...getPageData('urgency_elements', {}), stock_limited: e.target.checked })} className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500" />
+                    Stock limité
+                  </label>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Preuve sociale</label>
+                    <input type="number" min="0" value={getPageData('urgency_elements', {})?.social_proof_count || ''} onChange={(e) => setPageData('urgency_elements', { ...getPageData('urgency_elements', {}), social_proof_count: parseInt(e.target.value) || 0 })} placeholder="42" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Résultat rapide</label>
+                    <input type="text" value={getPageData('urgency_elements', {})?.quick_result || ''} onChange={(e) => setPageData('urgency_elements', { ...getPageData('urgency_elements', {}), quick_result: e.target.value })} placeholder="7 jours" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Guide d'utilisation */}
+          <div>
+            <button type="button" onClick={() => toggleSection('guide')} className="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition">
+              <span className="flex items-center gap-2 text-sm font-medium text-gray-700"><BookOpen className="w-4 h-4 text-indigo-500" /> Guide d'utilisation</span>
+              {openSections.guide ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+            </button>
+            {openSections.guide && (
+              <div className="px-5 pb-4">
+                <textarea value={getPageData('guide_utilisation', '')} onChange={(e) => setPageData('guide_utilisation', e.target.value)} placeholder="Expliquez comment utiliser le produit étape par étape..." rows={4} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none" />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Offres de quantité */}
+        {isEdit && (
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <QuantityOffersManager productId={id} />
+          </div>
+        )}
+
+        {/* Avis clients / Review Generator */}
+        <ReviewGenerator
+          productDescription={form.description || form.name}
+          existingTestimonials={form.testimonials || []}
+          onSave={(testimonials) => setForm(f => ({ ...f, testimonials }))}
+        />
 
         {/* SEO */}
         <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-4">

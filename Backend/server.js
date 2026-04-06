@@ -328,6 +328,8 @@ const startServer = async () => {
       ['./routes/ritaConfig.js',              '/api/ecom/rita'],
       ['./routes/ritaFollowUp.js',            '/api/ecom/rita'],
       ['./routes/whatsappOrders.js',          '/api/ecom/whatsapp-orders'],
+      // ─── Quantity Offers ──────────────────────────────────────────────
+      ['./routes/quantityOffers.js',          '/api/ecom/quantity-offers'],
       // ─── Store / Storefront routes ──────────────────────────────────
       ['./routes/storeProducts.js',           '/api/ecom/store-products'],
       ['./routes/storeOrders.js',             '/api/ecom/store-orders'],

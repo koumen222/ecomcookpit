@@ -294,6 +294,102 @@ Si le prix n'est pas mentionné, mettre 0. Répondre en français.`;
 });
 
 /**
+ * POST /store-products/generate-reviews
+ * Generate authentic product reviews (testimonials) using AI.
+ * Body: { productDescription, country?, cities?, names?, count? }
+ * Returns: { reviews: [{ name, text, rating, location, verified, date, source }] }
+ */
+router.post('/generate-reviews', requireEcomAuth, requireWorkspace, async (req, res) => {
+  try {
+    const ai = getOpenAI();
+    if (!ai) {
+      return res.status(503).json({
+        success: false,
+        message: 'Génération IA non configurée. Veuillez configurer OPENAI_API_KEY.'
+      });
+    }
+
+    const { productDescription, country, cities, names, count } = req.body;
+    if (!productDescription?.trim()) {
+      return res.status(400).json({ success: false, message: 'Description du produit requise' });
+    }
+
+    const reviewCount = Math.max(3, Math.min(6, parseInt(count) || 4));
+    const cityList = Array.isArray(cities) ? cities.filter(Boolean) : [];
+    const nameList = Array.isArray(names) ? names.filter(Boolean) : [];
+
+    const systemPrompt = `Tu es un générateur d'avis clients authentiques pour les marchés africains.
+Tu génères des avis en français africain naturel, comme de vrais clients.
+Réponds UNIQUEMENT avec un objet JSON valide, sans markdown, sans explication.
+
+RÈGLES STRICTES :
+- Ton authentique, UGC naturel (comme un vrai client africain)
+- Chaque avis fait 1 à 2 phrases maximum
+- Mentionne un bénéfice concret du produit
+- INTERDIT : "http", "www", "image", "photo", "lien", emojis excessifs, URLs
+- Majorité de notes 4 et 5 étoiles (quelques 4 pour la crédibilité)
+- Chaque avis est unique et différent des autres
+${nameList.length > 0 ? `- Utilise UNIQUEMENT ces prénoms (choisis-en ${reviewCount}) : ${nameList.join(', ')}` : '- Invente des prénoms africains variés avec initiale du nom (ex: Awa D., Koffi M.)'}
+${cityList.length > 0 ? `- Utilise UNIQUEMENT ces villes : ${cityList.join(', ')}` : ''}
+${country ? `- Pays : ${country}` : ''}
+
+Format JSON strict :
+{
+  "reviews": [
+    {
+      "name": "Prénom N.",
+      "text": "Texte de l'avis (1-2 phrases)",
+      "rating": 5,
+      "location": "Ville, Pays",
+      "verified": true,
+      "date": "Il y a X jours"
+    }
+  ]
+}`;
+
+    const userPrompt = `Génère exactement ${reviewCount} avis clients authentiques pour ce produit :\n\n${productDescription.trim().slice(0, 2000)}`;
+
+    const completion = await ai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.85,
+      max_tokens: 1200,
+      response_format: { type: 'json_object' }
+    });
+
+    let generated;
+    try {
+      generated = JSON.parse(completion.choices[0].message.content);
+    } catch {
+      return res.status(500).json({ success: false, message: 'Réponse IA invalide, réessayez.' });
+    }
+
+    // Normalize & sanitize reviews
+    const reviews = (generated.reviews || []).map(r => ({
+      name: String(r.name || '').slice(0, 100),
+      text: String(r.text || '').replace(/https?:\/\/\S+/gi, '').slice(0, 500),
+      rating: Math.max(1, Math.min(5, parseInt(r.rating) || 5)),
+      location: String(r.location || '').slice(0, 100),
+      verified: r.verified !== false,
+      date: String(r.date || 'Récemment'),
+      source: 'ai'
+    }));
+
+    res.json({ success: true, data: { reviews } });
+
+  } catch (error) {
+    console.error('❌ POST /store-products/generate-reviews error:', error.message);
+    if (error?.status === 429) {
+      return res.status(429).json({ success: false, message: 'Quota OpenAI dépassé. Réessayez plus tard.' });
+    }
+    res.status(500).json({ success: false, message: 'Erreur lors de la génération des avis' });
+  }
+});
+
+/**
  * GET /store-products/system-products
  * Return main system products for the store product picker.
  * Lets the store owner pick an existing product to pre-fill name + price.

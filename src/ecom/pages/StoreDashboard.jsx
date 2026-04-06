@@ -27,7 +27,7 @@ export default function StoreDashboard() {
       setLoading(true);
       const [response, configRes] = await Promise.all([
         ecomApi.get('/store-analytics/dashboard', { params: { workspaceId: workspace?._id, period } }),
-        ecomApi.get('/store/config').catch(() => null),
+        ecomApi.get('/store-manage/config').catch(() => null),
       ]);
       setDashboardData(response.data);
       const subdomain = configRes?.data?.data?.subdomain;

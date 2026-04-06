@@ -90,22 +90,21 @@ const BOUTIQUE_NAV = [
     ),
   },
   {
-    name: 'Formulaire',
-    href: '/ecom/boutique/form-builder',
+    name: 'Manager de formulaire',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
       </svg>
     ),
-  },
-  {
-    name: 'Générateur Créas',
-    href: '/ecom/creative-generator',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
-      </svg>
-    ),
+    children: [
+      { name: 'Créateur de formulaire', href: '/ecom/boutique/form-builder' },
+      { name: 'Offres de quantité', href: '/ecom/boutique/form-builder/quantity-offers' },
+      { name: 'Upsells & Downsells', href: '/ecom/boutique/form-builder/upsells' },
+      { name: 'Intégrations et messagerie', href: '/ecom/boutique/form-builder/integrations' },
+      { name: 'Analytique', href: '/ecom/boutique/form-builder/analytics' },
+      { name: 'Paramètres', href: '/ecom/boutique/form-builder/settings' },
+      { name: 'Forfait', href: '/ecom/boutique/form-builder/plan' },
+    ],
   },
   {
     name: 'Paramètres',
@@ -176,13 +175,37 @@ const BoutiqueLayoutInner = () => {
     return () => clearTimeout(t);
   }, []);
 
+  const [expandedParent, setExpandedParent] = useState(null);
+
   const isActive = (item) => {
     if (item.exact) return location.pathname === item.href;
-    return location.pathname.startsWith(item.href);
+    if (item.href) return location.pathname.startsWith(item.href);
+    return false;
   };
 
-  const mobileTabs = useMemo(() => BOUTIQUE_NAV.filter(i => MOBILE_TABS.includes(i.name)), []);
-  const mobileMore = useMemo(() => BOUTIQUE_NAV.filter(i => !MOBILE_TABS.includes(i.name)), []);
+  const isParentActive = (item) => {
+    if (!item.children) return false;
+    return item.children.some(c => location.pathname === c.href || location.pathname.startsWith(c.href + '/'));
+  };
+
+  // Auto-expand parent when a child is active
+  useEffect(() => {
+    const parent = BOUTIQUE_NAV.find(i => i.children && isParentActive(i));
+    if (parent) setExpandedParent(parent.name);
+  }, [location.pathname]);
+
+  const mobileTabs = useMemo(() => BOUTIQUE_NAV.filter(i => !i.children && MOBILE_TABS.includes(i.name)), []);
+  const mobileMore = useMemo(() => {
+    const items = [];
+    BOUTIQUE_NAV.forEach(i => {
+      if (i.children) {
+        i.children.forEach(c => items.push({ ...c, icon: i.icon, parentName: i.name }));
+      } else if (!MOBILE_TABS.includes(i.name)) {
+        items.push(i);
+      }
+    });
+    return items;
+  }, []);
 
   const storeName = activeStore?.storeSettings?.storeName || activeStore?.name || workspace?.name || 'Ma Boutique';
   const themeColor = activeStore?.storeSettings?.storeThemeColor || '#0F6B4F';
@@ -234,6 +257,57 @@ const BoutiqueLayoutInner = () => {
           {/* Navigation */}
           <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
             {BOUTIQUE_NAV.map((item) => {
+              // ── Parent with children ──
+              if (item.children) {
+                const parentActive = isParentActive(item);
+                const expanded = expandedParent === item.name;
+                return (
+                  <div key={item.name}>
+                    <button
+                      onClick={() => setExpandedParent(expanded ? null : item.name)}
+                      className={`w-full group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
+                        parentActive && !expanded
+                          ? 'text-white shadow-md'
+                          : parentActive
+                            ? 'bg-gray-100 text-gray-900'
+                            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      }`}
+                      style={parentActive && !expanded ? { backgroundColor: themeColor } : {}}
+                    >
+                      <span className={`flex-shrink-0 ${parentActive && !expanded ? 'text-white' : parentActive ? 'text-gray-700' : 'text-gray-400 group-hover:text-gray-600'}`}>
+                        {item.icon}
+                      </span>
+                      <span className="truncate flex-1 text-left">{item.name}</span>
+                      <svg className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${expanded ? 'rotate-180' : ''} ${parentActive && !expanded ? 'text-white/70' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {expanded && (
+                      <div className="ml-5 pl-3 border-l-2 border-gray-200 mt-1 space-y-0.5">
+                        {item.children.map(child => {
+                          const childActive = location.pathname === child.href;
+                          return (
+                            <Link
+                              key={child.href}
+                              to={child.href}
+                              className={`block px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 ${
+                                childActive
+                                  ? 'text-white shadow-sm'
+                                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                              }`}
+                              style={childActive ? { backgroundColor: themeColor } : {}}
+                            >
+                              {child.name}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // ── Simple link ──
               const active = isActive(item);
               return (
                 <Link
@@ -439,6 +513,13 @@ const getBoutiquePageTitle = (pathname) => {
   if (pathname.includes('/boutique/payments')) return 'Paiements';
   if (pathname.includes('/boutique/delivery-zones')) return 'Zones de livraison';
   if (pathname.includes('/boutique/domains')) return 'Domaines';
+  if (pathname.includes('/boutique/form-builder/quantity-offers')) return 'Offres de quantité';
+  if (pathname.includes('/boutique/form-builder/upsells')) return 'Upsells & Downsells';
+  if (pathname.includes('/boutique/form-builder/integrations')) return 'Intégrations et messagerie';
+  if (pathname.includes('/boutique/form-builder/analytics')) return 'Analytique';
+  if (pathname.includes('/boutique/form-builder/settings')) return 'Paramètres EasySell';
+  if (pathname.includes('/boutique/form-builder/plan')) return 'Forfait';
+  if (pathname.includes('/boutique/form-builder')) return 'Créateur de formulaire';
   if (pathname.includes('/boutique/product-settings')) return 'Paramètres Page Produit';
   if (pathname.includes('/boutique/theme')) return 'Thème & Design';
   if (pathname.includes('/creative-generator')) return 'Générateur de Créas';

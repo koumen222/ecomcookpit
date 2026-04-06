@@ -208,10 +208,10 @@ const workspaceSchema = new mongoose.Schema({
   },
 
   // ─── Product Page Generator Tracking ─────────────────────────────────────
-  // Free generations remaining (default 3)
+  // Free generations remaining (default 0)
   freeGenerationsRemaining: {
     type: Number,
-    default: 3,
+    default: 0,
     min: 0
   },
   // Total number of generations performed (for analytics)
@@ -220,7 +220,7 @@ const workspaceSchema = new mongoose.Schema({
     default: 0,
     min: 0
   },
-  // Paid generations remaining (purchased with 1500 FCFA each)
+  // Paid generations remaining
   paidGenerationsRemaining: {
     type: Number,
     default: 0,

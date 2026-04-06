@@ -453,7 +453,8 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
         features: product.features || [],
         faq: product.faq || [],
         testimonials: product.testimonials || [],
-        _pageData: product._pageData || null
+        _pageData: product._pageData || null,
+        productPageConfig: product.productPageConfig || null
       }
     });
 
@@ -553,9 +554,14 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       }
 
       // Check if an offer price was sent and validate it against configured offers
+      // Merge store-level and per-product offers (per-product takes priority)
+      const productConversion = dbProduct.productPageConfig?.conversion || {};
+      const productOffers = productConversion.offersEnabled ? (productConversion.offers || []) : [];
+      const validOffers = productOffers.length > 0 ? productOffers : storeOffers;
+
       let itemTotal = dbProduct.price * qty;
       if (item.offerPrice != null && item.offerQty != null) {
-        const matchingOffer = storeOffers.find(o => o.qty === item.offerQty && o.price === item.offerPrice);
+        const matchingOffer = validOffers.find(o => o.qty === item.offerQty && o.price === item.offerPrice);
         if (matchingOffer) {
           itemTotal = matchingOffer.price;
         }

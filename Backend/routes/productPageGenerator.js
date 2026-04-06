@@ -1121,13 +1121,15 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       const totalRemaining = freeRemaining + paidRemaining;
 
       if (totalRemaining <= 0) {
+        const totalUsed = workspace.totalGenerations || 0;
         return res.status(403).json({
           success: false,
           limitReached: true,
-          message: '🎯 Tu as utilisé tes 3 générations gratuites !\n\nPour continuer à générer des pages produit optimisées, débloque une nouvelle génération pour seulement 1500 FCFA.',
+          message: '🎯 Tu n\'as plus de crédits de génération !\n\nAchète des crédits pour générer des pages produit IA : 1 crédit à 500 FCFA ou le pack 3 crédits à 1000 FCFA.',
           freeRemaining: 0,
           paidRemaining: 0,
-          totalGenerations: workspace.totalGenerations || 0
+          totalGenerations: totalUsed,
+          pricing: { unit: 500, pack3: 1000 }
         });
       }
 

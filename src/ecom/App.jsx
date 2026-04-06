@@ -147,6 +147,13 @@ const BoutiqueDomains = lazy(() => import('./pages/BoutiqueDomains.jsx'));
 const BoutiqueSettings = lazy(() => import('./pages/BoutiqueSettings.jsx'));
 const BoutiqueDeliveryZones = lazy(() => import('./pages/BoutiqueDeliveryZones.jsx'));
 const BoutiqueFormBuilder = lazy(() => import('./pages/BoutiqueFormBuilder.jsx'));
+const FormQuantityOffersPage = lazy(() => import('./pages/FormQuantityOffersPage.jsx'));
+const FormQuantityOffersWizard = lazy(() => import('./pages/quantityOffers/FormQuantityOffersWizard.jsx'));
+const FormUpsellsPage = lazy(() => import('./pages/FormUpsellsPage.jsx'));
+const FormIntegrationsPage = lazy(() => import('./pages/FormIntegrationsPage.jsx'));
+const FormAnalyticsPage = lazy(() => import('./pages/FormAnalyticsPage.jsx'));
+const FormSettingsPage = lazy(() => import('./pages/FormSettingsPage.jsx'));
+const FormPlanPage = lazy(() => import('./pages/FormPlanPage.jsx'));
 const StoreCreationWizard = lazy(() => import('./pages/StoreCreationWizard.jsx'));
 
 // ═══════════════════════════════════════════════════════════════
@@ -661,11 +668,15 @@ const EcomApp = () => {
                   <Route path="/ecom/boutique/product-settings" element={<ProductSettingsPage />} />
                   <Route path="/ecom/boutique/theme" element={<ProductThemePage />} />
                   <Route path="/ecom/boutique/form-builder" element={<BoutiqueFormBuilder />} />
+                  <Route path="/ecom/boutique/form-builder/quantity-offers" element={<FormQuantityOffersPage />} />
+                  <Route path="/ecom/boutique/form-builder/quantity-offers/wizard/:id" element={<FormQuantityOffersWizard />} />
+                  <Route path="/ecom/boutique/form-builder/upsells" element={<FormUpsellsPage />} />
+                  <Route path="/ecom/boutique/form-builder/integrations" element={<FormIntegrationsPage />} />
+                  <Route path="/ecom/boutique/form-builder/analytics" element={<FormAnalyticsPage />} />
+                  <Route path="/ecom/boutique/form-builder/settings" element={<FormSettingsPage />} />
+                  <Route path="/ecom/boutique/form-builder/plan" element={<FormPlanPage />} />
                 </Route>
               </Route>
-
-              {/* Générateur de Créas IA */}
-              <Route path="/ecom/creative-generator" element={<LayoutRoute><CreativeGenerator /></LayoutRoute>} />
 
               {/* Routes Developer & Rita - Accessibles à tous */}
               <Route path="/ecom/developer" element={<LayoutRoute><DeveloperSection /></LayoutRoute>} />
