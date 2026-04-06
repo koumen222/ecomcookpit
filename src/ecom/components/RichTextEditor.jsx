@@ -538,16 +538,36 @@ const RichTextEditor = ({
           onMouseUp={saveSelection}
           onKeyUp={saveSelection}
           dir="ltr"
-          className="px-3 py-2 text-sm focus:outline-none prose prose-sm max-w-none"
+          className="px-3 py-2 focus:outline-none rte-content"
           style={{
             minHeight,
             maxHeight,
             overflowY: 'auto',
             direction: 'ltr',
             lineHeight: 1.65,
+            fontSize: 14,
           }}
         />
       </div>
+
+      {/* ── Editor styles ── */}
+      <style>{`
+        .rte-content h1 { font-size: 1.75em; font-weight: 800; margin: 0.5em 0 0.3em; line-height: 1.2; }
+        .rte-content h2 { font-size: 1.35em; font-weight: 700; margin: 0.5em 0 0.3em; line-height: 1.25; }
+        .rte-content h3 { font-size: 1.15em; font-weight: 700; margin: 0.4em 0 0.25em; line-height: 1.3; }
+        .rte-content h4 { font-size: 1em; font-weight: 600; margin: 0.4em 0 0.2em; line-height: 1.35; }
+        .rte-content p { margin: 0.35em 0; }
+        .rte-content ul { list-style-type: disc; padding-left: 1.5em; margin: 0.4em 0; }
+        .rte-content ol { list-style-type: decimal; padding-left: 1.5em; margin: 0.4em 0; }
+        .rte-content li { margin: 0.15em 0; display: list-item; }
+        .rte-content a { color: #2563EB; text-decoration: underline; }
+        .rte-content blockquote { border-left: 3px solid #D1D5DB; padding-left: 0.75em; margin: 0.5em 0; color: #6B7280; font-style: italic; }
+        .rte-content hr { border: none; border-top: 1px solid #E5E7EB; margin: 0.75em 0; }
+        .rte-content img { max-width: 100%; height: auto; border-radius: 6px; margin: 6px 0; }
+        .rte-content [style*="text-align: center"] { text-align: center !important; }
+        .rte-content [style*="text-align: right"] { text-align: right !important; }
+        .rte-content div[style*="text-align"] { text-align: inherit; }
+      `}</style>
 
       {/* ── Modals ── */}
       {showLink && (
