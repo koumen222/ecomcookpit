@@ -278,6 +278,77 @@ const ColorPicker = ({ onColor }) => {
   );
 };
 
+// ─── Image resize toolbar ─────────────────────────────────────────────────────
+const ImageResizeToolbar = ({ imageEl, onResize, onClose }) => {
+  const [rect, setRect] = useState(null);
+  const sizes = [
+    { label: '25%', value: '25%' },
+    { label: '50%', value: '50%' },
+    { label: '75%', value: '75%' },
+    { label: '100%', value: '100%' },
+    { label: 'Auto', value: '' },
+  ];
+
+  useEffect(() => {
+    if (!imageEl) return;
+    const update = () => {
+      const r = imageEl.getBoundingClientRect();
+      setRect(r);
+    };
+    update();
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [imageEl]);
+
+  if (!rect) return null;
+
+  const currentWidth = imageEl?.style?.width || '';
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: rect.top - 44,
+        left: rect.left + rect.width / 2,
+        transform: 'translateX(-50%)',
+        zIndex: 300,
+      }}
+    >
+      <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg shadow-lg px-2 py-1.5">
+        {sizes.map(s => (
+          <button
+            key={s.label}
+            type="button"
+            onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onResize(s.value); }}
+            className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
+              currentWidth === s.value || (!currentWidth && s.value === '')
+                ? 'bg-emerald-100 text-emerald-700'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+        <div className="w-px h-5 bg-gray-200 mx-1" />
+        <button
+          type="button"
+          onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onClose(); }}
+          className="p-1 rounded hover:bg-gray-100 text-gray-400"
+          title="Fermer"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN EDITOR
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -309,6 +380,7 @@ const RichTextEditor = ({
   const [showImage, setShowImage] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
 
   // ── Init / external value sync ──────────────────────────────────────────
   useEffect(() => {
@@ -445,7 +517,48 @@ const RichTextEditor = ({
       document.execCommand('insertHTML', false, '&nbsp;&nbsp;&nbsp;&nbsp;');
       handleInput();
     }
-  }, [handleInput]);
+    // Deselect image on any key
+    if (selectedImage) setSelectedImage(null);
+  }, [handleInput, selectedImage]);
+
+  // ── Click handler for image selection ──────────────────────────────────
+  const handleEditorClick = useCallback((e) => {
+    const target = e.target;
+    if (target.tagName === 'IMG' && editorRef.current?.contains(target)) {
+      e.preventDefault();
+      setSelectedImage(target);
+      target.style.outline = '2px solid #059669';
+      target.style.outlineOffset = '2px';
+    } else {
+      if (selectedImage) {
+        selectedImage.style.outline = '';
+        selectedImage.style.outlineOffset = '';
+        setSelectedImage(null);
+      }
+    }
+  }, [selectedImage]);
+
+  // ── Resize image ──────────────────────────────────────────────────────
+  const handleImageResize = useCallback((widthValue) => {
+    if (!selectedImage) return;
+    if (widthValue) {
+      selectedImage.style.width = widthValue;
+      selectedImage.style.maxWidth = '100%';
+    } else {
+      selectedImage.style.width = '';
+      selectedImage.style.maxWidth = '100%';
+    }
+    selectedImage.style.height = 'auto';
+    handleInput();
+  }, [selectedImage, handleInput]);
+
+  const closeImageResize = useCallback(() => {
+    if (selectedImage) {
+      selectedImage.style.outline = '';
+      selectedImage.style.outlineOffset = '';
+    }
+    setSelectedImage(null);
+  }, [selectedImage]);
 
   // ── Placeholder visibility ────────────────────────────────────────────
   const isEmpty = !value || value === '<br>' || value === '<p><br></p>';
@@ -535,6 +648,7 @@ const RichTextEditor = ({
           onInput={handleInput}
           onPaste={handlePaste}
           onKeyDown={handleKeyDown}
+          onClick={handleEditorClick}
           onMouseUp={saveSelection}
           onKeyUp={saveSelection}
           dir="ltr"
@@ -570,6 +684,13 @@ const RichTextEditor = ({
       `}</style>
 
       {/* ── Modals ── */}
+      {selectedImage && (
+        <ImageResizeToolbar
+          imageEl={selectedImage}
+          onResize={handleImageResize}
+          onClose={closeImageResize}
+        />
+      )}
       {showLink && (
         <LinkModal
           onConfirm={insertLink}
