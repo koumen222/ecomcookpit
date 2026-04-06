@@ -19,12 +19,13 @@ export default function StoreDashboard() {
   const [period, setPeriod] = useState('7d');
 
   useEffect(() => {
-    loadDashboard();
+    loadDashboard(!dashboardData);
   }, [period, workspace]);
 
-  const loadDashboard = async () => {
+  const loadDashboard = async (isInitial) => {
     try {
-      setLoading(true);
+      if (isInitial || !dashboardData) setLoading(true);
+      else setRefreshing(true);
       const [response, configRes] = await Promise.all([
         ecomApi.get('/store-analytics/dashboard', { params: { workspaceId: workspace?._id, period } }),
         ecomApi.get('/store-manage/config').catch(() => null),
@@ -48,13 +49,12 @@ export default function StoreDashboard() {
       });
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   const handleRefresh = async () => {
-    setRefreshing(true);
-    await loadDashboard();
-    setRefreshing(false);
+    await loadDashboard(false);
   };
 
   const exportAnalytics = async () => {

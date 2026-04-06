@@ -141,8 +141,10 @@ const ImageModal = ({ onInsert, onClose, onUpload, uploading }) => {
 const HeadingSelect = ({ onSelect }) => {
   const opts = [
     { label: 'Paragraphe', tag: 'p', style: { fontSize: 14 } },
+    { label: 'Titre H1', tag: 'h1', style: { fontSize: 22, fontWeight: 800 } },
     { label: 'Titre H2', tag: 'h2', style: { fontSize: 18, fontWeight: 700 } },
     { label: 'Titre H3', tag: 'h3', style: { fontSize: 15, fontWeight: 700 } },
+    { label: 'Titre H4', tag: 'h4', style: { fontSize: 14, fontWeight: 600 } },
   ];
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState('Paragraphe');
@@ -248,6 +250,7 @@ const RichTextEditor = ({
 
   const [showLink, setShowLink] = useState(false);
   const [showImage, setShowImage] = useState(false);
+  const [showVideo, setShowVideo] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   // ── Init / external value sync ──────────────────────────────────────────
@@ -329,8 +332,10 @@ const RichTextEditor = ({
         return url;
       }
       const res = await storeProductsApi.uploadImages([file]);
-      const urls = res.data?.data?.urls || res.data?.urls || [];
-      return urls[0] || null;
+      const data = res.data?.data;
+      // API returns array of {url} objects
+      if (Array.isArray(data) && data.length > 0) return data[0].url || data[0];
+      return null;
     } catch {
       return null;
     } finally {
@@ -344,6 +349,14 @@ const RichTextEditor = ({
     const img = `<img src="${url}" alt="${alt}" style="max-width:100%;height:auto;border-radius:6px;margin:6px 0;" loading="lazy" />`;
     document.execCommand('insertHTML', false, img);
     setShowImage(false);
+    handleInput();
+  }, [handleInput]);
+
+  // ── Insert video HTML into editor ────────────────────────────────────
+  const insertVideo = useCallback((html) => {
+    restoreSelection();
+    document.execCommand('insertHTML', false, html);
+    setShowVideo(false);
     handleInput();
   }, [handleInput]);
 
@@ -424,9 +437,15 @@ const RichTextEditor = ({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636a9 9 0 010 12.728M5.636 5.636a9 9 0 000 12.728M9 9l6 6M9 15l6-6" />
           </svg>
         </Btn>
-        <Btn title="Insérer une image" onClick={() => { saveSelection(); setShowImage(true); }}>
+        <Btn title="Insérer une image / GIF" onClick={() => { saveSelection(); setShowImage(true); }}>
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </Btn>
+        <Btn title="Insérer une vidéo" onClick={() => { saveSelection(); setShowVideo(true); }}>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </Btn>
         <Sep />
@@ -486,6 +505,12 @@ const RichTextEditor = ({
           onClose={() => { setShowImage(false); restoreSelection(); }}
           onUpload={handleUpload}
           uploading={uploading}
+        />
+      )}
+      {showVideo && (
+        <VideoModal
+          onInsert={insertVideo}
+          onClose={() => { setShowVideo(false); restoreSelection(); }}
         />
       )}
     </div>
