@@ -164,37 +164,11 @@ export default function ProductTestimonials({ testimonials = [], productImage = 
                 boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
               }}
             >
-              {/* Photo client avec produit — affichée en grand si disponible */}
-              {t.image && (
-                <div style={{ position: 'relative', width: '100%', height: 200, overflow: 'hidden' }}>
-                  <img
-                    src={t.image}
-                    alt={`${t.name} avec le produit`}
-                    loading="lazy"
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', display: 'block' }}
-                  />
-                  {/* Verified badge sur la photo */}
-                  {t.verified && (
-                    <div style={{
-                      position: 'absolute', top: 10, right: 10,
-                      display: 'flex', alignItems: 'center', gap: 4,
-                      background: 'rgba(255,255,255,0.92)', borderRadius: 99,
-                      padding: '4px 10px', backdropFilter: 'blur(4px)',
-                    }}>
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                      <span style={{ fontSize: 10, color: '#059669', fontWeight: 700, fontFamily: 'var(--s-font, sans-serif)' }}>
-                        Avis vérifié
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
+
 
               <div style={{ padding: 16 }}>
-                {/* Verified badge (sans photo) */}
-                {!t.image && t.verified && (
+                {/* Verified badge */}
+                {t.verified && (
                   <div style={{
                     display: 'inline-flex', alignItems: 'center', gap: 4,
                     background: '#D1FAE5', borderRadius: 99, padding: '3px 10px', marginBottom: 10,
@@ -225,26 +199,16 @@ export default function ProductTestimonials({ testimonials = [], productImage = 
 
                 {/* Avatar + Info — bottom */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  {/* Si pas de photo grand format, afficher l'avatar en circle */}
-                  {!t.image && (
-                    <>
-                      {productImage && i < 2 ? (
-                        <img src={productImage} alt={t.name} loading="lazy"
-                          style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid #fff', boxShadow: '0 1px 4px rgba(0,0,0,0.12)' }} />
-                      ) : (
-                        <div style={{
-                          width: 40, height: 40, borderRadius: '50%',
-                          background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})`,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          color: '#fff', fontWeight: 700, fontSize: 14, flexShrink: 0,
-                          fontFamily: 'var(--s-font, sans-serif)',
-                          border: '2px solid #fff', boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
-                        }}>
-                          {initials}
-                        </div>
-                      )}
-                    </>
-                  )}
+                  <div style={{
+                    width: 40, height: 40, borderRadius: '50%',
+                    background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: '#fff', fontWeight: 700, fontSize: 14, flexShrink: 0,
+                    fontFamily: 'var(--s-font, sans-serif)',
+                    border: '2px solid #fff', boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+                  }}>
+                    {initials}
+                  </div>
                   <div style={{ minWidth: 0 }}>
                     <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: '#111827', fontFamily: 'var(--s-font, sans-serif)' }}>
                       {t.name || 'Client vérifié'}
