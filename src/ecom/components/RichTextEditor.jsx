@@ -137,6 +137,63 @@ const ImageModal = ({ onInsert, onClose, onUpload, uploading }) => {
   );
 };
 
+// ─── Video modal ─────────────────────────────────────────────────────────────
+const VideoModal = ({ onInsert, onClose }) => {
+  const [url, setUrl] = useState('');
+
+  const buildEmbed = (raw) => {
+    const trimmed = raw.trim();
+    // YouTube
+    const ytMatch = trimmed.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]+)/);
+    if (ytMatch) return `<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;margin:12px 0;border-radius:8px"><iframe src="https://www.youtube.com/embed/${ytMatch[1]}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" allowfullscreen></iframe></div>`;
+    // Vimeo
+    const vmMatch = trimmed.match(/vimeo\.com\/(\d+)/);
+    if (vmMatch) return `<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;margin:12px 0;border-radius:8px"><iframe src="https://player.vimeo.com/video/${vmMatch[1]}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" allowfullscreen></iframe></div>`;
+    // Direct video URL
+    if (/\.(mp4|webm|ogg)(\?|$)/i.test(trimmed)) return `<video src="${trimmed}" controls style="max-width:100%;border-radius:8px;margin:12px 0"></video>`;
+    return null;
+  };
+
+  const handleInsert = () => {
+    const html = buildEmbed(url);
+    if (html) onInsert(html);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-5 w-96">
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-sm font-semibold text-gray-900">Insérer une vidéo</p>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100">
+            <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="space-y-3">
+          <input
+            autoFocus
+            type="url"
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            placeholder="URL YouTube, Vimeo ou vidéo directe (.mp4)"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          />
+          <p className="text-xs text-gray-400">YouTube, Vimeo, ou lien direct .mp4 / .webm</p>
+          <button
+            type="button"
+            disabled={!url.trim() || !buildEmbed(url)}
+            onClick={handleInsert}
+            className="w-full py-2 text-sm font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition disabled:opacity-40"
+          >
+            Insérer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── Heading selector ────────────────────────────────────────────────────────
 const HeadingSelect = ({ onSelect }) => {
   const opts = [
