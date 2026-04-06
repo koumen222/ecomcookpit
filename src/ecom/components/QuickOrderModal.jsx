@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { X, ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Minus, Truck } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Minus, Truck, ChevronDown } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 import { firePixelEvent } from '../utils/pixelTracking';
+import defaultConfig from './productSettings/defaultConfig.js';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
 
@@ -25,6 +26,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [orderResult, setOrderResult] = useState(null);
+  const [cityOptions, setCityOptions] = useState([]);
 
   const themeColor = getComputedStyle(document.documentElement).getPropertyValue('--s-primary').trim() || store?.primaryColor || '#0F6B4F';
   const currency = product?.currency || 'XAF';
@@ -45,8 +47,31 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
   const isFieldEnabled = (name) => {
     if (!configFields.length) return true;
     const f = configFields.find(f => f.name === name);
-    return f ? f.enabled : true;
+    return f ? f.enabled : false;
   };
+
+  // Fetch delivery zone cities, fallback to popularCities
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await publicStoreApi.getDeliveryZones(subdomain);
+        const zones = res?.data?.data?.zones || res?.data?.zones || [];
+        if (!cancelled && zones.length) {
+          const cities = [...new Set(zones.map(z => z.city).filter(Boolean))];
+          if (cities.length) { setCityOptions(cities); return; }
+        }
+      } catch (_) { /* ignore */ }
+      if (cancelled) return;
+      // Fallback: popularCities from config or defaultConfig
+      const generalCfg = productPageConfig?.general || {};
+      const countries = generalCfg.countries || ['Cameroon'];
+      const popCities = generalCfg.popularCities || defaultConfig.general.popularCities;
+      const allCities = countries.flatMap(c => popCities[c] || []);
+      if (allCities.length) setCityOptions(allCities);
+    })();
+    return () => { cancelled = true; };
+  }, [subdomain]);
 
   const configQuantities = conversionConfig.quantities || [];
   const useQuantityButtons = configQuantities.length > 0;
@@ -280,12 +305,26 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
 
           {/* City — always shown (needed for delivery) */}
           <div style={{ position: 'relative' }}>
-            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', display: 'flex' }}><MapPin size={15} /></span>
-            <input type="text" value={form.city} onChange={e => set('city', e.target.value)}
-              placeholder="Ville *" required
-              style={{ width: '100%', padding: '12px 14px 12px 36px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: inputTextColor, backgroundColor: '#fff', transition: 'border-color 0.15s' }}
-              onFocus={e => e.currentTarget.style.borderColor = btnColor}
-              onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
+            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', display: 'flex', pointerEvents: 'none' }}><MapPin size={15} /></span>
+            {cityOptions.length > 0 ? (
+              <>
+                <select value={form.city} onChange={e => set('city', e.target.value)}
+                  required
+                  style={{ width: '100%', padding: '12px 14px 12px 36px', paddingRight: 34, borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: form.city ? inputTextColor : '#9CA3AF', backgroundColor: '#fff', transition: 'border-color 0.15s', appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer' }}
+                  onFocus={e => e.currentTarget.style.borderColor = btnColor}
+                  onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'}>
+                  <option value="" disabled>Ville *</option>
+                  {cityOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', display: 'flex', pointerEvents: 'none' }}><ChevronDown size={15} /></span>
+              </>
+            ) : (
+              <input type="text" value={form.city} onChange={e => set('city', e.target.value)}
+                placeholder="Ville *" required
+                style={{ width: '100%', padding: '12px 14px 12px 36px', borderRadius, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', color: inputTextColor, backgroundColor: '#fff', transition: 'border-color 0.15s' }}
+                onFocus={e => e.currentTarget.style.borderColor = btnColor}
+                onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
+            )}
           </div>
 
           {isFieldEnabled('address') && (
