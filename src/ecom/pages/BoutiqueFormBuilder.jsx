@@ -95,7 +95,7 @@ const FIELD_ICON_MAP = {
   cart: ShoppingCart, file: FileText, hash: Hash, calendar: Calendar,
 };
 
-const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, shopColor }) => {
+const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, shopColor, onDragStart, onDragOver, onDrop, isDragOver }) => {
   const [expanded, setExpanded] = useState(false);
   const isSpecial = field.editable === false;
   const FieldIcon = field.icon ? FIELD_ICON_MAP[field.icon] : null;
@@ -103,7 +103,13 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
   const iconColor = field.iconColor || shopColor || '#0F6B4F';
 
   return (
-    <div className={`bg-white rounded-xl border-2 transition-all ${field.enabled ? 'border-gray-200' : 'border-gray-100 opacity-60'}`}>
+    <div
+      draggable
+      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; onDragStart(index); }}
+      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver(index); }}
+      onDrop={e => { e.preventDefault(); onDrop(index); }}
+      className={`bg-white rounded-xl border-2 transition-all ${isDragOver ? 'border-emerald-400 shadow-md' : field.enabled ? 'border-gray-200' : 'border-gray-100 opacity-60'}`}
+    >
       {/* Header row */}
       <div className="flex items-center gap-2 px-3 py-2.5">
         <GripVertical className="w-4 h-4 text-gray-300 flex-shrink-0 cursor-grab" />
@@ -572,6 +578,22 @@ const BoutiqueFormBuilder = () => {
   }, []);
 
   // Champs handlers
+  const [dragFromIdx, setDragFromIdx] = useState(null);
+  const [dragOverIdx, setDragOverIdx] = useState(null);
+
+  const handleDragStart = (idx) => { setDragFromIdx(idx); };
+  const handleDragOver = (idx) => { setDragOverIdx(idx); };
+  const handleDrop = (toIdx) => {
+    if (dragFromIdx !== null && dragFromIdx !== toIdx) {
+      const next = [...config.form.fields];
+      const [moved] = next.splice(dragFromIdx, 1);
+      next.splice(toIdx, 0, moved);
+      update(c => ({ ...c, form: { ...c.form, fields: next } }));
+    }
+    setDragFromIdx(null);
+    setDragOverIdx(null);
+  };
+
   const moveField = (index, dir) => {
     const newIndex = index + dir;
     if (newIndex < 0 || newIndex >= config.form.fields.length) return;
@@ -874,6 +896,10 @@ const BoutiqueFormBuilder = () => {
                     onChange={changeField}
                     onRemove={removeField}
                     shopColor={shopColor}
+                    onDragStart={handleDragStart}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                    isDragOver={dragOverIdx === idx && dragFromIdx !== idx}
                   />
                 ))}
               </div>
