@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Minus, Truck, ChevronDown, Mail, FileText, Hash, Calendar } from 'lucide-react';
+import { X, ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Minus, Truck, ChevronDown, Mail, FileText, Hash, Calendar, Clock } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 import { firePixelEvent } from '../utils/pixelTracking';
 import defaultConfig from './productSettings/defaultConfig.js';
@@ -21,6 +21,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
   const [success, setSuccess] = useState(false);
   const [orderResult, setOrderResult] = useState(null);
   const [cityOptions, setCityOptions] = useState([]);
+  const [countdownSecs, setCountdownSecs] = useState(null);
 
   const themeColor = getComputedStyle(document.documentElement).getPropertyValue('--s-primary').trim() || store?.primaryColor || '#0F6B4F';
   const currency = product?.currency || 'XAF';
@@ -31,6 +32,8 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
   const conversionConfig = productPageConfig?.conversion || {};
 
   const btnColor = conversionConfig.accentColor || design.buttonColor || themeColor;
+  const urgencyConfig = productPageConfig?.urgency || defaultConfig.urgency || {};
+  const callScheduleConfig = productPageConfig?.callSchedule || defaultConfig.callSchedule || {};
   const bgColor = design.backgroundColor || '#ffffff';
   const textColor = design.textColor || '#111827';
   const inputTextColor = '#111827'; // Always dark for inputs on white/light backgrounds
@@ -39,6 +42,15 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
 
   const configFields = formConfig.fields || [];
   const effectiveFields = configFields.length ? configFields : defaultConfig.form.fields;
+
+  // Countdown timer for urgency field
+  useEffect(() => {
+    if (!urgencyConfig.countdown) return;
+    const mins = urgencyConfig.countdownMinutes || 15;
+    setCountdownSecs(mins * 60);
+    const iv = setInterval(() => setCountdownSecs(s => s > 0 ? s - 1 : 0), 1000);
+    return () => clearInterval(iv);
+  }, [urgencyConfig.countdown, urgencyConfig.countdownMinutes]);
 
   // Fetch delivery zone cities, fallback to popularCities
   useEffect(() => {
@@ -337,6 +349,53 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
                 return (
                   <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', backgroundColor: '#F0FDF4', borderRadius: 10, fontSize: 13, color: '#166534' }}>
                     <Truck size={14} /> <strong>{field.label || 'Paiement à la livraison'}</strong> — vous payez à la réception
+                  </div>
+                );
+
+              case 'urgency':
+                return urgencyConfig.enabled !== false ? (
+                  <div key={field.name} style={{ borderRadius: 12, padding: '12px 14px', backgroundColor: btnColor, color: '#fff', fontSize: 13, lineHeight: 1.5 }}>
+                    <p style={{ margin: 0 }}>{urgencyConfig.text || 'Stock presque épuisé. La promotion se termine bientôt.'}</p>
+                    {urgencyConfig.countdown && countdownSecs != null && (
+                      <span style={{ display: 'inline-block', marginTop: 6, fontFamily: 'monospace', fontWeight: 700, fontSize: 15, backgroundColor: 'rgba(255,255,255,0.2)', padding: '3px 10px', borderRadius: 6 }}>
+                        {String(Math.floor(countdownSecs / 60)).padStart(2, '0')}:{String(countdownSecs % 60).padStart(2, '0')}
+                      </span>
+                    )}
+                  </div>
+                ) : null;
+
+              case 'call_schedule':
+                return callScheduleConfig.enabled !== false ? (
+                  <div key={field.name} style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 4 }}>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: textColor }}>
+                      {callScheduleConfig.question || field.label || 'À quel moment souhaitez-vous être appelé ?'}
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {(callScheduleConfig.options || []).map((opt, j) => (
+                        <label key={j} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: textColor, cursor: 'pointer' }}>
+                          <input type="radio" name="call_schedule" value={opt.value}
+                            checked={form.call_schedule === opt.value}
+                            onChange={() => set('call_schedule', opt.value)}
+                            style={{ accentColor: btnColor }} />
+                          {opt.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ) : null;
+
+              case 'title':
+                return (
+                  <div key={field.name} style={{ fontSize: 15, fontWeight: 700, color: textColor, padding: '4px 0' }}>
+                    {field.label || ''}
+                  </div>
+                );
+
+              case 'summary':
+                return (
+                  <div key={field.name} style={{ fontSize: 13, color: textColor, padding: '8px 12px', backgroundColor: '#F9FAFB', borderRadius: 10, border: '1px solid #E5E7EB' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span>{product?.name}</span><span>x{form.quantity}</span></div>
+                    <div style={{ fontWeight: 700, textAlign: 'right' }}>{fmt(total, currency)}</div>
                   </div>
                 );
 
