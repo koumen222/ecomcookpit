@@ -1387,6 +1387,58 @@ Mood: real customers who love the product and want to share their experience.`;
         .then(url => ({ type: 'testimonials_group', url }))
     );
 
+    // ── Social proof collage — 4 avant/après + captures WhatsApp sur 1 seule image ────
+    const testimonialTexts = (gptResult.testimonials || []).slice(0, 4);
+    const whatsappMessages = testimonialTexts.map((t, i) => {
+      const name = t.name || `Client ${i + 1}`;
+      const msg = (t.text || '').slice(0, 80);
+      return `"${name}: ${msg}"`;
+    }).join('\n');
+
+    let beforeAfterZone;
+    const productTextLower = `${productNameForGroup} ${gptResult.hero_slogan || ''} ${gptResult.hero_headline || ''}`.toLowerCase();
+    if (productTextLower.match(/cheveu|hair|coiffure|chevelure/)) {
+      beforeAfterZone = 'hair transformation (dry damaged hair → shiny healthy hair)';
+    } else if (productTextLower.match(/minceur|poids|ventre|slim|belly|taille/)) {
+      beforeAfterZone = 'body silhouette transformation (belly fat → slimmer waist)';
+    } else if (productTextLower.match(/dent|teeth|sourire|smile|blanc/)) {
+      beforeAfterZone = 'teeth transformation (yellow teeth → white bright smile)';
+    } else if (productTextLower.match(/corps|body|lotion|beurre|cream/)) {
+      beforeAfterZone = 'skin body transformation (dry rough skin → smooth glowing skin)';
+    } else {
+      beforeAfterZone = 'face/skin transformation (dull uneven skin → clear radiant glowing skin)';
+    }
+
+    const socialProofPrompt = `Square 1:1 social proof collage image for "${productNameForGroup}". Ultra realistic, 4K quality.
+
+LAYOUT: 2x2 grid of 4 panels on a clean white or very light gray background.
+
+Each of the 4 panels contains:
+- A BEFORE/AFTER split showing an authentic African person's ${beforeAfterZone}
+- LEFT half labeled "Avant" — shows the problem (realistic, relatable)
+- RIGHT half labeled "Après" — shows the improvement after using the product
+- Below each before/after: a WhatsApp-style chat bubble (green bubble, white text, small profile circle) with a short French testimonial message from a satisfied customer
+- Each panel has a DIFFERENT person (vary gender, age, skin tone — all African)
+
+WhatsApp bubble style:
+- Light green (#DCF8C6) rounded rectangle bubble
+- Small gray timestamp "14:32 ✓✓" at bottom-right of bubble
+- Tiny circular profile photo placeholder on left
+- Short French text inside: genuine customer review tone
+
+OVERALL STYLE:
+- Clean grid lines separating the 4 panels
+- Small centered title at top: "Témoignages clients vérifiés ✅" in bold dark text
+- Product visible in at least 2 of the 4 "Après" panels
+- Realistic photos, NOT illustrations or cartoons
+- ALL French text must be 100% perfectly spelled
+- NO price, NO phone number, NO URL, NO watermark`;
+
+    imagePromises.push(
+      generateAndUpload(socialProofPrompt, baseImageBuffer, `testimonials-social-${Date.now()}.png`, 'testimonials_social')
+        .then(url => ({ type: 'testimonials_social', url }))
+    );
+
     // Exécuter toutes les générations en parallèle avec timeout global de 180s
     const IMAGE_TIMEOUT_MS = 180000;
     const withTimeout = (promise, fallback) =>
@@ -1419,9 +1471,10 @@ Mood: real customers who love the product and want to share their experience.`;
       flash: posterImages.filter(p => p.poster_url).length
     });
 
-    // Testimonials sans images individuelles + image de groupe
+    // Testimonials sans images individuelles + images de groupe et social proof
     const finalTestimonials = (gptResult.testimonials || []).map(t => ({ ...t, image: '' }));
     const testimonialsGroupImage = imageResults.find(r => r?.type === 'testimonials_group')?.url || null;
+    const testimonialsSocialProofImage = imageResults.find(r => r?.type === 'testimonials_social')?.url || null;
 
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -1470,6 +1523,7 @@ Mood: real customers who love the product and want to share their experience.`;
       faq: gptResult.faq || [],
       testimonials: finalTestimonials,
       testimonialsGroupImage: testimonialsGroupImage || null,
+      testimonialsSocialProofImage: testimonialsSocialProofImage || null,
       reassurance: gptResult.reassurance || null,
       guide_utilisation: gptResult.guide_utilisation || null,
       description: description,

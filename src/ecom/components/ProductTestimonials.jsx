@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Star } from 'lucide-react';
  * Carrousel horizontal de témoignages pour pages produits
  * Autoplay + swipe mobile + navigation par boutons
  */
-export default function ProductTestimonials({ testimonials = [], productImage = null, groupImage = null }) {
+export default function ProductTestimonials({ testimonials = [], productImage = null, groupImage = null, socialProofImage = null }) {
   const scrollRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
@@ -96,6 +96,18 @@ export default function ProductTestimonials({ testimonials = [], productImage = 
             alt="Clients satisfaits avec le produit"
             loading="lazy"
             style={{ width: '100%', height: 'auto', display: 'block', maxHeight: 400, objectFit: 'cover' }}
+          />
+        </div>
+      )}
+
+      {/* Social proof — 4 avant/après + captures WhatsApp */}
+      {socialProofImage && (
+        <div style={{ marginBottom: 20, borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
+          <img
+            src={socialProofImage}
+            alt="Témoignages avant/après clients"
+            loading="lazy"
+            style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain' }}
           />
         </div>
       )}

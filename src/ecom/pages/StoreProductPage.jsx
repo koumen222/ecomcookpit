@@ -1295,9 +1295,10 @@ const StoreProductPage = () => {
               : getDefaultTestimonials(store?.country);
         const prodImg = product?._pageData?.heroImage || product?.images?.[0]?.url || product?.images?.[0] || null;
         const groupImg = product?._pageData?.testimonialsGroupImage || null;
+        const socialImg = product?._pageData?.testimonialsSocialProofImage || null;
         return (
           <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
-            <ProductTestimonials testimonials={t} productImage={prodImg} groupImage={groupImg} />
+            <ProductTestimonials testimonials={t} productImage={prodImg} groupImage={groupImg} socialProofImage={socialImg} />
           </div>
         );
       })()}
