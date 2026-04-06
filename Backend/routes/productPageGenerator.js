@@ -98,9 +98,11 @@ function buildHeroPrompt(gptResult, hasProductRef) {
     accentColor = 'vibrant coral (#FF5722)';
   }
 
-  // Person: adapt based on target
+  // Person: adapt based on target — check 'woman/femme/female' BEFORE 'man' because 'woman'.includes('man') === true
   const personLower = targetPerson.toLowerCase();
-  if (personLower.includes('man') || personLower.includes('homme') || personLower.includes('male')) {
+  if (personLower.includes('woman') || personLower.includes('femme') || personLower.includes('female')) {
+    personDescription = `beautiful young African woman, dark glowing skin, natural hair (afro or braids or pressed), radiant confident smile, showing the positive result of using the product, healthy luminous complexion`;
+  } else if (personLower.includes('man') || personLower.includes('homme') || personLower.includes('male')) {
     personDescription = `handsome young African man, dark skin, short clean haircut, confident radiant smile, showing the positive result of using the product, healthy glowing look`;
   } else {
     personDescription = `beautiful young African woman, dark glowing skin, natural hair (afro or braids or pressed), radiant confident smile, showing the positive result of using the product, healthy luminous complexion`;
