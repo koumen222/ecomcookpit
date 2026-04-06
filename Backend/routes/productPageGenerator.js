@@ -1353,73 +1353,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       );
     }
 
-    // ── Testimonial photos — person holding / using the product ─────────────
-    const testimonials = gptResult.testimonials || [];
-    const productNameForAvatar = gptResult.title || 'the product';
-    const targetPersonBase = gptResult.hero_target_person || 'authentic Black African person';
-
-    for (let i = 0; i < testimonials.length; i++) {
-      const t = testimonials[i];
-
-      // Vary the gender/age to make testimonials look diverse and real
-      const personVariants = [
-        `african woman, 28-35 years old, natural hair, warm smile`,
-        `african man, 30-40 years old, casual shirt, confident expression`,
-        `african woman, 22-30 years old, braided hair, happy satisfied look`,
-        `african man, 35-45 years old, relaxed look, genuine smile`,
-        `african woman, 25-35 years old, natural makeup, glowing skin`,
-        `african man, 28-38 years old, modern casual outfit, proud expression`,
-        `african woman, 30-42 years old, professional look, warm smile`,
-        `african man, 25-35 years old, sporty style, energetic expression`,
-      ];
-      const personDesc = personVariants[i % personVariants.length];
-
-      // The product reference ensures we show the actual product being held
-      const productRef = baseImageBuffer
-        ? `holding or using THE EXACT SAME product shown in the reference image (same packaging, color, shape — this is crucial)`
-        : `holding or using "${productNameForAvatar}" product clearly visible in their hands`;
-
-      const avatarPrompt = `Square 1:1 ultra realistic lifestyle photo. ${personDesc}, ${productRef}.
-Natural indoor or outdoor African setting (modern home, bright terrace, or simple clean background).
-Warm natural lighting, golden hour or soft daylight. Authentic happy satisfied expression — showing they love the product result.
-The product is CLEARLY VISIBLE and prominent in the image — at least 30% of frame.
-Person looks real, skin texture visible, natural hair. NOT a stock photo look. Candid authentic feel.
-4K quality, sharp focus, no watermarks, no text overlays, no price, no URL.
-Mood: genuine customer who is very happy with their purchase and results.`;
-
-      imagePromises.push(
-        (async () => {
-          try {
-            const { generateNanoBananaImage, generateNanoBananaImageToImage } = await import('../services/nanoBananaService.js');
-
-            // Use image-to-image if we have a product reference (ensures product looks correct)
-            let dataUrl;
-            if (baseImageBuffer) {
-              dataUrl = await generateNanoBananaImageToImage(avatarPrompt, baseImageBuffer, '1:1', 1);
-            } else {
-              dataUrl = await generateNanoBananaImage(avatarPrompt, '1:1', 1);
-            }
-
-            if (!dataUrl) return { type: 'avatar', index: i, url: null };
-            let buf = dataUrl.startsWith('data:')
-              ? Buffer.from(dataUrl.split(',')[1], 'base64')
-              : Buffer.from((await axios.get(dataUrl, { responseType: 'arraybuffer', timeout: 15000 })).data);
-
-            // Keep full size (400x400) for testimonials — they appear larger on page
-            buf = await sharp(buf).resize(400, 400, { fit: 'cover', position: 'centre' }).jpeg({ quality: 88 }).toBuffer();
-
-            const uploadResult = await uploadImage(buf, `testimonial-${i}-${Date.now()}.jpg`, {
-              workspaceId: req.workspaceId,
-              uploadedBy: userId,
-            });
-            return { type: 'avatar', index: i, url: uploadResult?.url || null };
-          } catch (err) {
-            console.warn(`⚠️ Testimonial photo ${i} failed:`, err.message);
-            return { type: 'avatar', index: i, url: null };
-          }
-        })()
-      );
-    }
+    // ── Testimonial photos — DÉSACTIVÉ (plus de génération d'images pour les témoignages) ─────────────
 
     // Exécuter toutes les générations en parallèle avec timeout global de 180s
     const IMAGE_TIMEOUT_MS = 180000;
@@ -1453,13 +1387,8 @@ Mood: genuine customer who is very happy with their purchase and results.`;
       flash: posterImages.filter(p => p.poster_url).length
     });
 
-    // Inject avatar URLs into testimonials
-    const avatarResults = imageResults.filter(r => r?.type === 'avatar');
-    const finalTestimonials = (gptResult.testimonials || []).map((t, i) => {
-      const avatar = avatarResults.find(a => a?.index === i);
-      return { ...t, image: avatar?.url || t.image || '' };
-    });
-    console.log(`✅ Avatars témoignages: ${avatarResults.filter(a => a?.url).length}/${finalTestimonials.length}`);
+    // Testimonials sans images
+    const finalTestimonials = (gptResult.testimonials || []).map(t => ({ ...t, image: '' }));
 
 
     // ══════════════════════════════════════════════════════════════════════════
