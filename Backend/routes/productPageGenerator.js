@@ -1353,7 +1353,39 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       );
     }
 
-    // ── Testimonial photos — DÉSACTIVÉ (plus de génération d'images pour les témoignages) ─────────────
+    // ── Testimonial group photo — 1 seule image de 3 personnes avec le produit ─────────────
+    const targetPersonBase = gptResult.hero_target_person || 'authentic Black African person';
+    const productNameForGroup = gptResult.title || 'the product';
+    const personLowerGroup = targetPersonBase.toLowerCase();
+    const isFemaleProduct = personLowerGroup.includes('woman') || personLowerGroup.includes('femme') || personLowerGroup.includes('female');
+    const isMaleProduct = personLowerGroup.includes('man') || personLowerGroup.includes('homme') || personLowerGroup.includes('male');
+
+    let groupPeopleDesc;
+    if (isFemaleProduct) {
+      groupPeopleDesc = '3 happy African women of different ages (mid-20s, early 30s, late 30s), natural hair styles, glowing skin, genuine smiles';
+    } else if (isMaleProduct) {
+      groupPeopleDesc = '3 happy African men of different ages (mid-20s, early 30s, late 30s), clean modern looks, confident expressions, genuine smiles';
+    } else {
+      groupPeopleDesc = '3 happy African people (2 women and 1 man, different ages), natural authentic looks, genuine smiles';
+    }
+
+    const groupProductRef = baseImageBuffer
+      ? `each holding or showing THE EXACT SAME product from the reference image (same packaging, color, shape, label — critical)`
+      : `each holding or showing "${productNameForGroup}" product clearly visible`;
+
+    const groupTestimonialPrompt = `Square 1:1 ultra realistic lifestyle group photo. ${groupPeopleDesc}, ${groupProductRef}.
+They are standing together side by side, casual friendly pose, like satisfied customers recommending the product.
+Natural bright setting (modern African home, bright outdoor terrace, or clean simple background).
+Warm natural lighting, golden hour or soft daylight. Authentic happy expressions — genuine satisfied customers.
+The product is CLEARLY VISIBLE in at least 2 of their hands — prominent in the image.
+People look real, skin texture visible, natural hair. NOT a stock photo look. Candid authentic group selfie feel.
+4K quality, sharp focus, no watermarks, no text overlays, no price, no URL.
+Mood: real customers who love the product and want to share their experience.`;
+
+    imagePromises.push(
+      generateAndUpload(groupTestimonialPrompt, baseImageBuffer, `testimonials-group-${Date.now()}.png`, 'testimonials_group')
+        .then(url => ({ type: 'testimonials_group', url }))
+    );
 
     // Exécuter toutes les générations en parallèle avec timeout global de 180s
     const IMAGE_TIMEOUT_MS = 180000;
@@ -1387,8 +1419,9 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       flash: posterImages.filter(p => p.poster_url).length
     });
 
-    // Testimonials sans images
+    // Testimonials sans images individuelles + image de groupe
     const finalTestimonials = (gptResult.testimonials || []).map(t => ({ ...t, image: '' }));
+    const testimonialsGroupImage = imageResults.find(r => r?.type === 'testimonials_group')?.url || null;
 
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -1436,6 +1469,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       urgency_elements: gptResult.urgency_elements || null,
       faq: gptResult.faq || [],
       testimonials: finalTestimonials,
+      testimonialsGroupImage: testimonialsGroupImage || null,
       reassurance: gptResult.reassurance || null,
       guide_utilisation: gptResult.guide_utilisation || null,
       description: description,
