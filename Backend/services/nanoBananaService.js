@@ -1,6 +1,6 @@
 /**
- * Nano Banana — Gemini 3 Pro + NanoBanana Pro API fallback
- * Primary: Gemini 3 Pro direct (fast, cheap)
+ * Nano Banana 2 — Gemini 3.1 Flash Image + NanoBanana Pro API fallback
+ * Primary: Gemini 3.1 Flash Image direct (fast, cheap)
  * Fallback: NanoBanana Pro API 1K (async task-based, premium quality)
  */
 
@@ -15,9 +15,9 @@ const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models
 const NANOBANANA_PRO_API_KEY = process.env.NANOBANANA_PRO_API_KEY;
 const NANOBANANA_PRO_BASE = 'https://api.nanobananaapi.ai/api/v1/nanobanana';
 
-// Gemini 3 Pro Image Preview
-const MODEL = 'gemini-3-pro-image-preview';
-const MODEL_COST_USD = 0.04;
+// Gemini 3.1 Flash Image
+const MODEL = 'gemini-3.1-flash-preview';
+const MODEL_COST_USD = 0.02;
 const NANOBANANA_PRO_COST_USD = 0.09; // 1K Pro
 const USD_TO_FCFA = 600;
 

@@ -172,7 +172,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('page');
   const [dragOver, setDragOver] = useState(false);
-  const [generationsInfo, setGenerationsInfo] = useState(null); // { freeRemaining, paidRemaining, totalUsed }
+  const [generationsInfo, setGenerationsInfo] = useState(null); // { simpleRemaining, proRemaining, freeRemaining, paidRemaining, totalUsed }
+  const [canAccessPro, setCanAccessPro] = useState(false);
   const [limitReached, setLimitReached] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentPhone, setPaymentPhone] = useState('');
@@ -207,6 +208,27 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     return () => {
       document.body.style.overflow = 'unset';
     };
+  }, []);
+
+  // Fetch credit info on mount
+  useEffect(() => {
+    const token = localStorage.getItem('ecomToken');
+    const wsId = localStorage.getItem('workspaceId');
+    if (!token || !wsId) return;
+    fetch(`${API_ORIGIN}/api/ai/product-generator/info`, {
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(wsId ? { 'X-Workspace-Id': wsId } : {})
+      }
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.generations) {
+          setGenerationsInfo(data.generations);
+          setCanAccessPro(data.canAccessPro || false);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Validation des étapes
@@ -355,7 +377,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     addPhotos(e.dataTransfer.files);
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (selectedQuality = 'simple') => {
     // Validation selon le mode
     if (inputMode === 'url' && (!isValidUrl || photos.length === 0)) return;
     if (inputMode === 'description' && !isValidDescription) return;
@@ -388,6 +410,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     formData.append('withImages', 'true');
     formData.append('marketingApproach', marketingApproach);
     formData.append('visualTemplate', visualTemplate);
+    formData.append('quality', selectedQuality);
     
     // Paramètres copywriting simplifiés
     formData.append('tone', tone);
@@ -770,14 +793,16 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 shadow-sm">
                 <Zap className="w-5 h-5 text-violet-600" />
                 <div className="flex flex-col">
-                  <span className="text-xs font-bold text-violet-900">
-                    {generationsInfo.freeRemaining + generationsInfo.paidRemaining} crédit{(generationsInfo.freeRemaining + generationsInfo.paidRemaining) !== 1 ? 's' : ''}
-                  </span>
-                  <span className="text-[10px] text-violet-600">
-                    {(generationsInfo.freeRemaining + generationsInfo.paidRemaining) > 0
-                      ? `${generationsInfo.freeRemaining + generationsInfo.paidRemaining} restant${(generationsInfo.freeRemaining + generationsInfo.paidRemaining) > 1 ? 's' : ''}`
-                      : 'Épuisés'}
-                  </span>
+                  <div className="flex items-center gap-2 text-xs font-bold">
+                    <span className="text-blue-600">{(generationsInfo.simpleRemaining || 0) + (generationsInfo.freeRemaining || 0) + (generationsInfo.paidRemaining || 0)} Simple</span>
+                    {canAccessPro && (
+                      <>
+                        <span className="text-gray-400">|</span>
+                        <span className="text-violet-600">{generationsInfo.proRemaining || 0} Pro</span>
+                      </>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-violet-600">crédits restants</span>
                 </div>
               </div>
             )}
@@ -1825,29 +1850,24 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
         <div className="px-6 py-4 border-t border-gray-100 shrink-0">
           {phase === 'input' && (
             <>
-              {/* Info générations restantes */}
+              {/* Info générations restantes — Simple / Pro */}
               {generationsInfo && (
                 <div className="mb-3 p-3 rounded-lg bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-100">
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
                       <Zap className="w-4 h-4 text-violet-600" />
                       <span className="font-medium text-gray-700">
-                        Générations restantes :
+                        Crédits restants :
                       </span>
                     </div>
-                    <div className="font-bold text-violet-700">
-                      {generationsInfo.freeRemaining + generationsInfo.paidRemaining > 0 ? (
-                        <>
-                          {generationsInfo.freeRemaining > 0 && (
-                            <span className="text-emerald-600">{generationsInfo.freeRemaining} gratuite{generationsInfo.freeRemaining > 1 ? 's' : ''}</span>
-                          )}
-                          {generationsInfo.freeRemaining > 0 && generationsInfo.paidRemaining > 0 && <span className="text-gray-500"> + </span>}
-                          {generationsInfo.paidRemaining > 0 && (
-                            <span className="text-violet-600">{generationsInfo.paidRemaining} payée{generationsInfo.paidRemaining > 1 ? 's' : ''}</span>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-red-600">0 restante</span>
+                    <div className="flex items-center gap-3 font-bold">
+                      <span className="text-blue-600">
+                        ⚡ {(generationsInfo.simpleRemaining || 0) + (generationsInfo.freeRemaining || 0) + (generationsInfo.paidRemaining || 0)} Simple
+                      </span>
+                      {canAccessPro && (
+                        <span className="text-violet-600">
+                          ✨ {generationsInfo.proRemaining || 0} Pro
+                        </span>
                       )}
                     </div>
                   </div>
@@ -1871,24 +1891,42 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                   </button>
                 )}
                 
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (step < 3) {
-                      handleNextStep();
-                    } else {
-                      handleGenerate();
-                    }
-                  }}
-                  disabled={step === 1 && !isStep1Valid()}
-                  className={`py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-bold text-sm hover:from-violet-700 hover:to-purple-700 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg ${step === 1 ? 'w-full' : 'flex-[2]'}`}
-                >
-                  <Sparkles className="w-4 h-4" />
-                  {step === 1 && 'Suivant : Stratégie copywriting'}
-                  {step === 2 && 'Suivant : Paramètres avancés'}
-                  {step === 3 && 'Générer la page produit ✨'}
-                  <ArrowRight className="w-4 h-4" />
-                </button>
+                {step < 3 ? (
+                  <button
+                    type="button"
+                    onClick={handleNextStep}
+                    disabled={step === 1 && !isStep1Valid()}
+                    className={`py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-bold text-sm hover:from-violet-700 hover:to-purple-700 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg ${step === 1 ? 'w-full' : 'flex-[2]'}`}
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    {step === 1 && 'Suivant : Stratégie copywriting'}
+                    {step === 2 && 'Suivant : Paramètres avancés'}
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                ) : (
+                  /* Step 3: Two generation buttons — Simple & Pro */
+                  <div className={`flex gap-2 ${step === 1 ? 'w-full' : 'flex-[2]'}`}>
+                    <button
+                      type="button"
+                      onClick={() => handleGenerate('simple')}
+                      disabled={!canGenerate() || ((generationsInfo?.simpleRemaining || 0) + (generationsInfo?.freeRemaining || 0) + (generationsInfo?.paidRemaining || 0)) <= 0}
+                      className="flex-1 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-bold text-sm hover:from-blue-600 hover:to-cyan-600 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
+                    >
+                      ⚡ Simple
+                    </button>
+                    {canAccessPro && (
+                      <button
+                        type="button"
+                        onClick={() => handleGenerate('pro')}
+                        disabled={!canGenerate() || (generationsInfo?.proRemaining || 0) <= 0}
+                        className="flex-1 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-bold text-sm hover:from-violet-700 hover:to-purple-700 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        ✨ Pro
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
               
               {step === 3 && (

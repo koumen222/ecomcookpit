@@ -839,24 +839,21 @@ export async function generatePosterImage(promptAffiche, originalImageBuffer = n
     console.log(`🎨 Generating ${mode} image with NanoBanana...`);
 
     const heroRules = `
-Create a high-converting ecommerce product hero image. Ultra realistic, 4K quality, sharp focus, advertising photography style.
+Create a high-converting ecommerce product hero image showing the product IN ACTION. Ultra realistic, 4K quality, sharp focus, advertising photography style.
 USE THE EXACT REAL PRODUCT IMAGE PROVIDED — NEVER invent, recreate or redesign the product.
 Square 1:1 premium composition, tight crop, full-bleed framing, ZERO empty margins.
 
-Visual style: Clean, modern, premium brand aesthetic. Minimalist background (pure white, soft beige, or warm pastel contextual). Strong product spotlight. Professional lighting setup: softbox overhead + two rim lights creating product depth. Studio quality, sharp textures, vivid yet accurate colors.
+Visual style: Clean, modern, premium. The product is shown in its REAL USAGE CONTEXT — being held, opened, applied, used, demonstrated. NOT a static cosmetic studio pose. Contextual background matching the product category (kitchen, desk, bathroom, outdoor, gym, home, etc.). Warm natural lighting, professional quality.
 
-PRODUCT FOCUS (CRITICAL): The product must be the absolute hero of the image — large, sharp, dominant. Every detail of the product (texture, color, label, shape) must be crystal clear. The product fills at least 60% of the frame.
+PRODUCT FOCUS (CRITICAL): The product must be the absolute hero of the image — large, sharp, dominant, IN ACTION. Every detail of the product (texture, color, label, shape) must be crystal clear. The product fills at least 50% of the frame and is being actively used or demonstrated.
 
-Human element (MANDATORY if the product is used by a person — beauty, health, wellness, fitness, food):
-Include an authentic Black African model (dark brown skin, natural African hair, African facial features). Natural expression showing confidence and satisfaction. Realistic skin and features — not fake or plastic. The model INTERACTS with the product — holding it, applying it, using it — so both are clearly visible.
+Composition: Product dominates center or bold foreground, shown in the moment of use. Supporting elements reinforce what the product DOES. Rich visual storytelling: how this product is used, what it does, the result it creates.
 
-Composition: Product dominates center or bold foreground. Supporting elements reinforce the product context. Rich visual storytelling: what this product does, who uses it, what result it creates.
-
-Text overlay: At most one very short French benefit badge (3 words max, bold modern font) OR no text at all. Optional small "BEST SELLER" or "NOUVEAU" badge.
+Text overlay: At most one very short French benefit badge (3 words max, bold modern font) OR no text at all.
 ⚠️ CRITICAL SPELLING REQUIREMENT: If there is any French text in the image, it MUST be 100% PERFECT — ZERO spelling errors, ZERO grammar mistakes, ZERO typos. Every single French word must be correctly written. Double-check all accents (é, è, ê, à, ù, etc.).
 NO paragraphs, NO long text, NO button, NO price, NO phone number, NO CTA, NO clutter.
 
-Mood: Premium ecommerce catalog, trustworthy, high-conversion, scroll-stopping, impossible to ignore.`;
+Mood: Premium ecommerce, trustworthy, high-conversion, scroll-stopping — the product in its moment of action.`;
 
     const heroPosterRules = `
 Create a bold, visually striking advertising poster for THIS specific product. Premium graphic design meets ultra-realistic product photography.
