@@ -109,15 +109,16 @@ function StatusBadge({ status }) {
 
 function PlanBadge({ plan }) {
   const map = {
-    free:  { label: 'Gratuit', cls: 'bg-slate-100 text-slate-600' },
-    pro:   { label: 'Pro',     cls: 'bg-blue-100 text-blue-700' },
-    ultra: { label: 'Ultra',   cls: 'bg-violet-100 text-violet-700' },
+    free:    { label: 'Gratuit',       cls: 'bg-slate-100 text-slate-600' },
+    starter: { label: 'Scalor',         cls: 'bg-emerald-100 text-emerald-700' },
+    pro:     { label: 'Scalor + IA',    cls: 'bg-blue-100 text-blue-700' },
+    ultra:   { label: 'Scalor IA Pro',  cls: 'bg-violet-100 text-violet-700' },
   };
   const info = map[plan] || map.free;
   return (
     <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${info.cls}`}>
       {plan === 'ultra' && <Crown className="w-3 h-3" />}
-      {plan === 'pro' && <Zap className="w-3 h-3" />}
+      {(plan === 'pro' || plan === 'starter') && <Zap className="w-3 h-3" />}
       {info.label}
     </span>
   );
@@ -767,7 +768,7 @@ const SuperAdminBilling = () => {
                   </thead>
                   <tbody>
                     {filteredWorkspaces
-                      .filter(w => (w.plan === 'pro' || w.plan === 'ultra') && w.planExpiresAt && new Date(w.planExpiresAt) > new Date())
+                      .filter(w => (w.plan === 'starter' || w.plan === 'pro' || w.plan === 'ultra') && w.planExpiresAt && new Date(w.planExpiresAt) > new Date())
                       .map(ws => {
                         const days = daysUntil(ws.planExpiresAt);
                         return (
@@ -1064,7 +1065,7 @@ const SuperAdminBilling = () => {
                     {filteredWorkspaces.length === 0 ? (
                       <tr><td colSpan={7} className="px-4 py-12 text-center text-slate-400">Aucun workspace trouve</td></tr>
                     ) : filteredWorkspaces.map(ws => {
-                      const isPaid = ws.plan === 'pro' || ws.plan === 'ultra';
+                      const isPaid = ws.plan === 'starter' || ws.plan === 'pro' || ws.plan === 'ultra';
                       const isExpired = isPaid && ws.planExpiresAt && new Date(ws.planExpiresAt) <= new Date();
                       const isActive = isPaid && !isExpired;
                       const isTrial = ws.trialEndsAt && new Date(ws.trialEndsAt) > new Date() && !ws.trialUsed;

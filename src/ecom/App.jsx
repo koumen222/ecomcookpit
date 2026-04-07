@@ -603,7 +603,7 @@ const EcomApp = () => {
               <Route path="/ecom/integrations/shopify" element={<LayoutRoute requiredRole="ecom_admin"><ConnectShopify /></LayoutRoute>} />
 
               {/* Routes Billing / Abonnement */}
-              <Route path="/ecom/billing" element={<LayoutRoute requiredRole="ecom_admin"><BillingPage /></LayoutRoute>} />
+              <Route path="/ecom/billing" element={<ProtectedRoute requiredRole="ecom_admin"><BillingPage /></ProtectedRoute>} />
               <Route path="/ecom/billing/success" element={<BillingSuccess />} />
 
               {/* Routes affectations */}

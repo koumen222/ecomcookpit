@@ -36,7 +36,7 @@ const PlanLimitsDisplay = ({ plan, limits }) => {
               className="inline-flex items-center gap-1.5 mt-3 text-xs font-semibold text-blue-600 hover:text-blue-700"
             >
               <Zap className="w-3.5 h-3.5" />
-              Passer à Ultra pour l'illimité
+              Passer à Scalor IA Pro pour l'illimité
             </a>
           )}
         </div>

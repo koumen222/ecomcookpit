@@ -19,7 +19,6 @@ import { analyzeWithVision, generatePosterImage } from '../services/productPageG
 import { uploadImage } from '../services/cloudflareImagesService.js';
 import { extractProductInfo } from '../services/geminiProductExtractor.js';
 import EcomWorkspace from '../models/Workspace.js';
-import EcomUser from '../models/EcomUser.js';
 import FeatureUsageLog from '../models/FeatureUsageLog.js';
 
 const router = express.Router();
@@ -1015,39 +1014,26 @@ const upload = multer({
   }
 });
 
-// ── GET /info — fetch credit info for modal (Simple + Pro) ──────────────────
+// ── GET /info — fetch credit info for modal ──────────────────
 router.get('/info', requireEcomAuth, async (req, res) => {
   try {
     const wsId = req.workspaceId;
     if (!wsId) return res.json({ success: true, generations: null });
 
     const workspace = await EcomWorkspace.findById(wsId)
-      .select('simpleGenerationsRemaining proGenerationsRemaining totalSimpleGenerations totalProGenerations freeGenerationsRemaining paidGenerationsRemaining totalGenerations')
+      .select('simpleGenerationsRemaining freeGenerationsRemaining paidGenerationsRemaining totalGenerations')
       .lean();
 
     if (!workspace) return res.status(404).json({ success: false, message: 'Workspace introuvable' });
 
-    // Check if user has Pro access
-    const userId = req.user?.id || req.user?._id;
-    let canAccessPro = false;
-    if (userId) {
-      const user = await EcomUser.findById(userId).select('canAccessProGenerator role').lean();
-      canAccessPro = user?.canAccessProGenerator || user?.role === 'super_admin' || false;
-    }
+    const remaining = (workspace.simpleGenerationsRemaining || 0) + (workspace.freeGenerationsRemaining || 0) + (workspace.paidGenerationsRemaining || 0);
 
     res.json({
       success: true,
       generations: {
-        simpleRemaining: workspace.simpleGenerationsRemaining || 0,
-        proRemaining: workspace.proGenerationsRemaining || 0,
-        totalSimpleUsed: workspace.totalSimpleGenerations || 0,
-        totalProUsed: workspace.totalProGenerations || 0,
-        // Legacy
-        freeRemaining: workspace.freeGenerationsRemaining || 0,
-        paidRemaining: workspace.paidGenerationsRemaining || 0,
+        remaining,
         totalUsed: workspace.totalGenerations || 0,
-      },
-      canAccessPro
+      }
     });
   } catch (err) {
     console.error('[ProductGenerator] GET /info error:', err.message);
@@ -1064,7 +1050,6 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     skipScraping,
     marketingApproach,
     visualTemplate: rawVisualTemplate,
-    quality: rawQuality,
     // Paramètres copywriting simplifiés
     targetAvatar,
     mainProblem,
@@ -1074,7 +1059,6 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   const imageFiles = req.files || [];
   const approach = marketingApproach || 'PAS';
   const visualTemplate = rawVisualTemplate || 'general';
-  const quality = rawQuality === 'pro' ? 'pro' : 'simple'; // default simple
 
   // Contexte copywriting simplifié : méthode + avatar + problème
   const copywritingContext = {
@@ -1119,7 +1103,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     let workspace;
     if (req.workspaceId) {
       workspace = await EcomWorkspace.findById(req.workspaceId)
-        .select('storeSettings.country storeSettings.city storeSettings.storeName name freeGenerationsRemaining paidGenerationsRemaining totalGenerations simpleGenerationsRemaining proGenerationsRemaining totalSimpleGenerations totalProGenerations');
+        .select('storeSettings.country storeSettings.city storeSettings.storeName name freeGenerationsRemaining paidGenerationsRemaining totalGenerations simpleGenerationsRemaining');
 
       if (!workspace) {
         return res.status(404).json({ success: false, message: 'Workspace introuvable' });
@@ -1133,73 +1117,40 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // VÉRIFICATION PRO ACCESS
-    // ══════════════════════════════════════════════════════════════════════════
-    if (quality === 'pro') {
-      const user = await EcomUser.findById(userId).select('canAccessProGenerator role').lean();
-      const canPro = user?.canAccessProGenerator || user?.role === 'super_admin' || false;
-      if (!canPro) {
-        return res.status(403).json({
-          success: false,
-          message: 'Accès Pro non activé pour cet utilisateur. Contactez l\'administrateur.'
-        });
-      }
-    }
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // VÉRIFICATION DES LIMITES DE GÉNÉRATION (Simple / Pro)
+    // VÉRIFICATION DES LIMITES DE GÉNÉRATION
     // ══════════════════════════════════════════════════════════════════════════
     if (workspace) {
       const simpleRemaining = workspace.simpleGenerationsRemaining || 0;
-      const proRemaining = workspace.proGenerationsRemaining || 0;
-      // Legacy fallback
       const freeRemaining = workspace.freeGenerationsRemaining || 0;
       const paidRemaining = workspace.paidGenerationsRemaining || 0;
+      const totalRemaining = simpleRemaining + freeRemaining + paidRemaining;
 
-      if (quality === 'pro') {
-        // Pro uses proGenerationsRemaining only
-        if (proRemaining <= 0) {
-          return res.status(403).json({
-            success: false,
-            limitReached: true,
-            quality: 'pro',
-            message: '🎯 Tu n\'as plus de crédits Pro !\n\nAchète des crédits Pro pour générer des pages produit premium.',
-            simpleRemaining,
-            proRemaining: 0,
-            totalGenerations: workspace.totalGenerations || 0,
-            pricing: { simple: 300, pro: 500, pack3Pro: 1000 }
-          });
-        }
-        workspace.proGenerationsRemaining = proRemaining - 1;
-        workspace.totalProGenerations = (workspace.totalProGenerations || 0) + 1;
+      if (totalRemaining <= 0) {
+        return res.status(403).json({
+          success: false,
+          limitReached: true,
+          message: '🎯 Tu n\'as plus de crédits !\n\nAchète des crédits pour générer des pages produit.',
+          remaining: 0,
+          totalGenerations: workspace.totalGenerations || 0,
+          pricing: { unit: 300 }
+        });
+      }
+
+      // Décrémenter: simpleRemaining d'abord, puis free, puis paid
+      if (simpleRemaining > 0) {
+        workspace.simpleGenerationsRemaining = simpleRemaining - 1;
+      } else if (freeRemaining > 0) {
+        workspace.freeGenerationsRemaining = freeRemaining - 1;
       } else {
-        // Simple uses simpleGenerationsRemaining, then legacy free, then legacy paid
-        if (simpleRemaining > 0) {
-          workspace.simpleGenerationsRemaining = simpleRemaining - 1;
-        } else if (freeRemaining > 0) {
-          workspace.freeGenerationsRemaining = freeRemaining - 1;
-        } else if (paidRemaining > 0) {
-          workspace.paidGenerationsRemaining = paidRemaining - 1;
-        } else {
-          return res.status(403).json({
-            success: false,
-            limitReached: true,
-            quality: 'simple',
-            message: '🎯 Tu n\'as plus de crédits Simple !\n\nAchète des crédits pour générer des pages produit.',
-            simpleRemaining: 0,
-            proRemaining,
-            totalGenerations: workspace.totalGenerations || 0,
-            pricing: { simple: 300, pro: 500, pack3Pro: 1000 }
-          });
-        }
-        workspace.totalSimpleGenerations = (workspace.totalSimpleGenerations || 0) + 1;
+        workspace.paidGenerationsRemaining = paidRemaining - 1;
       }
 
       workspace.totalGenerations = (workspace.totalGenerations || 0) + 1;
       workspace.lastGenerationAt = new Date();
       await workspace.save();
 
-      console.log(`✅ Génération ${quality.toUpperCase()} autorisée. Reste: Simple=${workspace.simpleGenerationsRemaining || 0} Pro=${workspace.proGenerationsRemaining || 0}`);
+      const newRemaining = (workspace.simpleGenerationsRemaining || 0) + (workspace.freeGenerationsRemaining || 0) + (workspace.paidGenerationsRemaining || 0);
+      console.log(`✅ Génération autorisée. Crédits restants: ${newRemaining}`);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -1378,21 +1329,19 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         .then(url => ({ type: 'hero', url }))
     );
 
-    // ── Avant/Après — PRO only ──
-    if (quality === 'pro') {
-      const beforeAfterPrompt = gptResult.prompt_avant_apres || null;
-      if (beforeAfterPrompt) {
-        imagePromises.push(
-          generateAndUpload(beforeAfterPrompt, baseImageBuffer, `before-after-${Date.now()}.png`, 'before_after')
-            .then(url => ({ type: 'before_after', url }))
-        );
-      }
+    // ── Avant/Après ──
+    const beforeAfterPrompt = gptResult.prompt_avant_apres || null;
+    if (beforeAfterPrompt) {
+      imagePromises.push(
+        generateAndUpload(beforeAfterPrompt, baseImageBuffer, `before-after-${Date.now()}.png`, 'before_after')
+          .then(url => ({ type: 'before_after', url }))
+      );
     }
 
-    // ── Flash images — Simple: 2 max | Pro: 4 ─
+    // ── Flash images — 4 affiches ─
     const angles = gptResult.angles || [];
     const flashPrompts = buildFlashPrompts(gptResult, !!baseImageBuffer, approach, visualTemplate);
-    const maxFlash = quality === 'pro' ? flashPrompts.length : Math.min(2, flashPrompts.length);
+    const maxFlash = flashPrompts.length;
 
     for (let i = 0; i < maxFlash; i++) {
       const flash = flashPrompts[i];
@@ -1409,10 +1358,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       );
     }
 
-    // ── Testimonial group photo & social proof — DÉSACTIVÉ ─────────────
-    if (quality === 'pro') {
 
-    } // end if (quality === 'pro')
 
     // Exécuter toutes les générations en parallèle avec timeout global de 180s
     const IMAGE_TIMEOUT_MS = 180000;
@@ -1522,7 +1468,6 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         userId: req.user._id || req.user.id,
         feature: 'product_page_generator',
         meta: {
-          generationType: quality,
           productUrl: cleanUrl || null,
           productName: gptResult?.title || scraped?.title || null,
           success: true
@@ -1532,24 +1477,17 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     // Récupérer le nombre de générations restantes pour l'inclure dans la réponse
     const updatedWorkspace = workspace ? await EcomWorkspace.findById(workspace._id)
-      .select('freeGenerationsRemaining paidGenerationsRemaining totalGenerations simpleGenerationsRemaining proGenerationsRemaining totalSimpleGenerations totalProGenerations')
+      .select('freeGenerationsRemaining paidGenerationsRemaining totalGenerations simpleGenerationsRemaining')
       .lean() : null;
 
     const generationsInfo = updatedWorkspace ? {
-      simpleRemaining: updatedWorkspace.simpleGenerationsRemaining || 0,
-      proRemaining: updatedWorkspace.proGenerationsRemaining || 0,
-      totalSimpleUsed: updatedWorkspace.totalSimpleGenerations || 0,
-      totalProUsed: updatedWorkspace.totalProGenerations || 0,
-      // Legacy
-      freeRemaining: updatedWorkspace.freeGenerationsRemaining || 0,
-      paidRemaining: updatedWorkspace.paidGenerationsRemaining || 0,
+      remaining: (updatedWorkspace.simpleGenerationsRemaining || 0) + (updatedWorkspace.freeGenerationsRemaining || 0) + (updatedWorkspace.paidGenerationsRemaining || 0),
       totalUsed: updatedWorkspace.totalGenerations || 0
     } : null;
 
     return res.json({
       success: true,
       product: productPage,
-      quality,
       generations: generationsInfo
     });
 

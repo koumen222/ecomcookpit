@@ -170,7 +170,7 @@ const workspaceSchema = new mongoose.Schema({
   // ─── Billing / Plan ──────────────────────────────────────────────────────
   plan: {
     type: String,
-    enum: ['free', 'pro', 'ultra'],
+    enum: ['free', 'starter', 'pro', 'ultra'],
     default: 'free',
     index: true
   },

@@ -224,7 +224,7 @@ export const requireEcomPermission = (permission) => {
   };
 };
 
-export const requireRitaAgentAccess = (req, res, next) => {
+export const requireRitaAgentAccess = async (req, res, next) => {
   if (!req.ecomUser) {
     return res.status(401).json({
       success: false,
@@ -238,6 +238,30 @@ export const requireRitaAgentAccess = (req, res, next) => {
       success: false,
       message: 'Accès Rita IA non autorisé pour ce compte'
     });
+  }
+
+  // Check workspace plan — WhatsApp AI agent requires pro or ultra
+  try {
+    const workspaceId = req.workspaceId || req.query?.workspaceId || req.body?.workspaceId;
+    if (workspaceId && effectiveRole !== 'super_admin') {
+      const EcomWorkspace = (await import('../models/Workspace.js')).default;
+      const workspace = await EcomWorkspace.findById(workspaceId).select('plan planExpiresAt trialEndsAt').lean();
+      if (workspace) {
+        const now = new Date();
+        const isPaidWithAgent = (workspace.plan === 'pro' || workspace.plan === 'ultra') &&
+          workspace.planExpiresAt && workspace.planExpiresAt > now;
+        const isTrialActive = workspace.trialEndsAt && workspace.trialEndsAt > now;
+        if (!isPaidWithAgent && !isTrialActive) {
+          return res.status(403).json({
+            success: false,
+            message: 'L\'agent WhatsApp IA nécessite un abonnement Scalor + IA ou supérieur',
+            requiresPlan: 'pro'
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[ecomAuth] Plan check error:', err.message);
   }
 
   next();

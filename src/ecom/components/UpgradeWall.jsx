@@ -5,25 +5,36 @@ import { useNavigate } from 'react-router-dom';
 
 const PLANS = [
   {
-    key: 'pro',
-    label: 'Pro',
-    price: '6 000',
+    key: 'starter_1',
+    label: 'Scalor',
+    price: '5 000',
     period: 'mois',
-    color: 'from-ecom-primary to-primary-600',
-    border: 'border-ecom-primary',
-    features: ['1 agent IA', '1 instance WhatsApp', 'Ventes automatiques 24h/7j', 'Support prioritaire'],
-    cta: 'Passer Pro',
+    color: 'from-emerald-500 to-emerald-700',
+    border: 'border-emerald-500',
+    features: ['Commandes illimitées', 'Gestion clients complète', 'Catalogue produits', 'Boutique en ligne'],
+    cta: 'Passer à Scalor',
   },
   {
-    key: 'ultra',
-    label: 'Ultra',
+    key: 'pro_1',
+    label: 'Scalor + IA',
+    price: '10 000',
+    period: 'mois',
+    color: 'from-blue-500 to-indigo-600',
+    border: 'border-blue-500',
+    badge: 'Populaire',
+    features: ['Tout Scalor inclus', '1 agent IA WhatsApp', 'Ventes automatiques 24h/7j', 'Support prioritaire'],
+    cta: 'Passer à Scalor + IA',
+  },
+  {
+    key: 'ultra_1',
+    label: 'Scalor IA Pro',
     price: '15 000',
     period: 'mois',
-    color: 'from-scalor-copper to-scalor-copper-light',
-    border: 'border-scalor-copper',
+    color: 'from-amber-500 to-orange-600',
+    border: 'border-amber-500',
     badge: 'Recommandé',
-    features: ['5 agents IA', '5 instances WhatsApp', '5 numéros simultanés', 'Tout illimité'],
-    cta: 'Passer Ultra',
+    features: ['Tout Scalor + IA', '5 agents & WhatsApp', '10 crédits page IA/mois', 'Messages illimités'],
+    cta: 'Passer à Scalor IA Pro',
   },
 ];
 
@@ -51,7 +62,7 @@ export default function UpgradeWall({ onDismiss, workspaceId, trialUsed = false 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="bg-gradient-to-br from-scalor-green-dark via-scalor-green to-scalor-green-light px-8 py-8 text-white">
           {onDismiss && (
@@ -66,10 +77,10 @@ export default function UpgradeWall({ onDismiss, workspaceId, trialUsed = false 
             <div className="p-2 bg-white/20 rounded-xl">
               <Zap className="w-6 h-6" />
             </div>
-            <h2 className="text-2xl font-extrabold">Accédez à Rita IA</h2>
+            <h2 className="text-2xl font-extrabold">Passez à Scalor</h2>
           </div>
           <p className="text-white/90 text-sm">
-            Vendez automatiquement sur WhatsApp 24h/7j avec votre commercial IA personnalisé.
+            Gérez vos commandes, vendez sur WhatsApp et créez des pages produit IA en un clic.
           </p>
 
           {!trialUsed && (
@@ -96,7 +107,7 @@ export default function UpgradeWall({ onDismiss, workspaceId, trialUsed = false 
 
         {/* Plans */}
         <div className="p-8">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {PLANS.map((plan) => (
               <div
                 key={plan.key}

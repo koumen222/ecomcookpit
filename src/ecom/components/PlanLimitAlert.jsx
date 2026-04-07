@@ -6,7 +6,7 @@ import { AlertCircle, Zap, Users, Crown } from 'lucide-react';
  *
  * Props:
  * - type: 'agent_limit' | 'plan_expired' | 'message_limit' | 'instance_limit'
- * - planType: 'free' | 'trial' | 'pro' | 'ultra'
+ * - planType: 'free' | 'trial' | 'starter' | 'pro' | 'ultra'
  * - currentCount: nombre actuel (agents, messages, etc.)
  * - limit: limite du plan
  * - onUpgrade: callback au clic sur bouton upgrade
@@ -19,9 +19,10 @@ const PlanLimitAlert = ({ type, planType, currentCount, limit, onUpgrade, onRene
       title: '❌ Limite d\'agents atteinte',
       severity: 'orange',
       getMessage: (limit, planType) => {
-        const nextPlan = planType === 'free' ? 'Pro' : 'Ultra';
-        const nextLimit = planType === 'free' ? 1 : (limit === 1 ? 5 : 10);
-        return `Vous avez créé ${limit} agent${limit > 1 ? 's' : ''} maximum sur votre plan ${planType === 'free' ? 'gratuit' : planType}. Passez à ${nextPlan} pour créer jusqu'à ${nextLimit} agents.`;
+        const planLabels = { free: 'gratuit', starter: 'Scalor', pro: 'Scalor + IA', ultra: 'Scalor IA Pro' };
+        const nextPlan = (planType === 'free' || planType === 'starter') ? 'Scalor + IA' : 'Scalor IA Pro';
+        const nextLimit = (planType === 'free' || planType === 'starter') ? 1 : (limit === 1 ? 5 : 10);
+        return `Vous avez créé ${limit} agent${limit > 1 ? 's' : ''} maximum sur votre plan ${planLabels[planType] || planType}. Passez à ${nextPlan} pour créer jusqu'à ${nextLimit} agents.`;
       },
       button: { label: 'Passer au plan supérieur', icon: Zap, onClick: 'upgrade' }
     },
@@ -36,8 +37,8 @@ const PlanLimitAlert = ({ type, planType, currentCount, limit, onUpgrade, onRene
       icon: AlertCircle,
       title: '⚠️ Limite de messages atteinte',
       severity: 'orange',
-      getMessage: (limit, planType) => `Vous avez atteint la limite de ${limit} messages par jour sur votre plan ${planType}. Passez à Ultra pour des messages illimités.`,
-      button: { label: 'Passer à Ultra', icon: Zap, onClick: 'upgrade' }
+      getMessage: (limit, planType) => `Vous avez atteint la limite de ${limit} messages par jour sur votre plan ${planType}. Passez à Scalor IA Pro pour des messages illimités.`,
+      button: { label: 'Passer à Scalor IA Pro', icon: Zap, onClick: 'upgrade' }
     },
     instance_limit: {
       icon: AlertCircle,
