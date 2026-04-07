@@ -6,6 +6,7 @@
 
 import axios from 'axios';
 import sharp from 'sharp';
+import { uploadToR2 } from './cloudflareImagesService.js';
 
 const GEMINI_API_KEY = process.env.NANOBANANA_API_KEY;
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -253,10 +254,24 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
   } catch (err) {
     const msg = err.response?.data?.error?.message || err.message;
     console.error(`❌ ${MODEL} image-to-image failed: ${msg}`);
-    // Fallback NanoBanana Pro API (text-to-image only, pas d'image ref via URL)
-    console.log('🔄 Fallback NanoBanana Pro 1K...');
+    // Fallback NanoBanana Pro API — upload image ref to R2 first
+    console.log('🔄 Fallback NanoBanana Pro 1K (with image ref)...');
     try {
-      return await generateViaNanoBananaPro(fullPrompt, [], aspectRatio);
+      let imageUrls = [];
+      if (base64Image) {
+        try {
+          const imgBuffer = Buffer.from(base64Image, 'base64');
+          const tempName = `temp-ref-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+          const r2Result = await uploadToR2(imgBuffer, tempName, imageMimeType);
+          if (r2Result.success && r2Result.url) {
+            imageUrls = [r2Result.url];
+            console.log(`📎 Image ref uploadée vers R2: ${r2Result.url.slice(0, 80)}...`);
+          }
+        } catch (uploadErr) {
+          console.warn(`⚠️ Upload image ref R2 échoué: ${uploadErr.message} — fallback text-only`);
+        }
+      }
+      return await generateViaNanoBananaPro(fullPrompt, imageUrls, aspectRatio);
     } catch (fallbackErr) {
       console.error(`❌ NanoBanana Pro fallback failed: ${fallbackErr.message}`);
       return null;
