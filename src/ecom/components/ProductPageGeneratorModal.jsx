@@ -1895,7 +1895,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     <button
                       type="button"
                       onClick={() => handleGenerate()}
-                      disabled={!canGenerate() || (generationsInfo?.remaining || 0) <= 0}
+                      disabled={!canGenerate() || (generationsInfo !== null && (generationsInfo?.remaining || 0) <= 0)}
                       className="w-full py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-bold text-sm hover:from-violet-700 hover:to-purple-700 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
                     >
                       <Sparkles className="w-4 h-4" />
