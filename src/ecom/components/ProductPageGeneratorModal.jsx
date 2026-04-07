@@ -172,8 +172,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('page');
   const [dragOver, setDragOver] = useState(false);
-  const [generationsInfo, setGenerationsInfo] = useState(null); // { simpleRemaining, proRemaining, freeRemaining, paidRemaining, totalUsed }
-  const [canAccessPro, setCanAccessPro] = useState(false);
+  const [generationsInfo, setGenerationsInfo] = useState(null); // { remaining, totalUsed }
   const [limitReached, setLimitReached] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentPhone, setPaymentPhone] = useState('');
@@ -225,7 +224,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       .then(data => {
         if (data.success && data.generations) {
           setGenerationsInfo(data.generations);
-          setCanAccessPro(data.canAccessPro || false);
         }
       })
       .catch(() => {});
@@ -377,7 +375,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     addPhotos(e.dataTransfer.files);
   };
 
-  const handleGenerate = async (selectedQuality = 'simple') => {
+  const handleGenerate = async () => {
     // Validation selon le mode
     if (inputMode === 'url' && (!isValidUrl || photos.length === 0)) return;
     if (inputMode === 'description' && !isValidDescription) return;
@@ -410,7 +408,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     formData.append('withImages', 'true');
     formData.append('marketingApproach', marketingApproach);
     formData.append('visualTemplate', visualTemplate);
-    formData.append('quality', selectedQuality);
     
     // Paramètres copywriting simplifiés
     formData.append('tone', tone);
@@ -794,13 +791,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                 <Zap className="w-5 h-5 text-violet-600" />
                 <div className="flex flex-col">
                   <div className="flex items-center gap-2 text-xs font-bold">
-                    <span className="text-blue-600">{(generationsInfo.simpleRemaining || 0) + (generationsInfo.freeRemaining || 0) + (generationsInfo.paidRemaining || 0)} Simple</span>
-                    {canAccessPro && (
-                      <>
-                        <span className="text-gray-400">|</span>
-                        <span className="text-violet-600">{generationsInfo.proRemaining || 0} Pro</span>
-                      </>
-                    )}
+                    <span className="text-violet-600">{generationsInfo.remaining || 0} crédit{(generationsInfo.remaining || 0) > 1 ? 's' : ''}</span>
                   </div>
                   <span className="text-[10px] text-violet-600">crédits restants</span>
                 </div>
@@ -1850,7 +1841,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
         <div className="px-6 py-4 border-t border-gray-100 shrink-0">
           {phase === 'input' && (
             <>
-              {/* Info générations restantes — Simple / Pro */}
+              {/* Info générations restantes */}
               {generationsInfo && (
                 <div className="mb-3 p-3 rounded-lg bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-100">
                   <div className="flex items-center justify-between text-sm">
@@ -1861,14 +1852,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                       </span>
                     </div>
                     <div className="flex items-center gap-3 font-bold">
-                      <span className="text-blue-600">
-                        ⚡ {(generationsInfo.simpleRemaining || 0) + (generationsInfo.freeRemaining || 0) + (generationsInfo.paidRemaining || 0)} Simple
+                      <span className="text-violet-600">
+                        ⚡ {generationsInfo.remaining || 0} crédit{(generationsInfo.remaining || 0) > 1 ? 's' : ''}
                       </span>
-                      {canAccessPro && (
-                        <span className="text-violet-600">
-                          ✨ {generationsInfo.proRemaining || 0} Pro
-                        </span>
-                      )}
                     </div>
                   </div>
                   {generationsInfo.totalUsed > 0 && (
@@ -1904,40 +1890,20 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 ) : (
-                  /* Step 3: Two generation buttons — Simple & Pro */
-                  <div className={`flex gap-2 ${step === 1 ? 'w-full' : 'flex-[2]'}`}>
+                  /* Step 3: Single generation button */
+                  <div className={`${step === 1 ? 'w-full' : 'flex-[2]'}`}>
                     <button
                       type="button"
-                      onClick={() => handleGenerate('simple')}
-                      disabled={!canGenerate() || ((generationsInfo?.simpleRemaining || 0) + (generationsInfo?.freeRemaining || 0) + (generationsInfo?.paidRemaining || 0)) <= 0}
-                      className="flex-1 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-bold text-sm hover:from-blue-600 hover:to-cyan-600 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
+                      onClick={() => handleGenerate()}
+                      disabled={!canGenerate() || (generationsInfo?.remaining || 0) <= 0}
+                      className="w-full py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-bold text-sm hover:from-violet-700 hover:to-purple-700 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
                     >
-                      ⚡ Simple
+                      <Sparkles className="w-4 h-4" />
+                      🚀 Générer ma page produit
                     </button>
-                    {canAccessPro && (
-                      <button
-                        type="button"
-                        onClick={() => handleGenerate('pro')}
-                        disabled={!canGenerate() || (generationsInfo?.proRemaining || 0) <= 0}
-                        className="flex-1 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-bold text-sm hover:from-violet-700 hover:to-purple-700 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
-                      >
-                        <Sparkles className="w-4 h-4" />
-                        ✨ Pro
-                      </button>
-                    )}
                   </div>
                 )}
               </div>
-              
-              {step === 3 && (
-                <button
-                  type="button"
-                  onClick={handleGenerate}
-                  className="w-full py-2.5 text-sm text-violet-600 hover:text-violet-700 font-medium hover:bg-violet-50 rounded-lg transition"
-                >
-                  Ou générer directement sans paramètres avancés
-                </button>
-              )}
             </>
           )}
 

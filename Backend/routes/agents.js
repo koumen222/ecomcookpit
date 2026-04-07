@@ -146,9 +146,9 @@ router.post('/', requireEcomAuth, async (req, res) => {
       const workspace = await Workspace.findById(wsId).select('plan planExpiresAt trialEndsAt trialUsed').lean();
       if (workspace) {
         const now = new Date();
-        const isPaidActive = (workspace.plan === 'pro' || workspace.plan === 'ultra')
+        const isPaidActive = (workspace.plan === 'starter' || workspace.plan === 'pro' || workspace.plan === 'ultra')
           && workspace.planExpiresAt && workspace.planExpiresAt > now;
-        const trialActive = !workspace.trialUsed && workspace.trialEndsAt && workspace.trialEndsAt > now;
+        const trialActive = workspace.trialEndsAt && workspace.trialEndsAt > now;
         const effectivePlan = isPaidActive ? workspace.plan : trialActive ? 'trial' : 'free';
         const limits = PLAN_LIMITS[effectivePlan] || PLAN_LIMITS.free;
 
@@ -156,7 +156,7 @@ router.post('/', requireEcomAuth, async (req, res) => {
           return res.status(403).json({
             success: false,
             error: 'upgrade_required',
-            message: `Votre plan ${PLAN_LIMITS[effectivePlan]?.label || effectivePlan} ne permet pas de créer d'agent. Passez à Pro pour créer jusqu'à 1 agent, ou Ultra pour en créer 5.`,
+            message: `Votre plan ${PLAN_LIMITS[effectivePlan]?.label || effectivePlan} ne permet pas de créer d'agent. Passez à Scalor + IA pour créer jusqu'à 1 agent, ou Scalor IA Pro pour en créer 5.`,
             requiredPlan: 'pro',
           });
         }

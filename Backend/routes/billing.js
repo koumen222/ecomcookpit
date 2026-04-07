@@ -25,10 +25,14 @@ const MF_API_URL = 'https://www.pay.moneyfusion.net/scalor/597e2cf962834532/pay/
 const MF_STATUS_URL = (token) => `https://www.pay.moneyfusion.net/paiementNotif/${token}`;
 
 const PLAN_PRICES = {
-  pro_1:   6000,   // 1 month
-  pro_3:   16000,  // 3 months (~11% off)
-  pro_6:   30000,  // 6 months (~17% off)
-  pro_12:  55000,  // 12 months (~24% off)
+  starter_1:  5000,   // 1 month
+  starter_3:  13000,  // 3 months (~13% off)
+  starter_6:  24000,  // 6 months (~20% off)
+  starter_12: 45000,  // 12 months (~25% off)
+  pro_1:   10000,  // 1 month
+  pro_3:   27000,  // 3 months (~10% off)
+  pro_6:   50000,  // 6 months (~17% off)
+  pro_12:  95000,  // 12 months (~21% off)
   ultra_1:  15000, // 1 month
   ultra_3:  40000, // 3 months (~11% off)
   ultra_6:  75000, // 6 months (~17% off)
@@ -36,6 +40,7 @@ const PLAN_PRICES = {
 };
 
 const PLAN_DURATION = {
+  starter_1: 1, starter_3: 3, starter_6: 6, starter_12: 12,
   pro_1: 1, pro_3: 3, pro_6: 6, pro_12: 12,
   ultra_1: 1, ultra_3: 3, ultra_6: 6, ultra_12: 12,
 };
@@ -43,10 +48,12 @@ const PLAN_DURATION = {
 // Per-plan resource limits
 export const PLAN_LIMITS = {
   free:  {
-    agents: 1,
-    instances: 1,
-    messagesPerDay: 100,
-    messagesPerMonth: 3000,
+    agents: 0,
+    instances: 0,
+    messagesPerDay: 0,
+    messagesPerMonth: 0,
+    generationCredits: 0,
+    whatsappAgent: false,
     label: 'Gratuit'
   },
   trial: {
@@ -54,21 +61,36 @@ export const PLAN_LIMITS = {
     instances: 1,
     messagesPerDay: 100,
     messagesPerMonth: 3000,
+    generationCredits: 0,
+    whatsappAgent: true,
     label: 'Essai (3 jours)'
+  },
+  starter: {
+    agents: 0,
+    instances: 0,
+    messagesPerDay: 0,
+    messagesPerMonth: 0,
+    generationCredits: 0,
+    whatsappAgent: false,
+    label: 'Scalor'
   },
   pro:   {
     agents: 1,
     instances: 1,
     messagesPerDay: 1000,
     messagesPerMonth: 50000,
-    label: 'Pro'
+    generationCredits: 0,
+    whatsappAgent: true,
+    label: 'Scalor + IA'
   },
   ultra: {
     agents: 5,
     instances: 5,
     messagesPerDay: null, // Illimité
     messagesPerMonth: null, // Illimité
-    label: 'Ultra'
+    generationCredits: 10,
+    whatsappAgent: true,
+    label: 'Scalor IA Pro'
   },
 };
 
@@ -116,11 +138,19 @@ async function applyPlanPayment(payment) {
   const newExpiry = new Date(base);
   newExpiry.setMonth(newExpiry.getMonth() + payment.durationMonths);
 
-  // Determine which plan (pro or ultra) from the payment record
-  const planName = payment.plan || 'pro';
+  // Determine which plan from the payment record
+  const planName = payment.plan || 'starter';
   workspace.plan = planName;
   workspace.planExpiresAt = newExpiry;
   workspace.planPaymentToken = payment.mfToken;
+
+  // Ultra plan: credit 10 product page generations per month purchased
+  if (planName === 'ultra') {
+    const creditsToAdd = 10 * payment.durationMonths;
+    workspace.paidGenerationsRemaining = (workspace.paidGenerationsRemaining || 0) + creditsToAdd;
+    console.log(`[billing] Credited ${creditsToAdd} generation(s) for ultra plan (${payment.durationMonths} month(s))`);
+  }
+
   await workspace.save();
 
   payment.status = 'paid';
@@ -145,7 +175,7 @@ router.get('/plan', requireEcomAuth, async (req, res) => {
 
     const now = new Date();
     const isPaidActive =
-      (workspace.plan === 'pro' || workspace.plan === 'ultra') &&
+      (workspace.plan === 'starter' || workspace.plan === 'pro' || workspace.plan === 'ultra') &&
       workspace.planExpiresAt &&
       workspace.planExpiresAt > now;
 
@@ -209,12 +239,13 @@ router.post('/checkout', requireEcomAuth, async (req, res) => {
 
     const amount = PLAN_PRICES[plan];
     const durationMonths = PLAN_DURATION[plan];
-    const planName = plan.startsWith('ultra') ? 'ultra' : 'pro';
+    const planName = plan.startsWith('ultra') ? 'ultra' : plan.startsWith('pro') ? 'pro' : 'starter';
 
     const frontendUrl = process.env.FRONTEND_URL || 'https://scalor.net';
     const backendUrl = process.env.BACKEND_URL || 'https://api.scalor.net';
 
-    const planLabel = planName === 'ultra' ? 'Scalor Ultra' : 'Scalor Pro';
+    const planLabels = { starter: 'Scalor', pro: 'Scalor + IA', ultra: 'Scalor IA Pro' };
+    const planLabel = planLabels[planName] || 'Scalor';
     const paymentData = {
       totalPrice: amount,
       article: [{ [planLabel]: amount }],
@@ -561,7 +592,7 @@ router.post('/trial', requireEcomAuth, async (req, res) => {
     if (workspace.trialUsed) {
       return res.status(400).json({ success: false, message: 'Essai gratuit déjà utilisé' });
     }
-    if (workspace.plan === 'pro' || workspace.plan === 'ultra') {
+    if (workspace.plan === 'starter' || workspace.plan === 'pro' || workspace.plan === 'ultra') {
       return res.status(400).json({ success: false, message: 'Vous avez déjà un abonnement actif' });
     }
 

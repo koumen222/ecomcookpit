@@ -194,23 +194,23 @@ function PlanBar({ planInfo, agentCount, agentLimit, onUpgrade, onBilling }) {
   const plan = planInfo.plan;
   const isActive = planInfo.isActive;
   const isTrial = planInfo.trial?.active && !isActive;
-  const isExpired = (plan === 'pro' || plan === 'ultra') && !isActive;
+  const isExpired = (plan === 'starter' || plan === 'pro' || plan === 'ultra') && !isActive;
   const trialDays = isTrial ? daysLeft(planInfo.trial.endsAt) : null;
   const atLimit = agentCount >= agentLimit;
 
-  // Free plan without trial — agents are fully disabled
-  if (plan === 'free' && !isTrial) {
+  // Free or Starter plan without trial — agents are fully disabled
+  if ((plan === 'free' || (plan === 'starter' && isActive)) && !isTrial) {
     return (
       <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl px-5 py-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <AlertTriangle className="w-5 h-5 text-slate-400 flex-shrink-0" />
           <div>
-            <p className="font-bold text-slate-700 text-sm">Agents désactivés — Plan gratuit</p>
-            <p className="text-slate-500 text-xs">Passez au plan Pro pour activer vos agents commerciaux IA.</p>
+            <p className="font-bold text-slate-700 text-sm">Agents désactivés — {plan === 'starter' ? 'Plan Scalor' : 'Plan gratuit'}</p>
+            <p className="text-slate-500 text-xs">Passez à Scalor + IA pour activer vos agents commerciaux IA.</p>
           </div>
         </div>
         <button onClick={onUpgrade} className="text-xs font-bold px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition">
-          Passer à Pro →
+          Passer à Scalor + IA →
         </button>
       </div>
     );
@@ -344,8 +344,8 @@ export default function AgentIAList() {
   }
 
   const agentLimit   = planInfo?.limits?.agents ?? 1;
-  const isPlanExpired = planInfo && !planInfo.isActive && (planInfo.plan === 'pro' || planInfo.plan === 'ultra');
-  const isFreeNoTrial = planInfo?.plan === 'free' && !planInfo.trial?.active;
+  const isPlanExpired = planInfo && !planInfo.isActive && (planInfo.plan === 'starter' || planInfo.plan === 'pro' || planInfo.plan === 'ultra');
+  const isFreeNoTrial = (planInfo?.plan === 'free' || planInfo?.plan === 'starter') && !planInfo.trial?.active;
   const atLimit       = agents.length >= agentLimit;
   const canCreate     = !isPlanExpired && !(isFreeNoTrial && atLimit) && !atLimit;
 

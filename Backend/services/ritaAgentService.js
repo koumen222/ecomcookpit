@@ -3483,7 +3483,7 @@ export async function processIncomingMessage(userId, from, text, opts = {}) {
       const now = new Date();
       const isPaidActive = (workspace.plan === 'pro' || workspace.plan === 'ultra')
         && workspace.planExpiresAt && workspace.planExpiresAt > now;
-      const trialActive = !workspace.trialUsed && workspace.trialEndsAt && workspace.trialEndsAt > now;
+      const trialActive = workspace.trialEndsAt && workspace.trialEndsAt > now;
       if (!isPaidActive && !trialActive) {
         console.warn(`🚫 [RITA] Agent bloqué — plan gratuit pour userId=${userId}`);
         return null;

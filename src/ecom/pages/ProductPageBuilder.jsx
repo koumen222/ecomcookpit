@@ -7,7 +7,7 @@ import {
   AlertCircle, Loader2, Layers, Smartphone, Monitor, X,
   ChevronRight, Package, ShoppingCart, BarChart3, Box, Flame,
   Clock, Shield, Gift, FileText, Frown, Lightbulb, Link2,
-  Pin, Rocket, Palette, MousePointerClick
+  Pin, Rocket, MousePointerClick
 } from 'lucide-react';
 import { storeProductsApi, storeManageApi } from '../services/storeApi.js';
 import { useStore } from '../contexts/StoreContext.jsx';
@@ -18,7 +18,6 @@ const SECTION_META = {
   heroSlogan:       { emoji: '✅', label: 'Slogan marketing IA',       desc: 'Slogan persuasif sous le titre',     icon: Type,         color: 'bg-green-100 text-green-700 border-green-200' },
   heroBaseline:     { emoji: '✅', label: 'Phrase de réassurance IA',   desc: 'Phrase de réassurance sous le titre', icon: CheckCircle,  color: 'bg-green-100 text-green-700 border-green-200' },
   reviews:          { emoji: '⭐', label: 'Avis clients',              desc: 'Étoiles et nombre d\'avis',           icon: Star,         color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-  orderForm:        { emoji: '🛒', label: 'Bouton / Formulaire',       desc: 'Formulaire de commande',              icon: ShoppingCart, color: 'bg-blue-100 text-blue-700 border-blue-200' },
   statsBar:         { emoji: '📊', label: 'Barre de stats sociales',   desc: 'Chiffres de preuve sociale',          icon: BarChart3,    color: 'bg-purple-100 text-purple-700 border-purple-200' },
   stockCounter:     { emoji: '📦', label: 'Compteur de stock',         desc: 'Stock restant urgence',               icon: Box,          color: 'bg-orange-100 text-orange-700 border-orange-200' },
   urgencyBadge:     { emoji: '🔥', label: 'Badge d\'urgence',          desc: 'Badge d\'urgence IA',                 icon: Flame,        color: 'bg-red-100 text-red-700 border-red-200' },
@@ -52,30 +51,11 @@ const mergeSections = (stored) => {
 };
 
 const mergeWithDefaults = (stored) => ({
-  ...deepClone(defaultConfig),
   ...stored,
   general: {
     ...defaultConfig.general,
     ...(stored?.general || {}),
     sections: mergeSections(stored?.general?.sections),
-  },
-  conversion: {
-    ...defaultConfig.conversion,
-    ...(stored?.conversion || {}),
-    offers: stored?.conversion?.offers?.length
-      ? stored.conversion.offers
-      : defaultConfig.conversion.offers,
-  },
-  automation: {
-    ...defaultConfig.automation,
-    ...(stored?.automation || {}),
-    whatsapp: { ...defaultConfig.automation.whatsapp, ...(stored?.automation?.whatsapp || {}) },
-  },
-  design: { ...defaultConfig.design, ...(stored?.design || {}) },
-  button: { ...defaultConfig.button, ...(stored?.button || {}) },
-  form: {
-    ...defaultConfig.form,
-    fields: stored?.form?.fields?.length ? stored.form.fields : defaultConfig.form.fields,
   },
 });
 
@@ -419,59 +399,6 @@ const SectionContentEditor = ({ section, onChange, product }) => {
         );
       })}
       <div className="text-[10px] text-gray-400">Laissez vide pour utiliser les données IA</div>
-    </div>
-  );
-};
-
-// ─── Design editor (inline) ─────────────────────────────────────────────────
-const DesignEditor = ({ config, onChange }) => {
-  const d = config.design || {};
-  const b = config.button || {};
-  const updateDesign = (key, val) => onChange({ ...config, design: { ...d, [key]: val } });
-  const updateButton = (key, val) => onChange({ ...config, button: { ...b, [key]: val } });
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <div className="text-[11px] font-semibold text-gray-500 mb-2">Couleurs</div>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { key: 'buttonColor', label: 'Bouton', def: '#ff6600' },
-            { key: 'backgroundColor', label: 'Fond', def: '#ffffff' },
-            { key: 'textColor', label: 'Texte', def: '#000000' },
-            { key: 'badgeColor', label: 'Badge', def: '#EF4444' },
-          ].map(c => (
-            <div key={c.key} className="flex items-center gap-2">
-              <input type="color" value={d[c.key] || c.def} onChange={e => updateDesign(c.key, e.target.value)}
-                className="w-8 h-8 border border-gray-200 rounded-lg cursor-pointer" />
-              <div className="flex-1 min-w-0">
-                <div className="text-[10px] text-gray-400">{c.label}</div>
-                <input value={d[c.key] || c.def} onChange={e => updateDesign(c.key, e.target.value)}
-                  className="w-full text-[11px] font-mono text-gray-600 border-0 p-0 bg-transparent outline-none" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div>
-        <div className="text-[11px] font-semibold text-gray-500 mb-2">Bouton d'action</div>
-        <input className={inputCls + " mb-2"} value={b.text || 'Commander maintenant'}
-          onChange={e => updateButton('text', e.target.value)} placeholder="Texte du bouton" />
-        <input className={inputCls} value={b.subtext || ''} onChange={e => updateButton('subtext', e.target.value)}
-          placeholder="Sous-texte (ex: Paiement à la livraison)" />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <div className="text-[10px] text-gray-400 mb-1">Arrondi ({d.borderRadius || '8px'})</div>
-          <input type="range" min="0" max="24" value={parseInt(d.borderRadius) || 8}
-            onChange={e => updateDesign('borderRadius', `${e.target.value}px`)} className="w-full" />
-        </div>
-        <div>
-          <div className="text-[10px] text-gray-400 mb-1">Taille police ({d.fontBase || 14}px)</div>
-          <input type="range" min="12" max="18" value={d.fontBase || 14}
-            onChange={e => updateDesign('fontBase', Number(e.target.value))} className="w-full" />
-        </div>
-      </div>
     </div>
   );
 };
@@ -1281,6 +1208,7 @@ const ProductPageBuilder = () => {
   }, [id]);
 
   // Auto-save productPageConfig sections with debounce
+  // IMPORTANT: Only save general.sections — never overwrite form/design/button/conversion
   const configSaveTimer = useRef(null);
   const autoSaveConfig = useCallback((newConfigSections) => {
     // Broadcast live immediately (debounced 150ms)
@@ -1288,7 +1216,15 @@ const ProductPageBuilder = () => {
     clearTimeout(configSaveTimer.current);
     configSaveTimer.current = setTimeout(async () => {
       try {
-        const updatedConfig = { ...mergeWithDefaults(storeConfig), general: { ...mergeWithDefaults(storeConfig).general, sections: newConfigSections } };
+        // Preserve existing config — only update general.sections
+        const existing = storeConfig || {};
+        const updatedConfig = {
+          ...existing,
+          general: {
+            ...(existing.general || {}),
+            sections: newConfigSections,
+          },
+        };
         await storeManageApi.updateStoreConfig({ productPageConfig: updatedConfig });
         setSaveStatus('saved');
         setTimeout(() => setSaveStatus(null), 2000);
@@ -1325,25 +1261,6 @@ const ProductPageBuilder = () => {
       return next;
     });
   }, [autoSaveConfig]);
-
-  const handleConfigDesignChange = useCallback((updatedConfig) => {
-    setStoreConfig(prev => {
-      const merged = mergeWithDefaults(prev);
-      const next = { ...merged, design: updatedConfig.design, button: updatedConfig.button };
-      // Broadcast live immediately
-      broadcastLive(next, configSections);
-      // Auto-save design changes
-      clearTimeout(configSaveTimer.current);
-      configSaveTimer.current = setTimeout(async () => {
-        try {
-          await storeManageApi.updateStoreConfig({ productPageConfig: { ...next, general: { ...next.general, sections: configSections } } });
-          setSaveStatus('saved');
-          setTimeout(() => setSaveStatus(null), 2000);
-        } catch { setSaveStatus('error'); }
-      }, 1200);
-      return next;
-    });
-  }, [configSections, broadcastLive]);
 
   const updateSections = useCallback((newSections) => {
     setSections(newSections);
@@ -1557,23 +1474,7 @@ const ProductPageBuilder = () => {
         {/* ── LEFT SIDEBAR (Shopify-style: sections list OR section editor) ── */}
         <div className="w-80 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 overflow-hidden">
 
-          {activeConfigSection === '__design__' ? (
-            /* ── DESIGN EDITOR (global) ── */
-            <>
-              <div className="flex items-center gap-2 px-3 py-3 border-b border-gray-100 bg-gray-50 flex-shrink-0">
-                <button onClick={() => setActiveConfigSection(null)}
-                  className="flex items-center gap-1.5 text-[12px] text-gray-500 hover:text-gray-900 font-medium transition">
-                  <ChevronLeft className="w-4 h-4" />
-                  Sections
-                </button>
-                <span className="text-gray-300 text-sm">·</span>
-                <span className="text-[12px] font-semibold text-gray-800">🎨 Design & Bouton</span>
-              </div>
-              <div className="flex-1 overflow-y-auto p-4">
-                <DesignEditor config={mergedConfig} onChange={handleConfigDesignChange} />
-              </div>
-            </>
-          ) : activeConfigSection ? (() => {
+          {activeConfigSection ? (() => {
             /* ── SECTION EDITOR (inline, replaces list) ── */
             const sec = configSections.find(s => s.id === activeConfigSection);
             if (!sec) return null;
@@ -1604,18 +1505,6 @@ const ProductPageBuilder = () => {
                       section={sec}
                       onChange={handleConfigContentChange}
                       product={product}
-                    />
-                  </div>
-
-                  {/* Design & Bouton — toujours disponible en bas */}
-                  <div className="border-t border-gray-100 mx-4 pt-4 pb-6">
-                    <div className="flex items-center gap-1.5 mb-3">
-                      <Palette className="w-3.5 h-3.5 text-gray-400" />
-                      <h4 className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Design & Bouton</h4>
-                    </div>
-                    <DesignEditor
-                      config={mergedConfig}
-                      onChange={handleConfigDesignChange}
                     />
                   </div>
                 </div>
@@ -1669,18 +1558,6 @@ const ProductPageBuilder = () => {
                     </div>
                   );
                 })}
-              </div>
-
-              {/* Design global en bas de la liste */}
-              <div className="border-t border-gray-100 p-3 flex-shrink-0">
-                <button
-                  onClick={() => setActiveConfigSection('__design__')}
-                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-all"
-                >
-                  <span className="text-base w-6 text-center">🎨</span>
-                  <span className="text-[12.5px] font-semibold text-gray-800 flex-1 text-left">Design & Bouton</span>
-                  <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
-                </button>
               </div>
             </>
           )}
