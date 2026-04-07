@@ -80,7 +80,7 @@ function buildArInstruction(aspectRatio) {
 /**
  * Submit a generation task to NanoBanana Pro API
  */
-async function submitNanoBananaProTask(prompt, imageUrls = [], aspectRatio = '1:1') {
+async function submitNanoBananaProTask(prompt, imageUrls = [], aspectRatio = '1:1', maxRetries = 3) {
   const body = {
     prompt: prompt.slice(0, 8000),
     resolution: '1K',
@@ -90,23 +90,47 @@ async function submitNanoBananaProTask(prompt, imageUrls = [], aspectRatio = '1:
     body.imageUrls = imageUrls.slice(0, 8);
   }
 
-  const response = await axios.post(
-    `${NANOBANANA_PRO_BASE}/generate-pro`,
-    body,
-    {
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${NANOBANANA_PRO_API_KEY}`,
-      },
-      timeout: 30000,
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await axios.post(
+        `${NANOBANANA_PRO_BASE}/generate-pro`,
+        body,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${NANOBANANA_PRO_API_KEY}`,
+          },
+          timeout: 30000,
+        }
+      );
+
+      if (response.data?.code === 200) {
+        return response.data?.data?.taskId;
+      }
+
+      const errMsg = response.data?.message || response.data?.msg || JSON.stringify(response.data).slice(0, 200);
+      console.warn(`⚠️ NanoBanana Pro submit attempt ${attempt}/${maxRetries} failed (code ${response.data?.code}): ${errMsg}`);
+
+      if (attempt < maxRetries) {
+        const delay = attempt * 2000; // 2s, 4s
+        console.log(`⏳ Retry in ${delay / 1000}s...`);
+        await new Promise(r => setTimeout(r, delay));
+      } else {
+        throw new Error(`NanoBanana Pro submit failed after ${maxRetries} attempts: ${errMsg}`);
+      }
+    } catch (err) {
+      if (err.message.startsWith('NanoBanana Pro submit failed after')) throw err;
+      const errMsg = err.response?.data?.message || err.message;
+      console.warn(`⚠️ NanoBanana Pro submit attempt ${attempt}/${maxRetries} error: ${errMsg}`);
+      if (attempt < maxRetries) {
+        const delay = attempt * 2000;
+        console.log(`⏳ Retry in ${delay / 1000}s...`);
+        await new Promise(r => setTimeout(r, delay));
+      } else {
+        throw new Error(`NanoBanana Pro submit failed after ${maxRetries} attempts: ${errMsg}`);
+      }
     }
-  );
-
-  if (response.data?.code !== 200) {
-    throw new Error(`NanoBanana Pro submit failed: ${response.data?.message || 'unknown'}`);
   }
-
-  return response.data?.data?.taskId;
 }
 
 /**
