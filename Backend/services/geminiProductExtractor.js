@@ -7,11 +7,20 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 
 const GEMINI_API_KEY = process.env.NANOBANANA_API_KEY || process.env.GEMINI_API_KEY;
 
 if (!GEMINI_API_KEY) {
   console.warn('⚠️ GEMINI_API_KEY non configuré - l\'extraction de produit ne fonctionnera pas');
+}
+
+let _groq = null;
+function getGroq() {
+  if (!_groq && process.env.GROQ_API_KEY) {
+    _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  }
+  return _groq;
 }
 
 // Modèle unique — celui qui fonctionne
@@ -156,7 +165,19 @@ IMPORTANT: Ne retourne QUE le JSON, sans markdown ni texte supplémentaire.`;
 
   } catch (err) {
     console.error(`❌ ${GEMINI_MODEL} échoué:`, err.message);
-    throw new Error(`Extraction Gemini échouée: ${err.message}`);
+    
+    // ── Fallback Groq ──────────────────────────────────────────────────────
+    const groq = getGroq();
+    if (groq) {
+      try {
+        console.log('🔄 Fallback Groq pour extraction...');
+        return await extractWithGroq(groq, url);
+      } catch (groqErr) {
+        console.error('❌ Groq fallback échoué:', groqErr.message);
+      }
+    }
+    
+    throw new Error(`Extraction échouée: ${err.message}`);
   }
 }
 

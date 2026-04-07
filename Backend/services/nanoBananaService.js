@@ -11,7 +11,7 @@ const GEMINI_API_KEY = process.env.NANOBANANA_API_KEY;
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 // NanoBanana Pro API fallback
-const NANOBANANA_PRO_API_KEY = '5bad71bd0c5f232795f9d80ec307dd36';
+const NANOBANANA_PRO_API_KEY = process.env.NANOBANANA_PRO_API_KEY;
 const NANOBANANA_PRO_BASE = 'https://api.nanobananaapi.ai/api/v1/nanobanana';
 
 // Gemini 3 Pro Image Preview
