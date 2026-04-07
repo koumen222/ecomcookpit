@@ -88,29 +88,6 @@ export default function ProductTestimonials({ testimonials = [], productImage = 
 
   return (
     <div style={{ margin: '32px 0', overflow: 'hidden' }}>
-      {/* Group photo — 3 personnes avec le produit */}
-      {groupImage && (
-        <div style={{ marginBottom: 20, borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
-          <img
-            src={groupImage}
-            alt="Clients satisfaits avec le produit"
-            loading="lazy"
-            style={{ width: '100%', height: 'auto', display: 'block', maxHeight: 400, objectFit: 'cover' }}
-          />
-        </div>
-      )}
-
-      {/* Social proof — 4 avant/après + captures WhatsApp */}
-      {socialProofImage && (
-        <div style={{ marginBottom: 20, borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
-          <img
-            src={socialProofImage}
-            alt="Témoignages avant/après clients"
-            loading="lazy"
-            style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain' }}
-          />
-        </div>
-      )}
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, padding: '0 4px' }}>

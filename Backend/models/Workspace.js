@@ -208,24 +208,45 @@ const workspaceSchema = new mongoose.Schema({
   },
 
   // ─── Product Page Generator Tracking ─────────────────────────────────────
-  // Free generations remaining (default 0)
+  // Legacy fields (backward compat — still used for old single-tier flow)
   freeGenerationsRemaining: {
     type: Number,
     default: 0,
     min: 0
   },
-  // Total number of generations performed (for analytics)
   totalGenerations: {
     type: Number,
     default: 0,
     min: 0
   },
-  // Paid generations remaining
   paidGenerationsRemaining: {
     type: Number,
     default: 0,
     min: 0
   },
+
+  // ─── Two-tier: Simple / Pro credits ────────────────────────────────────────
+  simpleGenerationsRemaining: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  proGenerationsRemaining: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  totalSimpleGenerations: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  totalProGenerations: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+
   // Last generation date (for tracking)
   lastGenerationAt: {
     type: Date,

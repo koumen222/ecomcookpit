@@ -78,6 +78,10 @@ const ecomUserSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  canAccessProGenerator: {
+    type: Boolean,
+    default: false
+  },
   lastLogin: {
     type: Date
   },

@@ -19,6 +19,7 @@ import { analyzeWithVision, generatePosterImage } from '../services/productPageG
 import { uploadImage } from '../services/cloudflareImagesService.js';
 import { extractProductInfo } from '../services/geminiProductExtractor.js';
 import EcomWorkspace from '../models/Workspace.js';
+import EcomUser from '../models/EcomUser.js';
 import FeatureUsageLog from '../models/FeatureUsageLog.js';
 
 const router = express.Router();
@@ -26,13 +27,12 @@ const router = express.Router();
 // ─── Image prompt builders ────────────────────────────────────────────────────
 
 /**
- * Hero PRO — African Facebook-ads layout:
- * TOP: bold headline (keyword in red) | LEFT: product large | RIGHT: person showing RESULT
- * LEFT overlay: red CTA badge + curved arrow pointing to product
+ * Hero — Product in action layout:
+ * The product is shown being USED in its real context (not a cosmetic studio pose).
+ * Bold headline + product dominant + contextual usage scene.
  */
 function buildHeroPrompt(gptResult, hasProductRef) {
   const productName = gptResult.title || 'product';
-  const targetPerson = gptResult.hero_target_person || 'beautiful young African woman';
   const ctaText = (gptResult.hero_cta || 'JE COMMANDE MAINTENANT').toUpperCase();
 
   // Headline: use the hero_headline or derive from the problem/solution
@@ -40,12 +40,12 @@ function buildHeroPrompt(gptResult, hasProductRef) {
     ? gptResult.hero_headline.toUpperCase()
     : (gptResult.problem_section?.pain_points?.[0]
         ? `DITES ADIEU À ${gptResult.problem_section.pain_points[0].slice(0, 50).toUpperCase()} !`
-        : `DÉCOUVREZ ${productName.toUpperCase()} — RÉSULTATS EN 7 JOURS !`);
+        : `DÉCOUVREZ ${productName.toUpperCase()} !`);
 
   // Subheadline: hero_slogan or first sentence of solution
   const subheadline = gptResult.hero_slogan
     || gptResult.solution_section?.description?.split('.')[0]
-    || `Le produit qui transforme votre quotidien et révèle votre vraie beauté.`;
+    || `Le produit indispensable pour votre quotidien.`;
 
   // Benefits: take the 4 benefits_bullets, strip emoji prefix for clean list
   const benefits = (gptResult.benefits_bullets || []).slice(0, 4).map(b =>
@@ -72,81 +72,57 @@ function buildHeroPrompt(gptResult, hasProductRef) {
 
   // Product placement description
   const productBlock = hasProductRef
-    ? `THE EXACT product from the reference image (same packaging, shape, colors, label, every detail identical) — placed large and dominant on the LEFT side of the frame, on a glossy surface, studio lighting, ultra sharp`
-    : `premium packaging of "${productName}" — placed large on the LEFT side, on a glossy surface, studio lighting, ultra sharp`;
+    ? `THE EXACT product from the reference image (same packaging, shape, colors, label, every detail identical) — large, dominant, ultra sharp`
+    : `premium packaging of "${productName}" — large, dominant, ultra sharp`;
 
-  // Derive background color palette from product category
-  const text = `${productName} ${subheadline}`.toLowerCase();
-  let bgPalette, accentColor, personDescription;
-  if (text.includes('orange') || text.includes('vitamine c') || text.includes('agrume')) {
-    bgPalette = 'soft white to warm light orange gradient (#FFF8F0 to #FFE8CC)';
-    accentColor = 'vivid orange (#FF6B00)';
-  } else if (text.includes('blanc') || text.includes('éclat') || text.includes('glow') || text.includes('lumineux') || text.includes('tache') || text.includes('teint')) {
-    bgPalette = 'soft white to pale gold gradient (#FFFFFF to #FFF8E7)';
-    accentColor = 'warm gold (#D4A017)';
-  } else if (text.includes('vert') || text.includes('naturel') || text.includes('aloe') || text.includes('bio') || text.includes('plante')) {
-    bgPalette = 'soft white to light mint green gradient (#FFFFFF to #E8F5E9)';
-    accentColor = 'emerald green (#059669)';
-  } else if (text.includes('rose') || text.includes('femme') || text.includes('pink') || text.includes('beauty') || text.includes('beauté')) {
-    bgPalette = 'soft white to blush pink gradient (#FFFFFF to #FFF0F3)';
-    accentColor = 'deep rose (#C2185B)';
-  } else if (text.includes('noir') || text.includes('charbon') || text.includes('détox') || text.includes('purifiant')) {
-    bgPalette = 'soft white to light gray gradient (#FFFFFF to #F5F5F5)';
-    accentColor = 'charcoal black (#212121)';
-  } else {
-    bgPalette = 'clean white to very light warm gradient (#FFFFFF to #FFF9F0)';
-    accentColor = 'vibrant coral (#FF5722)';
-  }
+  // Accent color
+  const accentColor = 'vibrant coral (#FF5722)';
 
-  // Person: adapt based on target — check 'woman/femme/female' BEFORE 'man' because 'woman'.includes('man') === true
-  const personLower = targetPerson.toLowerCase();
-  if (personLower.includes('woman') || personLower.includes('femme') || personLower.includes('female')) {
-    personDescription = `beautiful young African woman, dark glowing skin, natural hair (afro or braids or pressed), radiant confident smile, showing the positive result of using the product, healthy luminous complexion`;
-  } else if (personLower.includes('man') || personLower.includes('homme') || personLower.includes('male')) {
-    personDescription = `handsome young African man, dark skin, short clean haircut, confident radiant smile, showing the positive result of using the product, healthy glowing look`;
-  } else {
-    personDescription = `beautiful young African woman, dark glowing skin, natural hair (afro or braids or pressed), radiant confident smile, showing the positive result of using the product, healthy luminous complexion`;
-  }
+  return `Ultra realistic HIGH-CONVERTING product advertising poster. Square 1:1. Product-in-action photography meets bold graphic design. 4K quality, sharp details, cinematic lighting.
 
-  return `Ultra realistic high-end skincare advertising poster. Square 1:1. Professional product photography meets graphic design. 4K quality, sharp details, cinematic lighting.
+═══ CONCEPT ═══
+Show "${productName}" being ACTIVELY USED in its real context. NOT a cosmetic/beauty studio pose.
+The product is the HERO — shown in the moment of use, in its natural environment.
 
 ═══ BACKGROUND ═══
-${bgPalette}. Clean minimal fresh atmosphere. Bright studio lighting.
+Contextual real-life setting that matches the product category:
+- If food/drink: kitchen, dining table, outdoor meal
+- If tech/gadget: desk, workspace, hands using it
+- If beauty/skincare: bathroom counter, vanity, hands applying it
+- If fashion: street, modern interior, styled flat lay
+- If health/sport: gym, park, active outdoor scene
+- If home/household: living room, kitchen, real home context
+Warm natural lighting, slightly blurred background (bokeh), focus on the product.
 
-═══ LAYOUT (STRICT — 3 COLUMNS) ═══
+═══ LAYOUT (PRODUCT IN ACTION) ═══
 
-LEFT COLUMN (35% of frame):
+MAIN SCENE (70% of frame):
 • ${productBlock}
-• Around the product: 2-3 natural prop elements related to the product ingredients (sliced fruits, leaves, botanicals, or cream swatches — must match the product type)
-• Clean glossy surface reflection under the product
+• The product is shown IN USE — being held, opened, poured, applied, plugged in, worn, or actively demonstrated
+• Hands or surfaces interacting with the product naturally
+• Product occupies at least 50% of the frame, every detail sharp and visible
+• Contextual props that reinforce what the product does (NOT cosmetic ingredients like sliced fruits or botanicals)
+• Real-life usage scene: unboxing, pouring, holding, demonstrating, the product in its moment of action
 
-CENTER COLUMN (30% of frame):
-• ${personDescription}
-• Upper body portrait, face and shoulders visible
-• Warm professional studio lighting with soft rim light
-• Expression: happy, confident, radiant — genuinely loving the product result
-• Natural authentic African features
-
-RIGHT COLUMN (35% of frame):
-• 4 benefit items in a clean vertical list, each with a small colored icon:
+BENEFIT STRIP (side or bottom, 30%):
+• 3-4 benefit items in a clean row or column:
   ✓ ${benefits[0]}
   ✓ ${benefits[1]}
   ✓ ${benefits[2]}
   ✓ ${benefits[3]}
-• Clean modern sans-serif typography
-• Icons in ${accentColor}
+• Clean modern sans-serif typography, small icons in ${accentColor}
 
 ═══ TEXT OVERLAYS (MANDATORY — CRITICAL SPELLING) ═══
 
 TOP of image (bold headline spanning full width):
 "${headline}"
-Font: large bold modern sans-serif, dark text with key transformation words in ${accentColor}
+Font: large bold modern sans-serif, dark text with key words in ${accentColor}
 
 Below headline (subheadline, smaller):
 "${subheadline}"
 Font: medium weight, dark gray
 
-CENTER TOP — Social proof badge (rounded pill shape, ${accentColor} background, white text):
+Social proof badge (rounded pill shape, ${accentColor} background, white text):
 "${badgeText} ✓"
 
 BOTTOM STRIP (full width, light gray background):
@@ -155,15 +131,15 @@ Font: small, clean, professional
 
 BOTTOM CENTER — CTA button (${accentColor} background, white bold text, rounded corners):
 "${ctaText}"
-Below button (tiny text): "Offre spéciale – stock limité"
 
 ═══ STYLE RULES ═══
 • ALL French text: 100% PERFECT spelling with every accent (é, è, ê, à, ù, ç, î, ô etc). ZERO errors.
 • NO price in numbers, NO phone number, NO URL, NO watermark
 • Ultra sharp product details — every label and texture of the packaging perfectly visible
-• Cinematic lighting with product glow and person rim light
+• Product is IN ACTION — not posed on a glossy surface like a cosmetic ad
+• Cinematic lighting with warm natural tones
 • Modern typography: clean sans-serif, high contrast, perfectly aligned
-• Mood: premium skincare brand launch, scroll-stopping, impossible to ignore`;
+• Mood: premium product launch, scroll-stopping, shows exactly what the product DOES`;
 }
 
 /**
@@ -1039,6 +1015,46 @@ const upload = multer({
   }
 });
 
+// ── GET /info — fetch credit info for modal (Simple + Pro) ──────────────────
+router.get('/info', requireEcomAuth, async (req, res) => {
+  try {
+    const wsId = req.workspaceId;
+    if (!wsId) return res.json({ success: true, generations: null });
+
+    const workspace = await EcomWorkspace.findById(wsId)
+      .select('simpleGenerationsRemaining proGenerationsRemaining totalSimpleGenerations totalProGenerations freeGenerationsRemaining paidGenerationsRemaining totalGenerations')
+      .lean();
+
+    if (!workspace) return res.status(404).json({ success: false, message: 'Workspace introuvable' });
+
+    // Check if user has Pro access
+    const userId = req.user?.id || req.user?._id;
+    let canAccessPro = false;
+    if (userId) {
+      const user = await EcomUser.findById(userId).select('canAccessProGenerator role').lean();
+      canAccessPro = user?.canAccessProGenerator || user?.role === 'super_admin' || false;
+    }
+
+    res.json({
+      success: true,
+      generations: {
+        simpleRemaining: workspace.simpleGenerationsRemaining || 0,
+        proRemaining: workspace.proGenerationsRemaining || 0,
+        totalSimpleUsed: workspace.totalSimpleGenerations || 0,
+        totalProUsed: workspace.totalProGenerations || 0,
+        // Legacy
+        freeRemaining: workspace.freeGenerationsRemaining || 0,
+        paidRemaining: workspace.paidGenerationsRemaining || 0,
+        totalUsed: workspace.totalGenerations || 0,
+      },
+      canAccessPro
+    });
+  } catch (err) {
+    console.error('[ProductGenerator] GET /info error:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
 router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), upload.array('images', 8), async (req, res) => {
   const userId = req.user?.id || req.user?._id || 'anonymous';
 
@@ -1048,6 +1064,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     skipScraping,
     marketingApproach,
     visualTemplate: rawVisualTemplate,
+    quality: rawQuality,
     // Paramètres copywriting simplifiés
     targetAvatar,
     mainProblem,
@@ -1057,6 +1074,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   const imageFiles = req.files || [];
   const approach = marketingApproach || 'PAS';
   const visualTemplate = rawVisualTemplate || 'general';
+  const quality = rawQuality === 'pro' ? 'pro' : 'simple'; // default simple
 
   // Contexte copywriting simplifié : méthode + avatar + problème
   const copywritingContext = {
@@ -1101,7 +1119,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     let workspace;
     if (req.workspaceId) {
       workspace = await EcomWorkspace.findById(req.workspaceId)
-        .select('storeSettings.country storeSettings.city storeSettings.storeName name freeGenerationsRemaining paidGenerationsRemaining totalGenerations');
+        .select('storeSettings.country storeSettings.city storeSettings.storeName name freeGenerationsRemaining paidGenerationsRemaining totalGenerations simpleGenerationsRemaining proGenerationsRemaining totalSimpleGenerations totalProGenerations');
 
       if (!workspace) {
         return res.status(404).json({ success: false, message: 'Workspace introuvable' });
@@ -1115,38 +1133,73 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     }
 
     // ══════════════════════════════════════════════════════════════════════════
-    // VÉRIFICATION DES LIMITES DE GÉNÉRATION
+    // VÉRIFICATION PRO ACCESS
     // ══════════════════════════════════════════════════════════════════════════
-    if (workspace) {
-      const freeRemaining = workspace.freeGenerationsRemaining || 0;
-      const paidRemaining = workspace.paidGenerationsRemaining || 0;
-      const totalRemaining = freeRemaining + paidRemaining;
-
-      if (totalRemaining <= 0) {
-        const totalUsed = workspace.totalGenerations || 0;
+    if (quality === 'pro') {
+      const user = await EcomUser.findById(userId).select('canAccessProGenerator role').lean();
+      const canPro = user?.canAccessProGenerator || user?.role === 'super_admin' || false;
+      if (!canPro) {
         return res.status(403).json({
           success: false,
-          limitReached: true,
-          message: '🎯 Tu n\'as plus de crédits de génération !\n\nAchète des crédits pour générer des pages produit IA : 1 crédit à 500 FCFA ou le pack 3 crédits à 1000 FCFA.',
-          freeRemaining: 0,
-          paidRemaining: 0,
-          totalGenerations: totalUsed,
-          pricing: { unit: 500, pack3: 1000 }
+          message: 'Accès Pro non activé pour cet utilisateur. Contactez l\'administrateur.'
         });
       }
+    }
 
-      // Décrémenter le compteur (priorité : gratuit d'abord, puis payant)
-      if (freeRemaining > 0) {
-        workspace.freeGenerationsRemaining = freeRemaining - 1;
-      } else if (paidRemaining > 0) {
-        workspace.paidGenerationsRemaining = paidRemaining - 1;
+    // ══════════════════════════════════════════════════════════════════════════
+    // VÉRIFICATION DES LIMITES DE GÉNÉRATION (Simple / Pro)
+    // ══════════════════════════════════════════════════════════════════════════
+    if (workspace) {
+      const simpleRemaining = workspace.simpleGenerationsRemaining || 0;
+      const proRemaining = workspace.proGenerationsRemaining || 0;
+      // Legacy fallback
+      const freeRemaining = workspace.freeGenerationsRemaining || 0;
+      const paidRemaining = workspace.paidGenerationsRemaining || 0;
+
+      if (quality === 'pro') {
+        // Pro uses proGenerationsRemaining only
+        if (proRemaining <= 0) {
+          return res.status(403).json({
+            success: false,
+            limitReached: true,
+            quality: 'pro',
+            message: '🎯 Tu n\'as plus de crédits Pro !\n\nAchète des crédits Pro pour générer des pages produit premium.',
+            simpleRemaining,
+            proRemaining: 0,
+            totalGenerations: workspace.totalGenerations || 0,
+            pricing: { simple: 300, pro: 500, pack3Pro: 1000 }
+          });
+        }
+        workspace.proGenerationsRemaining = proRemaining - 1;
+        workspace.totalProGenerations = (workspace.totalProGenerations || 0) + 1;
+      } else {
+        // Simple uses simpleGenerationsRemaining, then legacy free, then legacy paid
+        if (simpleRemaining > 0) {
+          workspace.simpleGenerationsRemaining = simpleRemaining - 1;
+        } else if (freeRemaining > 0) {
+          workspace.freeGenerationsRemaining = freeRemaining - 1;
+        } else if (paidRemaining > 0) {
+          workspace.paidGenerationsRemaining = paidRemaining - 1;
+        } else {
+          return res.status(403).json({
+            success: false,
+            limitReached: true,
+            quality: 'simple',
+            message: '🎯 Tu n\'as plus de crédits Simple !\n\nAchète des crédits pour générer des pages produit.',
+            simpleRemaining: 0,
+            proRemaining,
+            totalGenerations: workspace.totalGenerations || 0,
+            pricing: { simple: 300, pro: 500, pack3Pro: 1000 }
+          });
+        }
+        workspace.totalSimpleGenerations = (workspace.totalSimpleGenerations || 0) + 1;
       }
 
       workspace.totalGenerations = (workspace.totalGenerations || 0) + 1;
       workspace.lastGenerationAt = new Date();
       await workspace.save();
 
-      console.log(`✅ Génération autorisée. Reste: ${workspace.freeGenerationsRemaining} gratuite(s) + ${workspace.paidGenerationsRemaining} payante(s)`);
+      console.log(`✅ Génération ${quality.toUpperCase()} autorisée. Reste: Simple=${workspace.simpleGenerationsRemaining || 0} Pro=${workspace.proGenerationsRemaining || 0}`);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -1325,20 +1378,23 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         .then(url => ({ type: 'hero', url }))
     );
 
-    // ── Avant/Après — deuxième image forte, transformation réaliste ──
-    const beforeAfterPrompt = gptResult.prompt_avant_apres || null;
-    if (beforeAfterPrompt) {
-      imagePromises.push(
-        generateAndUpload(beforeAfterPrompt, baseImageBuffer, `before-after-${Date.now()}.png`, 'before_after')
-          .then(url => ({ type: 'before_after', url }))
-      );
+    // ── Avant/Après — PRO only ──
+    if (quality === 'pro') {
+      const beforeAfterPrompt = gptResult.prompt_avant_apres || null;
+      if (beforeAfterPrompt) {
+        imagePromises.push(
+          generateAndUpload(beforeAfterPrompt, baseImageBuffer, `before-after-${Date.now()}.png`, 'before_after')
+            .then(url => ({ type: 'before_after', url }))
+        );
+      }
     }
 
-    // ── 4 Flash images — chaque image illustre EXACTEMENT l'angle textuel au-dessus ─
+    // ── Flash images — Simple: 2 max | Pro: 4 ─
     const angles = gptResult.angles || [];
     const flashPrompts = buildFlashPrompts(gptResult, !!baseImageBuffer, approach, visualTemplate);
+    const maxFlash = quality === 'pro' ? flashPrompts.length : Math.min(2, flashPrompts.length);
 
-    for (let i = 0; i < flashPrompts.length; i++) {
+    for (let i = 0; i < maxFlash; i++) {
       const flash = flashPrompts[i];
       const angle = angles[i] || null;
 
@@ -1353,91 +1409,10 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       );
     }
 
-    // ── Testimonial group photo — 1 seule image de 3 personnes avec le produit ─────────────
-    const targetPersonBase = gptResult.hero_target_person || 'authentic Black African person';
-    const productNameForGroup = gptResult.title || 'the product';
-    const personLowerGroup = targetPersonBase.toLowerCase();
-    const isFemaleProduct = personLowerGroup.includes('woman') || personLowerGroup.includes('femme') || personLowerGroup.includes('female');
-    const isMaleProduct = personLowerGroup.includes('man') || personLowerGroup.includes('homme') || personLowerGroup.includes('male');
+    // ── Testimonial group photo & social proof — DÉSACTIVÉ ─────────────
+    if (quality === 'pro') {
 
-    let groupPeopleDesc;
-    if (isFemaleProduct) {
-      groupPeopleDesc = '3 happy African women of different ages (mid-20s, early 30s, late 30s), natural hair styles, glowing skin, genuine smiles';
-    } else if (isMaleProduct) {
-      groupPeopleDesc = '3 happy African men of different ages (mid-20s, early 30s, late 30s), clean modern looks, confident expressions, genuine smiles';
-    } else {
-      groupPeopleDesc = '3 happy African people (2 women and 1 man, different ages), natural authentic looks, genuine smiles';
-    }
-
-    const groupProductRef = baseImageBuffer
-      ? `each holding or showing THE EXACT SAME product from the reference image (same packaging, color, shape, label — critical)`
-      : `each holding or showing "${productNameForGroup}" product clearly visible`;
-
-    const groupTestimonialPrompt = `Square 1:1 ultra realistic lifestyle group photo. ${groupPeopleDesc}, ${groupProductRef}.
-They are standing together side by side, casual friendly pose, like satisfied customers recommending the product.
-Natural bright setting (modern African home, bright outdoor terrace, or clean simple background).
-Warm natural lighting, golden hour or soft daylight. Authentic happy expressions — genuine satisfied customers.
-The product is CLEARLY VISIBLE in at least 2 of their hands — prominent in the image.
-People look real, skin texture visible, natural hair. NOT a stock photo look. Candid authentic group selfie feel.
-4K quality, sharp focus, no watermarks, no text overlays, no price, no URL.
-Mood: real customers who love the product and want to share their experience.`;
-
-    imagePromises.push(
-      generateAndUpload(groupTestimonialPrompt, baseImageBuffer, `testimonials-group-${Date.now()}.png`, 'testimonials_group')
-        .then(url => ({ type: 'testimonials_group', url }))
-    );
-
-    // ── Social proof collage — 4 avant/après + captures WhatsApp sur 1 seule image ────
-    const testimonialTexts = (gptResult.testimonials || []).slice(0, 4);
-    const whatsappMessages = testimonialTexts.map((t, i) => {
-      const name = t.name || `Client ${i + 1}`;
-      const msg = (t.text || '').slice(0, 80);
-      return `"${name}: ${msg}"`;
-    }).join('\n');
-
-    let beforeAfterZone;
-    const productTextLower = `${productNameForGroup} ${gptResult.hero_slogan || ''} ${gptResult.hero_headline || ''}`.toLowerCase();
-    if (productTextLower.match(/cheveu|hair|coiffure|chevelure/)) {
-      beforeAfterZone = 'hair transformation (dry damaged hair → shiny healthy hair)';
-    } else if (productTextLower.match(/minceur|poids|ventre|slim|belly|taille/)) {
-      beforeAfterZone = 'body silhouette transformation (belly fat → slimmer waist)';
-    } else if (productTextLower.match(/dent|teeth|sourire|smile|blanc/)) {
-      beforeAfterZone = 'teeth transformation (yellow teeth → white bright smile)';
-    } else if (productTextLower.match(/corps|body|lotion|beurre|cream/)) {
-      beforeAfterZone = 'skin body transformation (dry rough skin → smooth glowing skin)';
-    } else {
-      beforeAfterZone = 'face/skin transformation (dull uneven skin → clear radiant glowing skin)';
-    }
-
-    const socialProofPrompt = `Square 1:1 social proof collage image for "${productNameForGroup}". Ultra realistic, 4K quality.
-
-LAYOUT: 2x2 grid of 4 panels on a clean white or very light gray background.
-
-Each of the 4 panels contains:
-- A BEFORE/AFTER split showing an authentic African person's ${beforeAfterZone}
-- LEFT half labeled "Avant" — shows the problem (realistic, relatable)
-- RIGHT half labeled "Après" — shows the improvement after using the product
-- Below each before/after: a WhatsApp-style chat bubble (green bubble, white text, small profile circle) with a short French testimonial message from a satisfied customer
-- Each panel has a DIFFERENT person (vary gender, age, skin tone — all African)
-
-WhatsApp bubble style:
-- Light green (#DCF8C6) rounded rectangle bubble
-- Small gray timestamp "14:32 ✓✓" at bottom-right of bubble
-- Tiny circular profile photo placeholder on left
-- Short French text inside: genuine customer review tone
-
-OVERALL STYLE:
-- Clean grid lines separating the 4 panels
-- Small centered title at top: "Témoignages clients vérifiés ✅" in bold dark text
-- Product visible in at least 2 of the 4 "Après" panels
-- Realistic photos, NOT illustrations or cartoons
-- ALL French text must be 100% perfectly spelled
-- NO price, NO phone number, NO URL, NO watermark`;
-
-    imagePromises.push(
-      generateAndUpload(socialProofPrompt, baseImageBuffer, `testimonials-social-${Date.now()}.png`, 'testimonials_social')
-        .then(url => ({ type: 'testimonials_social', url }))
-    );
+    } // end if (quality === 'pro')
 
     // Exécuter toutes les générations en parallèle avec timeout global de 180s
     const IMAGE_TIMEOUT_MS = 180000;
@@ -1473,8 +1448,8 @@ OVERALL STYLE:
 
     // Testimonials sans images individuelles + images de groupe et social proof
     const finalTestimonials = (gptResult.testimonials || []).map(t => ({ ...t, image: '' }));
-    const testimonialsGroupImage = imageResults.find(r => r?.type === 'testimonials_group')?.url || null;
-    const testimonialsSocialProofImage = imageResults.find(r => r?.type === 'testimonials_social')?.url || null;
+    const testimonialsGroupImage = null;
+    const testimonialsSocialProofImage = null;
 
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -1542,14 +1517,12 @@ OVERALL STYLE:
 
     // Track feature usage
     if (req.workspaceId && req.user) {
-      const currentFree = workspace?.freeGenerationsRemaining || 0;
-      const genType = currentFree > 0 ? 'free' : 'paid';
       FeatureUsageLog.create({
         workspaceId: req.workspaceId,
         userId: req.user._id || req.user.id,
         feature: 'product_page_generator',
         meta: {
-          generationType: genType,
+          generationType: quality,
           productUrl: cleanUrl || null,
           productName: gptResult?.title || scraped?.title || null,
           success: true
@@ -1559,10 +1532,15 @@ OVERALL STYLE:
 
     // Récupérer le nombre de générations restantes pour l'inclure dans la réponse
     const updatedWorkspace = workspace ? await EcomWorkspace.findById(workspace._id)
-      .select('freeGenerationsRemaining paidGenerationsRemaining totalGenerations')
+      .select('freeGenerationsRemaining paidGenerationsRemaining totalGenerations simpleGenerationsRemaining proGenerationsRemaining totalSimpleGenerations totalProGenerations')
       .lean() : null;
 
     const generationsInfo = updatedWorkspace ? {
+      simpleRemaining: updatedWorkspace.simpleGenerationsRemaining || 0,
+      proRemaining: updatedWorkspace.proGenerationsRemaining || 0,
+      totalSimpleUsed: updatedWorkspace.totalSimpleGenerations || 0,
+      totalProUsed: updatedWorkspace.totalProGenerations || 0,
+      // Legacy
       freeRemaining: updatedWorkspace.freeGenerationsRemaining || 0,
       paidRemaining: updatedWorkspace.paidGenerationsRemaining || 0,
       totalUsed: updatedWorkspace.totalGenerations || 0
@@ -1571,6 +1549,7 @@ OVERALL STYLE:
     return res.json({
       success: true,
       product: productPage,
+      quality,
       generations: generationsInfo
     });
 
