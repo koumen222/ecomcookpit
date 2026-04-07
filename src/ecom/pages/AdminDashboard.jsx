@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import { useMoney } from '../hooks/useMoney.js';
 import ecomApi from '../services/ecommApi.js';
@@ -157,6 +157,8 @@ const DashboardSkeleton = () => (
 const AdminDashboard = () => {
   const { user } = useEcomAuth();
   const { fmt } = useMoney();
+  const navigate = useNavigate();
+  const [storeChecked, setStoreChecked] = useState(false);
   const [loadingKpi, setLoadingKpi] = useState(true);   // Phase 1 : KPIs
   const [loadingSecondary, setLoadingSecondary] = useState(true); // Phase 2 : reste
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -197,6 +199,23 @@ const AdminDashboard = () => {
 
   // CRITICAL: Create ref first, assign after function declaration
   const loadDashboardDataRef = useRef(null);
+
+  // Check if user has at least one store — redirect to wizard if not
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await ecomApi.get('/stores');
+        const stores = res.data?.data || [];
+        if (!cancelled && stores.length === 0) {
+          navigate('/ecom/boutique/wizard', { replace: true });
+          return;
+        }
+      } catch { /* ignore — let dashboard load normally */ }
+      if (!cancelled) setStoreChecked(true);
+    })();
+    return () => { cancelled = true; };
+  }, [navigate]);
 
   // Animation de progression du chargement + timeout de sécurité anti-infinite-loading
   useEffect(() => {
@@ -680,7 +699,10 @@ const AdminDashboard = () => {
     }
   ];
 
-  // Plus de skeleton pleine page — affichage immédiat de la structure
+  // Attendre la vérification des stores avant d'afficher le dashboard
+  if (!storeChecked) {
+    return <IconFillLoader />;
+  }
 
   // Si pas de workspace — afficher CTA (ici pour respecter les Rules of Hooks)
   if (!user?.workspaceId) {
