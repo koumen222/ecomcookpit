@@ -701,7 +701,7 @@ const AdminDashboard = () => {
 
   // Attendre la vérification des stores avant d'afficher le dashboard
   if (!storeChecked) {
-    return <IconFillLoader />;
+    return <DashboardSkeleton />;
   }
 
   // Si pas de workspace — afficher CTA (ici pour respecter les Rules of Hooks)
