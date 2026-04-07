@@ -1,6 +1,7 @@
 /**
- * Nano Banana 2 — Gemini 2.0 Flash Image Generation Service
- * - Un seul modèle, zéro fallback, zéro latence perdue
+ * Nano Banana — Gemini 3 Pro + NanoBanana Pro API fallback
+ * Primary: Gemini 3 Pro direct (fast, cheap)
+ * Fallback: NanoBanana Pro API 1K (async task-based, premium quality)
  */
 
 import axios from 'axios';
@@ -9,9 +10,14 @@ import sharp from 'sharp';
 const GEMINI_API_KEY = process.env.NANOBANANA_API_KEY;
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
+// NanoBanana Pro API fallback
+const NANOBANANA_PRO_API_KEY = '5bad71bd0c5f232795f9d80ec307dd36';
+const NANOBANANA_PRO_BASE = 'https://api.nanobananaapi.ai/api/v1/nanobanana';
+
 // Gemini 3 Pro Image Preview
 const MODEL = 'gemini-3-pro-image-preview';
 const MODEL_COST_USD = 0.04;
+const NANOBANANA_PRO_COST_USD = 0.09; // 1K Pro
 const USD_TO_FCFA = 600;
 
 // Compteur de session
@@ -69,6 +75,98 @@ function buildArInstruction(aspectRatio) {
   return '';
 }
 
+// ─── NanoBanana Pro API (fallback) ────────────────────────────────────────────
+
+/**
+ * Submit a generation task to NanoBanana Pro API
+ */
+async function submitNanoBananaProTask(prompt, imageUrls = [], aspectRatio = '1:1') {
+  const body = {
+    prompt: prompt.slice(0, 8000),
+    resolution: '1K',
+    aspectRatio: aspectRatio,
+  };
+  if (imageUrls.length > 0) {
+    body.imageUrls = imageUrls.slice(0, 8);
+  }
+
+  const response = await axios.post(
+    `${NANOBANANA_PRO_BASE}/generate-pro`,
+    body,
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${NANOBANANA_PRO_API_KEY}`,
+      },
+      timeout: 30000,
+    }
+  );
+
+  if (response.data?.code !== 200) {
+    throw new Error(`NanoBanana Pro submit failed: ${response.data?.message || 'unknown'}`);
+  }
+
+  return response.data?.data?.taskId;
+}
+
+/**
+ * Poll NanoBanana Pro task until completion
+ * successFlag: 0=GENERATING, 1=SUCCESS, 2=CREATE_FAILED, 3=GENERATE_FAILED
+ */
+async function pollNanoBananaProTask(taskId, maxWaitMs = 120000) {
+  const pollInterval = 3000;
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < maxWaitMs) {
+    const response = await axios.get(
+      `${NANOBANANA_PRO_BASE}/record-info`,
+      {
+        params: { taskId },
+        headers: { 'Authorization': `Bearer ${NANOBANANA_PRO_API_KEY}` },
+        timeout: 15000,
+      }
+    );
+
+    const data = response.data?.data;
+    if (!data) throw new Error('NanoBanana Pro: empty poll response');
+
+    if (data.successFlag === 1) {
+      // Success — return the result image URL
+      const url = data.response?.resultImageUrl || data.response?.originImageUrl;
+      if (!url) throw new Error('NanoBanana Pro: no image URL in completed task');
+      return url;
+    }
+
+    if (data.successFlag === 2 || data.successFlag === 3) {
+      throw new Error(`NanoBanana Pro task failed (flag=${data.successFlag}): ${data.errorMessage || 'unknown'}`);
+    }
+
+    // Still generating — wait and retry
+    await new Promise(r => setTimeout(r, pollInterval));
+  }
+
+  throw new Error(`NanoBanana Pro: timeout after ${maxWaitMs / 1000}s`);
+}
+
+/**
+ * Generate image via NanoBanana Pro API (submit + poll)
+ * Returns image URL string (not data URL)
+ */
+async function generateViaNanoBananaPro(prompt, imageUrls = [], aspectRatio = '1:1') {
+  console.log(`🍌 NanoBanana Pro 1K fallback (${aspectRatio})...`);
+  const taskId = await submitNanoBananaProTask(prompt, imageUrls, aspectRatio);
+  console.log(`📋 Task submitted: ${taskId}`);
+
+  const imageUrl = await pollNanoBananaProTask(taskId);
+  const costFcfa = Math.round(NANOBANANA_PRO_COST_USD * USD_TO_FCFA);
+  sessionStats.totalImages++;
+  sessionStats.totalCostUsd += NANOBANANA_PRO_COST_USD;
+  sessionStats.totalCostFcfa += costFcfa;
+  console.log(`💰 NanoBanana Pro 1K → ~$${NANOBANANA_PRO_COST_USD} (~${costFcfa} FCFA) | SESSION: ${sessionStats.totalImages} img, ~$${sessionStats.totalCostUsd.toFixed(3)}`);
+  console.log(`✅ NanoBanana Pro image: ${imageUrl.slice(0, 80)}...`);
+  return imageUrl;
+}
+
 /**
  * Text-to-image — Gemini 3 Pro direct
  */
@@ -86,7 +184,13 @@ export async function generateNanoBananaImage(prompt, aspectRatio = '1:1', numIm
   } catch (err) {
     const msg = err.response?.data?.error?.message || err.message;
     console.error(`❌ ${MODEL} failed: ${msg}`);
-    return null;
+    // Fallback NanoBanana Pro API
+    try {
+      return await generateViaNanoBananaPro(fullPrompt, [], aspectRatio);
+    } catch (fallbackErr) {
+      console.error(`❌ NanoBanana Pro fallback failed: ${fallbackErr.message}`);
+      return null;
+    }
   }
 }
 
@@ -125,9 +229,14 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
   } catch (err) {
     const msg = err.response?.data?.error?.message || err.message;
     console.error(`❌ ${MODEL} image-to-image failed: ${msg}`);
-    // Fallback text-to-image si l'image pose problème
-    console.log('🔄 Fallback text-to-image...');
-    return generateNanoBananaImage(prompt, aspectRatio, numImages);
+    // Fallback NanoBanana Pro API (text-to-image only, pas d'image ref via URL)
+    console.log('🔄 Fallback NanoBanana Pro 1K...');
+    try {
+      return await generateViaNanoBananaPro(fullPrompt, [], aspectRatio);
+    } catch (fallbackErr) {
+      console.error(`❌ NanoBanana Pro fallback failed: ${fallbackErr.message}`);
+      return null;
+    }
   }
 }
 
