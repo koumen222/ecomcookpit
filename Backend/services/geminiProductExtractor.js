@@ -91,6 +91,60 @@ function extractFromPlainText(text, url) {
   return { title, description };
 }
 
+/**
+ * Fallback Groq : extraction produit quand Gemini échoue (429, quota, etc.)
+ */
+async function extractWithGroq(groq, url) {
+  const prompt = `Tu es un assistant e-commerce expert. Analyse cette URL de produit et génère une fiche produit professionnelle et réaliste en français :
+
+URL: ${url}
+
+Basé sur l'URL et le nom du produit visible dans le lien, crée une description marketing complète avec :
+1. Un TITRE descriptif et clair du produit
+2. Une DESCRIPTION riche et détaillée (minimum 200 mots)
+
+Format de réponse STRICTEMENT en JSON valide :
+{
+  "title": "Titre du produit",
+  "description": "Description complète et détaillée en français (minimum 200 mots)"
+}
+
+IMPORTANT: Ne retourne QUE le JSON, sans markdown ni texte supplémentaire.`;
+
+  const response = await groq.chat.completions.create({
+    model: 'llama-3.3-70b-versatile',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.4,
+    max_tokens: 2000,
+    response_format: { type: 'json_object' },
+  });
+
+  const text = response.choices?.[0]?.message?.content || '';
+  console.log('✅ Réponse Groq reçue, longueur:', text.length);
+
+  let data = parseGeminiJSON(text);
+  if (!data) {
+    data = extractFromPlainText(text, url);
+  }
+  if (!data?.title || !data?.description) {
+    throw new Error('Groq: données incomplètes');
+  }
+  if (data.title.length < 5) throw new Error('Groq: titre trop court');
+  if (data.description.length < 50) throw new Error('Groq: description trop courte');
+
+  const title = data.title
+    .replace(/\s*[|–-]\s*(Amazon|Alibaba|AliExpress|eBay).*$/i, '')
+    .replace(/\s*\|\s*.*$/, '')
+    .trim()
+    .slice(0, 200);
+
+  const description = data.description.trim();
+  const rawText = `${title}\n\n${description}`.slice(0, 3000);
+
+  console.log(`✅ Groq extraction OK:`, { title: title.slice(0, 60) + '...', descLength: description.length });
+  return { title, description, rawText };
+}
+
 export async function extractProductInfo(url) {
   if (!GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY non configuré. Ajoutez-le dans votre .env');
