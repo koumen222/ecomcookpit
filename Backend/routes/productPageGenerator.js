@@ -26,11 +26,26 @@ const router = express.Router();
 // ─── Image prompt builders ────────────────────────────────────────────────────
 
 /**
+ * Niche-based accent color for hero image
+ */
+function getNicheAccentColor(template) {
+  const nicheColors = {
+    health:  { color: 'natural green (#2E7D32)',  name: 'green',     mood: 'healthy, natural, organic' },
+    beauty:  { color: 'rose gold / soft pink (#E91E63)', name: 'pink',  mood: 'luxurious, feminine, elegant' },
+    tech:    { color: 'electric blue (#1565C0)',   name: 'blue',      mood: 'modern, innovative, trustworthy' },
+    fashion: { color: 'elegant gold (#F59E0B)',    name: 'gold',      mood: 'premium, stylish, trendy' },
+    home:    { color: 'warm amber (#EF6C00)',      name: 'amber',     mood: 'warm, cozy, reliable' },
+    general: { color: 'vibrant coral (#FF5722)',   name: 'coral',     mood: 'energetic, bold, eye-catching' },
+  };
+  return nicheColors[template] || nicheColors.general;
+}
+
+/**
  * Hero — Product in action layout:
  * The product is shown being USED in its real context (not a cosmetic studio pose).
  * Bold headline + product dominant + contextual usage scene.
  */
-function buildHeroPrompt(gptResult, hasProductRef) {
+function buildHeroPrompt(gptResult, hasProductRef, template = 'general') {
   const productName = gptResult.title || 'product';
   const ctaText = (gptResult.hero_cta || 'JE COMMANDE MAINTENANT').toUpperCase();
 
@@ -74,8 +89,9 @@ function buildHeroPrompt(gptResult, hasProductRef) {
     ? `THE EXACT product from the reference image (same packaging, shape, colors, label, every detail identical) — large, dominant, ultra sharp`
     : `premium packaging of "${productName}" — large, dominant, ultra sharp`;
 
-  // Accent color
-  const accentColor = 'vibrant coral (#FF5722)';
+  // Accent color — dynamic per niche
+  const niche = getNicheAccentColor(template);
+  const accentColor = niche.color;
 
   return `Ultra realistic e-commerce product advertisement for the African francophone market. Square 1:1. High-definition photorealistic quality — must look like a REAL professional photograph, NOT AI-generated. Natural soft lighting, no aggressive filters, no cartoon style.
 
@@ -141,6 +157,7 @@ Style: ${accentColor} background, white bold text, large rounded corners, promin
 • Modern typography: clean sans-serif, high contrast, perfectly aligned
 • Product packaging sharp and clear — every label readable
 • The African person is THE FACE of this ad — confident, natural, relatable. Their presence makes the ad authentic for the African market
+• COLOR IDENTITY: The dominant accent color is ${accentColor} — use it for CTA button, checkmark icons, badge background, and key headline words. This color conveys a ${niche.mood} feel matching the product niche
 • Final mood: professional, credible, natural — could be a real brand campaign photo from a top African beauty/lifestyle brand`;
 }
 
@@ -1531,7 +1548,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     // ── Hero PRO — African FB-ads template (LEFT: product | RIGHT: person + problem) ──
     imagePromises.push(
-      generateAndUpload(buildHeroPrompt(gptResult, !!baseImageBuffer), baseImageBuffer, `hero-${Date.now()}.png`, 'hero')
+      generateAndUpload(buildHeroPrompt(gptResult, !!baseImageBuffer, visualTemplate), baseImageBuffer, `hero-${Date.now()}.png`, 'hero')
         .then(url => ({ type: 'hero', url }))
     );
 
