@@ -470,7 +470,8 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
             comparePrice: o.compare_price || 0,
             badge: o.label || '',
             selected: i === (quantityOffer.design?.highlight_offer ?? 0),
-          }))
+          })),
+          ...(quantityOffer.design ? { quantityOfferDesign: quantityOffer.design } : {})
         } : {})
       }
     });
@@ -823,12 +824,15 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
               }
             }]
           };
-          const capiUrl = `https://graph.facebook.com/v18.0/${metaPixelId}/events?access_token=${metaAccessToken}`;
-          fetch(capiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(capiPayload),
-          }).catch(err => console.warn('⚠️ [Scalor Store] Meta CAPI error:', err.message));
+          // Validate pixelId is numeric before building URL
+          if (/^\d{10,20}$/.test(metaPixelId)) {
+            const capiUrl = `https://graph.facebook.com/v18.0/${metaPixelId}/events?access_token=${encodeURIComponent(metaAccessToken)}`;
+            fetch(capiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(capiPayload),
+            }).catch(err => console.warn('⚠️ [Scalor Store] Meta CAPI error:', err.message));
+          }
         }
       } catch (asyncErr) {
         console.error(`❌ [Scalor Store] Erreur traitement async commande ${order.orderNumber}:`, asyncErr.message);

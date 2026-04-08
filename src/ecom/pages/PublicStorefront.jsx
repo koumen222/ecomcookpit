@@ -2393,7 +2393,7 @@ export const StoreAllProducts = () => {
   const subdomain = paramSubdomain || detectedSubdomain;
   const prefix = isStoreDomain ? '' : (subdomain ? `/store/${subdomain}` : '');
 
-  const { store, products, error } = useStoreData(subdomain);
+  const { store, products, pixels, error } = useStoreData(subdomain);
   const { cartCount } = useStoreCart(subdomain);
   const { trackPageView } = useStoreAnalytics(subdomain);
   const [search, setSearch] = useState('');
@@ -2420,7 +2420,15 @@ export const StoreAllProducts = () => {
       type: 'website',
     });
     trackPageView();
-  }, [store?.name]);
+
+    // Inject pixel scripts + fire PageView
+    if (pixels) {
+      import('../utils/pixelTracking.js').then(({ injectPixelScripts, firePixelEvent }) => {
+        injectPixelScripts(pixels);
+        firePixelEvent('PageView');
+      });
+    }
+  }, [store?.name, pixels]);
 
   if (error) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
@@ -2574,7 +2582,7 @@ const PublicStorefrontInner = () => {
   const subdomain = paramSubdomain || detectedSubdomain;
   const prefix = isStoreDomain ? '' : (subdomain ? `/store/${subdomain}` : '');
 
-  const { store, sections, products, loading, error } = useStoreData(subdomain);
+  const { store, sections, products, pixels: innerPixels, loading, error } = useStoreData(subdomain);
   const { cartCount } = useStoreCart(subdomain);
   const { isEditMode } = useEditMode();
   const [activeCategory, setActiveCategory] = useState('all');
@@ -2595,7 +2603,15 @@ const PublicStorefrontInner = () => {
       appTitle: store.name,
       type: 'website',
     });
-  }, [store]);
+
+    // Inject pixel scripts + fire PageView
+    if (innerPixels) {
+      import('../utils/pixelTracking.js').then(({ injectPixelScripts, firePixelEvent }) => {
+        injectPixelScripts(innerPixels);
+        firePixelEvent('PageView');
+      });
+    }
+  }, [store, innerPixels]);
 
   if (error) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>

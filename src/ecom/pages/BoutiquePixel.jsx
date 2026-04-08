@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import api from '../../lib/api';
 
-const PixelCard = ({ title, icon, color, description, fields, values, onChange }) => (
+const PixelCard = ({ title, icon, color, description, fields, values, onChange, validatePixel }) => (
   <div className="bg-white rounded-2xl border border-gray-200 p-5">
     <div className="flex items-center gap-3 mb-4">
       <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: color + '15', color }}>
@@ -14,19 +14,25 @@ const PixelCard = ({ title, icon, color, description, fields, values, onChange }
       </div>
     </div>
     <div className="space-y-3">
-      {fields.map(f => (
-        <div key={f.key}>
-          <label className="text-xs font-semibold text-gray-600 mb-1 block">{f.label}</label>
-          <input
-            type="text"
-            value={values[f.key] || ''}
-            onChange={(e) => onChange(f.key, e.target.value)}
-            placeholder={f.placeholder}
-            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent transition bg-gray-50 focus:bg-white"
-          />
-          {f.hint && <p className="text-[11px] text-gray-400 mt-1">{f.hint}</p>}
-        </div>
-      ))}
+      {fields.map(f => {
+        const err = validatePixel ? validatePixel(f.key, values[f.key]) : null;
+        return (
+          <div key={f.key}>
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">{f.label}</label>
+            <input
+              type="text"
+              value={values[f.key] || ''}
+              onChange={(e) => onChange(f.key, e.target.value)}
+              placeholder={f.placeholder}
+              className={`w-full px-3 py-2.5 text-sm border rounded-xl focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent transition bg-gray-50 focus:bg-white ${
+                err ? 'border-red-300 bg-red-50' : 'border-gray-200'
+              }`}
+            />
+            {err && <p className="text-[11px] text-red-500 mt-1 font-medium">{err} — {f.hint}</p>}
+            {!err && f.hint && <p className="text-[11px] text-gray-400 mt-1">{f.hint}</p>}
+          </div>
+        );
+      })}
     </div>
   </div>
 );
@@ -97,11 +103,33 @@ const BoutiquePixel = () => {
   }, []);
 
   const update = (key, value) => {
-    setPixels(prev => ({ ...prev, [key]: value }));
+    // Strip whitespace and non-printable chars
+    const clean = value.replace(/\s/g, '').trim();
+    setPixels(prev => ({ ...prev, [key]: clean }));
     setSaved(false);
   };
 
+  // Validation patterns
+  const PIXEL_PATTERNS = {
+    metaPixelId: /^\d{10,20}$/,
+    metaAccessToken: /^[A-Za-z0-9_-]{10,}$/,
+    tiktokPixelId: /^[A-Z0-9]{10,30}$/,
+    googleTagId: /^(G|GT|AW)-[A-Z0-9]+$/,
+    googleAdsId: /^AW-\d+$/,
+    snapchatPixelId: /^[a-f0-9-]{20,}$/i,
+  };
+
+  const validatePixel = (key, value) => {
+    if (!value) return null; // empty is OK
+    const pattern = PIXEL_PATTERNS[key];
+    if (pattern && !pattern.test(value)) return 'Format invalide';
+    return null;
+  };
+
+  const hasErrors = Object.entries(pixels).some(([k, v]) => v && validatePixel(k, v));
+
   const handleSave = async () => {
+    if (hasErrors) return;
     setSaving(true);
     try {
       await api.put('/store/pixels', pixels);
@@ -124,12 +152,12 @@ const BoutiquePixel = () => {
         </div>
         <button
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || hasErrors}
           className={`px-5 py-2.5 rounded-xl text-sm font-bold text-white transition shadow-md ${
-            saved ? 'bg-green-500' : 'bg-[#0F6B4F] hover:bg-[#0A5740]'
+            saved ? 'bg-green-500' : hasErrors ? 'bg-red-400' : 'bg-[#0F6B4F] hover:bg-[#0A5740]'
           } disabled:opacity-60`}
         >
-          {saving ? 'Enregistrement...' : saved ? '✓ Sauvegardé' : 'Sauvegarder'}
+          {saving ? 'Enregistrement...' : saved ? '✓ Sauvegardé' : hasErrors ? 'Format invalide' : 'Sauvegarder'}
         </button>
       </div>
 
@@ -152,11 +180,12 @@ const BoutiquePixel = () => {
           color="#1877F2"
           description="Trackez les conversions de vos pubs Facebook & Instagram"
           fields={[
-            { key: 'metaPixelId', label: 'Meta Pixel ID', placeholder: '1234567890123456', hint: 'Trouvable dans Meta Business Suite → Events Manager' },
+            { key: 'metaPixelId', label: 'Meta Pixel ID', placeholder: '1234567890123456', hint: 'Uniquement des chiffres (15-16 chiffres) — Meta Business Suite → Events Manager' },
             { key: 'metaAccessToken', label: 'Conversions API Token (optionnel)', placeholder: 'EAABs...', hint: 'Pour le server-side tracking avancé' },
           ]}
           values={pixels}
           onChange={update}
+          validatePixel={validatePixel}
         />
 
         <PixelCard
@@ -169,6 +198,7 @@ const BoutiquePixel = () => {
           ]}
           values={pixels}
           onChange={update}
+          validatePixel={validatePixel}
         />
 
         <PixelCard
@@ -182,6 +212,7 @@ const BoutiquePixel = () => {
           ]}
           values={pixels}
           onChange={update}
+          validatePixel={validatePixel}
         />
 
         <PixelCard
@@ -194,6 +225,7 @@ const BoutiquePixel = () => {
           ]}
           values={pixels}
           onChange={update}
+          validatePixel={validatePixel}
         />
       </div>
 
