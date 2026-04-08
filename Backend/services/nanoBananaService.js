@@ -16,6 +16,29 @@ const KIE_UPLOAD_BASE = 'https://kieai.redpandaai.co';
 const NANOBANANA_PRO_COST_USD = 0.09; // 1K Pro
 const USD_TO_FCFA = 600;
 
+// ── Rate limiter: max 15 createTask calls per 10s window (API limit is 20) ───
+const RATE_WINDOW_MS = 10000;
+const RATE_MAX = 15; // leave headroom below 20
+const rateBuckets = [];
+function acquireSlot() {
+  return new Promise(resolve => {
+    const tryAcquire = () => {
+      const now = Date.now();
+      // Remove expired entries
+      while (rateBuckets.length && rateBuckets[0] <= now - RATE_WINDOW_MS) rateBuckets.shift();
+      if (rateBuckets.length < RATE_MAX) {
+        rateBuckets.push(now);
+        resolve();
+      } else {
+        // Wait until oldest slot expires
+        const waitMs = rateBuckets[0] + RATE_WINDOW_MS - now + 100;
+        setTimeout(tryAcquire, waitMs);
+      }
+    };
+    tryAcquire();
+  });
+}
+
 // Compteur de session
 let sessionStats = { totalImages: 0, totalCostUsd: 0, totalCostFcfa: 0 };
 
@@ -68,6 +91,9 @@ async function uploadToKieAi(base64Data, mimeType = 'image/jpeg') {
  * Single model "nano-banana-2" — uses image_input for image-to-image
  */
 async function submitGrokImagineTask(prompt, imageUrls = [], aspectRatio = '1:1', maxRetries = 3) {
+  // Acquire rate-limit slot before calling API
+  await acquireSlot();
+
   const input = {
     prompt: prompt.slice(0, 20000),
     image_input: imageUrls.slice(0, 14),
@@ -109,9 +135,11 @@ async function submitGrokImagineTask(prompt, imageUrls = [], aspectRatio = '1:1'
     } catch (err) {
       if (err.message.startsWith('NanoBanana 2 submit failed after')) throw err;
       const errMsg = err.response?.data?.msg || err.response?.data?.message || err.message;
-      console.warn(`⚠️ NanoBanana 2 submit attempt ${attempt}/${maxRetries} error: ${errMsg}`);
+      const status = err.response?.status;
+      console.warn(`⚠️ NanoBanana 2 submit attempt ${attempt}/${maxRetries} error (HTTP ${status || '?'}): ${errMsg}`);
       if (attempt < maxRetries) {
-        const delay = attempt * 2000;
+        // HTTP 429 — back off longer
+        const delay = status === 429 ? 10000 + attempt * 2000 : attempt * 2000;
         console.log(`⏳ Retry in ${delay / 1000}s...`);
         await new Promise(r => setTimeout(r, delay));
       } else {
