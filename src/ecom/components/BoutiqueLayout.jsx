@@ -152,15 +152,8 @@ const BoutiqueLayoutInner = () => {
     return () => window.removeEventListener('ecom:notification', handler);
   }, [showToast]);
 
-  // Redirect to wizard only once after loading finishes with no stores
-  const redirectedRef = useRef(false);
-  useEffect(() => {
-    if (!storeLoading && workspace?._id && stores.length === 0 && !redirectedRef.current) {
-      redirectedRef.current = true;
-      navigate('/ecom/boutique/wizard', { replace: true });
-    }
-    if (stores.length > 0) redirectedRef.current = false;
-  }, [storeLoading, stores.length, workspace?._id, navigate]);
+  // Show inline prompt when no stores exist (no forced redirect to wizard)
+  const hasNoStores = !storeLoading && workspace?._id && stores.length === 0;
 
   // Build store URL from active store subdomain
   const storeUrl = (path = '/') => {
@@ -402,7 +395,32 @@ const BoutiqueLayoutInner = () => {
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden pt-14 pb-20 lg:pt-14 lg:pb-0">
-          <Outlet />
+          {hasNoStores ? (
+            <div className="flex items-center justify-center min-h-[70vh] px-4">
+              <div className="text-center max-w-md">
+                <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-emerald-50 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-extrabold text-gray-900 mb-2">Créez votre boutique</h2>
+                <p className="text-sm text-gray-500 mb-6 leading-relaxed">
+                  Lancez votre boutique en ligne en quelques clics. Donnez-lui un nom et commencez à vendre.
+                </p>
+                <button
+                  onClick={() => navigate('/ecom/boutique/wizard')}
+                  className="inline-flex items-center gap-2 px-6 py-3 text-sm font-bold text-white bg-gray-900 rounded-xl hover:bg-gray-800 transition shadow-lg"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Créer ma boutique
+                </button>
+              </div>
+            </div>
+          ) : (
+            <Outlet />
+          )}
         </main>
       </div>
 
