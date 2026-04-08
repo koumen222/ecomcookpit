@@ -600,15 +600,15 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const handleApply = () => {
     if (!product) return;
     
-    // Build rich HTML description: 4 angles (H3 + desc + image) → testimonials → FAQ
+    // Build rich HTML description: 5 angles (H3 + desc + image) → testimonials → FAQ
     let descHtml = '';
 
     // ── Intro description (courte, sans images markdown) ─────────────────────
 
-    // ── 4 Arguments marketing : H3 gras + description 3-4 lignes + image ─────
+    // ── 5 Arguments marketing : H3 gras + description 3-4 lignes + image ─────
     if (product.angles?.length) {
       descHtml += `<div style="margin:32px 0;">`;
-      product.angles.slice(0, 4).forEach((angle, idx) => {
+      product.angles.slice(0, 5).forEach((angle, idx) => {
         descHtml += `<div style="margin-bottom:40px;padding-bottom:40px;${idx < product.angles.length - 1 ? 'border-bottom:1px solid #f0f0f0;' : ''}">`;
         // H3 bold title
         descHtml += `<h3 style="font-size:20px;font-weight:800;color:#111;margin:0 0 12px;line-height:1.3;"><strong>${angle.titre_angle}</strong></h3>`;
@@ -1120,7 +1120,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     ['📸', 'Hero affiche lifestyle premium'],
                     ['🎭', 'Affiche graphique publicitaire'],
                     ['✨', 'Visuel avant/après transformation'],
-                    ['🎯', '4 affiches marketing angles'],
+                    ['🎯', '5 affiches marketing angles'],
                     ['📝', 'Copywriting persuasif optimisé'],
                     ['⭐', '4 témoignages clients vérifiés'],
                     ['❓', 'FAQ professionnelle complète'],
@@ -1691,7 +1691,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               {/* Tab: Affiches publicitaires */}
               {activeTab === 'affiches' && (
                 <div className="space-y-4">
-                  <p className="text-xs text-gray-500 font-medium">4 visuels d'angles marketing, simples et sans surcharge de texte</p>
+                  <p className="text-xs text-gray-500 font-medium">5 visuels d'angles marketing, simples et sans surcharge de texte</p>
                   {(product.angles || []).map((angle, i) => (
                     <div key={i} className="border border-gray-100 rounded-xl overflow-hidden">
                       {angle.poster_url ? (

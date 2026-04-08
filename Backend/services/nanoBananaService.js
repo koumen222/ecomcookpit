@@ -1,40 +1,33 @@
 /**
- * Image Generation Service — Kie.ai Grok Imagine only
- * Primary & only: Kie.ai Grok Imagine API (text-to-image & image-to-image)
+ * Nano Banana 2 — Kie.ai NanoBanana 2 (primary, single provider)
+ * Model: nano-banana-2 (text-to-image & image-to-image via image_input)
+ * Docs: https://docs.kie.ai/market/google/nanobanana2
  */
 
 import axios from 'axios';
 import sharp from 'sharp';
 import { uploadToR2 } from './cloudflareImagesService.js';
 
-// Kie.ai Grok Imagine API
+// Kie.ai NanoBanana 2 API
 const KIE_API_KEY = process.env.NANOBANANA_PRO_API_KEY;
 const KIE_BASE = 'https://api.kie.ai/api/v1/jobs';
 const KIE_UPLOAD_BASE = 'https://kieai.redpandaai.co';
 
-const COST_PER_IMAGE_USD = 0.09;
+const NANOBANANA_PRO_COST_USD = 0.09; // 1K Pro
 const USD_TO_FCFA = 600;
 
 // Compteur de session
 let sessionStats = { totalImages: 0, totalCostUsd: 0, totalCostFcfa: 0 };
 
-function logCost() {
-  const costFcfa = Math.round(COST_PER_IMAGE_USD * USD_TO_FCFA);
-  sessionStats.totalImages++;
-  sessionStats.totalCostUsd += COST_PER_IMAGE_USD;
-  sessionStats.totalCostFcfa += costFcfa;
-  console.log(`💰 Grok Imagine → ~$${COST_PER_IMAGE_USD} (~${costFcfa} FCFA) | SESSION: ${sessionStats.totalImages} img, ~$${sessionStats.totalCostUsd.toFixed(3)}`);
-}
-
 export function getImageGenerationStats() { return { ...sessionStats }; }
 
 /**
- * Resize image buffer to max 768px and compress as JPEG
+ * Resize image buffer to max 1024px and compress as JPEG
  */
 async function resizeForApi(buffer) {
   try {
     const resized = await sharp(buffer)
-      .resize(768, 768, { fit: 'inside', withoutEnlargement: true })
+      .resize(720, 720, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 85 })
       .toBuffer();
     console.log(`📐 Image resized: ${Math.round(buffer.length / 1024)}KB → ${Math.round(resized.length / 1024)}KB`);
@@ -45,7 +38,7 @@ async function resizeForApi(buffer) {
   }
 }
 
-// ─── Kie.ai Grok Imagine API ───────────────────────────────────
+// ─── Kie.ai NanoBanana 2 API ───────────────────────────────────
 
 /**
  * Upload base64 image to Kie.ai for use as image_urls reference
@@ -58,31 +51,32 @@ async function uploadToKieAi(base64Data, mimeType = 'image/jpeg') {
     { base64Data: `data:${mimeType};base64,${base64Data}`, uploadPath: 'product-refs', fileName },
     { headers: { 'Authorization': `Bearer ${KIE_API_KEY}`, 'Content-Type': 'application/json' }, timeout: 30000 }
   );
-  if (response.data?.success && response.data?.data?.fileUrl) {
-    console.log(`📎 Uploaded to Kie.ai: ${response.data.data.fileUrl.slice(0, 80)}...`);
-    return response.data.data.fileUrl;
+  const rd = response.data;
+  // Kie.ai returns downloadUrl (not fileUrl)
+  const fileUrl = rd?.data?.downloadUrl || rd?.data?.fileUrl || rd?.data?.url || rd?.fileUrl || rd?.url;
+  if (fileUrl) {
+    console.log(`📎 Uploaded to Kie.ai: ${fileUrl.slice(0, 80)}...`);
+    return fileUrl;
   }
-  throw new Error(`Kie.ai file upload failed: ${response.data?.msg || 'unknown'}`);
+  // Log full response for debugging
+  console.warn('⚠️ Kie.ai upload response:', JSON.stringify(rd).slice(0, 500));
+  throw new Error(`Kie.ai file upload failed: ${rd?.msg || rd?.message || 'no fileUrl in response'}`);
 }
 
 /**
- * Submit a generation task to Kie.ai Grok Imagine API
- * Uses grok-imagine/text-to-image or grok-imagine/image-to-image depending on imageUrls
+ * Submit a generation task to Kie.ai NanoBanana 2 API
+ * Single model "nano-banana-2" — uses image_input for image-to-image
  */
 async function submitGrokImagineTask(prompt, imageUrls = [], aspectRatio = '1:1', maxRetries = 3) {
-  const isImageToImage = imageUrls.length > 0;
-  const model = isImageToImage ? 'grok-imagine/image-to-image' : 'grok-imagine/text-to-image';
+  const input = {
+    prompt: prompt.slice(0, 20000),
+    image_input: imageUrls.slice(0, 14),
+    aspect_ratio: aspectRatio || '1:1',
+    resolution: '1K',
+    output_format: 'jpg',
+  };
 
-  const input = { prompt: prompt.slice(0, 5000) };
-  if (isImageToImage) {
-    input.image_urls = imageUrls.slice(0, 5);
-  }
-  // Map aspect ratios to grok-imagine supported values
-  const arMap = { '1:1': '1:1', '9:16': '9:16', '16:9': '16:9', '2:3': '2:3', '3:2': '3:2' };
-  input.aspect_ratio = arMap[aspectRatio] || '1:1';
-  input.nsfw_checker = false;
-
-  const body = { model, input };
+  const body = { model: 'nano-banana-2', input };
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -103,25 +97,25 @@ async function submitGrokImagineTask(prompt, imageUrls = [], aspectRatio = '1:1'
       }
 
       const errMsg = response.data?.msg || response.data?.message || JSON.stringify(response.data).slice(0, 200);
-      console.warn(`⚠️ Grok Imagine submit attempt ${attempt}/${maxRetries} failed (code ${response.data?.code}): ${errMsg}`);
+      console.warn(`⚠️ NanoBanana 2 submit attempt ${attempt}/${maxRetries} failed (code ${response.data?.code}): ${errMsg}`);
 
       if (attempt < maxRetries) {
         const delay = attempt * 2000;
         console.log(`⏳ Retry in ${delay / 1000}s...`);
         await new Promise(r => setTimeout(r, delay));
       } else {
-        throw new Error(`Grok Imagine submit failed after ${maxRetries} attempts: ${errMsg}`);
+        throw new Error(`NanoBanana 2 submit failed after ${maxRetries} attempts: ${errMsg}`);
       }
     } catch (err) {
-      if (err.message.startsWith('Grok Imagine submit failed after')) throw err;
+      if (err.message.startsWith('NanoBanana 2 submit failed after')) throw err;
       const errMsg = err.response?.data?.msg || err.response?.data?.message || err.message;
-      console.warn(`⚠️ Grok Imagine submit attempt ${attempt}/${maxRetries} error: ${errMsg}`);
+      console.warn(`⚠️ NanoBanana 2 submit attempt ${attempt}/${maxRetries} error: ${errMsg}`);
       if (attempt < maxRetries) {
         const delay = attempt * 2000;
         console.log(`⏳ Retry in ${delay / 1000}s...`);
         await new Promise(r => setTimeout(r, delay));
       } else {
-        throw new Error(`Grok Imagine submit failed after ${maxRetries} attempts: ${errMsg}`);
+        throw new Error(`NanoBanana 2 submit failed after ${maxRetries} attempts: ${errMsg}`);
       }
     }
   }
@@ -154,57 +148,59 @@ async function pollGrokImagineTask(taskId, maxWaitMs = 180000) {
         const parsed = typeof data.resultJson === 'string' ? JSON.parse(data.resultJson) : data.resultJson;
         resultUrls = parsed?.resultUrls || [];
       } catch { /* ignore parse error */ }
-      if (resultUrls.length === 0) throw new Error('Grok Imagine: no image URL in completed task');
+      if (resultUrls.length === 0) throw new Error('NanoBanana 2: no image URL in completed task');
       return resultUrls[0];
     }
 
     if (data.state === 'fail') {
-      throw new Error(`Grok Imagine task failed: ${data.failMsg || data.failCode || 'unknown'}`);
+      throw new Error(`NanoBanana 2 task failed: ${data.failMsg || data.failCode || 'unknown'}`);
     }
 
     // waiting | queuing | generating — wait and retry
     await new Promise(r => setTimeout(r, pollInterval));
   }
 
-  throw new Error(`Grok Imagine: timeout after ${maxWaitMs / 1000}s`);
+  throw new Error(`NanoBanana 2: timeout after ${maxWaitMs / 1000}s`);
 }
 
 /**
- * Generate image via Kie.ai Grok Imagine (submit + poll)
- * Returns image URL string
+ * Generate image via Kie.ai NanoBanana 2 (submit + poll)
+ * Returns image URL string (not data URL)
  */
 async function generateViaGrokImagine(prompt, imageUrls = [], aspectRatio = '1:1') {
-  console.log(`🤖 Kie.ai Grok Imagine (${imageUrls.length > 0 ? 'image-to-image' : 'text-to-image'}, ${aspectRatio})...`);
+  console.log(`🤖 NanoBanana 2 (${imageUrls.length > 0 ? 'image-to-image' : 'text-to-image'}, ${aspectRatio})...`);
   const taskId = await submitGrokImagineTask(prompt, imageUrls, aspectRatio);
-  console.log(`📋 Grok Imagine task submitted: ${taskId}`);
+  console.log(`📋 NanoBanana 2 task submitted: ${taskId}`);
 
   const imageUrl = await pollGrokImagineTask(taskId);
-  logCost();
-  console.log(`✅ Grok Imagine image: ${imageUrl.slice(0, 80)}...`);
+  const costFcfa = Math.round(NANOBANANA_PRO_COST_USD * USD_TO_FCFA);
+  sessionStats.totalImages++;
+  sessionStats.totalCostUsd += NANOBANANA_PRO_COST_USD;
+  sessionStats.totalCostFcfa += costFcfa;
+  console.log(`💰 NanoBanana 2 → ~$${NANOBANANA_PRO_COST_USD} (~${costFcfa} FCFA) | SESSION: ${sessionStats.totalImages} img, ~$${sessionStats.totalCostUsd.toFixed(3)}`);
+  console.log(`✅ NanoBanana 2 image: ${imageUrl.slice(0, 80)}...`);
   return imageUrl;
 }
 
 /**
- * Text-to-image — Kie.ai Grok Imagine direct
+ * Text-to-image — Kie.ai NanoBanana 2 (only)
  */
 export async function generateNanoBananaImage(prompt, aspectRatio = '1:1', numImages = 1) {
-  if (!KIE_API_KEY) throw new Error('Kie.ai API key not configured');
-
   try {
-    return await generateViaGrokImagine(prompt.slice(0, 5000), [], aspectRatio);
+    console.log(`🎨 NanoBanana 2 text-to-image (${aspectRatio})...`);
+    return await generateViaGrokImagine(prompt, [], aspectRatio);
   } catch (err) {
-    console.error(`❌ Grok Imagine text-to-image failed: ${err.message}`);
+    console.error(`❌ NanoBanana 2 text-to-image failed: ${err.message}`);
     return null;
   }
 }
 
 /**
- * Image-to-image — Kie.ai Grok Imagine with product reference
+ * Image-to-image — Kie.ai NanoBanana 2 (only)
  */
 export async function generateNanoBananaImageToImage(prompt, imageInput, aspectRatio = '1:1', numImages = 1) {
-  if (!KIE_API_KEY) throw new Error('Kie.ai API key not configured');
 
-  // Prepare base64 from input
+  // Resize input image
   let base64Image;
   let imageMimeType = 'image/jpeg';
   if (Buffer.isBuffer(imageInput)) {
@@ -220,6 +216,7 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
   }
 
   try {
+    console.log(`🎨 NanoBanana 2 image-to-image...`);
     let imageUrls = [];
     if (base64Image) {
       try {
@@ -236,13 +233,13 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
             console.log(`📎 Image ref uploadée vers R2: ${r2Result.url.slice(0, 80)}...`);
           }
         } catch (r2Err) {
-          console.warn(`⚠️ R2 upload also failed: ${r2Err.message} — fallback text-only`);
+          console.warn(`⚠️ R2 upload also failed: ${r2Err.message} — text-only mode`);
         }
       }
     }
-    return await generateViaGrokImagine(prompt.slice(0, 5000), imageUrls, aspectRatio);
+    return await generateViaGrokImagine(prompt, imageUrls, aspectRatio);
   } catch (err) {
-    console.error(`❌ Grok Imagine image-to-image failed: ${err.message}`);
+    console.error(`❌ NanoBanana 2 image-to-image failed: ${err.message}`);
     return null;
   }
 }
