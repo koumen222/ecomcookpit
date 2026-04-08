@@ -576,21 +576,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         });
       }
 
-      // Décrémenter: simpleRemaining d'abord, puis free, puis paid
-      if (simpleRemaining > 0) {
-        workspace.simpleGenerationsRemaining = simpleRemaining - 1;
-      } else if (freeRemaining > 0) {
-        workspace.freeGenerationsRemaining = freeRemaining - 1;
-      } else {
-        workspace.paidGenerationsRemaining = paidRemaining - 1;
-      }
-
-      workspace.totalGenerations = (workspace.totalGenerations || 0) + 1;
-      workspace.lastGenerationAt = new Date();
-      await workspace.save();
-
-      const newRemaining = (workspace.simpleGenerationsRemaining || 0) + (workspace.freeGenerationsRemaining || 0) + (workspace.paidGenerationsRemaining || 0);
-      console.log(`✅ Génération autorisée. Crédits restants: ${newRemaining}`);
+      // Crédit sera décrémenté APRÈS génération réussie (pas avant)
+      console.log(`✅ Génération autorisée. Crédits disponibles: ${totalRemaining}`);
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -901,6 +888,30 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     };
 
     console.log('✅ Page produit générée avec succès');
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // DÉCRÉMENTER LE CRÉDIT — seulement APRÈS génération réussie
+    // ══════════════════════════════════════════════════════════════════════════
+    if (workspace) {
+      const freshWs = await EcomWorkspace.findById(workspace._id);
+      const sr = freshWs.simpleGenerationsRemaining || 0;
+      const fr = freshWs.freeGenerationsRemaining || 0;
+      const pr = freshWs.paidGenerationsRemaining || 0;
+
+      if (sr > 0) {
+        freshWs.simpleGenerationsRemaining = sr - 1;
+      } else if (fr > 0) {
+        freshWs.freeGenerationsRemaining = fr - 1;
+      } else if (pr > 0) {
+        freshWs.paidGenerationsRemaining = pr - 1;
+      }
+      freshWs.totalGenerations = (freshWs.totalGenerations || 0) + 1;
+      freshWs.lastGenerationAt = new Date();
+      await freshWs.save();
+
+      const newRemaining = (freshWs.simpleGenerationsRemaining || 0) + (freshWs.freeGenerationsRemaining || 0) + (freshWs.paidGenerationsRemaining || 0);
+      console.log(`💳 Crédit décrémenté après succès. Restants: ${newRemaining}`);
+    }
 
     // Track feature usage
     if (req.workspaceId && req.user) {
