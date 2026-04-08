@@ -3,6 +3,7 @@ import { X, ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, AlertCircle
 import { publicStoreApi } from '../services/storeApi.js';
 import { firePixelEvent } from '../utils/pixelTracking';
 import defaultConfig from './productSettings/defaultConfig.js';
+import { PHONE_CODES, getDefaultPhoneCode, buildFullPhone } from '../utils/phoneCodes.js';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
 const ICON_MAP = { user: User, phone: Phone, map: MapPin, pin: MapPin, mail: Mail, cart: ShoppingCart, file: FileText, hash: Hash, calendar: Calendar };
@@ -16,6 +17,7 @@ const FIELD_KEY_MAP = { fullname: 'customerName', phone: 'phone', city: 'city', 
  */
 const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPageConfig }) => {
   const [form, setForm] = useState({ customerName: '', phone: '', city: '', address: '', notes: '', quantity: 1 });
+  const [phoneCode, setPhoneCode] = useState(() => getDefaultPhoneCode(store?.currency));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -113,9 +115,10 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
         ? { offerPrice: offers[selectedOfferIdx].price, offerQty: offers[selectedOfferIdx].qty }
         : {};
 
+      const fullPhone = buildFullPhone(phoneCode, form.phone);
       const res = await publicStoreApi.placeOrder(subdomain, {
         customerName: form.customerName.trim(),
-        phone: form.phone.trim(),
+        phone: fullPhone,
         email: '',
         address: form.address.trim(),
         city: form.city.trim(),
@@ -318,6 +321,27 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
               case 'number':
               case 'date': {
                 const inputType = { phone: 'tel', email: 'email', number: 'number', date: 'date' }[field.type] || 'text';
+                if (field.type === 'phone') {
+                  return (
+                    <div key={field.name} style={{ display: 'flex', gap: 0 }}>
+                      <div style={{ position: 'relative', flexShrink: 0 }}>
+                        <select value={phoneCode} onChange={e => setPhoneCode(e.target.value)}
+                          style={{ appearance: 'none', WebkitAppearance: 'none', padding: '11px 22px 11px 8px', borderRadius: `${borderRadius} 0 0 ${borderRadius}`, border: '1.5px solid #E5E7EB', borderRight: 'none', fontSize: 13, fontWeight: 600, background: '#F9FAFB', cursor: 'pointer', outline: 'none', fontFamily: 'inherit', color: inputTextColor, minWidth: 80 }}>
+                          {PHONE_CODES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                        </select>
+                        <ChevronDown size={12} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none' }} />
+                      </div>
+                      <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+                        {IconComp && <span style={iconStyle}><IconComp size={15} /></span>}
+                        <input type="tel" value={form[formKey] || ''} onChange={e => set(formKey, e.target.value)}
+                          placeholder={ph || '6XX XXX XXX'} required={field.required !== false}
+                          style={{ ...inputStyle, borderRadius: `0 ${borderRadius} ${borderRadius} 0` }}
+                          onFocus={e => e.currentTarget.style.borderColor = btnColor}
+                          onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div key={field.name} style={{ position: 'relative' }}>
                     {IconComp && <span style={iconStyle}><IconComp size={15} /></span>}

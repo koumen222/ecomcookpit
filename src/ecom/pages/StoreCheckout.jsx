@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, ShoppingCart, CheckCircle, AlertCircle, Loader2, User, Phone, MapPin, FileText, Truck, Package } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, CheckCircle, AlertCircle, Loader2, User, Phone, MapPin, FileText, Truck, Package, ChevronDown } from 'lucide-react';
+import { PHONE_CODES, getDefaultPhoneCode, buildFullPhone } from '../utils/phoneCodes.js';
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
 import { setDocumentMeta } from '../utils/pageMeta';
@@ -76,6 +77,7 @@ const StoreCheckout = () => {
     country: '',
     notes: ''
   });
+  const [phoneCode, setPhoneCode] = useState('+237');
 
   // Delivery zones data from store
   const deliveryCountries = store?.deliveryCountries || [];
@@ -151,7 +153,9 @@ const StoreCheckout = () => {
       try {
         const res = await publicStoreApi.getStore(subdomain);
         const data = res.data?.data || {};
-        setStore(data.store || data);
+        const storeData = data.store || data;
+        setStore(storeData);
+        setPhoneCode(getDefaultPhoneCode(storeData?.currency || storeData?.storeSettings?.storeCurrency));
         setPixels(data.pixels || null);
         // Inject pixels + fire InitiateCheckout
         if (data.pixels) {
@@ -243,9 +247,10 @@ const StoreCheckout = () => {
     setError('');
 
     try {
+      const fullPhone = buildFullPhone(phoneCode, form.phone);
       const res = await publicStoreApi.placeOrder(subdomain, {
         customerName: form.customerName.trim(),
-        phone: form.phone.trim(),
+        phone: fullPhone,
         email: form.email.trim(),
         address: form.address.trim(),
         city: form.city.trim(),
@@ -514,15 +519,30 @@ const StoreCheckout = () => {
             <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1">
               <Phone className="w-3.5 h-3.5" /> Téléphone (WhatsApp) *
             </label>
-            <input
-              type="tel"
-              value={form.phone}
-              onChange={(e) => handleChange('phone', e.target.value)}
-              placeholder="+237 6XX XXX XXX"
-              required
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm transition-all"
-              {...inputProps('phone')}
-            />
+            <div className="flex gap-0">
+              <div className="relative flex-shrink-0">
+                <select
+                  value={phoneCode}
+                  onChange={(e) => setPhoneCode(e.target.value)}
+                  className="appearance-none pl-2 pr-6 py-2.5 border border-gray-300 border-r-0 rounded-l-lg text-sm bg-gray-50 font-medium cursor-pointer"
+                  style={{ minWidth: 85 }}
+                >
+                  {PHONE_CODES.map(c => (
+                    <option key={c.code} value={c.code}>{c.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3 h-3 text-gray-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+              <input
+                type="tel"
+                value={form.phone}
+                onChange={(e) => handleChange('phone', e.target.value)}
+                placeholder="6XX XXX XXX"
+                required
+                className="flex-1 min-w-0 px-3 py-2.5 border border-gray-300 rounded-r-lg text-sm transition-all"
+                {...inputProps('phone')}
+              />
+            </div>
           </div>
 
           {/* Country selector — only if delivery countries are configured */}
