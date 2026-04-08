@@ -7,7 +7,7 @@
  * 2. Clean text
  * 3. GPT → JSON structuré (angles, raisons, FAQ, description, prompts affiches)
  * 4. Parse JSON
- * 5. Loop angles → generate 3 affiches publicitaires
+ * 5. Loop angles → generate 5 affiches publicitaires (1 par angle marketing)
  * 6. Assemble product page
  */
 
@@ -77,33 +77,39 @@ function buildHeroPrompt(gptResult, hasProductRef) {
   // Accent color
   const accentColor = 'vibrant coral (#FF5722)';
 
-  return `Ultra realistic HIGH-CONVERTING product advertising poster. Square 1:1. Product-in-action photography meets bold graphic design. 4K quality, sharp details, cinematic lighting.
+  return `Ultra realistic e-commerce product advertisement for the African francophone market. Square 1:1. High-definition photorealistic quality — must look like a REAL professional photograph, NOT AI-generated. Natural soft lighting, no aggressive filters, no cartoon style.
 
 ═══ CONCEPT ═══
-Show "${productName}" being ACTIVELY USED in its real context. NOT a cosmetic/beauty studio pose.
-The product is the HERO — shown in the moment of use, in its natural environment.
+Create a credible, natural product ad for "${productName}" that could convert on Facebook Ads or TikTok Ads targeting African consumers. The image must feel AUTHENTIC — like a real photo taken in a real African environment.
 
-═══ BACKGROUND ═══
-Contextual real-life setting that matches the product category:
-- If food/drink: kitchen, dining table, outdoor meal
-- If tech/gadget: desk, workspace, hands using it
-- If beauty/skincare: bathroom counter, vanity, hands applying it
-- If fashion: street, modern interior, styled flat lay
-- If health/sport: gym, park, active outdoor scene
-- If home/household: living room, kitchen, real home context
-Warm natural lighting, slightly blurred background (bokeh), focus on the product.
+═══ AFRICAN PERSON — ABSOLUTELY MANDATORY ═══
+⚠️ NON-NEGOTIABLE: An authentic Black African person MUST be prominently visible in this image.
+- Real dark skin (natural Black African complexion), realistic African facial features, natural African hair (afro, braids, locs, twists, or headwrap)
+- NOT caricatural, NOT exaggerated features — realistic, dignified, natural appearance
+- Wearing simple everyday African clothes (not exaggerated luxury) — casual, clean, relatable
+- SUBTLE facial expression — natural smile or calm confidence. NOT theatrical, NOT exaggerated joy, NOT mannequin pose
+- Natural attitude as in real daily life — relaxed, genuine, approachable
+- Their FACE must be clearly visible (not just hands!) — they occupy at least 35% of the frame
+- They are actively using, holding, or demonstrating the product in a natural way
 
-═══ LAYOUT (PRODUCT IN ACTION) ═══
+═══ SCENE & ENVIRONMENT ═══
+Realistic African daily-life setting matching the product category:
+- If food/drink: African kitchen, dining room, outdoor family meal
+- If tech/gadget: desk in an African home, workspace, living room
+- If beauty/skincare: African bathroom, bedroom vanity, morning routine
+- If fashion: African city street, modern local interior
+- If health/sport: local park, courtyard, African home
+- If home/household: African living room, kitchen, real home with local decor
+The setting must be coherent with a REAL African environment — natural light, soft and warm, NOT artificial studio lighting. Slightly blurred background (bokeh) to focus on the person and product.
 
-MAIN SCENE (70% of frame):
+═══ PRODUCT PLACEMENT ═══
 • ${productBlock}
-• The product is shown IN USE — being held, opened, poured, applied, plugged in, worn, or actively demonstrated
-• Hands or surfaces interacting with the product naturally
-• Product occupies at least 50% of the frame, every detail sharp and visible
-• Contextual props that reinforce what the product does (NOT cosmetic ingredients like sliced fruits or botanicals)
-• Real-life usage scene: unboxing, pouring, holding, demonstrating, the product in its moment of action
+• Product at its REAL SIZE — not oversized, not miniature. Natural proportions
+• Placed naturally in the scene: in hands, on a table, on bathroom shelf, etc.
+• Sharp, clear, no distortion — every label and detail perfectly readable
+• Product occupies 35-45% of the frame — prominent but natural, not forced
 
-BENEFIT STRIP (side or bottom, 30%):
+═══ BENEFIT STRIP (side or bottom, 25%) ═══
 • 3-4 benefit items in a clean row or column:
   ✓ ${benefits[0]}
   ✓ ${benefits[1]}
@@ -111,7 +117,7 @@ BENEFIT STRIP (side or bottom, 30%):
   ✓ ${benefits[3]}
 • Clean modern sans-serif typography, small icons in ${accentColor}
 
-═══ TEXT OVERLAYS (MANDATORY — CRITICAL SPELLING) ═══
+═══ TEXT OVERLAYS (MANDATORY — PERFECT FRENCH) ═══
 
 TOP of image (bold headline spanning full width):
 "${headline}"
@@ -131,14 +137,17 @@ Font: small, clean, professional
 BOTTOM CENTER — CTA button (${accentColor} background, white bold text, rounded corners):
 "${ctaText}"
 
-═══ STYLE RULES ═══
-• ALL French text: 100% PERFECT spelling with every accent (é, è, ê, à, ù, ç, î, ô etc). ZERO errors.
+═══ STYLE RULES — STRICT ═══
+• PHOTOREALISTIC — must look like a real photograph, NOT AI-generated. No cartoon, no uncanny valley
+• ALL French text: 100% PERFECT spelling with every accent (é, è, ê, à, ù, ç, î, ô). ZERO errors. Simple, direct, African-local tone
+• Soft, clean, natural visual style — NOT flashy, NOT over-saturated, NOT aggressive filters
+• Natural warm lighting — like real daylight in an African home
+• NO body distortion, NO product distortion, NO visual inconsistencies
 • NO price in numbers, NO phone number, NO URL, NO watermark
-• Ultra sharp product details — every label and texture of the packaging perfectly visible
-• Product is IN ACTION — not posed on a glossy surface like a cosmetic ad
-• Cinematic lighting with warm natural tones
 • Modern typography: clean sans-serif, high contrast, perfectly aligned
-• Mood: premium product launch, scroll-stopping, shows exactly what the product DOES`;
+• Product packaging sharp and clear — every label readable
+• The African person is THE FACE of this ad — confident, natural, relatable. Their presence makes the ad authentic for the African market
+• Final mood: professional, credible, natural — could be a real brand campaign photo`;
 }
 
 /**
@@ -173,7 +182,24 @@ function buildAngleImagePrompt(angle, gptResult, hasProductRef, template = 'gene
     angleTitle, angleExplication, b1, b2, b3,
   });
 
-  return layouts[slideIndex % layouts.length];
+  const basePrompt = layouts[slideIndex % layouts.length];
+  
+  // Append mandatory African realism guidelines to every angle image
+  const africanRealismBlock = `
+
+═══ AFRICAN MARKET REALISM — MANDATORY RULES ═══
+• PHOTOREALISTIC — must look like a real photograph, NOT AI-generated. No cartoon, no uncanny valley, no visible AI artifacts
+• African person: authentic dark skin, natural African features (NOT caricatural), natural African hair (afro, braids, locs, twists, headwrap)
+• Simple everyday African clothing — clean, relatable, NOT exaggerated luxury
+• SUBTLE facial expressions — natural, NOT theatrical or exaggerated. Genuine confidence, not forced poses
+• Setting must feel like a REAL African environment — natural warm lighting, not artificial studio
+• Product at REAL proportions — not oversized or miniature. Sharp, clear, no distortion
+• Soft, clean, natural visual style — NOT flashy, NOT over-saturated, NOT aggressive filters
+• ALL French text: 100% PERFECT spelling with every accent. Simple, direct, local African tone
+• NO body distortion, NO visual inconsistencies, NO uncanny facial features
+• Final feel: a REAL professional product photo that could run as a Facebook/TikTok Ad for African consumers`;
+
+  return basePrompt + africanRealismBlock;
 }
 
 /**
@@ -252,6 +278,22 @@ COMPOSITION: Results & proof infographic with bold stats.
 
 Bold, premium, results-driven beauty infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
+
+      // Slide 4: Community & African identity — bold representation
+      `Square 1:1 BEAUTY COMMUNITY INFOGRAPHIC for "${title}". African beauty celebration. Ultra HD, 4K.
+
+COMPOSITION: Bold African beauty identity celebration infographic.
+- BACKGROUND: Rich warm gradient — deep chocolate brown (#3E2723) to warm gold (#C49A6C). Pan-African luxury warmth
+- TOP (15%): Bold gold condensed headline: "${headlineShort}" — powerful, celebratory
+- CENTER (55%): DOMINANT African woman (dark skin, natural African hair — afro, braids, locs, or wrap) — full beauty portrait, GLOWING radiant skin, joyful confident expression, warm golden rim lighting. She is the STAR of this image. Her beauty is the MESSAGE
+- PRODUCT: ${productNote} — held in her hands or placed beside her face, product catches golden light
+- COMMUNITY BADGES (3): 3 warm-toned glass cards arranged below:
+  "Beauté Africaine" + crown icon, "Résultats Prouvés" + sparkle, "Confiance" + heart
+  Gold text on dark warm glass
+- BOTTOM STRIP: Elegant warm gold bar: "${promesseShort}" with traditional African pattern accent
+
+Celebratory, radiant, African beauty pride infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
     ];
   }
 
@@ -323,6 +365,22 @@ COMPOSITION: Performance results infographic with bold metrics.
 
 Bold, data-driven, high-performance tech infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
+
+      // Slide 4: African tech community — bold representation
+      `Square 1:1 TECH COMMUNITY INFOGRAPHIC for "${title}". African tech empowerment. Ultra HD, 4K.
+
+COMPOSITION: African tech user empowerment infographic.
+- BACKGROUND: Rich gradient — dark charcoal (#1A1A2E) to electric teal (#00BFA5). Modern, empowering
+- TOP (15%): Bold white condensed headline: "${headlineShort}" — key word in bright teal accent
+- CENTER (55%): DOMINANT confident African person (dark skin, natural African features) — using or showcasing "${title}" with pride, modern tech-savvy pose, face lit by device glow, dynamic confident expression. This person is the FACE of African tech innovation
+- PRODUCT: ${productNote} — held or displayed prominently, electric teal glow around product edges
+- COMMUNITY STATS (3): 3 glass-morphism dark cards:
+  "Innovation" + rocket icon, "Confiance" + shield, "Performance" + zap
+  Bright teal accents on dark glass
+- BOTTOM: Teal accent bar with modern African city skyline silhouette
+
+Empowering, modern, African tech pride infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
     ];
   }
 
@@ -384,6 +442,22 @@ COMPOSITION: Social proof & popularity infographic.
 - BOTTOM: 3 small gold pill badges: French style benefits
 
 Bold, influential, social-proof fashion infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+      // Slide 4: African fashion identity — bold representation
+      `Square 1:1 FASHION IDENTITY INFOGRAPHIC for "${title}". African fashion pride. Ultra HD, 4K.
+
+COMPOSITION: Bold African fashion identity celebration infographic.
+- BACKGROUND: Split diagonal — rich kente-inspired warm gold (#DAA520) top / deep burgundy (#4A0E2A) bottom. Pan-African luxury
+- TOP (15%): Bold gold condensed headline: "${headlineShort}" — powerful, fashion-forward
+- CENTER (60%): DOMINANT African person (dark skin, natural African hair or headwrap, bold confident pose) — wearing/showcasing "${title}" with pride and elegance. Fashion editorial pose, warm golden cinematic lighting. This person IS the style icon
+- PRODUCT: ${productNote} — visible and elevated, catching golden highlight
+- STYLE CARDS (3): 3 elegant gold-bordered glass cards:
+  "Style Unique" + star icon, "Fierté" + crown, "Tendance" + flame
+  Gold text on dark warm glass
+- BOTTOM: Rich warm burgundy bar with elegant French tagline: "${promesseShort}"
+
+Celebratory, powerful, African fashion pride infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
     ];
   }
@@ -453,6 +527,22 @@ COMPOSITION: Health results & social proof infographic.
 
 Bold, results-driven, wellness infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
+
+      // Slide 4: African wellness community — bold representation
+      `Square 1:1 HEALTH COMMUNITY INFOGRAPHIC for "${title}". African wellness empowerment. Ultra HD, 4K.
+
+COMPOSITION: Bold African wellness celebration infographic.
+- BACKGROUND: Rich gradient — deep forest green (#1B4332) to warm golden green (#8BC34A). Vibrant, healthy, empowering
+- TOP (15%): Bold white condensed headline: "${headlineShort}" — key word in bright lime accent
+- CENTER (55%): DOMINANT confident African person (dark skin, natural African features, radiant healthy glow) — actively demonstrating vitality and wellness with "${title}". Dynamic energetic pose, bright natural outdoor lighting, JOYFUL healthy expression. This person EMBODIES the health transformation
+- PRODUCT: ${productNote} — held proudly or displayed beside the person, catching natural sunlight
+- WELLNESS BADGES (3): 3 fresh glass-morphism green cards:
+  "Santé Naturelle" + leaf icon, "Énergie" + lightning, "Bien-être" + sun
+  Lime-green text on frosted dark glass
+- BOTTOM: Fresh green gradient bar with nature elements
+
+Vibrant, empowering, African wellness pride infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
     ];
   }
 
@@ -517,6 +607,22 @@ COMPOSITION: Home trust & satisfaction infographic.
 - BOTTOM: 3 small cream cards with terracotta icons: French home benefits
 
 Warm, family-focused, trustworthy home infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
+
+      // Slide 4: African home & family — bold representation
+      `Square 1:1 HOME FAMILY INFOGRAPHIC for "${title}". African family warmth. Ultra HD, 4K.
+
+COMPOSITION: Bold African family home celebration infographic.
+- BACKGROUND: Warm rich gradient — deep chocolate (#3E2723) to warm terracotta (#D4845A). African home warmth
+- TOP (15%): Bold warm cream condensed headline: "${headlineShort}" — inviting, family-centered
+- CENTER (55%): DOMINANT African family scene (dark skin, natural African features) — a person or family warmly using "${title}" in their modern African home. Genuine warm smiles, cozy golden ambient lighting, lived-in warm atmosphere. The FACES are clearly visible and joyful
+- PRODUCT: ${productNote} — integrated naturally into the home scene, catching warm golden light
+- HOME VALUES (3): 3 warm glass-morphism cards:
+  "Famille" + heart icon, "Confort" + home, "Qualité" + star
+  Warm cream text on dark terracotta glass
+- BOTTOM: Rich warm terracotta bar with traditional African textile pattern accent
+
+Warm, genuine, African family home pride infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
     ];
   }
@@ -584,11 +690,27 @@ COMPOSITION: Results & social proof infographic with bold metrics.
 
 Bold, vibrant, data-driven infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
+
+    // Slide 4: African identity & community — bold representation
+    `Square 1:1 COMMUNITY IDENTITY INFOGRAPHIC for "${title}". African pride & empowerment. Ultra HD, 4K.
+
+COMPOSITION: Bold African community celebration infographic.
+- BACKGROUND: Rich warm gradient — deep dark brown (#2C1810) to vibrant warm gold (#DAA520). Pan-African luxury, warmth
+- TOP (15%): Bold gold condensed headline: "${headlineShort}" — powerful, celebratory, warm
+- CENTER (55%): DOMINANT confident African person (dark skin, natural African hair — afro, braids, locs, or headwrap) — proudly using or showcasing "${title}". Their FACE is clearly visible with a confident, radiant expression. Warm golden cinematic rim lighting. This person IS the voice of the product — they represent African excellence and confidence
+- PRODUCT: ${productNote} — held or displayed prominently beside the person, catching golden highlight
+- IDENTITY BADGES (3): 3 warm gold-bordered glass cards:
+  "Excellence" + crown icon, "Confiance" + shield, "Notre Choix" + heart
+  Gold text on dark warm glass
+- BOTTOM: Rich warm gold bar with subtle traditional African geometric pattern
+
+Celebratory, empowering, African pride infographic. PERFECT French.
+NO price, NO phone number, NO URL, NO watermark.`,
   ];
 }
 
 /**
- * 4 flash prompts — INFOGRAPHIES avec des designs UNIQUES par slide ET par catégorie produit.
+ * 5 flash prompts — INFOGRAPHIES avec des designs UNIQUES par slide ET par catégorie produit.
  * Chaque template (beauty, tech, fashion, health, home, general) a sa propre structure visuelle.
  * TOUJOURS: personnes africaines cibles + produit visible + texte français.
  */
@@ -669,6 +791,21 @@ COMPOSITION: Glowing results social proof.
 Dramatic, luxurious, confidence-boosting beauty energy. PERFECT French.`,
         type: 'beauty_results',
       },
+      {
+        prompt: `Square 1:1 AFRICAN BEAUTY PRIDE AD for "${title}". Bold African representation. Ultra HD, 4K.
+
+COMPOSITION: African beauty identity celebration.
+- BACKGROUND: Rich warm gradient — deep chocolate (#3E2723) to luxurious gold (#C49A6C). Pan-African warmth
+- TOP: Bold gold condensed headline about African beauty/confidence in French
+- CENTER (dominant 60%): Stunning African woman (dark skin, natural African hair — afro, braids, or headwrap) holding or using "${title}" with PRIDE. Her FACE is the focal point — radiant, confident, glowing. Golden warm rim lighting. She embodies African beauty excellence
+- PRODUCT: visible in her hands or beside her face — ${productNote}
+- CELEBRATION BADGES: 3 warm gold glass cards:
+  "Beauté Africaine" + crown, "Notre Fierté" + heart, "Résultats" + sparkle
+- BOTTOM: Warm gold bar with African-inspired geometric pattern
+
+Celebratory, radiant, African beauty pride. PERFECT French.`,
+        type: 'beauty_identity',
+      },
     ];
   }
 
@@ -737,6 +874,21 @@ COMPOSITION: Performance results.
 
 High-energy tech ad. Electric blue dominant. PERFECT French.`,
         type: 'tech_performance',
+      },
+      {
+        prompt: `Square 1:1 AFRICAN TECH EMPOWERMENT AD for "${title}". Bold African representation. Ultra HD, 4K.
+
+COMPOSITION: African tech user empowerment.
+- BACKGROUND: Rich gradient — dark charcoal (#1A1A2E) to electric teal (#00BFA5). Modern, empowering
+- TOP: Bold white headline about African innovation/technology in French
+- CENTER (dominant 60%): Confident African person (dark skin, natural African features) — using or showcasing "${title}" with pride. FACE clearly visible — focused, tech-savvy, empowered expression. Modern urban context with teal tech glow on their face
+- PRODUCT: visible and prominent — ${productNote}
+- TECH BADGES: 3 dark glass-morphism teal-bordered cards:
+  "Innovation" + rocket, "Puissance" + zap, "Notre Technologie" + chip
+- BOTTOM: Teal bar with modern African city skyline silhouette
+
+Empowering, modern, African tech pride. PERFECT French.`,
+        type: 'tech_identity',
       },
     ];
   }
@@ -807,6 +959,21 @@ COMPOSITION: Fashion social proof.
 Luxurious African fashion ad. PERFECT French.`,
         type: 'fashion_social',
       },
+      {
+        prompt: `Square 1:1 AFRICAN FASHION IDENTITY AD for "${title}". Bold African style representation. Ultra HD, 4K.
+
+COMPOSITION: African fashion pride & identity.
+- BACKGROUND: Split diagonal — warm kente gold (#DAA520) top / deep burgundy (#4A0E2A) bottom. Pan-African luxury
+- TOP: Bold gold headline about African style/elegance in French
+- CENTER (dominant 60%): Stunning African person (dark skin, natural African hair or headwrap, bold confident editorial pose) — wearing or showcasing "${title}" with pride and elegance. Their FACE is the star — radiant, confident, fashion-forward. Golden warm cinematic lighting
+- PRODUCT: visible and elevated — ${productNote}
+- STYLE BADGES: 3 gold-bordered elegant cards:
+  "Style Unique" + star, "Fierté Africaine" + crown, "Tendance" + flame
+- BOTTOM: Rich burgundy bar with African textile pattern
+
+Celebratory, powerful, African fashion pride. PERFECT French.`,
+        type: 'fashion_identity',
+      },
     ];
   }
 
@@ -875,6 +1042,21 @@ COMPOSITION: Health transformation results.
 Vibrant, energetic, transformational health ad. PERFECT French.`,
         type: 'health_results',
       },
+      {
+        prompt: `Square 1:1 AFRICAN WELLNESS PRIDE AD for "${title}". Bold African health representation. Ultra HD, 4K.
+
+COMPOSITION: African wellness empowerment.
+- BACKGROUND: Rich gradient — deep forest green (#1B4332) to warm golden (#DAA520). Healthy, empowering
+- TOP: Bold white headline about African health/vitality in French
+- CENTER (dominant 60%): Radiant African person (dark skin, natural African features, healthy vibrant glow) — actively using or holding "${title}" with pride. Their FACE clearly visible — joyful, energetic, healthy expression. Bright natural outdoor lighting or warm gym/wellness setting
+- PRODUCT: visible and prominent — ${productNote}
+- WELLNESS BADGES: 3 fresh green glass cards:
+  "Santé Naturelle" + leaf, "Notre Énergie" + sun, "Résultats" + muscle
+- BOTTOM: Fresh green bar with nature elements
+
+Vibrant, empowering, African wellness pride. PERFECT French.`,
+        type: 'health_identity',
+      },
     ];
   }
 
@@ -941,6 +1123,21 @@ COMPOSITION: Family trust & satisfaction.
 Warm, family-oriented, trustworthy. PERFECT French.`,
         type: 'home_social',
       },
+      {
+        prompt: `Square 1:1 AFRICAN FAMILY HOME AD for "${title}". Bold African family representation. Ultra HD, 4K.
+
+COMPOSITION: African family home pride.
+- BACKGROUND: Warm rich gradient — deep chocolate (#3E2723) to warm terracotta (#D4845A). Cozy, African warmth
+- TOP: Bold warm cream headline about African family life/comfort in French
+- CENTER (dominant 60%): African family or person (dark skin, natural African features) — using "${title}" in their warm modern home. Their FACES clearly visible — genuine warm smiles, cozy golden ambient lighting. They look happy and comfortable with the product
+- PRODUCT: visible in home context — ${productNote}
+- HOME BADGES: 3 warm terracotta glass cards:
+  "Famille" + heart, "Notre Foyer" + home, "Qualité" + star
+- BOTTOM: Warm terracotta bar with African textile pattern
+
+Warm, genuine, African family home pride. PERFECT French.`,
+        type: 'home_identity',
+      },
     ];
   }
 
@@ -999,6 +1196,21 @@ COMPOSITION: Results & social proof — DYNAMIC ENERGY.
 
 BOLD, vibrant, energetic. PERFECT French.`,
       type: 'general_vibrant',
+    },
+    {
+      prompt: `Square 1:1 AFRICAN PRIDE PRODUCT AD for "${title}". Bold African community representation. Ultra HD, 4K.
+
+COMPOSITION: African identity celebration — THE PEOPLE ARE THE AD.
+- BACKGROUND: Warm rich gradient — deep dark brown (#2C1810) to vibrant gold (#DAA520). Pan-African luxury
+- TOP: Bold gold condensed headline about African excellence/confidence in French
+- CENTER (dominant 60%): ${targetPerson} — DOMINANT confident African person (dark skin, natural African hair — afro, braids, locs, or headwrap). Their FACE is the HERO — radiant, proud, confident expression. Warm golden cinematic rim lighting. They are actively using or holding "${title}" — this person REPRESENTS the African consumer
+- CENTER-RIGHT: ${productNote} Product displayed with golden glow
+- COMMUNITY BADGES (3): Warm gold glass cards:
+  "Excellence" + crown, "Notre Choix" + heart, "Confiance" + shield
+- BOTTOM: Rich gold bar with subtle traditional African geometric pattern
+
+Celebratory, empowering, African community pride. PERFECT French.`,
+      type: 'general_identity',
     },
   ];
 }
@@ -1338,7 +1550,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       );
     }
 
-    // ── Flash images — 4 affiches ─
+    // ── Flash images — 5 affiches marketing (1 par angle) ─
     const angles = gptResult.angles || [];
     const flashPrompts = buildFlashPrompts(gptResult, !!baseImageBuffer, approach, visualTemplate);
     const maxFlash = flashPrompts.length;
@@ -1348,9 +1560,10 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       const angle = angles[i] || null;
 
       // Build an infographic prompt that visually illustrates the angle as an infographic
+      const africanRealism = `\n\n═══ AFRICAN MARKET REALISM — MANDATORY ═══\n• PHOTOREALISTIC — must look like a real photograph. No cartoon, no AI artifacts\n• African person: authentic dark skin, natural African features, natural African hair. Simple everyday clothing, SUBTLE expressions — NOT theatrical\n• Setting: real African environment, natural warm lighting. Product at REAL proportions\n• Soft, clean, natural style. ALL French text 100% PERFECT. NO distortion, NO inconsistencies`;
       const anglePrompt = angle
         ? buildAngleImagePrompt(angle, gptResult, !!baseImageBuffer, visualTemplate, i)
-        : flash.prompt;
+        : flash.prompt + africanRealism;
 
       imagePromises.push(
         generateAndUpload(anglePrompt, baseImageBuffer, `flash-${i + 1}-${Date.now()}.png`, 'scene')

@@ -327,7 +327,7 @@ Pose-toi 3 questions :
 3. Qu'est-ce qui rassure le client ?
 
 ═══ TITRES DES ANGLES MARKETING — PHRASES COMPLÈTES ═══
-✍️ RÈGLES ABSOLUES pour les titres des 4 angles :
+✍️ RÈGLES ABSOLUES pour les titres des 5 angles :
 
 ✅ CE QU'IL FAUT FAIRE :
 - De vraies phrases complètes (10-15 mots minimum)
@@ -361,43 +361,54 @@ Pose-toi 3 questions :
 ═══ IMAGES D'ANGLES — VISUELS ILLUSTRATIFS AVEC PERSONNES AFRICAINES ═══
 Les 5 images d'angles sont des visuels marketing illustratifs avec des personnes africaines et du texte qui illustre le bénéfice du produit.
 
-🎯 OBJECTIF : Visuel percutant montrant une personne africaine qui bénéficie du produit, avec un court texte overlay qui illustre le bénéfice clé de l'angle.
+🎯 OBJECTIF : Visuel percutant montrant une personne africaine RÉELLE qui bénéficie du produit, dans un environnement africain authentique. L'image doit pouvoir convertir sur Facebook Ads / TikTok Ads auprès d'un public africain francophone.
 
 ✅ CE QU'IL FAUT :
-- Personne africaine authentique (peau noire/marron, cheveux naturels, visage africain) en situation d'utilisation réelle du produit
+- Personne africaine authentique : peau noire naturelle, traits RÉALISTES (pas caricaturaux), cheveux naturels africains (afro, tresses, locs, etc.)
+- Vêtements simples du quotidien africain — clean, relatables, PAS de luxe exagéré
+- Expression faciale SUBTILE — naturelle, confiante, PAS théâtrale ni exagérée
+- Attitude naturelle comme dans la vraie vie — PAS de pose mannequin forcée
+- Environnement africain RÉALISTE : maison, chambre, salon, salle de bain, rue locale — décor cohérent
+- Lumière NATURELLE douce — PAS artificielle, PAS de filtres agressifs
 - ⚠️ ADAPTE le cadrage à la ZONE DU PRODUIT : produit cheveux → cadre sur les cheveux et la chevelure ; produit corpo → cadre sur le corps ; produit visage → cadre sur le visage ; etc. Ne jamais montrer le visage par défaut si le produit n'est pas un produit visage.
-- Le produit VISIBLE dans l'image ou son résultat clairement montré
+- Le produit VISIBLE dans l'image ou son résultat clairement montré — TAILLE RÉELLE du produit (pas surdimensionné), placement naturel
 - Court texte overlay en français : 1 titre court (4-6 mots max) + éventuellement 1 courte phrase (8-10 mots max)
-- ⚠️ ORTHOGRAPHE PARFAITE OBLIGATOIRE : Le texte overlay doit être vérifié à 100% — ZÉRO faute d'orthographe, ZÉRO faute de grammaire, ZÉRO faute d'accord. Chaque mot doit être correctement écrit en français.
-- Cadrage 1:1 serré, lumière naturelle propre, fond net
-- Ambiance africaine ou universelle — jamais de contexte occidental artificiel
+- ⚠️ ORTHOGRAPHE PARFAITE OBLIGATOIRE : texte vérifié à 100% — ZÉRO faute. Ton simple, direct, local africain
+- Cadrage 1:1 serré, fond net
+- Style soft, propre, naturel — PAS flashy, PAS saturé
+- PHOTORÉALISTE — doit ressembler à une VRAIE photo, PAS un rendu IA visible
 
 ❌ CE QUI EST INTERDIT :
 - Prix, CTA "Acheter maintenant", numéros de téléphone, URLs
 - Texte long (plus de 2 éléments texte)
 - Visage flou ou corps coupé de façon malvenue
+- Style caricatural ou fake — aucune déformation du corps ou du produit
+- Effets exagérés, filtres agressifs, rendu cartoon
 - Espaces vides / marges inutiles autour du sujet
 
 ═══ VISUELS HÉRO — 2 IMAGES PRINCIPALES ═══
 ⚠️ Génère DEUX prompts hero différents et complémentaires pour ce produit :
 
-**1. prompt_affiche_hero** = Photo lifestyle premium : le produit réel + personne africaine qui l'utilise ou en bénéficie. Image propre, lumineuse, fond minimaliste.
+**1. prompt_affiche_hero** = Photo lifestyle premium RÉALISTE pour le marché africain : le produit réel + personne africaine authentique (peau noire naturelle, traits réalistes, vêtements simples du quotidien) qui l'utilise NATURELLEMENT dans un environnement africain réel. Expression subtile, pas théâtrale. Lumière naturelle douce. Style soft, propre, crédible — comme une VRAIE photo.
 
-**2. prompt_hero_poster** = Affiche publicitaire graphique : le produit réel en grand au centre sur fond foncé dramatique (gradient profond) avec un titre français gras en haut ou en bas. Ambiance lancement de marque premium (style Apple/Nike adapté marché africain).
+**2. prompt_hero_poster** = Affiche publicitaire graphique : le produit réel en grand au centre sur fond foncé dramatique (gradient profond) avec un titre français gras en haut ou en bas + personne africaine visible. Ambiance lancement de marque premium adapté marché africain.
 
 ☝️ Les deux prompts doivent être entièrement basés sur CE produit spécifique — jamais générique, jamais copié des exemples.
 
 Le HERO doit être :
-✅ Le produit réel visible au premier plan (EXACT, jamais recréé), grand, net, dominant — le produit doit occuper minimum 50% du cadre
-✅ RÈGLE GENRE : adapte le genre de la personne africaine au produit : produit femme → femme africaine ; produit homme → homme africain ; produit mixte → au choix selon ce qui est le plus naturel ; produit objet/tech → produit seul au premier plan sans obligation de personne
+✅ Le produit réel visible au premier plan (EXACT, jamais recréé), grand, net, dominant — TAILLE RÉELLE (pas surdimensionné)
+✅ ⚠️ PERSONNE AFRICAINE OBLIGATOIRE avec VISAGE VISIBLE : peau noire naturelle, traits réalistes (PAS caricaturaux), cheveux naturels africains. Expression SUBTILE et naturelle. La personne utilise ou tient le produit de manière naturelle
+✅ RÈGLE GENRE : adapte le genre de la personne africaine au produit : produit femme → femme africaine ; produit homme → homme africain ; produit mixte → au choix selon ce qui est le plus naturel ; produit objet/tech → produit au premier plan + personne africaine visible en arrière-plan
 ✅ RÈGLE CRITIQUE DE ZONE : adapte le cadrage à la zone exacte du produit :
    - Produit CHEVEUX → chevelure soignée/brillante ou application sur les cheveux. Cadre sur les cheveux, pas sur le visage.
    - Produit VISAGE → application sur le visage, peau du visage, teint unifié.
    - Produit CORPS → application sur bras/jambes/corps, pas un close-up visage.
    - Produit MINCEUR → silhouette, ventre ou taille visible.
    - Produit DENTS → sourire éclatant, gros plan sur les dents.
-   - Produit TECH/OBJET → produit SEUL, très grand, net, dominant, fond africain ou fond épuré.
-✅ Cadrage carré 1:1 tight crop, ZÉRO espace vide, lumière propre
+   - Produit DOULEUR/SANTÉ → personne montrant soulagement naturel avec le produit.
+   - Produit TECH/OBJET → produit dominant + personne africaine visible l'utilisant.
+✅ Cadrage carré 1:1 tight crop, ZÉRO espace vide, lumière naturelle douce
+✅ PHOTORÉALISTE — doit ressembler à une VRAIE photo, pas un rendu IA
 ✅ Au maximum un badge TRÈS court (3 mots max) OU absent
 
 ❌ PAS de template beauté imposé pour un produit tech ou homme
@@ -406,16 +417,20 @@ Le HERO doit être :
 ❌ PAS de cadrage trop large avec marges vides
 
 ═══ VISUEL AVANT/APRÈS — TRANSFORMATION RÉALISTE AVEC PERSONNE AFRICAINE ═══
-⚠️ Le visuel avant/après est le second visuel fort. Il DOIT montrer une personne africaine authentique.
+⚠️ Le visuel avant/après est le second visuel fort. Il DOIT montrer une personne africaine authentique dans une VRAIE situation du quotidien africain.
 
 Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE produit :
-✅ Split-screen : côté gauche = AVANT (le problème concret que CE produit résout, personne africaine)
-✅ Côté droit = APRÈS (le résultat réel et crédible après utilisation, même personne africaine)
-✅ Personne africaine OBLIGATOIRE : peau noire/marron, traits africains authentiques
+✅ Split-screen : côté gauche = AVANT (le problème concret, visible mais NATUREL — pas exagéré, pas théâtral)
+✅ Côté droit = APRÈS (le résultat CRÉDIBLE et réaliste après utilisation — amélioration visible mais pas magique)
+✅ ⚠️ NE PAS utiliser juste "visage triste vs sourire" — montrer une VRAIE différence visuelle liée au produit
+✅ Personne africaine OBLIGATOIRE : peau noire naturelle, traits réalistes africains (pas caricaturaux), cheveux naturels africains
+✅ Apparence naturelle : vêtements simples du quotidien africain (pas luxe exagéré), expression SUBTILE (pas théâtrale)
+✅ Décor = environnement africain RÉALISTE (maison africaine, salle de bain locale, chambre, salon, rue)
 ✅ RÈGLE GENRE : FEMME africaine si produit féminin ; HOMME africain si produit masculin ; adapte si mixte
-✅ Le PRODUIT LUI-MÊME doit être clairement visible sur le côté APRÈS (flacon, boîte, packaging exact)
-✅ Cadrage carré 1:1, serré, transformation réaliste (pas exagérée)
-✅ Petit label "Avant" / "Après" accepté si utile à la lecture
+✅ Le PRODUIT LUI-MÊME visible sur le côté APRÈS — taille RÉELLE (pas surdimensionné), placement naturel
+✅ Cadrage carré 1:1, serré, lumière naturelle douce, pas artificielle
+✅ Style soft, propre, naturel — PAS flashy, PAS saturé, PAS de filtres agressifs
+✅ PHOTOREALISTIC — doit ressembler à une VRAIE photo, PAS un rendu IA visible
 
 ⚠️ RÈGLE CRITIQUE : le cadrage de l'avant/après DOIT correspondre à la ZONE DU PRODUIT :
 - Produit CHEVEUX → AVANT : cheveux secs/abîmés/crépus difficiles à coiffer (gros plan sur la chevelure) → APRÈS : cheveux brillants/hydratés/soyeux. JAMAIS faire un avant/après de la peau du visage pour un produit cheveux.
@@ -425,6 +440,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
 - Produit ÉNERGIE → AVANT : personne africaine fatiguée, molle → APRÈS : personne africaine dynamique, souriante.
 - Produit DENTS → AVANT : dents jaunies (gros plan bouche) → APRÈS : dents blanches et sourire éclatant.
 - Produit NETTOYAGE → AVANT : surface sale → APRÈS : surface propre et brillante.
+- Produit DOULEUR/SANTÉ → AVANT : personne montrant inconfort naturel (pas exagéré) → APRÈS : personne soulagée, expression calme naturelle.
 
 ═══ FORMAT JSON STRICT ═══
 {
@@ -440,7 +456,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     "⚡ Bénéfice clé 4 avec emoji pertinent"
   ],
   "prompt_hero_poster": "[Generate in English: BOLD ADVERTISING POSTER for THIS SPECIFIC product (describe its exact name, type, color, packaging). Square 1:1 graphic-design meets product photography. The product shown LARGE, dominant, perfectly sharp (min 50% of frame), exact same packaging/color/shape. Premium dark gradient background (deep midnight blue to black, OR deep forest green to charcoal, or deep burgundy — choose what contrasts best with product colors). Dramatic cinematic lighting with product glow. MANDATORY: 1 bold French headline in large modern sans-serif font at top or bottom — CRITICAL: French text MUST be 100% perfectly spelled with all accents. Optional thin accent line or minimal graphic element. NO price, NO phone, NO fake button, NO URL. Mood: aspirational, premium brand launch poster, scroll-stopping. Think Apple product launch. Adapted for African market.]",
-  "prompt_avant_apres": "[Generate in English: Split-screen before/after transformation image SPECIFIC to THIS product. LEFT: the problem this product solves (realistic, relatable). RIGHT: the result after using the product (improvement visible). Authentic African person matching the product gender. Product visible on the AFTER side. Square 1:1, tight crop, realistic transformation. Small 'Avant'/'Après' labels. Match the EXACT body zone of the product.]",
+  "prompt_avant_apres": "[Generate in English: Photorealistic split-screen before/after transformation image for the African market. MUST look like a real photograph, NOT AI-generated. LEFT (AVANT): the SPECIFIC problem this product solves — visible but NATURAL, not exaggerated or theatrical. RIGHT (APRÈS): CREDIBLE realistic improvement after using the product — visible but not magical. MANDATORY: Authentic Black African person (dark skin, natural African features, natural African hair). Simple everyday African clothing, SUBTLE facial expressions — NOT theatrical. Setting: realistic African home environment (bathroom, bedroom, living room). The SAME person on both sides. Product visible at REAL SIZE on the AFTER side — natural placement. Small 'Avant'/'Après' labels in perfect French. Square 1:1, tight crop. Soft natural lighting, clean style, NO aggressive filters, NO over-saturation. Match the EXACT body zone of the product. The transformation must be BELIEVABLE — not just sad face vs happy face but a real visual difference related to the product benefit.]",
   "angles": [
     {
       "titre_angle": "Phrase complète de 10-15 mots suivant l'étape de la méthode ${marketingApproach} — explique concrètement le bénéfice",
