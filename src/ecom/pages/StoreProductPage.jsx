@@ -897,6 +897,7 @@ const StoreProductPage = () => {
       ...(product?.quantityOffers?.length > 0 ? {
         offersEnabled: true,
         offers: product.quantityOffers,
+        offerDesign: product.quantityOfferDesign || null,
       } : {}),
     },
   };
@@ -1243,7 +1244,7 @@ const StoreProductPage = () => {
                               ⚡ Plus que {product.stock} en stock
                             </span>
                           ) : (
-                            <span style={{ fontSize: 13, fontWeight: 600, color: '#10B981', display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--s-primary)', display: 'flex', alignItems: 'center', gap: 5 }}>
                               <Check size={14} /> En stock
                             </span>
                           )}
