@@ -249,11 +249,32 @@ router.get('/pixels', requireEcomAuth, requireWorkspace, async (req, res) => {
 router.put('/pixels', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
     console.log('📊 PUT /store/pixels - workspaceId:', req.workspaceId);
-    console.log('📊 Request body:', JSON.stringify(req.body, null, 2));
     
+    // Sanitize: only allow known pixel keys, strip whitespace, validate format
+    const ALLOWED_KEYS = ['metaPixelId', 'metaAccessToken', 'tiktokPixelId', 'googleTagId', 'googleAdsId', 'snapchatPixelId'];
+    const sanitized = {};
+    for (const key of ALLOWED_KEYS) {
+      const val = typeof req.body[key] === 'string' ? req.body[key].replace(/\s/g, '').trim() : '';
+      if (val) sanitized[key] = val;
+    }
+
+    // Format validation
+    const PATTERNS = {
+      metaPixelId: /^\d{10,20}$/,
+      tiktokPixelId: /^[A-Z0-9]{10,30}$/,
+      googleTagId: /^(G|GT|AW)-[A-Z0-9]+$/,
+      googleAdsId: /^AW-\d+$/,
+      snapchatPixelId: /^[a-f0-9-]{20,}$/i,
+    };
+    for (const [key, pattern] of Object.entries(PATTERNS)) {
+      if (sanitized[key] && !pattern.test(sanitized[key])) {
+        return res.status(400).json({ success: false, message: `Format invalide pour ${key}` });
+      }
+    }
+
     await Workspace.findByIdAndUpdate(
       req.workspaceId,
-      { $set: { storePixels: req.body } },
+      { $set: { storePixels: sanitized } },
       { new: true }
     );
 
