@@ -39,14 +39,16 @@ function loadGoogleFont(fontId) {
 export function injectStoreCssVars(store) {
   if (!store) return;
   const r = document.documentElement.style;
-  r.setProperty('--s-primary', store.primaryColor || '#0F6B4F');
-  r.setProperty('--s-accent', store.accentColor || '#059669');
-  r.setProperty('--s-bg', store.backgroundColor || '#FFFFFF');
-  r.setProperty('--s-text', store.textColor || '#111827');
+  // Design overrides from productPageConfig take priority
+  const d = store.productPageConfig?.design;
+  r.setProperty('--s-primary', d?.buttonColor || store.primaryColor || '#0F6B4F');
+  r.setProperty('--s-accent', d?.buttonColor || store.accentColor || '#059669');
+  r.setProperty('--s-bg', d?.backgroundColor || store.backgroundColor || '#FFFFFF');
+  r.setProperty('--s-text', d?.textColor || store.textColor || '#111827');
   r.setProperty('--s-text2', '#6B7280');
   r.setProperty('--s-font', FONT_FAMILIES[store.font] || FONT_FAMILIES.inter);
   r.setProperty('--s-border', '#E5E7EB');
-  document.documentElement.style.backgroundColor = store.backgroundColor || '#FFFFFF';
+  document.documentElement.style.backgroundColor = d?.backgroundColor || store.backgroundColor || '#FFFFFF';
   loadGoogleFont(store.font || 'inter');
 }
 

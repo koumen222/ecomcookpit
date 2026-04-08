@@ -174,10 +174,10 @@ export default function ProductTestimonials({ testimonials = [], productImage = 
                     display: 'inline-flex', alignItems: 'center', gap: 4,
                     background: '#D1FAE5', borderRadius: 99, padding: '3px 10px', marginBottom: 10,
                   }}>
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--s-primary, #059669)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="20 6 9 17 4 12"/>
                     </svg>
-                    <span style={{ fontSize: 10, color: '#059669', fontWeight: 700, fontFamily: 'var(--s-font, sans-serif)' }}>
+                    <span style={{ fontSize: 10, color: 'var(--s-primary, #059669)', fontWeight: 700, fontFamily: 'var(--s-font, sans-serif)' }}>
                       Avis vérifié
                     </span>
                   </div>
