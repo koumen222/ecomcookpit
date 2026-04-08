@@ -192,6 +192,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const [buildProgress, setBuildProgress] = useState(0); // 0-100
   const [buildMessage, setBuildMessage] = useState('');
   const [showConfetti, setShowConfetti] = useState(false);
+  const [imageJobId, setImageJobId] = useState(null);
+  const [imagesLoading, setImagesLoading] = useState(false);
   const fileInputRef = useRef(null);
   const abortRef = useRef(null);
   const readerRef = useRef(null);
@@ -208,6 +210,65 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       document.body.style.overflow = 'unset';
     };
   }, []);
+
+  // Poll for background image generation
+  useEffect(() => {
+    if (!imageJobId || phase !== 'preview') return;
+    setImagesLoading(true);
+    let cancelled = false;
+    const token = localStorage.getItem('ecomToken');
+    const wsId = localStorage.getItem('workspaceId');
+
+    const poll = async () => {
+      try {
+        const resp = await fetch(`${API_ORIGIN}/api/ai/product-generator/images/${imageJobId}`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(wsId ? { 'X-Workspace-Id': wsId } : {})
+          }
+        });
+        if (!resp.ok || cancelled) return;
+        const data = await resp.json();
+        if (cancelled) return;
+
+        if (data.status === 'done' || data.status === 'error') {
+          // Merge images into product
+          setProduct(prev => {
+            if (!prev) return prev;
+            const imgs = data.images || {};
+            const newAngles = prev.angles?.map((a, i) => {
+              const bgAngle = imgs.angles?.find(ba => ba.index === i + 1);
+              return bgAngle ? { ...a, poster_url: bgAngle.poster_url } : a;
+            }) || [];
+            const allImages = [
+              ...(imgs.heroImage ? [imgs.heroImage] : []),
+              ...(imgs.beforeAfterImage ? [imgs.beforeAfterImage] : []),
+              ...newAngles.map(a => a.poster_url).filter(Boolean)
+            ];
+            return {
+              ...prev,
+              heroImage: imgs.heroImage || prev.heroImage,
+              beforeAfterImage: imgs.beforeAfterImage || prev.beforeAfterImage,
+              angles: newAngles,
+              allImages: [...(prev.allImages || []), ...allImages].filter((v, i, a) => v && a.indexOf(v) === i),
+            };
+          });
+          setImagesLoading(false);
+          setImageJobId(null);
+          return; // Stop polling
+        }
+
+        // Still generating — poll again in 4s
+        if (!cancelled) setTimeout(poll, 4000);
+      } catch {
+        if (!cancelled) setTimeout(poll, 6000);
+      }
+    };
+
+    // Start first poll after 5s (images take time)
+    const timer = setTimeout(poll, 5000);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [imageJobId, phase]);
 
   // Fetch credit info on mount
   useEffect(() => {
@@ -421,9 +482,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     abortRef.current = controller;
     const safetyTimer = setTimeout(() => {
       controller.abort();
-      setError('Timeout: La génération a pris trop de temps (5 minutes max)');
+      setError('Timeout: La génération a pris trop de temps (3 minutes max)');
       setPhase('input');
-    }, 300000);
+    }, 180000);
 
     try {
       console.log('🚀 Starting Product Page Generation:', { url: url.trim(), photosCount: photos.length });
@@ -477,6 +538,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
         setBuildProgress(100);
         setBuildMessage('Votre page est prête ! 🎉');
         setShowConfetti(true);
+        
+        // Store imageJobId to start polling for images
+        if (result.imageJobId) {
+          setImageJobId(result.imageJobId);
+        }
         
         // Attendre 2 secondes pour que l'utilisateur voie les confettis
         setTimeout(() => {
@@ -1427,6 +1493,15 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               {/* Tab: Page (overview) */}
               {activeTab === 'page' && (
                 <div className="space-y-4">
+                  {/* Images loading banner */}
+                  {imagesLoading && (
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200">
+                      <Loader2 className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
+                      <span className="text-sm font-medium text-amber-700">
+                        Les images sont en cours de génération en arrière-plan...
+                      </span>
+                    </div>
+                  )}
                   {/* Hero photo avec textes */}
                   {product.heroImage && (
                     <div className="border border-gray-200 rounded-xl overflow-hidden">
@@ -1775,6 +1850,15 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               {/* Tab: Photos */}
               {activeTab === 'images' && (
                 <div className="space-y-4">
+                  {/* Images loading indicator */}
+                  {imagesLoading && (
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200">
+                      <Loader2 className="w-4 h-4 text-violet-600 animate-spin" />
+                      <span className="text-sm font-medium text-violet-700">
+                        Images en cours de génération... Elles apparaîtront ici automatiquement.
+                      </span>
+                    </div>
+                  )}
                   {/* Visuels IA galerie principale */}
                   {(product.heroImage || product.heroPosterImage || product.beforeAfterImage) && (
                     <div>
