@@ -150,7 +150,17 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
     };
 
     res.json({
-      analytics: analyticsStats,
+      analytics: {
+        ...analyticsStats,
+        overview: {
+          ...analyticsStats.overview,
+          // Recalculate conversion rate using actual orders, not just tracked events
+          conversionRate: analyticsStats.overview.uniqueVisitors > 0
+            ? parseFloat(((orderStats.total / analyticsStats.overview.uniqueVisitors) * 100).toFixed(1))
+            : 0,
+          ordersPlaced: orderStats.total,
+        },
+      },
       orders: orderStats,
       period: { start, end },
     });
