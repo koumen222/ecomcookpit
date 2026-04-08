@@ -299,6 +299,7 @@ function buildAngleImagePrompt(angle, gptResult, hasProductRef, template = 'gene
 function getInfographicLayouts(template, ctx) {
   const { title, productNote, targetPerson, headlineShort, promesseShort, angleTitle, angleExplication, b1, b2, b3 } = ctx;
   const colorTheme = getProductColorTheme(template);
+  const niche = getNicheDetails(template);
 
   return [
     // ─── SLIDE 0: PREUVE / RÉSULTAT (IMAGE 3) ───────────────────
@@ -311,11 +312,12 @@ Show someone ACTIVELY USING the product with a VISIBLE result.
 Dominant color throughout: ${colorTheme.primary}. Person wears ${colorTheme.personClothing}. Environment accents in ${colorTheme.name} tones.
 
 COMPOSITION:
-- PERSON (55% of frame): ${targetPerson} — authentic Black African person (dark skin, natural African features, natural African hair). ACTIVELY using "${title}" — applying, holding, demonstrating. The RESULT of using the product is VISUALLY VISIBLE on them (clearer skin, shinier hair, relief, energy, etc.)
+- PERSON (55% of frame): ${targetPerson} — authentic Black African person (dark skin, natural African features, natural African hair). ${niche.preuve.action}. The RESULT is ${niche.preuve.result}. ${niche.preuve.closeup}
 - Expression: SUBTLE, natural satisfaction — NOT theatrical. Genuine. Like a real person who is happy with results
 - Clothing: ${colorTheme.personClothing} — simple, everyday African style
 - PRODUCT (30%): ${productNote} — at REAL SIZE, natural placement (in hands, on surface nearby). Sharp, clear, no distortion
-- SETTING: Realistic African home (${template === 'beauty' ? 'bathroom, vanity' : template === 'health' ? 'bright room, kitchen' : template === 'tech' ? 'desk, living room' : 'home interior'}). Natural warm lighting
+- SETTING: ${niche.preuve.setting}. Natural warm lighting
+- PROPS: ${niche.preuve.props}
 - TEXT OVERLAY: "${headlineShort}" — short French headline (4-6 words max) in ${colorTheme.primary}. PERFECT French spelling
 - Small benefit tag: "${promesseShort}" on frosted glass badge
 
@@ -326,17 +328,17 @@ NO price, NO phone, NO URL, NO watermark.`,
     `Square 1:1 LIFESTYLE AD for "${title}" — African market. Photorealistic like a HIGH-END SMARTPHONE PHOTO. Ultra HD.
 
 ═══ TYPE: STYLE DE VIE — IMPACT QUOTIDIEN ═══
-Show the IMPACT of the product in everyday African life. Confidence, well-being, comfort.
+${niche.lifestyle.scene}
 
 ═══ COLOR THEME: ${colorTheme.name.toUpperCase()} ═══
 Dominant color throughout: ${colorTheme.primary}. Person wears ${colorTheme.personClothing}. Environment accents in ${colorTheme.name} tones.
 
 COMPOSITION:
-- PERSON (dominant 60%): ${targetPerson} — authentic Black African person in their DAILY LIFE, radiating confidence and well-being THANKS to "${title}". Natural candid moment — walking in the street, relaxing at home, with family, at work, or in a social moment
-- Expression: NATURAL and SUBTLE — genuine confidence, calm happiness, self-assurance. NOT exaggerated joy. Like someone living their best life naturally
+- PERSON (dominant 60%): ${targetPerson} — authentic Black African person in their DAILY LIFE. ${niche.lifestyle.activity}. Radiating ${niche.lifestyle.mood}
+- Expression: NATURAL and SUBTLE — genuine confidence, calm happiness, self-assurance. NOT exaggerated joy
 - Clothing: ${colorTheme.personClothing} — simple, clean, everyday African style
-- PRODUCT: ${productNote} — visible but naturally placed (on table, in bag, in hand, on shelf). REAL SIZE, not forced into the scene
-- SETTING: Real African daily-life scene — modern African neighborhood, home, market, terrace, local café. Natural warm daylight, local decor. Coherent African environment
+- PRODUCT: ${productNote} — visible but naturally placed. REAL SIZE, not forced into the scene
+- SETTING: ${niche.lifestyle.setting}. Natural warm daylight, local decor. Coherent African environment
 - TEXT OVERLAY: Short inspiring French phrase (4-6 words) related to ${angleTitle ? `"${headlineShort}"` : 'lifestyle benefit'}. ${colorTheme.primary} accent color. PERFECT French
 - Optional: 2-3 subtle benefit icons or small frosted tags
 
@@ -354,11 +356,11 @@ Dominant dark background: ${colorTheme.darkGradient}. Accent color: ${colorTheme
 
 COMPOSITION:
 - BACKGROUND: Premium gradient — ${colorTheme.darkGradient}. Dramatic but clean. Professional brand feel
-- PRODUCT (40% of frame): ${productNote} — shown LARGE, sharp, premium lighting with subtle ${colorTheme.accent} glow. Every label and detail readable. Product is the STAR
+- PRODUCT (40% of frame): ${niche.confiance.productDisplay}. ${productNote} — shown LARGE, sharp, premium lighting with subtle ${colorTheme.accent} glow. Every label and detail readable. Product is the STAR
 - PERSON (35%): ${targetPerson} — authentic Black African person next to the product, calm confident expression, looking at camera with trust. Natural pose. Dressed in ${colorTheme.personClothing}
+- EXPERT DETAILS: ${niche.confiance.expertNote}
 - TRUST ELEMENTS:
-  • "Qualité Garantie" or "Testé et Approuvé" – small badge in ${colorTheme.accent}
-  • "100% Naturel" or "Efficacité Prouvée" — glass-morphism card
+  ${niche.confiance.trustBadges.split(', ').map(b => `• ${b} — glass-morphism badge in ${colorTheme.accent}`).join('\n  ')}
   • Customer stat: "+5000 clients satisfaits" — subtle text
 - HEADLINE: "${headlineShort}" — bold condensed French text, perfect spelling, ${colorTheme.accent} accent on key word
 - Overall feel: this brand is SERIOUS, TRUSTWORTHY, PROFESSIONAL
@@ -369,11 +371,142 @@ NO price, NO phone, NO URL, NO watermark.`,
 }
 
 /**
+ * Niche-specific scene details for each template.
+ * Returns contextual descriptions for proof, lifestyle, and trust archetypes.
+ */
+function getNicheDetails(template) {
+  const niches = {
+    beauty: {
+      preuve: {
+        action: 'applying serum/cream on face, doing skincare routine, massaging product into skin',
+        result: 'visibly GLOWING skin, smoother complexion, radiant dewy finish, reduced blemishes',
+        setting: 'modern bathroom vanity with round mirror and warm lighting, marble countertop, small plants',
+        props: 'cotton pads, cosmetic bottles, rose petals, small mirror, skincare tools',
+        closeup: 'Close-up on face/hands showing product application and skin texture improvement',
+      },
+      lifestyle: {
+        scene: 'getting ready in the morning — applying product at her vanity, then confidently stepping out. Beautiful African woman in her daily beauty routine',
+        setting: 'bright modern African bedroom or bathroom with natural light streaming through curtains, vanity with cosmetics, fresh flowers',
+        activity: 'doing her beauty routine, admiring herself in the mirror, touching her glowing skin with confidence, heading out feeling beautiful',
+        mood: 'self-care, feminine confidence, ritual of beauty, morning glow',
+      },
+      confiance: {
+        productDisplay: 'product on white marble surface with rose petals scattered around, soft rose-gold backlighting, cream/serum texture dripping artistically',
+        trustBadges: '"Ingrédients Naturels", "Testé Dermatologiquement", "Résultats Visibles en 7 Jours"',
+        expertNote: 'cosmetic ingredient close-up textures, natural botanical elements (aloe, shea, cocoa butter), lab-quality aesthetic',
+      },
+    },
+    tech: {
+      preuve: {
+        action: 'unboxing the device, setting it up, actively using it — tapping screen, connecting cables, demonstrating features',
+        result: 'the device WORKING perfectly — bright screen display, LED indicators on, connected devices syncing, clear performance demo',
+        setting: 'modern desk/workspace with clean setup, dark theme, subtle blue/purple LED ambient lighting, organized cables',
+        props: 'laptop, phone, charging cables, wireless earbuds, smart accessories, USB connectors',
+        closeup: 'Close-up on hands interacting with the device, screen reflections on face, tech details visible',
+      },
+      lifestyle: {
+        scene: 'young African professional using the tech product in their daily workflow — at a co-working space, on commute, in modern office',
+        setting: 'modern African co-working space or sleek home office — dual monitors, plant on desk, city view through window, modern African interior',
+        activity: 'video calling, working on laptop with product nearby, listening to music with wireless device, gaming, content creating',
+        mood: 'productive, connected, futuristic, efficient, modern African tech lifestyle',
+      },
+      confiance: {
+        productDisplay: 'product floating on dark reflective surface with neon blue rim lighting, circuit-board pattern subtle in background, specs callouts with thin lines',
+        trustBadges: '"Performance Maximale", "Technologie Avancée", "Garantie 1 An"',
+        expertNote: 'tech specs overlay (battery, processor, connectivity icons), sleek minimalist HUD-style design elements, carbon fiber texture hints',
+      },
+    },
+    fashion: {
+      preuve: {
+        action: 'trying on the clothing/accessory, styling an outfit, adjusting the piece in front of a large mirror',
+        result: 'the outfit TRANSFORMING their look — perfect fit visible, fabric draping beautifully, the accessory elevating the entire style',
+        setting: 'stylish dressing room or bedroom with full-length mirror, good lighting, clothing rack visible in background',
+        props: 'hangers, fashion accessories, shoes, handbag, jewelry, sunglasses, styling tools',
+        closeup: 'Medium shot showing the full outfit or close-up on fabric texture, stitching quality, accessory detail',
+      },
+      lifestyle: {
+        scene: 'African person wearing the fashion item confidently in an urban setting — street style, going out, social gathering',
+        setting: 'vibrant African city street, trendy café terrace, colorful market area, modern boutique district — warm golden hour light',
+        activity: 'walking confidently down the street, meeting friends at café, arriving at an event, casual urban stroll showcasing the outfit',
+        mood: 'editorial street style, confident, trendy, expressive, African urban fashion',
+      },
+      confiance: {
+        productDisplay: 'fashion item displayed on premium dark surface — fabric texture highlighted, gold/warm accent lighting, fashion editorial composition',
+        trustBadges: '"Qualité Premium", "Tissu Haut de Gamme", "Style Authentique"',
+        expertNote: 'fabric close-up showing quality weave/texture, elegant gold thread details, fashion magazine editorial aesthetic, warm metallic accents',
+      },
+    },
+    health: {
+      preuve: {
+        action: 'taking the supplement, preparing a health drink, using the wellness product — measuring dose, mixing, consuming',
+        result: 'visible ENERGY and VITALITY — person looking refreshed, active, strong, healthy glow, bright eyes, athletic posture',
+        setting: 'bright kitchen counter with fruits and vegetables, or outdoor fitness area with natural greenery, morning sunlight',
+        props: 'fresh fruits, green smoothie, water bottle, measuring spoon, natural ingredients (ginger, lemon, herbs), yoga mat',
+        closeup: 'Close-up on product with natural ingredients around it, person\'s energized expression, healthy food preparation',
+      },
+      lifestyle: {
+        scene: 'active African person incorporating the health product into their daily wellness routine — morning exercise, healthy breakfast, outdoor activity',
+        setting: 'outdoor park or garden in African neighborhood, bright modern kitchen, rooftop terrace with plants — fresh morning light, green nature',
+        activity: 'stretching/exercising outdoors, preparing a healthy meal with product nearby, jogging in the park, doing yoga, playing with kids energetically',
+        mood: 'vitality, freshness, natural energy, wellness, active healthy living',
+      },
+      confiance: {
+        productDisplay: 'product surrounded by fresh natural ingredients (leaves, fruits, herbs, seeds) on dark green/earth-toned background, natural spotlight',
+        trustBadges: '"100% Naturel", "Efficacité Clinique", "Sans Effets Secondaires"',
+        expertNote: 'natural ingredient macro shots (herbal leaves, golden capsules, organic textures), green purity aesthetic, nature meets science',
+      },
+    },
+    home: {
+      preuve: {
+        action: 'using the home product — cleaning, organizing, decorating, cooking with it, setting it up in the living space',
+        result: 'the HOME visibly IMPROVED — cleaner surface, better organized space, cozier atmosphere, the product making the home better',
+        setting: 'warm African home interior — living room with colorful fabrics, kitchen with local spices, bedroom with warm textiles',
+        props: 'African wax-print cushions, wooden furniture, terracotta pots, woven baskets, local decor, family photos on wall',
+        closeup: 'Before/after feel — the area where product is used looks visibly improved, cleaner, more organized, more beautiful',
+      },
+      lifestyle: {
+        scene: 'African family enjoying their home — cooking together, relaxing in living room, hosting guests, the product naturally part of the home',
+        setting: 'warm African household — colorful living room with African textiles, outdoor courtyard with terracotta tiles, cozy kitchen with local spices',
+        activity: 'family cooking together, children playing in organized room, couple relaxing on terrace, hosting friends for dinner, enjoying a clean and beautiful home',
+        mood: 'warmth, family, comfort, African home pride, togetherness, cozy domestic happiness',
+      },
+      confiance: {
+        productDisplay: 'product on warm wooden surface with terracotta and natural fiber textures, warm amber accent lighting, homey premium aesthetic',
+        trustBadges: '"Qualité Maison", "Durable et Fiable", "Approuvé par les Familles"',
+        expertNote: 'warm wood textures, woven natural fibers, terracotta tiles, cozy domestic premium feel, family-oriented trust',
+      },
+    },
+    general: {
+      preuve: {
+        action: 'actively using the product, demonstrating it, showing how it works in a real practical context',
+        result: 'visible positive CHANGE — the product delivers on its promise, the result is OBVIOUS in the image',
+        setting: 'clean modern African interior with neutral warm tones, natural daylight, minimal clutter',
+        props: 'everyday items that complement the product usage, clean modern accessories',
+        closeup: 'Medium shot showing both person and product clearly, result visible',
+      },
+      lifestyle: {
+        scene: 'African person living their daily life with the product naturally integrated — it just fits into their world',
+        setting: 'modern African environment — home, street, terrace, office — warm natural light, authentic local atmosphere',
+        activity: 'going about their day, walking, working, relaxing, socializing — product is naturally part of the moment',
+        mood: 'authentic, relatable, aspirational, warm, modern African daily life',
+      },
+      confiance: {
+        productDisplay: 'product on dark premium surface with bold accent lighting, gradient background, floating premium aesthetic',
+        trustBadges: '"Qualité Garantie", "Satisfaction Client", "Livraison Rapide"',
+        expertNote: 'clean premium product photography, bold gradient accent, universal trust aesthetic',
+      },
+    },
+  };
+
+  return niches[template] || niches.general;
+}
+
+/**
  * 3 flash prompts — matching the 3 ad creative archetypes:
  *   0: PREUVE / RÉSULTAT (Image 3)
  *   1: STYLE DE VIE (Image 4)
  *   2: CONFIANCE / CRÉDIBILITÉ (Image 5)
- * Color theme integrated. Always African persons + product visible + French text.
+ * Color theme + niche-specific details. Always African persons + product visible + French text.
  */
 function buildFlashPrompts(gptResult, hasProductRef, method = 'PAS', template = 'general') {
   const title = gptResult.title || 'product';
@@ -387,6 +520,7 @@ function buildFlashPrompts(gptResult, hasProductRef, method = 'PAS', template = 
     : `A premium product packaging for "${title}" shown large, sharp, dominant.`;
 
   const ct = getProductColorTheme(template);
+  const niche = getNicheDetails(template);
 
   // ── Image 3 : PREUVE / RÉSULTAT ──────────────────────────────────────
   const preuvePrompt = `Square 1:1 AD CREATIVE — PREUVE / RÉSULTAT for "${title}". Ultra HD, 4K. PHOTOREALISTIC smartphone-quality photograph.
@@ -395,9 +529,11 @@ COLOR THEME: dominant ${ct.name}. Primary ${ct.primary}, secondary ${ct.secondar
 
 CONCEPT: Someone USING the product with a VISIBLE, TANGIBLE result.
 - BACKGROUND: ${ct.gradient} — clean, modern, premium feel
-- PERSON (dominant 55%): ${targetPerson} — African person with authentic dark skin, natural African hair, simple everyday clothing. They are ACTIVELY using "${title}" and the RESULT is visible on their body/face/environment. Close-up or medium shot. Expression: genuine satisfied smile, natural and subtle. Warm ${ct.mood} lighting on skin
+- PERSON (dominant 55%): ${targetPerson} — African person with authentic dark skin, natural African hair, simple everyday clothing. They are ${niche.preuve.action}. The RESULT is ${niche.preuve.result}. ${niche.preuve.closeup}. Expression: genuine satisfied smile, natural and subtle. Warm ${ct.mood} lighting on skin
 - PRODUCT: clearly visible in hands or being applied — ${productNote}
-- RESULT PROOF: The visual SHOWS the benefit — glowing skin, energy, clean surface, organized space, etc. The transformation is OBVIOUS without text
+- SETTING: ${niche.preuve.setting}
+- PROPS: ${niche.preuve.props}
+- RESULT PROOF: The visual SHOWS the benefit — ${niche.preuve.result}. The transformation is OBVIOUS without text
 - OVERLAY: 2 small frosted-glass badges in ${ct.accent} accent:
   "${b1}" + "${b2}"
   Thin ${ct.primary} border, clean French text
@@ -409,11 +545,11 @@ MANDATORY: Real smartphone photo quality. African person with visible face. Prod
 
 COLOR THEME: dominant ${ct.name}. Primary ${ct.primary}, accent ${ct.accent}. Mood: ${ct.mood}.
 
-CONCEPT: The product integrated into DAILY AFRICAN LIFE — the viewer sees themselves.
-- BACKGROUND: Real African environment — modern home interior, bright market street, cozy terrace, or vibrant neighborhood. Warm natural daylight, lived-in atmosphere. NOT studio. The setting must feel AUTHENTIC and RECOGNIZABLE to African consumers
-- PERSON (dominant 60%): ${targetPerson} — African person in natural daily-life context, wearing ${ct.personClothing}. NATURALLY using or holding "${title}" as part of their routine. Dynamic natural pose (cooking, walking, relaxing, working). Genuine warm expression, NOT posed. Warm golden natural light creating highlights on dark skin
+CONCEPT: ${niche.lifestyle.scene}
+- BACKGROUND: ${niche.lifestyle.setting}. NOT studio. The setting must feel AUTHENTIC and RECOGNIZABLE to African consumers
+- PERSON (dominant 60%): ${targetPerson} — African person in natural daily-life context, wearing ${ct.personClothing}. ${niche.lifestyle.activity}. Genuine warm expression, NOT posed. Warm golden natural light creating highlights on dark skin
 - PRODUCT: visible in hands or nearby, integrated into the scene — ${productNote}
-- ATMOSPHERE: Warm, aspirational but RELATABLE. This is someone's real life made better by the product
+- ATMOSPHERE: ${niche.lifestyle.mood}. Warm, aspirational but RELATABLE. This is someone's real life made better by the product
 - OVERLAY: 1 small frosted-glass card in ${ct.primary} tint: short French lifestyle tagline
 
 MANDATORY: Real smartphone photo quality. African person with visible face. Real African setting. Product naturally integrated. ALL text perfect French. NO cartoon, NO AI artifacts, NO watermark.`;
@@ -425,12 +561,11 @@ COLOR THEME: dominant ${ct.name}. Dark gradient: ${ct.darkGradient}. Accent: ${c
 
 CONCEPT: TRUST, QUALITY, PREMIUM — dark luxurious background, the product is KING.
 - BACKGROUND: ${ct.darkGradient} — deep, rich, premium, luxurious. Dramatic cinematic feel
-- PRODUCT (dominant 45%): ${productNote} Product with dramatic ${ct.accent} rim lighting, floating on dark reflective surface, soft glow emanating from behind. Sharp, premium, ELEVATED. The product is the STAR
+- PRODUCT (dominant 45%): ${niche.confiance.productDisplay}. ${productNote} Sharp, premium, ELEVATED. The product is the STAR
 - PERSON (35%): ${targetPerson} — African person with confident powerful expression, dramatic rim lighting with ${ct.primary} color cast on their skin, editorial portrait quality. They TRUST this product — calm confidence, not theatrical
+- EXPERT DETAILS: ${niche.confiance.expertNote}
 - TRUST ELEMENTS: 3 frosted glass-morphism badges on dark background:
-  • "${b1}" with subtle icon
-  • "${b3}" with subtle icon
-  • "QUALITÉ PREMIUM" with star icon
+  ${niche.confiance.trustBadges.split(', ').map(b => `• ${b}`).join('\n  ')}
   Each: dark translucent card, white text, thin ${ct.accent} border
 - BOTTOM: thin ${ct.accent} accent line
 
