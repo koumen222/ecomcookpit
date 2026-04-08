@@ -28,7 +28,7 @@ function useDraggableList(list, setList) {
 }
 
 // ── Offer edit modal ──────────────────────────────────────────────────────────
-const OfferEditModal = ({ offer, index, currency, onSave, onClose }) => {
+const OfferEditModal = ({ offer, index, currency, globalDesign, onSave, onClose }) => {
   const [local, setLocal] = useState({ ...offer });
 
   const upd = (field, val) => {
@@ -43,9 +43,11 @@ const OfferEditModal = ({ offer, index, currency, onSave, onClose }) => {
 
   const inputCls = "w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-400 focus:bg-white transition outline-none";
 
+  const primaryColor = globalDesign?.colors?.primary || '#be123c';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-gray-900">Éditer le palier {index + 1}</h3>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition">
@@ -82,6 +84,47 @@ const OfferEditModal = ({ offer, index, currency, onSave, onClose }) => {
             Économie calculée : {local.discount}%
           </div>
         )}
+
+        {/* ── Design par palier ── */}
+        <div className="border-t border-gray-100 pt-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Palette className="w-4 h-4 text-purple-600" />
+            <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">Design de ce palier</span>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[11px] font-medium text-gray-500 mb-1.5">Fond</label>
+              <div className="flex items-center gap-2">
+                <input type="color" className="w-8 h-8 rounded-lg cursor-pointer border border-gray-200"
+                  value={local.bg_color || '#ffffff'}
+                  onChange={e => upd('bg_color', e.target.value)} />
+                <span className="text-[11px] text-gray-500 font-mono">{(local.bg_color || '#ffffff').toUpperCase()}</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-gray-500 mb-1.5">Bordure</label>
+              <div className="flex items-center gap-2">
+                <input type="color" className="w-8 h-8 rounded-lg cursor-pointer border border-gray-200"
+                  value={local.border_color || primaryColor}
+                  onChange={e => upd('border_color', e.target.value)} />
+                <span className="text-[11px] text-gray-500 font-mono">{(local.border_color || primaryColor).toUpperCase()}</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-gray-500 mb-1.5">Badge</label>
+              <div className="flex items-center gap-2">
+                <input type="color" className="w-8 h-8 rounded-lg cursor-pointer border border-gray-200"
+                  value={local.badge_color || primaryColor}
+                  onChange={e => upd('badge_color', e.target.value)} />
+                <span className="text-[11px] text-gray-500 font-mono">{(local.badge_color || primaryColor).toUpperCase()}</span>
+              </div>
+            </div>
+          </div>
+          <button onClick={() => { upd('bg_color', ''); upd('border_color', ''); upd('badge_color', ''); }}
+            className="mt-2 text-[11px] text-purple-600 hover:underline">
+            Réinitialiser (utiliser le design global)
+          </button>
+        </div>
 
         <div className="flex gap-3 pt-2">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-medium hover:bg-gray-50 transition">
@@ -183,7 +226,7 @@ const CodPreview = ({ offers, design, selectedProduct, currency }) => {
                 {/* Badge */}
                 {off.label && (
                   <div className="absolute -top-2.5 right-3 px-2 py-0.5 text-[10px] font-bold text-white rounded-full z-10"
-                    style={{ backgroundColor: design.colors.primary || '#be123c' }}>
+                    style={{ backgroundColor: off.badge_color || design.colors.primary || '#be123c' }}>
                     {off.label}
                   </div>
                 )}
@@ -191,14 +234,14 @@ const CodPreview = ({ offers, design, selectedProduct, currency }) => {
                 <button onClick={() => setSelected(idx)}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 transition"
                   style={{
-                    borderColor: isSel ? (design.colors.primary || '#be123c') : '#e5e7eb',
-                    backgroundColor: isSel ? `${design.colors.primary || '#be123c'}10` : '#fff'
+                    borderColor: isSel ? (off.border_color || design.colors.primary || '#be123c') : '#e5e7eb',
+                    backgroundColor: isSel ? (off.bg_color || `${off.border_color || design.colors.primary || '#be123c'}10`) : (off.bg_color || '#fff')
                   }}
                 >
                   {/* Radio */}
                   <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
-                    style={{ borderColor: isSel ? design.colors.primary || '#be123c' : '#9ca3af' }}>
-                    {isSel && <div className="w-2 h-2 rounded-full" style={{ backgroundColor: design.colors.primary || '#be123c' }} />}
+                    style={{ borderColor: isSel ? (off.border_color || design.colors.primary || '#be123c') : '#9ca3af' }}>
+                    {isSel && <div className="w-2 h-2 rounded-full" style={{ backgroundColor: off.border_color || design.colors.primary || '#be123c' }} />}
                   </div>
 
                   {/* Qty */}
@@ -210,7 +253,7 @@ const CodPreview = ({ offers, design, selectedProduct, currency }) => {
 
                   {/* Badge économie */}
                   <div className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white"
-                    style={{ backgroundColor: design.colors.primary || '#be123c' }}>
+                    style={{ backgroundColor: off.badge_color || design.colors.primary || '#be123c' }}>
                     Économisez {discpct}%
                   </div>
 
@@ -548,6 +591,7 @@ const FormQuantityOffersWizard = () => {
 
             {offers.map((off, idx) => {
               const label = `${off.quantity} ${Number(off.quantity) > 1 ? 'Unités' : 'unité'}`;
+              const hasCustomDesign = off.bg_color || off.border_color || off.badge_color;
               return (
                 <div key={idx}
                   draggable
@@ -557,6 +601,10 @@ const FormQuantityOffersWizard = () => {
                   className="flex items-center gap-2 px-3 py-3 border border-gray-200 rounded-xl bg-gray-50 hover:bg-gray-100 transition group"
                 >
                   <GripVertical className="w-4 h-4 text-gray-300 cursor-grab flex-shrink-0" />
+                  {hasCustomDesign && (
+                    <div className="w-3 h-3 rounded-full flex-shrink-0 border border-white shadow-sm"
+                      style={{ backgroundColor: off.border_color || off.badge_color || off.bg_color }} title="Design personnalisé" />
+                  )}
                   <span className="flex-1 text-sm font-medium text-gray-800">{label}</span>
                   {off.price && (
                     <span className="text-xs text-gray-500 mr-1">
@@ -633,6 +681,7 @@ const FormQuantityOffersWizard = () => {
           offer={offers[editingOfferIdx]}
           index={editingOfferIdx}
           currency={currency}
+          globalDesign={design}
           onSave={saveEditedOffer}
           onClose={() => setEditingOfferIdx(null)}
         />
