@@ -158,7 +158,7 @@ const AdminDashboard = () => {
   const { user } = useEcomAuth();
   const { fmt } = useMoney();
   const navigate = useNavigate();
-  const [storeChecked, setStoreChecked] = useState(false);
+  const [storeChecked, setStoreChecked] = useState(true);
   const [loadingKpi, setLoadingKpi] = useState(true);   // Phase 1 : KPIs
   const [loadingSecondary, setLoadingSecondary] = useState(true); // Phase 2 : reste
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -199,23 +199,6 @@ const AdminDashboard = () => {
 
   // CRITICAL: Create ref first, assign after function declaration
   const loadDashboardDataRef = useRef(null);
-
-  // Check if user has at least one store — redirect to wizard if not
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await ecomApi.get('/stores');
-        const stores = res.data?.data || [];
-        if (!cancelled && stores.length === 0) {
-          navigate('/ecom/boutique/wizard', { replace: true });
-          return;
-        }
-      } catch { /* ignore — let dashboard load normally */ }
-      if (!cancelled) setStoreChecked(true);
-    })();
-    return () => { cancelled = true; };
-  }, [navigate]);
 
   // Animation de progression du chargement + timeout de sécurité anti-infinite-loading
   useEffect(() => {

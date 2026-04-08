@@ -31,7 +31,9 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
   const formConfig = productPageConfig?.form || {};
   const conversionConfig = productPageConfig?.conversion || {};
 
-  const btnColor = conversionConfig.accentColor || design.buttonColor || themeColor;
+  const offerDesign = conversionConfig.offerDesign || null;
+  const btnColor = offerDesign?.colors?.primary || conversionConfig.accentColor || design.buttonColor || themeColor;
+  const offerBorderStyle = offerDesign?.border_style || 'solid';
   const urgencyConfig = productPageConfig?.urgency || defaultConfig.urgency || {};
   const callScheduleConfig = productPageConfig?.callSchedule || defaultConfig.callSchedule || {};
   const bgColor = design.backgroundColor || '#ffffff';
@@ -275,7 +277,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
                           const sel = selectedOfferIdx === i;
                           return (
                             <div key={i} onClick={() => { setSelectedOfferIdx(i); set('quantity', offer.qty); }}
-                              style={{ padding: '12px 14px', borderRadius: 12, cursor: 'pointer', border: sel ? `2px solid ${btnColor}` : '1.5px solid #E5E7EB', backgroundColor: sel ? `${btnColor}08` : '#fff', display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s ease' }}>
+                              style={{ padding: '12px 14px', borderRadius: 12, cursor: 'pointer', borderWidth: sel ? 2 : 1.5, borderStyle: offerBorderStyle === 'flat' ? 'solid' : offerBorderStyle, borderColor: sel ? btnColor : '#E5E7EB', backgroundColor: sel ? `${btnColor}08` : '#fff', display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s ease' }}>
                               <div style={{ width: 18, height: 18, borderRadius: '50%', border: sel ? `5px solid ${btnColor}` : '2px solid #D1D5DB', flexShrink: 0 }} />
                               <div style={{ flex: 1 }}>
                                 <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>

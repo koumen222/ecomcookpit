@@ -500,23 +500,22 @@ const StoreCreationWizard = ({ onComplete }) => {
   };
 
   // ── Validation ────────────────────────────────────────────────────────────────
-  const validate = () => {
+  const validate = (skipping = false) => {
     const e = {};
     if (step === 1) {
       if (!form.storeName.trim()) e.storeName = 'Donnez un nom à votre boutique';
       if (!form.subdomain || form.subdomain.length < 3) e.subdomain = '3 caractères minimum';
       if (subdomainStatus === 'taken') e.subdomain = 'Cette URL est déjà utilisée';
-      if (!form.productType) e.productType = 'Sélectionnez une catégorie';
+      // productType is optional — defaults will be used
     }
-    if (step === 2) {
-      if (!form.audience.gender || form.audience.gender.length === 0) e.gender = 'Sélectionnez au moins un genre';
-      if (!form.audience.ageRange || form.audience.ageRange.length === 0) e.ageRange = 'Sélectionnez au moins une tranche d\'âge';
-      if (!form.audience.region || form.audience.region.length === 0) e.region = 'Sélectionnez au moins une zone';
-      // origin est optionnel
-      if (!form.tone) e.tone = 'Choisissez votre style';
-    }
-    if (step === 4) {
-      if (!form.storeWhatsApp.trim()) e.storeWhatsApp = 'Ajoutez un numéro WhatsApp';
+    // Steps 2-4: skip validation if user chose to skip
+    if (!skipping) {
+      if (step === 2) {
+        // All audience fields are now optional
+      }
+      if (step === 4) {
+        // WhatsApp is now optional — can be added later
+      }
     }
     // Étape 5 : pas de validation obligatoire, description optionnelle
     setErrors(e);
@@ -529,6 +528,12 @@ const StoreCreationWizard = ({ onComplete }) => {
       containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
+
+  const skip = () => {
+    setStep(s => Math.min(5, s + 1));
+    containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const back = () => {
     setStep(s => Math.max(1, s - 1));
     containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1151,15 +1156,25 @@ const StoreCreationWizard = ({ onComplete }) => {
             </button>
           ) : <div />}
 
-          {step < 5 ? (
-            <button
-              onClick={next}
-              className="flex items-center gap-2 px-8 py-3.5 text-sm font-bold text-white bg-gray-900 rounded-xl hover:bg-gray-800 transition shadow-lg shadow-gray-900/30"
-            >
-              Continuer
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          ) : (
+          <div className="flex items-center gap-2">
+            {step >= 2 && step <= 4 && (
+              <button
+                onClick={skip}
+                className="px-5 py-3 text-sm font-semibold text-gray-500 hover:text-gray-700 transition"
+              >
+                Passer
+              </button>
+            )}
+
+            {step < 5 ? (
+              <button
+                onClick={next}
+                className="flex items-center gap-2 px-8 py-3.5 text-sm font-bold text-white bg-gray-900 rounded-xl hover:bg-gray-800 transition shadow-lg shadow-gray-900/30"
+              >
+                Continuer
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            ) : (
             <button
               onClick={handleSubmit}
               disabled={saving}
@@ -1178,6 +1193,7 @@ const StoreCreationWizard = ({ onComplete }) => {
               )}
             </button>
           )}
+          </div>
         </div>
       </div>
     </div>

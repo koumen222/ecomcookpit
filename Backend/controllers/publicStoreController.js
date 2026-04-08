@@ -167,6 +167,9 @@ export const getProductBySlug = async (req, res) => {
         badge: o.label || '',
         selected: i === (quantityOffer.design?.highlight_offer ?? 0),
       }));
+      if (quantityOffer.design) {
+        product.quantityOfferDesign = quantityOffer.design;
+      }
     }
 
     res.json({
