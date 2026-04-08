@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useEcomAuth } from '../hooks/useEcomAuth';
-import api from '../../lib/api';
+import ecomApi from '../services/ecommApi.js';
 
 const PixelCard = ({ title, icon, color, description, fields, values, onChange, validatePixel }) => (
   <div className="bg-white rounded-2xl border border-gray-200 p-5">
@@ -91,7 +91,7 @@ const BoutiquePixel = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await api.get('/store/pixels');
+        const res = await ecomApi.get('/store/pixels');
         if (res.data?.data) {
           setPixels(prev => ({ ...prev, ...res.data.data }));
         }
@@ -132,7 +132,7 @@ const BoutiquePixel = () => {
     if (hasErrors) return;
     setSaving(true);
     try {
-      await api.put('/store/pixels', pixels);
+      await ecomApi.put('/store/pixels', pixels);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch {

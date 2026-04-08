@@ -4,6 +4,7 @@ import Workspace from '../models/Workspace.js';
 import StoreOrder from '../models/StoreOrder.js';
 import StoreProduct from '../models/StoreProduct.js';
 import StoreAnalytics from '../models/StoreAnalytics.js';
+import Store from '../models/Store.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { emitThemeUpdate } from '../services/socketService.js';
 
@@ -232,6 +233,14 @@ router.put('/pages', requireEcomAuth, requireWorkspace, async (req, res) => {
 
 router.get('/pixels', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
+    // Multi-store: load from Store model if active store selected
+    if (req.activeStoreId) {
+      const store = await Store.findById(req.activeStoreId).select('storePixels').lean();
+      if (store) {
+        return res.json({ success: true, data: store.storePixels || {} });
+      }
+    }
+    // Fallback: load from Workspace
     const workspace = await Workspace.findById(req.workspaceId)
       .select('storePixels')
       .lean();
@@ -272,13 +281,29 @@ router.put('/pixels', requireEcomAuth, requireWorkspace, async (req, res) => {
       }
     }
 
+    // Save to Workspace
     await Workspace.findByIdAndUpdate(
       req.workspaceId,
       { $set: { storePixels: sanitized } },
       { new: true }
     );
 
-    console.log('✅ Pixels updated successfully');
+    // Multi-store: also save to Store model if active store selected
+    if (req.activeStoreId) {
+      await Store.findByIdAndUpdate(
+        req.activeStoreId,
+        { $set: { storePixels: sanitized } }
+      );
+      console.log('✅ Pixels updated on Store + Workspace');
+    } else {
+      // No active store header — sync to all stores in workspace
+      await Store.updateMany(
+        { workspaceId: req.workspaceId, isActive: true },
+        { $set: { storePixels: sanitized } }
+      );
+      console.log('✅ Pixels synced to all stores in workspace');
+    }
+
     res.json({
       success: true,
       message: 'Pixels updated'
