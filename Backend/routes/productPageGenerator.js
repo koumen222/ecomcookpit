@@ -23,6 +23,17 @@ import FeatureUsageLog from '../models/FeatureUsageLog.js';
 
 const router = express.Router();
 
+// ─── In-memory store for async image generation jobs ──────────────────────────
+const imageJobs = new Map();
+const JOB_TTL = 30 * 60 * 1000; // 30min
+// Clean expired jobs every 5min
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, job] of imageJobs) {
+    if (now - job.createdAt > JOB_TTL) imageJobs.delete(id);
+  }
+}, 5 * 60 * 1000);
+
 // ─── Image prompt builders ────────────────────────────────────────────────────
 
 /**
@@ -1264,6 +1275,25 @@ router.get('/info', requireEcomAuth, async (req, res) => {
   }
 });
 
+// ── GET /images/:jobId — Poll async image generation status ───────────────────
+router.get('/images/:jobId', requireEcomAuth, (req, res) => {
+  const job = imageJobs.get(req.params.jobId);
+  if (!job) return res.json({ success: true, status: 'not_found', images: {} });
+
+  const images = {};
+  if (job.heroImage) images.heroImage = job.heroImage;
+  if (job.beforeAfterImage) images.beforeAfterImage = job.beforeAfterImage;
+  if (job.angles?.length) images.angles = job.angles;
+
+  res.json({
+    success: true,
+    status: job.status, // 'generating' | 'done' | 'error'
+    progress: job.progress || 0,
+    total: job.total || 0,
+    images,
+  });
+});
+
 router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), upload.array('images', 8), async (req, res) => {
   const userId = req.user?.id || req.user?._id || 'anonymous';
 
@@ -1436,9 +1466,90 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     console.log('✅ Photos uploadées:', realPhotos.length);
 
     // ══════════════════════════════════════════════════════════════════════════
-    // ÉTAPE 4 : Générer TOUTES les images EN PARALLÈLE (Hero + Avant/Après + 4 Affiches)
+    // RESPOND EARLY — Send text data immediately, generate images in background
     // ══════════════════════════════════════════════════════════════════════════
-    console.log('🎨 Étape 4: Génération de toutes les images en parallèle...');
+    const jobId = `gen_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    // Testimonials sans images individuelles
+    const finalTestimonials = (gptResult.testimonials || []).map(t => ({ ...t, image: '' }));
+
+    const productPage = {
+      title: gptResult.title || scraped.title || '',
+      hero_headline: gptResult.hero_headline || null,
+      hero_slogan: gptResult.hero_slogan || null,
+      hero_baseline: gptResult.hero_baseline || null,
+      hero_cta: gptResult.hero_cta || null,
+      urgency_badge: gptResult.urgency_badge || null,
+      problem_section: gptResult.problem_section || null,
+      solution_section: gptResult.solution_section || null,
+      stats_bar: gptResult.stats_bar || [],
+      offer_block: gptResult.offer_block || null,
+      seo: gptResult.seo || null,
+      heroImage: null,
+      beforeAfterImage: null,
+      angles: (gptResult.angles || []).map((a, i) => ({ ...a, poster_url: null, index: i + 1 })),
+      raisons_acheter: gptResult.raisons_acheter || [],
+      benefits_bullets: gptResult.benefits_bullets || [],
+      conversion_blocks: gptResult.conversion_blocks || [],
+      urgency_elements: gptResult.urgency_elements || null,
+      faq: gptResult.faq || [],
+      testimonials: finalTestimonials,
+      testimonialsGroupImage: null,
+      testimonialsSocialProofImage: null,
+      reassurance: gptResult.reassurance || null,
+      guide_utilisation: gptResult.guide_utilisation || null,
+      description: '',
+      realPhotos,
+      allImages: [],
+      sourceUrl: cleanUrl,
+      createdByAI: true,
+      generatedAt: new Date().toISOString(),
+      imageJobId: jobId,
+    };
+
+    // Récupérer le nombre de générations restantes
+    const updatedWorkspace = workspace ? await EcomWorkspace.findById(workspace._id)
+      .select('freeGenerationsRemaining paidGenerationsRemaining totalGenerations simpleGenerationsRemaining')
+      .lean() : null;
+
+    const generationsInfo = updatedWorkspace ? {
+      remaining: (updatedWorkspace.simpleGenerationsRemaining || 0) + (updatedWorkspace.freeGenerationsRemaining || 0) + (updatedWorkspace.paidGenerationsRemaining || 0),
+      totalUsed: updatedWorkspace.totalGenerations || 0
+    } : null;
+
+    // Track feature usage
+    if (req.workspaceId && req.user) {
+      FeatureUsageLog.create({
+        workspaceId: req.workspaceId,
+        userId: req.user._id || req.user.id,
+        feature: 'product_page_generator',
+        meta: {
+          productUrl: cleanUrl || null,
+          productName: gptResult?.title || scraped?.title || null,
+          success: true
+        }
+      }).catch(() => { });
+    }
+
+    // ── RESPOND NOW — client gets the preview immediately
+    console.log('📤 Réponse envoyée, génération images en arrière-plan (jobId:', jobId, ')');
+    res.json({
+      success: true,
+      product: productPage,
+      generations: generationsInfo,
+      imageJobId: jobId,
+    });
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // BACKGROUND — Generate all images asynchronously
+    // ══════════════════════════════════════════════════════════════════════════
+    const jobData = { status: 'generating', progress: 0, total: 0, heroImage: null, beforeAfterImage: null, angles: [], createdAt: Date.now() };
+    imageJobs.set(jobId, jobData);
+
+    // Fire and forget — errors won't crash the response
+    (async () => {
+      try {
+    console.log('🎨 [BG] Génération de toutes les images en parallèle...');
 
     const axios = (await import('axios')).default;
 
@@ -1592,15 +1703,24 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         new Promise(resolve => setTimeout(() => resolve(fallback), IMAGE_TIMEOUT_MS))
       ]);
 
-    const imageResults = await Promise.allSettled(
-      imagePromises.map(p => withTimeout(p, null))
-    ).then(results => results.map(r => (r.status === 'fulfilled' ? r.value : null)));
+    jobData.total = imagePromises.length;
 
-    // Extraire les résultats (nulls possibles si timeout)
-    let heroImageUrl = imageResults.find(r => r?.type === 'hero')?.url || null;
-    let beforeAfterUrl = imageResults.find(r => r?.type === 'before_after')?.url || null;
+    // Wrap each promise to update progress
+    const trackedPromises = imagePromises.map(p =>
+      withTimeout(p, null).then(result => {
+        jobData.progress++;
+        return result;
+      })
+    );
 
-    const posterImages = imageResults
+    const imageResults = await Promise.allSettled(trackedPromises)
+      .then(results => results.map(r => (r.status === 'fulfilled' ? r.value : null)));
+
+    // Extraire les résultats
+    jobData.heroImage = imageResults.find(r => r?.type === 'hero')?.url || null;
+    jobData.beforeAfterImage = imageResults.find(r => r?.type === 'before_after')?.url || null;
+
+    jobData.angles = imageResults
       .filter(r => r?.type === 'poster')
       .sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0))
       .map(r => ({
@@ -1610,110 +1730,18 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         flashType: r?.flashType || null
       }));
 
-    console.log('✅ Images générées:', {
-      hero: !!heroImageUrl,
-      beforeAfter: !!beforeAfterUrl,
-      flash: posterImages.filter(p => p.poster_url).length
+    jobData.status = 'done';
+    console.log('✅ [BG] Images terminées:', {
+      hero: !!jobData.heroImage,
+      beforeAfter: !!jobData.beforeAfterImage,
+      posters: jobData.angles.filter(p => p.poster_url).length
     });
 
-    // Testimonials sans images individuelles + images de groupe et social proof
-    const finalTestimonials = (gptResult.testimonials || []).map(t => ({ ...t, image: '' }));
-    const testimonialsGroupImage = null;
-    const testimonialsSocialProofImage = null;
-
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // ÉTAPE 5 : Assembler la description avec les images
-    // ══════════════════════════════════════════════════════════════════════════
-    console.log('📝 Étape 5: Assemblage de la description');
-
-    let description = '';
-
-    // Replace {{IMAGE_X}} with actual poster URLs
-    for (let i = 1; i <= 5; i++) {
-      const poster = posterImages[i - 1];
-      const placeholder = `{{IMAGE_${i}}}`;
-      if (poster?.poster_url) {
-        const imgTag = `![${poster.titre_angle || 'Affiche'}](${poster.poster_url})`;
-        description = description.replace(placeholder, imgTag);
-      } else {
-        description = description.replace(placeholder, '');
+      } catch (bgErr) {
+        console.error('❌ [BG] Erreur génération images:', bgErr.message);
+        jobData.status = 'error';
       }
-    }
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // ÉTAPE 6 : Assemblage final du produit
-    // ══════════════════════════════════════════════════════════════════════════
-    console.log('✅ Étape 6: Assemblage final');
-
-    const productPage = {
-      title: gptResult.title || scraped.title || '',
-      hero_headline: gptResult.hero_headline || null,
-      hero_slogan: gptResult.hero_slogan || null,
-      hero_baseline: gptResult.hero_baseline || null,
-      hero_cta: gptResult.hero_cta || null,
-      urgency_badge: gptResult.urgency_badge || null,
-      problem_section: gptResult.problem_section || null,
-      solution_section: gptResult.solution_section || null,
-      stats_bar: gptResult.stats_bar || [],
-      offer_block: gptResult.offer_block || null,
-      seo: gptResult.seo || null,
-      heroImage: heroImageUrl || null,
-      beforeAfterImage: beforeAfterUrl || null,
-      angles: posterImages,
-      raisons_acheter: gptResult.raisons_acheter || [],
-      benefits_bullets: gptResult.benefits_bullets || [],
-      conversion_blocks: gptResult.conversion_blocks || [],
-      urgency_elements: gptResult.urgency_elements || null,
-      faq: gptResult.faq || [],
-      testimonials: finalTestimonials,
-      testimonialsGroupImage: testimonialsGroupImage || null,
-      testimonialsSocialProofImage: testimonialsSocialProofImage || null,
-      reassurance: gptResult.reassurance || null,
-      guide_utilisation: gptResult.guide_utilisation || null,
-      description: description,
-      realPhotos,
-      allImages: [
-        ...(heroImageUrl ? [heroImageUrl] : []),
-        ...(beforeAfterUrl ? [beforeAfterUrl] : []),
-        ...posterImages.map(p => p.poster_url).filter(Boolean)
-      ],
-      sourceUrl: cleanUrl,
-      createdByAI: true,
-      generatedAt: new Date().toISOString()
-    };
-
-    console.log('✅ Page produit générée avec succès');
-
-    // Track feature usage
-    if (req.workspaceId && req.user) {
-      FeatureUsageLog.create({
-        workspaceId: req.workspaceId,
-        userId: req.user._id || req.user.id,
-        feature: 'product_page_generator',
-        meta: {
-          productUrl: cleanUrl || null,
-          productName: gptResult?.title || scraped?.title || null,
-          success: true
-        }
-      }).catch(() => { });
-    }
-
-    // Récupérer le nombre de générations restantes pour l'inclure dans la réponse
-    const updatedWorkspace = workspace ? await EcomWorkspace.findById(workspace._id)
-      .select('freeGenerationsRemaining paidGenerationsRemaining totalGenerations simpleGenerationsRemaining')
-      .lean() : null;
-
-    const generationsInfo = updatedWorkspace ? {
-      remaining: (updatedWorkspace.simpleGenerationsRemaining || 0) + (updatedWorkspace.freeGenerationsRemaining || 0) + (updatedWorkspace.paidGenerationsRemaining || 0),
-      totalUsed: updatedWorkspace.totalGenerations || 0
-    } : null;
-
-    return res.json({
-      success: true,
-      product: productPage,
-      generations: generationsInfo
-    });
+    })();
 
   } catch (error) {
     console.error('❌ Erreur génération:', error.message);
