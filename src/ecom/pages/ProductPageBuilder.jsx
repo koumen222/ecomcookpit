@@ -15,25 +15,25 @@ import defaultConfig from '../components/productSettings/defaultConfig.js';
 
 // ─── Section metadata for the 20 productPageConfig sections ──────────────────
 const SECTION_META = {
-  heroSlogan:       { emoji: '✅', label: 'Slogan marketing IA',       desc: 'Slogan persuasif sous le titre',     icon: Type,         color: 'bg-green-100 text-green-700 border-green-200' },
-  heroBaseline:     { emoji: '✅', label: 'Phrase de réassurance IA',   desc: 'Phrase de réassurance sous le titre', icon: CheckCircle,  color: 'bg-green-100 text-green-700 border-green-200' },
-  reviews:          { emoji: '⭐', label: 'Avis clients',              desc: 'Étoiles et nombre d\'avis',           icon: Star,         color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-  statsBar:         { emoji: '📊', label: 'Barre de stats sociales',   desc: 'Chiffres de preuve sociale',          icon: BarChart3,    color: 'bg-purple-100 text-purple-700 border-purple-200' },
-  stockCounter:     { emoji: '📦', label: 'Compteur de stock',         desc: 'Stock restant urgence',               icon: Box,          color: 'bg-orange-100 text-orange-700 border-orange-200' },
-  urgencyBadge:     { emoji: '🔥', label: 'Badge d\'urgence',          desc: 'Badge d\'urgence IA',                 icon: Flame,        color: 'bg-red-100 text-red-700 border-red-200' },
-  urgencyElements:  { emoji: '⏰', label: 'Éléments d\'urgence',       desc: 'Stock limité, preuve sociale',        icon: Clock,        color: 'bg-red-100 text-red-700 border-red-200' },
-  benefitsBullets:  { emoji: '💥', label: 'Bénéfices produit',         desc: 'Liste des bénéfices',                 icon: Zap,          color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-  conversionBlocks: { emoji: '🛡️', label: 'Blocs de réassurance',      desc: 'Blocs de réassurance',                icon: Shield,       color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
-  offerBlock:       { emoji: '🎁', label: 'Bloc garantie / offre',     desc: 'Garantie / offre spéciale',           icon: Gift,         color: 'bg-pink-100 text-pink-700 border-pink-200' },
-  description:      { emoji: '📝', label: 'Description produit',       desc: 'Description complète',                icon: FileText,     color: 'bg-gray-100 text-gray-700 border-gray-200' },
-  problemSection:   { emoji: '😰', label: 'Section Problème',          desc: 'Points de douleur client',            icon: Frown,        color: 'bg-rose-100 text-rose-700 border-rose-200' },
-  solutionSection:  { emoji: '💡', label: 'Section Solution',          desc: 'Solution persuasive',                 icon: Lightbulb,    color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
-  faq:              { emoji: '❓', label: 'Section FAQ',               desc: 'Questions fréquentes',                icon: HelpCircle,   color: 'bg-orange-100 text-orange-700 border-orange-200' },
-  testimonials:     { emoji: '💬', label: 'Témoignages clients',       desc: 'Témoignages clients',                 icon: MessageSquare,color: 'bg-pink-100 text-pink-700 border-pink-200' },
-  relatedProducts:  { emoji: '🔗', label: 'Produits similaires',       desc: 'Produits similaires',                 icon: Link2,        color: 'bg-blue-100 text-blue-700 border-blue-200' },
-  stickyOrderBar:   { emoji: '📌', label: 'Barre de commande fixe',    desc: 'Barre fixe Commander',                icon: Pin,          color: 'bg-gray-100 text-gray-700 border-gray-200' },
-  upsell:           { emoji: '🚀', label: 'Upsell',                    desc: 'Produit de valeur supérieure',        icon: Rocket,       color: 'bg-violet-100 text-violet-700 border-violet-200' },
-  orderBump:        { emoji: '🛒', label: 'Order Bump',                desc: 'Produit complémentaire',              icon: ShoppingCart, color: 'bg-teal-100 text-teal-700 border-teal-200' },
+  heroSlogan:       { label: 'Slogan marketing IA',       desc: 'Slogan persuasif sous le titre',     icon: Type,         color: 'bg-green-100 text-green-700 border-green-200' },
+  heroBaseline:     { label: 'Phrase de réassurance IA',   desc: 'Phrase de réassurance sous le titre', icon: CheckCircle,  color: 'bg-green-100 text-green-700 border-green-200' },
+  reviews:          { label: 'Avis clients',              desc: 'Étoiles et nombre d\'avis',           icon: Star,         color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+  statsBar:         { label: 'Barre de stats sociales',   desc: 'Chiffres de preuve sociale',          icon: BarChart3,    color: 'bg-purple-100 text-purple-700 border-purple-200' },
+  stockCounter:     { label: 'Compteur de stock',         desc: 'Stock restant urgence',               icon: Box,          color: 'bg-orange-100 text-orange-700 border-orange-200' },
+  urgencyBadge:     { label: 'Badge d\'urgence',          desc: 'Badge d\'urgence IA',                 icon: Flame,        color: 'bg-red-100 text-red-700 border-red-200' },
+  urgencyElements:  { label: 'Éléments d\'urgence',       desc: 'Stock limité, preuve sociale',        icon: Clock,        color: 'bg-red-100 text-red-700 border-red-200' },
+  benefitsBullets:  { label: 'Bénéfices produit',         desc: 'Liste des bénéfices',                 icon: Zap,          color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
+  conversionBlocks: { label: 'Blocs de réassurance',      desc: 'Blocs de réassurance',                icon: Shield,       color: 'bg-indigo-100 text-indigo-700 border-indigo-200' },
+  offerBlock:       { label: 'Bloc garantie / offre',     desc: 'Garantie / offre spéciale',           icon: Gift,         color: 'bg-pink-100 text-pink-700 border-pink-200' },
+  description:      { label: 'Description produit',       desc: 'Description complète',                icon: FileText,     color: 'bg-gray-100 text-gray-700 border-gray-200' },
+  problemSection:   { label: 'Section Problème',          desc: 'Points de douleur client',            icon: Frown,        color: 'bg-rose-100 text-rose-700 border-rose-200' },
+  solutionSection:  { label: 'Section Solution',          desc: 'Solution persuasive',                 icon: Lightbulb,    color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  faq:              { label: 'Section FAQ',               desc: 'Questions fréquentes',                icon: HelpCircle,   color: 'bg-orange-100 text-orange-700 border-orange-200' },
+  testimonials:     { label: 'Témoignages clients',       desc: 'Témoignages clients',                 icon: MessageSquare,color: 'bg-pink-100 text-pink-700 border-pink-200' },
+  relatedProducts:  { label: 'Produits similaires',       desc: 'Produits similaires',                 icon: Link2,        color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  stickyOrderBar:   { label: 'Barre de commande fixe',    desc: 'Barre fixe Commander',                icon: Pin,          color: 'bg-gray-100 text-gray-700 border-gray-200' },
+  upsell:           { label: 'Upsell',                    desc: 'Produit de valeur supérieure',        icon: Rocket,       color: 'bg-violet-100 text-violet-700 border-violet-200' },
+  orderBump:        { label: 'Order Bump',                desc: 'Produit complémentaire',              icon: ShoppingCart, color: 'bg-teal-100 text-teal-700 border-teal-200' },
 };
 
 // ─── Merge helpers (same as ProductSettingsPage) ─────────────────────────────
@@ -1068,7 +1068,8 @@ const SectionConfigEditor = ({ section, onChange }) => {
 
 // ─── Section card (list item) ────────────────────────────────────────────────
 const ConfigSectionCard = ({ section, index, total, onMove, onToggle, isActive, onClick }) => {
-  const meta = SECTION_META[section.id] || { emoji: '⬜', label: section.label, desc: '', icon: Layers, color: 'bg-gray-100 text-gray-700 border-gray-200' };
+  const meta = SECTION_META[section.id] || { label: section.label, desc: '', icon: Layers, color: 'bg-gray-100 text-gray-700 border-gray-200' };
+  const Icon = meta.icon;
 
   return (
     <div
@@ -1079,7 +1080,9 @@ const ConfigSectionCard = ({ section, index, total, onMove, onToggle, isActive, 
     >
       <div className="flex items-center gap-3 px-4 py-3">
         <GripVertical className="w-4 h-4 text-gray-300 flex-shrink-0" />
-        <span className="text-lg flex-shrink-0">{meta.emoji}</span>
+        <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${meta.color.split(' ').slice(0, 2).join(' ')}`}>
+          <Icon className="w-3.5 h-3.5" />
+        </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-900 truncate">{meta.label}</p>
           <p className="text-[11px] text-gray-400 truncate">{meta.desc}</p>
@@ -1241,6 +1244,16 @@ const ProductPageBuilder = () => {
       if (newIndex < 0 || newIndex >= prev.length) return prev;
       const next = [...prev];
       [next[index], next[newIndex]] = [next[newIndex], next[index]];
+      autoSaveConfig(next);
+      return next;
+    });
+  }, [autoSaveConfig]);
+
+  const handleConfigDragDrop = useCallback((fromIndex, toIndex) => {
+    setConfigSections(prev => {
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
       autoSaveConfig(next);
       return next;
     });
@@ -1478,7 +1491,8 @@ const ProductPageBuilder = () => {
             /* ── SECTION EDITOR (inline, replaces list) ── */
             const sec = configSections.find(s => s.id === activeConfigSection);
             if (!sec) return null;
-            const meta = SECTION_META[sec.id] || { emoji: '⬜', label: sec.label, desc: '' };
+            const meta = SECTION_META[sec.id] || { label: sec.label, desc: '', icon: Layers, color: 'bg-gray-100 text-gray-700 border-gray-200' };
+            const SectionIcon = meta.icon;
             return (
               <>
                 {/* Back button header */}
@@ -1489,7 +1503,7 @@ const ProductPageBuilder = () => {
                     Sections
                   </button>
                   <span className="text-gray-300 text-sm">·</span>
-                  <span className="text-[12px] font-semibold text-gray-800 truncate">{meta.emoji} {meta.label}</span>
+                  <span className="text-[12px] font-semibold text-gray-800 truncate flex items-center gap-1.5"><SectionIcon className="w-3.5 h-3.5" /> {meta.label}</span>
                   <div className="ml-auto">
                     <button onClick={() => handleConfigToggle(sec.id)}
                       className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${sec.enabled !== false ? 'bg-[#0F6B4F]' : 'bg-gray-300'}`}>
@@ -1524,18 +1538,28 @@ const ProductPageBuilder = () => {
 
               <div className="flex-1 overflow-y-auto p-2 space-y-1">
                 {configSections.map((section, idx) => {
-                  const meta = SECTION_META[section.id] || { emoji: '⬜', label: section.id, desc: '', color: 'bg-gray-100 text-gray-700' };
+                  const meta = SECTION_META[section.id] || { label: section.id, desc: '', icon: Layers, color: 'bg-gray-100 text-gray-700' };
+                  const SectionIcon = meta.icon;
                   const isEnabled = section.enabled !== false;
                   return (
                     <div key={section.id}
-                      className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer transition-all border ${
+                      draggable
+                      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', idx.toString()); e.currentTarget.classList.add('opacity-50'); }}
+                      onDragEnd={e => { e.currentTarget.classList.remove('opacity-50'); }}
+                      onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; e.currentTarget.classList.add('ring-2', 'ring-[#0F6B4F]'); }}
+                      onDragLeave={e => { e.currentTarget.classList.remove('ring-2', 'ring-[#0F6B4F]'); }}
+                      onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('ring-2', 'ring-[#0F6B4F]'); const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10); if (!isNaN(fromIdx) && fromIdx !== idx) handleConfigDragDrop(fromIdx, idx); }}
+                      className={`group flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-grab active:cursor-grabbing transition-all border ${
                         isEnabled
                           ? 'border-transparent hover:bg-gray-50 hover:border-gray-200'
                           : 'border-transparent opacity-50 hover:opacity-70 hover:bg-gray-50'
                       }`}
                       onClick={() => setActiveConfigSection(section.id)}
                     >
-                      <span className="text-base flex-shrink-0 w-6 text-center">{meta.emoji}</span>
+                      <GripVertical className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />
+                      <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 ${meta.color.split(' ').slice(0, 2).join(' ')}`}>
+                        <SectionIcon className="w-3 h-3" />
+                      </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-[12.5px] font-semibold text-gray-800 truncate">{meta.label}</p>
                         {!isEnabled && <p className="text-[10px] text-gray-400">Masquée</p>}
