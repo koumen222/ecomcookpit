@@ -162,9 +162,13 @@ storeOrderSchema.statics.findPaginated = function (filter, { page = 1, limit = 2
  * Quick stats for dashboard analytics.
  * Single aggregation — no multiple queries needed.
  */
-storeOrderSchema.statics.getQuickStats = function (workspaceId) {
+storeOrderSchema.statics.getQuickStats = function (workspaceId, storeId) {
+  const matchFilter = { workspaceId: new mongoose.Types.ObjectId(workspaceId) };
+  if (storeId) {
+    matchFilter.storeId = new mongoose.Types.ObjectId(storeId);
+  }
   return this.aggregate([
-    { $match: { workspaceId: new mongoose.Types.ObjectId(workspaceId) } },
+    { $match: matchFilter },
     {
       $group: {
         _id: '$status',

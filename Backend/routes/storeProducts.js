@@ -18,6 +18,18 @@ const getOpenAI = () => {
 
 const router = express.Router();
 
+/**
+ * Build a product filter scoped to the active store.
+ * Strict: only returns products belonging to the active store.
+ */
+function buildStoreFilter(req) {
+  const base = { workspaceId: req.workspaceId };
+  if (req.activeStoreId) {
+    return { ...base, storeId: req.activeStoreId };
+  }
+  return base;
+}
+
 // Configure multer for memory storage (files uploaded to Cloudflare, not local disk)
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -50,8 +62,8 @@ router.get('/', requireEcomAuth, requireWorkspace, async (req, res) => {
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
 
-    // Build filter — ALWAYS scoped to workspaceId
-    const filter = { workspaceId: req.workspaceId };
+    // Build filter — scoped to active store
+    const filter = buildStoreFilter(req);
     if (category) filter.category = category;
     if (isPublished !== undefined) filter.isPublished = isPublished === 'true';
     if (search) {
@@ -92,7 +104,7 @@ router.get('/', requireEcomAuth, requireWorkspace, async (req, res) => {
 router.get('/categories/list', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
     const categories = await StoreProduct.distinct('category', {
-      workspaceId: req.workspaceId,
+      ...buildStoreFilter(req),
       category: { $ne: '' }
     });
 
@@ -509,6 +521,7 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, async (re
 
     const product = new StoreProduct({
       workspaceId: req.workspaceId,
+      storeId: req.activeStoreId || null,
       name,
       description: description || '',
       price: Number(price),
@@ -688,6 +701,7 @@ router.post('/:id/duplicate', requireEcomAuth, requireWorkspace, requireStoreOwn
       ...rest,
       name: clonedName,
       isPublished: false,
+      storeId: req.activeStoreId || original.storeId || null,
       createdBy: req.user._id,
       workspaceId: req.workspaceId,
     });

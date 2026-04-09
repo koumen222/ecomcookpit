@@ -411,9 +411,12 @@ router.put('/subdomain', requireEcomAuth, requireWorkspace, requireStoreOwner, a
       });
     }
 
-    // Check uniqueness across Store + Workspace
+    // Check uniqueness across Store + Workspace (exclude current store, not just current workspace)
+    const store = await getActiveStore(req);
+    const storeQuery = { subdomain };
+    if (store) storeQuery._id = { $ne: store._id };
     const [storeConflict, wsConflict] = await Promise.all([
-      Store.findOne({ subdomain, workspaceId: { $ne: req.workspaceId } }).select('_id').lean(),
+      Store.findOne(storeQuery).select('_id').lean(),
       EcomWorkspace.findOne({ subdomain, _id: { $ne: req.workspaceId } }).select('_id').lean()
     ]);
 
@@ -422,21 +425,23 @@ router.put('/subdomain', requireEcomAuth, requireWorkspace, requireStoreOwner, a
     }
 
     // Update Store if available, otherwise Workspace
-    const store = await getActiveStore(req);
     if (store) {
       await Store.findByIdAndUpdate(store._id, { $set: { subdomain } });
+      // Only sync workspace.subdomain if this is the primary store
+      const ws = await EcomWorkspace.findById(req.workspaceId).select('primaryStoreId subdomain').lean();
+      if (String(ws?.primaryStoreId) === String(store._id)) {
+        await EcomWorkspace.findByIdAndUpdate(req.workspaceId, { $set: { subdomain } });
+      }
+    } else {
+      await EcomWorkspace.findByIdAndUpdate(req.workspaceId, { $set: { subdomain } });
     }
-    // Always keep workspace.subdomain in sync for legacy public resolver fallback
-    const workspace = await EcomWorkspace.findByIdAndUpdate(
-      req.workspaceId, { $set: { subdomain } }, { new: true }
-    ).select('subdomain').lean();
 
     res.json({
       success: true,
       message: 'Sous-domaine configuré',
       data: {
-        subdomain: workspace.subdomain,
-        storeUrl: `https://${workspace.subdomain}.scalor.net`
+        subdomain,
+        storeUrl: `https://${subdomain}.scalor.net`
       }
     });
   } catch (error) {
