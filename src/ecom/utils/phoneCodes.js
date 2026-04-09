@@ -48,10 +48,50 @@ const CURRENCY_TO_CODE = {
 };
 
 /**
+ * Map country name (as used in form config) → phone code.
+ */
+const COUNTRY_NAME_TO_CODE = {};
+PHONE_CODES.forEach(c => {
+  COUNTRY_NAME_TO_CODE[c.name.toLowerCase()] = c.code;
+});
+// Common aliases
+Object.assign(COUNTRY_NAME_TO_CODE, {
+  'cameroon': '+237', 'ivory coast': '+225', "cote d'ivoire": '+225',
+  'senegal': '+221', 'togo': '+228', 'benin': '+229', 'burkina': '+226',
+  'mali': '+223', 'guinea': '+224', 'mauritania': '+222', 'niger': '+227',
+  'chad': '+235', 'gabon': '+241', 'congo': '+242', 'dr congo': '+243',
+  'drc': '+243', 'equatorial guinea': '+240', 'central african republic': '+236',
+  'nigeria': '+234', 'ghana': '+233', 'morocco': '+212', 'tunisia': '+216',
+  'algeria': '+213', 'france': '+33', 'belgium': '+32', 'switzerland': '+41',
+  'usa': '+1', 'canada': '+1', 'usa / canada': '+1',
+  'rd congo': '+243', 'guinée éq.': '+240', 'centrafrique': '+236',
+});
+
+/**
+ * Get phone code from a country name (as configured in form builder).
+ * Returns null if no match found.
+ */
+export function getPhoneCodeByCountryName(countryName) {
+  if (!countryName) return null;
+  return COUNTRY_NAME_TO_CODE[countryName.toLowerCase().trim()] || null;
+}
+
+/**
  * Get the default phone code based on store currency.
  */
 export function getDefaultPhoneCode(currency) {
   return CURRENCY_TO_CODE[currency] || CURRENCY_TO_CODE[currency?.toUpperCase()] || '+237';
+}
+
+/**
+ * Get default phone code from configured countries (form builder), falling back to currency.
+ */
+export function getDefaultPhoneCodeFromConfig(countries, currency) {
+  if (countries?.length) {
+    const code = getPhoneCodeByCountryName(countries[0]);
+    if (code) return code;
+  }
+  return getDefaultPhoneCode(currency);
 }
 
 /**

@@ -3,6 +3,7 @@ import { Save, Loader2, Check, GripVertical, Eye, EyeOff, Plus, ChevronUp, Chevr
 import { storeManageApi, storeProductsApi } from '../services/storeApi';
 import { useStore } from '../contexts/StoreContext.jsx';
 import defaultConfig from '../components/productSettings/defaultConfig.js';
+import { PHONE_CODES } from '../utils/phoneCodes.js';
 
 const deepClone = (obj) => JSON.parse(JSON.stringify(obj));
 
@@ -860,23 +861,44 @@ const BoutiqueFormBuilder = () => {
 
             {/* ─── Sélectionner les pays ─── */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
-              <h3 className="text-sm font-bold text-gray-800">Sélectionner les pays du formulaire</h3>
-              <input className={inputCls} placeholder="🔍 Sélectionner les pays"
-                value={config.general?.countries?.join(', ') || ''}
-                onChange={e => update(c => ({ ...c, general: { ...c.general, countries: e.target.value.split(',').map(s => s.trim()).filter(Boolean) } }))} />
+              <h3 className="text-sm font-bold text-gray-800">Pays du formulaire (indicatif téléphone)</h3>
+              <p className="text-xs text-gray-500">Le premier pays sélectionné détermine l'indicatif par défaut du formulaire.</p>
               {config.general?.countries?.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {config.general.countries.map((country, i) => (
-                    <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-xs font-medium text-gray-700 rounded-lg">
-                      {country}
-                      <button onClick={() => {
-                        const next = config.general.countries.filter((_, idx) => idx !== i);
-                        update(c => ({ ...c, general: { ...c.general, countries: next } }));
-                      }} className="text-gray-400 hover:text-red-500 ml-0.5">×</button>
-                    </span>
-                  ))}
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {config.general.countries.map((countryName, i) => {
+                    const pc = PHONE_CODES.find(c => c.name === countryName);
+                    return (
+                      <span key={i} className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border ${i === 0 ? 'bg-green-50 border-green-300 text-green-800' : 'bg-gray-100 border-gray-200 text-gray-700'}`}>
+                        {pc ? `${pc.label.split(' ')[0]} ` : ''}{countryName}{pc ? ` (${pc.code})` : ''}
+                        <button onClick={() => {
+                          const next = config.general.countries.filter((_, idx) => idx !== i);
+                          update(c => ({ ...c, general: { ...c.general, countries: next } }));
+                        }} className="text-gray-400 hover:text-red-500 ml-0.5">×</button>
+                      </span>
+                    );
+                  })}
                 </div>
               )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-48 overflow-y-auto border border-gray-200 rounded-xl p-2">
+                {PHONE_CODES.map(pc => {
+                  const selected = (config.general?.countries || []).includes(pc.name);
+                  return (
+                    <button key={pc.code} type="button"
+                      onClick={() => {
+                        const current = config.general?.countries || [];
+                        const next = selected ? current.filter(c => c !== pc.name) : [...current, pc.name];
+                        update(c => ({ ...c, general: { ...c.general, countries: next } }));
+                      }}
+                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-all text-left ${
+                        selected ? 'bg-green-50 border border-green-400 text-green-800' : 'bg-gray-50 border border-transparent text-gray-600 hover:bg-gray-100'
+                      }`}>
+                      <span>{pc.label.split(' ')[0]}</span>
+                      <span className="truncate">{pc.name}</span>
+                      {selected && <Check className="w-3 h-3 ml-auto flex-shrink-0 text-green-600" />}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* ─── Formulaire (champs) ─── */}
