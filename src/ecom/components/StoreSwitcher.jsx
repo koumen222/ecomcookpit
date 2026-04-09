@@ -78,18 +78,22 @@ const StoreSwitcher = () => {
             })}
 
             <div className="border-t border-gray-100 mt-1 pt-1">
-              <Link
-                to="/ecom/boutique/nouvelle"
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-3 px-3 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors"
-              >
-                <span className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                </span>
-                <span className="font-medium">Nouvelle boutique</span>
-              </Link>
+              {stores.length < 3 ? (
+                <Link
+                  to="/ecom/boutique/nouvelle"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-3 px-3 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors"
+                >
+                  <span className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </span>
+                  <span className="font-medium">Nouvelle boutique</span>
+                </Link>
+              ) : (
+                <p className="px-3 py-2 text-xs text-gray-400 text-center">Maximum 3 boutiques atteint</p>
+              )}
             </div>
           </div>
         </>
