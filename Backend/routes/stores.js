@@ -80,12 +80,19 @@ router.get('/', requireEcomAuth, async (req, res) => {
   }
 });
 
-// POST /api/ecom/stores — create a new store
+// POST /api/ecom/stores — create a new store (max 3 per workspace)
+const MAX_STORES_PER_WORKSPACE = 3;
 router.post('/', requireEcomAuth, async (req, res) => {
   try {
     const { name, subdomain } = req.body;
     if (!name?.trim()) {
       return res.status(400).json({ success: false, message: 'Nom de boutique requis' });
+    }
+
+    // Enforce max stores limit
+    const storeCount = await Store.countDocuments({ workspaceId: req.workspaceId, isActive: true });
+    if (storeCount >= MAX_STORES_PER_WORKSPACE) {
+      return res.status(403).json({ success: false, message: `Maximum ${MAX_STORES_PER_WORKSPACE} boutiques autorisées` });
     }
 
     // Determine subdomain

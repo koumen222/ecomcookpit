@@ -374,6 +374,12 @@ const StoreCreationWizard = ({ onComplete }) => {
       return;
     }
 
+    // Max 3 stores — block creation if limit reached
+    if (isNewStoreMode && stores.length >= 3) {
+      navigate('/ecom/boutique', { replace: true });
+      return;
+    }
+
     if (isResetMode) { setLoading(false); return; }
 
     const loadExisting = async () => {
