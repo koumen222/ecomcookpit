@@ -482,9 +482,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     abortRef.current = controller;
     const safetyTimer = setTimeout(() => {
       controller.abort();
-      setError('Timeout: La génération a pris trop de temps (3 minutes max)');
+      setError('Timeout: La génération a pris trop de temps (5 minutes max)');
       setPhase('input');
-    }, 180000);
+    }, 300000);
 
     try {
       console.log('🚀 Starting Product Page Generation:', { url: url.trim(), photosCount: photos.length });
@@ -532,29 +532,98 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       const result = await resp.json();
       
       if (result.success && result.product) {
-        console.log('✅ Product generated successfully');
+        console.log('✅ Text generated, waiting for images...');
         
-        // Animation finale : 100% + confetti avant de montrer le résultat
+        // Mettre à jour les infos de génération
+        if (result.generations) {
+          setGenerationsInfo(result.generations);
+        }
+
+        // Store product in state but DON'T switch to preview yet
+        setProduct(result.product);
+
+        // If there's an image job, wait for all images before showing preview
+        if (result.imageJobId) {
+          setBuildProgress(70);
+          setBuildMessage('Génération des images en cours...');
+
+          // Poll until all images are done
+          const pollImages = () => new Promise((resolve) => {
+            const doPoll = async () => {
+              try {
+                const imgResp = await fetch(`${API_ORIGIN}/api/ai/product-generator/images/${result.imageJobId}`, {
+                  headers: {
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    ...(wsId ? { 'X-Workspace-Id': wsId } : {})
+                  }
+                });
+                if (!imgResp.ok) { setTimeout(doPoll, 4000); return; }
+                const imgData = await imgResp.json();
+
+                // Update progress based on images received
+                const totalExpected = 7;
+                const done = (imgData.progress || 0);
+                const pct = Math.min(95, 70 + Math.round((done / totalExpected) * 25));
+                setBuildProgress(pct);
+                const msgs = [
+                  'Création de l\'image principale...',
+                  'Génération des visuels marketing...',
+                  'Design des posters produit...',
+                  'Retouches et optimisation...',
+                  'Assemblage des visuels...',
+                  'Finalisation des images...',
+                  'Dernières retouches...'
+                ];
+                setBuildMessage(msgs[Math.min(done, msgs.length - 1)] || 'Génération des images...');
+
+                if (imgData.status === 'done' || imgData.status === 'error') {
+                  resolve(imgData);
+                  return;
+                }
+                setTimeout(doPoll, 4000);
+              } catch {
+                setTimeout(doPoll, 6000);
+              }
+            };
+            // First poll after 5s
+            setTimeout(doPoll, 5000);
+          });
+
+          const imgResult = await pollImages();
+
+          // Merge images into product
+          const imgs = imgResult.images || {};
+          setProduct(prev => {
+            if (!prev) return prev;
+            const newAngles = prev.angles?.map((a, i) => {
+              const bgAngle = imgs.angles?.find(ba => ba.index === i + 1);
+              return bgAngle ? { ...a, poster_url: bgAngle.poster_url } : a;
+            }) || [];
+            const allImages = [
+              ...(imgs.heroImage ? [imgs.heroImage] : []),
+              ...(imgs.beforeAfterImage ? [imgs.beforeAfterImage] : []),
+              ...newAngles.map(a => a.poster_url).filter(Boolean)
+            ];
+            return {
+              ...prev,
+              heroImage: imgs.heroImage || prev.heroImage,
+              beforeAfterImage: imgs.beforeAfterImage || prev.beforeAfterImage,
+              angles: newAngles,
+              allImages: [...(prev.allImages || []), ...allImages].filter((v, i, a) => v && a.indexOf(v) === i),
+            };
+          });
+          setImagesLoading(false);
+        }
+
+        // NOW show confetti and switch to preview (all images are ready)
         setBuildProgress(100);
         setBuildMessage('Votre page est prête ! 🎉');
         setShowConfetti(true);
-        
-        // Store imageJobId to start polling for images
-        if (result.imageJobId) {
-          setImageJobId(result.imageJobId);
-        }
-        
-        // Attendre 2 secondes pour que l'utilisateur voie les confettis
+
         setTimeout(() => {
           setShowConfetti(false);
-          setProduct(result.product);
           setPhase('preview');
           setActiveTab('page');
-          
-          // Mettre à jour les infos de génération
-          if (result.generations) {
-            setGenerationsInfo(result.generations);
-          }
         }, 2000);
       } else {
         throw new Error(result.message || result.error || 'Erreur: Aucun produit généré');
