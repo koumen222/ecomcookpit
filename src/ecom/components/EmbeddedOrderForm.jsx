@@ -3,7 +3,7 @@ import { ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, Truck, Plus, M
 import { publicStoreApi } from '../services/storeApi.js';
 import defaultConfig from './productSettings/defaultConfig.js';
 import { firePixelEvent } from '../utils/pixelTracking';
-import { PHONE_CODES, getDefaultPhoneCode, buildFullPhone } from '../utils/phoneCodes.js';
+import { PHONE_CODES, getDefaultPhoneCodeFromConfig, buildFullPhone } from '../utils/phoneCodes.js';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
 const ICON_MAP = { user: User, phone: Phone, map: MapPin, pin: MapPin, mail: Mail, cart: ShoppingCart, file: FileText, hash: Hash, calendar: Calendar };
@@ -16,7 +16,7 @@ const FIELD_KEY_MAP = { fullname: 'customerName', phone: 'phone', city: 'city', 
  */
 const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => {
   const [form, setForm] = useState({ customerName: '', phone: '', city: '', address: '', notes: '', quantity: 1 });
-  const [phoneCode, setPhoneCode] = useState(() => getDefaultPhoneCode(store?.currency));
+  const [phoneCode, setPhoneCode] = useState(() => getDefaultPhoneCodeFromConfig(productPageConfig?.general?.countries, store?.currency));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);

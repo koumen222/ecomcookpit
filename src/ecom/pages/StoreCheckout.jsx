@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, ShoppingCart, CheckCircle, AlertCircle, Loader2, User, Phone, MapPin, FileText, Truck, Package, ChevronDown } from 'lucide-react';
-import { PHONE_CODES, getDefaultPhoneCode, buildFullPhone } from '../utils/phoneCodes.js';
+import { PHONE_CODES, getDefaultPhoneCodeFromConfig, buildFullPhone } from '../utils/phoneCodes.js';
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
 import { setDocumentMeta } from '../utils/pageMeta';
@@ -155,7 +155,8 @@ const StoreCheckout = () => {
         const data = res.data?.data || {};
         const storeData = data.store || data;
         setStore(storeData);
-        setPhoneCode(getDefaultPhoneCode(storeData?.currency || storeData?.storeSettings?.storeCurrency));
+        const ppc = storeData?.productPageConfig;
+        setPhoneCode(getDefaultPhoneCodeFromConfig(ppc?.general?.countries, storeData?.currency || storeData?.storeSettings?.storeCurrency));
         setPixels(data.pixels || null);
         // Inject pixels + fire InitiateCheckout
         if (data.pixels) {
