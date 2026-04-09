@@ -45,10 +45,15 @@ router.get('/analytics/summary', requireEcomAuth, requireWorkspace, async (req, 
   try {
     const workspaceId = req.workspaceId;
 
+    // Build store-scoped filter
+    const productFilter = req.activeStoreId
+      ? { workspaceId, storeId: req.activeStoreId }
+      : { workspaceId };
+
     // Get stats from StoreOrder using the built-in getQuickStats method
     const [orderStats, productCount] = await Promise.all([
-      StoreOrder.getQuickStats(workspaceId),
-      StoreProduct.countDocuments({ workspaceId })
+      StoreOrder.getQuickStats(workspaceId, req.activeStoreId),
+      StoreProduct.countDocuments(productFilter)
     ]);
 
     // Parse the aggregation result
@@ -61,12 +66,16 @@ router.get('/analytics/summary', requireEcomAuth, requireWorkspace, async (req, 
     // Calculate today's sales (orders created today)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayStats = await StoreOrder.aggregate([
-      {
-        $match: {
+    const todayMatchFilter = {
           workspaceId: new mongoose.Types.ObjectId(workspaceId),
           createdAt: { $gte: today }
-        }
+        };
+    if (req.activeStoreId) {
+      todayMatchFilter.storeId = new mongoose.Types.ObjectId(req.activeStoreId);
+    }
+    const todayStats = await StoreOrder.aggregate([
+      {
+        $match: todayMatchFilter
       },
       {
         $group: {
@@ -130,8 +139,13 @@ router.get('/orders', requireEcomAuth, requireWorkspace, async (req, res) => {
     const workspaceId = req.workspaceId;
     const { limit = 20, page = 1, sort = '-createdAt' } = req.query;
 
+    const orderFilter = { workspaceId };
+    if (req.activeStoreId) {
+      orderFilter.storeId = req.activeStoreId;
+    }
+
     const orders = await StoreOrder.findPaginated(
-      { workspaceId },
+      orderFilter,
       { page: parseInt(page), limit: parseInt(limit), sort: { createdAt: -1 } }
     );
 
@@ -151,6 +165,13 @@ router.get('/orders', requireEcomAuth, requireWorkspace, async (req, res) => {
 
 router.get('/theme', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
+    // Multi-store: load from Store model if active store selected
+    if (req.activeStoreId) {
+      const store = await Store.findById(req.activeStoreId).select('storeTheme').lean();
+      if (store) {
+        return res.json({ success: true, data: store.storeTheme || {} });
+      }
+    }
     const workspace = await Workspace.findById(req.workspaceId)
       .select('storeTheme')
       .lean();
@@ -175,6 +196,21 @@ router.put('/theme', requireEcomAuth, requireWorkspace, async (req, res) => {
       { new: true }
     ).select('subdomain');
 
+    // Multi-store: also save to Store model
+    if (req.activeStoreId) {
+      const store = await Store.findByIdAndUpdate(
+        req.activeStoreId,
+        { $set: { storeTheme: req.body } },
+        { new: true }
+      ).select('subdomain');
+      if (store?.subdomain) emitThemeUpdate(store.subdomain, req.body);
+    } else {
+      await Store.updateMany(
+        { workspaceId: req.workspaceId, isActive: true },
+        { $set: { storeTheme: req.body } }
+      );
+    }
+
     // Broadcast to all live visitors of this store
     if (updated?.subdomain) {
       emitThemeUpdate(updated.subdomain, req.body);
@@ -192,6 +228,13 @@ router.put('/theme', requireEcomAuth, requireWorkspace, async (req, res) => {
 
 router.get('/pages', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
+    // Multi-store: load from Store model if active store selected
+    if (req.activeStoreId) {
+      const store = await Store.findById(req.activeStoreId).select('storePages').lean();
+      if (store) {
+        return res.json({ success: true, data: store.storePages || {} });
+      }
+    }
     const workspace = await Workspace.findById(req.workspaceId)
       .select('storePages')
       .lean();
@@ -209,13 +252,25 @@ router.get('/pages', requireEcomAuth, requireWorkspace, async (req, res) => {
 router.put('/pages', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
     console.log('📄 PUT /store/pages - workspaceId:', req.workspaceId);
-    console.log('📄 Request body:', JSON.stringify(req.body, null, 2));
     
     await Workspace.findByIdAndUpdate(
       req.workspaceId,
       { $set: { storePages: req.body } },
       { new: true }
     );
+
+    // Multi-store: also save to Store model
+    if (req.activeStoreId) {
+      await Store.findByIdAndUpdate(
+        req.activeStoreId,
+        { $set: { storePages: req.body } }
+      );
+    } else {
+      await Store.updateMany(
+        { workspaceId: req.workspaceId, isActive: true },
+        { $set: { storePages: req.body } }
+      );
+    }
 
     console.log('✅ Pages updated successfully');
     res.json({
@@ -224,7 +279,6 @@ router.put('/pages', requireEcomAuth, requireWorkspace, async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error PUT /store/pages:', error);
-    console.error('❌ Error details:', error.message);
     res.status(500).json({ success: false, message: 'Error saving pages' });
   }
 });
@@ -319,6 +373,12 @@ router.put('/pixels', requireEcomAuth, requireWorkspace, async (req, res) => {
 
 router.get('/payments', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
+    if (req.activeStoreId) {
+      const store = await Store.findById(req.activeStoreId).select('storePayments').lean();
+      if (store) {
+        return res.json({ success: true, data: store.storePayments || {} });
+      }
+    }
     const workspace = await Workspace.findById(req.workspaceId)
       .select('storePayments')
       .lean();
@@ -341,6 +401,15 @@ router.put('/payments', requireEcomAuth, requireWorkspace, async (req, res) => {
       { new: true }
     );
 
+    if (req.activeStoreId) {
+      await Store.findByIdAndUpdate(req.activeStoreId, { $set: { storePayments: req.body } });
+    } else {
+      await Store.updateMany(
+        { workspaceId: req.workspaceId, isActive: true },
+        { $set: { storePayments: req.body } }
+      );
+    }
+
     res.json({
       success: true,
       message: 'Payments updated'
@@ -355,6 +424,19 @@ router.put('/payments', requireEcomAuth, requireWorkspace, async (req, res) => {
 
 router.get('/domains', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
+    if (req.activeStoreId) {
+      const store = await Store.findById(req.activeStoreId).select('subdomain storeDomains').lean();
+      if (store) {
+        return res.json({
+          success: true,
+          data: {
+            subdomain: store.subdomain || '',
+            customDomain: store.storeDomains?.customDomain || '',
+            sslStatus: store.storeDomains?.sslStatus || 'none'
+          }
+        });
+      }
+    }
     const workspace = await Workspace.findById(req.workspaceId)
       .select('subdomain storeDomains')
       .lean();

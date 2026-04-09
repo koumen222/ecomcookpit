@@ -230,21 +230,22 @@ const BoutiqueLayoutInner = () => {
               </svg>
               <span>Retour à Scalor</span>
             </button>
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: themeColor + '20' }}>
-                <svg className="w-5 h-5" style={{ color: themeColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+            <StoreSwitcher>
+              <div className="flex items-center gap-3 rounded-xl px-2 py-1.5 -mx-2 hover:bg-gray-50 transition-colors">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: themeColor + '20' }}>
+                  <svg className="w-5 h-5" style={{ color: themeColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-gray-900 truncate">{storeName}</p>
+                  <p className="text-[10px] text-gray-400 font-medium">Module Boutique</p>
+                </div>
+                <svg className="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
                 </svg>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-gray-900 truncate">{storeName}</p>
-                <p className="text-[10px] text-gray-400 font-medium">Module Boutique</p>
-              </div>
-            </div>
-            {/* Store switcher (only when multiple stores) */}
-            <div className="mt-2">
-              <StoreSwitcher />
-            </div>
+            </StoreSwitcher>
           </div>
 
           {/* Navigation */}

@@ -630,7 +630,18 @@ const StoreCreationWizard = ({ onComplete }) => {
 
       setSavingStep('Votre boutique est prête !');
       onComplete?.();
-      refreshStores();
+
+      // Refresh stores list & switch to the new store
+      await refreshStores();
+      // Re-force active store to the new one (in case refreshStores reset it)
+      if (isNewStoreMode) {
+        const freshRes = await storesApi.getStores();
+        const freshList = freshRes.data?.data || [];
+        const newOne = freshList.find(s => s.subdomain === form.subdomain);
+        if (newOne) {
+          switchStore(newOne);
+        }
+      }
 
       // Redirection directe vers la boutique publique
       const storeUrl = `https://${form.subdomain}.scalor.net`;

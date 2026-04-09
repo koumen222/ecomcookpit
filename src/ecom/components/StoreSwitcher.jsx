@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../contexts/StoreContext.jsx';
 
-const StoreSwitcher = () => {
+const StoreSwitcher = ({ children }) => {
   const { stores, activeStore, switchStore } = useStore();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -15,13 +15,19 @@ const StoreSwitcher = () => {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  if (!stores || stores.length === 0) return null;
+  if ((!stores || stores.length === 0) && !children) return null;
 
+  const hasStores = stores && stores.length > 0;
   const displayName = activeStore?.storeSettings?.storeName || activeStore?.name || 'Ma boutique';
   const themeColor = activeStore?.storeSettings?.storeThemeColor || '#0F6B4F';
 
   return (
     <div ref={ref} className="relative">
+      {children ? (
+        <button type="button" onClick={() => setOpen(o => !o)} className="w-full text-left cursor-pointer">
+          {children}
+        </button>
+      ) : (
       <button
         onClick={() => setOpen(o => !o)}
         className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all shadow-sm max-w-[200px]"
@@ -38,13 +44,17 @@ const StoreSwitcher = () => {
           </svg>
         )}
       </button>
+      )}
 
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute left-0 top-full mt-1.5 z-50 bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 min-w-[220px]">
             <p className="px-3 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Mes boutiques</p>
-            {stores.map(s => {
+            {!hasStores && (
+              <p className="px-3 py-3 text-sm text-gray-400 text-center">Aucune boutique</p>
+            )}
+            {hasStores && stores.map(s => {
               const name = s.storeSettings?.storeName || s.name;
               const color = s.storeSettings?.storeThemeColor || '#0F6B4F';
               const isActive = s._id === activeStore?._id;
@@ -78,9 +88,9 @@ const StoreSwitcher = () => {
             })}
 
             <div className="border-t border-gray-100 mt-1 pt-1">
-              {stores.length < 3 ? (
+              {(stores?.length || 0) < 3 ? (
                 <Link
-                  to="/ecom/boutique/nouvelle"
+                  to={hasStores ? "/ecom/boutique/nouvelle" : "/ecom/boutique/wizard"}
                   onClick={() => setOpen(false)}
                   className="flex items-center gap-3 px-3 py-2.5 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors"
                 >
@@ -89,7 +99,7 @@ const StoreSwitcher = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
                   </span>
-                  <span className="font-medium">Nouvelle boutique</span>
+                  <span className="font-medium">{hasStores ? 'Nouvelle boutique' : 'Créer une boutique'}</span>
                 </Link>
               ) : (
                 <p className="px-3 py-2 text-xs text-gray-400 text-center">Maximum 3 boutiques atteint</p>

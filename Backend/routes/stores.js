@@ -7,6 +7,8 @@ import express from 'express';
 import mongoose from 'mongoose';
 import Store from '../models/Store.js';
 import Workspace from '../models/Workspace.js';
+import StoreProduct from '../models/StoreProduct.js';
+import StoreOrder from '../models/StoreOrder.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 
 const router = express.Router();
@@ -60,10 +62,40 @@ router.get('/', requireEcomAuth, async (req, res) => {
         });
         await Workspace.updateOne({ _id: req.workspaceId }, { $set: { primaryStoreId: created._id } });
         stores = [created.toObject()];
+        // Auto-assign orphan products & orders to this store
+        await Promise.all([
+          StoreProduct.updateMany(
+            { workspaceId: req.workspaceId, storeId: null },
+            { $set: { storeId: created._id } }
+          ),
+          StoreOrder.updateMany(
+            { workspaceId: req.workspaceId, storeId: null },
+            { $set: { storeId: created._id } }
+          )
+        ]);
       } catch (migErr) {
         // Duplicate subdomain — fetch what already exists
         const existing = await Store.findOne({ workspaceId: req.workspaceId }).lean();
         if (existing) stores = [existing];
+      }
+    }
+
+    // Auto-assign orphan products/orders to primary store (one-time migration)
+    if (stores.length > 0) {
+      const primaryId = ws?.primaryStoreId || stores[0]._id;
+      const orphanCount = await StoreProduct.countDocuments({ workspaceId: req.workspaceId, storeId: null });
+      if (orphanCount > 0) {
+        await Promise.all([
+          StoreProduct.updateMany(
+            { workspaceId: req.workspaceId, storeId: null },
+            { $set: { storeId: primaryId } }
+          ),
+          StoreOrder.updateMany(
+            { workspaceId: req.workspaceId, storeId: null },
+            { $set: { storeId: primaryId } }
+          )
+        ]);
+        console.log(`✅ Migrated ${orphanCount} orphan products to store ${primaryId}`);
       }
     }
 

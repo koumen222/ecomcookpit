@@ -52,7 +52,8 @@ export const StoreProvider = ({ children }) => {
   }, [workspace?._id]);
 
   const refreshStores = useCallback(() => {
-    if (workspace?._id) loadStores(workspace._id);
+    if (workspace?._id) return loadStores(workspace._id);
+    return Promise.resolve();
   }, [workspace?._id, loadStores]);
 
   return (
