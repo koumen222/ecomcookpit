@@ -72,6 +72,14 @@ export const formatMoney = (amount, currencyCode = 'XAF') => {
   const fractionDigits = 0;
   
   try {
+    // For XAF/XOF, Intl displays "XAF"/"XOF" instead of "FCFA" — override manually
+    if (currency.code === 'XAF' || currency.code === 'XOF') {
+      const formatted = new Intl.NumberFormat(currency.locale, {
+        minimumFractionDigits: fractionDigits,
+        maximumFractionDigits: fractionDigits
+      }).format(num);
+      return `${formatted} FCFA`;
+    }
     return new Intl.NumberFormat(currency.locale, {
       style: 'currency',
       currency: currency.code,
