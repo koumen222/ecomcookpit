@@ -61,11 +61,14 @@ storeAnalyticsSchema.index({ sessionId: 1, timestamp: -1 });
 storeAnalyticsSchema.index({ visitorId: 1, workspaceId: 1, timestamp: -1 });
 
 // Méthode statique pour obtenir les statistiques
-storeAnalyticsSchema.statics.getStoreDashboardStats = async function(workspaceId, startDate, endDate, period = '7d') {
+storeAnalyticsSchema.statics.getStoreDashboardStats = async function(workspaceId, startDate, endDate, period = '7d', subdomain = null) {
   const matchQuery = {
     workspaceId,
     timestamp: { $gte: startDate, $lte: endDate }
   };
+  if (subdomain) {
+    matchQuery.subdomain = subdomain;
+  }
   
   // Visites uniques — préférer visitorId (persistant) et fallback sessionId
   const uniqueVisitorsById = await this.distinct('visitorId', {
@@ -135,11 +138,13 @@ storeAnalyticsSchema.statics.getStoreDashboardStats = async function(workspaceId
   // Visites aujourd'hui
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
-  const visitsToday = await this.countDocuments({
+  const visitsTodayQuery = {
     workspaceId,
     eventType: { $in: ['page_view', 'product_view'] },
     timestamp: { $gte: todayStart },
-  });
+  };
+  if (subdomain) visitsTodayQuery.subdomain = subdomain;
+  const visitsToday = await this.countDocuments(visitsTodayQuery);
 
   // Visites par produit
   const visitsPerProduct = await this.aggregate([

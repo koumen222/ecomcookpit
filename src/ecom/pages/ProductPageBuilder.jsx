@@ -65,6 +65,10 @@ const mergeWithDefaults = (stored) => ({
 const EDITABLE_SECTIONS = {
   heroSlogan:      { fields: [{ key: 'text', label: 'Slogan marketing', placeholder: 'Ex: Découvrez le secret des pros…', type: 'text' }] },
   heroBaseline:    { fields: [{ key: 'text', label: 'Phrase de réassurance', placeholder: 'Ex: Résultats visibles en 7 jours', type: 'text' }] },
+  reviews:         { fields: [
+    { key: 'rating', label: 'Note (étoiles)', placeholder: '4.8', type: 'number' },
+    { key: 'reviewCount', label: 'Nombre d\'avis', placeholder: 'Ex: 127', type: 'number' },
+  ]},
   urgencyBadge:    { fields: [{ key: 'text', label: 'Texte d\'urgence', placeholder: 'Ex: ⚡ Dernières pièces — 3 restants !', type: 'text' }] },
   statsBar:        { fields: 'stats' },
   productGallery:  { fields: 'productGallery' },

@@ -1208,7 +1208,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
         if (explication) {
           descHtml += `<p style="font-size:15px;line-height:1.75;color:${descriptionContentSoft};margin:0 0 16px;">${explication}</p>`;
         }
-        // Image
+        // Image UGC (also in carousel)
         if (angle.poster_url) {
           descHtml += `<img src="${angle.poster_url}" alt="${angle.titre_angle}" style="width:100%;aspect-ratio:1 / 1;object-fit:cover;display:block;margin:0;"/>`;
         }
@@ -2456,11 +2456,22 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
               {activeTab === 'affiches' && (
                 <div className="space-y-4">
                   <p className="text-xs text-gray-500 font-medium">5 visuels d'angles marketing, simples et sans surcharge de texte</p>
+                  {!imagesLoading && (product.angles || []).every(a => !a.poster_url) && (
+                    <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                      <ImageIcon className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                      <p className="text-xs text-amber-700">Les affiches nécessitent une photo du produit. Relancez la génération en uploadant une photo ou en fournissant une URL contenant une image.</p>
+                    </div>
+                  )}
                   {(product.angles || []).map((angle, i) => (
                     <div key={i} className="border border-gray-100 rounded-xl overflow-hidden">
                       {angle.poster_url ? (
                         <div className="bg-gray-50">
                           <img src={angle.poster_url} alt={angle.titre_angle} className="w-full aspect-square object-cover" />
+                        </div>
+                      ) : imagesLoading ? (
+                        <div className="p-6 bg-gray-50 text-center">
+                          <Loader2 className="w-6 h-6 mx-auto mb-2 text-gray-300 animate-spin" />
+                          <p className="text-xs text-gray-400">Génération en cours...</p>
                         </div>
                       ) : (
                         <div className="p-6 bg-gray-50 text-center">

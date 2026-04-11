@@ -3,7 +3,9 @@ import mongoose from 'mongoose';
 import StoreAnalytics from '../models/StoreAnalytics.js';
 import StoreOrder from '../models/StoreOrder.js';
 import Order from '../models/Order.js';
+import Store from '../models/Store.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
+import { convertCurrency } from '../utils/currencyConvert.js';
 
 const router = express.Router();
 
@@ -127,12 +129,21 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
       start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
     }
 
-    // Récupérer les stats analytics
+    // Résoudre le subdomain du store actif pour filtrer les analytics
+    let storeSubdomain = null;
+    const activeStoreId = req.activeStoreId;
+    if (activeStoreId) {
+      const store = await Store.findById(activeStoreId).select('subdomain').lean();
+      storeSubdomain = store?.subdomain || null;
+    }
+
+    // Récupérer les stats analytics (filtrées par subdomain si store actif)
     const analyticsStats = await StoreAnalytics.getStoreDashboardStats(
       workspaceId,
       start,
       end,
-      period
+      period,
+      storeSubdomain
     );
 
     // Récupérer les commandes depuis les deux modèles (Order interne + StoreOrder storefront)
@@ -140,18 +151,26 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
       ? new mongoose.Types.ObjectId(workspaceId)
       : workspaceId;
 
+    // Build filters scoped to active store if set
+    const internalFilter = {
+      workspaceId: wsObjectId,
+      $or: [
+        { date: { $gte: start, $lte: end } },
+        { date: { $exists: false }, createdAt: { $gte: start, $lte: end } },
+      ],
+    };
+    const storeOrderFilter = {
+      workspaceId: wsObjectId,
+      createdAt: { $gte: start, $lte: end },
+    };
+    if (activeStoreId) {
+      internalFilter.storeId = activeStoreId;
+      storeOrderFilter.storeId = activeStoreId;
+    }
+
     const [internalOrders, storeOrders] = await Promise.all([
-      Order.find({
-        workspaceId: wsObjectId,
-        $or: [
-          { date: { $gte: start, $lte: end } },
-          { date: { $exists: false }, createdAt: { $gte: start, $lte: end } },
-        ],
-      }).lean(),
-      StoreOrder.find({
-        workspaceId: wsObjectId,
-        createdAt: { $gte: start, $lte: end }
-      }).lean(),
+      Order.find(internalFilter).lean(),
+      StoreOrder.find(storeOrderFilter).lean(),
     ]);
 
     console.log('[ANALYTICS DEBUG]', {
@@ -176,19 +195,32 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
       so => !linkedStoreOrderIds.has(so._id.toString())
     );
 
+    // Store principal currency for conversion
+    const storeCurrency = req.workspace?.storeSettings?.storeCurrency
+      || req.workspace?.settings?.currency
+      || 'XAF';
+
     // Normalize both models into a unified shape
-    const normalize = (o, isInternal) => ({
-      _id: o._id,
-      status: o.status || 'pending',
-      total: isInternal ? (o.price || 0) : (o.total || 0),
-      deliveryCost: o.deliveryCost || 0,
-      city: o.city || o.deliveryLocation || o.deliveryZone || '',
-      phone: isInternal ? (o.clientPhone || o.clientPhoneNormalized || '') : (o.phone || ''),
-      channel: isInternal
-        ? ((o.storeOrderId || ['boutique', 'skelor', 'shopify', 'webhook'].includes(o.source)) ? 'store' : (o.source || 'manual'))
-        : (o.channel || 'store'),
-      createdAt: isInternal ? (o.date || o.createdAt) : o.createdAt,
-    });
+    // Convert each order's total to the store's principal currency
+    const normalize = (o, isInternal) => {
+      const orderCurrency = o.currency || 'XAF';
+      const rawTotal = isInternal ? (o.price || 0) : (o.total || 0);
+      const convertedTotal = convertCurrency(rawTotal, orderCurrency, storeCurrency);
+      const rawDeliveryCost = o.deliveryCost || 0;
+      const convertedDeliveryCost = convertCurrency(rawDeliveryCost, orderCurrency, storeCurrency);
+      return {
+        _id: o._id,
+        status: o.status || 'pending',
+        total: convertedTotal,
+        deliveryCost: convertedDeliveryCost,
+        city: o.city || o.deliveryLocation || o.deliveryZone || '',
+        phone: isInternal ? (o.clientPhone || o.clientPhoneNormalized || '') : (o.phone || ''),
+        channel: isInternal
+          ? ((o.storeOrderId || ['boutique', 'skelor', 'shopify', 'webhook'].includes(o.source)) ? 'store' : (o.source || 'manual'))
+          : (o.channel || 'store'),
+        createdAt: isInternal ? (o.date || o.createdAt) : o.createdAt,
+      };
+    };
 
     const orders = [
       ...internalOrders.map(o => normalize(o, true)),
@@ -324,20 +356,22 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
     const productSales = {};
     // From StoreOrders (have products array)
     [...uniqueStoreOrders, ...storeOrders.filter(so => linkedStoreOrderIds.has(so._id.toString()))].forEach(so => {
+      const orderCur = so.currency || 'XAF';
       (so.products || []).forEach(p => {
         const key = (p.productId || p.name || '').toString();
         if (!productSales[key]) productSales[key] = { name: p.name || 'Sans nom', sold: 0, revenue: 0 };
         productSales[key].sold += p.quantity || 1;
-        productSales[key].revenue += (p.price || 0) * (p.quantity || 1);
+        productSales[key].revenue += convertCurrency((p.price || 0) * (p.quantity || 1), orderCur, storeCurrency);
       });
     });
     // From internal Orders (single product per order)
     internalOrders.filter(o => !o.storeOrderId).forEach(o => {
       if (!o.product) return;
       const key = o.product;
+      const orderCur = o.currency || 'XAF';
       if (!productSales[key]) productSales[key] = { name: o.product, sold: 0, revenue: 0 };
       productSales[key].sold += o.quantity || 1;
-      productSales[key].revenue += (o.price || 0);
+      productSales[key].revenue += convertCurrency(o.price || 0, orderCur, storeCurrency);
     });
     const topProductsBySales = Object.values(productSales).sort((a, b) => b.sold - a.sold).slice(0, 10);
     const topProductsByRevenue = Object.values(productSales).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
@@ -359,6 +393,7 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
         },
       },
       orders: orderStats,
+      storeCurrency,
       topProductsBySales,
       topProductsByRevenue,
       leastProductsBySales,

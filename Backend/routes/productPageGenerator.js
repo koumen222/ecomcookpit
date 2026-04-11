@@ -158,7 +158,7 @@ function buildHeroPrompt(gptResult, hasProductRef, template = 'general', visualP
   });
   const threePeopleRules = buildThreePeopleHoldingProductRules();
 
-  return `Ultra realistic e-commerce product advertisement for the African francophone market. Square 1:1. High-definition photorealistic quality — must look like a REAL professional photograph, NOT AI-generated. Natural soft lighting, no aggressive filters, no cartoon style.
+  return `Ultra realistic e-commerce product advertisement for the African francophone market. Vertical 4:5 (1080×1250). High-definition photorealistic quality — must look like a REAL professional photograph, NOT AI-generated. Natural soft lighting, no aggressive filters, no cartoon style.
 
 ═══ CONCEPT ═══
 A professional product advertisement for "${productName}" targeting African consumers. The image MUST be a SPLIT LAYOUT (two-column composition) like a real Facebook / TikTok ad. The image must feel AUTHENTIC — like a real ad designed by a professional agency.
@@ -263,7 +263,7 @@ function buildAngleImagePrompt(angle, gptResult, hasProductRef, template = 'gene
     const pain2 = painPoints[1] || '';
     const pain3 = painPoints[2] || '';
 
-    const problemCollagePrompt = `Square 1:1 PHOTOREALISTIC PROBLEM AWARENESS IMAGE for "${title}". This is NOT a marketing poster — it is a RAW, EMOTIONAL, DOCUMENTARY-STYLE collage showing REAL PEOPLE suffering from the problem this product solves. Ultra HD, 4K.
+    const problemCollagePrompt = `Vertical 4:5 (1080×1250) PHOTOREALISTIC PROBLEM AWARENESS IMAGE for "${title}". This is NOT a marketing poster — it is a RAW, EMOTIONAL, DOCUMENTARY-STYLE collage showing REAL PEOPLE suffering from the problem this product solves. Ultra HD, 4K.
 
 ═══ CONCEPT ═══
 A single square image composed as a PHOTO COLLAGE / MOSAIC of 3-4 real photographs arranged in a grid or overlapping layout. Each photo shows a DIFFERENT real African person visibly experiencing the EXACT problem that "${title}" solves. The overall mood is DARK, SERIOUS, EMPATHETIC — like an awareness campaign or documentary.
@@ -316,19 +316,23 @@ A single square image composed as a PHOTO COLLAGE / MOSAIC of 3-4 real photograp
   // Append mandatory African realism guidelines to every angle image
   const africanRealismBlock = `
 
+═══ PRODUCT REFERENCE — IMAGE-TO-IMAGE MANDATORY ═══
+A reference image of the EXACT product is provided. Use EXACTLY the product appearance from this reference — same shape, color, packaging, label, design. Do NOT redraw, recreate, or invent a product. If you cannot faithfully reproduce the EXACT same product from the reference, generate the scene WITHOUT the product rather than showing a wrong/invented product.
+
 ═══ AFRICAN MARKET REALISM — MANDATORY RULES ═══
 • PHOTOREALISTIC — must look like a real photograph, NOT AI-generated. No cartoon, no uncanny valley, no visible AI artifacts
 • African person: authentic dark skin, natural African features (NOT caricatural), natural African hair (afro, braids, locs, twists, headwrap)
 • Simple everyday African clothing — clean, relatable, NOT exaggerated luxury
 • SUBTLE facial expressions — natural, NOT theatrical or exaggerated. Genuine confidence, not forced poses
 • Setting must feel like a REAL African environment — natural warm lighting, not artificial studio
-• Product at REAL proportions — not oversized or miniature. Sharp, clear, no distortion
+• Product at REAL proportions — not oversized or miniature. Sharp, clear, no distortion. THE EXACT SAME product from the reference image
 • Soft, clean, natural visual style — NOT flashy, NOT over-saturated, NOT aggressive filters
 • ALL French text: 100% PERFECT spelling with every accent. Simple, direct, local African tone
 • NO body distortion, NO visual inconsistencies, NO uncanny facial features
 • If the angle text talks about a visible problem, the person and scene must clearly show that exact problem before the viewer reads the text
 • If the angle text talks about a result or promise, the person and scene must clearly show that exact result in a believable way
 • The image must work as a persuasive visual even if the text overlay is hidden
+• FORMAT: Vertical 4:5 (1080×1250) — portrait orientation, NOT square
 • Final feel: a REAL professional product photo that could run as a Facebook/TikTok Ad for African consumers${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
     mainClaim: angleTitle,
     supportText: angleExplication,
@@ -352,7 +356,7 @@ function getInfographicLayouts(template, ctx) {
   if (template === 'beauty') {
     return [
       // Slide 0: Hero showcase — product + headline + badges
-      `Square 1:1 LUXURY BEAUTY INFOGRAPHIC for "${title}". Premium editorial design. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) LUXURY BEAUTY INFOGRAPHIC for "${title}". Premium editorial design. Ultra HD, 4K.
 
 COMPOSITION: Elegant beauty showcase infographic.
 - BACKGROUND: Soft gradient rose-gold (#F7E7DC) to warm blush (#FADBD8). Elegant, feminine, premium
@@ -367,7 +371,7 @@ Style: Luxury skincare brand campaign. Clean infographic layout, NOT a photo. PE
 NO price, NO phone number, NO URL, NO watermark.`,
 
       // Slide 1: Ingredients / Features — clean science layout
-      `Square 1:1 BEAUTY INGREDIENTS INFOGRAPHIC for "${title}". Clean cosmetic science layout. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) BEAUTY INGREDIENTS INFOGRAPHIC for "${title}". Clean cosmetic science layout. Ultra HD, 4K.
 
 COMPOSITION: Clean ingredient/feature spotlight infographic.
 - BACKGROUND: Pure white (#FFFFFF) with soft rose accent lines and geometric shapes
@@ -383,7 +387,7 @@ Clean, scientific, trustworthy beauty infographic. ALL text PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
       // Slide 2: Step-by-step / Routine — numbered process
-      `Square 1:1 BEAUTY ROUTINE INFOGRAPHIC for "${title}". Step-by-step guide layout. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) BEAUTY ROUTINE INFOGRAPHIC for "${title}". Step-by-step guide layout. Ultra HD, 4K.
 
 COMPOSITION: Numbered routine/how-to infographic.
 - BACKGROUND: Warm cream (#FFF8F0) with soft watercolor blush accents in corners
@@ -401,7 +405,7 @@ Warm, instructional, aspirational beauty infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
       // Slide 3: Results / Social proof — bold transformation
-      `Square 1:1 BEAUTY RESULTS INFOGRAPHIC for "${title}". Bold transformation energy. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) BEAUTY RESULTS INFOGRAPHIC for "${title}". Bold transformation energy. Ultra HD, 4K.
 
 COMPOSITION: Results & proof infographic with bold stats.
 - BACKGROUND: Bold gradient — deep plum (#2D1B36) to rich rose (#8B2252). Dark luxury
@@ -419,7 +423,7 @@ Bold, premium, results-driven beauty infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
       // Slide 4: Community & African identity — bold representation
-      `Square 1:1 BEAUTY COMMUNITY INFOGRAPHIC for "${title}". African beauty celebration. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) BEAUTY COMMUNITY INFOGRAPHIC for "${title}". African beauty celebration. Ultra HD, 4K.
 
 COMPOSITION: Bold African beauty identity celebration infographic.
 - BACKGROUND: Rich warm gradient — deep chocolate brown (#3E2723) to warm gold (#C49A6C). Pan-African luxury warmth
@@ -440,7 +444,7 @@ NO price, NO phone number, NO URL, NO watermark.`,
   if (template === 'tech') {
     return [
       // Slide 0: Dark premium tech showcase
-      `Square 1:1 TECH PRODUCT INFOGRAPHIC for "${title}". Dark premium tech aesthetic. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) TECH PRODUCT INFOGRAPHIC for "${title}". Dark premium tech aesthetic. Ultra HD, 4K.
 
 COMPOSITION: Premium tech product showcase infographic.
 - BACKGROUND: Dark gradient — midnight blue (#0A1628) to charcoal (#1A1A2E). Circuit board pattern subtly visible
@@ -455,7 +459,7 @@ Dark, futuristic, premium tech infographic. ALL text PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
       // Slide 1: Specs comparison layout
-      `Square 1:1 TECH SPECS INFOGRAPHIC for "${title}". Clean technical specification layout. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) TECH SPECS INFOGRAPHIC for "${title}". Clean technical specification layout. Ultra HD, 4K.
 
 COMPOSITION: Technical specifications infographic with data visualization.
 - BACKGROUND: Clean dark (#141422) with subtle grid pattern overlay
@@ -471,7 +475,7 @@ Clean, precise, data-driven tech infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
       // Slide 2: Lifestyle usage context
-      `Square 1:1 TECH LIFESTYLE INFOGRAPHIC for "${title}". Modern usage context. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) TECH LIFESTYLE INFOGRAPHIC for "${title}". Modern usage context. Ultra HD, 4K.
 
 COMPOSITION: Tech product in real usage infographic.
 - BACKGROUND: Modern workspace or daily-life setting — clean desk, city backdrop, or modern room. Blue/gray tones
@@ -487,7 +491,7 @@ Modern, aspirational tech lifestyle infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
       // Slide 3: Performance stats & social proof
-      `Square 1:1 TECH PERFORMANCE INFOGRAPHIC for "${title}". Bold performance data. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) TECH PERFORMANCE INFOGRAPHIC for "${title}". Bold performance data. Ultra HD, 4K.
 
 COMPOSITION: Performance results infographic with bold metrics.
 - BACKGROUND: Electric gradient — deep navy (#0A1628) to electric blue (#0066FF) to purple (#6C63FF). Bold, energetic
@@ -506,7 +510,7 @@ Bold, data-driven, high-performance tech infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
       // Slide 4: African tech community — bold representation
-      `Square 1:1 TECH COMMUNITY INFOGRAPHIC for "${title}". African tech empowerment. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) TECH COMMUNITY INFOGRAPHIC for "${title}". African tech empowerment. Ultra HD, 4K.
 
 COMPOSITION: African tech user empowerment infographic.
 - BACKGROUND: Rich gradient — dark charcoal (#1A1A2E) to electric teal (#00BFA5). Modern, empowering
@@ -526,7 +530,7 @@ NO price, NO phone number, NO URL, NO watermark.`,
   // ─── FASHION ──────────────────────────────────────────────────
   if (template === 'fashion') {
     return [
-      `Square 1:1 FASHION EDITORIAL INFOGRAPHIC for "${title}". High-fashion African editorial. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) FASHION EDITORIAL INFOGRAPHIC for "${title}". High-fashion African editorial. Ultra HD, 4K.
 
 COMPOSITION: Bold fashion editorial infographic.
 - BACKGROUND: Split diagonal — rich warm gold (#C49A6C) top-left / deep dark brown (#2C1810) bottom-right
@@ -540,7 +544,7 @@ COMPOSITION: Bold fashion editorial infographic.
 High-fashion, bold, editorial infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
-      `Square 1:1 FASHION CRAFT INFOGRAPHIC for "${title}". Product detail spotlight. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) FASHION CRAFT INFOGRAPHIC for "${title}". Product detail spotlight. Ultra HD, 4K.
 
 COMPOSITION: Craftsmanship details infographic.
 - BACKGROUND: Warm textured cream (#F5F0E8) with subtle fabric/leather texture pattern
@@ -553,7 +557,7 @@ COMPOSITION: Craftsmanship details infographic.
 Detailed, artisanal, quality-focused fashion infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
-      `Square 1:1 FASHION STYLING INFOGRAPHIC for "${title}". Street style lookbook. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) FASHION STYLING INFOGRAPHIC for "${title}". Street style lookbook. Ultra HD, 4K.
 
 COMPOSITION: How-to-style infographic.
 - BACKGROUND: Modern urban setting — trendy African city street, modern architecture, warm natural light
@@ -567,7 +571,7 @@ COMPOSITION: How-to-style infographic.
 Trendy, aspirational, street-style fashion infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
-      `Square 1:1 FASHION SOCIAL PROOF INFOGRAPHIC for "${title}". Bold results & influence. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) FASHION SOCIAL PROOF INFOGRAPHIC for "${title}". Bold results & influence. Ultra HD, 4K.
 
 COMPOSITION: Social proof & popularity infographic.
 - BACKGROUND: Gradient — rich gold (#C49A6C) to deep burgundy (#5D1A2C). Premium warmth
@@ -584,7 +588,7 @@ Bold, influential, social-proof fashion infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
       // Slide 4: African fashion identity — bold representation
-      `Square 1:1 FASHION IDENTITY INFOGRAPHIC for "${title}". African fashion pride. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) FASHION IDENTITY INFOGRAPHIC for "${title}". African fashion pride. Ultra HD, 4K.
 
 COMPOSITION: Bold African fashion identity celebration infographic.
 - BACKGROUND: Split diagonal — rich kente-inspired warm gold (#DAA520) top / deep burgundy (#4A0E2A) bottom. Pan-African luxury
@@ -604,7 +608,7 @@ NO price, NO phone number, NO URL, NO watermark.`,
   // ─── HEALTH / WELLNESS ────────────────────────────────────────
   if (template === 'health') {
     return [
-      `Square 1:1 HEALTH WELLNESS INFOGRAPHIC for "${title}". Clean energetic health design. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) HEALTH WELLNESS INFOGRAPHIC for "${title}". Clean energetic health design. Ultra HD, 4K.
 
 COMPOSITION: Health product showcase infographic.
 - BACKGROUND: Fresh gradient — white (#FFFFFF) to mint green (#E8F8F5). Clean, healthy, energetic
@@ -618,7 +622,7 @@ ${promesseShort ? `- BOTTOM: Green accent bar: "${promesseShort}" with leaf icon
 Fresh, clean, health-focused infographic. ALL text PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
-      `Square 1:1 HEALTH INGREDIENTS INFOGRAPHIC for "${title}". Natural science layout. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) HEALTH INGREDIENTS INFOGRAPHIC for "${title}". Natural science layout. Ultra HD, 4K.
 
 COMPOSITION: Natural ingredients spotlight infographic.
 - BACKGROUND: Clean white with soft green watercolor splashes in corners
@@ -633,7 +637,7 @@ COMPOSITION: Natural ingredients spotlight infographic.
 Clean, scientific, natural health infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
-      `Square 1:1 HEALTH ROUTINE INFOGRAPHIC for "${title}". Active wellness lifestyle. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) HEALTH ROUTINE INFOGRAPHIC for "${title}". Active wellness lifestyle. Ultra HD, 4K.
 
 COMPOSITION: Daily health routine step-by-step infographic.
 - BACKGROUND: Bright natural scene — sunlit green tones, fresh morning energy, clean white overlay
@@ -650,7 +654,7 @@ COMPOSITION: Daily health routine step-by-step infographic.
 Energetic, healthy, step-by-step infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
-      `Square 1:1 HEALTH RESULTS INFOGRAPHIC for "${title}". Bold wellness results. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) HEALTH RESULTS INFOGRAPHIC for "${title}". Bold wellness results. Ultra HD, 4K.
 
 COMPOSITION: Health results & social proof infographic.
 - BACKGROUND: Bold gradient — deep forest green (#1B4332) to emerald (#2D6A4F). Dark wellness luxury
@@ -668,7 +672,7 @@ Bold, results-driven, wellness infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
       // Slide 4: African wellness community — bold representation
-      `Square 1:1 HEALTH COMMUNITY INFOGRAPHIC for "${title}". African wellness empowerment. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) HEALTH COMMUNITY INFOGRAPHIC for "${title}". African wellness empowerment. Ultra HD, 4K.
 
 COMPOSITION: Bold African wellness celebration infographic.
 - BACKGROUND: Rich gradient — deep forest green (#1B4332) to warm golden green (#8BC34A). Vibrant, healthy, empowering
@@ -688,7 +692,7 @@ NO price, NO phone number, NO URL, NO watermark.`,
   // ─── HOME ─────────────────────────────────────────────────────
   if (template === 'home') {
     return [
-      `Square 1:1 HOME PRODUCT INFOGRAPHIC for "${title}". Warm cozy home design. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) HOME PRODUCT INFOGRAPHIC for "${title}". Warm cozy home design. Ultra HD, 4K.
 
 COMPOSITION: Home product showcase infographic.
 - BACKGROUND: Warm soft gradient — cream (#FFF8F0) to warm sand (#F5E6D0). Cozy, inviting
@@ -702,7 +706,7 @@ ${promesseShort ? `- BOTTOM: Warm terracotta bar: "${promesseShort}"` : ''}
 Warm, cozy, home-focused infographic. ALL text PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
-      `Square 1:1 HOME FEATURES INFOGRAPHIC for "${title}". Practical features layout. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) HOME FEATURES INFOGRAPHIC for "${title}". Practical features layout. Ultra HD, 4K.
 
 COMPOSITION: Practical home features infographic.
 - BACKGROUND: Clean warm white (#FAFAF5) with warm wood-texture accent border
@@ -717,7 +721,7 @@ COMPOSITION: Practical home features infographic.
 Practical, warm, trustworthy home infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
-      `Square 1:1 HOME LIFESTYLE INFOGRAPHIC for "${title}". Real home context. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) HOME LIFESTYLE INFOGRAPHIC for "${title}". Real home context. Ultra HD, 4K.
 
 COMPOSITION: Home lifestyle usage infographic.
 - BACKGROUND: Warm natural home interior — bright kitchen, cozy living room. Warm natural light
@@ -732,7 +736,7 @@ COMPOSITION: Home lifestyle usage infographic.
 Warm, authentic home-life infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
-      `Square 1:1 HOME TRUST INFOGRAPHIC for "${title}". Family satisfaction design. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) HOME TRUST INFOGRAPHIC for "${title}". Family satisfaction design. Ultra HD, 4K.
 
 COMPOSITION: Home trust & satisfaction infographic.
 - BACKGROUND: Gradient — warm terracotta (#C0622A) to deep warm brown (#5D4037). Cozy, trustworthy
@@ -749,7 +753,7 @@ Warm, family-focused, trustworthy home infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
       // Slide 4: African home & family — bold representation
-      `Square 1:1 HOME FAMILY INFOGRAPHIC for "${title}". African family warmth. Ultra HD, 4K.
+      `Vertical 4:5 (1080×1250) HOME FAMILY INFOGRAPHIC for "${title}". African family warmth. Ultra HD, 4K.
 
 COMPOSITION: Bold African family home celebration infographic.
 - BACKGROUND: Warm rich gradient — deep chocolate (#3E2723) to warm terracotta (#D4845A). African home warmth
@@ -769,7 +773,7 @@ NO price, NO phone number, NO URL, NO watermark.`,
   // ─── GENERAL / DEFAULT ────────────────────────────────────────
   return [
     // Slide 0: Bold dark premium showcase
-    `Square 1:1 BOLD ADVERTISING INFOGRAPHIC for "${title}". Premium graphic design. Ultra HD, 4K.
+    `Vertical 4:5 (1080×1250) BOLD ADVERTISING INFOGRAPHIC for "${title}". Premium graphic design. Ultra HD, 4K.
 
 COMPOSITION: Dark premium product showcase infographic.
 - BACKGROUND: Rich deep gradient — midnight blue (#0A1628) to charcoal (#1A1A2E). Dramatic, cinematic
@@ -783,7 +787,7 @@ Dark, bold, scroll-stopping infographic. ALL text PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
     // Slide 1: Clean editorial split-screen
-    `Square 1:1 SPLIT-SCREEN EDITORIAL INFOGRAPHIC for "${title}". Clean magazine layout. Ultra HD, 4K.
+    `Vertical 4:5 (1080×1250) SPLIT-SCREEN EDITORIAL INFOGRAPHIC for "${title}". Clean magazine layout. Ultra HD, 4K.
 
 COMPOSITION: Split-screen features infographic.
 - LAYOUT: Vertical split — LEFT 45% info panel, RIGHT 55% product visual
@@ -796,7 +800,7 @@ Clean, editorial, magazine-style infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
     // Slide 2: Lifestyle how-to steps
-    `Square 1:1 LIFESTYLE HOW-TO INFOGRAPHIC for "${title}". Step-by-step guide. Ultra HD, 4K.
+    `Vertical 4:5 (1080×1250) LIFESTYLE HOW-TO INFOGRAPHIC for "${title}". Step-by-step guide. Ultra HD, 4K.
 
 COMPOSITION: Numbered how-to lifestyle infographic.
 - BACKGROUND: Warm cream (#FFF8F0) with soft accent watercolor corners
@@ -813,7 +817,7 @@ Warm, instructional, lifestyle infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
     // Slide 3: Vibrant results & stats
-    `Square 1:1 VIBRANT RESULTS INFOGRAPHIC for "${title}". Bold colorful energy. Ultra HD, 4K.
+    `Vertical 4:5 (1080×1250) VIBRANT RESULTS INFOGRAPHIC for "${title}". Bold colorful energy. Ultra HD, 4K.
 
 COMPOSITION: Results & social proof infographic with bold metrics.
 - BACKGROUND: Bold gradient — coral (#FF6B6B) to magenta (#C850C0) to purple (#6C63FF). Energetic, modern
@@ -831,7 +835,7 @@ Bold, vibrant, data-driven infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
 
     // Slide 4: African identity & community — bold representation
-    `Square 1:1 COMMUNITY IDENTITY INFOGRAPHIC for "${title}". African pride & empowerment. Ultra HD, 4K.
+    `Vertical 4:5 (1080×1250) COMMUNITY IDENTITY INFOGRAPHIC for "${title}". African pride & empowerment. Ultra HD, 4K.
 
 COMPOSITION: Bold African community celebration infographic.
 - BACKGROUND: Rich warm gradient — deep dark brown (#2C1810) to vibrant warm gold (#DAA520). Pan-African luxury, warmth
@@ -855,7 +859,7 @@ NO price, NO phone number, NO URL, NO watermark.`,
  */
 function buildPeopleHoldingProductPrompts(gptResult, visualPrefs = {}) {
   const title = gptResult.title || 'product';
-  const productNote = `THE EXACT product from the reference image — same packaging, same shape, same color, same label, same design. CRITICAL: Use the provided product reference image and reproduce the IDENTICAL product. If someone compares the reference and this photo, they must see it is the EXACT SAME product. NEVER invent, redesign, change colors, or replace the product.`;
+  const productNote = `THE EXACT product from the reference image — same packaging, same shape, same color, same label, same design. CRITICAL: Use the provided product reference image and reproduce the IDENTICAL product as it appears in the photo. Do NOT redraw, redesign, or invent a product. If you cannot faithfully reproduce the EXACT same product, generate the photo WITHOUT the product visible rather than showing a wrong/invented product. A photo without the product is better than a photo with a fake product.`;
 
   const baseRules = `
 ═══ MANDATORY REAL CUSTOMER PHOTO RULES ═══
@@ -868,7 +872,7 @@ function buildPeopleHoldingProductPrompts(gptResult, visualPrefs = {}) {
 • Natural warm lighting — smartphone flash, window light, room light, daylight. Slightly imperfect lighting like a real phone photo
 • The person is HOLDING the EXACT product (from reference image) in their hands clearly — the product packaging/label must be recognizable and readable
 • ${productNote}
-• Mid-range or selfie-style crop. Square 1:1. Smartphone photo quality — sharp but not studio-perfect
+• Mid-range or selfie-style crop. Vertical 4:5 (1080×1250). Smartphone photo quality — sharp but not studio-perfect
 • Setting: REAL African home interior — living room with sofa, bedroom, kitchen, bathroom mirror. Real furniture, real walls, real African home decor. NOT a blank background, NOT a studio
 • NO text overlay, NO caption, NO price, NO CTA, NO logo, NO frame, NO marketing layout
 • NO extra objects arranged around the product — this is NOT a flat lay. It's a person holding the product
@@ -911,7 +915,7 @@ function buildFlashPrompts(gptResult, hasProductRef, method = 'PAS', template = 
   if (template === 'beauty') {
     return [
       {
-        prompt: `Square 1:1 LUXURY BEAUTY INFOGRAPHIC for "${title}". Premium beauty editorial with real photography. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) LUXURY BEAUTY INFOGRAPHIC for "${title}". Premium beauty editorial with real photography. Ultra HD, 4K.
 
 COMPOSITION: Elegant skincare/beauty hero.
 - BACKGROUND: Soft blush pink (#FFF0F0) to warm ivory (#FFF8F2) gradient. Clean, luxurious, feminine energy
@@ -925,7 +929,7 @@ ALL text PERFECT French. Elegant, clean, beauty editorial feel. NO heavy graphic
         type: 'beauty_hero',
       },
       {
-        prompt: `Square 1:1 BEAUTY INGREDIENTS INFOGRAPHIC for "${title}". Clean cosmetic science layout. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) BEAUTY INGREDIENTS INFOGRAPHIC for "${title}". Clean cosmetic science layout. Ultra HD, 4K.
 
 COMPOSITION: Ingredients spotlight.
 - BACKGROUND: Pure white (#FFFFFF) with very subtle warm pink radial glow at center
@@ -939,7 +943,7 @@ Clean, scientific yet feminine. NO heavy badges. PERFECT French.`,
         type: 'beauty_ingredients',
       },
       {
-        prompt: `Square 1:1 BEAUTY ROUTINE INFOGRAPHIC for "${title}". Warm bathroom/vanity lifestyle. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) BEAUTY ROUTINE INFOGRAPHIC for "${title}". Warm bathroom/vanity lifestyle. Ultra HD, 4K.
 
 COMPOSITION: Beauty routine steps.
 - BACKGROUND: Warm lifestyle scene — modern bathroom vanity with marble surface, warm ambient morning light through window, soft bokeh. NOT studio white
@@ -956,7 +960,7 @@ Warm, intimate, aspirational beauty moment. PERFECT French.`,
         type: 'beauty_routine',
       },
       {
-        prompt: `Square 1:1 BEAUTY RESULTS INFOGRAPHIC for "${title}". Bold transformation energy. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) BEAUTY RESULTS INFOGRAPHIC for "${title}". Bold transformation energy. Ultra HD, 4K.
 
 COMPOSITION: Glowing results social proof.
 - BACKGROUND: Rich gradient — deep burgundy (#5B1A2A) fading to warm rose (#C27083). Luxurious, dramatic, premium
@@ -973,7 +977,7 @@ Dramatic, luxurious, confidence-boosting beauty energy. PERFECT French.`,
         type: 'beauty_results',
       },
       {
-        prompt: `Square 1:1 AFRICAN BEAUTY PRIDE AD for "${title}". Bold African representation. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) AFRICAN BEAUTY PRIDE AD for "${title}". Bold African representation. Ultra HD, 4K.
 
 COMPOSITION: African beauty identity celebration.
 - BACKGROUND: Rich warm gradient — deep chocolate (#3E2723) to luxurious gold (#C49A6C). Pan-African warmth
@@ -994,7 +998,7 @@ Celebratory, radiant, African beauty pride. PERFECT French.`,
   if (template === 'tech') {
     return [
       {
-        prompt: `Square 1:1 TECH PRODUCT INFOGRAPHIC for "${title}". Dark premium tech aesthetic. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) TECH PRODUCT INFOGRAPHIC for "${title}". Dark premium tech aesthetic. Ultra HD, 4K.
 
 COMPOSITION: Tech hero showcase.
 - BACKGROUND: Deep dark gradient — midnight blue (#0A0E1A) to charcoal (#1A1A2E). Subtle circuit board line pattern faintly visible. Tech premium feel
@@ -1009,7 +1013,7 @@ Dark, sleek, futuristic tech feel. NO botanical elements. PERFECT French.`,
         type: 'tech_hero',
       },
       {
-        prompt: `Square 1:1 TECH SPECS INFOGRAPHIC for "${title}". Clean technical layout. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) TECH SPECS INFOGRAPHIC for "${title}". Clean technical layout. Ultra HD, 4K.
 
 COMPOSITION: Technical specifications.
 - BACKGROUND: Clean dark navy (#0D1B2A) with very subtle blue-grey grid pattern
@@ -1025,7 +1029,7 @@ Clean technical design, dark premium tech. PERFECT French specs labels.`,
         type: 'tech_specs',
       },
       {
-        prompt: `Square 1:1 TECH LIFESTYLE INFOGRAPHIC for "${title}". Modern usage context. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) TECH LIFESTYLE INFOGRAPHIC for "${title}". Modern usage context. Ultra HD, 4K.
 
 COMPOSITION: Tech in everyday life.
 - BACKGROUND: Modern African indoor scene — sleek living room, bright coworking space, or home office with warm LED lighting and clean modern furniture. NOT studio
@@ -1040,7 +1044,7 @@ Modern tech lifestyle, NOT studio. PERFECT French.`,
         type: 'tech_lifestyle',
       },
       {
-        prompt: `Square 1:1 TECH PERFORMANCE AD for "${title}". Vibrant dynamic energy. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) TECH PERFORMANCE AD for "${title}". Vibrant dynamic energy. Ultra HD, 4K.
 
 COMPOSITION: Performance results.
 - BACKGROUND: Electric gradient — deep blue (#0044AA) to vivid cyan (#00DDFF) to dark teal. Geometric light rays and subtle particle effects. High-energy, dynamic
@@ -1057,7 +1061,7 @@ High-energy tech ad. Electric blue dominant. PERFECT French.`,
         type: 'tech_performance',
       },
       {
-        prompt: `Square 1:1 AFRICAN TECH EMPOWERMENT AD for "${title}". Bold African representation. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) AFRICAN TECH EMPOWERMENT AD for "${title}". Bold African representation. Ultra HD, 4K.
 
 COMPOSITION: African tech user empowerment.
 - BACKGROUND: Rich gradient — dark charcoal (#1A1A2E) to electric teal (#00BFA5). Modern, empowering
@@ -1078,7 +1082,7 @@ Empowering, modern, African tech pride. PERFECT French.`,
   if (template === 'fashion') {
     return [
       {
-        prompt: `Square 1:1 FASHION EDITORIAL INFOGRAPHIC for "${title}". High-fashion African editorial. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) FASHION EDITORIAL INFOGRAPHIC for "${title}". High-fashion African editorial. Ultra HD, 4K.
 
 COMPOSITION: Fashion lookbook hero.
 - BACKGROUND: Warm cream to champagne gold (#FFF8E7 to #F0E4CC) gradient. Elegant fashion editorial warmth
@@ -1092,7 +1096,7 @@ Fashion editorial, warm gold tones, African haute couture energy. PERFECT French
         type: 'fashion_editorial',
       },
       {
-        prompt: `Square 1:1 FASHION DETAIL INFOGRAPHIC for "${title}". Product craft details. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) FASHION DETAIL INFOGRAPHIC for "${title}". Product craft details. Ultra HD, 4K.
 
 COMPOSITION: Craftsmanship spotlight.
 - BACKGROUND: Split — LEFT soft cream (#FAF5EB), RIGHT rich terracotta (#A0522D to #8B4513) creating a warm African-luxury contrast
@@ -1109,7 +1113,7 @@ Craftsmanship, warm African luxury. PERFECT French.`,
         type: 'fashion_craft',
       },
       {
-        prompt: `Square 1:1 FASHION STYLING INFOGRAPHIC for "${title}". Street style / lifestyle. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) FASHION STYLING INFOGRAPHIC for "${title}". Street style / lifestyle. Ultra HD, 4K.
 
 COMPOSITION: How to style / wear.
 - BACKGROUND: Vibrant urban African scene — colorful market street, modern African city backdrop, bright natural daylight with warm golden tones. NOT studio white
@@ -1124,7 +1128,7 @@ Vibrant African street style energy. PERFECT French.`,
         type: 'fashion_styling',
       },
       {
-        prompt: `Square 1:1 FASHION SOCIAL PROOF AD for "${title}". Bold aspirational energy. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) FASHION SOCIAL PROOF AD for "${title}". Bold aspirational energy. Ultra HD, 4K.
 
 COMPOSITION: Fashion social proof.
 - BACKGROUND: Rich warm gradient — deep chocolate brown (#3E2723) to warm gold (#C9A84C). Luxurious, aspirational
@@ -1141,7 +1145,7 @@ Luxurious African fashion ad. PERFECT French.`,
         type: 'fashion_social',
       },
       {
-        prompt: `Square 1:1 AFRICAN FASHION IDENTITY AD for "${title}". Bold African style representation. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) AFRICAN FASHION IDENTITY AD for "${title}". Bold African style representation. Ultra HD, 4K.
 
 COMPOSITION: African fashion pride & identity.
 - BACKGROUND: Split diagonal — warm kente gold (#DAA520) top / deep burgundy (#4A0E2A) bottom. Pan-African luxury
@@ -1162,7 +1166,7 @@ Celebratory, powerful, African fashion pride. PERFECT French.`,
   if (template === 'health') {
     return [
       {
-        prompt: `Square 1:1 HEALTH & WELLNESS INFOGRAPHIC for "${title}". Clean energetic health design. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) HEALTH & WELLNESS INFOGRAPHIC for "${title}". Clean energetic health design. Ultra HD, 4K.
 
 COMPOSITION: Wellness hero.
 - BACKGROUND: Fresh gradient — white (#FFFFFF) to light mint green (#E8F5E9) to soft teal (#B2DFDB). Clean, fresh, healthy energy
@@ -1177,7 +1181,7 @@ Fresh, clean, energetic health design. NO dark/heavy graphics. PERFECT French.`,
         type: 'health_hero',
       },
       {
-        prompt: `Square 1:1 HEALTH INGREDIENTS INFOGRAPHIC for "${title}". Natural science layout. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) HEALTH INGREDIENTS INFOGRAPHIC for "${title}". Natural science layout. Ultra HD, 4K.
 
 COMPOSITION: Natural ingredients spotlight.
 - BACKGROUND: Pure white with subtle green radial glow. Ultra clean
@@ -1192,7 +1196,7 @@ Clean, natural, trustworthy health design. PERFECT French.`,
         type: 'health_ingredients',
       },
       {
-        prompt: `Square 1:1 HEALTH LIFESTYLE INFOGRAPHIC for "${title}". Active natural context. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) HEALTH LIFESTYLE INFOGRAPHIC for "${title}". Active natural context. Ultra HD, 4K.
 
 COMPOSITION: Healthy lifestyle in action.
 - BACKGROUND: Bright outdoor African scene — morning jog in park, yoga on terrace, or fresh kitchen with fruits. Bright natural daylight, warm and energetic. NOT studio
@@ -1207,7 +1211,7 @@ Active, natural, healthy lifestyle. NOT clinical. PERFECT French.`,
         type: 'health_lifestyle',
       },
       {
-        prompt: `Square 1:1 HEALTH RESULTS AD for "${title}". Bold energetic transformation. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) HEALTH RESULTS AD for "${title}". Bold energetic transformation. Ultra HD, 4K.
 
 COMPOSITION: Health transformation results.
 - BACKGROUND: Vibrant gradient — electric teal (#00C9A7) to deep emerald (#028A6E) to forest (#064635). Energetic, fresh, powerful
@@ -1224,7 +1228,7 @@ Vibrant, energetic, transformational health ad. PERFECT French.`,
         type: 'health_results',
       },
       {
-        prompt: `Square 1:1 AFRICAN WELLNESS PRIDE AD for "${title}". Bold African health representation. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) AFRICAN WELLNESS PRIDE AD for "${title}". Bold African health representation. Ultra HD, 4K.
 
 COMPOSITION: African wellness empowerment.
 - BACKGROUND: Rich gradient — deep forest green (#1B4332) to warm golden (#DAA520). Healthy, empowering
@@ -1245,7 +1249,7 @@ Vibrant, empowering, African wellness pride. PERFECT French.`,
   if (template === 'home') {
     return [
       {
-        prompt: `Square 1:1 HOME PRODUCT INFOGRAPHIC for "${title}". Warm cozy home design. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) HOME PRODUCT INFOGRAPHIC for "${title}". Warm cozy home design. Ultra HD, 4K.
 
 COMPOSITION: Home product hero.
 - BACKGROUND: Warm beige (#F5F0E8) to soft terracotta tint (#FFF0E6). Cozy, inviting, home warmth. Subtle wood texture strip at bottom
@@ -1260,7 +1264,7 @@ Warm, cozy, trustworthy home design. PERFECT French.`,
         type: 'home_hero',
       },
       {
-        prompt: `Square 1:1 HOME FEATURES INFOGRAPHIC for "${title}". Clean practical layout. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) HOME FEATURES INFOGRAPHIC for "${title}". Clean practical layout. Ultra HD, 4K.
 
 COMPOSITION: Practical features spotlight.
 - BACKGROUND: Soft warm white (#FAFAF5) with warm wood accents on edges
@@ -1274,7 +1278,7 @@ Practical, warm, trustworthy home product feel. PERFECT French.`,
         type: 'home_features',
       },
       {
-        prompt: `Square 1:1 HOME LIFESTYLE INFOGRAPHIC for "${title}". Real home context. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) HOME LIFESTYLE INFOGRAPHIC for "${title}". Real home context. Ultra HD, 4K.
 
 COMPOSITION: Product in home life.
 - BACKGROUND: Real African home interior — modern warm living room, bright kitchen, or cozy bedroom. Warm natural light through windows, lived-in but clean. NOT studio
@@ -1288,7 +1292,7 @@ Warm real home life energy. NOT commercial. PERFECT French.`,
         type: 'home_lifestyle',
       },
       {
-        prompt: `Square 1:1 HOME SOCIAL PROOF AD for "${title}". Warm family trust. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) HOME SOCIAL PROOF AD for "${title}". Warm family trust. Ultra HD, 4K.
 
 COMPOSITION: Family trust & satisfaction.
 - BACKGROUND: Warm gradient — soft terracotta (#C0622A) to warm brown (#5D4037) to deep chocolate. Cozy, warm, trustworthy
@@ -1305,7 +1309,7 @@ Warm, family-oriented, trustworthy. PERFECT French.`,
         type: 'home_social',
       },
       {
-        prompt: `Square 1:1 AFRICAN FAMILY HOME AD for "${title}". Bold African family representation. Ultra HD, 4K.
+        prompt: `Vertical 4:5 (1080×1250) AFRICAN FAMILY HOME AD for "${title}". Bold African family representation. Ultra HD, 4K.
 
 COMPOSITION: African family home pride.
 - BACKGROUND: Warm rich gradient — deep chocolate (#3E2723) to warm terracotta (#D4845A). Cozy, African warmth
@@ -1325,7 +1329,7 @@ Warm, genuine, African family home pride. PERFECT French.`,
   // ─── GÉNÉRAL / DEFAULT ───────────────────────────────────────────
   return [
     {
-      prompt: `Square 1:1 BOLD ADVERTISING INFOGRAPHIC for "${title}". Premium graphic design with real photography. Ultra HD, 4K.
+      prompt: `Vertical 4:5 (1080×1250) BOLD ADVERTISING INFOGRAPHIC for "${title}". Premium graphic design with real photography. Ultra HD, 4K.
 
 COMPOSITION: Dark premium poster — WHY THIS PRODUCT.
 - BACKGROUND: Rich deep gradient (dark midnight blue #0a1628 fading to charcoal black #1a1a2e). Dramatic, cinematic, premium
@@ -1340,7 +1344,7 @@ Dark, bold, scroll-stopping. ALL text PERFECT French.`,
       type: 'general_hero',
     },
     {
-      prompt: `Square 1:1 SPLIT-SCREEN EDITORIAL INFOGRAPHIC for "${title}". Clean modern magazine layout. Ultra HD, 4K.
+      prompt: `Vertical 4:5 (1080×1250) SPLIT-SCREEN EDITORIAL INFOGRAPHIC for "${title}". Clean modern magazine layout. Ultra HD, 4K.
 
 COMPOSITION: Split-screen editorial — FEATURES.
 - LAYOUT: Vertical split — LEFT 45% info panel, RIGHT 55% product + person
@@ -1352,7 +1356,7 @@ Clean editorial magazine feel. PERFECT French.`,
       type: 'general_editorial',
     },
     {
-      prompt: `Square 1:1 LIFESTYLE INFOGRAPHIC for "${title}". Warm contextual photography. Ultra HD, 4K.
+      prompt: `Vertical 4:5 (1080×1250) LIFESTYLE INFOGRAPHIC for "${title}". Warm contextual photography. Ultra HD, 4K.
 
 COMPOSITION: Lifestyle how-to — PERSON IS THE HERO.
 - BACKGROUND: Warm natural scene — modern African home, bright terrace, or cozy space. NOT studio white
@@ -1365,7 +1369,7 @@ Warm, human, relatable lifestyle. PERFECT French.`,
       type: 'general_lifestyle',
     },
     {
-      prompt: `Square 1:1 VIBRANT SOCIAL MEDIA AD for "${title}". Bold colorful energy. Ultra HD, 4K.
+      prompt: `Vertical 4:5 (1080×1250) VIBRANT SOCIAL MEDIA AD for "${title}". Bold colorful energy. Ultra HD, 4K.
 
 COMPOSITION: Results & social proof — DYNAMIC ENERGY.
 - BACKGROUND: Bold vibrant gradient (coral #FF6B6B → magenta #C850C0 → purple #6C63FF). Alive, energetic, modern
@@ -1379,7 +1383,7 @@ BOLD, vibrant, energetic. PERFECT French.`,
       type: 'general_vibrant',
     },
     {
-      prompt: `Square 1:1 AFRICAN PRIDE PRODUCT AD for "${title}". Bold African community representation. Ultra HD, 4K.
+      prompt: `Vertical 4:5 (1080×1250) AFRICAN PRIDE PRODUCT AD for "${title}". Bold African community representation. Ultra HD, 4K.
 
 COMPOSITION: African identity celebration — THE PEOPLE ARE THE AD.
 - BACKGROUND: Warm rich gradient — deep dark brown (#2C1810) to vibrant gold (#DAA520). Pan-African luxury
@@ -1456,6 +1460,7 @@ router.get('/images/:jobId', requireEcomAuth, (req, res) => {
 
 router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), upload.array('images', 8), async (req, res) => {
   const userId = req.user?.id || req.user?._id || 'anonymous';
+  console.log(`🚀 [PG] Requête génération reçue — user=${userId} workspace=${req.workspaceId} files=${(req.files||[]).length}`);
 
   const {
     url,
@@ -1745,11 +1750,11 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     const axios = (await import('axios')).default;
 
     // Helper pour générer et uploader une image — avec 1 retry automatique
-    const generateAndUpload = async (prompt, baseBuffer, filename, mode = 'scene') => {
+    const generateAndUpload = async (prompt, baseBuffer, filename, mode = 'scene', aspectRatio = '1:1') => {
       if (!prompt) return null;
 
       const attempt = async () => {
-        const generatedDataUrl = await generatePosterImage(prompt, baseBuffer, { mode });
+        const generatedDataUrl = await generatePosterImage(prompt, baseBuffer, { mode, aspectRatio });
         if (!generatedDataUrl) throw new Error('generatePosterImage returned null');
 
         let imageBuffer;
@@ -1760,8 +1765,12 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
           imageBuffer = Buffer.from(resp.data);
         }
 
+        // Resize to exact ratio dimensions
+        const [arW, arH] = aspectRatio.split(':').map(Number);
+        const targetW = 1080;
+        const targetH = Math.round(targetW * (arH / arW)); // 1:1=1080, 4:5=1350, etc.
         imageBuffer = await sharp(imageBuffer)
-          .resize(1080, 1080, { fit: 'cover', position: 'centre' })
+          .resize(targetW, targetH, { fit: 'cover', position: 'centre' })
           .jpeg({ quality: 92 })
           .toBuffer();
 
@@ -1848,9 +1857,19 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       }
     }
 
+    // ── BLOCK: refuse to generate images without a product reference image ──
+    if (!baseImageBuffer) {
+      console.warn('⚠️ [BG] Aucune image produit disponible — génération d\'images ANNULÉE (image-to-image obligatoire)');
+      jobData.status = 'done';
+      jobData.progress = 0;
+      jobData.total = 0;
+      jobData.error = 'Aucune image produit fournie — impossible de générer en mode image-to-image';
+      return;
+    }
+
     // ── Hero PRO — African FB-ads template (LEFT: product | RIGHT: person + problem) ──
     imagePromises.push(
-      generateAndUpload(buildHeroPrompt(gptResult, !!baseImageBuffer, visualTemplate, visualContext), baseImageBuffer, `hero-${Date.now()}.png`, 'hero')
+      generateAndUpload(buildHeroPrompt(gptResult, !!baseImageBuffer, visualTemplate, visualContext), baseImageBuffer, `hero-${Date.now()}.png`, 'hero', '1:1')
         .then(url => ({ type: 'hero', url }))
     );
 
@@ -1858,7 +1877,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     const beforeAfterPrompt = gptResult.prompt_avant_apres || null;
     if (beforeAfterPrompt) {
       imagePromises.push(
-        generateAndUpload(beforeAfterPrompt, baseImageBuffer, `before-after-${Date.now()}.png`, 'before_after')
+        generateAndUpload(beforeAfterPrompt, baseImageBuffer, `before-after-${Date.now()}.png`, 'before_after', '1:1')
           .then(url => ({ type: 'before_after', url }))
       );
     }
@@ -1873,7 +1892,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       const angle = angles[i] || null;
 
       // Build an infographic prompt that visually illustrates the angle as an infographic
-      const africanRealism = `\n\n═══ AFRICAN MARKET REALISM — MANDATORY ═══\n• PHOTOREALISTIC — must look like a real photograph. No cartoon, no AI artifacts\n• African person: authentic dark skin, natural African features, natural African hair. Simple everyday clothing, SUBTLE expressions — NOT theatrical\n• Setting: real African environment, natural warm lighting. Product at REAL proportions\n• Soft, clean, natural style. ALL French text 100% PERFECT. NO distortion, NO inconsistencies${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
+      const africanRealism = `\n\n═══ PRODUCT REFERENCE — IMAGE-TO-IMAGE MANDATORY ═══\nUse EXACTLY the product appearance from the reference image — same packaging, colors, label, shape. Do NOT redraw or invent a product. If you cannot reproduce the EXACT same product, generate the scene WITHOUT the product rather than showing a wrong one.\n\n═══ AFRICAN MARKET REALISM — MANDATORY ═══\n• PHOTOREALISTIC — must look like a real photograph. No cartoon, no AI artifacts\n• African person: authentic dark skin, natural African features, natural African hair. Simple everyday clothing, SUBTLE expressions — NOT theatrical\n• Setting: real African environment, natural warm lighting. Product at REAL proportions — THE EXACT SAME product from the reference image\n• Soft, clean, natural style. ALL French text 100% PERFECT. NO distortion, NO inconsistencies\n• FORMAT: Vertical 4:5 (1080×1250) — portrait orientation${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
         mainClaim: angle?.titre_angle || gptResult.hero_headline || title,
         supportText: angle?.explication || angle?.message_principal || '',
         promise: angle?.promesse || '',
@@ -1884,7 +1903,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         : flash.prompt + africanRealism;
 
       imagePromises.push(
-        generateAndUpload(anglePrompt, baseImageBuffer, `flash-${i + 1}-${Date.now()}.png`, 'scene')
+        generateAndUpload(anglePrompt, baseImageBuffer, `flash-${i + 1}-${Date.now()}.png`, 'scene', '1:1')
           .then(url => ({ type: 'poster', index: i, url, angle, flashType: flash.type }))
       );
     }
@@ -1893,7 +1912,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     const peoplePhotoPrompts = buildPeopleHoldingProductPrompts(gptResult, visualContext);
     peoplePhotoPrompts.forEach((peoplePrompt, idx) => {
       imagePromises.push(
-        generateAndUpload(peoplePrompt, baseImageBuffer, `people-${idx + 1}-${Date.now()}.png`, 'scene')
+        generateAndUpload(peoplePrompt, baseImageBuffer, `people-${idx + 1}-${Date.now()}.png`, 'scene', '1:1')
           .then(url => ({ type: 'people_photo', index: idx, url }))
       );
     });

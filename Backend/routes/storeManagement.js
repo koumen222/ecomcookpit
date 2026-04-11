@@ -238,8 +238,180 @@ function buildFallbackSections(s) {
         whatsapp: whatsapp,
         address: s.city && s.country ? `${s.city}, ${s.country}` : '',
       }
-    }
+    },
+    {
+      id: 'image-text-1', type: 'image_text', visible: true,
+      config: {
+        layout: 'text_left',
+        title: 'Notre Histoire',
+        subtitle: 'QUI SOMMES-NOUS',
+        content: `Chez ${storeName}, nous croyons en la qualité et l'authenticité. Chaque produit est soigneusement sélectionné pour vous offrir le meilleur.\n\nNotre mission : vous proposer des ${productType.toLowerCase()} exceptionnels, livrés directement chez vous avec soin et rapidité.`,
+        ctaText: 'En savoir plus',
+        ctaLink: '/products',
+        image: '',
+        items: [
+          { icon: '⭐', title: 'Qualité premium' },
+          { icon: '🚚', title: 'Livraison rapide' },
+          { icon: '💬', title: 'Support réactif' },
+        ],
+      }
+    },
+    {
+      id: 'banner-1', type: 'banner', visible: true,
+      config: {
+        title: '🔥 Offre de lancement — Livraison GRATUITE !',
+        content: `Profitez de la livraison offerte sur toutes vos commandes à ${city}. Offre limitée !`,
+        ctaText: 'En profiter maintenant',
+        ctaLink: '/products',
+        backgroundImage: '',
+      }
+    },
+    {
+      id: 'newsletter-1', type: 'newsletter', visible: true,
+      config: {
+        title: 'Restez informé(e) !',
+        subtitle: 'Inscrivez-vous pour recevoir nos offres exclusives et nouveautés en avant-première.',
+        placeholder: 'Votre adresse email',
+        buttonText: "S'inscrire",
+      }
+    },
   ];
+}
+
+// ─── Shared AI homepage generation ─────────────────────────────────────────────
+/**
+ * Build the Groq prompt for homepage section generation.
+ * Used by both generate-homepage and regenerate-homepage.
+ */
+function buildHomepagePrompt(s) {
+  const productTypeLabel = PRODUCT_TYPE_LABELS[s.productType] || s.productType || 'Produits divers';
+  const toneLabel = TONE_LABELS[s.tone] || s.tone || 'Chaleureux & Proche';
+  const genders = (s.audience?.gender || []).join(', ') || 'tous';
+  const ages = (s.audience?.ageRange || []).join(', ') || 'tous âges';
+  const regions = (s.audience?.region || []).join(', ') || 'international';
+
+  return `Tu es un expert en copywriting pour le e-commerce africain. Tu crées des pages de vente pour des boutiques en ligne qui s'adressent à des consommateurs africains (Cameroun, Côte d'Ivoire, Sénégal, RDC, Bénin, Togo, etc.).
+
+BOUTIQUE:
+- Nom: ${s.storeName || 'Notre Boutique'}
+- Catégorie: ${productTypeLabel}
+- Produit phare: ${s.productDescription || ''}
+- Description: ${s.storeDescription || ''}
+- Ton: ${toneLabel}
+- Audience: ${genders} | ${ages} | ${regions}
+- Ville/Pays: ${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}
+- WhatsApp: ${s.storeWhatsApp || ''}
+
+CONTEXTE AFRICAIN OBLIGATOIRE:
+- Le copywriting doit résonner avec la culture africaine locale : valeurs familiales, communauté, fierté locale, beauté naturelle africaine, excellence
+- Références réalistes : livraison à domicile, paiement à la livraison ou Mobile Money (MTN, Orange), commande WhatsApp
+- Prénoms et noms africains authentiques pour les témoignages (ex: Amina, Fatou, Kouassi, Brice, etc.)
+- Villes africaines réelles pour les témoignages selon la zone: ${regions}
+- Aucune référence western générique — tout doit être ancré dans le quotidien africain
+- Le titre hero doit être percutant, différenciant, avec un angle émotionnel fort lié à la niche
+
+EXIGENCES COPYWRITING AVANCÉES:
+- Chaque titre doit provoquer une réaction émotionnelle immédiate (curiosité, désir, peur de rater)
+- Utilise des chiffres concrets et des preuves sociales quand possible ("Plus de 500 client(e)s satisfait(e)s", "Livraison en 24h à Douala")
+- Les témoignages doivent être hyper-spécifiques : mentionner le produit exact, le résultat obtenu, le délai, la ville
+- Les FAQ doivent adresser les vraies objections d'un client africain : authenticité du produit, fiabilité de la livraison, retour possible, modes de paiement locaux
+- Le storytelling (image_text) doit raconter l'histoire du fondateur ou de la marque avec un ancrage local réel
+- Le banner doit créer un sentiment d'urgence CRÉDIBLE (offre limitée, stock limité, bonus temporaire)
+
+Génère la page en JSON: {"sections": [...]}
+
+Sections dans cet ordre:
+
+1. TYPE "hero"
+config: { title (accroche puissante 5-10 mots, émotionnelle, liée à la transformation qu'apporte le produit), subtitle (1-2 phrases de promesse concrète, bénéfice client réel), ctaText (appel à l'action actif et engageant), ctaLink: "/products", alignment: "center", backgroundImage: "" }
+
+2. TYPE "badges"
+config: { items: [ 4 badges de confiance {icon: "emoji", title: "3-4 mots", desc: "1 phrase rassurante"} : livraison rapide (délais locaux), qualité certifiée, support WhatsApp réactif, retours acceptés ] }
+
+3. TYPE "products"
+config: { title (angle niche), subtitle (accroche produits), layout: "grid", columns: 3, showPrice: true, showAddToCart: true, limit: 6 }
+
+4. TYPE "image_text"
+config: { layout: "text_left", title: "Notre Histoire" ou angle storytelling lié à la marque, subtitle: "QUI SOMMES-NOUS" ou label court, content: "2-3 paragraphes storytelling sur la marque, sa mission, pourquoi elle existe, séparés par \\n\\n", ctaText: "En savoir plus", ctaLink: "/products", image: "", items: [ 3 points clés {icon: "emoji", title: "2-4 mots"} ex: qualité, rapidité, support ] }
+
+5. TYPE "features"
+config: { title (pourquoi nous, ancré dans la réalité africaine), subtitle, items: [ 4 avantages {icon: "emoji", title, desc (2 phrases spécifiques à la boutique et au marché local)} ] }
+
+6. TYPE "testimonials"
+config: { title: "Ils nous font confiance", items: [ 3 {name: "prénom+nom africain authentique", location: "ville réelle ${regions}", content: "témoignage vivant 50-80 mots, ton naturel africain, mentionne un bénéfice concret", rating: 5} ] }
+
+7. TYPE "banner"
+config: { title: "🔥 Offre de lancement — Livraison GRATUITE !" ou promo attractive, content: "1-2 phrases urgence offre limitée", ctaText: "En profiter maintenant", ctaLink: "/products", backgroundImage: "" }
+
+8. TYPE "faq"
+config: { title: "Vos questions, nos réponses", items: [ 4 {question: "vraie question client africain", answer: "réponse claire, rassurante, mentionne Mobile Money/livraison locale si pertinent"} ] }
+
+9. TYPE "contact"
+config: { title: "Parlons-en sur WhatsApp", subtitle: "On vous répond en moins de 10 minutes !", whatsapp: "${s.storeWhatsApp || ''}", address: "${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}", showForm: false }
+
+10. TYPE "newsletter"
+config: { title: "Restez informé(e) !", subtitle: "Inscrivez-vous pour recevoir nos offres exclusives et nouveautés en avant-première.", placeholder: "Votre adresse email", buttonText: "S'inscrire" }
+
+RÈGLES:
+- 100% français, zéro anglais
+- Ton: ${toneLabel.split('—')[0].trim()}
+- IDs: "hero-1", "badges-1", "products-1", "image-text-1", "features-1", "testimonials-1", "banner-1", "faq-1", "contact-1", "newsletter-1"
+- visible: true
+- JSON pur uniquement, sans markdown`;
+}
+
+/**
+ * Call Groq to generate homepage sections. Falls back to static sections on failure.
+ * Shared by generate-homepage and regenerate-homepage so both always use the same logic.
+ */
+async function generateAIHomepageSections(s) {
+  const groq = getGroq();
+  if (!groq) return buildFallbackSections(s);
+
+  try {
+    const prompt = buildHomepagePrompt(s);
+    const response = await groq.chat.completions.create({
+      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+      messages: [
+        {
+          role: 'system',
+          content: `Tu es un expert copywriter e-commerce spécialisé dans le marché africain.
+
+RÈGLES DE QUALITÉ NON-NÉGOCIABLES:
+• Tu génères UNIQUEMENT du JSON valide, jamais de texte en dehors du JSON
+• Chaque texte doit être spécifique au produit/niche de la boutique — JAMAIS de phrases génériques passe-partout
+• Les titres hero doivent être émotionnels, concrets, et différenciants — pas de "Bienvenue chez..." ni de "Découvrez nos produits"
+• Les témoignages doivent mentionner des détails précis : nom du produit, résultat concret, ville réelle
+• Le storytelling doit être authentique, ancré dans la réalité africaine, pas du marketing occidental traduit
+• Les FAQ doivent anticiper les vraies objections locales (authenticité, livraison, Mobile Money, retours)
+• Chaque section doit servir la conversion — pas de remplissage décoratif`
+        },
+        { role: 'user', content: prompt }
+      ],
+      max_tokens: 6000,
+      temperature: 0.7,
+      response_format: { type: 'json_object' }
+    });
+
+    const raw = response.choices[0]?.message?.content || '{}';
+    const parsed = JSON.parse(raw);
+    let sections = parsed.sections;
+
+    if (!Array.isArray(sections) || sections.length === 0) {
+      throw new Error('Sections invalides retournées par le modèle');
+    }
+
+    sections = sections.map((sec, i) => ({
+      ...sec,
+      id: sec.id || `${sec.type}-${i + 1}`,
+      visible: true,
+    }));
+    sections = injectHeroImage(sections, s.productType, s.country);
+    return sections;
+  } catch (aiError) {
+    console.warn('⚠️ Groq homepage generation failed, using fallback:', aiError.message);
+    return buildFallbackSections(s);
+  }
 }
 
 const router = express.Router();
@@ -624,107 +796,9 @@ router.post('/generate-homepage', requireEcomAuth, requireWorkspace, async (req,
 
     // Merge req.body over DB settings so wizard data always takes priority
     const s = { ...(workspace.storeSettings || {}), ...req.body };
-    const groq = getGroq();
+    const sections = await generateAIHomepageSections(s);
 
-    if (!groq) {
-      // Fallback immédiat si pas de clé Groq
-      return res.json({ success: true, sections: buildFallbackSections(s) });
-    }
-
-    const productTypeLabel = PRODUCT_TYPE_LABELS[s.productType] || s.productType || 'Produits divers';
-    const toneLabel = TONE_LABELS[s.tone] || s.tone || 'Chaleureux & Proche';
-    const genders = (s.audience?.gender || []).join(', ') || 'tous';
-    const ages = (s.audience?.ageRange || []).join(', ') || 'tous âges';
-    const regions = (s.audience?.region || []).join(', ') || 'international';
-    const origins = (s.audience?.origin || []).join(', ') || '';
-
-    const prompt = `Tu es un expert en copywriting pour le e-commerce africain. Tu crées des pages de vente pour des boutiques en ligne qui s'adressent à des consommateurs africains (Cameroun, Côte d'Ivoire, Sénégal, RDC, Bénin, Togo, etc.).
-
-BOUTIQUE:
-- Nom: ${s.storeName || 'Notre Boutique'}
-- Catégorie: ${productTypeLabel}
-- Produit phare: ${s.productDescription || ''}
-- Description: ${s.storeDescription || ''}
-- Ton: ${toneLabel}
-- Audience: ${genders} | ${ages} | ${regions}
-- Ville/Pays: ${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}
-- WhatsApp: ${s.storeWhatsApp || ''}
-
-CONTEXTE AFRICAIN OBLIGATOIRE:
-- Le copywriting doit résonner avec la culture africaine locale : valeurs familiales, communauté, fierté locale, beauté naturelle africaine, excellence
-- Références réalistes : livraison à domicile, paiement à la livraison ou Mobile Money (MTN, Orange), commande WhatsApp
-- Prénoms et noms africains authentiques pour les témoignages (ex: Amina, Fatou, Kouassi, Brice, etc.)
-- Villes africaines réelles pour les témoignages selon la zone: ${regions}
-- Aucune référence western générique — tout doit être ancré dans le quotidien africain
-- Le titre hero doit être percutant, différenciant, avec un angle émotionnel fort lié à la niche
-
-Génère la page en JSON: {"sections": [...]}
-
-Sections dans cet ordre:
-
-1. TYPE "hero"
-config: { title (accroche puissante 5-10 mots, émotionnelle, liée à la transformation qu'apporte le produit), subtitle (1-2 phrases de promesse concrète, bénéfice client réel), ctaText (appel à l'action actif et engageant), ctaLink: "/products", alignment: "center", backgroundImage: "" }
-
-2. TYPE "badges"
-config: { items: [ 4 badges de confiance {icon: "emoji", title: "3-4 mots", desc: "1 phrase rassurante"} : livraison rapide (délais locaux), qualité certifiée, support WhatsApp réactif, retours acceptés ] }
-
-3. TYPE "products"
-config: { title (angle niche), subtitle (accroche produits), layout: "grid", columns: 3, showPrice: true, showAddToCart: true, limit: 6 }
-
-4. TYPE "features"
-config: { title (pourquoi nous, ancré dans la réalité africaine), subtitle, items: [ 4 avantages {icon: "emoji", title, desc (2 phrases spécifiques à la boutique et au marché local)} ] }
-
-5. TYPE "testimonials"
-config: { title: "Ils nous font confiance", items: [ 3 {name: "prénom+nom africain authentique", location: "ville réelle ${regions}", content: "témoignage vivant 50-80 mots, ton naturel africain, mentionne un bénéfice concret", rating: 5} ] }
-
-6. TYPE "faq"
-config: { title: "Vos questions, nos réponses", items: [ 4 {question: "vraie question client africain", answer: "réponse claire, rassurante, mentionne Mobile Money/livraison locale si pertinent"} ] }
-
-7. TYPE "contact"
-config: { title: "Parlons-en sur WhatsApp", subtitle: "On vous répond en moins de 10 minutes !", whatsapp: "${s.storeWhatsApp || ''}", address: "${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}", showForm: false }
-
-RÈGLES:
-- 100% français, zéro anglais
-- Ton: ${toneLabel.split('—')[0].trim()}
-- IDs: "hero-1", "badges-1", "products-1", "features-1", "testimonials-1", "faq-1", "contact-1"
-- visible: true
-- JSON pur uniquement, sans markdown`;
-
-    let sections;
-    try {
-      const response = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: 'Tu es un expert copywriter e-commerce. Tu génères uniquement du JSON valide, jamais de texte en dehors du JSON.' },
-          { role: 'user', content: prompt }
-        ],
-        max_tokens: 4000,
-        temperature: 0.7,
-        response_format: { type: 'json_object' }
-      });
-
-      const raw = response.choices[0]?.message?.content || '{}';
-      const parsed = JSON.parse(raw);
-      sections = parsed.sections;
-
-      if (!Array.isArray(sections) || sections.length === 0) {
-        throw new Error('Sections invalides retournées par le modèle');
-      }
-
-      // S'assurer que toutes les sections ont visible: true et un id
-      sections = sections.map((sec, i) => ({
-        ...sec,
-        id: sec.id || `${sec.type}-${i + 1}`,
-        visible: true,
-      }));
-      sections = injectHeroImage(sections, s.productType, s.country);
-
-      console.log(`✅ AI homepage generated: ${sections.length} sections for workspace ${req.workspaceId}`);
-    } catch (aiError) {
-      console.warn('⚠️ Groq homepage generation failed, using fallback:', aiError.message);
-      sections = buildFallbackSections(s);
-    }
-
+    console.log(`✅ AI homepage generated: ${sections.length} sections for workspace ${req.workspaceId}`);
     res.json({ success: true, sections });
   } catch (error) {
     console.error('Erreur POST /store-manage/generate-homepage:', error.message);
@@ -756,94 +830,7 @@ router.post('/regenerate-homepage', requireEcomAuth, requireWorkspace, async (re
 
     // Merge req.body over DB settings so caller data always takes priority
     const s = { ...(workspace.storeSettings || {}), ...req.body };
-    const groq = getGroq();
-
-    if (!groq) {
-      return res.json({ success: true, sections: buildFallbackSections(s) });
-    }
-
-    const productTypeLabel = PRODUCT_TYPE_LABELS[s.productType] || s.productType || 'Produits divers';
-    const toneLabel = TONE_LABELS[s.tone] || s.tone || 'Chaleureux & Proche';
-    const genders = (s.audience?.gender || []).join(', ') || 'tous';
-    const ages = (s.audience?.ageRange || []).join(', ') || 'tous âges';
-    const regions = (s.audience?.region || []).join(', ') || 'international';
-    const origins = (s.audience?.origin || []).join(', ') || '';
-
-    const prompt = `Tu es un expert en copywriting pour le e-commerce africain. Tu crées des pages de vente pour des boutiques en ligne qui s'adressent à des consommateurs africains (Cameroun, Côte d'Ivoire, Sénégal, RDC, Bénin, Togo, etc.).
-
-BOUTIQUE:
-- Nom: ${s.storeName || 'Notre Boutique'}
-- Catégorie: ${productTypeLabel}
-- Produit phare: ${s.productDescription || ''}
-- Description: ${s.storeDescription || ''}
-- Ton: ${toneLabel}
-- Audience: ${genders} | ${ages} | ${regions}
-- Ville/Pays: ${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}
-- WhatsApp: ${s.storeWhatsApp || ''}
-
-CONTEXTE AFRICAIN OBLIGATOIRE:
-- Le copywriting doit résonner avec la culture africaine locale : valeurs familiales, communauté, fierté locale, beauté naturelle africaine, excellence
-- Références réalistes : livraison à domicile, paiement à la livraison ou Mobile Money (MTN, Orange), commande WhatsApp
-- Prénoms et noms africains authentiques pour les témoignages (ex: Amina, Fatou, Kouassi, Brice, etc.)
-- Villes africaines réelles pour les témoignages selon la zone: ${regions}
-- Aucune référence western générique — tout doit être ancré dans le quotidien africain
-- Le titre hero doit être percutant, différenciant, avec un angle émotionnel fort lié à la niche
-
-Génère la page en JSON: {"sections": [...]}
-
-Sections dans cet ordre:
-
-1. TYPE "hero"
-config: { title (accroche puissante 5-10 mots, émotionnelle, liée à la transformation qu'apporte le produit), subtitle (1-2 phrases de promesse concrète, bénéfice client réel), ctaText (appel à l'action actif et engageant), ctaLink: "/products", alignment: "center", backgroundImage: "" }
-
-2. TYPE "badges"
-config: { items: [ 4 badges de confiance {icon: "emoji", title: "3-4 mots", desc: "1 phrase rassurante"} : livraison rapide (délais locaux), qualité certifiée, support WhatsApp réactif, retours acceptés ] }
-
-3. TYPE "products"
-config: { title (angle niche), subtitle (accroche produits), layout: "grid", columns: 3, showPrice: true, showAddToCart: true, limit: 6 }
-
-4. TYPE "features"
-config: { title (pourquoi nous, ancré dans la réalité africaine), subtitle, items: [ 4 avantages {icon: "emoji", title, desc (2 phrases spécifiques à la boutique et au marché local)} ] }
-
-5. TYPE "testimonials"
-config: { title: "Ils nous font confiance", items: [ 3 {name: "prénom+nom africain authentique", location: "ville réelle ${regions}", content: "témoignage vivant 50-80 mots, ton naturel africain, mentionne un bénéfice concret", rating: 5} ] }
-
-6. TYPE "faq"
-config: { title: "Vos questions, nos réponses", items: [ 4 {question: "vraie question client africain", answer: "réponse claire, rassurante, mentionne Mobile Money/livraison locale si pertinent"} ] }
-
-7. TYPE "contact"
-config: { title: "Parlons-en sur WhatsApp", subtitle: "On vous répond en moins de 10 minutes !", whatsapp: "${s.storeWhatsApp || ''}", address: "${s.city || ''}${s.city && s.country ? ', ' : ''}${s.country || ''}", showForm: false }
-
-RÈGLES:
-- 100% français, zéro anglais
-- Ton: ${toneLabel.split('—')[0].trim()}
-- IDs: "hero-1", "badges-1", "products-1", "features-1", "testimonials-1", "faq-1", "contact-1"
-- visible: true
-- JSON pur uniquement, sans markdown`;
-
-    let sections;
-    try {
-      const response = await groq.chat.completions.create({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: 'Tu es un expert copywriter e-commerce. Tu génères uniquement du JSON valide.' },
-          { role: 'user', content: prompt }
-        ],
-        max_tokens: 4000,
-        temperature: 0.7,
-        response_format: { type: 'json_object' }
-      });
-
-      const raw = response.choices[0]?.message?.content || '{}';
-      const parsed = JSON.parse(raw);
-      sections = parsed.sections;
-      if (!Array.isArray(sections) || sections.length === 0) throw new Error('Sections invalides');
-      sections = sections.map((sec, i) => ({ ...sec, id: sec.id || `${sec.type}-${i + 1}`, visible: true }));
-      sections = injectHeroImage(sections, s.productType, s.country);
-    } catch (aiError) {
-      console.warn('⚠️ Groq regenerate failed, using fallback:', aiError.message);
-      sections = buildFallbackSections(s);
-    }
+    const sections = await generateAIHomepageSections(s);
 
     // Save the new sections — to Store if available, else Workspace
     const activeStore = await getActiveStore(req);

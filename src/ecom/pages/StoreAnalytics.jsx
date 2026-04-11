@@ -38,7 +38,6 @@ const DATE_PRESETS = [
   { key: 'custom', label: 'Personnalisé' },
 ];
 
-const fmtCurrency = (n) => formatMoney(n);
 const fmtNumber   = (n) => new Intl.NumberFormat('fr-FR').format(n || 0);
 const fmtPct      = (n) => `${Number.isFinite(n) ? (Math.round((n || 0) * 100) / 100) : 0}%`;
 const fmtCompactCurrency = (v) => {
@@ -74,6 +73,13 @@ export default function StoreAnalytics() {
   const [boutiqueSalesDetails, setBoutiqueSalesDetails] = useState(null);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const pickerRef = useRef(null);
+
+  // Store currency from API response (all revenues are already converted server-side)
+  const storeCurrency = data?.storeCurrency
+    || workspace?.storeSettings?.storeCurrency
+    || storedWorkspace?.storeSettings?.storeCurrency
+    || 'XAF';
+  const fmtCurrency = (n) => formatMoney(n, storeCurrency);
 
   useEffect(() => {
     const onClickOutside = (e) => {
@@ -364,12 +370,12 @@ export default function StoreAnalytics() {
         </div>
       ) : (
         <>
-          {activeTab === 'summary'   && <SummaryTab kpi={kpi} daily={daily} />}
-          {activeTab === 'sales'     && <SalesTab kpi={kpi} daily={daily} />}
+          {activeTab === 'summary'   && <SummaryTab kpi={kpi} daily={daily} fmtCurrency={fmtCurrency} />}
+          {activeTab === 'sales'     && <SalesTab kpi={kpi} daily={daily} fmtCurrency={fmtCurrency} />}
           {activeTab === 'orders'    && <OrdersTab kpi={kpi} />}
-          {activeTab === 'delivery'  && <DeliveryTab kpi={kpi} />}
+          {activeTab === 'delivery'  && <DeliveryTab kpi={kpi} fmtCurrency={fmtCurrency} />}
           {activeTab === 'visits'    && <VisitsTab kpi={kpi} daily={daily} />}
-          {activeTab === 'customers' && <CustomersTab kpi={kpi} />}
+          {activeTab === 'customers' && <CustomersTab kpi={kpi} fmtCurrency={fmtCurrency} />}
         </>
       )}
     </div>
@@ -412,7 +418,7 @@ const EmptyRow = ({ text = 'Aucune donnée disponible' }) => (
 /* ═══════════════════════════════════════════════════════════════
  *  Résumé tab — COD overview
  * ═══════════════════════════════════════════════════════════════ */
-function SummaryTab({ kpi, daily }) {
+function SummaryTab({ kpi, daily, fmtCurrency }) {
   return (
     <div className="space-y-6">
       <section className="space-y-3">
@@ -458,7 +464,7 @@ function SummaryTab({ kpi, daily }) {
 /* ═══════════════════════════════════════════════════════════════
  *  Ventes tab — COD revenue
  * ═══════════════════════════════════════════════════════════════ */
-function SalesTab({ kpi, daily }) {
+function SalesTab({ kpi, daily, fmtCurrency }) {
   const realizedPct = kpi.potentialRevenue > 0
     ? (kpi.realizedRevenue / kpi.potentialRevenue) * 100
     : 0;
@@ -640,7 +646,7 @@ function OrdersTab({ kpi }) {
 /* ═══════════════════════════════════════════════════════════════
  *  Livraison tab — zones + success
  * ═══════════════════════════════════════════════════════════════ */
-function DeliveryTab({ kpi }) {
+function DeliveryTab({ kpi, fmtCurrency }) {
   const cities = kpi.topCities || [];
   const maxCount = Math.max(...cities.map(c => c.count), 1);
 
@@ -914,7 +920,7 @@ function formatChannelLabel(channel) {
 /* ═══════════════════════════════════════════════════════════════
  *  Clients tab — COD customer loyalty
  * ═══════════════════════════════════════════════════════════════ */
-function CustomersTab({ kpi }) {
+function CustomersTab({ kpi, fmtCurrency }) {
   const [sub, setSub] = useState('all');
   const subs = [
     { key: 'all',       label: 'Tous les clients' },

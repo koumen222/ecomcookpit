@@ -4,6 +4,7 @@ import StoreOrder from '../models/StoreOrder.js';
 import StoreProduct from '../models/StoreProduct.js';
 import Order from '../models/Order.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
+import { convertCurrency } from '../utils/currencyConvert.js';
 
 // Map StoreOrder statuses to main Order statuses
 const STATUS_MAP = {
@@ -38,11 +39,14 @@ router.get('/', requireEcomAuth, requireWorkspace, async (req, res) => {
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
 
-    // 🔒 ISOLATION : Filtrage strict par workspaceId
+    // 🔒 ISOLATION : Filtrage strict par workspaceId + storeId
     const filter = { workspaceId: req.workspaceId };
+    if (req.activeStoreId) {
+      filter.storeId = req.activeStoreId;
+    }
     
     // Log de sécurité
-    console.log(`🔒 [STORE-ORDERS] User ${req.ecomUser?.email} accessing orders for workspace ${req.workspaceId}`);
+    console.log(`🔒 [STORE-ORDERS] User ${req.ecomUser?.email} accessing orders for workspace ${req.workspaceId} store ${req.activeStoreId || 'all'}`);
     if (status) filter.status = status;
     if (search) {
       filter.$or = [
@@ -98,23 +102,63 @@ router.get('/stats', requireEcomAuth, requireWorkspace, async (req, res) => {
     }
 
     console.log(`🔒 [STORE-STATS] User ${req.ecomUser?.email} accessing stats for workspace ${req.workspaceId}`);
-    const stats = await StoreOrder.getQuickStats(req.workspaceId);
+
+    // Store principal currency
+    const storeCurrency = req.workspace?.storeSettings?.storeCurrency
+      || req.workspace?.settings?.currency
+      || 'XAF';
+
+    // Aggregate by status AND currency for proper conversion
+    const statsMatch = { workspaceId: new mongoose.Types.ObjectId(req.workspaceId) };
+    if (req.activeStoreId) {
+      statsMatch.storeId = req.activeStoreId;
+    }
+    const statsByCurrency = await StoreOrder.aggregate([
+      { $match: statsMatch },
+      {
+        $group: {
+          _id: { status: '$status', currency: '$currency' },
+          count: { $sum: 1 },
+          revenue: { $sum: '$total' }
+        }
+      }
+    ]);
+
+    // Convert each bucket to storeCurrency and merge by status
+    const statusMap = {};
+    let totalOrders = 0;
+    let totalRevenue = 0;
+    for (const bucket of statsByCurrency) {
+      const status = bucket._id.status;
+      const orderCurrency = bucket._id.currency || 'XAF';
+      const convertedRevenue = convertCurrency(bucket.revenue, orderCurrency, storeCurrency);
+      if (!statusMap[status]) statusMap[status] = { status, count: 0, revenue: 0 };
+      statusMap[status].count += bucket.count;
+      statusMap[status].revenue += convertedRevenue;
+      totalOrders += bucket.count;
+      totalRevenue += convertedRevenue;
+    }
+    const result = {
+      byStatus: Object.values(statusMap),
+      totalOrders,
+      totalRevenue,
+    };
 
     // Also get product count for dashboard
-    const productCount = await StoreProduct.countDocuments({
-      workspaceId: req.workspaceId
-    });
-    const publishedProductCount = await StoreProduct.countDocuments({
-      workspaceId: req.workspaceId,
-      isPublished: true
-    });
-
-    const result = stats[0] || { byStatus: [], totalOrders: 0, totalRevenue: 0 };
+    const productFilter = { workspaceId: req.workspaceId };
+    if (req.activeStoreId) {
+      productFilter.storeId = req.activeStoreId;
+    }
+    const [productCount, publishedProductCount] = await Promise.all([
+      StoreProduct.countDocuments(productFilter),
+      StoreProduct.countDocuments({ ...productFilter, isPublished: true }),
+    ]);
 
     res.json({
       success: true,
       data: {
         ...result,
+        storeCurrency,
         productCount,
         publishedProductCount
       }

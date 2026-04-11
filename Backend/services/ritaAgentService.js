@@ -627,7 +627,7 @@ function buildActiveConversationContext(config = {}, history = [], latestClientM
 export async function analyzeClientImage(imageBase64, mimeType = 'image/jpeg', catalogContext = '') {
   try {
     const completion = await groq.chat.completions.create({
-      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      model: process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
       messages: [
         {
           role: 'user',

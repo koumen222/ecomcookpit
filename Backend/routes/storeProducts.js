@@ -277,7 +277,7 @@ Format strict:
 Si le prix n'est pas mentionné, mettre 0. Répondre en français.`;
 
     const completion = await ai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: process.env.OPENAI_MINI_MODEL || 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: context }
@@ -362,7 +362,7 @@ Format JSON strict :
     const userPrompt = `Génère exactement ${reviewCount} avis clients authentiques pour ce produit :\n\n${productDescription.trim().slice(0, 2000)}`;
 
     const completion = await ai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: process.env.OPENAI_MINI_MODEL || 'gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }

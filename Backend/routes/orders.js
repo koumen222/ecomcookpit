@@ -10,6 +10,7 @@ import EcomUser from '../models/EcomUser.js';
 import CloseuseAssignment from '../models/CloseuseAssignment.js';
 import Notification from '../models/Notification.js';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
+import { convertCurrency } from '../utils/currencyConvert.js';
 import { createNotification, notifyNewOrder, notifyOrderStatus, notifyTeamOrderCreated, notifyTeamOrderStatusChanged, notifyAdminsLivreurAction } from '../services/notificationHelper.js';
 import { getIO } from '../services/socketService.js';
 import { sendWhatsAppMessage, sendOrderNotification } from '../services/whatsappService.js';
@@ -1189,9 +1190,17 @@ router.get('/stats/detailed', requireEcomAuth, async (req, res) => {
       orderStats.total += counts[i];
     });
 
-    // Revenue and average order value
-    const deliveredOrders = await Order.find({ ...wsFilter, status: 'delivered' }, { price: 1, quantity: 1 }).lean();
-    orderStats.totalRevenue = deliveredOrders.reduce((sum, o) => sum + ((o.price || 0) * (o.quantity || 1)), 0);
+    // Store principal currency for conversion
+    const storeCurrency = req.workspace?.storeSettings?.storeCurrency
+      || req.workspace?.settings?.currency
+      || 'XAF';
+
+    // Revenue and average order value — converted to store currency
+    const deliveredOrders = await Order.find({ ...wsFilter, status: 'delivered' }, { price: 1, quantity: 1, currency: 1 }).lean();
+    orderStats.totalRevenue = deliveredOrders.reduce((sum, o) => {
+      const orderCur = o.currency || 'XAF';
+      return sum + convertCurrency((o.price || 0) * (o.quantity || 1), orderCur, storeCurrency);
+    }, 0);
     orderStats.avgOrderValue = deliveredOrders.length > 0 ? orderStats.totalRevenue / deliveredOrders.length : 0;
 
     // Top products (only delivered)

@@ -379,7 +379,7 @@ Contraintes:
           'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: process.env.OPENAI_MINI_MODEL || 'gpt-4o-mini',
           messages: [
             { role: 'system', content: 'Tu analyses des KPI e-commerce et tu fournis une synthèse ultra actionnable.' },
             { role: 'user', content: prompt }

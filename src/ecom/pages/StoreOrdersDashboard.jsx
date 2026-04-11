@@ -130,7 +130,7 @@ const StoreOrdersDashboard = () => {
     }
   };
 
-  const formatPrice = (amount) => formatMoney(amount);
+  const formatPrice = (amount, currency) => formatMoney(amount, currency);
 
   const formatDate = (dateStr) => {
     const d = new Date(dateStr);
@@ -311,7 +311,7 @@ const StoreOrdersDashboard = () => {
                       <td className="px-2 py-2.5 text-gray-500 whitespace-nowrap">{formatDate(order.createdAt)}</td>
                       <td className="px-2 py-2.5 text-gray-900 whitespace-nowrap">{order.customerName || '-'}</td>
                       <td className="px-2 py-2.5 text-gray-500 whitespace-nowrap">{order.channel || order.source || ''}</td>
-                      <td className="px-2 py-2.5 font-medium text-gray-900 whitespace-nowrap">{formatPrice(order.total)}</td>
+                      <td className="px-2 py-2.5 font-medium text-gray-900 whitespace-nowrap">{formatPrice(order.total, order.currency)}</td>
                       <td className="px-2 py-2.5 whitespace-nowrap">
                         <StatusBadge {...payment} />
                       </td>
@@ -417,9 +417,9 @@ const StoreOrdersDashboard = () => {
                       {p.image && <img src={p.image} alt={p.name} className="w-10 h-10 rounded-lg object-cover" />}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
-                        <p className="text-xs text-gray-500">Qté: {p.quantity || 1} × {formatPrice(p.price)}</p>
+                        <p className="text-xs text-gray-500">Qté: {p.quantity || 1} × {formatPrice(p.price, selectedOrder.currency)}</p>
                       </div>
-                      <p className="text-sm font-bold text-gray-900">{formatPrice((p.price || 0) * (p.quantity || 1))}</p>
+                      <p className="text-sm font-bold text-gray-900">{formatPrice((p.price || 0) * (p.quantity || 1), selectedOrder.currency)}</p>
                     </div>
                   ))}
                 </div>
@@ -428,7 +428,7 @@ const StoreOrdersDashboard = () => {
               {/* Total */}
               <div className="flex items-center justify-between py-3 border-t border-gray-200">
                 <span className="text-sm font-medium text-gray-500">Total</span>
-                <span className="text-lg font-bold text-gray-900">{formatPrice(selectedOrder.total)}</span>
+                <span className="text-lg font-bold text-gray-900">{formatPrice(selectedOrder.total, selectedOrder.currency)}</span>
               </div>
 
               {/* Notes */}

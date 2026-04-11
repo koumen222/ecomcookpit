@@ -11,13 +11,12 @@ import axios from 'axios';
 import multer from 'multer';
 import Groq from 'groq-sdk';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
-import { generateNanoBananaImage, generateNanoBananaImageToImage, getImageGenerationStats } from '../services/nanoBananaService.js';
+import { generateNanoBananaImageToImage, getImageGenerationStats } from '../services/nanoBananaService.js';
 import { uploadImage } from '../services/cloudflareImagesService.js';
 import { extractProductInfo } from '../services/geminiProductExtractor.js';
 import FeatureUsageLog from '../models/FeatureUsageLog.js';
 
-// Slides qui incluent la photo produit dans le visuel
-const SLIDES_WITH_PRODUCT_IMAGE = new Set(['benefits', 'how-to-use', 'trust', 'comparison', 'social-proof']);
+// All slides now use image-to-image mode (product reference mandatory)
 
 const router = express.Router();
 
@@ -162,7 +161,7 @@ IMPORTANT:
 - Retourne UNIQUEMENT le JSON`;
 
   const response = await groq.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
+    model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
     messages: [
       { role: 'system', content: 'Tu es un expert copywriting e-commerce Afrique. Retourne uniquement du JSON valide.' },
       { role: 'user', content: prompt },
@@ -923,22 +922,23 @@ router.post('/', requireEcomAuth, upload.single('productImage'), async (req, res
 
     // Step 2: Generate creatives — smart image usage
     const hasImage = !!resolvedImageBuffer;
-    console.log(`🖼️ Step 2: Génération de ${selectedFormats.length} créa(s)${hasImage ? ' avec image produit' : ' (text-to-image)'}...`);
+    
+    // STRICT: block generation without product image — all operations must be image-to-image
+    if (!hasImage) {
+      return res.status(400).json({ success: false, error: 'Aucune image produit fournie — impossible de générer en mode image-to-image. Uploadez une photo du produit.' });
+    }
+    
+    console.log(`🖼️ Step 2: Génération de ${selectedFormats.length} créa(s) avec image produit (image-to-image)...`);
     const creatives = [];
     const statsBefore = getImageGenerationStats();
 
     for (const format of selectedFormats) {
       try {
-        const imagePrompt = buildCreativePrompt(analysis, format, hasImage, visualTemplate);
-        const useProductImage = hasImage && SLIDES_WITH_PRODUCT_IMAGE.has(format.slideType);
-        console.log(`  🎨 Generating ${format.id} (${useProductImage ? 'image-to-image' : 'text-only'})...`);
+        const imagePrompt = buildCreativePrompt(analysis, format, true, visualTemplate);
+        console.log(`  🎨 Generating ${format.id} (image-to-image)...`);
         
         let imageDataUrl;
-        if (useProductImage) {
-          imageDataUrl = await generateNanoBananaImageToImage(imagePrompt, resolvedImageBuffer, format.aspectRatio, 1);
-        } else {
-          imageDataUrl = await generateNanoBananaImage(imagePrompt, format.aspectRatio, 1);
-        }
+        imageDataUrl = await generateNanoBananaImageToImage(imagePrompt, resolvedImageBuffer, format.aspectRatio, 1);
         
         if (imageDataUrl) {
           let finalUrl = imageDataUrl;

@@ -130,7 +130,7 @@ export default function StoreDashboard() {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [periodLabel, setPeriodLabel] = useState('7 derniers jours');
 
-  useEffect(() => { loadDashboard(!dashboardData); }, [period, dateRange, workspace]);
+  useEffect(() => { loadDashboard(!dashboardData); }, [period, dateRange, workspace, activeStore?._id]);
 
   const loadDashboard = async (isInitial) => {
     try {

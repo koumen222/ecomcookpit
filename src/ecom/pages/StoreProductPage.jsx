@@ -167,7 +167,12 @@ const resolveProductGalleryImages = (content = {}, fallbackImages = []) => {
     // Only show custom images — never fall back to hero/product images
     return customImages;
   }
-  return customImages.length > 0 ? [...customImages, ...fallbackImages] : fallbackImages;
+  // AI-generated images (fallbackImages) take priority — put them first
+  if (fallbackImages.length > 0) {
+    const fallbackUrls = new Set(fallbackImages.map(f => f?.url).filter(Boolean));
+    return [...fallbackImages, ...customImages.filter(img => !fallbackUrls.has(img.url))];
+  }
+  return customImages;
 };
 
 // ── Image Gallery ────────────────────────────────────────────────────────────
@@ -178,7 +183,7 @@ const ImageGallery = ({ images = [], design = {} }) => {
   const zoomEnabled = design.imageZoom !== false;
   const borderRadius = design.borderRadius || '12px';
   const ratioByPreset = {
-    square: '100%',
+    square: '125%',
     portrait: '133.33%',
     landscape: '75%',
     wide: '56.25%',
@@ -198,7 +203,7 @@ const ImageGallery = ({ images = [], design = {} }) => {
 
   if (!images.length) return (
     <div style={{
-      paddingBottom: '100%', position: 'relative',
+      paddingBottom: '125%', position: 'relative',
       backgroundColor: '#f4f4f5', overflow: 'hidden', borderRadius,
     }}>
       <div style={{
@@ -451,7 +456,7 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', co
           background: '#fff',
         }}
       >
-        <div style={{ position: 'relative', height: mainImageHeight, background: '#f4f4f5' }}>
+        <div style={{ position: 'relative', paddingBottom: '100%', background: '#f4f4f5' }}>
           {images.map((image, index) => (
             <img
               key={`${image.url}-${index}`}
@@ -1107,7 +1112,7 @@ const RelatedCard = ({ product, prefix, store, subdomain }) => {
         boxShadow: hovered ? '0 8px 24px rgba(0,0,0,0.1)' : '0 1px 4px rgba(0,0,0,0.04)',
         transform: hovered ? 'translateY(-2px)' : 'none', transition: 'all 0.2s',
       }}>
-        <div style={{ paddingBottom: '100%', position: 'relative', backgroundColor: '#f4f4f5', overflow: 'hidden' }}>
+        <div style={{ paddingBottom: '125%', position: 'relative', backgroundColor: '#f4f4f5', overflow: 'hidden' }}>
           {product.image ? (
             <img src={product.image} alt={product.name} loading="lazy" decoding="async" sizes="(max-width: 640px) 45vw, (max-width: 1024px) 25vw, 160px"
               style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
@@ -1873,8 +1878,12 @@ const StoreProductPage = () => {
                 {/* Sections rendered in config order */}
                 {enabledSectionIds.map(sectionId => {
                   switch (sectionId) {
-                    case 'reviews':
-                      return <ProductReviews key={sectionId} rating={product.rating || 4.5} reviewCount={product.reviewCount || 0} />;
+                    case 'reviews': {
+                      const revCustom = sectionContentMap.reviews || {};
+                      const revRating = revCustom.rating || product.rating || 4.5;
+                      const revCount = revCustom.reviewCount || product.reviewCount || 0;
+                      return <ProductReviews key={sectionId} rating={revRating} reviewCount={revCount} />;
+                    }
 
                     case 'orderForm':
                       return (
@@ -2068,14 +2077,20 @@ const StoreProductPage = () => {
                       ) : null;
                     }
 
-                    case 'urgencyElements':
-                      return product._pageData?.urgency_elements ? (
+                    case 'urgencyElements': {
+                      const ueCustom = sectionContentMap.urgencyElements || {};
+                      const ueAi = product._pageData?.urgency_elements;
+                      const ueData = (ueCustom.stockLimited != null || ueCustom.socialProofCount || ueCustom.quickResult)
+                        ? ueCustom
+                        : ueAi;
+                      return ueData ? (
                         <UrgencyBadge key={sectionId}
-                          stockLimited={product._pageData.urgency_elements.stock_limited}
-                          socialProofCount={product._pageData.urgency_elements.social_proof_count}
-                          quickResult={product._pageData.urgency_elements.quick_result}
+                          stockLimited={ueData.stockLimited ?? ueData.stock_limited}
+                          socialProofCount={ueData.socialProofCount ?? ueData.social_proof_count}
+                          quickResult={ueData.quickResult ?? ueData.quick_result}
                         />
                       ) : null;
+                    }
 
                     case 'benefitsBullets': {
                       const customBullets = sectionContentMap.benefitsBullets?.items?.filter(Boolean);
@@ -2085,10 +2100,13 @@ const StoreProductPage = () => {
                       ) : null;
                     }
 
-                    case 'conversionBlocks':
-                      return product._pageData?.conversion_blocks?.length > 0 ? (
-                        <ConversionBlocks key={sectionId} blocks={product._pageData.conversion_blocks} compact />
+                    case 'conversionBlocks': {
+                      const cbCustom = sectionContentMap.conversionBlocks?.items?.filter(b => b?.text);
+                      const cbData = cbCustom?.length > 0 ? cbCustom : product._pageData?.conversion_blocks;
+                      return cbData?.length > 0 ? (
+                        <ConversionBlocks key={sectionId} blocks={cbData} compact />
                       ) : null;
+                    }
 
                     case 'offerBlock': {
                       const sc = sectionContentMap.offerBlock || {};
@@ -2101,7 +2119,8 @@ const StoreProductPage = () => {
                     }
 
                     case 'description': {
-                      const raw = product.description?.toString().trim() || '';
+                      const descCustom = sectionContentMap.description?.text?.trim();
+                      const raw = descCustom || product.description?.toString().trim() || '';
                       return raw ? (
                         <div key={sectionId} style={{ borderTop: '1px solid var(--s-border)', marginTop: 8, paddingTop: 16, paddingBottom: 8 }}>
                           <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)', marginBottom: 12 }}>
