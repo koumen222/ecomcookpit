@@ -1071,15 +1071,18 @@ const buildAiGalleryImages = (product) => {
   };
 
   const pageData = product?._pageData || {};
-  // Photos lifestyle "personne tenant le produit" en premier — c'est ce qui convertit le plus
-  (pageData.peoplePhotos || []).forEach((photo, index) => {
-    pushImage(photo, `${product?.name || 'Produit'} — client ${index + 1}`);
-  });
+  // Hero image en premier — c'est l'image principale du produit
   pushImage(pageData.heroImage, product?.name || 'Hero image');
   pushImage(pageData.beforeAfterImage, product?.name || 'Avant apres');
+  // Angles/affiches marketing ensuite
   (pageData.angles || []).forEach((angle, index) => {
     pushImage(angle?.poster_url, angle?.titre_angle || `${product?.name || 'Produit'} ${index + 1}`);
   });
+  // Photos lifestyle "personne tenant le produit" après les angles
+  (pageData.peoplePhotos || []).forEach((photo, index) => {
+    pushImage(photo, `${product?.name || 'Produit'} — client ${index + 1}`);
+  });
+  // Images originales uploadées en dernier
   (product?.images || []).forEach((image) => pushImage(image, product?.name || 'Produit'));
 
   return gallery;

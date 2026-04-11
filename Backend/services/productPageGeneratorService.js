@@ -980,8 +980,9 @@ Mood: Trustworthy, convincing, high-conversion, impossible to ignore in a Facebo
 
     const sceneRules = `
 QUALITY: Ultra HD 4K, razor-sharp, zero blur. Square 1:1.
+PRODUCT REFERENCE (CRITICAL): The reference product image provided MUST be reproduced EXACTLY in the output — same packaging, same colors, same label, same shape, same size proportions. The product must be clearly recognizable as the EXACT SAME item. NEVER invent a different product, NEVER redesign the packaging, NEVER change colors or labels. If someone compares the reference image and the output, they must instantly see it is the SAME product.
 PERSON: ALWAYS include authentic Black African person (dark skin, natural hair, confident expression).
-PRODUCT: Large, dominant, sharp, 40-60% of frame.
+PRODUCT: Large, dominant, sharp, 40-60% of frame. Must match the reference image exactly.
 TEXT: French only, 100% perfect spelling with accents. Max 3 text elements.
 NO price, NO phone, NO URL, NO CTA button, NO watermark.
 CRITICAL: Follow the SPECIFIC visual style described above — unique background, unique decorations, unique mood for THIS image.`;
@@ -991,6 +992,7 @@ CRITICAL: Follow the SPECIFIC visual style described above — unique background
 A reference image of the EXACT real product is provided as input. The output image MUST contain THIS SPECIFIC product — same shape, same color, same packaging, same label, same design — clearly visible, sharp, and recognizable.
 NEVER invent, replace, redesign, reinterpret, or omit the product. The product from the reference image MUST appear in every generated visual, even if the scene description doesn't mention it explicitly. If the scene would not naturally contain the product, place it naturally in the hands of the person, on a surface in the scene, or in a prominent position.
 The product must be recognizable as the same item as the reference to anyone looking at both images side by side.
+CRITICAL CHECK: Before finalizing, verify that the product in the output matches the reference image EXACTLY — same packaging colors, same label text, same bottle/box shape, same cap/lid design. If ANY detail differs, regenerate.
 `;
 
     let modeRules;
