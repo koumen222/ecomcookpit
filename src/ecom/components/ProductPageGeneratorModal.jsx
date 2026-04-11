@@ -1310,6 +1310,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
       name: product.title || '',
       description: descHtml,
       images: allImages,
+      currency: product.currency || '',
+      targetMarket: product.targetMarket || product.country || '',
+      country: product.country || '',
+      city: product.city || '',
+      locale: product.locale || '',
       _pageData: {
         ...product,
         templateTheme,

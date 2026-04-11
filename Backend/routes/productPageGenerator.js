@@ -1382,7 +1382,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     let workspace;
     if (req.workspaceId) {
       workspace = await EcomWorkspace.findById(req.workspaceId)
-        .select('storeSettings.country storeSettings.city storeSettings.storeName name freeGenerationsRemaining paidGenerationsRemaining totalGenerations simpleGenerationsRemaining');
+        .select('storeSettings.country storeSettings.city storeSettings.storeName storeSettings.storeCurrency storeSettings.currency name freeGenerationsRemaining paidGenerationsRemaining totalGenerations simpleGenerationsRemaining');
 
       if (!workspace) {
         return res.status(404).json({ success: false, message: 'Workspace introuvable' });
@@ -1391,6 +1391,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       storeContext = {
         country: workspace?.storeSettings?.country || '',
         city: workspace?.storeSettings?.city || '',
+        currency: workspace?.storeSettings?.storeCurrency || workspace?.storeSettings?.currency || '',
         shopName: workspace?.storeSettings?.storeName || workspace?.name || '',
       };
     }
@@ -1501,6 +1502,11 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     const productPage = {
       title: gptResult.title || scraped.title || '',
+      currency: storeContext.currency || '',
+      targetMarket: storeContext.country || '',
+      country: storeContext.country || '',
+      city: storeContext.city || '',
+      locale: '',
       hero_headline: gptResult.hero_headline || null,
       hero_slogan: gptResult.hero_slogan || null,
       hero_baseline: gptResult.hero_baseline || null,

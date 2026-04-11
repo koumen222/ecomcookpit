@@ -156,14 +156,20 @@ const StoreCheckout = () => {
         const storeData = data.store || data;
         setStore(storeData);
         const ppc = storeData?.productPageConfig;
-        const checkoutCurrency = storeData?.currency || storeData?.storeSettings?.storeCurrency || 'XAF';
+        const cartCurrencies = [...new Set(cartProducts.map((p) => String(p.currency || '').trim().toUpperCase()).filter(Boolean))];
+        const checkoutCurrency = cartCurrencies.length === 1
+          ? cartCurrencies[0]
+          : (storeData?.currency || storeData?.storeSettings?.storeCurrency || 'XAF');
         setPhoneCode(getDefaultPhoneCodeFromConfig(ppc?.general?.countries, checkoutCurrency));
         setPixels(data.pixels || null);
         // Inject pixels + fire InitiateCheckout
         if (data.pixels) {
           injectPixelScripts(data.pixels);
           const total = cartProducts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);
-          const checkoutCurrency = data.store?.currency || storeData?.currency || 'XAF';
+          const cartCurrencies = [...new Set(cartProducts.map((p) => String(p.currency || '').trim().toUpperCase()).filter(Boolean))];
+          const checkoutCurrency = cartCurrencies.length === 1
+            ? cartCurrencies[0]
+            : (data.store?.currency || storeData?.currency || 'XAF');
           firePixelEvent('InitiateCheckout', {
             value: total,
             currency: checkoutCurrency,
@@ -209,7 +215,8 @@ const StoreCheckout = () => {
 
   const formatPrice = (price) => new Intl.NumberFormat('fr-FR').format(price);
   const themeColor = store?.themeColor || '#0F6B4F';
-  const currency = store?.currency || 'XAF';
+  const cartCurrencies = [...new Set(cartProducts.map((p) => String(p.currency || '').trim().toUpperCase()).filter(Boolean))];
+  const currency = cartCurrencies.length === 1 ? cartCurrencies[0] : (store?.currency || 'XAF');
 
   // Input focus ring using themeColor (CSS custom property approach)
   const [focusedField, setFocusedField] = useState(null);

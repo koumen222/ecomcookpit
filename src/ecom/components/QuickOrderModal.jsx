@@ -25,7 +25,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
   const [cityOptions, setCityOptions] = useState([]);
   const [countdownSecs, setCountdownSecs] = useState(null);
 
-  const currency = store?.currency || product?.currency || 'XAF';
+  const currency = product?.currency || store?.currency || 'XAF';
 
   // ── Resolve config with safe fallbacks ──────────────────────────────────────
   const design = productPageConfig?.design || {};

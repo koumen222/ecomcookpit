@@ -282,7 +282,7 @@ const DEFAULT_DESIGN = {
   buttonStyle: 'filled', badgeStyle: 'filled',
   imageRatio: 'square', spacing: 'normal',
   showReviews: true, showTrustBadges: true, showShareButtons: true,
-  showRelatedProducts: true, showQuantitySelector: true,
+  showRelatedProducts: true, showProductGallery: true, showQuantitySelector: true,
   showDeliveryInfo: true, showSecureBadge: true,
   showCountdown: false, showStockIndicator: true,
   stickyAddToCart: true, imageZoom: true,
@@ -746,6 +746,7 @@ const ProductThemePage = () => {
 
               <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2"><Layout size={14} /> Contenu</h3>
+                <Toggle label="Photos du produit" desc="Affiche la galerie visuelle sous le bloc d'achat" value={design.showProductGallery} onChange={v => updateDesign('showProductGallery', v)} accentColor={design.buttonColor || '#7C3AED'} />
                 <Toggle label="Produits similaires" desc="Affiche des produits recommandés en bas" value={design.showRelatedProducts} onChange={v => updateDesign('showRelatedProducts', v)} accentColor={design.buttonColor || '#7C3AED'} />
               </div>
             </div>

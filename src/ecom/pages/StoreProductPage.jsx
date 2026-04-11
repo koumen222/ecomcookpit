@@ -1078,7 +1078,7 @@ const StoreProductPage = () => {
   const { store, pixels, product, related, error } = useStoreProduct(subdomain, slug);
   const { cartCount } = useStoreCart(subdomain);
   const { trackPageView, trackProductView, trackAddToCart } = useStoreAnalytics(subdomain);
-  const effectiveCurrency = store?.currency || product?.currency || 'XAF';
+  const effectiveCurrency = product?.currency || store?.currency || 'XAF';
 
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showStickyOrderBar, setShowStickyOrderBar] = useState(false);
@@ -1434,6 +1434,7 @@ const StoreProductPage = () => {
   // Build ordered enabled section IDs for rendering
   const sectionToggleOverrides = {
     reviews: ppDesign.showReviews,
+    productGallery: ppDesign.showProductGallery,
     relatedProducts: ppDesign.showRelatedProducts ?? showRelatedProductsFromStore,
     stockCounter: ppDesign.showStockIndicator,
     stickyOrderBar: ppDesign.stickyAddToCart,
