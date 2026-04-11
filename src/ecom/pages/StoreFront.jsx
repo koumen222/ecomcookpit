@@ -6,6 +6,70 @@ import { useSubdomain } from '../hooks/useSubdomain.js';
 import { injectStoreCssVars } from '../hooks/useStoreData.js';
 import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking.js';
 
+const RADIUS_MAP = {
+  none: '0px',
+  sm: '10px',
+  md: '14px',
+  lg: '18px',
+  xl: '24px',
+  full: '999px',
+};
+
+const SHADOW_MAP = {
+  none: 'none',
+  soft: '0 10px 28px rgba(15, 23, 42, 0.08)',
+  medium: '0 16px 40px rgba(15, 23, 42, 0.12)',
+  strong: '0 24px 56px rgba(15, 23, 42, 0.16)',
+};
+
+const resolveRadius = (value, fallback = '18px') => {
+  if (typeof value === 'number') return `${value}px`;
+  if (!value) return fallback;
+
+  const normalized = String(value).trim().toLowerCase();
+  if (RADIUS_MAP[normalized]) return RADIUS_MAP[normalized];
+  if (/^\d+$/.test(normalized)) return `${normalized}px`;
+
+  return value;
+};
+
+const resolveShadow = (value) => SHADOW_MAP[String(value || 'soft').trim().toLowerCase()] || SHADOW_MAP.soft;
+
+const buildButtonVars = (design = {}) => {
+  const buttonStyle = String(design.buttonStyle || '').trim().toLowerCase();
+  const solidBg = design.ctaButtonColor || design.buttonColor || 'var(--s-primary)';
+
+  if (buttonStyle === 'outline') {
+    return {
+      '--sf-btn-bg': 'transparent',
+      '--sf-btn-text': 'var(--s-primary)',
+      '--sf-btn-border': 'var(--s-primary)',
+    };
+  }
+
+  if (buttonStyle === 'soft') {
+    return {
+      '--sf-btn-bg': 'color-mix(in srgb, var(--s-primary) 12%, var(--s-bg))',
+      '--sf-btn-text': 'var(--s-primary)',
+      '--sf-btn-border': 'transparent',
+    };
+  }
+
+  if (buttonStyle === 'gradient') {
+    return {
+      '--sf-btn-bg': 'linear-gradient(135deg, var(--s-primary) 0%, var(--s-accent) 100%)',
+      '--sf-btn-text': '#ffffff',
+      '--sf-btn-border': 'transparent',
+    };
+  }
+
+  return {
+    '--sf-btn-bg': solidBg,
+    '--sf-btn-text': '#ffffff',
+    '--sf-btn-border': 'transparent',
+  };
+};
+
 /**
  * StoreFront — Public-facing product grid page.
  * Mobile-first, SEO-friendly, fast loading.
@@ -114,22 +178,32 @@ const StoreFront = () => {
     return new Intl.NumberFormat('fr-FR').format(price);
   };
 
+  const design = store?.productPageConfig?.design || {};
   const themeColor = store?.themeColor || '#0F6B4F';
+  const shellVars = store ? {
+    '--sf-radius': resolveRadius(design.borderRadius || store.borderRadius || 'lg'),
+    '--sf-radius-sm': resolveRadius(design.borderRadius || store.borderRadius || 'lg', '14px'),
+    '--sf-shadow': resolveShadow(design.shadow),
+    '--sf-surface': 'color-mix(in srgb, var(--s-bg) 94%, white)',
+    '--sf-soft-surface': 'color-mix(in srgb, var(--s-primary) 6%, var(--s-bg))',
+    '--sf-soft-border': 'color-mix(in srgb, var(--s-primary) 18%, var(--s-border))',
+    ...buildButtonVars(design),
+  } : null;
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ backgroundColor: 'var(--s-bg, #ffffff)', color: 'var(--s-text, #111827)', fontFamily: 'var(--s-font-base, var(--s-font, Inter, sans-serif))', ...shellVars }}>
         {/* Logo/Icon animation */}
-        <div className="mb-8 w-16 h-16 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${themeColor}12` }}>
-          <ShoppingBag className="w-7 h-7" style={{ color: themeColor }} />
+        <div className="mb-8 w-16 h-16 flex items-center justify-center" style={{ backgroundColor: 'var(--sf-soft-surface)', borderRadius: 'var(--sf-radius)' }}>
+          <ShoppingBag className="w-7 h-7" style={{ color: 'var(--s-primary)' }} />
         </div>
         
         {/* Loading text */}
         <div className="text-center space-y-2">
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 className="text-lg font-semibold" style={{ color: 'var(--s-text)' }}>
             {loadingTimeout ? 'Prend plus de temps que prévu...' : 'Chargement de la boutique'}
           </h2>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm" style={{ color: 'var(--s-text2)' }}>
             {loadingTimeout 
               ? 'Veuillez patienter, cela peut prendre quelques secondes...' 
               : 'Préparation de votre expérience d\'achat...'
@@ -138,18 +212,19 @@ const StoreFront = () => {
         </div>
         
         {/* Animated dots */}
-        <div className="mt-4 px-3 py-1.5 rounded-full text-xs font-medium" style={{ backgroundColor: `${themeColor}12`, color: themeColor }}>
+        <div className="mt-4 px-3 py-1.5 rounded-full text-xs font-medium" style={{ backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-primary)' }}>
           Chargement initial…
         </div>
         
         {/* Subtle progress bar */}
-        <div className="mt-6 text-xs text-gray-400">Préparation du catalogue…</div>
+        <div className="mt-6 text-xs" style={{ color: 'var(--s-text2)' }}>Préparation du catalogue…</div>
         
         {/* Retry button after timeout */}
         {loadingTimeout && (
           <button
             onClick={() => window.location.reload()}
-            className="mt-6 px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+            className="mt-6 px-4 py-2 text-sm font-medium transition-colors"
+            style={{ color: 'var(--s-text)' }}
           >
             Réessayer
           </button>
@@ -160,18 +235,18 @@ const StoreFront = () => {
 
   if (error || !store) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: 'var(--s-bg, #ffffff)', color: 'var(--s-text, #111827)', fontFamily: 'var(--s-font-base, var(--s-font, Inter, sans-serif))' }}>
         <div className="text-center">
-          <ShoppingBag className="w-16 h-16 text-gray-300 mx-auto" />
-          <h1 className="text-xl font-bold text-gray-900 mt-4">Boutique introuvable</h1>
-          <p className="text-sm text-gray-500 mt-2">Cette boutique n'existe pas ou n'est pas encore activée.</p>
+          <ShoppingBag className="w-16 h-16 mx-auto" style={{ color: 'var(--s-text2, #9ca3af)' }} />
+          <h1 className="text-xl font-bold mt-4" style={{ color: 'var(--s-text, #111827)' }}>Boutique introuvable</h1>
+          <p className="text-sm mt-2" style={{ color: 'var(--s-text2, #6b7280)' }}>Cette boutique n'existe pas ou n'est pas encore activée.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--s-bg)', color: 'var(--s-text)', fontFamily: 'var(--s-font-base, var(--s-font, Inter, sans-serif))', ...shellVars }}>
       {/* Add custom styles for shimmer animation */}
       <style jsx>{`
         @keyframes shimmer {
@@ -184,7 +259,7 @@ const StoreFront = () => {
       `}</style>
       
       {/* Store Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
+      <header className="sticky top-0 z-40" style={{ backgroundColor: 'var(--sf-surface)', borderBottom: '1px solid var(--sf-soft-border)', backdropFilter: 'blur(14px)' }}>
         {/* Banner */}
         {store.banner && (
           <div className="h-32 sm:h-44 overflow-hidden">
@@ -217,9 +292,9 @@ const StoreFront = () => {
               />
             )}
             <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-bold text-gray-900 truncate">{store.name}</h1>
+              <h1 className="text-lg font-bold truncate" style={{ color: 'var(--s-text)' }}>{store.name}</h1>
               {store.description && (
-                <p className="text-xs text-gray-500 truncate">{store.description}</p>
+                <p className="text-xs truncate" style={{ color: 'var(--s-text2)' }}>{store.description}</p>
               )}
             </div>
             {/* Contact buttons */}
@@ -240,7 +315,7 @@ const StoreFront = () => {
                 <a
                   href={`tel:${store.phone}`}
                   className="p-2 rounded-full text-white transition"
-                  style={{ backgroundColor: themeColor }}
+                  style={{ background: 'var(--sf-btn-bg)', color: 'var(--sf-btn-text)', border: '1px solid var(--sf-btn-border)' }}
                   title="Appeler"
                 >
                   <Phone className="w-4 h-4" />
@@ -255,14 +330,21 @@ const StoreFront = () => {
       <div className="max-w-6xl mx-auto px-4 py-4 space-y-3">
         {/* Search bar */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--s-text2)' }} />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Rechercher un produit..."
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-            style={{ '--tw-ring-color': themeColor }}
+            className="w-full pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:border-transparent"
+            style={{
+              '--tw-ring-color': 'var(--s-primary)',
+              backgroundColor: 'var(--sf-surface)',
+              color: 'var(--s-text)',
+              border: '1px solid var(--sf-soft-border)',
+              borderRadius: 'var(--sf-radius)',
+              boxShadow: 'var(--sf-shadow)',
+            }}
           />
         </div>
 
@@ -271,10 +353,16 @@ const StoreFront = () => {
           <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
             <button
               onClick={() => handleCategoryChange('')}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition ${
-                selectedCategory === '' ? 'text-white' : 'bg-white border border-gray-200 text-gray-600'
-              }`}
-              style={selectedCategory === '' ? { backgroundColor: themeColor } : {}}
+              className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition"
+              style={selectedCategory === '' ? {
+                background: 'var(--sf-btn-bg)',
+                color: 'var(--sf-btn-text)',
+                border: '1px solid var(--sf-btn-border)',
+              } : {
+                backgroundColor: 'var(--sf-surface)',
+                color: 'var(--s-text2)',
+                border: '1px solid var(--sf-soft-border)',
+              }}
             >
               Tout
             </button>
@@ -282,10 +370,16 @@ const StoreFront = () => {
               <button
                 key={cat}
                 onClick={() => handleCategoryChange(cat)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition ${
-                  selectedCategory === cat ? 'text-white' : 'bg-white border border-gray-200 text-gray-600'
-                }`}
-                style={selectedCategory === cat ? { backgroundColor: themeColor } : {}}
+                className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition"
+                style={selectedCategory === cat ? {
+                  background: 'var(--sf-btn-bg)',
+                  color: 'var(--sf-btn-text)',
+                  border: '1px solid var(--sf-btn-border)',
+                } : {
+                  backgroundColor: 'var(--sf-surface)',
+                  color: 'var(--s-text2)',
+                  border: '1px solid var(--sf-soft-border)',
+                }}
               >
                 {cat}
               </button>
@@ -301,9 +395,9 @@ const StoreFront = () => {
             {/* Loading skeleton cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
               {[...Array(8)].map((_, i) => (
-                <div key={i} className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                <div key={i} className="overflow-hidden" style={{ backgroundColor: 'var(--sf-surface)', borderRadius: 'var(--sf-radius)', border: '1px solid var(--sf-soft-border)' }}>
                   {/* Image skeleton */}
-                  <div className="aspect-square bg-gray-100 shimmer">
+                  <div className="aspect-square shimmer" style={{ backgroundColor: 'var(--sf-soft-surface)' }}>
                     <div className="w-full h-full bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse"></div>
                   </div>
                   {/* Content skeleton */}
@@ -317,19 +411,19 @@ const StoreFront = () => {
             </div>
             {/* Loading text */}
             <div className="text-center py-4">
-              <span className="text-sm text-gray-500">Chargement des produits...</span>
+              <span className="text-sm" style={{ color: 'var(--s-text2)' }}>Chargement des produits...</span>
             </div>
           </div>
         ) : products.length === 0 ? (
           <div className="text-center py-16">
-            <ShoppingBag className="w-12 h-12 text-gray-300 mx-auto" />
-            <p className="text-gray-500 mt-3 text-sm">
+            <ShoppingBag className="w-12 h-12 mx-auto" style={{ color: 'var(--s-text2)' }} />
+            <p className="mt-3 text-sm" style={{ color: 'var(--s-text2)' }}>
               {search ? 'Aucun produit trouvé' : 'Aucun produit disponible'}
             </p>
           </div>
         ) : (
           <>
-            <p className="text-xs text-gray-400 mb-3">{pagination.total} produit{pagination.total !== 1 ? 's' : ''}</p>
+            <p className="text-xs mb-3" style={{ color: 'var(--s-text2)' }}>{pagination.total} produit{pagination.total !== 1 ? 's' : ''}</p>
 
             {/* Responsive grid: 2 cols mobile, 3 tablet, 4 desktop */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -337,11 +431,12 @@ const StoreFront = () => {
                 <a
                   key={product._id}
                   href={storeUrl(`/product/${product.slug}`)}
-                  className="bg-white rounded-xl border border-gray-100 overflow-hidden text-left hover:shadow-md transition-shadow duration-200 group cursor-pointer"
+                  className="overflow-hidden text-left transition-shadow duration-200 group cursor-pointer"
+                  style={{ backgroundColor: 'var(--sf-surface)', borderRadius: 'var(--sf-radius)', border: '1px solid var(--sf-soft-border)', boxShadow: 'var(--sf-shadow)' }}
                   title={`Voir les détails de ${product.name}`}
                 >
                   {/* Product image */}
-                  <div className="aspect-square bg-gray-100 overflow-hidden relative">
+                  <div className="aspect-square overflow-hidden relative" style={{ backgroundColor: 'var(--sf-soft-surface)' }}>
                     {product.image ? (
                       <img
                         src={product.image}
@@ -363,7 +458,7 @@ const StoreFront = () => {
                     )}
                     {/* Hover overlay */}
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-opacity duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
-                      <div className="bg-white text-gray-900 px-3 py-1.5 rounded-full text-xs font-medium">
+                      <div className="px-3 py-1.5 rounded-full text-xs font-medium" style={{ backgroundColor: 'var(--sf-surface)', color: 'var(--s-text)' }}>
                         Voir détails
                       </div>
                     </div>
@@ -371,27 +466,27 @@ const StoreFront = () => {
 
                   {/* Product info */}
                   <div className="p-2.5 sm:p-3">
-                    <h3 className="text-lg font-semibold text-gray-900 line-clamp-2 leading-tight group-hover:text-emerald-700 transition-colors">
+                    <h3 className="text-lg font-semibold line-clamp-2 leading-tight transition-colors" style={{ color: 'var(--s-text)' }}>
                       {product.name}
                     </h3>
                     <div className="mt-1.5 flex items-baseline gap-1.5">
-                      <span className="text-sm font-bold" style={{ color: themeColor }}>
+                      <span className="text-sm font-bold" style={{ color: 'var(--s-primary)' }}>
                         {formatPrice(product.price)} {product.currency || store.currency}
                       </span>
                       {product.compareAtPrice && product.compareAtPrice > product.price && (
-                        <span className="text-xs text-gray-400 line-through">
+                        <span className="text-xs line-through" style={{ color: 'var(--s-text2)' }}>
                           {formatPrice(product.compareAtPrice)}
                         </span>
                       )}
                     </div>
                     {product.stock <= 0 && (
-                      <span className="inline-block mt-1 px-1.5 py-0.5 bg-red-50 text-red-600 text-[10px] font-medium rounded">
+                      <span className="inline-block mt-1 px-1.5 py-0.5 text-[10px] font-medium rounded" style={{ backgroundColor: 'color-mix(in srgb, #ef4444 12%, var(--s-bg))', color: '#dc2626' }}>
                         Rupture
                       </span>
                     )}
                     {/* Category tag */}
                     {product.category && (
-                      <span className="inline-block mt-1 px-1.5 py-0.5 bg-gray-100 text-gray-600 text-[10px] font-medium rounded">
+                      <span className="inline-block mt-1 px-1.5 py-0.5 text-[10px] font-medium rounded" style={{ backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text2)' }}>
                         {product.category}
                       </span>
                     )}
@@ -406,15 +501,17 @@ const StoreFront = () => {
                 <button
                   onClick={() => fetchProducts(pagination.page - 1)}
                   disabled={pagination.page <= 1}
-                  className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition"
+                  className="p-2 disabled:opacity-40 transition"
+                  style={{ borderRadius: 'calc(var(--sf-radius) - 4px)', border: '1px solid var(--sf-soft-border)', color: 'var(--s-text2)', backgroundColor: 'var(--sf-surface)' }}
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <span className="text-sm text-gray-500">{pagination.page} / {pagination.pages}</span>
+                <span className="text-sm" style={{ color: 'var(--s-text2)' }}>{pagination.page} / {pagination.pages}</span>
                 <button
                   onClick={() => fetchProducts(pagination.page + 1)}
                   disabled={pagination.page >= pagination.pages}
-                  className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition"
+                  className="p-2 disabled:opacity-40 transition"
+                  style={{ borderRadius: 'calc(var(--sf-radius) - 4px)', border: '1px solid var(--sf-soft-border)', color: 'var(--s-text2)', backgroundColor: 'var(--sf-surface)' }}
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>

@@ -548,6 +548,7 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
     const productMap = new Map(dbProducts.map(p => [p._id.toString(), p]));
     let total = 0;
     const orderProducts = [];
+    const orderCurrencies = new Set();
 
     // Load store productPageConfig for offer validation
     const storeSettings = workspace.storeSettings || {};
@@ -603,8 +604,16 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
         image: dbProduct.images?.[0]?.url || ''
       });
 
+      if (dbProduct.currency) {
+        orderCurrencies.add(String(dbProduct.currency).trim().toUpperCase());
+      }
+
       total += itemTotal;
     }
+
+    const resolvedOrderCurrency = orderCurrencies.size === 1
+      ? Array.from(orderCurrencies)[0]
+      : (workspace.storeSettings?.storeCurrency || 'XAF');
 
     const order = new StoreOrder({
       workspaceId: workspace._workspaceId || workspace._id,
@@ -616,7 +625,7 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       city: city?.trim() || '',
       products: orderProducts,
       total,
-      currency: workspace.storeSettings?.storeCurrency || 'XAF',
+      currency: resolvedOrderCurrency,
       channel: channel || 'store',
       notes: notes?.trim() || ''
     });

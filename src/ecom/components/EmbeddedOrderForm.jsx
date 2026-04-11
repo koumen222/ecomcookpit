@@ -32,13 +32,18 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
   const btnCfg = productPageConfig?.button || {};
 
   const offerDesign = conversionConfig.offerDesign || null;
-  const btnColor = design.formButtonColor || '#0F6B4F';
+  const btnColor = design.formButtonColor || design.ctaButtonColor || design.buttonColor || '#0F6B4F';
   const offerBorderStyle = offerDesign?.border_style || 'solid';
-  const urgencyConfig = productPageConfig?.urgency || defaultConfig.urgency || {};
+  const urgencyConfig = {
+    ...(defaultConfig.urgency || {}),
+    ...(design.showCountdown ? { countdown: true } : {}),
+    ...(productPageConfig?.urgency || {}),
+  };
   const callScheduleConfig = productPageConfig?.callSchedule || defaultConfig.callSchedule || {};
-  const textColor = design.formTextColor || '#111827';
+  const textColor = design.formTextColor || design.textColor || '#111827';
   const inputTextColor = '#111827'; // Always dark for inputs on white/light backgrounds
-  const borderRadius = design.formInputRadius || '12px';
+  const borderRadius = design.formInputRadius || design.borderRadius || '12px';
+  const showQuantitySelector = design.showQuantitySelector !== false;
 
   const configFields = formConfig.fields || [];
   const effectiveFields = configFields.length ? configFields : defaultConfig.form.fields;
@@ -149,7 +154,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
     const waLink = storeWhatsapp ? `https://wa.me/${storeWhatsapp.replace(/^\+/, '')}?text=${encodeURIComponent(waMsg)}` : null;
 
     return (
-      <div style={{ borderRadius: 20, overflow: 'hidden', border: `2px solid ${btnColor}20`, backgroundColor: '#fff' }}>
+      <div style={{ borderRadius: design.borderRadius || 20, overflow: 'hidden', border: `2px solid ${btnColor}20`, backgroundColor: design.formBgColor || design.backgroundColor || '#fff' }}>
         {/* Top gradient bar */}
         <div style={{ height: 4, background: `linear-gradient(90deg, ${btnColor}, #25D366)` }} />
 
@@ -202,11 +207,11 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
     );
   }
 
-  const formBgColor = design.formBgColor || '#ffffff';
+  const formBgColor = design.formBgColor || design.backgroundColor || '#ffffff';
 
   // ── Inline form ──
   return (
-    <div style={{ borderRadius: 16, border: `2px solid ${btnColor}25`, padding: '20px 18px', backgroundColor: formBgColor }}>
+    <div style={{ borderRadius: design.borderRadius || 16, border: `2px solid ${btnColor}25`, padding: '20px 18px', backgroundColor: formBgColor }}>
       <h3 style={{ fontSize: 16, fontWeight: 800, color: textColor, margin: '0 0 14px', display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--s-font)' }}>
         <ShoppingCart size={18} color={btnColor} /> {btnCfg.text || 'Commander maintenant'}
       </h3>
@@ -261,6 +266,10 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
                           </div>
                         );
                       })}
+                    </div>
+                  ) : !showQuantitySelector ? (
+                    <div style={{ padding: '11px 14px', borderRadius, border: '1.5px solid #E5E7EB', backgroundColor: '#fff', color: '#374151', fontSize: 14, fontWeight: 600 }}>
+                      1 unité
                     </div>
                   ) : useQuantityButtons ? (
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>

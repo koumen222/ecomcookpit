@@ -156,15 +156,23 @@ const StoreCheckout = () => {
         const storeData = data.store || data;
         setStore(storeData);
         const ppc = storeData?.productPageConfig;
-        setPhoneCode(getDefaultPhoneCodeFromConfig(ppc?.general?.countries, storeData?.currency || storeData?.storeSettings?.storeCurrency));
+        const cartCurrencies = [...new Set(cartProducts.map((p) => String(p.currency || '').trim().toUpperCase()).filter(Boolean))];
+        const checkoutCurrency = cartCurrencies.length === 1
+          ? cartCurrencies[0]
+          : (storeData?.currency || storeData?.storeSettings?.storeCurrency || 'XAF');
+        setPhoneCode(getDefaultPhoneCodeFromConfig(ppc?.general?.countries, checkoutCurrency));
         setPixels(data.pixels || null);
         // Inject pixels + fire InitiateCheckout
         if (data.pixels) {
           injectPixelScripts(data.pixels);
           const total = cartProducts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);
+          const cartCurrencies = [...new Set(cartProducts.map((p) => String(p.currency || '').trim().toUpperCase()).filter(Boolean))];
+          const checkoutCurrency = cartCurrencies.length === 1
+            ? cartCurrencies[0]
+            : (data.store?.currency || 'XAF');
           firePixelEvent('InitiateCheckout', {
             value: total,
-            currency: data.store?.currency || 'XAF',
+            currency: checkoutCurrency,
             num_items: cartProducts.length,
             content_ids: cartProducts.map(p => p._id || p.productId || ''),
           });
@@ -175,7 +183,7 @@ const StoreCheckout = () => {
         setLoading(false);
       }
     })();
-  }, [subdomain]);
+  }, [subdomain, cartProducts]);
 
   // Redirect if no products
   useEffect(() => {
@@ -207,7 +215,8 @@ const StoreCheckout = () => {
 
   const formatPrice = (price) => new Intl.NumberFormat('fr-FR').format(price);
   const themeColor = store?.themeColor || '#0F6B4F';
-  const currency = store?.currency || 'XAF';
+  const cartCurrencies = [...new Set(cartProducts.map((p) => String(p.currency || '').trim().toUpperCase()).filter(Boolean))];
+  const currency = cartCurrencies.length === 1 ? cartCurrencies[0] : (store?.currency || 'XAF');
 
   // Input focus ring using themeColor (CSS custom property approach)
   const [focusedField, setFocusedField] = useState(null);
@@ -273,7 +282,7 @@ const StoreCheckout = () => {
       const orderTotal = orderData?.total ?? cartProducts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);
       firePixelEvent('Purchase', {
         value: orderTotal,
-        currency: store?.currency || 'XAF',
+        currency,
         content_ids: cartProducts.map(p => p._id || p.productId || ''),
         num_items: cartProducts.length,
       });

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
-  Calendar, Filter, Info, Loader2, LayoutGrid, ShoppingBag,
+  Calendar, Loader2, LayoutGrid, ShoppingBag,
   Truck, Users, Target, ChevronRight, Package, PhoneCall,
   MapPin, CheckCircle2, XCircle, MessageCircle, Eye, Globe,
   Monitor, Smartphone, Tablet, Chrome, Languages, FileText,
@@ -23,6 +23,7 @@ const TABS = [
 ];
 
 const DATE_PRESETS = [
+  { key: 'all', label: 'Tout l\'historique', compute: () => ({ start: new Date(2020, 0, 1), end: new Date() }) },
   { key: '1h',  label: 'Dernière heure',      compute: () => ({ start: new Date(Date.now() - 60 * 60 * 1000),         end: new Date() }) },
   { key: '24h', label: 'Dernières 24 heures', compute: () => ({ start: new Date(Date.now() - 24 * 60 * 60 * 1000),    end: new Date() }) },
   { key: 'today',     label: "Aujourd'hui",   compute: () => { const s = new Date(); s.setHours(0,0,0,0); return { start: s, end: new Date() }; } },
@@ -53,14 +54,23 @@ const fmtDateLabel = (d) => new Date(d).toLocaleDateString('en-US', { month: 'lo
 
 export default function StoreAnalytics() {
   const { workspace } = useEcomAuth();
-  const workspaceId = workspace?._id;
+  const storedWorkspace = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('ecomWorkspace') || 'null');
+    } catch {
+      return null;
+    }
+  })();
+  const workspaceId = workspace?._id || workspace?.id || storedWorkspace?._id || storedWorkspace?.id;
 
   const [activeTab, setActiveTab] = useState('summary');
-  const [presetKey, setPresetKey] = useState('30d');
+  const [presetKey, setPresetKey] = useState('all');
   const [endDate, setEndDate]     = useState(toDateInput(new Date()));
-  const [startDate, setStartDate] = useState(toDateInput(new Date(Date.now() - 30 * 86400000)));
+  const [startDate, setStartDate] = useState(toDateInput(new Date(2020, 0, 1)));
   const [loading, setLoading]     = useState(false);
   const [data, setData]           = useState(null);
+  const [salesDetails, setSalesDetails] = useState(null);
+  const [boutiqueSalesDetails, setBoutiqueSalesDetails] = useState(null);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const pickerRef = useRef(null);
 
@@ -88,15 +98,53 @@ export default function StoreAnalytics() {
     (async () => {
       try {
         setLoading(true);
-        const res = await ecomApi.get('/store-analytics/dashboard', {
-          params: { workspaceId, startDate, endDate },
-        });
+        const [analyticsRes, salesRes] = await Promise.all([
+          ecomApi.get('/store-analytics/dashboard', {
+            params: { workspaceId, startDate, endDate },
+          }),
+          ecomApi.get('/orders/stats/detailed', {
+            params: { workspaceId, startDate, endDate },
+          }).catch(() => null),
+        ]);
+        const boutiqueOrdersRes = await ecomApi.get('/orders', {
+          params: { workspaceId, startDate, endDate, sourceId: 'scalor', limit: 1000 },
+        }).catch(() => null);
         if (cancelled) return;
-        setData(res.data);
+        const payload = analyticsRes.data?.data || analyticsRes.data || {};
+        const normalizedPayload = payload.analytics || payload.orders
+          ? payload
+          : {
+              analytics: payload.analyticsData || payload.stats || payload.overview ? {
+                overview: payload.overview || payload.analyticsData?.overview || {},
+                timeline: payload.timeline || payload.analyticsData?.timeline || [],
+                deviceStats: payload.deviceStats || payload.analyticsData?.deviceStats || [],
+                visitsPerProduct: payload.visitsPerProduct || payload.analyticsData?.visitsPerProduct || [],
+                topProducts: payload.topProducts || payload.analyticsData?.topProducts || [],
+                dailyVisits: payload.dailyVisits || payload.analyticsData?.dailyVisits || [],
+                countryStats: payload.countryStats || payload.analyticsData?.countryStats || [],
+                cityStats: payload.cityStats || payload.analyticsData?.cityStats || [],
+                browserStats: payload.browserStats || payload.analyticsData?.browserStats || [],
+                languageStats: payload.languageStats || payload.analyticsData?.languageStats || [],
+                topPages: payload.topPages || payload.analyticsData?.topPages || [],
+                trafficSources: payload.trafficSources || payload.analyticsData?.trafficSources || [],
+              } : { overview: {}, timeline: [], deviceStats: [], visitsPerProduct: [], topProducts: [] },
+              orders: payload.orderStats || payload.orders || {},
+              topProductsBySales: payload.topProductsBySales || [],
+              topProductsByRevenue: payload.topProductsByRevenue || [],
+              leastProductsBySales: payload.leastProductsBySales || [],
+            };
+
+        console.log('[ANALYTICS] API response:', JSON.stringify(normalizedPayload?.orders || {}, null, 2));
+        console.log('[ANALYTICS] workspaceId:', workspaceId, 'dates:', startDate, '->', endDate);
+        setData(normalizedPayload);
+        setSalesDetails(salesRes?.data?.data || null);
+        setBoutiqueSalesDetails(buildBoutiqueSalesDetails(boutiqueOrdersRes?.data?.data || null));
       } catch (err) {
         if (cancelled) return;
         console.error('Analytics load error', err);
         setData({ analytics: { overview: {}, timeline: [], deviceStats: [], visitsPerProduct: [], topProducts: [] }, orders: {} });
+        setSalesDetails(null);
+        setBoutiqueSalesDetails(null);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -108,24 +156,54 @@ export default function StoreAnalytics() {
   const orders   = data?.orders || {};
   const timeline = data?.analytics?.timeline || [];
   const analytics = data?.analytics || {};
+  const salesOrderStats = boutiqueSalesDetails?.orderStats || salesDetails?.orderStats || {};
 
-  const daily = useMemo(() => buildDailySeries(timeline, startDate, endDate, analytics.dailyVisits), [timeline, startDate, endDate, analytics.dailyVisits]);
+  const normalizedTopSales = boutiqueSalesDetails?.topProductsBySales?.length
+    ? boutiqueSalesDetails.topProductsBySales
+    : (data?.topProductsBySales?.length ? data.topProductsBySales : (salesDetails?.topProducts || []).map((item) => ({
+    name: item._id || 'Sans nom',
+    sold: item.count || 0,
+    revenue: item.revenue || 0,
+  })));
+
+  const normalizedTopRevenue = boutiqueSalesDetails?.topProductsByRevenue?.length
+    ? boutiqueSalesDetails.topProductsByRevenue
+    : (data?.topProductsByRevenue?.length ? data.topProductsByRevenue : (salesDetails?.topProducts || [])
+    .map((item) => ({
+      name: item._id || 'Sans nom',
+      sold: item.count || 0,
+      revenue: item.revenue || 0,
+    }))
+    .sort((a, b) => (b.revenue || 0) - (a.revenue || 0)));
+
+  const normalizedLeastSales = boutiqueSalesDetails?.leastProductsBySales?.length
+    ? boutiqueSalesDetails.leastProductsBySales
+    : (data?.leastProductsBySales?.length ? data.leastProductsBySales : [...normalizedTopSales]
+    .filter((item) => (item.sold || 0) > 0)
+    .sort((a, b) => (a.sold || 0) - (b.sold || 0) || (b.revenue || 0) - (a.revenue || 0)));
+
+  const salesTrendSeries = boutiqueSalesDetails?.salesTrendSeries || (salesDetails?.dailyTrend || []).map((point) => ({
+    label: new Date(point._id).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
+    value: point.revenue || 0,
+  }));
+
+  const daily = useMemo(() => buildDailySeries(timeline, startDate, endDate, analytics.dailyVisits, orders), [timeline, startDate, endDate, analytics.dailyVisits, orders]);
 
   const kpi = {
     // Revenue (COD)
-    potentialRevenue: orders.potentialRevenue ?? orders.totalRevenue ?? 0,
-    realizedRevenue:  orders.realizedRevenue  ?? 0,  // delivered only (cash in hand)
-    averageBasket:    orders.averageOrderValue ?? 0,
-    averageDelivered: orders.averageDeliveredValue ?? 0,
+    potentialRevenue: orders.potentialRevenue ?? orders.totalRevenue ?? salesOrderStats.totalRevenue ?? 0,
+    realizedRevenue:  orders.realizedRevenue  ?? salesOrderStats.totalRevenue ?? 0,
+    averageBasket:    orders.averageOrderValue ?? salesOrderStats.avgOrderValue ?? 0,
+    averageDelivered: orders.averageDeliveredValue ?? salesOrderStats.avgOrderValue ?? 0,
     shippingCost:     orders.shippingCost ?? 0,
     // Order counts
-    totalOrders:      orders.total ?? 0,
-    pending:          orders.pending ?? 0,
-    confirmed:        orders.confirmed ?? 0,
+    totalOrders:      orders.total ?? salesOrderStats.total ?? 0,
+    pending:          orders.pending ?? salesOrderStats.pending ?? 0,
+    confirmed:        orders.confirmed ?? salesOrderStats.confirmed ?? 0,
     processing:       orders.processing ?? 0,
-    shipped:          orders.shipped ?? 0,
-    delivered:        orders.delivered ?? 0,
-    cancelled:        orders.cancelled ?? 0,
+    shipped:          orders.shipped ?? salesOrderStats.shipped ?? 0,
+    delivered:        orders.delivered ?? salesOrderStats.delivered ?? 0,
+    cancelled:        orders.cancelled ?? salesOrderStats.cancelled ?? 0,
     // COD performance
     confirmationRate: orders.confirmationRate ?? 0,
     deliveryRate:     orders.deliveryRate ?? 0,
@@ -137,6 +215,11 @@ export default function StoreAnalytics() {
     // Segments
     topCities:        orders.topCities || [],
     channelStats:     orders.channelStats || {},
+    channelPerformance: boutiqueSalesDetails?.channelPerformance || orders.channelPerformance || [],
+    topProductsBySales: normalizedTopSales,
+    topProductsByRevenue: normalizedTopRevenue,
+    leastProductsBySales: normalizedLeastSales,
+    salesTrendSeries,
     // Traffic
     totalVisits:      overview.uniqueVisitors ?? 0,
     pageViews:        overview.pageViews ?? 0,
@@ -162,24 +245,28 @@ export default function StoreAnalytics() {
     : `${fmtDateLabel(startDate)} – ${fmtDateLabel(endDate)}`;
 
   return (
-    <div className="max-w-[1100px] mx-auto px-4 py-6 space-y-5">
-      {/* ─── Date range + filter ───────────────────────────────── */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1" ref={pickerRef}>
+    <div className="max-w-[1100px] mx-auto px-4 py-6 space-y-6 bg-gray-50 min-h-screen">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold text-gray-950">Analyses</h1>
+        <p className="text-sm text-gray-500">Vue simple des ventes, commandes, livraisons et visites de la boutique.</p>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-4">
+        <div className="relative" ref={pickerRef}>
           <button
             onClick={() => setDatePickerOpen(v => !v)}
-            className="w-full flex items-center gap-2.5 px-4 py-3 bg-white border border-gray-200 rounded-full text-sm text-gray-800 hover:border-primary-300 hover:shadow-sm transition"
+            className="w-full flex items-center gap-2.5 px-4 py-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 hover:border-gray-300 transition"
           >
-            <Calendar className="w-4 h-4 text-primary-600" />
+            <Calendar className="w-4 h-4 text-gray-500" />
             <span className="font-medium">{dateRangeLabel}</span>
-            <span className="ml-auto text-xs text-gray-400">
+            <span className="ml-auto text-xs text-gray-400 hidden sm:inline">
               {fmtDateLabel(startDate)} – {fmtDateLabel(endDate)}
             </span>
           </button>
           {datePickerOpen && (
-            <div className="absolute z-30 mt-2 left-0 right-0 sm:right-auto sm:min-w-[560px] bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden flex flex-col sm:flex-row">
+            <div className="absolute z-30 mt-2 left-0 right-0 sm:right-auto sm:min-w-[560px] bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden flex flex-col sm:flex-row">
               {/* Presets sidebar */}
-              <div className="w-full sm:w-60 bg-scalor-sand-light/40 p-2 sm:border-r border-gray-100">
+              <div className="w-full sm:w-60 bg-gray-50 p-2 sm:border-r border-gray-200">
                 <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Périodes rapides</p>
                 <ul className="space-y-0.5">
                   {DATE_PRESETS.map(p => {
@@ -188,10 +275,10 @@ export default function StoreAnalytics() {
                       <li key={p.key}>
                         <button
                           onClick={() => applyPreset(p.key)}
-                          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition ${
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition ${
                             selected
-                              ? 'bg-primary-500 text-white font-semibold shadow-sm'
-                              : 'text-gray-700 hover:bg-white hover:text-primary-700'
+                              ? 'bg-gray-900 text-white font-medium'
+                              : 'text-gray-700 hover:bg-white'
                           }`}
                         >
                           {p.label}
@@ -231,13 +318,13 @@ export default function StoreAnalytics() {
                 <div className="mt-5 flex items-center justify-end gap-2">
                   <button
                     onClick={() => setDatePickerOpen(false)}
-                    className="px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-lg"
+                    className="px-3 py-2 text-xs font-medium text-gray-600 hover:bg-gray-100 rounded-md"
                   >
                     Annuler
                   </button>
                   <button
                     onClick={() => setDatePickerOpen(false)}
-                    className="px-4 py-2 bg-primary-500 text-white rounded-lg text-xs font-semibold hover:bg-primary-600 shadow-sm"
+                    className="px-4 py-2 bg-gray-900 text-white rounded-md text-xs font-medium hover:bg-gray-800"
                   >
                     Appliquer
                   </button>
@@ -246,14 +333,8 @@ export default function StoreAnalytics() {
             </div>
           )}
         </div>
-        <button className="relative p-3 bg-white border border-gray-200 rounded-full hover:border-primary-300 hover:shadow-sm transition">
-          <Filter className="w-4 h-4 text-gray-600" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-scalor-copper rounded-full" />
-        </button>
-      </div>
 
-      {/* ─── Tabs ───────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        <div className="flex items-center gap-2 overflow-x-auto border-b border-gray-200 pb-2">
         {TABS.map(t => {
           const Icon = t.icon;
           const active = activeTab === t.key;
@@ -261,23 +342,24 @@ export default function StoreAnalytics() {
             <button
               key={t.key}
               onClick={() => setActiveTab(t.key)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition ${
+              className={`flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap border-b-2 transition ${
                 active
-                  ? 'bg-primary-500 text-white shadow-sm shadow-primary-500/20'
-                  : 'bg-white border border-gray-200 text-gray-600 hover:border-primary-200 hover:text-primary-700'
+                  ? 'border-gray-900 text-gray-950 font-medium'
+                  : 'border-transparent text-gray-500 hover:text-gray-800'
               }`}
             >
-              <Icon className={`w-4 h-4 ${active ? 'text-white' : t.iconClass}`} />
+              <Icon className="w-4 h-4" />
               {t.label}
             </button>
           );
         })}
+        </div>
       </div>
 
       {/* ─── Tab content ────────────────────────────────────────── */}
       {loading && !data ? (
-        <div className="flex items-center justify-center min-h-[40vh]">
-          <Loader2 className="w-7 h-7 animate-spin text-primary-500" />
+        <div className="flex items-center justify-center min-h-[40vh] bg-white border border-gray-200 rounded-xl">
+          <Loader2 className="w-7 h-7 animate-spin text-gray-700" />
         </div>
       ) : (
         <>
@@ -298,32 +380,30 @@ export default function StoreAnalytics() {
  * ═══════════════════════════════════════════════════════════════ */
 const Card = ({ value, label, highlight = false, accent = 'default' }) => {
   const accents = {
-    default: 'bg-scalor-sand-light/50 hover:bg-scalor-sand-light',
-    green:   'bg-primary-50 hover:bg-primary-100/70',
-    copper:  'bg-orange-50 hover:bg-orange-100/60',
+    default: 'bg-white border-gray-200',
+    green:   'bg-white border-gray-200',
+    copper:  'bg-white border-gray-200',
   };
   return (
-    <div className={`rounded-2xl p-5 relative min-h-[118px] transition-colors ${accents[accent] || accents.default}`}>
-      <p className={`text-[26px] leading-tight font-bold mb-2 text-scalor-black ${
-        highlight ? 'ring-2 ring-primary-500 rounded-md px-2 -mx-2 inline-block' : ''
+    <div className={`rounded-xl border p-4 min-h-[104px] ${accents[accent] || accents.default}`}>
+      <p className={`text-2xl leading-tight font-semibold mb-1 text-gray-950 ${
+        highlight ? 'text-gray-950' : ''
       }`}>
         {value}
       </p>
-      <p className="text-sm text-gray-500 font-medium">{label}</p>
-      <Info className="w-3.5 h-3.5 text-gray-400/60 absolute bottom-4 right-4" />
+      <p className="text-sm text-gray-500">{label}</p>
     </div>
   );
 };
 
 const SectionTitle = ({ children }) => (
-  <h2 className="text-[15px] font-semibold text-scalor-black flex items-center gap-2">
-    <span className="w-1 h-5 bg-primary-500 rounded-full" />
+  <h2 className="text-base font-semibold text-gray-950">
     {children}
   </h2>
 );
 
 const EmptyRow = ({ text = 'Aucune donnée disponible' }) => (
-  <div className="bg-white border border-gray-200 rounded-2xl py-10 flex items-center justify-center text-sm text-gray-400">
+  <div className="bg-white border border-gray-200 rounded-xl py-10 flex items-center justify-center text-sm text-gray-400">
     {text}
   </div>
 );
@@ -366,7 +446,7 @@ function SummaryTab({ kpi, daily }) {
 
       <section className="space-y-3">
         <SectionTitle>Revenu encaissé quotidien</SectionTitle>
-        <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
           <AreaChart data={daily.series} color="#0F6B4F" fill="rgba(15,107,79,0.14)" yFormat={(v) => fmtCompactCurrency(v)} />
         </div>
       </section>
@@ -381,6 +461,11 @@ function SalesTab({ kpi, daily }) {
   const realizedPct = kpi.potentialRevenue > 0
     ? (kpi.realizedRevenue / kpi.potentialRevenue) * 100
     : 0;
+
+  const totalChannelOrders = kpi.channelPerformance.reduce((sum, channel) => sum + (channel.orders || 0), 0) || 1;
+  const salesSeries = (daily.series || []).some((point) => (point.value || 0) > 0)
+    ? daily.series
+    : (kpi.salesTrendSeries || []);
 
   return (
     <div className="space-y-6">
@@ -398,10 +483,79 @@ function SalesTab({ kpi, daily }) {
 
       <section className="space-y-3">
         <SectionTitle>Revenu encaissé quotidien</SectionTitle>
-        <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
-          <AreaChart data={daily.series} color="#0F6B4F" fill="rgba(15,107,79,0.14)" yFormat={(v) => fmtCompactCurrency(v)} />
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <AreaChart data={salesSeries} color="#0F6B4F" fill="rgba(15,107,79,0.14)" yFormat={(v) => fmtCompactCurrency(v)} />
         </div>
       </section>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <section className="space-y-3">
+          <SectionTitle>Produits les plus vendus</SectionTitle>
+          <RankedCard
+            items={kpi.topProductsBySales.map((product) => ({
+              label: product.name || 'Sans nom',
+              value: product.sold || 0,
+              sub: `${fmtCurrency(product.revenue || 0)}`,
+            }))}
+            icon={Package}
+            emptyText="Aucune vente produit"
+          />
+        </section>
+
+        <section className="space-y-3">
+          <SectionTitle>Produits les moins vendus</SectionTitle>
+          <RankedCard
+            items={kpi.leastProductsBySales.map((product) => ({
+              label: product.name || 'Sans nom',
+              value: product.sold || 0,
+              sub: `${fmtCurrency(product.revenue || 0)}`,
+            }))}
+            icon={Package}
+            emptyText="Pas assez de ventes pour comparer"
+          />
+        </section>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <section className="space-y-3">
+          <SectionTitle>Produits les plus rentables</SectionTitle>
+          <RankedCard
+            items={kpi.topProductsByRevenue.map((product) => ({
+              label: product.name || 'Sans nom',
+              value: product.revenue || 0,
+              sub: `${fmtNumber(product.sold || 0)} unités`,
+            }))}
+            icon={ShoppingBag}
+            emptyText="Aucun chiffre d'affaires produit"
+            valueFormatter={(value) => fmtCurrency(value)}
+          />
+        </section>
+
+        <section className="space-y-3">
+          <SectionTitle>Ventes par canal</SectionTitle>
+          <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+            {kpi.channelPerformance.length === 0 ? (
+              <div className="text-sm text-gray-400 text-center py-6">Aucune donnée par canal</div>
+            ) : kpi.channelPerformance.map((channel) => (
+              <div key={channel.channel} className="border border-gray-100 rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{formatChannelLabel(channel.channel)}</p>
+                    <p className="text-xs text-gray-500">{fmtNumber(channel.orders)} commandes · {((channel.orders / totalChannelOrders) * 100).toFixed(0)}%</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-gray-900">{fmtCurrency(channel.revenue)}</p>
+                    <p className="text-xs text-gray-500">encaissé: {fmtCurrency(channel.deliveredRevenue)}</p>
+                  </div>
+                </div>
+                <div className="h-2 bg-gray-100 rounded overflow-hidden">
+                  <div className="h-full bg-gray-900" style={{ width: `${Math.min((channel.orders / totalChannelOrders) * 100, 100)}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
@@ -434,7 +588,7 @@ function OrdersTab({ kpi }) {
 
       <section className="space-y-3">
         <SectionTitle>Entonnoir COD</SectionTitle>
-        <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-3">
+        <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
           {steps.map((s, i) => {
             const pct = (s.count / total) * 100;
             const Icon = s.icon;
@@ -447,10 +601,10 @@ function OrdersTab({ kpi }) {
                   </span>
                   <span className="text-gray-500">{fmtNumber(s.count)} · {pct.toFixed(1)}%</span>
                 </div>
-                <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-2 bg-gray-100 rounded overflow-hidden">
                   <div
-                    className="h-full rounded-full transition-all"
-                    style={{ width: `${Math.min(pct, 100)}%`, background: `linear-gradient(90deg, ${s.color} 0%, #14855F 100%)` }}
+                    className="h-full transition-all"
+                    style={{ width: `${Math.min(pct, 100)}%`, background: s.color }}
                   />
                 </div>
               </div>
@@ -461,7 +615,7 @@ function OrdersTab({ kpi }) {
 
       <section className="space-y-3">
         <SectionTitle>Canal de commande</SectionTitle>
-        <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-3">
+        <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
           <ChannelRow
             icon={<MessageCircle className="w-4 h-4 text-[#25D366]" />}
             label="WhatsApp"
@@ -500,7 +654,7 @@ function DeliveryTab({ kpi }) {
 
       <section className="space-y-3">
         <SectionTitle>Top zones de livraison</SectionTitle>
-        <div className="bg-white border border-gray-100 rounded-2xl p-5">
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
           {cities.length === 0 ? (
             <EmptyRow text="Aucune zone de livraison sur cette période" />
           ) : (
@@ -518,10 +672,10 @@ function DeliveryTab({ kpi }) {
                         {fmtNumber(c.count)} cmd · {fmtNumber(c.delivered)} livrées · {success.toFixed(0)}%
                       </span>
                     </div>
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden relative">
+                    <div className="h-2 bg-gray-100 rounded overflow-hidden relative">
                       <div
-                        className="h-full rounded-full"
-                        style={{ width: `${(c.count / maxCount) * 100}%`, background: 'linear-gradient(90deg, #0F6B4F 0%, #14855F 100%)' }}
+                        className="h-full"
+                        style={{ width: `${(c.count / maxCount) * 100}%`, background: '#0F6B4F' }}
                       />
                     </div>
                   </li>
@@ -570,7 +724,7 @@ function VisitsTab({ kpi, daily }) {
       {/* Daily visits chart */}
       <section className="space-y-3">
         <SectionTitle>Visites quotidiennes</SectionTitle>
-        <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
           <AreaChart
             data={daily.visitSeries}
             color="#C56A2D"
@@ -584,7 +738,7 @@ function VisitsTab({ kpi, daily }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <section className="space-y-3">
           <SectionTitle>Par type d'appareil</SectionTitle>
-          <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-3">
+          <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
             <DeviceLine icon={Monitor}    label="Ordinateur" count={desktop} total={deviceTotal} />
             <DeviceLine icon={Smartphone} label="Mobile"     count={mobile}  total={deviceTotal} />
             <DeviceLine icon={Tablet}     label="Tablette"   count={tablet}  total={deviceTotal} />
@@ -685,20 +839,20 @@ const DeviceLine = ({ icon: Icon, label, count, total }) => {
         </span>
         <span className="text-gray-500">{fmtNumber(count)} · {pct.toFixed(0)}%</span>
       </div>
-      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+      <div className="h-2 bg-gray-100 rounded overflow-hidden">
         <div
-          className="h-full rounded-full"
-          style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #0F6B4F 0%, #14855F 100%)' }}
+          className="h-full"
+          style={{ width: `${pct}%`, background: '#0F6B4F' }}
         />
       </div>
     </div>
   );
 };
 
-const RankedCard = ({ items, icon: Icon, emptyText = 'Aucune donnée' }) => {
+const RankedCard = ({ items, icon: Icon, emptyText = 'Aucune donnée', valueFormatter = fmtNumber }) => {
   if (!items || items.length === 0) {
     return (
-      <div className="bg-white border border-gray-100 rounded-2xl py-10 flex items-center justify-center text-sm text-gray-400">
+      <div className="bg-white border border-gray-200 rounded-xl py-10 flex items-center justify-center text-sm text-gray-400">
         {emptyText}
       </div>
     );
@@ -706,7 +860,7 @@ const RankedCard = ({ items, icon: Icon, emptyText = 'Aucune donnée' }) => {
   const max = Math.max(...items.map(i => i.value), 1);
   const total = items.reduce((s, i) => s + i.value, 0) || 1;
   return (
-    <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-3 shadow-sm">
+    <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
       {items.slice(0, 8).map((it, i) => {
         const pct = (it.value / total) * 100;
         return (
@@ -718,13 +872,13 @@ const RankedCard = ({ items, icon: Icon, emptyText = 'Aucune donnée' }) => {
                 {it.sub && <span className="text-[10px] text-gray-400 truncate">· {it.sub}</span>}
               </span>
               <span className="text-gray-500 flex-shrink-0 font-semibold">
-                {fmtNumber(it.value)} <span className="text-gray-400 font-normal">· {pct.toFixed(0)}%</span>
+                {valueFormatter(it.value)} <span className="text-gray-400 font-normal">· {pct.toFixed(0)}%</span>
               </span>
             </div>
-            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-1.5 bg-gray-100 rounded overflow-hidden">
               <div
-                className="h-full rounded-full"
-                style={{ width: `${(it.value / max) * 100}%`, background: 'linear-gradient(90deg, #0F6B4F 0%, #14855F 100%)' }}
+                className="h-full"
+                style={{ width: `${(it.value / max) * 100}%`, background: '#0F6B4F' }}
               />
             </div>
           </div>
@@ -742,6 +896,18 @@ function prettifyReferrer(ref) {
   } catch {
     return ref;
   }
+}
+
+function formatChannelLabel(channel) {
+  const key = String(channel || '').toLowerCase();
+  if (key === 'store') return 'Boutique en ligne';
+  if (key === 'whatsapp') return 'WhatsApp';
+  if (key === 'manual') return 'Ajout manuel';
+  if (key === 'google_sheets') return 'Google Sheets';
+  if (key === 'shopify') return 'Shopify';
+  if (key === 'webhook') return 'Webhook';
+  if (key === 'skelor') return 'Scalor Store';
+  return channel || 'Canal inconnu';
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -770,10 +936,10 @@ function CustomersTab({ kpi }) {
           <button
             key={s.key}
             onClick={() => setSub(s.key)}
-            className={`px-4 py-1.5 rounded-full text-xs font-semibold transition ${
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${
               sub === s.key
-                ? 'bg-scalor-black text-white shadow-sm'
-                : 'text-gray-600 hover:bg-scalor-sand-light'
+                ? 'bg-gray-900 text-white'
+                : 'text-gray-600 hover:bg-gray-100'
             }`}
           >
             {s.label}
@@ -787,7 +953,7 @@ function CustomersTab({ kpi }) {
         {kpi.topCities.length === 0 ? (
           <EmptyRow />
         ) : (
-          <div className="bg-white border border-gray-100 rounded-2xl p-5 space-y-3">
+          <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
             {kpi.topCities.slice(0, 5).map((c, i) => (
               <div key={i} className="flex items-center justify-between text-sm">
                 <span className="flex items-center gap-2 text-gray-700 font-medium">
@@ -810,20 +976,20 @@ const ChannelRow = ({ icon, label, count, pct, color }) => (
       <span className="flex items-center gap-1.5 font-medium text-gray-700">{icon}{label}</span>
       <span className="text-gray-500">{fmtNumber(count)} · {pct.toFixed(0)}%</span>
     </div>
-    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
+    <div className="h-2 bg-gray-100 rounded overflow-hidden">
+      <div className="h-full" style={{ width: `${pct}%`, background: color }} />
     </div>
   </div>
 );
 
 const StatusCard = ({ icon: Icon, label, count, tone = 'gray' }) => {
   const tones = {
-    gray:   'bg-gray-50 text-gray-700',
-    green:  'bg-primary-50 text-primary-700',
-    copper: 'bg-orange-50 text-scalor-copper-dark',
+    gray:   'bg-white border-gray-200 text-gray-700',
+    green:  'bg-white border-gray-200 text-gray-700',
+    copper: 'bg-white border-gray-200 text-gray-700',
   };
   return (
-    <div className={`rounded-xl p-4 ${tones[tone]}`}>
+    <div className={`rounded-xl border p-4 ${tones[tone]}`}>
       <div className="flex items-center justify-between">
         <Icon className="w-4 h-4" />
         <span className="text-xl font-bold">{fmtNumber(count)}</span>
@@ -911,10 +1077,40 @@ function AreaChart({ data, color = '#10b981', fill = 'rgba(16,185,129,0.15)', yF
 /* ═══════════════════════════════════════════════════════════════
  *  Helpers
  * ═══════════════════════════════════════════════════════════════ */
-function buildDailySeries(timeline, startDate, endDate, dailyVisits = []) {
+function buildDailySeries(timeline, startDate, endDate, dailyVisits = [], ordersData = {}) {
   const start = new Date(startDate);
   const end   = new Date(endDate);
   const days = Math.max(1, Math.round((end - start) / 86400000) + 1);
+  const useMonthlyBuckets = days > 120;
+  const useWeeklyBuckets = !useMonthlyBuckets && days > 45;
+
+  const toBucketKey = (dateLike) => {
+    const d = new Date(dateLike);
+    if (Number.isNaN(d.getTime())) return null;
+    if (useMonthlyBuckets) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+    if (useWeeklyBuckets) {
+      const bucketStart = new Date(d);
+      bucketStart.setHours(0, 0, 0, 0);
+      bucketStart.setDate(bucketStart.getDate() - bucketStart.getDay());
+      return toDateInput(bucketStart);
+    }
+    return toDateInput(d);
+  };
+
+  const toBucketLabel = (key) => {
+    if (useMonthlyBuckets) {
+      const [year, month] = key.split('-');
+      const sample = new Date(Number(year), Number(month) - 1, 1);
+      return sample.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
+    }
+    const sample = new Date(key);
+    if (useWeeklyBuckets) {
+      return `Sem ${sample.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`;
+    }
+    return sample.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  };
 
   // Aggregate timeline counts per day
   const byDate = {};
@@ -923,29 +1119,158 @@ function buildDailySeries(timeline, startDate, endDate, dailyVisits = []) {
     const d = t._id?.date || t.date;
     if (!d) return;
     const isOrder = t._id?.eventType === 'order_placed';
-    byDate[d] = (byDate[d] || 0) + (t.count || 0);
-    if (isOrder) ordersByDate[d] = (ordersByDate[d] || 0) + (t.count || 0);
+    const bucketKey = toBucketKey(d);
+    if (!bucketKey) return;
+    byDate[bucketKey] = (byDate[bucketKey] || 0) + (t.count || 0);
+    if (isOrder) ordersByDate[bucketKey] = (ordersByDate[bucketKey] || 0) + (t.count || 0);
   });
+
+  // Use real order revenue data from backend when available
+  const dailyRevenue = Object.entries(ordersData.dailyRevenue || {}).reduce((acc, [key, value]) => {
+    const bucketKey = toBucketKey(key);
+    if (!bucketKey) return acc;
+    acc[bucketKey] = (acc[bucketKey] || 0) + (value || 0);
+    return acc;
+  }, {});
+  const dailyOrders  = Object.entries(ordersData.dailyOrders || {}).reduce((acc, [key, value]) => {
+    const bucketKey = toBucketKey(key);
+    if (!bucketKey) return acc;
+    acc[bucketKey] = (acc[bucketKey] || 0) + (value || 0);
+    return acc;
+  }, {});
 
   // Prefer the dedicated dailyVisits aggregation (unique visitors) when provided.
   const visitsByDate = {};
   (dailyVisits || []).forEach((v) => {
     const d = v._id || v.date;
     if (!d) return;
-    visitsByDate[d] = v.uniqueCount ?? v.count ?? 0;
+    const bucketKey = toBucketKey(d);
+    if (!bucketKey) return;
+    visitsByDate[bucketKey] = (visitsByDate[bucketKey] || 0) + (v.uniqueCount ?? v.count ?? 0);
   });
 
-  const series = [];
-  const visitSeries = [];
-  for (let i = 0; i < Math.min(days, 60); i++) {
-    const d = new Date(start.getTime() + i * 86400000);
-    const key = toDateInput(d);
-    const label = d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
-    series.push({ label, value: ordersByDate[key] || 0 });
-    visitSeries.push({
-      label,
-      value: visitsByDate[key] ?? byDate[key] ?? 0,
-    });
+  const bucketMap = new Map();
+  const cursor = new Date(start);
+  cursor.setHours(0, 0, 0, 0);
+  while (cursor <= end) {
+    const key = toBucketKey(cursor);
+    if (key && !bucketMap.has(key)) {
+      bucketMap.set(key, { label: toBucketLabel(key), value: 0, visits: 0, orders: 0 });
+    }
+
+    if (useMonthlyBuckets) {
+      cursor.setMonth(cursor.getMonth() + 1, 1);
+    } else if (useWeeklyBuckets) {
+      cursor.setDate(cursor.getDate() + 7);
+    } else {
+      cursor.setDate(cursor.getDate() + 1);
+    }
   }
+
+  for (const [key, point] of bucketMap.entries()) {
+    point.value = dailyRevenue[key] || ordersByDate[key] || 0;
+    point.visits = visitsByDate[key] ?? byDate[key] ?? 0;
+    point.orders = dailyOrders[key] || ordersByDate[key] || 0;
+  }
+
+  const series = Array.from(bucketMap.values()).map(({ label, value, orders }) => ({ label, value, orders }));
+  const visitSeries = Array.from(bucketMap.values()).map(({ label, visits }) => ({ label, value: visits }));
   return { series, visitSeries };
+}
+
+function buildBoutiqueSalesDetails(payload) {
+  const orders = Array.isArray(payload?.orders) ? payload.orders : [];
+  if (orders.length === 0) return null;
+
+  const normalizeStatus = (status) => {
+    const raw = String(status || '').trim().toLowerCase();
+    if (raw.includes('livr') || raw === 'delivered' || raw === 'paid' || raw.includes('encaiss')) return 'delivered';
+    if (raw.includes('annul') || raw.includes('cancel') || raw.includes('refus') || raw.includes('rejet')) return 'cancelled';
+    if (raw.includes('exp') || raw.includes('ship') || raw.includes('route') || raw.includes('transit')) return 'shipped';
+    if (raw.includes('confirm') || raw.includes('valid') || raw.includes('accept')) return 'confirmed';
+    return 'pending';
+  };
+
+  const normalizeChannel = (order) => {
+    const source = String(order.source || '').toLowerCase();
+    const rawChannel = String(order.rawData?.channel || '').toLowerCase();
+    if (rawChannel === 'whatsapp') return 'whatsapp';
+    if (source === 'boutique' || source === 'skelor') return 'store';
+    return source || 'store';
+  };
+
+  const normalized = orders.map((order) => {
+    const status = normalizeStatus(order.status);
+    const quantity = Number(order.quantity || 1);
+    const unitPrice = Number(order.price || 0);
+    const total = unitPrice * quantity;
+    const dateValue = order.date || order.createdAt;
+    return {
+      ...order,
+      status,
+      quantity,
+      total,
+      channel: normalizeChannel(order),
+      dateValue,
+      productName: String(order.product || '').trim(),
+    };
+  });
+
+  const deliveredOrders = normalized.filter((order) => order.status === 'delivered');
+  const orderStats = normalized.reduce((acc, order) => {
+    acc.total += 1;
+    acc[order.status] = (acc[order.status] || 0) + 1;
+    if (order.status === 'delivered') acc.totalRevenue += order.total;
+    return acc;
+  }, { total: 0, pending: 0, confirmed: 0, shipped: 0, delivered: 0, cancelled: 0, totalRevenue: 0 });
+  orderStats.avgOrderValue = deliveredOrders.length > 0 ? orderStats.totalRevenue / deliveredOrders.length : 0;
+
+  const productMap = normalized.reduce((acc, order) => {
+    if (!order.productName) return acc;
+    if (!acc[order.productName]) {
+      acc[order.productName] = { name: order.productName, sold: 0, revenue: 0 };
+    }
+    acc[order.productName].sold += order.quantity;
+    if (order.status === 'delivered') {
+      acc[order.productName].revenue += order.total;
+    }
+    return acc;
+  }, {});
+  const allProducts = Object.values(productMap);
+
+  const channelMap = normalized.reduce((acc, order) => {
+    const key = order.channel || 'store';
+    if (!acc[key]) {
+      acc[key] = { channel: key, orders: 0, revenue: 0, deliveredRevenue: 0 };
+    }
+    acc[key].orders += 1;
+    acc[key].revenue += order.total;
+    if (order.status === 'delivered') acc[key].deliveredRevenue += order.total;
+    return acc;
+  }, {});
+
+  const trendMap = deliveredOrders.reduce((acc, order) => {
+    const date = new Date(order.dateValue);
+    if (Number.isNaN(date.getTime())) return acc;
+    const key = toDateInput(date);
+    acc[key] = (acc[key] || 0) + order.total;
+    return acc;
+  }, {});
+
+  return {
+    orderStats,
+    topProductsBySales: allProducts.sort((a, b) => (b.sold || 0) - (a.sold || 0)).slice(0, 10),
+    topProductsByRevenue: [...allProducts].sort((a, b) => (b.revenue || 0) - (a.revenue || 0)).slice(0, 10),
+    leastProductsBySales: [...allProducts]
+      .filter((item) => (item.sold || 0) > 0)
+      .sort((a, b) => (a.sold || 0) - (b.sold || 0) || (b.revenue || 0) - (a.revenue || 0))
+      .slice(0, 10),
+    channelPerformance: Object.values(channelMap).sort((a, b) => (b.orders || 0) - (a.orders || 0)),
+    salesTrendSeries: Object.entries(trendMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => ({
+        label: new Date(key).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
+        value,
+      })),
+  };
 }

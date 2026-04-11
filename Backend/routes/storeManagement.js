@@ -275,7 +275,7 @@ router.get('/config', requireEcomAuth, requireWorkspace, async (req, res) => {
       isStoreEnabled: false, storeName: '', storeDescription: '', storeLogo: '', storeBanner: '',
       storePhone: '', storeWhatsApp: '', storeThemeColor: '#0F6B4F', storeCurrency: 'XAF',
       productType: '', audience: { gender: [], ageRange: [], region: [], origin: [] },
-      tone: '', city: '', country: '', secondaryColor: '', productDescription: ''
+      tone: '', city: '', country: '', secondaryColor: '', productDescription: '', categoryRegistry: []
     };
 
     res.json({
@@ -308,7 +308,8 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
       productType, audience, tone, city, country,
       secondaryColor, productDescription,
       // Product page builder config (visual builder)
-      productPageConfig
+      productPageConfig,
+      categoryRegistry
     } = req.body;
 
     const update = {};
@@ -336,6 +337,15 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
     if (productDescription !== undefined) update['storeSettings.productDescription'] = productDescription;
     // Product page builder config
     if (productPageConfig !== undefined) update['storeSettings.productPageConfig'] = productPageConfig;
+    if (categoryRegistry !== undefined) {
+      update['storeSettings.categoryRegistry'] = Array.from(
+        new Set(
+          (Array.isArray(categoryRegistry) ? categoryRegistry : [])
+            .map((entry) => String(entry || '').trim())
+            .filter(Boolean)
+        )
+      ).sort((left, right) => left.localeCompare(right, 'fr', { sensitivity: 'base' }));
+    }
 
     // Write to Store if available, fallback to Workspace (legacy)
     const store = await getActiveStore(req);

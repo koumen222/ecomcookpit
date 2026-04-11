@@ -61,7 +61,7 @@ storeAnalyticsSchema.index({ sessionId: 1, timestamp: -1 });
 storeAnalyticsSchema.index({ visitorId: 1, workspaceId: 1, timestamp: -1 });
 
 // Méthode statique pour obtenir les statistiques
-storeAnalyticsSchema.statics.getStoreDashboardStats = async function(workspaceId, startDate, endDate) {
+storeAnalyticsSchema.statics.getStoreDashboardStats = async function(workspaceId, startDate, endDate, period = '7d') {
   const matchQuery = {
     workspaceId,
     timestamp: { $gte: startDate, $lte: endDate }
@@ -239,13 +239,14 @@ storeAnalyticsSchema.statics.getStoreDashboardStats = async function(workspaceId
     { $sort: { _id: 1 } }
   ]);
 
-  // Timeline générique (legacy — pour compat)
+  // Timeline générique (hourly for 24h, daily otherwise)
+  const timeFormat = period === '24h' ? '%Y-%m-%dT%H' : '%Y-%m-%d';
   const timeline = await this.aggregate([
     { $match: matchQuery },
     {
       $group: {
         _id: {
-          date: { $dateToString: { format: '%Y-%m-%d', date: '$timestamp' } },
+          date: { $dateToString: { format: timeFormat, date: '$timestamp' } },
           eventType: '$eventType'
         },
         count: { $sum: 1 }

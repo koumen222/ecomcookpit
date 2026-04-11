@@ -51,12 +51,38 @@ function getNicheAccentColor(template) {
   return nicheColors[template] || nicheColors.general;
 }
 
+function buildVisualPromptDirectives(visualPrefs = {}) {
+  const {
+    heroVisualDirection = '',
+    decorationDirection = '',
+    preferredColor = '',
+    titleColor = '',
+    contentColor = '',
+  } = visualPrefs;
+
+  const lines = [];
+  if (preferredColor) lines.push(`• POSTER COLOR PREFERENCE: ${preferredColor}`);
+  if (heroVisualDirection) lines.push(`• HERO VISUAL: ${heroVisualDirection}`);
+  if (decorationDirection) lines.push(`• DECORATIVE VISUALS: ${decorationDirection}`);
+  if (titleColor) lines.push(`• TITLE COLOR PREFERENCE: ${titleColor}`);
+  if (contentColor) lines.push(`• CONTENT COLOR PREFERENCE: ${contentColor}`);
+  if (!lines.length) return '';
+
+  return `
+
+═══ CUSTOM VISUAL DIRECTIVES — APPLY FOR REAL ═══
+${lines.join('\n')}
+• These directives MUST influence the final generated visuals, not just the copy.
+• Use them for hero styling, decorative motifs, overlays, title treatment and body text treatment when text is present.
+• Keep the product truthful and legible.`;
+}
+
 /**
  * Hero — Product in action layout:
  * The product is shown being USED in its real context (not a cosmetic studio pose).
  * Bold headline + product dominant + contextual usage scene.
  */
-function buildHeroPrompt(gptResult, hasProductRef, template = 'general') {
+function buildHeroPrompt(gptResult, hasProductRef, template = 'general', visualPrefs = {}) {
   const productName = gptResult.title || 'product';
   const ctaText = (gptResult.hero_cta || 'JE COMMANDE MAINTENANT').toUpperCase();
 
@@ -103,6 +129,7 @@ function buildHeroPrompt(gptResult, hasProductRef, template = 'general') {
   // Accent color — dynamic per niche
   const niche = getNicheAccentColor(template);
   const accentColor = niche.color;
+  const customVisualDirectives = buildVisualPromptDirectives(visualPrefs);
 
   return `Ultra realistic e-commerce product advertisement for the African francophone market. Square 1:1. High-definition photorealistic quality — must look like a REAL professional photograph, NOT AI-generated. Natural soft lighting, no aggressive filters, no cartoon style.
 
@@ -169,7 +196,7 @@ Style: ${accentColor} background, white bold text, large rounded corners, promin
 • Product packaging sharp and clear — every label readable
 • The African person is THE FACE of this ad — confident, natural, relatable. Their presence makes the ad authentic for the African market
 • COLOR IDENTITY: The dominant accent color is ${accentColor} — use it for CTA button, checkmark icons, badge background, and key headline words. This color conveys a ${niche.mood} feel matching the product niche
-• Final mood: professional, credible, natural — could be a real brand campaign photo from a top African beauty/lifestyle brand`;
+• Final mood: professional, credible, natural — could be a real brand campaign photo from a top African beauty/lifestyle brand${customVisualDirectives}`;
 }
 
 /**
@@ -177,7 +204,7 @@ Style: ${accentColor} background, white bold text, large rounded corners, promin
  * Each slide (index 0-3) gets a DIFFERENT infographic layout style.
  * Category-specific design (beauty, tech, fashion, health, home, general).
  */
-function buildAngleImagePrompt(angle, gptResult, hasProductRef, template = 'general', slideIndex = 0) {
+function buildAngleImagePrompt(angle, gptResult, hasProductRef, template = 'general', slideIndex = 0, visualPrefs = {}) {
   const title = gptResult.title || 'product';
   const targetPerson = gptResult.hero_target_person || 'authentic Black African person';
   const benefits = gptResult.benefits_bullets || gptResult.raisons_acheter || [];
@@ -221,7 +248,9 @@ function buildAngleImagePrompt(angle, gptResult, hasProductRef, template = 'gene
 • NO body distortion, NO visual inconsistencies, NO uncanny facial features
 • Final feel: a REAL professional product photo that could run as a Facebook/TikTok Ad for African consumers`;
 
-  return basePrompt + africanRealismBlock;
+  const customVisualDirectives = buildVisualPromptDirectives(visualPrefs);
+
+  return basePrompt + africanRealismBlock + customVisualDirectives;
 }
 
 /**
@@ -736,7 +765,7 @@ NO price, NO phone number, NO URL, NO watermark.`,
  * Chaque template (beauty, tech, fashion, health, home, general) a sa propre structure visuelle.
  * TOUJOURS: personnes africaines cibles + produit visible + texte français.
  */
-function buildFlashPrompts(gptResult, hasProductRef, method = 'PAS', template = 'general') {
+function buildFlashPrompts(gptResult, hasProductRef, method = 'PAS', template = 'general', visualPrefs = {}) {
   const title = gptResult.title || 'product';
   const targetPerson = gptResult.hero_target_person || 'authentic African person';
   const benefits = gptResult.benefits_bullets || [];
@@ -828,7 +857,7 @@ COMPOSITION: African beauty identity celebration.
 Celebratory, radiant, African beauty pride. PERFECT French.`,
         type: 'beauty_identity',
       },
-    ];
+    ].map((entry) => ({ ...entry, prompt: `${entry.prompt}${buildVisualPromptDirectives(visualPrefs)}` }));
   }
 
   // ─── TECH / ÉLECTRONIQUE ───────────────────────────────────────────
@@ -912,7 +941,7 @@ COMPOSITION: African tech user empowerment.
 Empowering, modern, African tech pride. PERFECT French.`,
         type: 'tech_identity',
       },
-    ];
+    ].map((entry) => ({ ...entry, prompt: `${entry.prompt}${buildVisualPromptDirectives(visualPrefs)}` }));
   }
 
   // ─── MODE / FASHION ──────────────────────────────────────────────
@@ -996,7 +1025,7 @@ COMPOSITION: African fashion pride & identity.
 Celebratory, powerful, African fashion pride. PERFECT French.`,
         type: 'fashion_identity',
       },
-    ];
+    ].map((entry) => ({ ...entry, prompt: `${entry.prompt}${buildVisualPromptDirectives(visualPrefs)}` }));
   }
 
   // ─── SANTÉ / NUTRITION ───────────────────────────────────────────
@@ -1079,7 +1108,7 @@ COMPOSITION: African wellness empowerment.
 Vibrant, empowering, African wellness pride. PERFECT French.`,
         type: 'health_identity',
       },
-    ];
+    ].map((entry) => ({ ...entry, prompt: `${entry.prompt}${buildVisualPromptDirectives(visualPrefs)}` }));
   }
 
   // ─── MAISON / HOME ──────────────────────────────────────────────
@@ -1160,7 +1189,7 @@ COMPOSITION: African family home pride.
 Warm, genuine, African family home pride. PERFECT French.`,
         type: 'home_identity',
       },
-    ];
+    ].map((entry) => ({ ...entry, prompt: `${entry.prompt}${buildVisualPromptDirectives(visualPrefs)}` }));
   }
 
   // ─── GÉNÉRAL / DEFAULT ───────────────────────────────────────────
@@ -1234,7 +1263,7 @@ COMPOSITION: African identity celebration — THE PEOPLE ARE THE AD.
 Celebratory, empowering, African community pride. PERFECT French.`,
       type: 'general_identity',
     },
-  ];
+  ].map((entry) => ({ ...entry, prompt: `${entry.prompt}${buildVisualPromptDirectives(visualPrefs)}` }));
 }
 
 // Plusieurs générations simultanées autorisées — lock supprimé
@@ -1303,6 +1332,11 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     skipScraping,
     marketingApproach,
     visualTemplate: rawVisualTemplate,
+    preferredColor: rawPreferredColor,
+    heroVisualDirection: rawHeroVisualDirection,
+    decorationDirection: rawDecorationDirection,
+    titleColor: rawTitleColor,
+    contentColor: rawContentColor,
     // Paramètres copywriting simplifiés
     targetAvatar,
     mainProblem,
@@ -1312,6 +1346,11 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   const imageFiles = req.files || [];
   const approach = marketingApproach || 'PAS';
   const visualTemplate = rawVisualTemplate || 'general';
+  const preferredColor = typeof rawPreferredColor === 'string' ? rawPreferredColor.trim().slice(0, 80) : '';
+  const heroVisualDirection = typeof rawHeroVisualDirection === 'string' ? rawHeroVisualDirection.trim().slice(0, 180) : '';
+  const decorationDirection = typeof rawDecorationDirection === 'string' ? rawDecorationDirection.trim().slice(0, 180) : '';
+  const titleColor = typeof rawTitleColor === 'string' ? rawTitleColor.trim().slice(0, 30) : '';
+  const contentColor = typeof rawContentColor === 'string' ? rawContentColor.trim().slice(0, 30) : '';
 
   // Contexte copywriting simplifié : méthode + avatar + problème
   const copywritingContext = {
@@ -1320,6 +1359,15 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     problem: mainProblem || '',
     tone: tone || 'urgence',
     language: language || 'français'
+  };
+
+  const visualContext = {
+    template: visualTemplate,
+    preferredColor,
+    heroVisualDirection,
+    decorationDirection,
+    titleColor,
+    contentColor,
   };
 
   // ── Validation selon le mode ──────────────────────────────────────────────
@@ -1430,7 +1478,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     const imageBuffers = (imageFiles || []).map(f => f.buffer);
 
-    gptResult = await analyzeWithVision(scraped, imageBuffers, approach, storeContext, copywritingContext);
+    gptResult = await analyzeWithVision(scraped, imageBuffers, approach, storeContext, copywritingContext, visualContext);
 
     console.log('✅ GPT OK:', {
       title: gptResult.title?.slice(0, 40),
@@ -1505,6 +1553,12 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       createdByAI: true,
       generatedAt: new Date().toISOString(),
       imageJobId: jobId,
+      visualTemplate,
+      preferredColor,
+      heroVisualDirection,
+      decorationDirection,
+      titleColor,
+      contentColor,
     };
 
     // Récupérer le nombre de générations restantes
@@ -1659,7 +1713,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     // ── Hero PRO — African FB-ads template (LEFT: product | RIGHT: person + problem) ──
     imagePromises.push(
-      generateAndUpload(buildHeroPrompt(gptResult, !!baseImageBuffer, visualTemplate), baseImageBuffer, `hero-${Date.now()}.png`, 'hero')
+      generateAndUpload(buildHeroPrompt(gptResult, !!baseImageBuffer, visualTemplate, visualContext), baseImageBuffer, `hero-${Date.now()}.png`, 'hero')
         .then(url => ({ type: 'hero', url }))
     );
 
@@ -1674,7 +1728,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     // ── Flash images — 5 affiches marketing (1 par angle) ─
     const angles = gptResult.angles || [];
-    const flashPrompts = buildFlashPrompts(gptResult, !!baseImageBuffer, approach, visualTemplate);
+    const flashPrompts = buildFlashPrompts(gptResult, !!baseImageBuffer, approach, visualTemplate, visualContext);
     const maxFlash = flashPrompts.length;
 
     for (let i = 0; i < maxFlash; i++) {
@@ -1684,7 +1738,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       // Build an infographic prompt that visually illustrates the angle as an infographic
       const africanRealism = `\n\n═══ AFRICAN MARKET REALISM — MANDATORY ═══\n• PHOTOREALISTIC — must look like a real photograph. No cartoon, no AI artifacts\n• African person: authentic dark skin, natural African features, natural African hair. Simple everyday clothing, SUBTLE expressions — NOT theatrical\n• Setting: real African environment, natural warm lighting. Product at REAL proportions\n• Soft, clean, natural style. ALL French text 100% PERFECT. NO distortion, NO inconsistencies`;
       const anglePrompt = angle
-        ? buildAngleImagePrompt(angle, gptResult, !!baseImageBuffer, visualTemplate, i)
+        ? buildAngleImagePrompt(angle, gptResult, !!baseImageBuffer, visualTemplate, i, visualContext)
         : flash.prompt + africanRealism;
 
       imagePromises.push(

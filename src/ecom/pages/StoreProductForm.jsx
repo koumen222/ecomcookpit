@@ -18,6 +18,27 @@ function markdownImagesToHtml(md) {
   );
 }
 
+const MARKET_COUNTRY_SUGGESTIONS = [
+  'Cameroun',
+  'Cote d\'Ivoire',
+  'Sénégal',
+  'Bénin',
+  'Togo',
+  'Gabon',
+  'RDC',
+  'Congo',
+  'Nigeria',
+  'Ghana',
+  'Guinée',
+  'Mali',
+  'Burkina Faso',
+  'Maroc',
+  'Tunisie',
+  'France'
+];
+
+const MARKET_CURRENCY_SUGGESTIONS = ['XAF', 'XOF', 'EUR', 'USD', 'NGN', 'GHS', 'KES', 'MAD', 'DZD', 'TND', 'GNF', 'CDF'];
+
 /**
  * StoreProductForm — Create or edit a store catalog product.
  * Handles image uploads via /store-products/upload,
@@ -188,6 +209,11 @@ const StoreProductForm = () => {
     description: navState?.description || '',
     price: navState?.price || '',
     compareAtPrice: '',
+    currency: navState?.currency || '',
+    targetMarket: navState?.targetMarket || '',
+    country: navState?.country || '',
+    city: navState?.city || '',
+    locale: navState?.locale || '',
     stock: '0',
     category: navState?.category || '',
     tags: navState?.tags || '',
@@ -214,6 +240,11 @@ const StoreProductForm = () => {
             description: p.description || '',
             price: String(p.price ?? ''),
             compareAtPrice: p.compareAtPrice ? String(p.compareAtPrice) : '',
+            currency: p.currency || '',
+            targetMarket: p.targetMarket || '',
+            country: p.country || '',
+            city: p.city || '',
+            locale: p.locale || '',
             stock: String(p.stock ?? '0'),
             category: p.category || '',
             tags: (p.tags || []).join(', '),
@@ -523,6 +554,11 @@ const StoreProductForm = () => {
       description: form.description.trim(),
       price: parseFloat(form.price),
       compareAtPrice: form.compareAtPrice ? parseFloat(form.compareAtPrice) : null,
+      currency: String(form.currency || '').trim().toUpperCase(),
+      targetMarket: form.targetMarket.trim(),
+      country: form.country.trim(),
+      city: form.city.trim(),
+      locale: form.locale.trim(),
       stock: parseInt(form.stock) || 0,
       category: form.category.trim(),
       tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
@@ -587,20 +623,13 @@ const StoreProductForm = () => {
             </button>
           )}
           <button
-            type="button"
-            onClick={() => setShowAlibabaModal(true)}
-            className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white text-sm font-medium rounded-lg hover:from-orange-600 hover:to-red-600 transition shadow-sm"
+            type="submit"
+            form="store-product-form"
+            disabled={saving}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition shadow-sm"
           >
-            <ShoppingBag className="w-4 h-4" />
-            <span className="hidden sm:inline">Alibaba</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowAiModal(true)}
-            className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-medium rounded-lg hover:from-violet-700 hover:to-indigo-700 transition shadow-sm"
-          >
-            <Sparkles className="w-4 h-4" />
-            <span className="hidden sm:inline">Générer IA</span>
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <span className="hidden sm:inline">Enregistrer</span>
           </button>
         </div>
       </div>
@@ -617,7 +646,7 @@ const StoreProductForm = () => {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form id="store-product-form" onSubmit={handleSubmit} className="space-y-6">
 
         {/* ── System Product Picker ─────────────────────────────────────── */}
         <div className="bg-white border border-gray-200 rounded-xl p-5">
@@ -916,7 +945,7 @@ const StoreProductForm = () => {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Prix *</label>
               <input
@@ -943,6 +972,22 @@ const StoreProductForm = () => {
               />
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Devise</label>
+              <select
+                value={form.currency}
+                onChange={(e) => handleChange('currency', e.target.value.toUpperCase())}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="">Config globale de la boutique</option>
+                {[...new Set([
+                  ...(form.currency && !MARKET_CURRENCY_SUGGESTIONS.includes(form.currency) ? [form.currency] : []),
+                  ...MARKET_CURRENCY_SUGGESTIONS
+                ])].map((currencyCode) => (
+                  <option key={currencyCode} value={currencyCode}>{currencyCode}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Stock</label>
               <input
                 type="number"
@@ -951,6 +996,45 @@ const StoreProductForm = () => {
                 min="0"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">Paramètres du marché</h3>
+                <p className="text-xs text-gray-500 mt-1">Définissez le marché cible du produit. Ces infos servent à la devise, au contexte local et aux éléments marketing.</p>
+              </div>
+              <Globe className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Marché cible</label>
+                <input
+                  type="text"
+                  value={form.targetMarket}
+                  onChange={(e) => handleChange('targetMarket', e.target.value)}
+                  placeholder="Ex: Afrique francophone, Cameroun urbain"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Pays cible</label>
+                <select
+                  value={form.country}
+                  onChange={(e) => handleChange('country', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="">Choisir un pays</option>
+                  {[...new Set([
+                    ...(form.country && !MARKET_COUNTRY_SUGGESTIONS.includes(form.country) ? [form.country] : []),
+                    ...MARKET_COUNTRY_SUGGESTIONS
+                  ])].map((country) => (
+                    <option key={country} value={country}>{country}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -1347,7 +1431,7 @@ const StoreProductForm = () => {
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-lg font-medium text-sm hover:bg-emerald-700 disabled:opacity-50 transition"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {saving ? 'Sauvegarde...' : isEdit ? 'Mettre à jour' : 'Créer le produit'}
+            {saving ? 'Sauvegarde...' : 'Enregistrer'}
           </button>
         </div>
       </form>

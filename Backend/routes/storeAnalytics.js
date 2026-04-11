@@ -1,6 +1,8 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import StoreAnalytics from '../models/StoreAnalytics.js';
 import StoreOrder from '../models/StoreOrder.js';
+import Order from '../models/Order.js';
 import { requireEcomAuth } from '../middleware/ecomAuth.js';
 
 const router = express.Router();
@@ -98,7 +100,8 @@ router.post('/track', async (req, res) => {
  */
 router.get('/dashboard', requireEcomAuth, async (req, res) => {
   try {
-    const { workspaceId, startDate, endDate, period = '7d' } = req.query;
+    const { workspaceId: requestedWorkspaceId, startDate, endDate, period = '7d' } = req.query;
+    const workspaceId = String(req.workspaceId || requestedWorkspaceId || '');
 
     if (!workspaceId) {
       return res.status(400).json({ error: 'workspaceId requis' });
@@ -107,9 +110,11 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
     // Calculer les dates
     let start, end;
     end = endDate ? new Date(endDate) : new Date();
+    if (endDate) end.setHours(23, 59, 59, 999);
     
     if (startDate) {
       start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
     } else {
       // Période par défaut
       const periodMap = {
@@ -126,14 +131,69 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
     const analyticsStats = await StoreAnalytics.getStoreDashboardStats(
       workspaceId,
       start,
-      end
+      end,
+      period
     );
 
-    // Récupérer les stats de commandes (orienté COD — marchés africains)
-    const orders = await StoreOrder.find({
+    // Récupérer les commandes depuis les deux modèles (Order interne + StoreOrder storefront)
+    const wsObjectId = mongoose.Types.ObjectId.isValid(workspaceId)
+      ? new mongoose.Types.ObjectId(workspaceId)
+      : workspaceId;
+
+    const [internalOrders, storeOrders] = await Promise.all([
+      Order.find({
+        workspaceId: wsObjectId,
+        $or: [
+          { date: { $gte: start, $lte: end } },
+          { date: { $exists: false }, createdAt: { $gte: start, $lte: end } },
+        ],
+      }).lean(),
+      StoreOrder.find({
+        workspaceId: wsObjectId,
+        createdAt: { $gte: start, $lte: end }
+      }).lean(),
+    ]);
+
+    console.log('[ANALYTICS DEBUG]', {
       workspaceId,
-      createdAt: { $gte: start, $lte: end }
-    }).lean();
+      requestedWorkspaceId,
+      effectiveWorkspaceId: req.workspaceId,
+      wsObjectId: wsObjectId.toString(),
+      start: start.toISOString(),
+      end: end.toISOString(),
+      internalOrdersCount: internalOrders.length,
+      storeOrdersCount: storeOrders.length,
+      sampleInternal: internalOrders[0] ? { _id: internalOrders[0]._id, status: internalOrders[0].status, price: internalOrders[0].price, quantity: internalOrders[0].quantity, date: internalOrders[0].date, createdAt: internalOrders[0].createdAt } : null,
+    });
+
+    // Dedupe: if an internal Order references a StoreOrder via storeOrderId, skip that StoreOrder
+    const linkedStoreOrderIds = new Set(
+      internalOrders
+        .filter(o => o.storeOrderId)
+        .map(o => o.storeOrderId.toString())
+    );
+    const uniqueStoreOrders = storeOrders.filter(
+      so => !linkedStoreOrderIds.has(so._id.toString())
+    );
+
+    // Normalize both models into a unified shape
+    const normalize = (o, isInternal) => ({
+      _id: o._id,
+      status: o.status || 'pending',
+      total: isInternal ? (o.price || 0) : (o.total || 0),
+      deliveryCost: o.deliveryCost || 0,
+      city: o.city || o.deliveryLocation || o.deliveryZone || '',
+      phone: isInternal ? (o.clientPhone || o.clientPhoneNormalized || '') : (o.phone || ''),
+      channel: isInternal
+        ? ((o.storeOrderId || ['boutique', 'skelor', 'shopify', 'webhook'].includes(o.source)) ? 'store' : (o.source || 'manual'))
+        : (o.channel || 'store'),
+      createdAt: isInternal ? (o.date || o.createdAt) : o.createdAt,
+    });
+
+    const orders = [
+      ...internalOrders.map(o => normalize(o, true)),
+      ...uniqueStoreOrders.map(o => normalize(o, false)),
+    ];
 
     const sumBy = (arr, fn) => arr.reduce((s, o) => s + (fn(o) || 0), 0);
     const byStatus = (s) => orders.filter(o => o.status === s);
@@ -182,6 +242,25 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
       return acc;
     }, {});
 
+    const channelPerformance = orders.reduce((acc, o) => {
+      const key = o.channel || 'store';
+      if (!acc[key]) {
+        acc[key] = {
+          channel: key,
+          orders: 0,
+          revenue: 0,
+          deliveredRevenue: 0,
+        };
+      }
+
+      acc[key].orders += 1;
+      acc[key].revenue += o.total || 0;
+      if (o.status === 'delivered') {
+        acc[key].deliveredRevenue += o.total || 0;
+      }
+      return acc;
+    }, {});
+
     // Repeat customers by phone
     const phoneCounts = orders.reduce((acc, o) => {
       if (!o.phone) return acc;
@@ -194,6 +273,20 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
       ? +((repeatCustomers / uniqueCustomers) * 100).toFixed(1)
       : 0;
 
+    // Revenue & orders grouped by time bucket (hourly for 24h, daily otherwise)
+    const dailyRevenue = {};
+    const dailyOrders = {};
+    orders.forEach(o => {
+      const d = new Date(o.createdAt);
+      const key = period === '24h'
+        ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}`
+        : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      dailyOrders[key] = (dailyOrders[key] || 0) + 1;
+      if (o.status === 'delivered') {
+        dailyRevenue[key] = (dailyRevenue[key] || 0) + (o.total || 0);
+      }
+    });
+
     const orderStats = {
       total: orders.length,
       pending:    pendingOrders.length,
@@ -202,6 +295,8 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
       shipped:    shippedOrders.length,
       delivered:  deliveredOrders.length,
       cancelled:  cancelledOrders.length,
+      dailyRevenue,
+      dailyOrders,
       // Revenue views
       totalRevenue: potentialRevenue,          // kept for compat
       potentialRevenue,                        // all orders (COD not yet collected)
@@ -222,7 +317,34 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
       // Segments
       topCities,
       channelStats,
+      channelPerformance: Object.values(channelPerformance).sort((a, b) => b.revenue - a.revenue),
     };
+
+    // Top products by sales (quantity sold) and revenue
+    const productSales = {};
+    // From StoreOrders (have products array)
+    [...uniqueStoreOrders, ...storeOrders.filter(so => linkedStoreOrderIds.has(so._id.toString()))].forEach(so => {
+      (so.products || []).forEach(p => {
+        const key = (p.productId || p.name || '').toString();
+        if (!productSales[key]) productSales[key] = { name: p.name || 'Sans nom', sold: 0, revenue: 0 };
+        productSales[key].sold += p.quantity || 1;
+        productSales[key].revenue += (p.price || 0) * (p.quantity || 1);
+      });
+    });
+    // From internal Orders (single product per order)
+    internalOrders.filter(o => !o.storeOrderId).forEach(o => {
+      if (!o.product) return;
+      const key = o.product;
+      if (!productSales[key]) productSales[key] = { name: o.product, sold: 0, revenue: 0 };
+      productSales[key].sold += o.quantity || 1;
+      productSales[key].revenue += (o.price || 0);
+    });
+    const topProductsBySales = Object.values(productSales).sort((a, b) => b.sold - a.sold).slice(0, 10);
+    const topProductsByRevenue = Object.values(productSales).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
+    const leastProductsBySales = Object.values(productSales)
+      .filter(p => (p.sold || 0) > 0)
+      .sort((a, b) => a.sold - b.sold || b.revenue - a.revenue)
+      .slice(0, 10);
 
     res.json({
       analytics: {
@@ -237,6 +359,9 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
         },
       },
       orders: orderStats,
+      topProductsBySales,
+      topProductsByRevenue,
+      leastProductsBySales,
       period: { start, end },
     });
   } catch (error) {
@@ -251,13 +376,16 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
  */
 router.get('/realtime', requireEcomAuth, async (req, res) => {
   try {
-    const { workspaceId } = req.query;
+    const workspaceId = String(req.workspaceId || req.query.workspaceId || '');
 
     if (!workspaceId) {
       return res.status(400).json({ error: 'workspaceId requis' });
     }
 
     const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const wsObjectId = mongoose.Types.ObjectId.isValid(workspaceId)
+      ? new mongoose.Types.ObjectId(workspaceId)
+      : workspaceId;
 
     const [
       activeVisitors,
@@ -279,7 +407,7 @@ router.get('/realtime', requireEcomAuth, async (req, res) => {
       
       // Commandes récentes
       StoreOrder.find({
-        workspaceId,
+        workspaceId: wsObjectId,
         createdAt: { $gte: last24h }
       }).sort({ createdAt: -1 }).limit(10).lean()
     ]);
@@ -302,7 +430,8 @@ router.get('/realtime', requireEcomAuth, async (req, res) => {
  */
 router.get('/export', requireEcomAuth, async (req, res) => {
   try {
-    const { workspaceId, startDate, endDate } = req.query;
+    const { workspaceId: requestedWorkspaceId, startDate, endDate } = req.query;
+    const workspaceId = String(req.workspaceId || requestedWorkspaceId || '');
 
     if (!workspaceId) {
       return res.status(400).json({ error: 'workspaceId requis' });
@@ -310,6 +439,8 @@ router.get('/export', requireEcomAuth, async (req, res) => {
 
     const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const end = endDate ? new Date(endDate) : new Date();
+    if (startDate) start.setHours(0, 0, 0, 0);
+    if (endDate) end.setHours(23, 59, 59, 999);
 
     const events = await StoreAnalytics.find({
       workspaceId,

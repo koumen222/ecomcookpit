@@ -1,7 +1,9 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   X, Sparkles, Loader2, CheckCircle, AlertCircle, Upload,
-  Image as ImageIcon, Copy, ExternalLink, Zap, Package, ArrowRight, Star
+  Image as ImageIcon, Copy, ExternalLink, Zap, Package, ArrowRight, ArrowLeft, Star,
+  Globe, FileText, Search, Layers, Shield, Smartphone, Megaphone, Crown,
+  Users, AlertTriangle, User, Phone, Target, Lock, Clock3, RefreshCw
 } from 'lucide-react';
 import TestimonialsCarousel from './TestimonialsCarousel';
 
@@ -91,10 +93,10 @@ function CopyButton({ text }) {
           setTimeout(() => setCopied(false), 2000);
         });
       }}
-      className="p-1 text-gray-400 hover:text-emerald-600 transition"
+      className="p-1 text-gray-400 hover:text-scalor-green transition"
       title="Copier"
     >
-      {copied ? <CheckCircle className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+      {copied ? <CheckCircle className="w-3.5 h-3.5 text-scalor-green" /> : <Copy className="w-3.5 h-3.5" />}
     </button>
   );
 }
@@ -143,28 +145,373 @@ function TypingText({ text }) {
   return (
     <span className="inline-block">
       {displayedText}
-      <span className="inline-block w-0.5 h-4 bg-violet-600 ml-0.5 animate-pulse" />
+      <span className="inline-block w-0.5 h-4 bg-scalor-green ml-0.5 animate-pulse" />
     </span>
   );
 }
 
 const VISUAL_TEMPLATES = [
-  { id: 'beauty', label: 'Beauté & Cosmétique', icon: '💄', desc: 'Crèmes, sérums, soins peau, cheveux, maquillage', color: 'from-pink-500 to-rose-500', border: 'border-pink-400', bg: 'bg-pink-50' },
-  { id: 'health', label: 'Santé & Nutrition', icon: '💪', desc: 'Compléments, vitamines, minceur, bien-être', color: 'from-emerald-500 to-teal-500', border: 'border-emerald-400', bg: 'bg-emerald-50' },
-  { id: 'tech', label: 'Tech & Électronique', icon: '📱', desc: 'Gadgets, accessoires, appareils, audio', color: 'from-blue-500 to-cyan-500', border: 'border-blue-400', bg: 'bg-blue-50' },
-  { id: 'fashion', label: 'Mode & Accessoires', icon: '👗', desc: 'Vêtements, bijoux, sacs, chaussures, wax', color: 'from-amber-500 to-orange-500', border: 'border-amber-400', bg: 'bg-amber-50' },
-  { id: 'home', label: 'Maison & Cuisine', icon: '🏠', desc: 'Déco, cuisine, électroménager, nettoyage', color: 'from-orange-500 to-red-400', border: 'border-orange-400', bg: 'bg-orange-50' },
-  { id: 'general', label: 'Autre / Général', icon: '📦', desc: 'Tout type de produit — template polyvalent', color: 'from-violet-500 to-purple-500', border: 'border-violet-400', bg: 'bg-violet-50' },
+  { id: 'beauty', label: 'Beauté & Cosmétique', icon: Sparkles, desc: 'Crèmes, sérums, soins peau, cheveux, maquillage', border: 'border-slate-300', bg: 'bg-slate-50', iconWrap: 'bg-slate-100 text-slate-700' },
+  { id: 'health', label: 'Santé & Nutrition', icon: Shield, desc: 'Compléments, vitamines, minceur, bien-être', border: 'border-slate-300', bg: 'bg-slate-50', iconWrap: 'bg-slate-100 text-slate-700' },
+  { id: 'tech', label: 'Tech & Électronique', icon: Smartphone, desc: 'Gadgets, accessoires, appareils, audio', border: 'border-slate-300', bg: 'bg-slate-50', iconWrap: 'bg-slate-100 text-slate-700' },
+  { id: 'fashion', label: 'Mode & Accessoires', icon: Crown, desc: 'Vêtements, bijoux, sacs, chaussures, wax', border: 'border-slate-300', bg: 'bg-slate-50', iconWrap: 'bg-slate-100 text-slate-700' },
+  { id: 'home', label: 'Maison & Cuisine', icon: Package, desc: 'Déco, cuisine, électroménager, nettoyage', border: 'border-slate-300', bg: 'bg-slate-50', iconWrap: 'bg-slate-100 text-slate-700' },
+  { id: 'general', label: 'Autre / Général', icon: Layers, desc: 'Tout type de produit - template polyvalent', border: 'border-slate-300', bg: 'bg-slate-50', iconWrap: 'bg-slate-100 text-slate-700' },
 ];
 
-const ProductPageGeneratorModal = ({ onClose, onApply }) => {
+const TEMPLATE_THEME_PRESETS = {
+  beauty: {
+    vibe: 'Élégant, doux, avant/après et rassurance premium.',
+    hero: 'Routine éclat en 7 jours',
+    subline: 'Palette poudrée, sections soin, bénéfices et témoignages soignés.',
+    heroVisual: 'Portrait premium avec produit en main, lumière douce et peau mise en valeur.',
+    decorationVisual: 'Formes douces, halos légers, reflets glossy et détails beauté élégants.',
+    primary: '#BE185D',
+    accent: '#F9A8D4',
+    background: '#FFF7FB',
+    surface: '#FFFFFF',
+    text: '#3F1D2E',
+    cta: 'Découvrir le soin',
+  },
+  health: {
+    vibe: 'Crédible, clair et axé résultats.',
+    hero: 'Retrouvez votre équilibre naturellement',
+    subline: 'Univers propre, confiance, preuves d’usage et bénéfices structurés.',
+    heroVisual: 'Scène bien-être crédible avec produit visible, posture rassurante et résultat concret.',
+    decorationVisual: 'Icônes simples, repères santé, ambiance clean et éléments naturels subtils.',
+    primary: '#166534',
+    accent: '#86EFAC',
+    background: '#F3FFF7',
+    surface: '#FFFFFF',
+    text: '#16331F',
+    cta: 'Commencer la cure',
+  },
+  tech: {
+    vibe: 'Contrasté, moderne et orienté performance.',
+    hero: 'La technologie qui simplifie tout',
+    subline: 'Sections specs, gains immédiats et visuels très démonstratifs.',
+    heroVisual: 'Packshot contrasté avec mise en situation moderne et produit ultra net.',
+    decorationVisual: 'Lignes techniques, reflets lumineux, repères de performance et overlays propres.',
+    primary: '#2563EB',
+    accent: '#93C5FD',
+    background: '#F4F8FF',
+    surface: '#FFFFFF',
+    text: '#14243F',
+    cta: 'Voir la démo',
+  },
+  fashion: {
+    vibe: 'Éditorial, statutaire et très visuel.',
+    hero: 'Affirmez votre style instantanément',
+    subline: 'Couleurs mode, storytelling, focus détails et silhouettes.',
+    heroVisual: 'Silhouette éditoriale, pose mode naturelle et focus matière ou coupe.',
+    decorationVisual: 'Cadres fins, détails lookbook, répétitions graphiques et ambiance magazine.',
+    primary: '#7C3AED',
+    accent: '#C4B5FD',
+    background: '#FAF7FF',
+    surface: '#FFFFFF',
+    text: '#2E1A47',
+    cta: 'Adopter le look',
+  },
+  home: {
+    vibe: 'Chaleureux, pratique et orienté quotidien.',
+    hero: 'Rendez votre maison plus simple à vivre',
+    subline: 'Tons doux, démonstrations d’usage et bénéfices concrets.',
+    heroVisual: 'Scène maison vivante avec produit utilisé dans un vrai contexte du quotidien.',
+    decorationVisual: 'Textures chaleureuses, repères pratiques, pictos simples et ambiance conviviale.',
+    primary: '#B45309',
+    accent: '#FCD34D',
+    background: '#FFF9EF',
+    surface: '#FFFFFF',
+    text: '#4A2B12',
+    cta: 'Équiper ma maison',
+  },
+  general: {
+    vibe: 'Polyvalent, équilibré et facile à adapter.',
+    hero: 'Le template flexible pour tout produit',
+    subline: 'Structure neutre, blocs conversion et palette sobre personnalisable.',
+    heroVisual: 'Visuel produit clair, contexte réel et mise en avant immédiate du bénéfice principal.',
+    decorationVisual: 'Décors sobres, repères e-commerce premium et éléments graphiques discrets.',
+    primary: '#0F6B4F',
+    accent: '#96C7B5',
+    background: '#F5FBF8',
+    surface: '#FFFFFF',
+    text: '#18352C',
+    cta: 'Voir l’offre',
+  },
+};
+
+const buildTemplateTheme = (templateId) => ({
+  templateId,
+  ...(TEMPLATE_THEME_PRESETS[templateId] || TEMPLATE_THEME_PRESETS.general),
+});
+
+function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
+  if (!product) return null;
+
+  const gallery = [
+    ...(product.heroImage ? [{ url: product.heroImage, alt: product.title || 'Hero' }] : []),
+    ...(product.heroPosterImage ? [{ url: product.heroPosterImage, alt: `Affiche ${product.title || 'Produit'}` }] : []),
+    ...(product.beforeAfterImage ? [{ url: product.beforeAfterImage, alt: 'Avant / Après' }] : []),
+    ...((product.realPhotos || []).map((url, index) => ({ url, alt: `Photo ${index + 1}` }))),
+    ...((product.angles || []).filter((angle) => angle.poster_url).map((angle, index) => ({ url: angle.poster_url, alt: angle.titre_angle || `Angle ${index + 1}` }))),
+  ].filter((image, index, array) => image?.url && array.findIndex((entry) => entry.url === image.url) === index);
+
+  const stats = Array.isArray(product.stats_bar) ? product.stats_bar.slice(0, 3) : [];
+  const benefits = Array.isArray(product.benefits_bullets) ? product.benefits_bullets.slice(0, 4) : [];
+  const conversionBlocks = Array.isArray(product.conversion_blocks) ? product.conversion_blocks.slice(0, 4) : [];
+  const testimonials = Array.isArray(product.testimonials) ? product.testimonials : [];
+  const faq = Array.isArray(product.faq) ? product.faq.slice(0, 5) : [];
+
+  return (
+    <div className="overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3">
+        <div className="flex items-center gap-3">
+          <div
+            className="flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-black text-white"
+            style={{ background: `linear-gradient(135deg, ${templateTheme.primary} 0%, ${templateTheme.accent} 100%)` }}
+          >
+            {(product.title || 'P').slice(0, 1).toUpperCase()}
+          </div>
+          <div>
+            <p className="text-sm font-bold text-gray-900">Boutique preview</p>
+            <p className="text-[11px] text-gray-500">Rendu final avec le template {selectedTemplate.label.toLowerCase()}</p>
+          </div>
+        </div>
+        <div className="rounded-full border border-gray-200 px-3 py-1 text-[11px] font-semibold text-gray-600">
+          Page finale
+        </div>
+      </div>
+
+      <div className="max-h-[72vh] overflow-y-auto bg-[#FCFCFC]">
+        <div
+          className="mx-auto w-full max-w-[980px]"
+          style={{
+            background: `linear-gradient(180deg, ${templateTheme.background} 0%, #ffffff 38%)`,
+            color: templateTheme.text,
+          }}
+        >
+          <div className="flex items-center justify-between border-b px-4 py-3 sm:px-6" style={{ borderColor: `${templateTheme.accent}30`, backgroundColor: 'rgba(255,255,255,0.82)' }}>
+            <div className="text-sm font-black" style={{ color: templateTheme.text }}>Ma boutique</div>
+            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold" style={{ borderColor: `${templateTheme.accent}44`, color: templateTheme.primary }}>
+              <Package className="h-3.5 w-3.5" />
+              1 produit au panier
+            </div>
+          </div>
+
+          <div className="grid gap-0 lg:grid-cols-[1.02fr_0.98fr]">
+            <div className="border-b lg:border-b-0 lg:border-r" style={{ borderColor: `${templateTheme.accent}24` }}>
+              <div className="aspect-square w-full overflow-hidden bg-white">
+                {gallery[0]?.url ? (
+                  <img src={gallery[0].url} alt={gallery[0].alt} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-gray-300">
+                    <ImageIcon className="h-12 w-12" />
+                  </div>
+                )}
+              </div>
+              {gallery.length > 1 && (
+                <div className="grid grid-cols-4 gap-2 border-t bg-white p-2" style={{ borderColor: `${templateTheme.accent}20` }}>
+                  {gallery.slice(1, 5).map((image, index) => (
+                    <div key={`${image.url}-${index}`} className="aspect-square overflow-hidden rounded-xl border" style={{ borderColor: `${templateTheme.accent}24` }}>
+                      <img src={image.url} alt={image.alt} className="h-full w-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 sm:p-6 lg:p-7">
+              <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em]" style={{ backgroundColor: `${templateTheme.primary}10`, color: templateTheme.primary }}>
+                <Sparkles className="h-3.5 w-3.5" />
+                {selectedTemplate.label}
+              </div>
+              <h1 className="mt-3 text-3xl font-black leading-tight sm:text-4xl">{product.title}</h1>
+              {product.hero_slogan && (
+                <p className="mt-3 text-sm font-medium sm:text-base" style={{ color: `${templateTheme.text}CC` }}>{product.hero_slogan}</p>
+              )}
+              {product.hero_baseline && (
+                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: templateTheme.primary }}>{product.hero_baseline}</p>
+              )}
+
+              {(product.urgency_badge || product.hero_cta) && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {product.urgency_badge && (
+                    <span className="rounded-full border px-3 py-1 text-xs font-bold" style={{ borderColor: `${templateTheme.accent}50`, backgroundColor: `${templateTheme.accent}24`, color: templateTheme.text }}>
+                      {product.urgency_badge}
+                    </span>
+                  )}
+                  {product.hero_cta && (
+                    <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: `linear-gradient(135deg, ${templateTheme.primary} 0%, ${templateTheme.accent} 100%)` }}>
+                      {product.hero_cta}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {stats.length > 0 && (
+                <div className="mt-5 grid grid-cols-3 gap-2">
+                  {stats.map((stat, index) => (
+                    <div key={`${stat}-${index}`} className="rounded-2xl px-3 py-3 text-center text-xs font-bold text-white" style={{ background: `linear-gradient(135deg, ${templateTheme.primary} 0%, ${templateTheme.accent} 100%)` }}>
+                      {stat}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-5 rounded-[24px] border bg-white p-4 shadow-sm" style={{ borderColor: `${templateTheme.accent}26` }}>
+                <div className="flex items-end gap-3">
+                  <span className="text-3xl font-black" style={{ color: templateTheme.primary }}>Prix</span>
+                  <span className="text-sm font-semibold text-gray-500">Paiement à la livraison</span>
+                </div>
+                <button
+                  type="button"
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black text-white shadow-sm"
+                  style={{ background: `linear-gradient(135deg, ${templateTheme.primary} 0%, ${templateTheme.accent} 100%)` }}
+                >
+                  <ArrowRight className="h-4 w-4" />
+                  {product.hero_cta || templateTheme.cta}
+                </button>
+              </div>
+
+              {benefits.length > 0 && (
+                <div className="mt-5 rounded-[24px] border p-4" style={{ borderColor: `${templateTheme.accent}24`, backgroundColor: templateTheme.surface }}>
+                  <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: templateTheme.primary }}>Bénéfices</p>
+                  <div className="mt-3 space-y-2.5">
+                    {benefits.map((benefit, index) => (
+                      <div key={`${benefit}-${index}`} className="flex items-start gap-3 rounded-2xl px-3 py-2.5" style={{ backgroundColor: `${templateTheme.primary}08` }}>
+                        <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ backgroundColor: templateTheme.primary }}>✓</span>
+                        <span className="text-sm" style={{ color: `${templateTheme.text}D9` }}>{benefit}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-4 px-4 py-5 sm:px-6 sm:py-6">
+            {conversionBlocks.length > 0 && (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {conversionBlocks.map((block, index) => (
+                  <div key={`${block.text}-${index}`} className="rounded-[22px] border bg-white px-4 py-4 shadow-sm" style={{ borderColor: `${templateTheme.accent}22` }}>
+                    <div className="text-lg">{block.icon}</div>
+                    <p className="mt-2 text-sm font-semibold" style={{ color: templateTheme.text }}>{block.text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {product.problem_section && (
+              <section className="rounded-[24px] border p-5" style={{ borderColor: `${templateTheme.accent}24`, backgroundColor: `${templateTheme.primary}08` }}>
+                <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: templateTheme.primary }}>Problème</p>
+                {product.problem_section.title && <h3 className="mt-2 text-xl font-black" style={{ color: templateTheme.text }}>{product.problem_section.title}</h3>}
+                <div className="mt-3 space-y-2.5">
+                  {(product.problem_section.pain_points || []).map((point, index) => (
+                    <div key={`${point}-${index}`} className="flex items-start gap-3 text-sm" style={{ color: `${templateTheme.text}D0` }}>
+                      <span style={{ color: templateTheme.primary }}>•</span>
+                      <span>{point}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {product.solution_section && (
+              <section className="rounded-[24px] border bg-white p-5" style={{ borderColor: `${templateTheme.accent}24` }}>
+                <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: templateTheme.primary }}>Solution</p>
+                {product.solution_section.title && <h3 className="mt-2 text-xl font-black" style={{ color: templateTheme.text }}>{product.solution_section.title}</h3>}
+                {product.solution_section.description && <p className="mt-3 text-sm leading-7" style={{ color: `${templateTheme.text}C9` }}>{product.solution_section.description}</p>}
+              </section>
+            )}
+
+            {testimonials.length > 0 && (
+              <section className="rounded-[24px] border bg-white p-4 sm:p-5" style={{ borderColor: `${templateTheme.accent}24` }}>
+                <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: templateTheme.primary }}>Avis clients</p>
+                <div className="mt-3">
+                  <TestimonialsCarousel
+                    testimonials={testimonials.map((t) => ({
+                      name: t.name,
+                      location: t.location,
+                      text: t.text,
+                      rating: t.rating || 5,
+                      verified: t.verified !== false,
+                      date: t.date,
+                    }))}
+                    autoPlay={false}
+                  />
+                </div>
+              </section>
+            )}
+
+            {faq.length > 0 && (
+              <section className="rounded-[24px] border bg-white p-5" style={{ borderColor: `${templateTheme.accent}24` }}>
+                <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: templateTheme.primary }}>Questions fréquentes</p>
+                <div className="mt-3 space-y-3">
+                  {faq.map((item, index) => (
+                    <div key={`${item.question}-${index}`} className="rounded-[18px] border px-4 py-3" style={{ borderColor: `${templateTheme.accent}20`, backgroundColor: `${templateTheme.primary}05` }}>
+                      <p className="text-sm font-bold" style={{ color: templateTheme.text }}>{item.question}</p>
+                      <p className="mt-1 text-sm leading-6" style={{ color: `${templateTheme.text}C9` }}>{item.reponse}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+
+          <div className="border-t px-4 py-4 text-center text-xs text-gray-500 sm:px-6" style={{ borderColor: `${templateTheme.accent}24` }}>
+            Aperçu storefront généré avec le template {selectedTemplate.label.toLowerCase()}.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const PRODUCT_SUBSTEPS = [
+  { id: 1, label: 'Template', title: 'Template visuel', description: 'Choisis le type de produit - chaque template a son propre style d\'images et de mise en page.', icon: Layers },
+  { id: 2, label: 'Source', title: 'Source du produit', description: 'Choisis le mode puis ajoute le lien ou la description à analyser.', icon: Globe },
+  { id: 3, label: 'Photos', title: 'Photos réelles du produit', description: 'Ajoute les photos réelles qui serviront de base aux visuels générés.', icon: Upload },
+];
+
+const COPYWRITING_APPROACHES = [
+  {
+    value: 'PAS',
+    label: 'PAS',
+    icon: Target,
+    desc: 'Problème -> Agitation -> Solution',
+    detail: 'Montre le problème, amplifie la douleur, puis présente ton produit comme la solution évidente.'
+  },
+  {
+    value: 'AIDA',
+    label: 'AIDA',
+    icon: Zap,
+    desc: 'Attention -> Intérêt -> Désir -> Action',
+    detail: 'Capte l\'attention, éveille la curiosité, crée l\'envie et pousse à l\'achat.'
+  },
+  {
+    value: 'BAB',
+    label: 'BAB',
+    icon: Sparkles,
+    desc: 'Before -> After -> Bridge',
+    detail: 'Montre la vie avant, peint la vie après, et le produit fait le pont entre les deux.'
+  }
+];
+
+const COPYWRITING_SUBSTEPS = ['Méthode'];
+const TARGETING_SUBSTEPS = ['Avatar', 'Problème'];
+
+const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
   const [phase, setPhase] = useState('input');
   const [step, setStep] = useState(1); // 1: Base info, 2: Copywriting, 3: Advanced (optional)
+  const [productSubstep, setProductSubstep] = useState(1);
   const [inputMode, setInputMode] = useState('url'); // 'url' ou 'description'
   const [url, setUrl] = useState('');
   const [description, setDescription] = useState('');
   const [photos, setPhotos] = useState([]);
   const [visualTemplate, setVisualTemplate] = useState('beauty');
+  const [templateTheme, setTemplateTheme] = useState(() => buildTemplateTheme('beauty'));
+  const [heroVisualDirection, setHeroVisualDirection] = useState(() => buildTemplateTheme('beauty').heroVisual || '');
+  const [decorationDirection, setDecorationDirection] = useState(() => buildTemplateTheme('beauty').decorationVisual || '');
   const [marketingApproach, setMarketingApproach] = useState('PAS'); // PAS, AIDA, BAB
   const [currentStep, setCurrentStep] = useState(0);
   const [stepLabel, setStepLabel] = useState('');
@@ -200,16 +547,50 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   const isGeneratingRef = useRef(false);
 
   const isValidUrl = url.trim().length > 10 && (url.startsWith('http://') || url.startsWith('https://'));
-  const isValidDescription = description.trim().length > 20 && photos.length > 0;
-
+  const hasValidDescription = description.trim().length > 20;
+  const hasRequiredPhotos = photos.length > 0;
+  const totalProductSubsteps = PRODUCT_SUBSTEPS.length;
+  const selectedTemplate = VISUAL_TEMPLATES.find((template) => template.id === visualTemplate) || VISUAL_TEMPLATES[0];
+  const visibleSteps = [
+    {
+      num: 1,
+      label: 'Produit',
+      details: PRODUCT_SUBSTEPS.map((substep) => substep.label),
+      currentDetail: PRODUCT_SUBSTEPS[productSubstep - 1]?.label,
+      progress: `${productSubstep}/${PRODUCT_SUBSTEPS.length}`,
+    },
+    {
+      num: 2,
+      label: 'Copywriting',
+      details: COPYWRITING_SUBSTEPS,
+      currentDetail: marketingApproach || COPYWRITING_SUBSTEPS[0],
+      progress: '1/1',
+    },
+    {
+      num: 3,
+      label: 'Ciblage',
+      details: TARGETING_SUBSTEPS,
+      currentDetail: targetAvatar.trim() || mainProblem.trim() ? 'Personnalisation' : TARGETING_SUBSTEPS[0],
+      progress: '2/2',
+    },
+  ];
   // Bloquer le scroll du body quand le modal est ouvert
   useEffect(() => {
+    if (pageMode) return undefined;
+
     document.body.style.overflow = 'hidden';
     
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, []);
+  }, [pageMode]);
+
+  useEffect(() => {
+    const nextTheme = buildTemplateTheme(visualTemplate);
+    setTemplateTheme(nextTheme);
+    setHeroVisualDirection(nextTheme.heroVisual || '');
+    setDecorationDirection(nextTheme.decorationVisual || '');
+  }, [visualTemplate]);
 
   // Poll for background image generation
   useEffect(() => {
@@ -293,10 +674,22 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   // Validation des étapes
   const isStep1Valid = () => {
     if (inputMode === 'url') {
-      return isValidUrl && photos.length > 0;
+      return isValidUrl && hasRequiredPhotos;
     } else {
-      return isValidDescription;
+      return hasValidDescription && hasRequiredPhotos;
     }
+  };
+
+  const isCurrentProductSubstepValid = () => {
+    if (productSubstep === 2) {
+      return inputMode === 'url' ? isValidUrl : hasValidDescription;
+    }
+
+    if (productSubstep === 3) {
+      return hasRequiredPhotos;
+    }
+
+    return true;
   };
 
   const isStep2Valid = () => {
@@ -312,8 +705,17 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   };
 
   const handleNextStep = () => {
-    if (step === 1 && isStep1Valid()) {
-      setStep(2);
+    if (step === 1) {
+      if (!isCurrentProductSubstepValid()) return;
+
+      if (productSubstep < totalProductSubsteps) {
+        setProductSubstep((prev) => prev + 1);
+        return;
+      }
+
+      if (isStep1Valid()) {
+        setStep(2);
+      }
     } else if (step === 2 && isStep2Valid()) {
       setStep(3);
     } else if (step === 3) {
@@ -322,6 +724,17 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
   };
 
   const handlePrevStep = () => {
+    if (step === 1 && productSubstep > 1) {
+      setProductSubstep((prev) => prev - 1);
+      return;
+    }
+
+    if (step === 2) {
+      setStep(1);
+      setProductSubstep(totalProductSubsteps);
+      return;
+    }
+
     if (step > 1) {
       setStep(step - 1);
     }
@@ -338,6 +751,10 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
 
   const removePhoto = (index) => setPhotos(prev => prev.filter((_, i) => i !== index));
 
+  const handleThemeChange = (key, value) => {
+    setTemplateTheme((prev) => ({ ...prev, [key]: value }));
+  };
+
   // AI Store Builder progression
   useEffect(() => {
     if (phase !== 'loading') return;
@@ -345,7 +762,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     const steps = [
       {
         step: 0,
-        title: '🔍 Analyse de votre produit en cours…',
+        title: 'Analyse de votre produit',
         messages: [
           'Détection des bénéfices clés…',
           'Analyse du marché africain…',
@@ -356,7 +773,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       },
       {
         step: 1,
-        title: '✍️ Génération du contenu marketing',
+        title: 'Génération du contenu marketing',
         messages: [
           'Création du titre accrocheur…',
           'Rédaction des bénéfices…',
@@ -368,7 +785,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       },
       {
         step: 2,
-        title: '🎨 Design de la page',
+        title: 'Design de la page',
         messages: [
           'Création du design…',
           'Ajout des sections de conversion…',
@@ -380,7 +797,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       },
       {
         step: 3,
-        title: '🚀 Finalisation',
+        title: 'Finalisation',
         messages: [
           'Assemblage final…',
           'Vérification qualité…',
@@ -469,6 +886,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
     formData.append('withImages', 'true');
     formData.append('marketingApproach', marketingApproach);
     formData.append('visualTemplate', visualTemplate);
+    formData.append('preferredColor', templateTheme.accent);
+    if (heroVisualDirection.trim()) formData.append('heroVisualDirection', heroVisualDirection.trim());
+    if (decorationDirection.trim()) formData.append('decorationDirection', decorationDirection.trim());
+    formData.append('titleColor', templateTheme.primary);
+    formData.append('contentColor', templateTheme.text);
     
     // Paramètres copywriting simplifiés
     formData.append('tone', tone);
@@ -617,7 +1039,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
 
         // NOW show confetti and switch to preview (all images are ready)
         setBuildProgress(100);
-        setBuildMessage('Votre page est prête ! 🎉');
+        setBuildMessage('Votre page est prête.');
         setShowConfetti(true);
 
         setTimeout(() => {
@@ -650,15 +1072,15 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       let errorMessage = error.message;
       
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        errorMessage = '❌ Erreur de connexion: Impossible de contacter le serveur. Vérifiez votre connexion internet.';
+        errorMessage = 'Erreur de connexion: impossible de contacter le serveur. Vérifiez votre connexion internet.';
       } else if (error.message.includes('OpenAI')) {
-        errorMessage = `❌ Erreur OpenAI: ${error.message}`;
+        errorMessage = `Erreur OpenAI: ${error.message}`;
       } else if (error.message.includes('NanoBanana')) {
-        errorMessage = `❌ Erreur NanoBanana: ${error.message}`;
+        errorMessage = `Erreur NanoBanana: ${error.message}`;
       } else if (error.message.includes('Scraping')) {
-        errorMessage = `❌ Erreur Scraping: ${error.message}`;
-      } else if (!error.message.startsWith('❌')) {
-        errorMessage = `❌ ${error.message}`;
+        errorMessage = `Erreur Scraping: ${error.message}`;
+      } else if (!error.message.startsWith('Erreur')) {
+        errorMessage = `Erreur: ${error.message}`;
       }
       
       setError(errorMessage);
@@ -860,82 +1282,129 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
       name: product.title || '',
       description: descHtml,
       images: allImages,
-      _pageData: product
+      _pageData: {
+        ...product,
+        templateTheme,
+        posterColor: templateTheme.accent,
+        heroVisualDirection: heroVisualDirection.trim(),
+        decorationDirection: decorationDirection.trim(),
+        titleColor: templateTheme.primary,
+        contentColor: templateTheme.text,
+      }
     });
   };
 
+  const handleRestart = () => {
+    setPhase('input');
+    setStep(1);
+    setProductSubstep(1);
+    setProduct(null);
+    setError('');
+    setLimitReached(false);
+    setActiveTab('page');
+    setBuildStep(0);
+    setBuildProgress(0);
+    setBuildMessage('');
+    setShowConfetti(false);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm">
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
+    <div className={pageMode ? 'min-h-screen bg-stone-50' : 'fixed inset-0 z-50 h-screen w-screen overflow-hidden bg-black/50 backdrop-blur-sm'}>
+      <div className={pageMode ? 'mx-auto flex min-h-screen w-full max-w-6xl items-stretch px-4 py-6 sm:px-6' : 'flex h-full w-full items-stretch justify-stretch'}>
+        <div className={pageMode ? 'relative flex min-h-[calc(100vh-3rem)] w-full flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm' : 'relative flex h-full w-full flex-col overflow-hidden bg-white shadow-2xl'}>
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fermer"
+            className={pageMode ? 'absolute right-6 top-6 z-20 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-stone-200 bg-white text-slate-500 transition hover:border-stone-300 hover:bg-stone-50 hover:text-slate-900 sm:right-8' : 'absolute right-6 top-6 z-20 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-400 transition hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700'}
+          >
+            <X className="w-4 h-4" />
+          </button>
+
+          <div className="flex min-h-0 flex-1 flex-col">
 
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 shrink-0">
+          <div className={pageMode ? 'relative flex flex-col gap-3 border-b border-stone-200 px-5 py-4 sm:px-6' : 'flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0'}>
+          <div className={pageMode ? 'flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between' : 'flex w-full items-center justify-between gap-4'}>
           <div className="flex-1">
-            <div className="flex items-center gap-4 mb-3">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg">
-                <Sparkles className="w-6 h-6 text-white" />
+            <div className="mb-2.5 flex items-center gap-3">
+              {pageMode ? (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="inline-flex items-center gap-2 rounded-xl border border-stone-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-stone-50 hover:text-slate-900"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  Retour
+                </button>
+              ) : null}
+              <div className={pageMode ? 'flex h-10 w-10 items-center justify-center rounded-xl bg-scalor-green shadow-sm' : 'w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg'}>
+                <Sparkles className={pageMode ? 'h-5.5 w-5.5 text-white' : 'w-5 h-5 text-white'} />
               </div>
               <div className="flex-1">
-                <h2 className="text-2xl font-black text-gray-900 leading-tight">Générateur de Page Produit IA</h2>
-                <p className="text-sm text-gray-600 mt-0.5">Page produit + Copywriting + SEO en 60 secondes</p>
+                <h2 className={pageMode ? 'text-xl font-bold text-slate-900 leading-tight' : 'text-xl font-black text-gray-900 leading-tight'}>Générateur de page produit IA</h2>
+                <p className={pageMode ? 'mt-0.5 text-xs text-slate-500' : 'mt-0.5 text-xs text-gray-600'}>Crée une page produit claire, simple et prête à publier.</p>
               </div>
             </div>
             
             {/* Stepper Progress */}
             {phase === 'input' && (
-              <div className="flex items-center gap-2">
-                {[
-                  { num: 1, label: 'Produit' },
-                  { num: 2, label: 'Copywriting' }
-                ].map((s, idx) => (
+              <div className="grid gap-2 md:grid-cols-3">
+                {visibleSteps.map((s) => (
                   <React.Fragment key={s.num}>
-                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition ${
-                      step === s.num 
-                        ? 'bg-violet-100 text-violet-700' 
-                        : step > s.num 
-                        ? 'bg-emerald-100 text-emerald-700' 
-                        : 'bg-gray-100 text-gray-400'
+                    <div className={`rounded-xl border px-3 py-2.5 transition ${
+                      step === s.num
+                        ? 'border-[#96C7B5] bg-[#E6F2ED] text-[#0A5740]'
+                        : step > s.num
+                        ? 'border-[#96C7B5] bg-[#E6F2ED] text-[#0A5740]'
+                        : 'border-stone-200 bg-stone-50 text-slate-400'
                     }`}>
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                        step === s.num 
-                          ? 'bg-violet-600 text-white' 
-                          : step > s.num 
-                          ? 'bg-emerald-600 text-white' 
-                          : 'bg-gray-300 text-gray-500'
-                      }`}>
-                        {step > s.num ? '✓' : s.num}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${
+                            step === s.num
+                              ? 'bg-scalor-green text-white'
+                              : step > s.num
+                              ? 'bg-scalor-green text-white'
+                              : 'bg-stone-300 text-stone-600'
+                          }`}>
+                            {step > s.num ? '✓' : s.num}
+                          </div>
+                          <span className="text-xs font-semibold">{s.label}</span>
+                        </div>
+                        <span className="text-[9px] font-bold uppercase tracking-wide opacity-80">{s.progress}</span>
                       </div>
-                      <span className="text-sm font-semibold">{s.label}</span>
+                      <p className="mt-1.5 text-[11px] leading-relaxed opacity-80">
+                        {s.details.join(' · ')}
+                      </p>
+                      {step === s.num && (
+                        <p className="mt-1.5 text-[10px] font-bold uppercase tracking-wide">
+                          En cours : {s.currentDetail}
+                        </p>
+                      )}
                     </div>
-                    {idx < 1 && (
-                      <div className={`flex-1 h-1 rounded-full max-w-[40px] ${
-                        step > s.num ? 'bg-emerald-400' : 'bg-gray-200'
-                      }`} />
-                    )}
                   </React.Fragment>
                 ))}
               </div>
             )}
           </div>
           
-          <div className="flex items-center gap-3 ml-4">
+          <div className={pageMode ? 'flex items-center gap-2.5 self-start lg:ml-4' : 'flex items-center gap-3 ml-4'}>
             {/* Compteur de générations - Affichage détaillé */}
             {generationsInfo && (
-              <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 shadow-sm">
-                <Zap className="w-5 h-5 text-violet-600" />
+              <div className={pageMode ? 'flex items-center gap-2 rounded-xl border border-[#96C7B5] bg-[#E6F2ED] px-3 py-2' : 'flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 shadow-sm'}>
+                <Zap className={pageMode ? 'h-4 w-4 text-[#0A5740]' : 'w-5 h-5 text-violet-600'} />
                 <div className="flex flex-col">
-                  <div className="flex items-center gap-2 text-xs font-bold">
-                    <span className="text-violet-600">{generationsInfo.remaining || 0} crédit{(generationsInfo.remaining || 0) > 1 ? 's' : ''}</span>
+                  <div className="flex items-center gap-2 text-[11px] font-bold">
+                    <span className={pageMode ? 'text-[#0A5740]' : 'text-violet-600'}>{generationsInfo.remaining || 0} crédit{(generationsInfo.remaining || 0) > 1 ? 's' : ''}</span>
                   </div>
-                  <span className="text-[10px] text-violet-600">crédits restants</span>
+                  <span className={pageMode ? 'text-[10px] text-[#0F6B4F]' : 'text-[10px] text-violet-600'}>crédits restants</span>
                 </div>
               </div>
             )}
-            <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition">
-              <X className="w-5 h-5" />
-            </button>
           </div>
+        </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -948,112 +1417,269 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               {step === 1 && (
                 <>
                   {/* Template de page produit */}
+                  {productSubstep === 1 && (
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">
-                      🎨 Template visuel
+                    <label className="mb-1 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                      <Layers className="h-4 w-4 text-slate-700" />
+                      Template visuel
                     </label>
                     <p className="text-xs text-gray-500 mb-3">Choisis le type de produit — chaque template a son propre style d'images et de mise en page</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {VISUAL_TEMPLATES.map(t => (
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {VISUAL_TEMPLATES.map(t => {
+                        const previewTheme = buildTemplateTheme(t.id);
+                        return (
                         <button
                           key={t.id}
                           type="button"
                           onClick={() => setVisualTemplate(t.id)}
-                          className={`p-3 rounded-xl border-2 text-left transition-all duration-200 ${
+                          className={`w-[148px] min-w-[148px] flex-shrink-0 overflow-hidden rounded-[16px] border-2 text-left transition-all duration-200 ${
                             visualTemplate === t.id
-                              ? `${t.border} ${t.bg} shadow-md scale-[1.02]`
-                              : 'border-gray-200 hover:border-gray-300 bg-white hover:shadow-sm'
+                              ? `${t.border} shadow-md scale-[1.02]`
+                              : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
                           }`}
                         >
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-lg">{t.icon}</span>
-                            <span className={`text-xs font-bold ${
-                              visualTemplate === t.id ? 'text-gray-900' : 'text-gray-700'
-                            }`}>{t.label}</span>
+                          <div
+                            className="relative aspect-[6/4] overflow-hidden"
+                            style={{
+                              background: `linear-gradient(160deg, ${previewTheme.primary} 0%, ${previewTheme.accent} 58%, ${previewTheme.background} 100%)`,
+                            }}
+                          >
+                            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.28),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.22),transparent_28%)]" />
+                            <div className="absolute left-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-xl border border-white/20 bg-white/15 text-white backdrop-blur-sm">
+                              <t.icon className="h-3.5 w-3.5" />
+                            </div>
+                            <div className="absolute inset-x-2.5 bottom-2.5 rounded-[14px] border border-white/20 bg-black/20 p-2 text-white backdrop-blur-md">
+                              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/70">Template</p>
+                              <p className="mt-0.5 text-[11px] font-bold leading-tight">{t.label}</p>
+                            </div>
+                            <div className="absolute -right-4 top-10 h-16 w-16 rounded-full border border-white/15 bg-white/10" />
+                            <div className="absolute bottom-12 left-3 h-10 w-10 rounded-[12px] border border-white/15 bg-white/10 rotate-12" />
                           </div>
-                          <p className="text-[10px] text-gray-500 leading-tight">{t.desc}</p>
                         </button>
-                      ))}
+                      )})}
                     </div>
-                  </div>
 
-                  {/* Mode Selection Tabs */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      📝 Mode de génération
-                    </label>
-                    <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
-                      <button
-                        type="button"
-                        onClick={() => setInputMode('url')}
-                        className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition ${
-                          inputMode === 'url'
-                            ? 'bg-white text-violet-700 shadow-sm'
-                            : 'text-gray-600 hover:text-gray-900'
-                        }`}
+                    <div className="mt-3 grid gap-3 lg:grid-cols-[0.95fr_1.05fr]">
+                      <div
+                        className="overflow-hidden rounded-[18px] border shadow-sm"
+                        style={{
+                          backgroundColor: templateTheme.background,
+                          borderColor: templateTheme.accent,
+                        }}
                       >
-                        🔗 Lien du produit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setInputMode('description')}
-                        className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition ${
-                          inputMode === 'description'
-                            ? 'bg-white text-violet-700 shadow-sm'
-                            : 'text-gray-600 hover:text-gray-900'
-                        }`}
-                      >
-                        ✍️ Description directe
-                      </button>
-                    </div>
-                  </div>
+                        <div
+                          className="p-3.5"
+                          style={{
+                            background: `linear-gradient(135deg, ${templateTheme.primary} 0%, ${templateTheme.accent} 100%)`,
+                            color: '#ffffff',
+                          }}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/70">Aperçu</p>
+                              <h3 className="mt-1 text-sm font-black leading-snug">{templateTheme.hero}</h3>
+                              <p className="mt-1 line-clamp-2 text-[11px] text-white/80">{templateTheme.subline}</p>
+                            </div>
+                            <span className="rounded-full border border-white/25 px-2 py-1 text-[10px] font-semibold text-white/85">
+                              {selectedTemplate.label}
+                            </span>
+                          </div>
+                        </div>
 
-                  {/* URL Input (mode URL) */}
-                  {inputMode === 'url' && (
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                        🔗 Lien du produit (Amazon, Alibaba, AliExpress, etc.)
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="url"
-                          value={url}
-                          onChange={e => setUrl(e.target.value)}
-                          placeholder="https://www.amazon.com/.../... ou https://www.alibaba.com/..."
-                          className="w-full px-4 py-3 pr-10 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                        />
-                        {url && (
-                          <a href={url} target="_blank" rel="noopener noreferrer" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-violet-600">
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                        )}
+                        <div className="space-y-3 p-3.5" style={{ color: templateTheme.text }}>
+                          <div className="rounded-[16px] border p-3" style={{ backgroundColor: templateTheme.surface, borderColor: `${templateTheme.accent}55` }}>
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold">Bloc hero</p>
+                                <p className="mt-0.5 text-[11px] opacity-70">Titre, bénéfice et CTA</p>
+                              </div>
+                              <div className="flex gap-1.5">
+                                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: templateTheme.primary }} />
+                                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: templateTheme.accent }} />
+                              </div>
+                            </div>
+                            <div className="mt-3 space-y-2">
+                              <div className="h-2 w-20 rounded-full opacity-80" style={{ backgroundColor: `${templateTheme.primary}33` }} />
+                              <div className="h-3 w-full rounded-full opacity-90" style={{ backgroundColor: `${templateTheme.text}20` }} />
+                              <button
+                                type="button"
+                                className="rounded-lg px-3 py-1.5 text-xs font-bold text-white"
+                                style={{ backgroundColor: templateTheme.primary }}
+                              >
+                                {templateTheme.cta}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-1.5 text-[10px] font-medium opacity-85">
+                            <span className="rounded-full px-2.5 py-1" style={{ backgroundColor: `${templateTheme.primary}10` }}>Bénéfices</span>
+                            <span className="rounded-full px-2.5 py-1" style={{ backgroundColor: `${templateTheme.accent}30` }}>Visuels</span>
+                            <span className="rounded-full px-2.5 py-1" style={{ backgroundColor: `${templateTheme.text}10` }}>FAQ</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-[18px] border border-gray-200 bg-white p-3.5 shadow-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs font-semibold text-gray-900">Direction visuelle</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextTheme = buildTemplateTheme(visualTemplate);
+                              setTemplateTheme(nextTheme);
+                              setHeroVisualDirection(nextTheme.heroVisual || '');
+                              setDecorationDirection(nextTheme.decorationVisual || '');
+                            }}
+                            className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-[11px] font-medium text-gray-700 transition hover:bg-gray-50"
+                          >
+                            Réinitialiser
+                          </button>
+                        </div>
+
+                        <div className="mt-3 space-y-3">
+                          <label className="block rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2.5">
+                            <span className="block text-[11px] font-semibold text-gray-800">Visuel hero</span>
+                            <input
+                              type="text"
+                              value={heroVisualDirection}
+                              onChange={(event) => setHeroVisualDirection(event.target.value)}
+                              placeholder="Ex: portrait premium, produit en gros plan, lumière chaude"
+                              className="mt-2 w-full border-0 bg-transparent p-0 text-xs text-gray-900 outline-none placeholder:text-gray-400"
+                            />
+                          </label>
+
+                          <label className="block rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2.5">
+                            <span className="block text-[11px] font-semibold text-gray-800">Visuel décorations</span>
+                            <input
+                              type="text"
+                              value={decorationDirection}
+                              onChange={(event) => setDecorationDirection(event.target.value)}
+                              placeholder="Ex: halos doux, lignes tech, cadres mode, textures maison"
+                              className="mt-2 w-full border-0 bg-transparent p-0 text-xs text-gray-900 outline-none placeholder:text-gray-400"
+                            />
+                          </label>
+
+                          <div className="grid grid-cols-3 gap-2">
+                            {[
+                              ['accent', 'Couleur des affiches'],
+                              ['primary', 'Titres description'],
+                              ['text', 'Contenu description'],
+                            ].map(([key, label]) => (
+                              <label key={key} className="rounded-xl border border-gray-100 bg-gray-50/70 p-2 text-center">
+                                <input
+                                  type="color"
+                                  value={templateTheme[key]}
+                                  onChange={(event) => handleThemeChange(key, event.target.value)}
+                                  className="mx-auto h-8 w-8 cursor-pointer rounded-lg border-0 bg-transparent p-0"
+                                />
+                                <span className="mt-1 block text-[10px] font-medium text-gray-700">{label}</span>
+                              </label>
+                            ))}
+                          </div>
+
+                          <div className="rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">Résumé</p>
+                            <p className="mt-1 text-xs font-semibold text-gray-900">{selectedTemplate.label}</p>
+                            <p className="mt-1 text-[11px] text-gray-600">Affiches : {templateTheme.accent}</p>
+                            <p className="mt-1 text-[11px] text-gray-600">Titres description : {templateTheme.primary}</p>
+                            <p className="mt-1 text-[11px] text-gray-600">Contenu description : {templateTheme.text}</p>
+                            {heroVisualDirection.trim() && <p className="mt-1 text-[11px] text-gray-600">Hero : {heroVisualDirection.trim()}</p>}
+                            {decorationDirection.trim() && <p className="mt-1 text-[11px] text-gray-600">Décors : {decorationDirection.trim()}</p>}
+                          </div>
+                        </div>
                       </div>
                     </div>
+                  </div>
                   )}
 
-                  {/* Description Input (mode description) */}
-                  {inputMode === 'description' && (
+                  {/* Source + contenu source */}
+                  {productSubstep === 2 && (
+                  <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                        ✍️ Description du produit
+                      <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                        <Globe className="h-4 w-4 text-slate-700" />
+                        Source du produit
                       </label>
-                      <textarea
-                        value={description}
-                        onChange={e => setDescription(e.target.value)}
-                        placeholder="Décris ton produit ici... (ex: Gélules de Graviola bio, 60 capsules de 600mg, extrait naturel de feuilles de corossol, riche en antioxydants, aide à renforcer le système immunitaire...)"
-                        rows={5}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        Minimum 20 caractères • Décris les bénéfices, caractéristiques et usages du produit
-                      </p>
+                      <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+                        <button
+                          type="button"
+                          onClick={() => setInputMode('url')}
+                          className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition ${
+                            inputMode === 'url'
+                              ? 'bg-white text-[#0A5740] shadow-sm ring-1 ring-[#96C7B5]'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          <span className="inline-flex items-center gap-2">
+                            <Globe className="h-4 w-4" />
+                            Lien du produit
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setInputMode('description')}
+                          className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition ${
+                            inputMode === 'description'
+                              ? 'bg-white text-[#0A5740] shadow-sm ring-1 ring-[#96C7B5]'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          <span className="inline-flex items-center gap-2">
+                            <FileText className="h-4 w-4" />
+                            Description directe
+                          </span>
+                        </button>
+                      </div>
                     </div>
+
+                    {inputMode === 'url' ? (
+                      <div>
+                        <label className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                          <Globe className="h-4 w-4 text-slate-700" />
+                          Lien du produit (Amazon, Alibaba, AliExpress, etc.)
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="url"
+                            value={url}
+                            onChange={e => setUrl(e.target.value)}
+                            placeholder="https://www.amazon.com/.../... ou https://www.alibaba.com/..."
+                            className="w-full px-4 py-3 pr-10 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-scalor-green focus:border-[#96C7B5]"
+                          />
+                          {url && (
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-scalor-green">
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                          <FileText className="h-4 w-4 text-slate-700" />
+                          Description du produit
+                        </label>
+                        <textarea
+                          value={description}
+                          onChange={e => setDescription(e.target.value)}
+                          placeholder="Décris ton produit ici... (ex: Gélules de Graviola bio, 60 capsules de 600mg, extrait naturel de feuilles de corossol, riche en antioxydants, aide à renforcer le système immunitaire...)"
+                          rows={5}
+                          className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-scalor-green focus:border-[#96C7B5] resize-none"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Minimum 20 caractères • Décris les bénéfices, caractéristiques et usages du produit
+                        </p>
+                      </div>
+                    )}
+                  </div>
                   )}
 
                   {/* Photo Upload */}
+                  {productSubstep === 3 && (
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                      📸 Tes vraies photos du produit <span className="font-normal text-gray-500">(3–8 recommandées)</span>
+                    <label className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-gray-700">
+                      <Upload className="h-4 w-4 text-slate-700" />
+                      Tes vraies photos du produit <span className="font-normal text-gray-500">(3–8 recommandées)</span>
                     </label>
                     <div
                       onDrop={handleDrop}
@@ -1061,11 +1687,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                       onDragLeave={() => setDragOver(false)}
                       onClick={() => fileInputRef.current?.click()}
                       className={`relative border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition ${
-                        dragOver ? 'border-violet-400 bg-violet-50' : 'border-gray-200 hover:border-violet-300 hover:bg-violet-50/50'
+                        dragOver ? 'border-[#0F6B4F] bg-[#E6F2ED]' : 'border-gray-200 hover:border-[#96C7B5] hover:bg-[#E6F2ED]/60'
                       }`}
                     >
                       <Upload className="w-7 h-7 text-gray-400 mx-auto mb-2" />
-                      <p className="text-sm font-medium text-gray-600">Glisse tes photos ici ou <span className="text-violet-600">clique pour sélectionner</span></p>
+                      <p className="text-sm font-medium text-gray-600">Glisse tes photos ici ou <span className="text-scalor-green">clique pour sélectionner</span></p>
                       <p className="text-xs text-gray-400 mt-1">JPG, PNG, WEBP — max 10MB chaque — jusqu'à 8 photos</p>
                       <input
                         ref={fileInputRef}
@@ -1094,7 +1720,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                               <X className="w-3 h-3" />
                             </button>
                             {i === 0 && (
-                              <div className="absolute bottom-0 left-0 right-0 bg-violet-600/80 text-white text-xs text-center py-0.5">Hero</div>
+                              <div className="absolute bottom-0 left-0 right-0 bg-scalor-green/90 text-white text-xs text-center py-0.5">Hero</div>
                             )}
                           </div>
                         ))}
@@ -1102,7 +1728,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                           <button
                             type="button"
                             onClick={() => fileInputRef.current?.click()}
-                            className="aspect-square rounded-lg border-2 border-dashed border-gray-200 hover:border-violet-300 flex items-center justify-center text-gray-400 hover:text-violet-500 transition"
+                            className="aspect-square rounded-lg border-2 border-dashed border-gray-200 hover:border-[#96C7B5] flex items-center justify-center text-gray-400 hover:text-scalor-green transition"
                           >
                             <Upload className="w-5 h-5" />
                           </button>
@@ -1110,6 +1736,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                       </div>
                     )}
                   </div>
+                  )}
                 </>
               )}
 
@@ -1123,32 +1750,30 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     </label>
                     <p className="text-xs text-gray-500 mb-3">La méthode choisie pilote tout : texte, images, structure de la page</p>
                     <div className="grid grid-cols-1 gap-3">
-                      {[
-                        { value: 'PAS', label: 'PAS', icon: '🎯', desc: 'Problème → Agitation → Solution', detail: 'Montre le problème, amplifie la douleur, puis présente ton produit comme LA solution' },
-                        { value: 'AIDA', label: 'AIDA', icon: '⚡', desc: 'Attention → Intérêt → Désir → Action', detail: 'Capte l\'attention, éveille la curiosité, crée l\'envie et pousse à l\'achat' },
-                        { value: 'BAB', label: 'BAB', icon: '✨', desc: 'Before → After → Bridge', detail: 'Montre la vie avant, peint la vie après, et le produit fait le pont' }
-                      ].map(approach => (
+                      {COPYWRITING_APPROACHES.map(approach => (
                         <button
                           key={approach.value}
                           type="button"
                           onClick={() => setMarketingApproach(approach.value)}
                           className={`p-4 rounded-xl border-2 text-left transition ${
                             marketingApproach === approach.value
-                              ? 'border-violet-500 bg-violet-50 shadow-md'
-                              : 'border-gray-200 hover:border-violet-300 bg-white'
+                              ? 'border-[#96C7B5] bg-[#E6F2ED] shadow-sm'
+                              : 'border-gray-200 hover:border-[#96C7B5] bg-white'
                           }`}
                         >
                           <div className="flex items-center justify-between mb-1">
                             <div className="flex items-center gap-2">
-                              <span className="text-xl">{approach.icon}</span>
+                              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                                <approach.icon className="h-4 w-4" />
+                              </span>
                               <span className={`text-base font-bold ${
-                                marketingApproach === approach.value ? 'text-violet-700' : 'text-gray-900'
+                                marketingApproach === approach.value ? 'text-[#0A5740]' : 'text-gray-900'
                               }`}>
                                 {approach.label}
                               </span>
                             </div>
                             {marketingApproach === approach.value && (
-                              <CheckCircle className="w-5 h-5 text-violet-600" />
+                              <CheckCircle className="w-5 h-5 text-scalor-green" />
                             )}
                           </div>
                           <p className="text-xs font-medium text-gray-600 mb-1">{approach.desc}</p>
@@ -1158,46 +1783,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     </div>
                   </div>
 
-                  {/* Tone Selection */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Ton de communication
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      {[
-                        { value: 'urgence', label: 'Urgence', emoji: '🔥', desc: 'Stock limité, action immédiate' },
-                        { value: 'premium', label: 'Premium', emoji: '💎', desc: 'Qualité exceptionnelle' },
-                        { value: 'fun', label: 'Fun', emoji: '🎉', desc: 'Enjoué, dynamique' },
-                        { value: 'serieux', label: 'Sérieux', emoji: '🎓', desc: 'Professionnel, crédible' }
-                      ].map(t => (
-                        <button
-                          key={t.value}
-                          type="button"
-                          onClick={() => setTone(t.value)}
-                          className={`p-3 rounded-xl border-2 text-left transition ${
-                            tone === t.value
-                              ? 'border-violet-500 bg-violet-50'
-                              : 'border-gray-200 hover:border-violet-300 bg-white'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xl">{t.emoji}</span>
-                              <span className={`text-sm font-bold ${
-                                tone === t.value ? 'text-violet-700' : 'text-gray-900'
-                              }`}>
-                                {t.label}
-                              </span>
-                            </div>
-                            {tone === t.value && (
-                              <CheckCircle className="w-4 h-4 text-violet-600" />
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-500 leading-tight">{t.desc}</p>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </>
               )}
 
@@ -1206,25 +1791,26 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                 <>
                   {/* Header */}
                   <div className="text-center space-y-2 mb-4">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-full">
-                      <Star className="w-4 h-4 text-amber-600" />
-                      <span className="text-sm font-bold text-amber-900">Optionnel</span>
+                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-stone-200 bg-stone-50">
+                      <Star className="w-4 h-4 text-slate-600" />
+                      <span className="text-sm font-bold text-slate-800">Optionnel</span>
                     </div>
                     <p className="text-xs text-gray-500">Ces infos aident l'IA a mieux cibler ta page produit</p>
                   </div>
 
                   {/* Avatar cible */}
-                  <div className="space-y-4 p-4 bg-gradient-to-br from-violet-50/50 to-purple-50/50 rounded-xl border border-violet-100">
+                  <div className="space-y-4 rounded-xl border border-[#D8CFC4] bg-[#EDE8E2]/50 p-4">
                     <div>
                       <label className="block text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
-                        🎯 Avatar client cible
+                        <User className="h-3.5 w-3.5 text-scalor-green" />
+                        Avatar client cible
                       </label>
                       <textarea
                         value={targetAvatar}
                         onChange={(e) => setTargetAvatar(e.target.value)}
                         placeholder="Ex: Femme 28-45 ans, maman active, zone urbaine, sensible au naturel..."
                         rows={2}
-                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-scalor-green focus:border-[#96C7B5] resize-none"
                       />
                       <p className="text-xs text-gray-400 mt-1">Qui est ton client ideal ?</p>
                     </div>
@@ -1232,14 +1818,15 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     {/* Probleme principal */}
                     <div>
                       <label className="block text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
-                        💥 Probleme principal
+                        <AlertTriangle className="h-3.5 w-3.5 text-scalor-green" />
+                        Problème principal
                       </label>
                       <textarea
                         value={mainProblem}
                         onChange={(e) => setMainProblem(e.target.value)}
                         placeholder="Ex: Peau terne avec des taches, perte de confiance en soi..."
                         rows={2}
-                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-scalor-green focus:border-[#96C7B5] resize-none"
                       />
                       <p className="text-xs text-gray-400 mt-1">Quel probleme ton produit resout ?</p>
                     </div>
@@ -1247,45 +1834,23 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                 </>
               )}
 
-              {/* What gets generated - Affiché sur toutes les étapes */}
-              <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl p-4 border border-violet-100">
-                <p className="text-xs font-bold text-violet-700 mb-3 uppercase tracking-wide">🎨 PAGE PRODUIT GÉNÉRÉE</p>
-                <div className="grid grid-cols-2 gap-2 text-xs text-gray-700">
-                  {[
-                    ['📸', 'Hero affiche lifestyle premium'],
-                    ['🎭', 'Affiche graphique publicitaire'],
-                    ['✨', 'Visuel avant/après transformation'],
-                    ['🎯', '5 affiches marketing angles'],
-                    ['📝', 'Copywriting persuasif optimisé'],
-                    ['⭐', '4 témoignages clients vérifiés'],
-                    ['❓', 'FAQ professionnelle complète'],
-                    ['🔍', 'SEO : meta title + description']
-                  ].map(([icon, label]) => (
-                    <div key={label} className="flex items-center gap-1.5">
-                      <span>{icon}</span>
-                      <span>{label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               {error && (
                 <div className={`p-4 rounded-xl border ${
                   limitReached 
-                    ? 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200' 
+                    ? 'bg-[#EDE8E2] border-[#D8CFC4]' 
                     : 'bg-red-50 border-red-200'
                 }`}>
                   {limitReached ? (
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-scalor-copper flex items-center justify-center shrink-0">
                         <Zap className="w-5 h-5 text-white" />
                       </div>
                       <div className="flex-1">
-                        <h3 className="text-sm font-bold text-gray-900">🎯 Tu n'as plus de crédits !</h3>
+                        <h3 className="text-sm font-bold text-gray-900">Tu n'as plus de crédits</h3>
                         <p className="text-xs text-gray-500">Achète des crédits pour générer des pages produit IA.</p>
                       </div>
                       <button type="button" onClick={() => setShowPaymentForm(true)}
-                        className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl hover:from-amber-600 hover:to-orange-600 transition text-sm shadow-lg whitespace-nowrap">
+                        className="px-4 py-2 bg-scalor-copper text-white font-bold rounded-xl hover:bg-scalor-copper-dark transition text-sm shadow-lg whitespace-nowrap">
                         Acheter des crédits
                       </button>
                     </div>
@@ -1303,7 +1868,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                   <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
                   <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                     {/* Header */}
-                    <div className="px-6 py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white">
+                    <div className="px-6 py-4 bg-scalor-copper text-white">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
@@ -1324,49 +1889,49 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                       {/* Pack selection */}
                       <div className="grid gap-3">
                         <button type="button" onClick={() => setSelectedPack('unit')}
-                          className={`flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all ${selectedPack === 'unit' ? 'border-amber-500 bg-amber-50 shadow-md' : 'border-gray-200 bg-white hover:border-amber-300'}`}>
-                          <div className="w-11 h-11 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                            <Zap className="w-5 h-5 text-amber-600" />
+                          className={`flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all ${selectedPack === 'unit' ? 'border-[#D4803F] bg-[#EDE8E2] shadow-md' : 'border-gray-200 bg-white hover:border-[#D8CFC4]'}`}>
+                          <div className="w-11 h-11 rounded-full bg-[#EDE8E2] flex items-center justify-center shrink-0">
+                            <Zap className="w-5 h-5 text-scalor-copper" />
                           </div>
                           <div className="flex-1">
                             <p className="text-sm font-bold text-gray-900">1 crédit</p>
                             <p className="text-xs text-gray-500">1 page produit complète avec visuels IA</p>
                           </div>
-                          <span className="text-base font-extrabold text-amber-700">{pricing.unit} FCFA</span>
+                          <span className="text-base font-extrabold text-scalor-copper">{pricing.unit} FCFA</span>
                         </button>
                         <button type="button" onClick={() => setSelectedPack('pack3')}
-                          className={`flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all relative ${selectedPack === 'pack3' ? 'border-emerald-500 bg-emerald-50 shadow-md' : 'border-gray-200 bg-white hover:border-emerald-300'}`}>
-                          <span className="absolute -top-2.5 right-4 text-[10px] font-bold bg-emerald-500 text-white px-2.5 py-0.5 rounded-full shadow">MEILLEURE OFFRE</span>
-                          <div className="w-11 h-11 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                            <Zap className="w-5 h-5 text-emerald-600" />
+                          className={`flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all relative ${selectedPack === 'pack3' ? 'border-[#96C7B5] bg-[#E6F2ED] shadow-md' : 'border-gray-200 bg-white hover:border-[#96C7B5]'}`}>
+                          <span className="absolute -top-2.5 right-4 text-[10px] font-bold bg-scalor-green text-white px-2.5 py-0.5 rounded-full shadow">MEILLEURE OFFRE</span>
+                          <div className="w-11 h-11 rounded-full bg-[#E6F2ED] flex items-center justify-center shrink-0">
+                            <Zap className="w-5 h-5 text-scalor-green" />
                           </div>
                           <div className="flex-1">
                             <p className="text-sm font-bold text-gray-900">Pack 3 crédits</p>
                             <p className="text-xs text-gray-500">Économise {pricing.unit * 3 - pricing.pack3} FCFA — soit {Math.round(pricing.pack3 / 3)} FCFA/page</p>
                           </div>
-                          <span className="text-base font-extrabold text-emerald-700">{pricing.pack3} FCFA</span>
+                          <span className="text-base font-extrabold text-scalor-green">{pricing.pack3} FCFA</span>
                         </button>
                       </div>
 
                       {/* Formulaire paiement */}
                       <div className="space-y-3 pt-1">
                         <div>
-                          <label className="block text-xs font-semibold text-gray-700 mb-1.5">📱 Numéro de téléphone</label>
+                          <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-700"><Phone className="h-3.5 w-3.5 text-scalor-copper" />Numéro de téléphone</label>
                           <input type="tel" value={paymentPhone} onChange={(e) => setPaymentPhone(e.target.value)}
                             placeholder="Ex: 0707070707"
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500" />
+                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-scalor-copper focus:border-[#D4803F]" />
                         </div>
                         <div>
-                          <label className="block text-xs font-semibold text-gray-700 mb-1.5">👤 Votre nom</label>
+                          <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-gray-700"><User className="h-3.5 w-3.5 text-scalor-copper" />Votre nom</label>
                           <input type="text" value={paymentName} onChange={(e) => setPaymentName(e.target.value)}
                             placeholder="Ex: Jean Dupont"
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500" />
+                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-scalor-copper focus:border-[#D4803F]" />
                         </div>
                       </div>
 
                       {/* Bouton payer */}
                       <button type="button" onClick={handleBuyGeneration} disabled={paymentLoading || !selectedPack}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl hover:from-amber-600 hover:to-orange-600 transition text-sm disabled:opacity-50 shadow-lg">
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-scalor-copper text-white font-bold rounded-xl hover:bg-scalor-copper-dark transition text-sm disabled:opacity-50 shadow-lg">
                         {paymentLoading ? (
                           <><Loader2 className="w-4 h-4 animate-spin" /> Chargement...</>
                         ) : (
@@ -1376,7 +1941,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
 
                       {(generationsInfo?.totalUsed || 0) > 0 && (
                         <p className="text-xs text-center text-gray-400">
-                          Tu as déjà généré {generationsInfo.totalUsed} page{generationsInfo.totalUsed > 1 ? 's' : ''} produit 🎉
+                          Tu as déjà généré {generationsInfo.totalUsed} page{generationsInfo.totalUsed > 1 ? 's' : ''} produit.
                         </p>
                       )}
                     </div>
@@ -1427,9 +1992,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
 
               {/* Main icon animation */}
               <div className="relative">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center relative">
-                  <div className="absolute inset-0 rounded-full border-4 border-violet-300 animate-ping opacity-20" />
-                  <Sparkles className="w-12 h-12 text-violet-600 animate-pulse" />
+                <div className="w-24 h-24 rounded-full bg-[#E6F2ED] flex items-center justify-center relative">
+                  <div className="absolute inset-0 rounded-full border-4 border-[#96C7B5] animate-ping opacity-20" />
+                  <Sparkles className="w-12 h-12 text-scalor-green animate-pulse" />
                 </div>
               </div>
 
@@ -1437,11 +2002,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               <div className="text-center space-y-2 relative z-10">
                 <h3 className="text-2xl font-black text-gray-900">
                   {[
-                    '🔍 Analyse de votre produit en cours…',
-                    '✍️ Génération du contenu marketing',
-                    '🎨 Design de la page',
-                    '🚀 Finalisation'
-                  ][Math.min(buildStep, 3)] || '🚀 Finalisation'}
+                    'Analyse de votre produit',
+                    'Génération du contenu marketing',
+                    'Design de la page',
+                    'Finalisation'
+                  ][Math.min(buildStep, 3)] || 'Finalisation'}
                 </h3>
                 
                 {/* Typing effect message */}
@@ -1453,12 +2018,12 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               {/* Progress bar */}
               <div className="w-full max-w-md space-y-2">
                 <div className="flex justify-between text-xs font-bold">
-                  <span className="text-violet-600">Progression</span>
-                  <span className="text-violet-600">{Math.round(buildProgress)}%</span>
+                  <span className="text-scalor-green">Progression</span>
+                  <span className="text-scalor-green">{Math.round(buildProgress)}%</span>
                 </div>
                 <div className="h-3 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full overflow-hidden shadow-inner">
                   <div
-                    className="h-full bg-gradient-to-r from-violet-500 via-purple-500 to-pink-500 rounded-full transition-all duration-500 ease-out relative overflow-hidden"
+                    className="h-full bg-gradient-to-r from-[#0A5740] via-[#0F6B4F] to-[#14855F] rounded-full transition-all duration-500 ease-out relative overflow-hidden"
                     style={{ width: `${buildProgress}%` }}
                   >
                     <div className="absolute inset-0 bg-white/30 animate-pulse" />
@@ -1482,9 +2047,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     <div
                       className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${
                         step < buildStep
-                          ? 'bg-emerald-500 text-white'
+                          ? 'bg-scalor-green text-white'
                           : step === buildStep
-                          ? 'bg-violet-600 text-white shadow-lg'
+                          ? 'bg-scalor-copper text-white shadow-lg'
                           : 'bg-gray-200 text-gray-400'
                       }`}
                     >
@@ -1521,16 +2086,14 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
             <div className="p-6 space-y-5">
 
               {/* Success Banner */}
-              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-200 rounded-xl p-4">
+              <div className="rounded-xl border-2 border-[#96C7B5] bg-[#E6F2ED] p-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                  <div className="w-12 h-12 rounded-full bg-scalor-green flex items-center justify-center shrink-0">
                     <CheckCircle className="w-7 h-7 text-white" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-base font-bold text-emerald-900 mb-1">
-                      🎉 Génération terminée avec succès !
-                    </h3>
-                    <p className="text-sm text-emerald-700">
+                    <h3 className="text-base font-bold text-[#0A5740] mb-1">Génération terminée avec succès</h3>
+                    <p className="text-sm text-[#0F6B4F]">
                       Voici l'aperçu de votre page produit générée par IA. Explorez les onglets ci-dessous puis cliquez sur <strong>"Appliquer"</strong> pour l'utiliser.
                     </p>
                   </div>
@@ -1541,6 +2104,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
                 {[
                   { id: 'page', label: 'Page', icon: Package },
+                  { id: 'final', label: 'Finale', icon: Smartphone },
                   { id: 'affiches', label: 'Affiches', icon: ImageIcon },
                   { id: 'faq', label: 'FAQ + Avis', icon: Star },
                   { id: 'images', label: 'Photos', icon: ImageIcon }
@@ -1550,7 +2114,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     type="button"
                     onClick={() => setActiveTab(id)}
                     className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-medium transition ${
-                      activeTab === id ? 'bg-white text-violet-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                      activeTab === id ? 'bg-white text-[#0A5740] shadow-sm ring-1 ring-[#96C7B5]' : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
                     <Icon className="w-3.5 h-3.5" />
@@ -1559,14 +2123,18 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                 ))}
               </div>
 
+              {activeTab === 'final' && (
+                <FinalPagePreview product={product} templateTheme={templateTheme} selectedTemplate={selectedTemplate} />
+              )}
+
               {/* Tab: Page (overview) */}
               {activeTab === 'page' && (
                 <div className="space-y-4">
                   {/* Images loading banner */}
                   {imagesLoading && (
-                    <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200">
-                      <Loader2 className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
-                      <span className="text-sm font-medium text-amber-700">
+                    <div className="flex items-center gap-3 rounded-xl border border-[#D8CFC4] bg-[#EDE8E2] p-3">
+                      <Loader2 className="w-4 h-4 text-[#C56A2D] animate-spin shrink-0" />
+                      <span className="text-sm font-medium text-[#A85824]">
                         Les images sont en cours de génération en arrière-plan...
                       </span>
                     </div>
@@ -1576,12 +2144,12 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                     <div className="border border-gray-200 rounded-xl overflow-hidden">
                       <ImagePreview src={product.heroImage} label="Image HERO principale" className="w-full aspect-square" />
                       {(product.hero_headline || product.hero_slogan || product.hero_baseline) && (
-                        <div className="p-4 bg-gradient-to-br from-violet-50 to-indigo-50 border-t border-gray-200">
+                        <div className="border-t border-gray-200 bg-[#EDE8E2]/60 p-4">
                           {product.hero_headline && (
-                            <p className="text-sm font-bold text-gray-900 mb-1">📢 {product.hero_headline}</p>
+                            <p className="flex items-center gap-2 text-sm font-bold text-gray-900 mb-1"><Megaphone className="h-4 w-4 text-scalor-green" />{product.hero_headline}</p>
                           )}
                           {product.hero_slogan && (
-                            <p className="text-sm text-violet-700 italic mb-1">✨ {product.hero_slogan}</p>
+                            <p className="flex items-center gap-2 text-sm text-[#0F6B4F] italic mb-1"><Sparkles className="h-4 w-4" />{product.hero_slogan}</p>
                           )}
                           {product.hero_baseline && (
                             <p className="text-xs text-gray-600">{product.hero_baseline}</p>
@@ -1602,7 +2170,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                   )}
 
                   {/* Titre */}
-                  <div className="p-4 bg-violet-50 rounded-xl border border-violet-100">
+                  <div className="p-4 bg-[#EDE8E2]/50 rounded-xl border border-[#D8CFC4]">
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="text-lg font-bold text-gray-900">{product.title}</h3>
                       <CopyButton text={product.title} />
@@ -1616,8 +2184,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                           </span>
                         )}
                         {product.hero_cta && (
-                          <span className="inline-flex items-center gap-1 px-3 py-1 bg-violet-600 text-white text-xs font-bold rounded-full">
-                            🛒 {product.hero_cta}
+                          <span className="inline-flex items-center gap-1 px-3 py-1 bg-scalor-green text-white text-xs font-bold rounded-full">
+                            <ArrowRight className="h-3.5 w-3.5" />
+                            {product.hero_cta}
                           </span>
                         )}
                       </div>
@@ -1628,8 +2197,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                   {product.stats_bar?.length > 0 && (
                     <div className="grid grid-cols-3 gap-2">
                       {product.stats_bar.map((stat, i) => (
-                        <div key={i} className="p-3 bg-indigo-50 rounded-xl border border-indigo-100 text-center">
-                          <p className="text-xs font-bold text-indigo-700 leading-tight">{stat}</p>
+                        <div key={i} className="p-3 bg-[#EDE8E2]/50 rounded-xl border border-[#D8CFC4] text-center">
+                          <p className="text-xs font-bold text-[#0A5740] leading-tight">{stat}</p>
                         </div>
                       ))}
                     </div>
@@ -1638,7 +2207,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                   {/* Problem / Solution */}
                   {product.problem_section && (
                     <div className="p-4 bg-red-50 rounded-xl border border-red-100">
-                      <p className="text-xs font-bold text-red-600 uppercase tracking-wide mb-2">😤 PROBLÈME</p>
+                      <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-red-600"><AlertTriangle className="h-3.5 w-3.5" />Problème</p>
                       {product.problem_section.title && (
                         <div className="flex items-start justify-between gap-2 mb-3">
                           <p className="text-sm font-bold text-gray-900">{product.problem_section.title}</p>
@@ -1648,7 +2217,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                       <div className="space-y-2">
                         {(product.problem_section.pain_points || []).map((point, i) => (
                           <div key={i} className="flex items-start gap-2 text-sm text-red-800">
-                            <span className="flex-shrink-0 mt-0.5">❌</span>
+                            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
                             <span>{point}</span>
                           </div>
                         ))}
@@ -1658,7 +2227,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
 
                   {product.solution_section && (
                     <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                      <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide mb-2">✅ SOLUTION</p>
+                      <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-emerald-600"><CheckCircle className="h-3.5 w-3.5" />Solution</p>
                       {product.solution_section.title && (
                         <div className="flex items-start justify-between gap-2 mb-2">
                           <p className="text-sm font-bold text-gray-900">{product.solution_section.title}</p>
@@ -1677,11 +2246,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                   {/* Benefits Bullets */}
                   {product.benefits_bullets?.length > 0 && (
                     <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
-                      <p className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-3">💥 BÉNÉFICES ({product.benefits_bullets.length})</p>
+                      <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-blue-700"><Sparkles className="h-3.5 w-3.5" />Bénéfices ({product.benefits_bullets.length})</p>
                       <div className="space-y-2">
                         {product.benefits_bullets.map((benefit, i) => (
                           <div key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                            <span className="text-base flex-shrink-0">{benefit.match(/^[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u)?.[0] || '✅'}</span>
+                            <span className="text-base flex-shrink-0">{benefit.match(/^[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u)?.[0] || '•'}</span>
                             <span>{benefit.replace(/^[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]\s*/u, '')}</span>
                           </div>
                         ))}
@@ -1692,7 +2261,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                   {/* Offer Block */}
                   {product.offer_block && (
                     <div className="p-4 bg-orange-50 rounded-xl border border-orange-200">
-                      <p className="text-xs font-bold text-orange-600 uppercase tracking-wide mb-3">🎁 OFFRE</p>
+                      <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-orange-600"><Package className="h-3.5 w-3.5" />Offre</p>
                       <div className="space-y-2">
                         {product.offer_block.offer_label && (
                           <div className="flex items-start justify-between gap-2">
@@ -1702,13 +2271,14 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                         )}
                         {product.offer_block.guarantee_text && (
                           <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm text-gray-700 flex-1">🔒 {product.offer_block.guarantee_text}</p>
+                            <p className="flex flex-1 items-start gap-2 text-sm text-gray-700"><Lock className="mt-0.5 h-4 w-4 text-orange-700" />{product.offer_block.guarantee_text}</p>
                             <CopyButton text={product.offer_block.guarantee_text} />
                           </div>
                         )}
                         {product.offer_block.countdown && (
                           <div className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 rounded-lg text-xs text-orange-700 font-medium">
-                            ⏳ Compte à rebours activé
+                            <Clock3 className="h-3.5 w-3.5" />
+                            Compte à rebours activé
                           </div>
                         )}
                       </div>
@@ -1718,7 +2288,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                   {/* SEO */}
                   {product.seo && (
                     <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-                      <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">🔍 SEO</p>
+                      <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-gray-600"><Search className="h-3.5 w-3.5" />SEO</p>
                       <div className="space-y-3">
                         {product.seo.meta_title && (
                           <div>
@@ -1742,7 +2312,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                           <div>
                             <p className="text-xs text-gray-400 mb-1">URL slug</p>
                             <div className="flex items-center justify-between gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200">
-                              <code className="text-xs text-violet-700 font-mono">/products/{product.seo.slug}</code>
+                              <code className="text-xs text-scalor-green font-mono">/products/{product.seo.slug}</code>
                               <CopyButton text={product.seo.slug} />
                             </div>
                           </div>
@@ -1753,24 +2323,24 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
 
                   {/* Urgency Elements */}
                   {product.urgency_elements && (
-                    <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
-                      <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-2">⚡ URGENCE PSYCHOLOGIQUE</p>
+                    <div className="p-4 bg-[#FBF4EE] rounded-xl border border-[#E2B28F]">
+                      <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-scalor-copper"><Zap className="h-3.5 w-3.5" />Urgence psychologique</p>
                       <div className="space-y-2 text-sm">
                         {product.urgency_elements.stock_limited && (
-                          <div className="flex items-center gap-2 text-amber-800">
-                            <span>📦</span>
+                          <div className="flex items-center gap-2 text-[#8B4A20]">
+                            <Package className="h-4 w-4" />
                             <span>Stock limité activé</span>
                           </div>
                         )}
                         {product.urgency_elements.social_proof_count && (
-                          <div className="flex items-center gap-2 text-amber-800">
-                            <span>⭐</span>
+                          <div className="flex items-center gap-2 text-[#8B4A20]">
+                            <Star className="h-4 w-4" />
                             <span>{product.urgency_elements.social_proof_count}</span>
                           </div>
                         )}
                         {product.urgency_elements.quick_result && (
-                          <div className="flex items-center gap-2 text-amber-800">
-                            <span>⏱️</span>
+                          <div className="flex items-center gap-2 text-[#8B4A20]">
+                            <Clock3 className="h-4 w-4" />
                             <span>{product.urgency_elements.quick_result}</span>
                           </div>
                         )}
@@ -1781,7 +2351,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                   {/* Conversion Blocks */}
                   {product.conversion_blocks?.length > 0 && (
                     <div className="p-4 bg-green-50 rounded-xl border border-green-200">
-                      <p className="text-xs font-bold text-green-700 uppercase tracking-wide mb-3">🔥 BLOCS CONVERSION ({product.conversion_blocks.length})</p>
+                      <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-green-700"><Zap className="h-3.5 w-3.5" />Blocs conversion ({product.conversion_blocks.length})</p>
                       <div className="grid grid-cols-2 gap-2">
                         {product.conversion_blocks.map((block, i) => (
                           <div key={i} className="flex items-center gap-2 p-2 bg-white rounded-lg border border-green-100">
@@ -1795,7 +2365,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
 
                   {/* 4 Angles marketing */}
                   <div>
-                    <p className="text-xs font-bold text-violet-700 uppercase tracking-wide mb-3">🎯 4 ARGUMENTS MARKETING</p>
+                    <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#0A5740]"><Target className="h-3.5 w-3.5" />4 arguments marketing</p>
                     {(product.angles || []).map((angle, i) => (
                       <div key={i} className="mb-3 border border-gray-100 rounded-xl overflow-hidden">
                         {angle.poster_url && (
@@ -1806,9 +2376,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                           {angle.explication && (
                             <p className="text-sm text-gray-600 mb-2 leading-relaxed">{angle.explication}</p>
                           )}
-                          <p className="text-sm text-violet-700 font-medium italic mb-1">📌 {angle.message_principal}</p>
+                          <p className="flex items-center gap-2 text-sm text-[#0F6B4F] font-medium italic mb-1"><Target className="h-4 w-4" />{angle.message_principal}</p>
                           {angle.promesse && (
-                            <p className="text-xs text-gray-500 italic">💡 {angle.promesse}</p>
+                            <p className="flex items-center gap-2 text-xs text-gray-500 italic"><Sparkles className="h-3.5 w-3.5" />{angle.promesse}</p>
                           )}
                         </div>
                       </div>
@@ -1818,7 +2388,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                   {/* Raisons d'acheter */}
                   {product.raisons_acheter?.length > 0 && (
                     <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-                      <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide mb-2">✅ RAISONS D'ACHETER</p>
+                      <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-emerald-600"><CheckCircle className="h-3.5 w-3.5" />Raisons d'acheter</p>
                       <div className="space-y-2">
                         {product.raisons_acheter.map((r, i) => (
                           <div key={i} className="flex items-start gap-2">
@@ -1848,9 +2418,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                           <p className="text-xs text-gray-400">Affiche non générée</p>
                         </div>
                       )}
-                      <div className="p-3 bg-violet-50">
+                      <div className="p-3 bg-[#EDE8E2]/50">
                         <p className="text-sm font-semibold text-gray-800 mb-1">{angle.titre_angle}</p>
-                        <p className="text-xs text-violet-600 italic">{angle.message_principal}</p>
+                        <p className="text-xs text-[#0F6B4F] italic">{angle.message_principal}</p>
                       </div>
                     </div>
                   ))}
@@ -1863,7 +2433,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                   {/* Témoignages en Carrousel */}
                   {product.testimonials?.length > 0 && (
                     <div>
-                      <p className="text-xs font-bold text-amber-600 uppercase tracking-wide mb-3">⭐ {product.testimonials.length} TÉMOIGNAGES CLIENTS (Carrousel)</p>
+                      <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-scalor-copper"><Star className="h-3.5 w-3.5" />{product.testimonials.length} témoignages clients</p>
                       <div className="-mx-2">
                         <TestimonialsCarousel 
                           testimonials={product.testimonials.map(t => ({
@@ -1882,7 +2452,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
 
                   {/* FAQ */}
                   <div>
-                    <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-3">❓ FAQ — 5 QUESTIONS</p>
+                    <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-gray-600"><AlertCircle className="h-3.5 w-3.5" />FAQ - 5 questions</p>
                     <div className="space-y-2">
                       {(product.faq || []).map((item, i) => (
                         <div key={i} className="border border-gray-100 rounded-xl overflow-hidden">
@@ -1901,7 +2471,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                   {/* Raisons d'acheter */}
                   {product.raisons_acheter?.length > 0 && (
                     <div>
-                      <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide mb-3">✅ {product.raisons_acheter.length} RAISONS D'ACHETER</p>
+                      <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-emerald-600"><CheckCircle className="h-3.5 w-3.5" />{product.raisons_acheter.length} raisons d'acheter</p>
                       {product.raisons_acheter.map((r, i) => (
                         <div key={i} className="flex items-start gap-2 p-3 mb-2 bg-emerald-50 rounded-lg border border-emerald-100">
                           <span className="text-emerald-500 font-bold">{i + 1}.</span>
@@ -1921,9 +2491,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                 <div className="space-y-4">
                   {/* Images loading indicator */}
                   {imagesLoading && (
-                    <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200">
-                      <Loader2 className="w-4 h-4 text-violet-600 animate-spin" />
-                      <span className="text-sm font-medium text-violet-700">
+                    <div className="flex items-center gap-3 rounded-xl border border-[#96C7B5] bg-[#E6F2ED] p-3">
+                      <Loader2 className="w-4 h-4 text-scalor-green animate-spin" />
+                      <span className="text-sm font-medium text-[#0A5740]">
                         Images en cours de génération... Elles apparaîtront ici automatiquement.
                       </span>
                     </div>
@@ -1931,7 +2501,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                   {/* Visuels IA galerie principale */}
                   {(product.heroImage || product.heroPosterImage || product.beforeAfterImage) && (
                     <div>
-                      <p className="text-xs font-bold text-violet-600 uppercase tracking-wide mb-2">🖼️ VISUELS GALERIE PRINCIPALE</p>
+                      <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#0A5740]"><ImageIcon className="h-3.5 w-3.5" />Visuels galerie principale</p>
                       <div className="grid grid-cols-2 gap-3">
                         {product.heroImage && (
                           <div>
@@ -1996,23 +2566,21 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
             <>
               {/* Info générations restantes */}
               {generationsInfo && (
-                <div className="mb-3 p-3 rounded-lg bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-100">
+                <div className="mb-3 rounded-lg border border-[#96C7B5] bg-[#E6F2ED] p-3">
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-violet-600" />
+                      <Zap className="w-4 h-4 text-scalor-green" />
                       <span className="font-medium text-gray-700">
                         Crédits restants :
                       </span>
                     </div>
                     <div className="flex items-center gap-3 font-bold">
-                      <span className="text-violet-600">
-                        ⚡ {generationsInfo.remaining || 0} crédit{(generationsInfo.remaining || 0) > 1 ? 's' : ''}
-                      </span>
+                      <span className="inline-flex items-center gap-1.5 text-scalor-green"><Zap className="h-4 w-4" />{generationsInfo.remaining || 0} crédit{(generationsInfo.remaining || 0) > 1 ? 's' : ''}</span>
                     </div>
                   </div>
                   {generationsInfo.totalUsed > 0 && (
                     <p className="text-xs text-gray-500 mt-1">
-                      🎉 Tu as déjà généré {generationsInfo.totalUsed} page{generationsInfo.totalUsed > 1 ? 's' : ''} avec succès
+                      Tu as déjà généré {generationsInfo.totalUsed} page{generationsInfo.totalUsed > 1 ? 's' : ''} avec succès.
                     </p>
                   )}
                 </div>
@@ -2020,13 +2588,14 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
               
               {/* Navigation buttons */}
               <div className="flex items-center gap-3">
-                {step > 1 && (
+                {(step > 1 || productSubstep > 1) && (
                   <button
                     type="button"
                     onClick={handlePrevStep}
                     className="flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold text-sm hover:bg-gray-50 transition flex items-center justify-center gap-2"
                   >
-                    ← Précédent
+                    <ArrowLeft className="h-4 w-4" />
+                    Précédent
                   </button>
                 )}
                 
@@ -2034,12 +2603,12 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                   <button
                     type="button"
                     onClick={handleNextStep}
-                    disabled={step === 1 && !isStep1Valid()}
-                    className={`py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-bold text-sm hover:from-violet-700 hover:to-purple-700 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg ${step === 1 ? 'w-full' : 'flex-[2]'}`}
+                    disabled={step === 1 && !isCurrentProductSubstepValid()}
+                    className={`py-3 bg-scalor-green text-white rounded-xl font-bold text-sm hover:bg-scalor-green-dark transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg ${step === 1 ? 'w-full' : 'flex-[2]'}`}
                   >
                     <Sparkles className="w-4 h-4" />
-                    {step === 1 && 'Suivant : Stratégie copywriting'}
-                    {step === 2 && 'Suivant : Paramètres avancés'}
+                    {step === 1 && (productSubstep < totalProductSubsteps ? 'Suivant' : 'Suivant : Copywriting')}
+                    {step === 2 && 'Suivant : Ciblage'}
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 ) : (
@@ -2049,10 +2618,10 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
                       type="button"
                       onClick={() => handleGenerate()}
                       disabled={!canGenerate() || (generationsInfo !== null && (generationsInfo?.remaining || 0) <= 0)}
-                      className="w-full py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-bold text-sm hover:from-violet-700 hover:to-purple-700 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
+                      className="w-full py-3 bg-scalor-green text-white rounded-xl font-bold text-sm hover:bg-scalor-green-dark transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
                     >
                       <Sparkles className="w-4 h-4" />
-                      🚀 Générer ma page produit
+                      Générer ma page produit
                     </button>
                   </div>
                 )}
@@ -2063,33 +2632,34 @@ const ProductPageGeneratorModal = ({ onClose, onApply }) => {
           {phase === 'preview' && (
             <div className="space-y-3">
               {/* Info message */}
-              <div className="px-4 py-2 bg-violet-50 border border-violet-200 rounded-lg">
-                <p className="text-xs text-violet-700 text-center">
-                  👉 Explorez l'aperçu ci-dessus, puis cliquez sur <strong>"Utiliser cette page"</strong> pour l'ajouter à votre boutique
+              <div className="px-4 py-2 bg-[#E6F2ED] border border-[#96C7B5] rounded-lg">
+                <p className="text-xs text-[#0A5740] text-center">
+                  Explorez l'aperçu ci-dessus, puis cliquez sur <strong>"Utiliser cette page"</strong> pour l'ajouter à votre boutique.
                 </p>
               </div>
               
               <div className="flex gap-3">
                 <button
                   type="button"
-                  onClick={() => { setPhase('input'); setProduct(null); }}
+                  onClick={handleRestart}
                   className="flex-1 py-3 border-2 border-gray-200 text-gray-600 rounded-xl font-medium text-sm hover:bg-gray-50 hover:border-gray-300 transition"
                 >
-                  🔄 Recommencer
+                  <span className="inline-flex items-center gap-2"><RefreshCw className="h-4 w-4" />Recommencer</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleApply}
-                  className="flex-[2] py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold text-sm hover:from-emerald-600 hover:to-teal-600 transition flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
+                  className="flex-[2] py-3.5 bg-scalor-copper text-white rounded-xl font-bold text-sm hover:bg-scalor-copper-dark transition flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <CheckCircle className="w-5 h-5" />
-                  ✨ Utiliser cette page
+                  Utiliser cette page
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   </div>

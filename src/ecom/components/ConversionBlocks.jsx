@@ -51,11 +51,12 @@ export default function ConversionBlocks({ blocks = null }) {
             alignItems: 'center',
             justifyContent: 'center',
             padding: '16px 12px',
-            backgroundColor: '#fff',
-            border: '2px solid var(--s-primary)',
+            backgroundColor: 'var(--ai-surface, #fff)',
+            border: '2px solid var(--ai-primary, var(--s-primary))',
             borderRadius: 12,
             textAlign: 'center',
             transition: 'all 0.2s',
+            boxShadow: 'var(--ai-shadow, none)',
           }}
           className="conversion-block"
         >
@@ -63,7 +64,7 @@ export default function ConversionBlocks({ blocks = null }) {
             marginBottom: 6,
             lineHeight: 1,
           }}>
-            <BlockIcon icon={block.icon} color="var(--s-primary)" />
+            <BlockIcon icon={block.icon} color="var(--ai-primary, var(--s-primary))" />
           </span>
           <p style={{
             fontSize: 13,
@@ -108,15 +109,15 @@ export function UrgencyBadge({ stockLimited = false, socialProofCount = null, qu
           alignItems: 'center',
           gap: 8,
           padding: '10px 16px',
-          backgroundColor: '#FEF3C7',
-          border: '1px solid #FCD34D',
+          backgroundColor: 'var(--ai-soft-gradient, #FEF3C7)',
+          border: '1px solid var(--ai-soft-border, #FCD34D)',
           borderRadius: 8,
           fontSize: 14,
           fontWeight: 600,
-          color: '#92400E',
+          color: 'var(--ai-text, #92400E)',
           fontFamily: 'var(--s-font)',
         }}>
-          <Zap size={18} color="#92400E" />
+          <Zap size={18} color="var(--ai-primary, #92400E)" />
           <span>Stock limité - Commandez maintenant</span>
         </div>
       )}
@@ -127,15 +128,15 @@ export function UrgencyBadge({ stockLimited = false, socialProofCount = null, qu
           alignItems: 'center',
           gap: 8,
           padding: '10px 16px',
-          backgroundColor: '#DBEAFE',
-          border: '1px solid #93C5FD',
+          backgroundColor: 'var(--ai-soft-gradient, #DBEAFE)',
+          border: '1px solid var(--ai-soft-border, #93C5FD)',
           borderRadius: 8,
           fontSize: 14,
           fontWeight: 600,
-          color: '#1E40AF',
+          color: 'var(--ai-text, #1E40AF)',
           fontFamily: 'var(--s-font)',
         }}>
-          <Star size={18} color="#1E40AF" />
+          <Star size={18} color="var(--ai-primary, #1E40AF)" />
           <span>{socialProofCount} clients satisfaits</span>
         </div>
       )}
@@ -146,15 +147,15 @@ export function UrgencyBadge({ stockLimited = false, socialProofCount = null, qu
           alignItems: 'center',
           gap: 8,
           padding: '10px 16px',
-          backgroundColor: '#D1FAE5',
-          border: '1px solid #6EE7B7',
+          backgroundColor: 'var(--ai-soft-gradient, #D1FAE5)',
+          border: '1px solid var(--ai-soft-border, #6EE7B7)',
           borderRadius: 8,
           fontSize: 14,
           fontWeight: 600,
-          color: '#065F46',
+          color: 'var(--ai-text, #065F46)',
           fontFamily: 'var(--s-font)',
         }}>
-          <Clock size={18} color="#065F46" />
+          <Clock size={18} color="var(--ai-primary, #065F46)" />
           <span>{quickResult}</span>
         </div>
       )}
