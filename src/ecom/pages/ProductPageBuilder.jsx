@@ -348,16 +348,36 @@ const SectionContentEditor = ({ section, onChange, product }) => {
 
   if (schema.fields === 'productGallery') {
     const gallery = { ...PRODUCT_GALLERY_DEFAULTS, ...content };
-    const images = gallery.images || [];
+    const customImages = gallery.images || [];
+    const productImages = Array.isArray(product?.images)
+      ? product.images
+          .map((image) => (typeof image === 'string'
+            ? { url: image, alt: '' }
+            : { url: image?.url || '', alt: image?.alt || '' }))
+          .filter((image) => image.url)
+      : [];
+    const usingNativeImages = customImages.length === 0 && gallery.useProductImages !== false && productImages.length > 0;
+    const images = usingNativeImages ? productImages : customImages;
     const mainImageHeight = normalizeToPreset(gallery.mainImageHeight, MAIN_IMAGE_HEIGHT_OPTIONS, PRODUCT_GALLERY_DEFAULTS.mainImageHeight);
     const thumbnailSize = normalizeToPreset(gallery.thumbnailSize, THUMBNAIL_SIZE_OPTIONS, PRODUCT_GALLERY_DEFAULTS.thumbnailSize);
+    const saveImages = (nextImages, nextUseProductImages = false) => {
+      onChange({
+        ...section,
+        content: {
+          ...content,
+          ...gallery,
+          images: nextImages,
+          useProductImages: nextUseProductImages,
+        },
+      });
+    };
     const updateImage = (index, key, val) => {
       const nextImages = [...images];
       nextImages[index] = { ...nextImages[index], [key]: val };
-      update('images', nextImages);
+      saveImages(nextImages, false);
     };
-    const addImage = () => update('images', [...images, { url: '', alt: '' }]);
-    const removeImage = (index) => update('images', images.filter((_, idx) => idx !== index));
+    const addImage = () => saveImages([...images, { url: '', alt: '' }], false);
+    const removeImage = (index) => saveImages(images.filter((_, idx) => idx !== index), false);
     const uploadImages = async (files, replaceIndex = null) => {
       if (!files?.length) return;
       setGalleryUploading(true);
@@ -371,7 +391,7 @@ const SectionContentEditor = ({ section, onChange, product }) => {
           return;
         }
 
-        update('images', [...images, ...urls.map((url) => ({ url, alt: '' }))]);
+        saveImages([...images, ...urls.map((url) => ({ url, alt: '' }))], false);
       } catch (error) {
         console.error('Gallery image upload failed:', error);
       } finally {
@@ -383,7 +403,7 @@ const SectionContentEditor = ({ section, onChange, product }) => {
       if (target < 0 || target >= images.length) return;
       const nextImages = [...images];
       [nextImages[index], nextImages[target]] = [nextImages[target], nextImages[index]];
-      update('images', nextImages);
+      saveImages(nextImages, false);
     };
     return (
       <div className="space-y-3">
@@ -447,6 +467,11 @@ const SectionContentEditor = ({ section, onChange, product }) => {
               </button>
             </div>
           </div>
+          {usingNativeImages && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-2 text-[10px] text-blue-700">
+              Les photos actuelles du produit sont chargées automatiquement ici. Si tu remplaces, supprimes ou réordonnes une image, la galerie passe en mode personnalisé.
+            </div>
+          )}
           {images.length === 0 && (
             <div className="text-[10px] text-gray-400">Uploadez vos images ou collez une URL. Si l'option ci-dessus est activée, elles seront ajoutées au carrousel; sinon elles remplaceront les photos produit.</div>
           )}
