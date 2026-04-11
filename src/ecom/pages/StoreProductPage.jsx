@@ -21,8 +21,9 @@ import { useStoreAnalytics } from '../hooks/useStoreAnalytics';
 import { preloadStoreCheckoutRoute, preloadStoreProductRoute } from '../utils/routePrefetch';
 import { getIconComponent } from '../components/productSettings/ButtonEditor';
 import defaultConfig from '../components/productSettings/defaultConfig';
+import { formatMoney } from '../utils/currency.js';
 
-const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur === 'XAF' || cur === 'XOF' ? 'FCFA' : cur}`;
+const fmt = (n, cur = 'XAF') => formatMoney(n, cur);
 
 const COUNTRY_TESTIMONIALS = {
   Cameroun: [
@@ -163,9 +164,10 @@ const PRODUCT_GALLERY_DEFAULTS = {
 const resolveProductGalleryImages = (content = {}, fallbackImages = []) => {
   const customImages = (content.images || []).filter(image => image?.url);
   if (content.useProductImages === false) {
-    return customImages.length > 0 ? customImages : fallbackImages;
+    // Only show custom images — never fall back to hero/product images
+    return customImages;
   }
-  return customImages.length > 0 ? [...fallbackImages, ...customImages] : fallbackImages;
+  return customImages.length > 0 ? [...customImages, ...fallbackImages] : fallbackImages;
 };
 
 // ── Image Gallery ────────────────────────────────────────────────────────────
@@ -1026,7 +1028,7 @@ const buildAiGalleryImages = (product) => {
 // ── Related Products ─────────────────────────────────────────────────────────
 const RelatedCard = ({ product, prefix, store, subdomain }) => {
   const [hovered, setHovered] = useState(false);
-  const displayCurrency = store?.currency || product?.currency || 'XAF';
+  const displayCurrency = product?.currency || store?.currency || 'XAF';
   const handlePrefetch = () => {
     preloadStoreProductRoute();
     if (subdomain && product?.slug) {
