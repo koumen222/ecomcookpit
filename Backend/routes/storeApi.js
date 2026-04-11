@@ -280,7 +280,7 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
           phone: settings.phone || settings.storePhone || '',
           whatsapp: settings.whatsapp || settings.storeWhatsApp || '',
           themeColor: settings.themeColor || settings.storeThemeColor || '#0F6B4F',
-          currency: settings.currency || settings.storeCurrency || 'XAF',
+          currency: settings.storeCurrency || settings.currency || 'XAF',
           subdomain: workspace.subdomain,
           // Theme config - PRIORITÉ AUX SETTINGS (configurés dans /boutique/settings)
           template: theme.template || 'classic',

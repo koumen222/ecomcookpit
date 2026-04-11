@@ -345,7 +345,10 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
     if (font !== undefined) update['storeSettings.font'] = font;
     if (announcement !== undefined) update['storeSettings.announcement'] = announcement;
     if (announcementEnabled !== undefined) update['storeSettings.announcementEnabled'] = announcementEnabled;
-    if (storeCurrency !== undefined) update['storeSettings.storeCurrency'] = storeCurrency;
+    if (storeCurrency !== undefined) {
+      update['storeSettings.storeCurrency'] = storeCurrency;
+      update['storeSettings.currency'] = storeCurrency;
+    }
     if (isStoreEnabled !== undefined) update['storeSettings.isStoreEnabled'] = isStoreEnabled;
     // Nouveaux champs
     if (productType !== undefined) update['storeSettings.productType'] = productType;

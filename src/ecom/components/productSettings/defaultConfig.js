@@ -25,6 +25,7 @@ const defaultConfig = {
       { id: 'heroBaseline',      label: 'Phrase de réassurance IA',   enabled: true  },
       { id: 'reviews',           label: 'Avis clients',              enabled: true  },
       { id: 'orderForm',         label: '🛒 Bouton / Formulaire',    enabled: true  },
+      { id: 'productGallery',    label: 'Photos du produit',         enabled: true  },
       { id: 'statsBar',          label: 'Barre de stats sociales',   enabled: true  },
       { id: 'stockCounter',      label: 'Compteur de stock',         enabled: true  },
       { id: 'urgencyBadge',      label: 'Badge d\'urgence',          enabled: true  },

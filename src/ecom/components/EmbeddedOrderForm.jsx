@@ -24,7 +24,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
   const [cityOptions, setCityOptions] = useState([]);
   const [countdownSecs, setCountdownSecs] = useState(null);
 
-  const currency = product?.currency || store?.currency || 'XAF';
+  const currency = store?.currency || product?.currency || 'XAF';
 
   const design = productPageConfig?.design || {};
   const formConfig = productPageConfig?.form || {};

@@ -1,6 +1,6 @@
 /**
- * Nano Banana 2 — Kie.ai NanoBanana 2 (primary, single provider)
- * Model: nano-banana-2 (text-to-image & image-to-image via image_input)
+ * Nano Banana Pro — Kie.ai NanoBanana Pro (primary, single provider)
+ * Model: nano-banana-pro (text-to-image & image-to-image via image_input)
  * Docs: https://docs.kie.ai/market/google/nanobanana2
  */
 
@@ -8,10 +8,11 @@ import axios from 'axios';
 import sharp from 'sharp';
 import { uploadToR2 } from './cloudflareImagesService.js';
 
-// Kie.ai NanoBanana 2 API
+// Kie.ai NanoBanana Pro API
 const KIE_API_KEY = process.env.NANOBANANA_PRO_API_KEY;
 const KIE_BASE = 'https://api.kie.ai/api/v1/jobs';
 const KIE_UPLOAD_BASE = 'https://kieai.redpandaai.co';
+const NANOBANANA_MODEL = process.env.NANOBANANA_MODEL || 'nano-banana-pro';
 
 const NANOBANANA_PRO_COST_USD = 0.09; // 1K Pro
 const USD_TO_FCFA = 600;
@@ -45,12 +46,13 @@ let sessionStats = { totalImages: 0, totalCostUsd: 0, totalCostFcfa: 0 };
 export function getImageGenerationStats() { return { ...sessionStats }; }
 
 /**
- * Resize image buffer to max 1024px and compress as JPEG
+ * Resize image buffer to max 1024px and compress as JPEG.
+ * Keep the input close to 1K so the Pro model has enough detail to preserve the real product.
  */
 async function resizeForApi(buffer) {
   try {
     const resized = await sharp(buffer)
-      .resize(720, 720, { fit: 'inside', withoutEnlargement: true })
+      .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 85 })
       .toBuffer();
     console.log(`📐 Image resized: ${Math.round(buffer.length / 1024)}KB → ${Math.round(resized.length / 1024)}KB`);
@@ -61,7 +63,7 @@ async function resizeForApi(buffer) {
   }
 }
 
-// ─── Kie.ai NanoBanana 2 API ───────────────────────────────────
+// ─── Kie.ai NanoBanana Pro API ─────────────────────────────────
 
 /**
  * Upload base64 image to Kie.ai for use as image_urls reference
@@ -87,8 +89,8 @@ async function uploadToKieAi(base64Data, mimeType = 'image/jpeg') {
 }
 
 /**
- * Submit a generation task to Kie.ai NanoBanana 2 API
- * Single model "nano-banana-2" — uses image_input for image-to-image
+ * Submit a generation task to Kie.ai NanoBanana API.
+ * Uses nano-banana-pro by default for 1K product visuals.
  */
 async function submitGrokImagineTask(prompt, imageUrls = [], aspectRatio = '1:1', maxRetries = 3) {
   // Acquire rate-limit slot before calling API
@@ -102,7 +104,7 @@ async function submitGrokImagineTask(prompt, imageUrls = [], aspectRatio = '1:1'
     output_format: 'jpg',
   };
 
-  const body = { model: 'nano-banana-2', input };
+  const body = { model: NANOBANANA_MODEL, input };
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -123,27 +125,27 @@ async function submitGrokImagineTask(prompt, imageUrls = [], aspectRatio = '1:1'
       }
 
       const errMsg = response.data?.msg || response.data?.message || JSON.stringify(response.data).slice(0, 200);
-      console.warn(`⚠️ NanoBanana 2 submit attempt ${attempt}/${maxRetries} failed (code ${response.data?.code}): ${errMsg}`);
+      console.warn(`⚠️ NanoBanana Pro submit attempt ${attempt}/${maxRetries} failed (code ${response.data?.code}): ${errMsg}`);
 
       if (attempt < maxRetries) {
         const delay = attempt * 2000;
         console.log(`⏳ Retry in ${delay / 1000}s...`);
         await new Promise(r => setTimeout(r, delay));
       } else {
-        throw new Error(`NanoBanana 2 submit failed after ${maxRetries} attempts: ${errMsg}`);
+        throw new Error(`NanoBanana Pro submit failed after ${maxRetries} attempts: ${errMsg}`);
       }
     } catch (err) {
-      if (err.message.startsWith('NanoBanana 2 submit failed after')) throw err;
+      if (err.message.startsWith('NanoBanana Pro submit failed after')) throw err;
       const errMsg = err.response?.data?.msg || err.response?.data?.message || err.message;
       const status = err.response?.status;
-      console.warn(`⚠️ NanoBanana 2 submit attempt ${attempt}/${maxRetries} error (HTTP ${status || '?'}): ${errMsg}`);
+      console.warn(`⚠️ NanoBanana Pro submit attempt ${attempt}/${maxRetries} error (HTTP ${status || '?'}): ${errMsg}`);
       if (attempt < maxRetries) {
         // HTTP 429 — back off longer
         const delay = status === 429 ? 10000 + attempt * 2000 : attempt * 2000;
         console.log(`⏳ Retry in ${delay / 1000}s...`);
         await new Promise(r => setTimeout(r, delay));
       } else {
-        throw new Error(`NanoBanana 2 submit failed after ${maxRetries} attempts: ${errMsg}`);
+        throw new Error(`NanoBanana Pro submit failed after ${maxRetries} attempts: ${errMsg}`);
       }
     }
   }
@@ -176,55 +178,55 @@ async function pollGrokImagineTask(taskId, maxWaitMs = 180000) {
         const parsed = typeof data.resultJson === 'string' ? JSON.parse(data.resultJson) : data.resultJson;
         resultUrls = parsed?.resultUrls || [];
       } catch { /* ignore parse error */ }
-      if (resultUrls.length === 0) throw new Error('NanoBanana 2: no image URL in completed task');
+      if (resultUrls.length === 0) throw new Error('NanoBanana Pro: no image URL in completed task');
       return resultUrls[0];
     }
 
     if (data.state === 'fail') {
-      throw new Error(`NanoBanana 2 task failed: ${data.failMsg || data.failCode || 'unknown'}`);
+      throw new Error(`NanoBanana Pro task failed: ${data.failMsg || data.failCode || 'unknown'}`);
     }
 
     // waiting | queuing | generating — wait and retry
     await new Promise(r => setTimeout(r, pollInterval));
   }
 
-  throw new Error(`NanoBanana 2: timeout after ${maxWaitMs / 1000}s`);
+  throw new Error(`NanoBanana Pro: timeout after ${maxWaitMs / 1000}s`);
 }
 
 /**
- * Generate image via Kie.ai NanoBanana 2 (submit + poll)
+ * Generate image via Kie.ai NanoBanana Pro (submit + poll)
  * Returns image URL string (not data URL)
  */
 async function generateViaGrokImagine(prompt, imageUrls = [], aspectRatio = '1:1') {
-  console.log(`🤖 NanoBanana 2 (${imageUrls.length > 0 ? 'image-to-image' : 'text-to-image'}, ${aspectRatio})...`);
+  console.log(`🤖 NanoBanana Pro [${NANOBANANA_MODEL}] (${imageUrls.length > 0 ? 'image-to-image' : 'text-to-image'}, ${aspectRatio}, 1K)...`);
   const taskId = await submitGrokImagineTask(prompt, imageUrls, aspectRatio);
-  console.log(`📋 NanoBanana 2 task submitted: ${taskId}`);
+  console.log(`📋 NanoBanana Pro task submitted: ${taskId}`);
 
   const imageUrl = await pollGrokImagineTask(taskId);
   const costFcfa = Math.round(NANOBANANA_PRO_COST_USD * USD_TO_FCFA);
   sessionStats.totalImages++;
   sessionStats.totalCostUsd += NANOBANANA_PRO_COST_USD;
   sessionStats.totalCostFcfa += costFcfa;
-  console.log(`💰 NanoBanana 2 → ~$${NANOBANANA_PRO_COST_USD} (~${costFcfa} FCFA) | SESSION: ${sessionStats.totalImages} img, ~$${sessionStats.totalCostUsd.toFixed(3)}`);
-  console.log(`✅ NanoBanana 2 image: ${imageUrl.slice(0, 80)}...`);
+  console.log(`💰 NanoBanana Pro → ~$${NANOBANANA_PRO_COST_USD} (~${costFcfa} FCFA) | SESSION: ${sessionStats.totalImages} img, ~$${sessionStats.totalCostUsd.toFixed(3)}`);
+  console.log(`✅ NanoBanana Pro image: ${imageUrl.slice(0, 80)}...`);
   return imageUrl;
 }
 
 /**
- * Text-to-image — Kie.ai NanoBanana 2 (only)
+ * Text-to-image — Kie.ai NanoBanana Pro (only)
  */
 export async function generateNanoBananaImage(prompt, aspectRatio = '1:1', numImages = 1) {
   try {
-    console.log(`🎨 NanoBanana 2 text-to-image (${aspectRatio})...`);
+    console.log(`🎨 NanoBanana Pro text-to-image (${aspectRatio}, 1K)...`);
     return await generateViaGrokImagine(prompt, [], aspectRatio);
   } catch (err) {
-    console.error(`❌ NanoBanana 2 text-to-image failed: ${err.message}`);
+    console.error(`❌ NanoBanana Pro text-to-image failed: ${err.message}`);
     return null;
   }
 }
 
 /**
- * Image-to-image — Kie.ai NanoBanana 2 (only)
+ * Image-to-image — Kie.ai NanoBanana Pro (only)
  */
 export async function generateNanoBananaImageToImage(prompt, imageInput, aspectRatio = '1:1', numImages = 1) {
 
@@ -244,7 +246,7 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
   }
 
   try {
-    console.log(`🎨 NanoBanana 2 image-to-image...`);
+    console.log(`🎨 NanoBanana Pro image-to-image (1K)...`);
     let imageUrls = [];
     if (base64Image) {
       try {
@@ -267,7 +269,7 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
     }
     return await generateViaGrokImagine(prompt, imageUrls, aspectRatio);
   } catch (err) {
-    console.error(`❌ NanoBanana 2 image-to-image failed: ${err.message}`);
+    console.error(`❌ NanoBanana Pro image-to-image failed: ${err.message}`);
     return null;
   }
 }
