@@ -12,6 +12,7 @@ import {
 import { storeProductsApi, storeManageApi } from '../services/storeApi.js';
 import { useStore } from '../contexts/StoreContext.jsx';
 import defaultConfig from '../components/productSettings/defaultConfig.js';
+import { formatMoney } from '../utils/currency.js';
 
 // ─── Section metadata for the 20 productPageConfig sections ──────────────────
 const SECTION_META = {
@@ -384,7 +385,9 @@ const SectionContentEditor = ({ section, onChange, product }) => {
       setGalleryUploading(true);
       try {
         const res = await storeProductsApi.uploadImages(Array.from(files));
-        const urls = res.data?.urls || res.data?.images || [];
+        // Backend returns { success, data: [{ id, url, key, filename, size }] }
+        const uploaded = res.data?.data || res.data?.urls || res.data?.images || [];
+        const urls = uploaded.map(item => typeof item === 'string' ? item : item?.url).filter(Boolean);
         if (!urls.length) return;
 
         if (replaceIndex !== null && urls[0]) {
@@ -1112,8 +1115,8 @@ const HeroPreview = ({ config, product, design = {}, button = {} }) => {
       {config.subtitle && <p className="text-sm opacity-80 mb-4">{config.subtitle}</p>}
       {config.showPrice !== false && product?.price && (
         <div className="flex items-center justify-center gap-2 mb-4">
-          {product.compareAtPrice && <span className="line-through text-sm opacity-50">{product.compareAtPrice} {product.currency || 'XAF'}</span>}
-          <span className="text-xl font-extrabold">{product.price} {product.currency || 'XAF'}</span>
+          {product.compareAtPrice && <span className="line-through text-sm opacity-50">{formatMoney(product.compareAtPrice, product.currency || 'XAF')}</span>}
+          <span className="text-xl font-extrabold">{formatMoney(product.price, product.currency || 'XAF')}</span>
         </div>
       )}
       {config.showCta !== false && (
