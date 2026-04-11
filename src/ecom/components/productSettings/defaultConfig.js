@@ -116,7 +116,7 @@ const defaultConfig = {
       { name: 'product_info',    label: 'Contenu du panier / Offres de quantité',        type: 'product_info', enabled: true,  editable: false },
       { name: 'fullname',        label: 'Nom complet',                                   type: 'text',         enabled: true,  required: true,  icon: 'user',  showLabel: true, showIcon: true, placeholder: 'Nom complet' },
       { name: 'phone',           label: 'Numéro de téléphone',                           type: 'phone',        enabled: true,  required: true,  icon: 'phone', showLabel: true, showIcon: true, placeholder: 'Numéro de téléphone' },
-      { name: 'city',            label: 'Ville',                                         type: 'city_select',  enabled: true,  required: true,  icon: 'map',   showLabel: true, showIcon: true, placeholder: 'Ville' },
+      { name: 'city',            label: 'Ville',                                         type: 'city_select',  enabled: true,  required: true,  icon: 'map',   showLabel: true, showIcon: true, placeholder: 'Ville', cityAuto: false },
       { name: 'address',         label: 'Lieu de livraison',                             type: 'text',         enabled: true,  required: true,  icon: 'pin',   showLabel: true, showIcon: true, placeholder: 'Lieu de livraison' },
       { name: 'shipping_options', label: 'Les options d\'expédition',                     type: 'shipping',     enabled: true,  editable: false },
       { name: 'cta_button',      label: 'ACHETER MAINTENANT - {total}',                  type: 'cta_button',   enabled: true,  editable: true, icon: 'cart', iconColor: '#ffffff', showIcon: true, showLabel: true, placeholder: 'Texte du bouton' },

@@ -252,7 +252,7 @@ router.get('/:subdomain/delivery-zones', readLimiter, resolveStoreBySubdomain, a
  */
 router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (req, res) => {
   try {
-    const { customerName, phone, email, address, city, country, products, notes, channel, deliveryType, deliveryCost } = req.body;
+    const { customerName, phone, phoneCode, email, address, city, country, products, notes, channel, deliveryType, deliveryCost } = req.body;
 
     // Validate required fields
     if (!customerName || !phone || !products?.length) {
@@ -315,6 +315,7 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
       workspaceId: req.storeWorkspaceId,
       customerName: customerName.trim(),
       phone: phone.trim(),
+      phoneCode: phoneCode?.trim() || '',
       email: email?.trim() || '',
       address: address?.trim() || '',
       city: city?.trim() || '',
