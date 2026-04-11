@@ -348,7 +348,8 @@ const SectionContentEditor = ({ section, onChange, product }) => {
 
   if (schema.fields === 'productGallery') {
     const gallery = { ...PRODUCT_GALLERY_DEFAULTS, ...content };
-    const customImages = gallery.images || [];
+    const customImages = Array.isArray(gallery.images) ? gallery.images : [];
+    const validCustomImages = customImages.filter((image) => image?.url);
     const productImages = Array.isArray(product?.images)
       ? product.images
           .map((image) => (typeof image === 'string'
@@ -356,7 +357,7 @@ const SectionContentEditor = ({ section, onChange, product }) => {
             : { url: image?.url || '', alt: image?.alt || '' }))
           .filter((image) => image.url)
       : [];
-    const usingNativeImages = customImages.length === 0 && gallery.useProductImages !== false && productImages.length > 0;
+    const usingNativeImages = validCustomImages.length === 0 && gallery.useProductImages !== false && productImages.length > 0;
     const images = usingNativeImages ? productImages : customImages;
     const mainImageHeight = normalizeToPreset(gallery.mainImageHeight, MAIN_IMAGE_HEIGHT_OPTIONS, PRODUCT_GALLERY_DEFAULTS.mainImageHeight);
     const thumbnailSize = normalizeToPreset(gallery.thumbnailSize, THUMBNAIL_SIZE_OPTIONS, PRODUCT_GALLERY_DEFAULTS.thumbnailSize);
