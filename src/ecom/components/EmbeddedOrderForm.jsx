@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, Truck, Plus, Minus, AlertCircle, ChevronDown, Mail, FileText, Hash, Calendar, Clock } from 'lucide-react';
+import { ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, Truck, Plus, Minus, AlertCircle, ChevronDown, Mail, FileText, Hash, Calendar, Clock, Shield, Globe, Star } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 import defaultConfig from './productSettings/defaultConfig.js';
 import { firePixelEvent } from '../utils/pixelTracking';
@@ -390,6 +390,125 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
                   {field.label || ''}
                 </div>
               );
+
+            case 'image':
+              return field.imageUrl ? (
+                <img key={field.name} src={field.imageUrl} alt={field.label || 'Image'} style={{ width: '100%', borderRadius: 12, objectFit: 'contain', maxHeight: 200 }} />
+              ) : null;
+
+            case 'divider':
+              return <hr key={field.name} style={{ border: 'none', borderTop: '1px solid #E5E7EB', margin: '4px 0' }} />;
+
+            case 'html':
+              return (
+                <div key={field.name} style={{ fontSize: 13, color: textColor }}
+                  dangerouslySetInnerHTML={{ __html: field.htmlContent || '' }} />
+              );
+
+            case 'trust_badge':
+              return (
+                <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                  <Shield size={16} style={{ color: '#16A34A', flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#15803D' }}>{field.label || 'Paiement sécurisé'}</span>
+                </div>
+              );
+
+            case 'guarantee':
+              return (
+                <div key={field.name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, backgroundColor: '#EFF6FF', border: '1px solid #BFDBFE' }}>
+                  <CheckCircle size={16} style={{ color: '#2563EB', flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#1D4ED8' }}>{field.label || 'Satisfait ou remboursé'}</span>
+                </div>
+              );
+
+            case 'consent':
+              return (
+                <label key={field.name} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, cursor: 'pointer', color: textColor }}>
+                  <input type="checkbox" checked={!!form[field.name]} onChange={e => set(field.name, e.target.checked)}
+                    style={{ accentColor: btnColor, marginTop: 2, flexShrink: 0 }} />
+                  <span>{field.label}</span>
+                </label>
+              );
+
+            case 'radio':
+              return (
+                <div key={field.name} style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 4 }}>
+                  {field.showLabel !== false && <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: textColor }}>{field.label}</p>}
+                  {(field.options || []).map((opt, j) => (
+                    <label key={j} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: textColor, cursor: 'pointer' }}>
+                      <input type="radio" name={field.name} value={opt}
+                        checked={form[field.name] === opt}
+                        onChange={() => set(field.name, opt)}
+                        style={{ accentColor: btnColor }} />
+                      {opt}
+                    </label>
+                  ))}
+                </div>
+              );
+
+            case 'checkbox':
+              return (
+                <div key={field.name} style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 4 }}>
+                  {field.showLabel !== false && <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: textColor }}>{field.label}</p>}
+                  {(field.options || []).map((opt, j) => (
+                    <label key={j} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: textColor, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={(form[field.name] || []).includes(opt)}
+                        onChange={e => {
+                          const arr = form[field.name] || [];
+                          set(field.name, e.target.checked ? [...arr, opt] : arr.filter(v => v !== opt));
+                        }}
+                        style={{ accentColor: btnColor }} />
+                      {opt}
+                    </label>
+                  ))}
+                </div>
+              );
+
+            case 'address':
+              return (
+                <div key={field.name} style={{ position: 'relative' }}>
+                  {field.showIcon !== false && <span style={iconStyle}><MapPin size={15} /></span>}
+                  <input type="text" placeholder={ph} value={form[field.name] || ''}
+                    onChange={e => set(field.name, e.target.value)}
+                    style={inputStyle}
+                    onFocus={e => e.currentTarget.style.borderColor = btnColor}
+                    onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
+                </div>
+              );
+
+            case 'country':
+              return (
+                <div key={field.name} style={{ position: 'relative' }}>
+                  {field.showIcon !== false && <span style={iconStyle}><Globe size={15} /></span>}
+                  <input type="text" placeholder={ph} value={form[field.name] || ''}
+                    onChange={e => set(field.name, e.target.value)}
+                    style={inputStyle}
+                    onFocus={e => e.currentTarget.style.borderColor = btnColor}
+                    onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
+                </div>
+              );
+
+            case 'testimonials': {
+              const testimonials = field.testimonials || [];
+              return testimonials.length > 0 ? (
+                <div key={field.name} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {field.showLabel !== false && <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: textColor }}>{field.label}</p>}
+                  <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+                    {testimonials.map((t, ti) => (
+                      <div key={ti} style={{ minWidth: 200, maxWidth: 220, flexShrink: 0, backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 12, padding: 12 }}>
+                        <div style={{ display: 'flex', gap: 2, marginBottom: 4 }}>
+                          {[1,2,3,4,5].map(s => (
+                            <Star key={s} size={12} style={{ color: s <= (t.rating || 5) ? '#FACC15' : '#D1D5DB', fill: s <= (t.rating || 5) ? '#FACC15' : 'none' }} />
+                          ))}
+                        </div>
+                        <p style={{ margin: 0, fontSize: 12, color: '#4B5563', lineHeight: 1.4 }}>"{t.text}"</p>
+                        <p style={{ margin: '4px 0 0', fontSize: 11, fontWeight: 600, color: '#1F2937' }}>— {t.name}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null;
+            }
 
             case 'summary':
               return (
