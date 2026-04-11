@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ShoppingCart, Search, ChevronLeft, ChevronRight, Loader2, AlertCircle, Phone, Plus, MoreHorizontal, Filter, Columns3, ArrowUpDown, X, MapPin, Clock, Trash2, MessageCircle, Package, Edit3 } from 'lucide-react';
 import { storeOrdersApi } from '../services/storeApi.js';
 import { Link, useNavigate } from 'react-router-dom';
+import { formatMoney } from '../utils/currency.js';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Toutes' },
@@ -129,7 +130,7 @@ const StoreOrdersDashboard = () => {
     }
   };
 
-  const formatPrice = (amount) => new Intl.NumberFormat('fr-FR').format(amount || 0) + ' FCFA';
+  const formatPrice = (amount) => formatMoney(amount);
 
   const formatDate = (dateStr) => {
     const d = new Date(dateStr);

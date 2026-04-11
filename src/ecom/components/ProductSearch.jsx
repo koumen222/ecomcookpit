@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { publicSearch } from '../services/publicApi.js';
+import { formatMoney } from '../utils/currency.js';
 
 const ProductSearch = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -41,12 +42,7 @@ const ProductSearch = () => {
     }
   };
 
-  const formatPrice = (price) => {
-    return new Intl.NumberFormat('fr-FR', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(price);
-  };
+  const formatPrice = (price) => formatMoney(price);
 
   const getStatusBadge = (status) => {
     const statusConfig = {

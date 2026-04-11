@@ -236,7 +236,7 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
     // Fetch initial products + categories in parallel
     const [products, categories, totalProducts] = await Promise.all([
       StoreProduct.find({ ...prodFilter, isPublished: true })
-      .select('name slug price compareAtPrice currency stock images category tags')
+      .select('name slug price compareAtPrice currency country targetMarket city locale stock images category tags')
       .sort('-createdAt')
       .limit(20)
       .lean(),
@@ -248,14 +248,18 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
 
     const storeCurrency = settings.storeCurrency || settings.currency || 'XAF';
 
-    // Lightweight product mapping
+    // Per-product currency/country overrides the store default (multi-market support).
     const lightProducts = products.map(p => ({
       _id: p._id,
       name: p.name,
       slug: p.slug,
       price: p.price,
       compareAtPrice: p.compareAtPrice,
-      currency: storeCurrency,
+      currency: p.currency || storeCurrency,
+      country: p.country || '',
+      targetMarket: p.targetMarket || '',
+      city: p.city || '',
+      locale: p.locale || '',
       stock: p.stock,
       image: p.images?.[0]?.url || '',
       category: p.category
@@ -363,7 +367,7 @@ router.get('/:subdomain/products', readLimiter, async (req, res) => {
 
     const [products, total] = await Promise.all([
       StoreProduct.find(filter)
-        .select('name slug price compareAtPrice currency stock images category tags')
+        .select('name slug price compareAtPrice currency country targetMarket city locale stock images category tags')
         .sort(sort)
         .limit(limitNum)
         .skip(skip)
@@ -378,7 +382,11 @@ router.get('/:subdomain/products', readLimiter, async (req, res) => {
       slug: p.slug,
       price: p.price,
       compareAtPrice: p.compareAtPrice,
-      currency: storeCurrencyPag,
+      currency: p.currency || storeCurrencyPag,
+      country: p.country || '',
+      targetMarket: p.targetMarket || '',
+      city: p.city || '',
+      locale: p.locale || '',
       stock: p.stock,
       image: p.images?.[0]?.url || '',
       category: p.category
@@ -440,7 +448,11 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
     // Product pages cached 10 minutes — they change rarely
     setCacheHeaders(res, 600);
 
-    const productCurrency = workspace.storeSettings?.storeCurrency || workspace.storeSettings?.currency || product.currency || 'XAF';
+    // Per-product-page currency/country ALWAYS override the store's global config.
+    // Why: a single store can publish multiple product pages, each targeting a different market.
+    const productCurrency = product.currency || workspace.storeSettings?.storeCurrency || workspace.storeSettings?.currency || 'XAF';
+    const productCountry = product.country || workspace.storeSettings?.country || '';
+    const productLocale = product.locale || workspace.storeSettings?.locale || '';
 
     res.json({
       success: true,
@@ -452,6 +464,10 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
         price: product.price,
         compareAtPrice: product.compareAtPrice,
         currency: productCurrency,
+        country: productCountry,
+        targetMarket: product.targetMarket || '',
+        city: product.city || '',
+        locale: productLocale,
         stock: product.stock,
         images: product.images || [],
         category: product.category,

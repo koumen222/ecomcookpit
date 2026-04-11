@@ -205,6 +205,7 @@ const getDefaultContent = (sectionId, product) => {
 const SectionContentEditor = ({ section, onChange, product }) => {
   const schema = EDITABLE_SECTIONS[section.id];
   const [galleryUploading, setGalleryUploading] = useState(false);
+  const [galleryUploadError, setGalleryUploadError] = useState('');
   if (!schema) return (
     <div className="text-[11px] text-gray-400 italic py-2">Contenu généré automatiquement par l'IA ou géré via les paramètres de la boutique.</div>
   );
@@ -383,12 +384,18 @@ const SectionContentEditor = ({ section, onChange, product }) => {
     const uploadImages = async (files, replaceIndex = null) => {
       if (!files?.length) return;
       setGalleryUploading(true);
+      setGalleryUploadError('');
       try {
         const res = await storeProductsApi.uploadImages(Array.from(files));
         // Backend returns { success, data: [{ id, url, key, filename, size }] }
         const uploaded = res.data?.data || res.data?.urls || res.data?.images || [];
-        const urls = uploaded.map(item => typeof item === 'string' ? item : item?.url).filter(Boolean);
-        if (!urls.length) return;
+        const urls = (Array.isArray(uploaded) ? uploaded : [])
+          .map(item => typeof item === 'string' ? item : item?.url)
+          .filter(Boolean);
+        if (!urls.length) {
+          setGalleryUploadError('Aucune URL retournée par le serveur. Vérifiez la configuration Cloudflare Images.');
+          return;
+        }
 
         if (replaceIndex !== null && urls[0]) {
           updateImage(replaceIndex, 'url', urls[0]);
@@ -398,6 +405,8 @@ const SectionContentEditor = ({ section, onChange, product }) => {
         saveImages([...images, ...urls.map((url) => ({ url, alt: '' }))], false);
       } catch (error) {
         console.error('Gallery image upload failed:', error);
+        const msg = error?.response?.data?.message || error?.message || 'Erreur inconnue';
+        setGalleryUploadError(`Échec de l'upload : ${msg}`);
       } finally {
         setGalleryUploading(false);
       }
@@ -474,6 +483,13 @@ const SectionContentEditor = ({ section, onChange, product }) => {
           {usingNativeImages && (
             <div className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-2 text-[10px] text-blue-700">
               Les photos actuelles du produit sont chargées automatiquement ici. Si tu remplaces, supprimes ou réordonnes une image, la galerie passe en mode personnalisé.
+            </div>
+          )}
+          {galleryUploadError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-2 text-[10px] text-red-700 flex items-center gap-1.5">
+              <AlertCircle size={12} className="shrink-0" />
+              <span>{galleryUploadError}</span>
+              <button onClick={() => setGalleryUploadError('')} className="ml-auto p-0.5 text-red-400 hover:text-red-600"><X size={10} /></button>
             </div>
           )}
           {images.length === 0 && (

@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Eye, EyeOff, ChevronDown, ChevronUp, Plus, Trash2, Star, Upload, Loader2 } from 'lucide-react';
+import { GripVertical, Eye, EyeOff, ChevronDown, ChevronUp, Plus, Trash2, Star, Upload, Loader2, AlertCircle, X } from 'lucide-react';
 import { storeProductsApi } from '../../services/storeApi.js';
 
 const SECTION_META = {
@@ -90,6 +90,7 @@ const normalizeToPreset = (value, presets, fallback) => {
 const SectionContentEditor = ({ section, onChange }) => {
   const schema = EDITABLE_SECTIONS[section.id];
   const [galleryUploading, setGalleryUploading] = useState(false);
+  const [galleryUploadError, setGalleryUploadError] = useState('');
   if (!schema) return (
     <div className="text-[11px] text-gray-400 italic py-1">Contenu généré automatiquement par l'IA</div>
   );
@@ -240,10 +241,15 @@ const SectionContentEditor = ({ section, onChange }) => {
     const uploadImages = async (files, replaceIndex = null) => {
       if (!files?.length) return;
       setGalleryUploading(true);
+      setGalleryUploadError('');
       try {
         const res = await storeProductsApi.uploadImages(Array.from(files));
-        const urls = res.data?.urls || res.data?.images || [];
-        if (!urls.length) return;
+        const uploaded = res.data?.data || [];
+        const urls = (Array.isArray(uploaded) ? uploaded : []).map(img => typeof img === 'string' ? img : img?.url).filter(Boolean);
+        if (!urls.length) {
+          setGalleryUploadError('Aucune URL retournée par le serveur.');
+          return;
+        }
 
         if (replaceIndex !== null && urls[0]) {
           updateImage(replaceIndex, 'url', urls[0]);
@@ -257,6 +263,8 @@ const SectionContentEditor = ({ section, onChange }) => {
         update('images', nextImages);
       } catch (error) {
         console.error('Gallery image upload failed:', error);
+        const msg = error?.response?.data?.message || error?.message || 'Erreur inconnue';
+        setGalleryUploadError(`Échec de l'upload : ${msg}`);
       } finally {
         setGalleryUploading(false);
       }
@@ -330,6 +338,13 @@ const SectionContentEditor = ({ section, onChange }) => {
               </button>
             </div>
           </div>
+          {galleryUploadError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-2.5 py-2 text-[10px] text-red-700 flex items-center gap-1.5">
+              <AlertCircle size={12} className="shrink-0" />
+              <span>{galleryUploadError}</span>
+              <button onClick={() => setGalleryUploadError('')} className="ml-auto p-0.5 text-red-400 hover:text-red-600"><X size={10} /></button>
+            </div>
+          )}
           {images.length === 0 && (
             <div className="text-[10px] text-gray-400">Uploadez vos images ou collez une URL. Si l'option ci-dessus est activée, elles seront ajoutées au carrousel; sinon elles remplaceront les photos produit.</div>
           )}

@@ -16,12 +16,12 @@ import { EditModeProvider, useEditMode } from '../contexts/EditModeContext';
 import { EditableWrapper, EditToolbar } from '../components/storefront/EditableWrapper';
 import { useStoreAnalytics } from '../hooks/useStoreAnalytics';
 import { StorefrontFooter as SharedStorefrontFooter } from '../components/StorefrontShared';
+import { formatMoney } from '../utils/currency.js';
 
 // Lazy load des sections below-the-fold pour performance
 const TestimonialsCarousel = lazy(() => import('../components/TestimonialsCarousel'));
 
-const fmt = (n, cur = 'XAF') =>
-  `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
+const fmt = (n, cur = 'XAF') => formatMoney(n, cur);
 
 const normalizeMetaText = (value = '') => String(value || '')
   .replace(/<[^>]*>/g, ' ')

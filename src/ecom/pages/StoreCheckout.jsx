@@ -6,6 +6,7 @@ import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
 import { setDocumentMeta } from '../utils/pageMeta';
 import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking.js';
+import { formatMoney } from '../utils/currency.js';
 
 /**
  * Normalize a city name for fuzzy matching.
@@ -213,7 +214,7 @@ const StoreCheckout = () => {
     setError('');
   };
 
-  const formatPrice = (price) => new Intl.NumberFormat('fr-FR').format(price);
+  const formatPrice = (price, cur) => formatMoney(price, cur);
   const themeColor = store?.themeColor || '#0F6B4F';
   const cartCurrencies = [...new Set(cartProducts.map((p) => String(p.currency || '').trim().toUpperCase()).filter(Boolean))];
   const currency = cartCurrencies.length === 1 ? cartCurrencies[0] : (store?.currency || 'XAF');
@@ -303,7 +304,7 @@ const StoreCheckout = () => {
 
   // Order confirmation screen
   if (orderResult) {
-    const whatsappMsg = `Bonjour ! 👋\n\nJe viens de passer une commande sur votre boutique.\n\n📦 *Commande N° ${orderResult.orderNumber}*\n💰 *Montant : ${formatPrice(orderResult.total)} ${orderResult.currency}*\n\n👤 Nom : ${form.customerName}\n📞 Téléphone : ${form.phone}${form.country ? `\n🌍 Pays : ${form.country}` : ''}${form.city ? `\n📍 Ville : ${form.city}` : ''}${form.address ? `\nAdresse : ${form.address}` : ''}${form.notes ? `\n📝 Notes : ${form.notes}` : ''}${deliveryStatus.type === 'livraison' ? '\n🚚 Mode : Livraison (paiement à la réception)' : deliveryStatus.type === 'expedition' ? '\n📦 Mode : Expédition (paiement avant envoi)' : ''}\n\nMerci de confirmer ma commande ! 🙏`;
+    const whatsappMsg = `Bonjour ! 👋\n\nJe viens de passer une commande sur votre boutique.\n\n📦 *Commande N° ${orderResult.orderNumber}*\n💰 *Montant : ${formatPrice(orderResult.total, orderResult.currency)}*\n\n👤 Nom : ${form.customerName}\n📞 Téléphone : ${form.phone}${form.country ? `\n🌍 Pays : ${form.country}` : ''}${form.city ? `\n📍 Ville : ${form.city}` : ''}${form.address ? `\nAdresse : ${form.address}` : ''}${form.notes ? `\n📝 Notes : ${form.notes}` : ''}${deliveryStatus.type === 'livraison' ? '\n🚚 Mode : Livraison (paiement à la réception)' : deliveryStatus.type === 'expedition' ? '\n📦 Mode : Expédition (paiement avant envoi)' : ''}\n\nMerci de confirmer ma commande ! 🙏`;
 
     const storeWhatsapp = (store?.whatsapp || store?.phone || '').replace(/[^0-9+]/g, '');
     const whatsappLink = storeWhatsapp
@@ -383,7 +384,7 @@ const StoreCheckout = () => {
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Total</span>
                   <span className="font-bold text-lg" style={{ color: themeColor }}>
-                    {formatPrice(orderResult.total)} {orderResult.currency}
+                    {formatPrice(orderResult.total, orderResult.currency)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
@@ -469,19 +470,19 @@ const StoreCheckout = () => {
                 <p className="text-xs text-gray-500">x{p.quantity}</p>
               </div>
               <span className="text-sm font-bold text-gray-900">
-                {formatPrice(p.price * p.quantity)} {currency}
+                {formatPrice(p.price * p.quantity, currency)}
               </span>
             </div>
           ))}
           <div className="pt-2 border-t border-gray-100 space-y-1">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Sous-total</span>
-              <span className="font-medium text-gray-900">{formatPrice(subtotal)} {currency}</span>
+              <span className="font-medium text-gray-900">{formatPrice(subtotal, currency)}</span>
             </div>
             {deliveryCost > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Livraison</span>
-                <span className="font-medium text-gray-900">{formatPrice(deliveryCost)} {currency}</span>
+                <span className="font-medium text-gray-900">{formatPrice(deliveryCost, currency)}</span>
               </div>
             )}
             {deliveryStatus.type === 'expedition' && (
@@ -493,7 +494,7 @@ const StoreCheckout = () => {
             <div className="flex justify-between pt-1">
               <span className="text-sm font-semibold text-gray-900">Total</span>
               <span className="text-base font-bold" style={{ color: themeColor }}>
-                {formatPrice(total)} {currency}
+                {formatPrice(total, currency)}
               </span>
             </div>
           </div>
@@ -628,7 +629,7 @@ const StoreCheckout = () => {
                 <p className="font-medium">{deliveryStatus.type === 'livraison' ? 'Livraison' : 'Expédition'}</p>
                 <p className="text-xs mt-0.5 opacity-80">{deliveryStatus.message}</p>
                 {deliveryStatus.cost > 0 && (
-                  <p className="text-xs font-bold mt-1">Frais : {formatPrice(deliveryStatus.cost)} {currency}</p>
+                  <p className="text-xs font-bold mt-1">Frais : {formatPrice(deliveryStatus.cost, currency)}</p>
                 )}
               </div>
             </div>
@@ -673,7 +674,7 @@ const StoreCheckout = () => {
             ) : (
               <ShoppingCart className="w-4 h-4" />
             )}
-            {submitting ? 'Traitement...' : `Passer la commande · ${formatPrice(total)} ${currency}`}
+            {submitting ? 'Traitement...' : `Passer la commande · ${formatPrice(total, currency)}`}
           </button>
         </form>
       </div>

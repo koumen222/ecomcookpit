@@ -261,11 +261,20 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
           if (r2Result.success && r2Result.url) {
             imageUrls = [r2Result.url];
             console.log(`📎 Image ref uploadée vers R2: ${r2Result.url.slice(0, 80)}...`);
+          } else {
+            throw new Error(r2Result?.error || 'R2 upload returned no URL');
           }
         } catch (r2Err) {
-          console.warn(`⚠️ R2 upload also failed: ${r2Err.message} — text-only mode`);
+          // DO NOT fall back to text-to-image silently — the caller asked for
+          // image-to-image with a product reference. Failing loudly lets the
+          // upstream retry logic try again with a fresh upload instead of
+          // producing a visual without the product.
+          throw new Error(`Product reference upload failed (kie + r2): ${uploadErr.message} / ${r2Err.message}`);
         }
       }
+    }
+    if (imageInput && imageUrls.length === 0) {
+      throw new Error('Image reference requested but no imageUrls available — refusing to fall back to text-to-image');
     }
     return await generateViaGrokImagine(prompt, imageUrls, aspectRatio);
   } catch (err) {

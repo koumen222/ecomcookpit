@@ -4,6 +4,7 @@ import { storeManageApi, storeProductsApi } from '../services/storeApi';
 import { useStore } from '../contexts/StoreContext.jsx';
 import defaultConfig from '../components/productSettings/defaultConfig.js';
 import { PHONE_CODES } from '../utils/phoneCodes.js';
+import { formatMoney } from '../utils/currency.js';
 
 const deepClone = (obj) => JSON.parse(JSON.stringify(obj));
 
@@ -200,9 +201,10 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
                       onChange(index, '_uploading', true);
                       try {
                         const res = await storeProductsApi.uploadImages([file]);
-                        const urls = res.data?.urls || res.data?.images || [];
-                        if (urls.length > 0) {
-                          onChange(index, 'imageUrl', urls[0]);
+                        const uploaded = res.data?.data || [];
+                        const url = uploaded[0]?.url;
+                        if (url) {
+                          onChange(index, 'imageUrl', url);
                         }
                       } catch (err) {
                         console.error('Upload failed:', err);
@@ -1096,7 +1098,7 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
   );
 };
 
-const fmtPrice = (n, cur = 'XAF') => n ? `${new Intl.NumberFormat('fr-FR').format(Math.round(n))} ${cur}` : '—';
+const fmtPrice = (n, cur = 'XAF') => n ? formatMoney(n, cur) : '—';
 
 // ── Aperçu d'une offre (identique au rendu boutique) ─────────────────────────
 const OfferPreviewCard = ({ offer, basePrice, currency, accentColor, selected, onClick }) => {
