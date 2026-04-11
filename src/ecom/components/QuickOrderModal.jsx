@@ -25,7 +25,6 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
   const [cityOptions, setCityOptions] = useState([]);
   const [countdownSecs, setCountdownSecs] = useState(null);
 
-  const themeColor = getComputedStyle(document.documentElement).getPropertyValue('--s-primary').trim() || store?.primaryColor || '#0F6B4F';
   const currency = product?.currency || 'XAF';
 
   // ── Resolve config with safe fallbacks ──────────────────────────────────────
@@ -34,15 +33,15 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
   const conversionConfig = productPageConfig?.conversion || {};
 
   const offerDesign = conversionConfig.offerDesign || null;
-  const btnColor = offerDesign?.colors?.primary || conversionConfig.accentColor || design.buttonColor || themeColor;
+  const btnColor = design.formButtonColor || '#0F6B4F';
   const offerBorderStyle = offerDesign?.border_style || 'solid';
   const urgencyConfig = productPageConfig?.urgency || defaultConfig.urgency || {};
   const callScheduleConfig = productPageConfig?.callSchedule || defaultConfig.callSchedule || {};
-  const bgColor = design.backgroundColor || '#ffffff';
-  const textColor = design.textColor || '#111827';
+  const bgColor = design.formBgColor || '#ffffff';
+  const textColor = design.formTextColor || '#111827';
   const inputTextColor = '#111827'; // Always dark for inputs on white/light backgrounds
-  const borderRadius = design.borderRadius || '12px';
-  const boxShadow = design.shadow !== false ? '0 24px 64px rgba(0,0,0,0.18)' : 'none';
+  const borderRadius = design.formInputRadius || '12px';
+  const boxShadow = design.formShadow !== false ? '0 24px 64px rgba(0,0,0,0.18)' : 'none';
 
   const configFields = formConfig.fields || [];
   const effectiveFields = configFields.length ? configFields : defaultConfig.form.fields;
@@ -119,6 +118,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
       const res = await publicStoreApi.placeOrder(subdomain, {
         customerName: form.customerName.trim(),
         phone: fullPhone,
+        phoneCode,
         email: '',
         address: form.address.trim(),
         city: form.city.trim(),
@@ -155,7 +155,8 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
   if (success && orderResult) {
     const firstName = form.customerName.split(' ')[0];
     const storeWhatsapp = (store?.whatsapp || store?.phone || '').replace(/[^0-9+]/g, '');
-    const waMsg = `Bonjour ! 👋\n\nJe viens de passer une commande sur votre boutique.\n\n📦 *Commande N° ${orderResult.orderNumber}*\n💰 *Montant : ${fmt(orderResult.total, orderResult.currency)}*\n👤 Nom : ${form.customerName}\n📞 Téléphone : ${form.phone}\n\nMerci de confirmer ma commande ! 🙏`;
+    const displayPhone = buildFullPhone(phoneCode, form.phone);
+    const waMsg = `Bonjour ! 👋\n\nJe viens de passer une commande sur votre boutique.\n\n📦 *Commande N° ${orderResult.orderNumber}*\n💰 *Montant : ${fmt(orderResult.total, orderResult.currency)}*\n👤 Nom : ${form.customerName}\n📞 Téléphone : ${displayPhone}\n\nMerci de confirmer ma commande ! 🙏`;
     const waLink = storeWhatsapp ? `https://wa.me/${storeWhatsapp.replace(/^\+/, '')}?text=${encodeURIComponent(waMsg)}` : null;
 
     return (
@@ -321,27 +322,6 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
               case 'number':
               case 'date': {
                 const inputType = { phone: 'tel', email: 'email', number: 'number', date: 'date' }[field.type] || 'text';
-                if (field.type === 'phone') {
-                  return (
-                    <div key={field.name} style={{ display: 'flex', gap: 0 }}>
-                      <div style={{ position: 'relative', flexShrink: 0 }}>
-                        <select value={phoneCode} onChange={e => setPhoneCode(e.target.value)}
-                          style={{ appearance: 'none', WebkitAppearance: 'none', padding: '11px 22px 11px 8px', borderRadius: `${borderRadius} 0 0 ${borderRadius}`, border: '1.5px solid #E5E7EB', borderRight: 'none', fontSize: 13, fontWeight: 600, background: '#F9FAFB', cursor: 'pointer', outline: 'none', fontFamily: 'inherit', color: inputTextColor, minWidth: 80 }}>
-                          {PHONE_CODES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
-                        </select>
-                        <ChevronDown size={12} style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', pointerEvents: 'none' }} />
-                      </div>
-                      <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
-                        {IconComp && <span style={iconStyle}><IconComp size={15} /></span>}
-                        <input type="tel" value={form[formKey] || ''} onChange={e => set(formKey, e.target.value)}
-                          placeholder={ph || '6XX XXX XXX'} required={field.required !== false}
-                          style={{ ...inputStyle, borderRadius: `0 ${borderRadius} ${borderRadius} 0` }}
-                          onFocus={e => e.currentTarget.style.borderColor = btnColor}
-                          onBlur={e => e.currentTarget.style.borderColor = '#E5E7EB'} />
-                      </div>
-                    </div>
-                  );
-                }
                 return (
                   <div key={field.name} style={{ position: 'relative' }}>
                     {IconComp && <span style={iconStyle}><IconComp size={15} /></span>}
@@ -358,7 +338,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
                 return (
                   <div key={field.name} style={{ position: 'relative' }}>
                     {IconComp && <span style={iconStyle}><IconComp size={15} /></span>}
-                    {cityOptions.length > 0 ? (<>
+                    {field.cityAuto !== false && cityOptions.length > 0 ? (<>
                       <select value={form[formKey] || ''} onChange={e => set(formKey, e.target.value)} required={field.required !== false}
                         style={{ ...inputStyle, paddingRight: 34, appearance: 'none', WebkitAppearance: 'none', cursor: 'pointer', color: form[formKey] ? inputTextColor : '#9CA3AF' }}
                         onFocus={e => e.currentTarget.style.borderColor = btnColor}

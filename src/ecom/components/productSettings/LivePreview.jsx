@@ -70,8 +70,8 @@ const LivePreview = ({ config, product: productProp, onSectionClick, activeSecti
   const cur = product?.currency || 'XAF';
 
   const enabledFields = form.fields.filter(f => f.enabled);
-  const btnColor = design.buttonColor || '#ff6600';
-  const radius = typeof design.borderRadius === 'number' ? `${design.borderRadius}px` : design.borderRadius;
+  const btnColor = design.formButtonColor || '#ff6600';
+  const radius = design.formInputRadius || design.borderRadius || '8px';
   const radiusNum = parseInt(radius) || 8;
   const hasShadow = design.shadow !== false;
   const sections = general.sections || [];
@@ -717,7 +717,7 @@ const LivePreview = ({ config, product: productProp, onSectionClick, activeSecti
           borderRadius: 20,
         }} onClick={() => setPopupOpen(false)}>
           <div style={{
-            backgroundColor: design.backgroundColor || '#fff',
+            backgroundColor: design.formBgColor || '#fff',
             borderRadius: '16px 16px 0 0', padding: '14px 14px 20px',
             width: '100%', maxHeight: '80%', overflowY: 'auto',
             boxShadow: hasShadow ? '0 -8px 32px rgba(0,0,0,0.15)' : 'none',
@@ -725,7 +725,7 @@ const LivePreview = ({ config, product: productProp, onSectionClick, activeSecti
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <BtnIcon size={12} color={btnColor} />
-                <span style={{ fontSize: 11, fontWeight: 800, color: design.textColor || '#111827' }}>{btnText}</span>
+                <span style={{ fontSize: 11, fontWeight: 800, color: design.formTextColor || '#111827' }}>{btnText}</span>
               </div>
               <button onClick={() => setPopupOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
                 <X size={14} color="#9CA3AF" />

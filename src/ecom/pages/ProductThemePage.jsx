@@ -300,7 +300,7 @@ const ProductThemePage = () => {
       const raw = res.data?.data || res.data || {};
       const existingConfig = raw.storeSettings?.productPageConfig || raw.productPageConfig || {};
       await storeManageApi.updateStoreConfig({
-        productPageConfig: { ...existingConfig, theme: currentTheme, design },
+        productPageConfig: { ...existingConfig, theme: currentTheme, design: { ...existingConfig.design, ...design } },
       });
       setOriginalData({ theme: currentTheme, design: { ...design } });
       setSaved(true);

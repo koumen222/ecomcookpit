@@ -184,6 +184,25 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
             </label>
           </div>
 
+          {/* City auto mode toggle */}
+          {field.type === 'city_select' && (
+            <div className="flex items-center gap-3 p-2 rounded-lg bg-blue-50 border border-blue-100">
+              <span className="text-[11px] text-blue-700 font-semibold">Mode ville :</span>
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input type="radio" name={`city_mode_${index}`} className="accent-emerald-600 w-3.5 h-3.5"
+                  checked={field.cityAuto !== false}
+                  onChange={() => onChange(index, 'cityAuto', true)} />
+                <span className="text-[11px] text-gray-700 font-medium">Auto (liste déroulante)</span>
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input type="radio" name={`city_mode_${index}`} className="accent-emerald-600 w-3.5 h-3.5"
+                  checked={field.cityAuto === false}
+                  onChange={() => onChange(index, 'cityAuto', false)} />
+                <span className="text-[11px] text-gray-700 font-medium">Manuel (saisie libre)</span>
+              </label>
+            </div>
+          )}
+
           {/* Icon picker + icon color */}
           {field.showIcon !== false && (
             <div className="grid grid-cols-2 gap-2">
@@ -235,7 +254,7 @@ const CUSTOM_FIELD_TYPES = [
   { type: 'number', label: 'Nombre', icon: '🔢', defaults: { name: 'custom_number', label: 'Quantité', placeholder: '1', icon: 'hash', showLabel: true, showIcon: true, required: false } },
   { type: 'date', label: 'Date', icon: '📅', defaults: { name: 'custom_date', label: 'Date', placeholder: 'JJ/MM/AAAA', icon: 'calendar', showLabel: true, showIcon: true, required: false } },
   { type: 'select', label: 'Liste déroulante', icon: '📋', defaults: { name: 'custom_select', label: 'Choisir', placeholder: 'Sélectionner...', icon: 'none', showLabel: true, showIcon: false, required: false, options: ['Option 1', 'Option 2'] } },
-  { type: 'city_select', label: 'Ville (auto)', icon: '🏙️', defaults: { name: 'custom_city', label: 'Ville', placeholder: 'Ex : Douala', icon: 'map', showLabel: true, showIcon: true, required: false } },
+  { type: 'city_select', label: 'Ville', icon: '🏙️', defaults: { name: 'custom_city', label: 'Ville', placeholder: 'Ex : Douala', icon: 'map', showLabel: true, showIcon: true, required: false, cityAuto: false } },
   { type: 'title', label: 'Titre / Slogan', icon: '✏️', defaults: { name: 'custom_title', label: 'Veuillez remplir le formulaire', type: 'title', editable: false, enabled: true } },
   { type: 'summary', label: 'Récapitulatif', icon: '📦', defaults: { name: 'custom_summary', label: 'Récapitulatif de la commande', type: 'summary', editable: false, enabled: true } },
   { type: 'urgency', label: 'Compte à rebours', icon: '⏱️', defaults: { name: 'custom_timer', label: 'Compte à rebours', editable: false, enabled: true } },
@@ -252,8 +271,8 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
   const fields = config.form?.fields?.filter(f => f.enabled) || [];
   const btn = config.button || {};
   const design = config.design || {};
-  const btnColor = design.buttonColor || '#D94A1F';
-  const btnRadius = design.borderRadius || '8px';
+  const btnColor = design.formButtonColor || shopColor || '#0F6B4F';
+  const btnRadius = design.formInputRadius || '8px';
   const isEmbedded = config.general?.formType === 'embedded';
   const callSchedule = config.callSchedule || {};
   const urgency = config.urgency || {};
@@ -265,8 +284,8 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
   const formBorderWidth = design.formBorderWidth || '1px';
   const formShadowVal = parseInt(design.formShadow) || 0;
   const formShadow = formShadowVal > 0 ? `0 ${formShadowVal}px ${formShadowVal * 2}px rgba(0,0,0,${Math.min(formShadowVal * 0.02, 0.3).toFixed(2)})` : 'none';
-  const formBgColor = design.backgroundColor || '#ffffff';
-  const formTextColor = design.textColor || '#1F2937';
+  const formBgColor = design.formBgColor || '#ffffff';
+  const formTextColor = design.formTextColor || '#1F2937';
   const formFontSize = design.fontSize || '16px';
   const formBold = design.formBold || false;
   const formItalic = design.formItalic || false;
@@ -332,6 +351,7 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
           </div>
         );
       case 'city_select': {
+        const isCityAuto = field.cityAuto !== false;
         return (
           <div key={i} className="border h-12 flex items-center gap-0 overflow-hidden"
             style={{ borderColor, backgroundColor: fieldBg, borderRadius: fieldRadius, borderWidth: formBorderWidth }}>
@@ -343,7 +363,7 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
             )}
             <div className="flex-1 px-3 flex items-center justify-between">
               <span className="text-sm" style={{ color: '#9ca3af' }}>{placeholderText}</span>
-              <ChevronDown size={14} className="text-gray-400 flex-shrink-0" />
+              {isCityAuto && <ChevronDown size={14} className="text-gray-400 flex-shrink-0" />}
             </div>
           </div>
         );
@@ -565,7 +585,13 @@ const BoutiqueFormBuilder = () => {
       const res = await storeManageApi.getStoreConfig();
       const raw = res.data?.data || res.data || {};
       const existing = raw.storeSettings?.productPageConfig || raw.productPageConfig || {};
-      await storeManageApi.updateStoreConfig({ productPageConfig: { ...existing, ...config } });
+      // Deep merge design to avoid overwriting theme properties
+      const mergedConfig = {
+        ...existing,
+        ...config,
+        design: { ...existing.design, ...config.design },
+      };
+      await storeManageApi.updateStoreConfig({ productPageConfig: mergedConfig });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch {
@@ -791,13 +817,13 @@ const BoutiqueFormBuilder = () => {
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-[11px] font-semibold text-gray-500 mb-1">Couleur de l'arrière plan</label>
+                  <label className="block text-[11px] font-semibold text-gray-500 mb-1">Couleur du bouton</label>
                   <div className="flex items-center gap-2">
-                    <input type="color" value={config.design?.buttonColor || '#007122'}
-                      onChange={e => update(c => ({ ...c, design: { ...c.design, buttonColor: e.target.value } }))}
+                    <input type="color" value={config.design?.formButtonColor || config.design?.buttonColor || shopColor || '#0F6B4F'}
+                      onChange={e => update(c => ({ ...c, design: { ...c.design, formButtonColor: e.target.value } }))}
                       className="w-7 h-7 border border-gray-200 rounded-lg cursor-pointer flex-shrink-0" />
-                    <input className={inputCls + ' font-mono text-[11px]'} value={config.design?.buttonColor || '#007122'}
-                      onChange={e => update(c => ({ ...c, design: { ...c.design, buttonColor: e.target.value } }))} />
+                    <input className={inputCls + ' font-mono text-[11px]'} value={config.design?.formButtonColor || config.design?.buttonColor || shopColor || '#0F6B4F'}
+                      onChange={e => update(c => ({ ...c, design: { ...c.design, formButtonColor: e.target.value } }))} />
                   </div>
                 </div>
                 <div>
@@ -845,8 +871,8 @@ const BoutiqueFormBuilder = () => {
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-500 mb-1">Coins arrondis</label>
                   <input type="range" min="0" max="40" className="w-full"
-                    value={parseInt(config.design?.borderRadius) || 8}
-                    onChange={e => update(c => ({ ...c, design: { ...c.design, borderRadius: `${e.target.value}px` } }))} />
+                    value={parseInt(config.design?.formInputRadius || config.design?.borderRadius) || 8}
+                    onChange={e => update(c => ({ ...c, design: { ...c.design, formInputRadius: `${e.target.value}px` } }))} />
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-500 mb-1">Ombre</label>
@@ -952,39 +978,6 @@ const BoutiqueFormBuilder = () => {
               </div>
             </div>
 
-            {/* ─── Modèles ─── */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-gray-800">Modèles</h3>
-                <button onClick={() => update(_ => mergeWithDefaults(null))}
-                  className="text-[11px] text-gray-400 hover:text-gray-600 font-medium">Restaurer les valeurs par défaut</button>
-              </div>
-              <div className="flex gap-1.5 mb-3">
-                {['All', 'Clean', 'Dark', 'Ocean', 'Orange', 'Rose', 'Green'].map(t => (
-                  <button key={t} className="px-2.5 py-1 text-[11px] font-medium rounded-md bg-gray-100 text-gray-600 hover:bg-gray-200 transition">
-                    {t}
-                  </button>
-                ))}
-              </div>
-              <div className="grid grid-cols-5 gap-3">
-                {[
-                  { name: 'Sunset Glow', colors: ['#f97316', '#fb923c', '#fdba74'] },
-                  { name: 'Ocean Breeze', colors: ['#0ea5e9', '#38bdf8', '#7dd3fc'] },
-                  { name: 'Midnight Luxe', colors: ['#1e1b4b', '#312e81', '#4338ca'] },
-                  { name: 'Rose Petal', colors: ['#e11d48', '#f43f5e', '#fb7185'] },
-                  { name: 'Forest Mint', colors: ['#047857', '#059669', '#34d399'] },
-                ].map(theme => (
-                  <button key={theme.name}
-                    onClick={() => update(c => ({ ...c, design: { ...c.design, buttonColor: theme.colors[0], backgroundColor: theme.colors[2] } }))}
-                    className="group text-center">
-                    <div className="w-full aspect-[4/3] rounded-lg overflow-hidden mb-1.5 border border-gray-200 group-hover:border-emerald-400 transition"
-                      style={{ background: `linear-gradient(135deg, ${theme.colors[0]}, ${theme.colors[1]}, ${theme.colors[2]})` }} />
-                    <span className="text-[10px] text-gray-500">{theme.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* ─── Style de formulaire ─── */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
               <h3 className="text-sm font-bold text-gray-800">Style de formulaire</h3>
@@ -992,11 +985,11 @@ const BoutiqueFormBuilder = () => {
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-500 mb-1">Couleur du texte</label>
                   <div className="flex items-center gap-2">
-                    <input type="color" value={config.design?.textColor || '#1F2937'}
-                      onChange={e => update(c => ({ ...c, design: { ...c.design, textColor: e.target.value } }))}
+                    <input type="color" value={config.design?.formTextColor || '#1F2937'}
+                      onChange={e => update(c => ({ ...c, design: { ...c.design, formTextColor: e.target.value } }))}
                       className="w-7 h-7 border border-gray-200 rounded-lg cursor-pointer flex-shrink-0" />
-                    <input className={inputCls + ' font-mono text-[11px]'} value={config.design?.textColor || '#1F2937'}
-                      onChange={e => update(c => ({ ...c, design: { ...c.design, textColor: e.target.value } }))} />
+                    <input className={inputCls + ' font-mono text-[11px]'} value={config.design?.formTextColor || '#1F2937'}
+                      onChange={e => update(c => ({ ...c, design: { ...c.design, formTextColor: e.target.value } }))} />
                   </div>
                 </div>
                 <div>
@@ -1034,11 +1027,11 @@ const BoutiqueFormBuilder = () => {
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-500 mb-1">Couleur de l'arrière plan</label>
                   <div className="flex items-center gap-2">
-                    <input type="color" value={config.design?.backgroundColor || '#ffffff'}
-                      onChange={e => update(c => ({ ...c, design: { ...c.design, backgroundColor: e.target.value } }))}
+                    <input type="color" value={config.design?.formBgColor || '#ffffff'}
+                      onChange={e => update(c => ({ ...c, design: { ...c.design, formBgColor: e.target.value } }))}
                       className="w-7 h-7 border border-gray-200 rounded-lg cursor-pointer flex-shrink-0" />
-                    <input className={inputCls + ' font-mono text-[11px]'} value={config.design?.backgroundColor || '#ffffff'}
-                      onChange={e => update(c => ({ ...c, design: { ...c.design, backgroundColor: e.target.value } }))} />
+                    <input className={inputCls + ' font-mono text-[11px]'} value={config.design?.formBgColor || '#ffffff'}
+                      onChange={e => update(c => ({ ...c, design: { ...c.design, formBgColor: e.target.value } }))} />
                   </div>
                 </div>
               </div>

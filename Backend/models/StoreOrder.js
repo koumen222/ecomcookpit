@@ -43,6 +43,11 @@ const storeOrderSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  phoneCode: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   email: {
     type: String,
     trim: true,
