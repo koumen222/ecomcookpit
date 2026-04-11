@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X, ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Minus, Truck, ChevronDown, Mail, FileText, Hash, Calendar, Clock, Shield, Globe, Star } from 'lucide-react';
+import { X, ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, AlertCircle, Plus, Minus, Truck, ChevronDown, Mail, FileText, Hash, Calendar, Clock, Shield, Globe, Star, ShoppingBag, ArrowRight, Check } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 import { firePixelEvent } from '../utils/pixelTracking';
 import defaultConfig from './productSettings/defaultConfig.js';
 import { PHONE_CODES, getDefaultPhoneCodeFromConfig, buildFullPhone } from '../utils/phoneCodes.js';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
-const ICON_MAP = { user: User, phone: Phone, map: MapPin, pin: MapPin, mail: Mail, cart: ShoppingCart, file: FileText, hash: Hash, calendar: Calendar };
+const ICON_MAP = { user: User, phone: Phone, map: MapPin, pin: MapPin, mail: Mail, cart: ShoppingCart, file: FileText, hash: Hash, calendar: Calendar, bag: ShoppingBag, arrow: ArrowRight, check: Check };
 const FIELD_KEY_MAP = { fullname: 'customerName', phone: 'phone', city: 'city', address: 'address', note: 'notes' };
 
 /**
@@ -37,6 +37,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
   const offerBorderStyle = offerDesign?.border_style || 'solid';
   const urgencyConfig = productPageConfig?.urgency || defaultConfig.urgency || {};
   const callScheduleConfig = productPageConfig?.callSchedule || defaultConfig.callSchedule || {};
+  const btnCfg = productPageConfig?.button || {};
   const bgColor = design.formBgColor || '#ffffff';
   const textColor = design.formTextColor || '#111827';
   const inputTextColor = '#111827'; // Always dark for inputs on white/light backgrounds
@@ -558,7 +559,14 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
 
               case 'cta_button': {
                 const ctaLabel = (field.label || 'ACHETER MAINTENANT - {total}').replace('{total}', fmt(total, currency));
-                const CtaIcon = ICON_MAP[field.icon] || ShoppingCart;
+                const ctaIconKey = btnCfg.icon || field.icon || 'cart';
+                const CtaIcon = ctaIconKey === 'none' ? null : (ICON_MAP[ctaIconKey] || ShoppingCart);
+                const animName = btnCfg.animation || 'none';
+                const animStyle = animName === 'pulse' ? 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite'
+                  : animName === 'bounce' ? 'bounce 1s infinite'
+                  : animName === 'shake' ? 'shake 0.5s infinite'
+                  : animName === 'glow' ? 'glow 2s ease-in-out infinite alternate'
+                  : 'none';
                 return (
                   <React.Fragment key={field.name}>
                     <button type="submit" disabled={submitting} style={{
@@ -574,10 +582,17 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
                       color: '#fff', fontWeight: 700, fontSize: 15, cursor: submitting ? 'not-allowed' : 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                       transition: 'opacity 0.15s', fontFamily: 'inherit',
+                      animation: submitting ? 'none' : animStyle,
                     }}>
-                      {submitting ? <><Loader2 size={17} style={{ animation: 'spin 1s linear infinite' }} /> Traitement...</> : <>{field.showIcon !== false && <CtaIcon size={17} />} {ctaLabel}</>}
+                      {submitting ? <><Loader2 size={17} style={{ animation: 'spin 1s linear infinite' }} /> Traitement...</> : <>{field.showIcon !== false && CtaIcon && <CtaIcon size={17} />} {ctaLabel}</>}
                     </button>
-                    <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+                    <style>{`
+                      @keyframes spin{to{transform:rotate(360deg)}}
+                      @keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}
+                      @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+                      @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+                      @keyframes glow{from{box-shadow:0 0 5px ${btnColor}60}to{box-shadow:0 0 20px ${btnColor}90}}
+                    `}</style>
                   </React.Fragment>
                 );
               }
