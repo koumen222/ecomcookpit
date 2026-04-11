@@ -304,6 +304,152 @@ const ImageGallery = ({ images = [], design = {} }) => {
   );
 };
 
+const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)' }) => {
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  if (!images.length) return null;
+
+  const activeImage = images[activeIndex] || images[0];
+  const canNavigate = images.length > 1;
+  const goTo = (nextIndex) => {
+    if (!images.length) return;
+    if (nextIndex < 0) {
+      setActiveIndex(images.length - 1);
+      return;
+    }
+    if (nextIndex >= images.length) {
+      setActiveIndex(0);
+      return;
+    }
+    setActiveIndex(nextIndex);
+  };
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        marginBottom: 10,
+      }}>
+        <div>
+          <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>
+            Photos du produit
+          </p>
+          <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>
+            Faites défiler les visuels avant de commander
+          </p>
+        </div>
+        {canNavigate && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => goTo(activeIndex - 1)}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 999,
+                border: '1px solid var(--s-border)',
+                background: '#fff',
+                color: 'var(--s-text)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => goTo(activeIndex + 1)}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 999,
+                border: '1px solid var(--s-border)',
+                background: '#fff',
+                color: 'var(--s-text)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div style={{
+        position: 'relative',
+        borderRadius: 'calc(var(--pp-card-radius) + 2px)',
+        overflow: 'hidden',
+        border: '1px solid var(--s-border)',
+        background: '#fff',
+      }}>
+        <div style={{ position: 'relative', paddingBottom: '78%', background: '#f4f4f5' }}>
+          <img
+            src={activeImage?.url}
+            alt={activeImage?.alt || 'Photo produit'}
+            loading="lazy"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+          />
+        </div>
+      </div>
+
+      {canNavigate && (
+        <div style={{
+          display: 'flex',
+          gap: 8,
+          overflowX: 'auto',
+          paddingTop: 10,
+          scrollbarWidth: 'thin',
+        }}>
+          {images.map((image, index) => {
+            const active = index === activeIndex;
+            return (
+              <button
+                key={`${image.url}-${index}`}
+                type="button"
+                onClick={() => setActiveIndex(index)}
+                style={{
+                  border: active ? `2px solid ${accentColor}` : '1px solid var(--s-border)',
+                  borderRadius: 14,
+                  padding: 0,
+                  overflow: 'hidden',
+                  minWidth: 72,
+                  width: 72,
+                  height: 72,
+                  background: '#fff',
+                  cursor: 'pointer',
+                  boxShadow: active ? '0 6px 18px rgba(0,0,0,0.10)' : 'none',
+                  flexShrink: 0,
+                }}
+              >
+                <img
+                  src={image.url}
+                  alt={image.alt || `Photo ${index + 1}`}
+                  loading="lazy"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                />
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── Product Reviews (Stars) ─────────────────────────────────────────────────
 const ProductReviews = ({ rating = 4.5, reviewCount = 128 }) => {
   const displayCount = reviewCount > 0 ? reviewCount : 125;
@@ -793,20 +939,18 @@ const buildAiVisualTheme = (pageData = null) => {
   const templateTheme = pageData?.templateTheme;
   if (!templateTheme) return null;
 
-  const primary = templateTheme.primary || '#0f6b4f';
+  const primary = pageData?.titleColor || templateTheme.primary || '#0f6b4f';
   const accent = templateTheme.accent || primary;
-  const background = templateTheme.background || '#ffffff';
-  const surface = templateTheme.surface || '#f8fafc';
-  const text = templateTheme.text || '#111827';
+  const text = pageData?.contentColor || templateTheme.text || '#111827';
 
   return {
     primary,
     accent,
-    background,
-    surface,
+    background: null,
+    surface: null,
     text,
     gradient: `linear-gradient(135deg, ${primary} 0%, ${accent} 100%)`,
-    softGradient: `linear-gradient(180deg, ${withAlpha(primary, '10', 'rgba(15,107,79,0.06)')} 0%, ${withAlpha(accent, '08', 'rgba(15,107,79,0.03)')} 100%)`,
+    softGradient: null,
     border: withAlpha(accent, '40', 'rgba(15,107,79,0.18)'),
     softBorder: withAlpha(accent, '22', 'rgba(15,107,79,0.10)'),
     mutedText: withAlpha(text, 'B8', text),
@@ -839,6 +983,7 @@ const buildAiGalleryImages = (product) => {
 // ── Related Products ─────────────────────────────────────────────────────────
 const RelatedCard = ({ product, prefix, store, subdomain }) => {
   const [hovered, setHovered] = useState(false);
+  const displayCurrency = store?.currency || product?.currency || 'XAF';
   const handlePrefetch = () => {
     preloadStoreProductRoute();
     if (subdomain && product?.slug) {
@@ -874,7 +1019,7 @@ const RelatedCard = ({ product, prefix, store, subdomain }) => {
             {product.name}
           </p>
           <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--s-primary)', fontFamily: 'var(--s-font)' }}>
-            {fmt(product.price, product.currency || store?.currency || 'XAF')}
+            {fmt(product.price, displayCurrency)}
           </span>
         </div>
       </div>
@@ -893,6 +1038,7 @@ const StoreProductPage = () => {
   const { store, pixels, product, related, error } = useStoreProduct(subdomain, slug);
   const { cartCount } = useStoreCart(subdomain);
   const { trackPageView, trackProductView, trackAddToCart } = useStoreAnalytics(subdomain);
+  const effectiveCurrency = store?.currency || product?.currency || 'XAF';
 
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showStickyOrderBar, setShowStickyOrderBar] = useState(false);
@@ -908,11 +1054,11 @@ const StoreProductPage = () => {
       content_ids: [product._id || product.slug || ''],
       content_name: product.name || '',
       value: product.price || 0,
-      currency: product.currency || store?.currency || 'XAF',
+      currency: effectiveCurrency,
     });
     // Track product view in store analytics
     trackProductView(product._id || product.slug, product.name, product.price);
-  }, [product, pixels, store?.currency]);
+  }, [product, pixels, effectiveCurrency]);
 
   useEffect(() => {
     if (!store?.name || !product?.name) return;
@@ -1144,6 +1290,107 @@ const StoreProductPage = () => {
     };
   };
 
+  const resolveThemeInfoCardStyle = (tone = 'neutral') => {
+    const tonePalette = {
+      neutral: {
+        background: aiVisualTheme?.softGradient || withAlpha(ctaBtnColor, '10', 'rgba(15,107,79,0.06)'),
+        border: aiVisualTheme?.softBorder || withAlpha(ctaBtnColor, '22', 'rgba(15,107,79,0.16)'),
+        text: aiVisualTheme?.text || 'var(--s-text)',
+        muted: aiVisualTheme?.mutedText || 'var(--s-text2)',
+        iconBackground: withAlpha(ctaBtnColor, '18', 'rgba(15,107,79,0.12)'),
+        iconColor: aiVisualTheme?.primary || ctaBtnColor,
+        shadow: aiVisualTheme?.shadow || 'none',
+      },
+      success: {
+        background: 'linear-gradient(180deg, rgba(15,107,79,0.09) 0%, rgba(15,107,79,0.04) 100%)',
+        border: 'rgba(15,107,79,0.20)',
+        text: '#0f6b4f',
+        muted: 'rgba(15,107,79,0.80)',
+        iconBackground: 'rgba(15,107,79,0.12)',
+        iconColor: '#0f6b4f',
+        shadow: 'none',
+      },
+      warning: {
+        background: 'linear-gradient(180deg, rgba(245,158,11,0.16) 0%, rgba(245,158,11,0.08) 100%)',
+        border: 'rgba(245,158,11,0.26)',
+        text: '#b45309',
+        muted: 'rgba(180,83,9,0.78)',
+        iconBackground: 'rgba(245,158,11,0.16)',
+        iconColor: '#b45309',
+        shadow: 'none',
+      },
+      danger: {
+        background: 'linear-gradient(180deg, rgba(239,68,68,0.12) 0%, rgba(239,68,68,0.06) 100%)',
+        border: 'rgba(239,68,68,0.18)',
+        text: '#ef4444',
+        muted: 'rgba(239,68,68,0.78)',
+        iconBackground: 'rgba(239,68,68,0.10)',
+        iconColor: '#ef4444',
+        shadow: 'none',
+      },
+    };
+
+    const palette = tonePalette[tone] || tonePalette.neutral;
+
+    return {
+      container: {
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        padding: '14px 16px',
+        borderRadius: ctaBorderRadius,
+        background: palette.background,
+        border: `1px solid ${palette.border}`,
+        boxShadow: palette.shadow,
+      },
+      content: {
+        minWidth: 0,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        flex: 1,
+      },
+      iconWrap: {
+        width: 36,
+        height: 36,
+        borderRadius: 999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        background: palette.iconBackground,
+        color: palette.iconColor,
+      },
+      title: {
+        fontSize: 13,
+        fontWeight: 800,
+        color: palette.text,
+        lineHeight: 1.3,
+        fontFamily: 'var(--s-font)',
+      },
+      subtitle: {
+        marginTop: 3,
+        fontSize: 12,
+        color: palette.muted,
+        lineHeight: 1.45,
+        fontFamily: 'var(--s-font)',
+      },
+      value: {
+        flexShrink: 0,
+        padding: '6px 10px',
+        borderRadius: 999,
+        background: palette.iconBackground,
+        color: palette.text,
+        fontSize: 13,
+        fontWeight: 800,
+        fontVariantNumeric: 'tabular-nums',
+        fontFamily: 'var(--s-font)',
+      },
+    };
+  };
+
   // Build ordered enabled section IDs for rendering
   const sectionToggleOverrides = {
     reviews: ppDesign.showReviews,
@@ -1265,7 +1512,7 @@ const StoreProductPage = () => {
       content_ids: [product?._id || product?.slug || ''],
       content_name: product?.name || '',
       value: product?.price || 0,
-      currency: product?.currency || store?.currency || 'XAF',
+      currency: effectiveCurrency,
     });
   };
 
@@ -1283,7 +1530,7 @@ const StoreProductPage = () => {
   return (
     <div className={ppTheme === 'landing' ? 'theme-landing-active' : ''} style={{
       minHeight: '100vh',
-      background: aiVisualTheme?.softGradient || 'var(--s-bg)',
+      background: 'var(--s-bg)',
       fontFamily: 'var(--s-font)',
       color: 'var(--s-text)',
       fontSize: 'var(--s-font-base)',
@@ -1294,14 +1541,14 @@ const StoreProductPage = () => {
       '--pp-card-radius': ctaBorderRadius,
       '--ai-primary': aiVisualTheme?.primary || 'var(--s-primary)',
       '--ai-accent': aiVisualTheme?.accent || 'var(--s-accent, var(--s-primary))',
-      '--ai-bg': aiVisualTheme?.background || 'var(--s-bg)',
-      '--ai-surface': aiVisualTheme?.surface || '#ffffff',
+      '--ai-bg': 'var(--s-bg)',
+      '--ai-surface': '#ffffff',
       '--ai-text': aiVisualTheme?.text || 'var(--s-text)',
       '--ai-muted': aiVisualTheme?.mutedText || 'var(--s-text2)',
       '--ai-border': aiVisualTheme?.border || 'var(--s-border)',
       '--ai-soft-border': aiVisualTheme?.softBorder || 'var(--s-border)',
       '--ai-gradient': aiVisualTheme?.gradient || 'linear-gradient(135deg, var(--s-primary), var(--s-primary))',
-      '--ai-soft-gradient': aiVisualTheme?.softGradient || 'var(--s-bg)',
+      '--ai-soft-gradient': 'var(--s-bg)',
       '--ai-shadow': aiVisualTheme?.shadow || '0 10px 30px rgba(0,0,0,0.08)',
     }}>
       <style>{`
@@ -1499,12 +1746,12 @@ const StoreProductPage = () => {
                 {/* Price — always shown */}
                 <div className="price-wrapper" style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
                   <span style={{ fontSize: 28, fontWeight: 900, color: aiVisualTheme?.primary || 'var(--s-primary)', fontFamily: 'var(--s-font)', letterSpacing: '-0.02em' }}>
-                    {fmt(product.price, product.currency || store?.currency || 'XAF')}
+                    {fmt(product.price, effectiveCurrency)}
                   </span>
                   {hasDiscount && (
                     <>
                       <span style={{ fontSize: 17, color: 'var(--s-text2)', textDecoration: 'line-through', fontFamily: 'var(--s-font)' }}>
-                        {fmt(product.compareAtPrice, product.currency || store?.currency || 'XAF')}
+                        {fmt(product.compareAtPrice, effectiveCurrency)}
                       </span>
                       <span style={{ ...resolveBadgeStyle('danger'), fontSize: 12, padding: '3px 9px' }}>
                         -{pct}%
@@ -1550,62 +1797,78 @@ const StoreProductPage = () => {
                               </span>
                             </button>
                           )}
+
+                          <InlinePhotoCarousel
+                            images={images}
+                            accentColor={aiVisualTheme?.primary || 'var(--s-primary)'}
+                          />
                         </div>
                       );
 
                     case 'countdownBar':
-                      return countdownSeconds !== null && inStock ? (
-                        <div key={sectionId} style={{ marginBottom: 14 }}>
-                          <div style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 10,
-                            padding: '10px 14px', borderRadius: ctaBorderRadius,
-                            backgroundColor: withAlpha(badgeColor, '12', 'rgba(239,68,68,0.12)'), color: badgeColor,
-                            fontSize: 13, fontWeight: 700,
-                          }}>
-                            <span>Offre limitée</span>
-                            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCountdown(countdownSeconds)}</span>
+                      if (countdownSeconds === null || !inStock) return null;
+                      {
+                        const countdownCardStyle = resolveThemeInfoCardStyle('danger');
+                        return (
+                          <div key={sectionId} style={{ marginBottom: 14 }}>
+                            <div style={countdownCardStyle.container}>
+                              <div style={countdownCardStyle.content}>
+                                <div style={countdownCardStyle.iconWrap}>
+                                  <span style={{ fontSize: 16, lineHeight: 1 }}>!</span>
+                                </div>
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={countdownCardStyle.title}>Offre limitée</div>
+                                  <div style={countdownCardStyle.subtitle}>Cette offre spéciale expire bientôt.</div>
+                                </div>
+                              </div>
+                              <span style={countdownCardStyle.value}>{formatCountdown(countdownSeconds)}</span>
+                            </div>
                           </div>
-                        </div>
-                      ) : null;
+                        );
+                      }
 
                     case 'trustBadges':
                       return <TrustBadges key={sectionId} compact />;
 
                     case 'secureBadge':
-                      return (
-                        <div key={sectionId} style={{ marginBottom: 12 }}>
-                          <div style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 8,
-                            padding: '10px 14px', borderRadius: ctaBorderRadius,
-                            background: aiVisualTheme?.softGradient || withAlpha(ctaBtnColor, '12', 'rgba(15,107,79,0.12)'), color: aiVisualTheme?.text || 'var(--s-text)', fontSize: 13, fontWeight: 700,
-                            border: `1px solid ${aiVisualTheme?.softBorder || withAlpha(ctaBtnColor, '22', 'rgba(15,107,79,0.18)')}`,
-                            boxShadow: aiVisualTheme?.shadow || 'none',
-                          }}>
-                            <Shield size={14} color={aiVisualTheme?.primary || ctaBtnColor} /> Paiement 100% sécurisé
-                          </div>
-                        </div>
-                      );
-
-                    case 'deliveryInfo':
-                      return (
-                        <div key={sectionId} style={{ marginBottom: 14 }}>
-                          <div style={{
-                            display: 'flex', alignItems: 'center', gap: 10,
-                            padding: '12px 14px', borderRadius: ctaBorderRadius,
-                            border: `1px solid ${aiVisualTheme?.softBorder || 'var(--s-border)'}`, background: 'var(--ai-surface, #fff)', boxShadow: aiVisualTheme?.shadow || 'none',
-                          }}>
-                            <Truck size={16} color={aiVisualTheme?.primary || ctaBtnColor} />
-                            <div>
-                              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>
-                                Livraison estimée : 2 à 4 jours
-                              </div>
-                              <div style={{ fontSize: 12, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>
-                                Paiement à la livraison disponible
+                      {
+                        const secureCardStyle = resolveThemeInfoCardStyle('neutral');
+                        return (
+                          <div key={sectionId} style={{ marginBottom: 12 }}>
+                            <div style={secureCardStyle.container}>
+                              <div style={secureCardStyle.content}>
+                                <div style={secureCardStyle.iconWrap}>
+                                  <Shield size={16} color={aiVisualTheme?.primary || ctaBtnColor} />
+                                </div>
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={secureCardStyle.title}>Paiement 100% sécurisé</div>
+                                  <div style={secureCardStyle.subtitle}>Vos informations sont protégées pendant toute la commande.</div>
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      );
+                        );
+                      }
+
+                    case 'deliveryInfo':
+                      {
+                        const deliveryCardStyle = resolveThemeInfoCardStyle('neutral');
+                        return (
+                          <div key={sectionId} style={{ marginBottom: 14 }}>
+                            <div style={deliveryCardStyle.container}>
+                              <div style={deliveryCardStyle.content}>
+                                <div style={deliveryCardStyle.iconWrap}>
+                                  <Truck size={16} color={aiVisualTheme?.primary || ctaBtnColor} />
+                                </div>
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={deliveryCardStyle.title}>Livraison estimée : 2 à 4 jours</div>
+                                  <div style={deliveryCardStyle.subtitle}>Paiement à la livraison disponible</div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
 
                     case 'shareButtons':
                       return (
@@ -1648,23 +1911,32 @@ const StoreProductPage = () => {
                     }
 
                     case 'stockCounter':
-                      return (
-                        <div key={sectionId} style={{ marginBottom: 10, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                          {!inStock ? (
-                            <span style={{ ...resolveBadgeStyle('danger'), fontWeight: 600, boxShadow: aiVisualTheme?.shadow || 'none' }}>
-                              Rupture de stock
-                            </span>
-                          ) : lowStock ? (
-                            <span style={{ ...resolveBadgeStyle('warning'), fontWeight: 600, boxShadow: aiVisualTheme?.shadow || 'none' }}>
-                              ⚡ Plus que {product.stock} en stock
-                            </span>
-                          ) : (
-                            <span style={{ fontSize: 13, fontWeight: 600, color: aiVisualTheme?.primary || 'var(--s-primary)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                              <Check size={14} /> En stock
-                            </span>
-                          )}
-                        </div>
-                      );
+                      {
+                        const stockTone = !inStock ? 'danger' : lowStock ? 'warning' : 'success';
+                        const stockCardStyle = resolveThemeInfoCardStyle(stockTone);
+                        const stockTitle = !inStock ? 'Rupture de stock' : lowStock ? `Plus que ${product.stock} en stock` : 'En stock';
+                        const stockSubtitle = !inStock
+                          ? 'Ce produit est temporairement indisponible.'
+                          : lowStock
+                            ? 'Les dernières unités sont disponibles.'
+                            : 'Produit disponible immédiatement.';
+
+                        return (
+                          <div key={sectionId} style={{ marginBottom: 10 }}>
+                            <div style={stockCardStyle.container}>
+                              <div style={stockCardStyle.content}>
+                                <div style={stockCardStyle.iconWrap}>
+                                  <Check size={16} color={stockTone === 'danger' ? '#ef4444' : stockTone === 'warning' ? '#b45309' : '#0f6b4f'} />
+                                </div>
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={stockCardStyle.title}>{stockTitle}</div>
+                                  <div style={stockCardStyle.subtitle}>{stockSubtitle}</div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
 
                     case 'urgencyBadge': {
                       const urgencyText = sectionContentMap.urgencyBadge?.text || product._pageData?.urgency_badge;
@@ -1826,7 +2098,7 @@ const StoreProductPage = () => {
             <div style={{ minWidth: 0, flex: 1 }}>
               <p style={{ margin: 0, fontSize: 12, color: 'var(--s-text2)', fontFamily: 'var(--s-font)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.name}</p>
               <p style={{ margin: '2px 0 0', fontSize: 17, fontWeight: 800, color: aiVisualTheme?.primary || 'var(--s-primary)', fontFamily: 'var(--s-font)' }}>
-                {fmt(product.price, product.currency || store?.currency || 'XAF')}
+                {fmt(product.price, effectiveCurrency)}
               </p>
             </div>
             <button

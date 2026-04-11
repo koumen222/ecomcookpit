@@ -1880,7 +1880,7 @@ const ProductCard = ({ product, prefix, store, subdomain }) => {
               color: 'var(--s-primary)', 
               fontFamily: 'var(--s-font)' 
             }}>
-              {fmt(product.price, product.currency || store?.currency || 'XAF')}
+              {fmt(product.price, store?.currency || product.currency || 'XAF')}
             </span>
             {hasDiscount && (
               <span style={{ 
@@ -1889,7 +1889,7 @@ const ProductCard = ({ product, prefix, store, subdomain }) => {
                 textDecoration: 'line-through',
                 fontFamily: 'var(--s-font)',
               }}>
-                {fmt(product.compareAtPrice, product.currency || store?.currency || 'XAF')}
+                {fmt(product.compareAtPrice, store?.currency || product.currency || 'XAF')}
               </span>
             )}
           </div>

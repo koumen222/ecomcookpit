@@ -274,6 +274,9 @@ router.get('/config', requireEcomAuth, requireWorkspace, async (req, res) => {
     const defaultSettings = {
       isStoreEnabled: false, storeName: '', storeDescription: '', storeLogo: '', storeBanner: '',
       storePhone: '', storeWhatsApp: '', storeThemeColor: '#0F6B4F', storeCurrency: 'XAF',
+      storeFavicon: '', storeCountry: '', primaryColor: '#0F6B4F', accentColor: '#059669',
+      backgroundColor: '#FFFFFF', textColor: '#111827', font: 'inter',
+      announcement: '', announcementEnabled: false,
       productType: '', audience: { gender: [], ageRange: [], region: [], origin: [] },
       tone: '', city: '', country: '', secondaryColor: '', productDescription: '', categoryRegistry: []
     };
@@ -303,6 +306,9 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
     const {
       storeName, storeDescription, storeLogo, storeBanner,
       storePhone, storeWhatsApp, storeThemeColor, storeCurrency,
+      storeFavicon, storeCountry,
+      primaryColor, accentColor, backgroundColor, textColor, font,
+      announcement, announcementEnabled,
       isStoreEnabled,
       // Nouveaux champs pour génération IA
       productType, audience, tone, city, country,
@@ -318,13 +324,27 @@ router.put('/config', requireEcomAuth, requireWorkspace, requireStoreOwner, asyn
     if (storeDescription !== undefined) update['storeSettings.storeDescription'] = storeDescription;
     if (storeLogo !== undefined) update['storeSettings.storeLogo'] = storeLogo;
     if (storeBanner !== undefined) update['storeSettings.storeBanner'] = storeBanner;
+    if (storeFavicon !== undefined) update['storeSettings.storeFavicon'] = storeFavicon;
     if (storePhone !== undefined) update['storeSettings.storePhone'] = storePhone;
     if (storeWhatsApp !== undefined) update['storeSettings.storeWhatsApp'] = storeWhatsApp;
+    if (storeCountry !== undefined) update['storeSettings.storeCountry'] = storeCountry;
     if (storeThemeColor !== undefined) {
       update['storeSettings.storeThemeColor'] = storeThemeColor;
       // Sync primaryColor so it always takes priority over legacy storeThemeColor in the lookup chain
       update['storeSettings.primaryColor'] = storeThemeColor;
     }
+    if (primaryColor !== undefined) {
+      update['storeSettings.primaryColor'] = primaryColor;
+      if (storeThemeColor === undefined) {
+        update['storeSettings.storeThemeColor'] = primaryColor;
+      }
+    }
+    if (accentColor !== undefined) update['storeSettings.accentColor'] = accentColor;
+    if (backgroundColor !== undefined) update['storeSettings.backgroundColor'] = backgroundColor;
+    if (textColor !== undefined) update['storeSettings.textColor'] = textColor;
+    if (font !== undefined) update['storeSettings.font'] = font;
+    if (announcement !== undefined) update['storeSettings.announcement'] = announcement;
+    if (announcementEnabled !== undefined) update['storeSettings.announcementEnabled'] = announcementEnabled;
     if (storeCurrency !== undefined) update['storeSettings.storeCurrency'] = storeCurrency;
     if (isStoreEnabled !== undefined) update['storeSettings.isStoreEnabled'] = isStoreEnabled;
     // Nouveaux champs

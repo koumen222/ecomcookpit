@@ -52,29 +52,7 @@ function getNicheAccentColor(template) {
 }
 
 function buildVisualPromptDirectives(visualPrefs = {}) {
-  const {
-    heroVisualDirection = '',
-    decorationDirection = '',
-    preferredColor = '',
-    titleColor = '',
-    contentColor = '',
-  } = visualPrefs;
-
-  const lines = [];
-  if (preferredColor) lines.push(`• POSTER COLOR PREFERENCE: ${preferredColor}`);
-  if (heroVisualDirection) lines.push(`• HERO VISUAL: ${heroVisualDirection}`);
-  if (decorationDirection) lines.push(`• DECORATIVE VISUALS: ${decorationDirection}`);
-  if (titleColor) lines.push(`• TITLE COLOR PREFERENCE: ${titleColor}`);
-  if (contentColor) lines.push(`• CONTENT COLOR PREFERENCE: ${contentColor}`);
-  if (!lines.length) return '';
-
-  return `
-
-═══ CUSTOM VISUAL DIRECTIVES — APPLY FOR REAL ═══
-${lines.join('\n')}
-• These directives MUST influence the final generated visuals, not just the copy.
-• Use them for hero styling, decorative motifs, overlays, title treatment and body text treatment when text is present.
-• Keep the product truthful and legible.`;
+  return '';
 }
 
 /**

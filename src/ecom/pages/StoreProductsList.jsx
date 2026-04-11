@@ -27,6 +27,8 @@ const emptyCategoryDialog = {
   mode: 'create',
   originalName: '',
   name: '',
+  selectedProductIds: [],
+  productSearch: '',
 };
 
 const STOCK_FILTERS = [
@@ -331,11 +333,21 @@ const StoreProductsList = () => {
   };
 
   const openCreateCategoryDialog = () => {
-    setCategoryDialog({ open: true, mode: 'create', originalName: '', name: '' });
+    setCategoryDialog({ open: true, mode: 'create', originalName: '', name: '', selectedProductIds: [], productSearch: '' });
   };
 
   const openRenameCategoryDialog = (categoryName) => {
-    setCategoryDialog({ open: true, mode: 'edit', originalName: categoryName, name: categoryName });
+    const linkedProductIds = products
+      .filter((product) => (product.category || '').trim() === categoryName)
+      .map((product) => product._id);
+    setCategoryDialog({
+      open: true,
+      mode: 'edit',
+      originalName: categoryName,
+      name: categoryName,
+      selectedProductIds: linkedProductIds,
+      productSearch: '',
+    });
   };
 
   const closeCategoryDialog = () => {
@@ -350,8 +362,8 @@ const StoreProductsList = () => {
       return;
     }
 
-    const duplicateExists = normalizedCategoryRegistry.some(
-      (categoryName) => categoryName.toLowerCase() === nextName.toLowerCase() && categoryName !== categoryDialog.originalName
+    const duplicateExists = categorySummaries.some(
+      (category) => category.name.toLowerCase() === nextName.toLowerCase() && category.name !== categoryDialog.originalName
     );
     if (duplicateExists) {
       setError('Cette catégorie existe déjà');
@@ -361,24 +373,52 @@ const StoreProductsList = () => {
     setCategorySaving(true);
     setError('');
     try {
+      const selectedProductIds = new Set(categoryDialog.selectedProductIds || []);
+      const productUpdates = [];
+
+      products.forEach((product) => {
+        const currentCategory = (product.category || '').trim();
+        const isSelected = selectedProductIds.has(product._id);
+        const belongsToEditedCategory = categoryDialog.mode === 'edit' && currentCategory === categoryDialog.originalName;
+
+        if (isSelected && currentCategory !== nextName) {
+          productUpdates.push({ productId: product._id, nextCategory: nextName });
+          return;
+        }
+
+        if (!isSelected && belongsToEditedCategory) {
+          productUpdates.push({ productId: product._id, nextCategory: '' });
+        }
+      });
+
       if (categoryDialog.mode === 'create') {
         await updateCategoryRegistry([...normalizedCategoryRegistry, nextName]);
       } else {
-        const linkedProducts = products.filter((product) => (product.category || '').trim() === categoryDialog.originalName);
-        await Promise.all(
-          linkedProducts.map((product) => storeProductsApi.updateProduct(product._id, { category: nextName }))
-        );
         await updateCategoryRegistry(
           normalizedCategoryRegistry.map((categoryName) =>
             categoryName === categoryDialog.originalName ? nextName : categoryName
           )
         );
+      }
+
+      if (productUpdates.length > 0) {
+        await Promise.all(
+          productUpdates.map(({ productId, nextCategory }) =>
+            storeProductsApi.updateProduct(productId, { category: nextCategory })
+          )
+        );
+
+        const updatesById = Object.fromEntries(
+          productUpdates.map(({ productId, nextCategory }) => [productId, nextCategory])
+        );
+
         setProducts((previous) => previous.map((product) => (
-          (product.category || '').trim() === categoryDialog.originalName
-            ? { ...product, category: nextName }
+          updatesById[product._id] !== undefined
+            ? { ...product, category: updatesById[product._id] }
             : product
         )));
       }
+
       setCategoryDialog(emptyCategoryDialog);
     } catch (err) {
       setError('Impossible de sauvegarder la catégorie');
@@ -485,6 +525,38 @@ const StoreProductsList = () => {
   };
 
   const currentView = PRODUCT_VIEWS[viewMode];
+  const normalizedCategoryProductSearch = (categoryDialog.productSearch || '').trim().toLowerCase();
+  const categoryDialogProducts = products
+    .filter((product) => {
+      if (!normalizedCategoryProductSearch) return true;
+
+      const haystack = [product.name, product.slug, product.category]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(normalizedCategoryProductSearch);
+    })
+    .sort((left, right) => {
+      const leftSelected = (categoryDialog.selectedProductIds || []).includes(left._id);
+      const rightSelected = (categoryDialog.selectedProductIds || []).includes(right._id);
+
+      if (leftSelected !== rightSelected) return leftSelected ? -1 : 1;
+      return String(left.name || '').localeCompare(String(right.name || ''), 'fr', { sensitivity: 'base' });
+    });
+
+  const toggleCategoryProductSelection = (productId) => {
+    setCategoryDialog((previous) => {
+      const selected = previous.selectedProductIds || [];
+      const exists = selected.includes(productId);
+      return {
+        ...previous,
+        selectedProductIds: exists
+          ? selected.filter((id) => id !== productId)
+          : [...selected, productId],
+      };
+    });
+  };
 
   const renderOverview = () => {
     if (viewMode === 'categories') {
@@ -760,7 +832,7 @@ const StoreProductsList = () => {
 
       {categoryDialog.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/45 p-4">
-          <div className="w-full max-w-md rounded-[28px] border border-gray-200 bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-2xl rounded-[28px] border border-gray-200 bg-white p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-lg font-semibold text-gray-900">
@@ -768,8 +840,8 @@ const StoreProductsList = () => {
                 </p>
                 <p className="mt-1 text-sm text-gray-500">
                   {categoryDialog.mode === 'create'
-                    ? 'Créez une catégorie vide puis rattachez-lui des produits.'
-                    : 'Le renommage mettra aussi à jour les produits déjà liés.'}
+                    ? 'Créez la catégorie et sélectionnez directement les produits existants à y rattacher.'
+                    : 'Renommez la catégorie et ajustez les produits rattachés depuis la liste ci-dessous.'}
                 </p>
               </div>
               <button
@@ -790,6 +862,68 @@ const StoreProductsList = () => {
                   placeholder="Ex: Nouveautés"
                   className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-4 focus:ring-emerald-100"
                 />
+              </div>
+              <div className="rounded-3xl border border-gray-200 bg-gray-50/70 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Produits existants</p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Sélectionnez les produits à rattacher à cette catégorie.
+                    </p>
+                  </div>
+                  <span className="inline-flex rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-700 ring-1 ring-gray-200">
+                    {(categoryDialog.selectedProductIds || []).length} sélectionné{(categoryDialog.selectedProductIds || []).length > 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="mt-4">
+                  <input
+                    type="text"
+                    value={categoryDialog.productSearch}
+                    onChange={(event) => setCategoryDialog((previous) => ({ ...previous, productSearch: event.target.value }))}
+                    placeholder="Rechercher un produit existant..."
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100"
+                  />
+                </div>
+                <div className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1">
+                  {categoryDialogProducts.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-4 py-5 text-center text-sm text-gray-500">
+                      Aucun produit trouvé.
+                    </div>
+                  ) : categoryDialogProducts.map((product) => {
+                    const currentCategory = (product.category || '').trim();
+                    const selected = (categoryDialog.selectedProductIds || []).includes(product._id);
+                    const isLinkedElsewhere = currentCategory && currentCategory !== categoryDialog.originalName && currentCategory !== categoryDialog.name.trim();
+
+                    return (
+                      <label
+                        key={product._id}
+                        className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 transition ${selected ? 'border-emerald-200 bg-emerald-50/70' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleCategoryProductSelection(product._id)}
+                          className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-medium text-gray-900">{product.name || 'Produit sans nom'}</p>
+                            {currentCategory ? (
+                              <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${isLinkedElsewhere ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700'}`}>
+                                {isLinkedElsewhere ? `Actuel: ${currentCategory}` : currentCategory}
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-600">Non classé</span>
+                            )}
+                          </div>
+                          {product.slug && (
+                            <p className="mt-1 text-xs text-gray-500">/{product.slug}</p>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
               <div className="flex justify-end gap-2">
                 <button
