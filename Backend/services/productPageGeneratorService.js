@@ -424,7 +424,7 @@ Les 5 images d'angles sont des visuels marketing illustratifs avec des personnes
 - Le produit VISIBLE dans l'image ou son résultat clairement montré — TAILLE RÉELLE du produit (pas surdimensionné), placement naturel
 - Court texte overlay en français : 1 titre court (4-6 mots max) + éventuellement 1 courte phrase (8-10 mots max)
 - ⚠️ ORTHOGRAPHE PARFAITE OBLIGATOIRE : texte vérifié à 100% — ZÉRO faute. Ton simple, direct, local africain
-- Cadrage 1:1 serré, fond net
+- Cadrage vertical 4:5 serré, fond net
 - Style soft, propre, naturel — PAS flashy, PAS saturé
 - PHOTORÉALISTE — doit ressembler à une VRAIE photo, PAS un rendu IA visible
 - La personne doit sembler photographiée dans la vraie vie : texture de peau visible, légère asymétrie naturelle du visage, yeux réalistes, dents réalistes, mains anatomiquement correctes
@@ -463,7 +463,7 @@ Le HERO doit être :
    - Produit DENTS → sourire éclatant, gros plan sur les dents.
    - Produit DOULEUR/SANTÉ → personne montrant soulagement naturel avec le produit.
    - Produit TECH/OBJET → produit dominant + personne africaine visible l'utilisant.
-✅ Cadrage carré 1:1 tight crop, ZÉRO espace vide, lumière naturelle douce
+✅ Cadrage vertical 4:5 (1080×1250) tight crop, ZÉRO espace vide, lumière naturelle douce
 ✅ PHOTORÉALISTE — doit ressembler à une VRAIE photo, pas un rendu IA
 ✅ Au maximum un badge TRÈS court (3 mots max) OU absent
 
@@ -484,7 +484,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
 ✅ Décor = environnement africain RÉALISTE (maison africaine, salle de bain locale, chambre, salon, rue)
 ✅ RÈGLE GENRE : FEMME africaine si produit féminin ; HOMME africain si produit masculin ; adapte si mixte
 ✅ Le PRODUIT LUI-MÊME visible sur le côté APRÈS — taille RÉELLE (pas surdimensionné), placement naturel
-✅ Cadrage carré 1:1, serré, lumière naturelle douce, pas artificielle
+✅ Cadrage vertical 4:5 (1080×1250), serré, lumière naturelle douce, pas artificielle
 ✅ Style soft, propre, naturel — PAS flashy, PAS saturé, PAS de filtres agressifs
 ✅ PHOTOREALISTIC — doit ressembler à une VRAIE photo, PAS un rendu IA visible
 
@@ -511,8 +511,8 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     "✅ Bénéfice clé 3 avec emoji pertinent",
     "⚡ Bénéfice clé 4 avec emoji pertinent"
   ],
-  "prompt_hero_poster": "[Generate in English: BOLD ADVERTISING POSTER for THIS SPECIFIC product (describe its exact name, type, color, packaging). Square 1:1 graphic-design meets product photography. The product shown LARGE, dominant, perfectly sharp (min 50% of frame), exact same packaging/color/shape. Premium dark gradient background (deep midnight blue to black, OR deep forest green to charcoal, or deep burgundy — choose what contrasts best with product colors). Dramatic cinematic lighting with product glow. EXACTLY 3 authentic photographed Black African adults must be visible in the composition, all looking real, all naturally posed, and at least 2 of them clearly holding the exact product in hand with believable grip and scale. MANDATORY: 1 bold French headline in large modern sans-serif font at top or bottom — CRITICAL: French text MUST be 100% perfectly spelled with all accents. Optional thin accent line or minimal graphic element. NO price, NO phone, NO fake button, NO URL. Mood: aspirational, premium brand launch poster, scroll-stopping. Think Apple product launch. Adapted for African market.]",
-  "prompt_avant_apres": "[Generate in English: Photorealistic split-screen before/after transformation image for the African market. MUST look like a real photograph, NOT AI-generated. LEFT (AVANT): the SPECIFIC problem this product solves — visible but NATURAL, not exaggerated or theatrical. RIGHT (APRÈS): CREDIBLE realistic improvement after using the product — visible but not magical. MANDATORY: Authentic Black African person (dark skin, natural African features, natural African hair). Simple everyday African clothing, SUBTLE facial expressions — NOT theatrical. Setting: realistic African home environment (bathroom, bedroom, living room). The SAME person on both sides. Product visible at REAL SIZE on the AFTER side — natural placement. Small 'Avant'/'Après' labels in perfect French. Square 1:1, tight crop. Soft natural lighting, clean style, NO aggressive filters, NO over-saturation. Match the EXACT body zone of the product. The transformation must be BELIEVABLE — not just sad face vs happy face but a real visual difference related to the product benefit.]",
+  "prompt_hero_poster": "[Generate in English: BOLD ADVERTISING POSTER for THIS SPECIFIC product (describe its exact name, type, color, packaging). Vertical 4:5 (1080×1250) graphic-design meets product photography. The product shown LARGE, dominant, perfectly sharp (min 50% of frame), exact same packaging/color/shape. Premium dark gradient background (deep midnight blue to black, OR deep forest green to charcoal, or deep burgundy — choose what contrasts best with product colors). Dramatic cinematic lighting with product glow. EXACTLY 3 authentic photographed Black African adults must be visible in the composition, all looking real, all naturally posed, and at least 2 of them clearly holding the exact product in hand with believable grip and scale. MANDATORY: 1 bold French headline in large modern sans-serif font at top or bottom — CRITICAL: French text MUST be 100% perfectly spelled with all accents. Optional thin accent line or minimal graphic element. NO price, NO phone, NO fake button, NO URL. Mood: aspirational, premium brand launch poster, scroll-stopping. Think Apple product launch. Adapted for African market.]",
+  "prompt_avant_apres": "[Generate in English: Photorealistic split-screen before/after transformation image for the African market. MUST look like a real photograph, NOT AI-generated. LEFT (AVANT): the SPECIFIC problem this product solves — visible but NATURAL, not exaggerated or theatrical. RIGHT (APRÈS): CREDIBLE realistic improvement after using the product — visible but not magical. MANDATORY: Authentic Black African person (dark skin, natural African features, natural African hair). Simple everyday African clothing, SUBTLE facial expressions — NOT theatrical. Setting: realistic African home environment (bathroom, bedroom, living room). The SAME person on both sides. Product visible at REAL SIZE on the AFTER side — natural placement. Small 'Avant'/'Après' labels in perfect French. Vertical 4:5 (1080×1250), tight crop. Soft natural lighting, clean style, NO aggressive filters, NO over-saturation. Match the EXACT body zone of the product. The transformation must be BELIEVABLE — not just sad face vs happy face but a real visual difference related to the product benefit.]",
   "angles": [
     {
       "titre_angle": "Phrase complète de 10-15 mots suivant l'étape de la méthode ${marketingApproach} — explique concrètement le bénéfice",
@@ -711,8 +711,9 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     // Tentative 1 : modèle vision si images disponibles
     if (imageBuffers.length > 0) {
       try {
-        console.log('🔍 Tentative Groq Vision (meta-llama/llama-4-scout-17b-16e-instruct)...');
-        response = await callGroqWithTimeout('meta-llama/llama-4-scout-17b-16e-instruct', messages, true);
+        const groqVisionModel = process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct';
+        console.log(`🔍 Tentative Groq Vision (${groqVisionModel})...`);
+        response = await callGroqWithTimeout(groqVisionModel, messages, true);
       } catch (visionErr) {
         console.warn(`⚠️ Groq Vision échoué (${visionErr.message}), fallback text-only...`);
         // Fallback text-only : remplacer le contenu image par du texte
@@ -720,10 +721,10 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
           messages[0],
           { role: 'user', content: typeof messages[1].content === 'string' ? messages[1].content : messages[1].content[0]?.text || userPrompt }
         ];
-        response = await callGroqWithTimeout('llama-3.3-70b-versatile', textOnlyMessages, false);
+        response = await callGroqWithTimeout(process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', textOnlyMessages, false);
       }
     } else {
-      response = await callGroqWithTimeout('llama-3.3-70b-versatile', messages, false);
+      response = await callGroqWithTimeout(process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', messages, false);
     }
 
     const raw = response.choices[0]?.message?.content || '{}';
@@ -755,35 +756,35 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
         explication: `Ce ${title || 'produit'} est fabriqué avec des matériaux premium pour garantir durabilité et performance. Une qualité professionnelle adaptée à un usage quotidien intensif.`,
         message_principal: "Investissez dans la qualité qui dure",
         promesse: "Un produit fiable pour vos besoins quotidiens",
-        prompt_affiche: `Square 1:1 lifestyle scene illustrating durability and confidence around the ${title || 'product'}. Tight crop, subject fills the frame, clean natural light, real everyday setting, no text overlay, no badges, no poster design.`
+        prompt_affiche: `Vertical 4:5 (1080×1250) lifestyle scene illustrating durability and confidence around the ${title || 'product'}. Tight crop, subject fills the frame, clean natural light, real everyday setting, no text overlay, no badges, no poster design.`
       },
       {
         titre_angle: `Ce ${title || 'produit'} apporte un bénéfice concret perceptible dès les premiers usages`,
         explication: `Conçu pour offrir des résultats concrets, ce ${title || 'produit'} s'intègre facilement dans votre routine quotidienne pour un impact mesurable dès les premières utilisations.`,
         message_principal: "Des résultats réels dès la première utilisation",
         promesse: "Une efficacité prouvée dans votre quotidien",
-        prompt_affiche: `Square 1:1 explanatory lifestyle image showing the immediate practical benefit of the ${title || 'product'}. Tight crop, authentic movement, natural light, everyday environment, no text overlay, no CTA, no marketing layout.`
+        prompt_affiche: `Vertical 4:5 (1080×1250) explanatory lifestyle image showing the immediate practical benefit of the ${title || 'product'}. Tight crop, authentic movement, natural light, everyday environment, no text overlay, no CTA, no marketing layout.`
       },
       {
         titre_angle: `Ce ${title || 'produit'} simplifie l'usage au quotidien avec un confort immédiat`,
         explication: `Alliant ergonomie et design intuitif, ce ${title || 'produit'} s'intègre naturellement dans votre style de vie. Simple à utiliser, il devient vite indispensable.`,
         message_principal: "La simplicité qui change tout",
         promesse: "Un quotidien plus confortable et agréable",
-        prompt_affiche: `Square 1:1 real-life scene showing comfort and ease of use with the ${title || 'product'}. Tight crop, calm authentic setting, no text, no promotional elements, clear visual storytelling.`
+        prompt_affiche: `Vertical 4:5 (1080×1250) real-life scene showing comfort and ease of use with the ${title || 'product'}. Tight crop, calm authentic setting, no text, no promotional elements, clear visual storytelling.`
       },
       {
         titre_angle: `Ce ${title || 'produit'} rassure par sa fiabilité et sa conception bien pensée`,
         explication: `Ce ${title || 'produit'} est conçu pour durer et répondre aux standards de qualité les plus exigeants. Sa solidité et sa fiabilité en font un investissement judicieux sur le long terme.`,
         message_principal: "Un produit de confiance pour les années à venir",
         promesse: "La tranquillité d'esprit avec chaque utilisation",
-        prompt_affiche: `Square 1:1 close-up visual focused on reliability, finish and trust around the ${title || 'product'}. Tight crop, premium but simple, no text overlay, no promotional elements, no empty margins.`
+        prompt_affiche: `Vertical 4:5 (1080×1250) close-up visual focused on reliability, finish and trust around the ${title || 'product'}. Tight crop, premium but simple, no text overlay, no promotional elements, no empty margins.`
       },
       {
         titre_angle: `Ce ${title || 'produit'} offre un rapport qualité-prix imbattable pour un usage quotidien`,
         explication: `Ce ${title || 'produit'} combine performance et accessibilité, offrant une solution premium sans compromis sur votre budget. Un investissement rentable sur le long terme.`,
         message_principal: "Le meilleur rapport qualité-prix du marché",
         promesse: "La qualité premium accessible à tous",
-        prompt_affiche: `Square 1:1 lifestyle scene showing satisfaction and value around the ${title || 'product'}. Person smiling, product visible and prominent, everyday authentic African setting, professional lighting, no text overlay, no promotional elements.`
+        prompt_affiche: `Vertical 4:5 (1080×1250) lifestyle scene showing satisfaction and value around the ${title || 'product'}. Person smiling, product visible and prominent, everyday authentic African setting, professional lighting, no text overlay, no promotional elements.`
       }
     ];
     while (result.angles.length < 5) {
@@ -918,8 +919,8 @@ export async function generatePosterImage(promptAffiche, originalImageBuffer = n
 
     const heroRules = `
 Create a high-converting ecommerce product hero image showing the product IN ACTION. Ultra realistic, 4K quality, sharp focus, advertising photography style.
-USE THE EXACT REAL PRODUCT IMAGE PROVIDED — NEVER invent, recreate or redesign the product.
-Square 1:1 premium composition, tight crop, full-bleed framing, ZERO empty margins.
+USE EXACTLY the product appearance from the reference image provided — do NOT redraw, recreate, or redesign the product. If you cannot reproduce the EXACT same product, generate the scene WITHOUT the product rather than inventing a different one.
+Vertical 4:5 (1080×1250) premium composition, tight crop, full-bleed framing, ZERO empty margins.
 
 Visual style: Clean, modern, premium. The product is shown in its REAL USAGE CONTEXT — being held IN THE PERSON'S HANDS, opened, applied, used, demonstrated. NOT a static cosmetic studio pose. Contextual background matching the product category (kitchen, desk, bathroom, outdoor, gym, home, etc.). Warm natural lighting, professional quality.
 
@@ -936,8 +937,8 @@ Mood: Premium ecommerce, trustworthy, high-conversion, scroll-stopping — the p
 
     const heroPosterRules = `
 Create a bold, visually striking advertising poster for THIS specific product. Premium graphic design meets ultra-realistic product photography.
-USE THE EXACT REAL PRODUCT IMAGE PROVIDED — NEVER invent, recreate or redesign the product.
-Square 1:1, dramatic full-bleed composition, ZERO empty margins.
+USE EXACTLY the product appearance from the reference image provided — do NOT redraw, recreate, or redesign the product. If you cannot reproduce the EXACT same product, generate the poster WITHOUT the product rather than inventing a different one.
+Vertical 4:5 (1080×1250), dramatic full-bleed composition, ZERO empty margins.
 
 PRODUCT PLACEMENT (CRITICAL): The product must be LARGE, DOMINANT, and PERFECTLY SHARP in the center or lower third. It should occupy at least 50% of the frame. Every detail of the product (color, texture, label, packaging) must be crystal clear and instantly recognizable.
 
@@ -964,7 +965,7 @@ Mood: Bold, aspirational, premium brand launch — think Apple product launch po
 
     const beforeAfterRules = `
 Create a high-converting before/after product transformation image. Ultra realistic, 4K quality, sharp focus, advertising photography style.
-Square 1:1 split-screen visual specific to this product.
+Vertical 4:5 (1080×1250) split-screen visual specific to this product.
 
 MANDATORY: feature an authentic Black African person (dark brown skin, natural African hair, African facial features). Natural expression, realistic skin and features — not fake or plastic.
 
@@ -979,8 +980,8 @@ NO arrows, NO heavy graphic overlays, NO empty margins, NO price, NO CTA.
 Mood: Trustworthy, convincing, high-conversion, impossible to ignore in a Facebook or TikTok feed.`;
 
     const sceneRules = `
-QUALITY: Ultra HD 4K, razor-sharp, zero blur. Square 1:1.
-PRODUCT REFERENCE (CRITICAL): The reference product image provided MUST be reproduced EXACTLY in the output — same packaging, same colors, same label, same shape, same size proportions. The product must be clearly recognizable as the EXACT SAME item. NEVER invent a different product, NEVER redesign the packaging, NEVER change colors or labels. If someone compares the reference image and the output, they must instantly see it is the SAME product.
+QUALITY: Ultra HD 4K, razor-sharp, zero blur. Vertical 4:5 (1080×1250).
+PRODUCT REFERENCE (CRITICAL): The reference product image provided MUST be reproduced EXACTLY in the output — same packaging, same colors, same label, same shape, same size proportions. Use the EXACT visual appearance from the reference photo, do NOT recreate or redraw the product. If you cannot faithfully reproduce the EXACT same product, generate the scene WITHOUT the product rather than inventing a different one. A scene without the product is ALWAYS better than a scene with a wrong product.
 PERSON: ALWAYS include authentic Black African person (dark skin, natural hair, confident expression).
 PRODUCT: Large, dominant, sharp, 40-60% of frame. Must match the reference image exactly.
 TEXT: French only, 100% perfect spelling with accents. Max 3 text elements.
@@ -989,10 +990,10 @@ CRITICAL: Follow the SPECIFIC visual style described above — unique background
 
     const productRefRule = `
 ═══ PRODUCT REFERENCE — ABSOLUTELY MANDATORY ═══
-A reference image of the EXACT real product is provided as input. The output image MUST contain THIS SPECIFIC product — same shape, same color, same packaging, same label, same design — clearly visible, sharp, and recognizable.
-NEVER invent, replace, redesign, reinterpret, or omit the product. The product from the reference image MUST appear in every generated visual, even if the scene description doesn't mention it explicitly. If the scene would not naturally contain the product, place it naturally in the hands of the person, on a surface in the scene, or in a prominent position.
+A reference image of the EXACT real product is provided as input. You MUST use EXACTLY the product appearance from this reference image — same shape, same color, same packaging, same label, same design — as it appears in the reference photo. Do NOT recreate, redraw, redesign, reinterpret, or invent a product image. Copy the EXACT visual appearance of the product from the reference.
+The product from the reference image MUST appear in every generated visual, even if the scene description doesn't mention it explicitly. If the scene would not naturally contain the product, place it naturally in the hands of the person, on a surface in the scene, or in a prominent position.
 The product must be recognizable as the same item as the reference to anyone looking at both images side by side.
-CRITICAL CHECK: Before finalizing, verify that the product in the output matches the reference image EXACTLY — same packaging colors, same label text, same bottle/box shape, same cap/lid design. If ANY detail differs, regenerate.
+CRITICAL: If you cannot faithfully reproduce the EXACT same product from the reference image, generate the scene WITHOUT the product rather than inventing a different product. A scene without the product is ALWAYS better than a scene with a wrong/invented product.
 `;
 
     let modeRules;
@@ -1008,17 +1009,19 @@ ${promptAffiche}
 ${modeRules}`;
 
     console.log('📸 Image-to-image poster generation (with product reference)...');
+    const aspectRatio = options?.aspectRatio || '4:5';
     const result = await generateNanoBananaImageToImage(
       posterPrompt,
       originalImageBuffer,
-      '1:1',
+      aspectRatio,
       1
     );
 
     return result;
   } catch (err) {
     console.warn(`⚠️ Erreur génération affiche NanoBanana: ${err.message}`);
-    return null;
+    // STRICT: throw so upstream generateAndUpload retry logic can retry
+    throw err;
   }
 }
 

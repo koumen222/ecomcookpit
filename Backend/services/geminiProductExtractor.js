@@ -23,8 +23,8 @@ function getGroq() {
   return _groq;
 }
 
-// Modèle unique — celui qui fonctionne
-const GEMINI_MODEL = 'gemini-3-flash-preview';
+// Modèle configurable via GEMINI_MODEL env var
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3-flash-preview';
 
 /**
  * Extrait et parse robustement un objet JSON d'une réponse Gemini.
@@ -112,7 +112,7 @@ Format de réponse STRICTEMENT en JSON valide :
 IMPORTANT: Ne retourne QUE le JSON, sans markdown ni texte supplémentaire.`;
 
   const response = await groq.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
+    model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.4,
     max_tokens: 2000,

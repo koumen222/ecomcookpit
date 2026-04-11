@@ -886,7 +886,7 @@ Réponds UNIQUEMENT avec un JSON valide (sans markdown, sans \`\`\`json) avec ce
 `;
 
       const completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
+        model: process.env.OPENAI_MODEL || 'gpt-4o',
         messages: [{ role: 'user', content: summary }],
         temperature: 0.4,
         max_tokens: 2000
@@ -1318,7 +1318,7 @@ Réponds UNIQUEMENT avec un JSON valide (sans markdown, sans \`\`\`json) avec ce
 }`;
 
       const completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
+        model: process.env.OPENAI_MODEL || 'gpt-4o',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.35,
         max_tokens: 4000

@@ -1249,6 +1249,140 @@ const AiTextSection = ({ cfg }) => (
   </section>
 );
 
+// ─── IMAGE + TEXTE (layout flexible) ──────────────────────────────────────────
+const AiImageTextSection = ({ cfg }) => {
+  const isReversed = cfg.layout === 'image_left';
+  return (
+    <section style={{ padding: 'clamp(48px, 8vw, 80px) 24px', backgroundColor: cfg.backgroundColor || '#fff' }}>
+      <div style={{
+        maxWidth: 1100, margin: '0 auto',
+        display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 400px), 1fr))',
+        gap: 'clamp(32px, 5vw, 60px)', alignItems: 'center',
+        direction: isReversed ? 'rtl' : 'ltr',
+      }}>
+        <div style={{ direction: 'ltr' }}>
+          {cfg.subtitle && <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--s-primary)', textTransform: 'uppercase', letterSpacing: 1.5, margin: '0 0 12px', fontFamily: 'var(--s-font)' }}>{cfg.subtitle}</p>}
+          {cfg.title && <h2 style={{ fontSize: 'clamp(24px, 4vw, 36px)', fontWeight: 800, color: 'var(--s-text)', margin: '0 0 20px', lineHeight: 1.2, fontFamily: 'var(--s-font)' }}>{cfg.title}</h2>}
+          {cfg.content && <p style={{ fontSize: 15, color: 'var(--s-text2)', lineHeight: 1.75, margin: '0 0 24px', fontFamily: 'var(--s-font)', whiteSpace: 'pre-line' }}>{cfg.content.replace(/\*\*/g, '')}</p>}
+          {cfg.ctaText && (
+            <a href={cfg.ctaLink || '/products'} style={{
+              display: 'inline-block', padding: '14px 32px', borderRadius: 'var(--sf-radius, 12px)',
+              backgroundColor: 'var(--s-primary)', color: 'var(--sf-cta-text, #fff)',
+              fontSize: 15, fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--s-font)',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+            }}>{cfg.ctaText}</a>
+          )}
+          {cfg.items && cfg.items.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 24 }}>
+              {cfg.items.map((item, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <IconBox icon={item.icon} size={18} boxSize={36} radius={10} />
+                  <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{item.title}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ direction: 'ltr' }}>
+          {cfg.image ? (
+            <img src={cfg.image} alt={cfg.title || ''} style={{
+              width: '100%', borderRadius: 'var(--sf-radius, 16px)',
+              aspectRatio: '4/3', objectFit: 'cover',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.1)',
+            }} loading="lazy" />
+          ) : (
+            <div style={{
+              width: '100%', aspectRatio: '4/3', borderRadius: 'var(--sf-radius, 16px)',
+              background: 'linear-gradient(135deg, color-mix(in srgb, var(--s-primary) 15%, white), color-mix(in srgb, var(--s-primary) 5%, white))',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <span style={{ fontSize: 48, opacity: 0.3 }}>🖼️</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+// ─── BANNIÈRE PROMO / CTA ─────────────────────────────────────────────────────
+const AiBannerSection = ({ cfg }) => (
+  <section style={{
+    padding: 'clamp(40px, 7vw, 72px) 24px',
+    background: cfg.backgroundImage
+      ? `linear-gradient(135deg, rgba(0,0,0,0.55), rgba(0,0,0,0.35)), url(${cfg.backgroundImage}) center/cover no-repeat`
+      : `linear-gradient(135deg, var(--s-primary), color-mix(in srgb, var(--s-primary) 70%, #000))`,
+    textAlign: 'center',
+  }}>
+    <div style={{ maxWidth: 700, margin: '0 auto' }}>
+      {cfg.title && <h2 style={{ fontSize: 'clamp(24px, 4vw, 40px)', fontWeight: 900, color: '#fff', margin: '0 0 16px', fontFamily: 'var(--s-font)', textShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>{cfg.title}</h2>}
+      {cfg.content && <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.9)', lineHeight: 1.7, margin: '0 0 28px', fontFamily: 'var(--s-font)' }}>{cfg.content.replace(/\*\*/g, '')}</p>}
+      {cfg.ctaText && (
+        <a href={cfg.ctaLink || '/products'} style={{
+          display: 'inline-block', padding: '16px 40px', borderRadius: 50,
+          backgroundColor: '#fff', color: 'var(--s-primary)',
+          fontSize: 15.5, fontWeight: 800, textDecoration: 'none', fontFamily: 'var(--s-font)',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.15)', transition: 'transform 0.2s',
+        }}>{cfg.ctaText}</a>
+      )}
+    </div>
+  </section>
+);
+
+// ─── GALERIE D'IMAGES ─────────────────────────────────────────────────────────
+const AiGallerySection = ({ cfg }) => {
+  const images = cfg.images || [];
+  if (images.length === 0) return null;
+  return (
+    <section style={{ padding: 'clamp(48px, 8vw, 72px) 24px', backgroundColor: cfg.backgroundColor || '#fff' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+        {cfg.title && <h2 style={{ fontSize: 'clamp(20px, 3vw, 28px)', fontWeight: 800, color: 'var(--s-text)', margin: '0 0 12px', textAlign: 'center', fontFamily: 'var(--s-font)' }}>{cfg.title}</h2>}
+        {cfg.subtitle && <p style={{ fontSize: 14.5, color: 'var(--s-text2)', margin: '0 0 32px', textAlign: 'center', fontFamily: 'var(--s-font)' }}>{cfg.subtitle}</p>}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(auto-fill, minmax(${images.length <= 2 ? '300px' : '220px'}, 1fr))`,
+          gap: 16,
+        }}>
+          {images.map((img, i) => (
+            <div key={i} style={{ borderRadius: 'var(--sf-radius, 12px)', overflow: 'hidden', aspectRatio: '1', position: 'relative' }}>
+              <img src={typeof img === 'string' ? img : img.url} alt={typeof img === 'string' ? '' : (img.alt || '')} style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
+              {typeof img !== 'string' && img.caption && (
+                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '12px 16px', background: 'linear-gradient(transparent, rgba(0,0,0,0.6))', color: '#fff', fontSize: 13, fontWeight: 600, fontFamily: 'var(--s-font)' }}>{img.caption}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+// ─── NEWSLETTER ───────────────────────────────────────────────────────────────
+const AiNewsletterSection = ({ cfg }) => (
+  <section style={{
+    padding: 'clamp(48px, 8vw, 72px) 24px',
+    background: cfg.backgroundColor || 'linear-gradient(135deg, color-mix(in srgb, var(--s-primary) 8%, white), color-mix(in srgb, var(--s-primary) 3%, white))',
+  }}>
+    <div style={{ maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>
+      {cfg.title && <h2 style={{ fontSize: 'clamp(22px, 3vw, 30px)', fontWeight: 800, color: 'var(--s-text)', margin: '0 0 12px', fontFamily: 'var(--s-font)' }}>{cfg.title}</h2>}
+      {cfg.subtitle && <p style={{ fontSize: 14.5, color: 'var(--s-text2)', margin: '0 0 24px', lineHeight: 1.6, fontFamily: 'var(--s-font)' }}>{cfg.subtitle}</p>}
+      <div style={{ display: 'flex', gap: 10, maxWidth: 440, margin: '0 auto' }}>
+        <input type="email" placeholder={cfg.placeholder || 'Votre adresse email'} style={{
+          flex: 1, padding: '14px 18px', borderRadius: 'var(--sf-radius, 12px)',
+          border: '2px solid #E5E7EB', fontSize: 14, fontFamily: 'var(--s-font)',
+          outline: 'none',
+        }} />
+        <button style={{
+          padding: '14px 24px', borderRadius: 'var(--sf-radius, 12px)', border: 'none',
+          backgroundColor: 'var(--s-primary)', color: 'var(--sf-cta-text, #fff)',
+          fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--s-font)',
+          whiteSpace: 'nowrap',
+        }}>{cfg.buttonText || "S'inscrire"}</button>
+      </div>
+    </div>
+  </section>
+);
+
 const AiSpacerSection = ({ cfg }) => (
   <div style={{ height: cfg.height || 40, backgroundColor: cfg.backgroundColor || 'transparent' }} />
 );
@@ -1259,6 +1393,10 @@ const SECTION_TYPE_LABELS = {
   badges: 'Badges',
   features: 'Avantages',
   text: 'Texte',
+  image_text: 'Image + Texte',
+  banner: 'Bannière',
+  gallery: 'Galerie',
+  newsletter: 'Newsletter',
   products: 'Produits',
   testimonials: 'Témoignages',
   faq: 'FAQ',
@@ -1279,6 +1417,10 @@ const SectionRenderer = ({ section, store, products, prefix }) => {
       case 'badges':       return <AiBadgesSection cfg={cfg} />;
       case 'features':     return <AiFeaturesSection cfg={cfg} />;
       case 'text':         return <AiTextSection cfg={cfg} />;
+      case 'image_text':   return <AiImageTextSection cfg={cfg} />;
+      case 'banner':       return <AiBannerSection cfg={cfg} />;
+      case 'gallery':      return <AiGallerySection cfg={cfg} />;
+      case 'newsletter':   return <AiNewsletterSection cfg={cfg} />;
       case 'products':     return <AiProductsSection cfg={cfg} products={products} prefix={prefix} store={store} />;
       case 'testimonials': 
         return (

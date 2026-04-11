@@ -189,7 +189,7 @@ RÈGLES STRICTES:
 - Retourne UNIQUEMENT du JSON valide, sans \`\`\`json ni aucune explication`;
 
   const completion = await openai.chat.completions.create({
-    model: 'gpt-4o',
+    model: process.env.OPENAI_MODEL || 'gpt-4o',
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.78,
     max_tokens: 3500,
