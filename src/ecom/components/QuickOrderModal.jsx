@@ -559,19 +559,12 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
 
               case 'cta_button': {
                 const ctaLabel = (field.label || 'ACHETER MAINTENANT - {total}').replace('{total}', fmt(total, currency));
-                const ctaIconKey = btnCfg.icon || field.icon || 'cart';
-                const CtaIcon = ctaIconKey === 'none' ? null : (ICON_MAP[ctaIconKey] || ShoppingCart);
-                const animName = btnCfg.animation || 'none';
-                const animStyle = animName === 'pulse' ? 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite'
-                  : animName === 'bounce' ? 'bounce 1s infinite'
-                  : animName === 'shake' ? 'shake 0.5s infinite'
-                  : animName === 'glow' ? 'glow 2s ease-in-out infinite alternate'
-                  : 'none';
+                const CtaIcon = ICON_MAP[field.icon] || ShoppingCart;
                 return (
                   <React.Fragment key={field.name}>
                     <button type="submit" disabled={submitting} style={{
                       width: '100%', padding: '15px 20px',
-                      borderRadius: design.formBorderRadius || (parseInt(borderRadius) >= 20 ? 40 : borderRadius),
+                      borderRadius: design.formBorderRadius || borderRadius,
                       border: design.formBorderWidth && parseInt(design.formBorderWidth) > 0
                         ? `${design.formBorderWidth} solid ${design.formBorderColor || 'transparent'}`
                         : 'none',
@@ -582,9 +575,8 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
                       color: '#fff', fontWeight: 700, fontSize: 15, cursor: submitting ? 'not-allowed' : 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                       transition: 'opacity 0.15s', fontFamily: 'inherit',
-                      animation: submitting ? 'none' : animStyle,
                     }}>
-                      {submitting ? <><Loader2 size={17} style={{ animation: 'spin 1s linear infinite' }} /> Traitement...</> : <>{field.showIcon !== false && CtaIcon && <CtaIcon size={17} />} {ctaLabel}</>}
+                      {submitting ? <><Loader2 size={17} style={{ animation: 'spin 1s linear infinite' }} /> Traitement...</> : <>{field.showIcon !== false && <CtaIcon size={17} />} {ctaLabel}</>}
                     </button>
                     <style>{`
                       @keyframes spin{to{transform:rotate(360deg)}}
