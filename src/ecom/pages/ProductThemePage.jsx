@@ -203,19 +203,76 @@ const ColorInput = ({ label, value, onChange }) => (
   </div>
 );
 
+const withAlpha = (color, alpha) => {
+  if (!color) return `rgba(124, 58, 237, ${alpha})`;
+  if (color.startsWith('#')) {
+    let hex = color.slice(1);
+    if (hex.length === 3) hex = hex.split('').map(char => char + char).join('');
+    if (hex.length !== 6) return color;
+    const red = Number.parseInt(hex.slice(0, 2), 16);
+    const green = Number.parseInt(hex.slice(2, 4), 16);
+    const blue = Number.parseInt(hex.slice(4, 6), 16);
+    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+  }
+  return color;
+};
+
 // ── Toggle ────────────────────────────────────────────────────────────────────
-const Toggle = ({ label, desc, value, onChange }) => (
-  <div className="flex items-center justify-between py-2">
-    <div>
-      <span className="text-sm font-bold text-gray-900">{label}</span>
-      {desc && <p className="text-[11px] text-gray-500">{desc}</p>}
+const Toggle = ({ label, desc, value, onChange, accentColor = '#7C3AED' }) => {
+  const activeBg = withAlpha(accentColor, 0.1);
+  const activeBorder = withAlpha(accentColor, 0.24);
+  const activeShadow = withAlpha(accentColor, 0.28);
+
+  return (
+    <div
+      className={`flex items-center justify-between gap-4 rounded-2xl border px-4 py-3 transition-all duration-200 ${
+        value ? 'bg-white shadow-sm' : 'bg-gray-50/80 hover:bg-white'
+      }`}
+      style={{
+        borderColor: value ? activeBorder : '#E5E7EB',
+        boxShadow: value ? `0 14px 30px -24px ${activeShadow}` : 'none',
+      }}
+    >
+      <div className="min-w-0 pr-2">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-sm font-bold text-gray-900">{label}</span>
+          <span
+            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] ${
+              value ? 'text-gray-900' : 'bg-gray-200 text-gray-500'
+            }`}
+            style={value ? { backgroundColor: activeBg } : undefined}
+          >
+            {value ? 'On' : 'Off'}
+          </span>
+        </div>
+        {desc && <p className="mt-1 text-[11px] leading-5 text-gray-500">{desc}</p>}
+      </div>
+
+      <button
+        type="button"
+        role="switch"
+        aria-checked={value}
+        aria-label={label}
+        onClick={() => onChange(!value)}
+        className="relative h-8 w-[60px] shrink-0 rounded-full border transition-all duration-200 focus:outline-none focus:ring-4"
+        style={{
+          backgroundColor: value ? accentColor : '#D1D5DB',
+          borderColor: value ? withAlpha(accentColor, 0.2) : '#D1D5DB',
+          boxShadow: value ? `inset 0 0 0 1px ${withAlpha('#FFFFFF', 0.18)}, 0 10px 24px -14px ${activeShadow}` : 'inset 0 1px 2px rgba(15, 23, 42, 0.08)',
+          outline: 'none',
+        }}
+      >
+        <span
+          className={`absolute inset-y-0.5 flex w-7 items-center justify-center rounded-full bg-white text-[10px] font-extrabold text-gray-700 shadow-[0_6px_14px_-8px_rgba(15,23,42,0.5)] transition-all duration-200 ${
+            value ? 'translate-x-[30px]' : 'translate-x-0.5'
+          }`}
+        >
+          {value ? <Check size={12} strokeWidth={3} color={accentColor} /> : <Minus size={12} strokeWidth={3} color="#94A3B8" />}
+        </span>
+      </button>
     </div>
-    <button type="button" onClick={() => onChange(!value)}
-      className={`relative w-11 h-6 rounded-full transition-colors ${value ? 'bg-violet-600' : 'bg-gray-300'}`}>
-      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${value ? 'translate-x-5' : 'translate-x-0.5'}`} />
-    </button>
-  </div>
-);
+  );
+};
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 const DEFAULT_DESIGN = {
@@ -463,7 +520,7 @@ const ProductThemePage = () => {
                   ))}
                 </div>
                 <div className="mt-4">
-                  <Toggle label="Zoom image" desc="Activer le zoom au survol des images" value={design.imageZoom} onChange={v => updateDesign('imageZoom', v)} />
+                  <Toggle label="Zoom image" desc="Activer le zoom au survol des images" value={design.imageZoom} onChange={v => updateDesign('imageZoom', v)} accentColor={design.buttonColor || '#7C3AED'} />
                 </div>
               </div>
             </div>
@@ -652,7 +709,7 @@ const ProductThemePage = () => {
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-200 p-5">
-              <Toggle label="Ombre portée" desc="Ajoute une ombre subtile aux boutons et éléments clés" value={design.shadow} onChange={v => updateDesign('shadow', v)} />
+              <Toggle label="Ombre portée" desc="Ajoute une ombre subtile aux boutons et éléments clés" value={design.shadow} onChange={v => updateDesign('shadow', v)} accentColor={design.buttonColor || '#7C3AED'} />
             </div>
           </div>
         )}
@@ -668,28 +725,28 @@ const ProductThemePage = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2"><ShoppingBag size={14} /> Achat</h3>
-                <Toggle label="Sélecteur de quantité" desc="Permet de choisir la quantité avant l'ajout" value={design.showQuantitySelector} onChange={v => updateDesign('showQuantitySelector', v)} />
-                <Toggle label="Bouton ajout sticky" desc="Le bouton d'ajout reste visible en scrollant" value={design.stickyAddToCart} onChange={v => updateDesign('stickyAddToCart', v)} />
-                <Toggle label="Indicateur de stock" desc="Affiche le stock restant pour créer l'urgence" value={design.showStockIndicator} onChange={v => updateDesign('showStockIndicator', v)} />
-                <Toggle label="Compte à rebours" desc="Timer d'urgence pour les offres limitées" value={design.showCountdown} onChange={v => updateDesign('showCountdown', v)} />
+                <Toggle label="Sélecteur de quantité" desc="Permet de choisir la quantité avant l'ajout" value={design.showQuantitySelector} onChange={v => updateDesign('showQuantitySelector', v)} accentColor={design.buttonColor || '#7C3AED'} />
+                <Toggle label="Bouton ajout sticky" desc="Le bouton d'ajout reste visible en scrollant" value={design.stickyAddToCart} onChange={v => updateDesign('stickyAddToCart', v)} accentColor={design.buttonColor || '#7C3AED'} />
+                <Toggle label="Indicateur de stock" desc="Affiche le stock restant pour créer l'urgence" value={design.showStockIndicator} onChange={v => updateDesign('showStockIndicator', v)} accentColor={design.buttonColor || '#7C3AED'} />
+                <Toggle label="Compte à rebours" desc="Timer d'urgence pour les offres limitées" value={design.showCountdown} onChange={v => updateDesign('showCountdown', v)} accentColor={design.buttonColor || '#7C3AED'} />
               </div>
 
               <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2"><Shield size={14} /> Confiance</h3>
-                <Toggle label="Badges de confiance" desc="Sécurité, garantie, retours" value={design.showTrustBadges} onChange={v => updateDesign('showTrustBadges', v)} />
-                <Toggle label="Infos livraison" desc="Délai et coût de livraison estimés" value={design.showDeliveryInfo} onChange={v => updateDesign('showDeliveryInfo', v)} />
-                <Toggle label="Badge paiement sécurisé" desc="Icône de cadenas + texte sécurisé" value={design.showSecureBadge} onChange={v => updateDesign('showSecureBadge', v)} />
+                <Toggle label="Badges de confiance" desc="Sécurité, garantie, retours" value={design.showTrustBadges} onChange={v => updateDesign('showTrustBadges', v)} accentColor={design.buttonColor || '#7C3AED'} />
+                <Toggle label="Infos livraison" desc="Délai et coût de livraison estimés" value={design.showDeliveryInfo} onChange={v => updateDesign('showDeliveryInfo', v)} accentColor={design.buttonColor || '#7C3AED'} />
+                <Toggle label="Badge paiement sécurisé" desc="Icône de cadenas + texte sécurisé" value={design.showSecureBadge} onChange={v => updateDesign('showSecureBadge', v)} accentColor={design.buttonColor || '#7C3AED'} />
               </div>
 
               <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2"><Star size={14} /> Social</h3>
-                <Toggle label="Avis clients" desc="Section avis et notes sur la page" value={design.showReviews} onChange={v => updateDesign('showReviews', v)} />
-                <Toggle label="Boutons partage" desc="Partager sur WhatsApp, Facebook, etc." value={design.showShareButtons} onChange={v => updateDesign('showShareButtons', v)} />
+                <Toggle label="Avis clients" desc="Section avis et notes sur la page" value={design.showReviews} onChange={v => updateDesign('showReviews', v)} accentColor={design.buttonColor || '#7C3AED'} />
+                <Toggle label="Boutons partage" desc="Partager sur WhatsApp, Facebook, etc." value={design.showShareButtons} onChange={v => updateDesign('showShareButtons', v)} accentColor={design.buttonColor || '#7C3AED'} />
               </div>
 
               <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2"><Layout size={14} /> Contenu</h3>
-                <Toggle label="Produits similaires" desc="Affiche des produits recommandés en bas" value={design.showRelatedProducts} onChange={v => updateDesign('showRelatedProducts', v)} />
+                <Toggle label="Produits similaires" desc="Affiche des produits recommandés en bas" value={design.showRelatedProducts} onChange={v => updateDesign('showRelatedProducts', v)} accentColor={design.buttonColor || '#7C3AED'} />
               </div>
             </div>
           </div>

@@ -876,7 +876,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
   const handleGenerate = async () => {
     // Validation selon le mode
     if (inputMode === 'url' && (!isValidUrl || photos.length === 0)) return;
-    if (inputMode === 'description' && !isValidDescription) return;
+    if (inputMode === 'description' && !hasValidDescription) return;
     
     setPhase('loading');
     setStepLabel('Génération en cours...');
