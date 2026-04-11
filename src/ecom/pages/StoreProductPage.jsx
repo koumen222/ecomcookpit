@@ -20,6 +20,7 @@ import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking';
 import { useStoreAnalytics } from '../hooks/useStoreAnalytics';
 import { preloadStoreCheckoutRoute, preloadStoreProductRoute } from '../utils/routePrefetch';
 import { getIconComponent } from '../components/productSettings/ButtonEditor';
+import defaultConfig from '../components/productSettings/defaultConfig';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur === 'XAF' || cur === 'XOF' ? 'FCFA' : cur}`;
 
@@ -132,6 +133,36 @@ const normalizeMetaText = (value = '') => String(value || '')
 const truncateMetaText = (value = '', max = 180) => {
   if (!value || value.length <= max) return value;
   return `${value.slice(0, max - 1).trimEnd()}…`;
+};
+
+const deepClone = (obj) => JSON.parse(JSON.stringify(obj));
+
+const mergeProductSections = (stored) => {
+  const defaults = deepClone(defaultConfig.general.sections);
+  if (!stored?.length) return defaults;
+  const merged = stored.map(section => {
+    const def = defaults.find(item => item.id === section.id);
+    return def ? { ...def, ...section } : section;
+  });
+  defaults.forEach(def => {
+    if (!merged.find(section => section.id === def.id)) merged.push(def);
+  });
+  return merged;
+};
+
+const PRODUCT_GALLERY_DEFAULTS = {
+  title: 'Photos du produit',
+  subtitle: 'Faites défiler les visuels avant de commander',
+  showHeader: true,
+  useProductImages: true,
+  images: [],
+  mainImageHeight: 420,
+  thumbnailSize: 72,
+};
+
+const resolveProductGalleryImages = (content = {}, fallbackImages = []) => {
+  const customImages = (content.images || []).filter(image => image?.url);
+  return content.useProductImages === false && customImages.length > 0 ? customImages : fallbackImages;
 };
 
 // ── Image Gallery ────────────────────────────────────────────────────────────
@@ -304,8 +335,11 @@ const ImageGallery = ({ images = [], design = {} }) => {
   );
 };
 
-const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)' }) => {
+const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', config = {} }) => {
   const [activeIndex, setActiveIndex] = useState(0);
+  const gallery = { ...PRODUCT_GALLERY_DEFAULTS, ...config };
+  const thumbnailSize = Math.max(48, Number.parseInt(gallery.thumbnailSize, 10) || 72);
+  const mainImageHeight = Math.max(220, Number.parseInt(gallery.mainImageHeight, 10) || 420);
 
   if (!images.length) return null;
 
@@ -326,62 +360,68 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)' }) 
 
   return (
     <div style={{ marginTop: 14 }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 12,
-        marginBottom: 10,
-      }}>
-        <div>
-          <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>
-            Photos du produit
-          </p>
-          <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>
-            Faites défiler les visuels avant de commander
-          </p>
-        </div>
-        {canNavigate && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              type="button"
-              onClick={() => goTo(activeIndex - 1)}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 999,
-                border: '1px solid var(--s-border)',
-                background: '#fff',
-                color: 'var(--s-text)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-              }}
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => goTo(activeIndex + 1)}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 999,
-                border: '1px solid var(--s-border)',
-                background: '#fff',
-                color: 'var(--s-text)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-              }}
-            >
-              <ChevronRight size={16} />
-            </button>
+      {gallery.showHeader !== false && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          marginBottom: 10,
+        }}>
+          <div>
+            {gallery.title && (
+              <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>
+                {gallery.title}
+              </p>
+            )}
+            {gallery.subtitle && (
+              <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>
+                {gallery.subtitle}
+              </p>
+            )}
           </div>
-        )}
-      </div>
+          {canNavigate && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => goTo(activeIndex - 1)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 999,
+                  border: '1px solid var(--s-border)',
+                  background: '#fff',
+                  color: 'var(--s-text)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => goTo(activeIndex + 1)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 999,
+                  border: '1px solid var(--s-border)',
+                  background: '#fff',
+                  color: 'var(--s-text)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{
         position: 'relative',
@@ -390,7 +430,7 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)' }) 
         border: '1px solid var(--s-border)',
         background: '#fff',
       }}>
-        <div style={{ position: 'relative', paddingBottom: '78%', background: '#f4f4f5' }}>
+        <div style={{ position: 'relative', height: mainImageHeight, background: '#f4f4f5' }}>
           <img
             src={activeImage?.url}
             alt={activeImage?.alt || 'Photo produit'}
@@ -426,9 +466,9 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)' }) 
                   borderRadius: 14,
                   padding: 0,
                   overflow: 'hidden',
-                  minWidth: 72,
-                  width: 72,
-                  height: 72,
+                  minWidth: thumbnailSize,
+                  width: thumbnailSize,
+                  height: thumbnailSize,
                   background: '#fff',
                   cursor: 'pointer',
                   boxShadow: active ? '0 6px 18px rgba(0,0,0,0.10)' : 'none',
@@ -1149,7 +1189,7 @@ const StoreProductPage = () => {
   const ppDesign = productPageConfig?.design || {};
   const ppButton = productPageConfig?.button || {};
   const ppConversion = productPageConfig?.conversion || {};
-  const ppSections = ppGeneral.sections || [];
+  const ppSections = mergeProductSections(ppGeneral.sections || []);
   const ppSectionOrder = ppSections.length > 0 ? ppSections : null;
   const sectionContentMap = Object.fromEntries(ppSections.map(s => [s.id, s.content || {}]));
 
@@ -1408,13 +1448,14 @@ const StoreProductPage = () => {
     const ids = ppSectionOrder
       ? ppSectionOrder.filter(s => s.enabled).map(s => s.id)
       : ['heroSlogan', 'heroBaseline', 'reviews', 'stockCounter', 'urgencyBadge', 'countdownBar',
-         'orderForm', 'trustBadges', 'secureBadge', 'deliveryInfo', 'shareButtons', 'statsBar',
+        'orderForm', 'productGallery', 'trustBadges', 'secureBadge', 'deliveryInfo', 'shareButtons', 'statsBar',
          'urgencyElements', 'benefitsBullets', 'conversionBlocks', 'offerBlock', 'description',
          'problemSection', 'solutionSection', 'faq', 'testimonials', 'relatedProducts',
          'stickyOrderBar', 'upsell', 'orderBump'];
 
     const insertAfterMap = {
       countdownBar: 'urgencyBadge',
+      productGallery: 'orderForm',
       trustBadges: 'orderForm',
       secureBadge: 'trustBadges',
       deliveryInfo: 'secureBadge',
@@ -1798,12 +1839,21 @@ const StoreProductPage = () => {
                             </button>
                           )}
 
-                          <InlinePhotoCarousel
-                            images={images}
-                            accentColor={aiVisualTheme?.primary || 'var(--s-primary)'}
-                          />
                         </div>
                       );
+
+                    case 'productGallery': {
+                      const galleryConfig = { ...PRODUCT_GALLERY_DEFAULTS, ...(sectionContentMap.productGallery || {}) };
+                      const galleryImages = resolveProductGalleryImages(galleryConfig, images);
+                      return (
+                        <InlinePhotoCarousel
+                          key={sectionId}
+                          images={galleryImages}
+                          config={galleryConfig}
+                          accentColor={aiVisualTheme?.primary || 'var(--s-primary)'}
+                        />
+                      );
+                    }
 
                     case 'countdownBar':
                       if (countdownSeconds === null || !inStock) return null;

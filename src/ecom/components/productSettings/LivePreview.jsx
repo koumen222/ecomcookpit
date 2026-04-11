@@ -31,6 +31,21 @@ const EditableWrap = ({ sectionId, onSectionClick, activeSectionId, children }) 
   );
 };
 
+const PRODUCT_GALLERY_DEFAULTS = {
+  title: 'Photos du produit',
+  subtitle: 'Faites défiler les visuels avant de commander',
+  showHeader: true,
+  useProductImages: true,
+  images: [],
+  mainImageHeight: 420,
+  thumbnailSize: 72,
+};
+
+const resolveGalleryImages = (content = {}, images = []) => {
+  const customImages = (content.images || []).filter(image => image?.url);
+  return content.useProductImages === false && customImages.length > 0 ? customImages : images;
+};
+
 const LivePreview = ({ config, product: productProp, onSectionClick, activeSectionId }) => {
   const { general, conversion, design, form, automation, button: btnCfg } = config;
   const BtnIcon = getIconComponent(btnCfg?.icon);
@@ -370,6 +385,51 @@ const LivePreview = ({ config, product: productProp, onSectionClick, activeSecti
                   </div>
                   </EditableWrap>
                 );
+
+              case 'productGallery': {
+                const gallery = { ...PRODUCT_GALLERY_DEFAULTS, ...(s.content || {}) };
+                const galleryImages = resolveGalleryImages(gallery, images);
+                const thumbnailSize = Math.max(40, Number.parseInt(gallery.thumbnailSize, 10) || 72);
+                const mainHeight = Math.max(140, Number.parseInt(gallery.mainImageHeight, 10) || 420);
+                const previewImage = galleryImages[0]?.url || galleryImages[0];
+                return galleryImages.length > 0 ? (
+                  <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
+                    <div style={{ marginBottom: 10 }}>
+                      {gallery.showHeader !== false && (gallery.title || gallery.subtitle) && (
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 7 }}>
+                          <div>
+                            {gallery.title && <div style={{ fontSize: 10, fontWeight: 800, color: '#111827' }}>{gallery.title}</div>}
+                            {gallery.subtitle && <div style={{ fontSize: 8.5, color: '#6B7280', marginTop: 1 }}>{gallery.subtitle}</div>}
+                          </div>
+                          {galleryImages.length > 1 && <div style={{ fontSize: 8, color: '#9CA3AF', whiteSpace: 'nowrap' }}>{galleryImages.length} visuels</div>}
+                        </div>
+                      )}
+                      <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #E5E7EB', backgroundColor: '#fff' }}>
+                        <div style={{ height: Math.min(260, Math.max(120, Math.round(mainHeight / 2))), backgroundColor: '#F3F4F6' }}>
+                          <img src={previewImage} alt={galleryImages[0]?.alt || 'Photo produit'} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                        </div>
+                      </div>
+                      {galleryImages.length > 1 && (
+                        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingTop: 8 }}>
+                          {galleryImages.slice(0, 6).map((image, index) => (
+                            <div key={index} style={{
+                              width: Math.min(64, thumbnailSize),
+                              minWidth: Math.min(64, thumbnailSize),
+                              height: Math.min(64, thumbnailSize),
+                              borderRadius: 10,
+                              overflow: 'hidden',
+                              border: index === 0 ? `2px solid ${btnColor}` : '1px solid #E5E7EB',
+                              backgroundColor: '#fff',
+                            }}>
+                              <img src={image.url || image} alt={image.alt || `Photo ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </EditableWrap>
+                ) : null;
+              }
 
               case 'statsBar': {
                 const customStats = s.content?.stats?.filter(st => st.value && st.label);

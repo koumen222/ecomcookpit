@@ -71,7 +71,7 @@ router.get('/:subdomain', readLimiter, resolveStoreBySubdomain, async (req, res)
         phone: store.storeSettings?.storePhone || '',
         whatsapp: store.storeSettings?.storeWhatsApp || '',
         themeColor: store.storeSettings?.storeThemeColor || '#0F6B4F',
-        currency: store.storeSettings?.storeCurrency || 'XAF',
+        currency: store.storeSettings?.storeCurrency || store.storeSettings?.currency || 'XAF',
         subdomain: store.subdomain,
         primaryColor: store.storeSettings?.primaryColor || store.storeSettings?.storeThemeColor || '#0F6B4F',
         accentColor: store.storeSettings?.accentColor || '#059669',
@@ -332,7 +332,7 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
       deliveryZone: city?.trim() || '',
       products: orderProducts,
       total: total + Math.max(0, Number(deliveryCost) || 0),
-      currency: req.store.storeSettings?.storeCurrency || 'XAF',
+      currency: req.store.storeSettings?.storeCurrency || req.store.storeSettings?.currency || 'XAF',
       channel: channel || 'store',
       notes: notes?.trim() || ''
     });

@@ -2,13 +2,14 @@ import React, { useMemo, useState } from 'react';
 import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Eye, EyeOff, ChevronDown, Plus, Trash2, Star } from 'lucide-react';
+import { GripVertical, Eye, EyeOff, ChevronDown, ChevronUp, Plus, Trash2, Star } from 'lucide-react';
 
 const SECTION_META = {
   heroSlogan:       { icon: '✍️', desc: 'Sous-titre marketing généré par IA' },
   heroBaseline:     { icon: '✅', desc: 'Phrase de réassurance sous le titre' },
   reviews:          { icon: '⭐', desc: 'Étoiles et nombre d\'avis' },
   orderForm:        { icon: '🛒', desc: 'Bouton / Formulaire de commande' },
+  productGallery:   { icon: '🖼️', desc: 'Titre, photos et tailles de la galerie' },
   statsBar:         { icon: '📊', desc: 'Chiffres de preuve sociale' },
   stockCounter:     { icon: '📦', desc: 'Stock restant urgence' },
   urgencyBadge:     { icon: '🔥', desc: 'Badge d\'urgence IA' },
@@ -33,6 +34,7 @@ const EDITABLE_SECTIONS = {
   heroBaseline:    { fields: [{ key: 'text', label: 'Phrase de réassurance', placeholder: 'Ex: Résultats visibles en 7 jours', type: 'text' }] },
   urgencyBadge:    { fields: [{ key: 'text', label: 'Texte d\'urgence', placeholder: 'Ex: ⚡ Dernières pièces — 3 restants !', type: 'text' }] },
   statsBar:        { fields: 'stats' },
+  productGallery:  { fields: 'productGallery' },
   benefitsBullets: { fields: 'list', label: 'Bénéfices', placeholder: 'Ex: Résultats en 7 jours' },
   problemSection:  { fields: [
     { key: 'title', label: 'Titre', placeholder: 'Ex: Le problème', type: 'text' },
@@ -62,6 +64,15 @@ const EDITABLE_SECTIONS = {
 const inputCls = "w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200 transition-all bg-white";
 
 const EMPTY_TESTIMONIAL = { name: '', location: '', rating: 5, text: '', verified: true, date: '' };
+const PRODUCT_GALLERY_DEFAULTS = {
+  title: 'Photos du produit',
+  subtitle: 'Faites défiler les visuels avant de commander',
+  showHeader: true,
+  useProductImages: true,
+  images: [],
+  mainImageHeight: 420,
+  thumbnailSize: 72,
+};
 
 const SectionContentEditor = ({ section, onChange }) => {
   const schema = EDITABLE_SECTIONS[section.id];
@@ -196,6 +207,89 @@ const SectionContentEditor = ({ section, onChange }) => {
         <button onClick={addT} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700 mt-1">
           <Plus size={12} /> Ajouter un témoignage
         </button>
+      </div>
+    );
+  }
+
+  if (schema.fields === 'productGallery') {
+    const gallery = { ...PRODUCT_GALLERY_DEFAULTS, ...content };
+    const images = gallery.images || [];
+    const updateImage = (index, key, val) => {
+      const nextImages = [...images];
+      nextImages[index] = { ...nextImages[index], [key]: val };
+      update('images', nextImages);
+    };
+    const addImage = () => update('images', [...images, { url: '', alt: '' }]);
+    const removeImage = (index) => update('images', images.filter((_, idx) => idx !== index));
+    const moveImage = (index, direction) => {
+      const target = index + direction;
+      if (target < 0 || target >= images.length) return;
+      const nextImages = [...images];
+      [nextImages[index], nextImages[target]] = [nextImages[target], nextImages[index]];
+      update('images', nextImages);
+    };
+    return (
+      <div className="space-y-3">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={gallery.showHeader !== false} onChange={e => update('showHeader', e.target.checked)} className="w-4 h-4 accent-emerald-500" />
+          <span className="text-[12px] text-gray-600">Afficher le titre de la section</span>
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <div className="text-[11px] font-semibold text-gray-500 mb-1">Titre</div>
+            <input className={inputCls} value={gallery.title || ''} onChange={e => update('title', e.target.value)} placeholder="Photos du produit" />
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold text-gray-500 mb-1">Sous-titre</div>
+            <input className={inputCls} value={gallery.subtitle || ''} onChange={e => update('subtitle', e.target.value)} placeholder="Faites défiler les visuels..." />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <div className="text-[11px] font-semibold text-gray-500 mb-1">Hauteur image principale</div>
+            <input type="number" min="180" max="900" className={inputCls} value={gallery.mainImageHeight || 420} onChange={e => update('mainImageHeight', Math.max(180, parseInt(e.target.value, 10) || 420))} />
+          </div>
+          <div>
+            <div className="text-[11px] font-semibold text-gray-500 mb-1">Taille miniatures</div>
+            <input type="number" min="48" max="160" className={inputCls} value={gallery.thumbnailSize || 72} onChange={e => update('thumbnailSize', Math.max(48, parseInt(e.target.value, 10) || 72))} />
+          </div>
+        </div>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={gallery.useProductImages !== false} onChange={e => update('useProductImages', e.target.checked)} className="w-4 h-4 accent-emerald-500" />
+          <span className="text-[12px] text-gray-600">Utiliser automatiquement les photos du produit</span>
+        </label>
+        <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50/60 p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-gray-700">Photos personnalisées</span>
+            <button onClick={addImage} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700">
+              <Plus size={12} /> Ajouter
+            </button>
+          </div>
+          {images.length === 0 && (
+            <div className="text-[10px] text-gray-400">Ajoutez vos propres URLs d'images si vous voulez remplacer les photos produit.</div>
+          )}
+          {images.map((image, index) => (
+            <div key={index} className="rounded-lg border border-gray-200 bg-white p-2 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Photo #{index + 1}</span>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => moveImage(index, -1)} disabled={index === 0} className="p-1 text-gray-300 hover:text-gray-500 disabled:opacity-25">
+                    <ChevronUp size={12} />
+                  </button>
+                  <button onClick={() => moveImage(index, 1)} disabled={index === images.length - 1} className="p-1 text-gray-300 hover:text-gray-500 disabled:opacity-25">
+                    <ChevronDown size={12} />
+                  </button>
+                  <button onClick={() => removeImage(index)} className="p-1 text-gray-300 hover:text-red-400">
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              </div>
+              <input className={inputCls} value={image.url || ''} onChange={e => updateImage(index, 'url', e.target.value)} placeholder="https://..." />
+              <input className={inputCls} value={image.alt || ''} onChange={e => updateImage(index, 'alt', e.target.value)} placeholder="Texte alternatif (optionnel)" />
+            </div>
+          ))}
+        </div>
+        <div className="text-[10px] text-gray-400">Si aucune photo personnalisée n'est renseignée, la galerie affiche les images du produit.</div>
       </div>
     );
   }
