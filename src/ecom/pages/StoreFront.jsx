@@ -5,6 +5,7 @@ import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
 import { injectStoreCssVars } from '../hooks/useStoreData.js';
 import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking.js';
+import { formatMoney } from '../utils/currency.js';
 
 const RADIUS_MAP = {
   none: '0px',
@@ -174,9 +175,7 @@ const StoreFront = () => {
     setSelectedCategory(cat);
   };
 
-  const formatPrice = (price) => {
-    return new Intl.NumberFormat('fr-FR').format(price);
-  };
+  const formatPrice = (price, currency) => formatMoney(price, currency);
 
   const design = store?.productPageConfig?.design || {};
   const themeColor = store?.themeColor || '#0F6B4F';
@@ -471,11 +470,11 @@ const StoreFront = () => {
                     </h3>
                     <div className="mt-1.5 flex items-baseline gap-1.5">
                       <span className="text-sm font-bold" style={{ color: 'var(--s-primary)' }}>
-                        {formatPrice(product.price)} {product.currency || store.currency}
+                        {formatPrice(product.price, product.currency || store.currency)}
                       </span>
                       {product.compareAtPrice && product.compareAtPrice > product.price && (
                         <span className="text-xs line-through" style={{ color: 'var(--s-text2)' }}>
-                          {formatPrice(product.compareAtPrice)}
+                          {formatPrice(product.compareAtPrice, product.currency || store.currency)}
                         </span>
                       )}
                     </div>

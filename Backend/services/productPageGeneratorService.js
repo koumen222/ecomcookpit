@@ -446,13 +446,14 @@ Les 5 images d'angles sont des visuels marketing illustratifs avec des personnes
 
 **1. prompt_affiche_hero** = Photo lifestyle premium RÉALISTE pour le marché africain : le produit réel + personne africaine authentique (peau noire naturelle, traits réalistes, vêtements simples du quotidien) qui l'utilise NATURELLEMENT dans un environnement africain réel. Expression subtile, pas théâtrale. Lumière naturelle douce. Style soft, propre, crédible — comme une VRAIE photo.
 
-**2. prompt_hero_poster** = Affiche publicitaire graphique : le produit réel en grand au centre sur fond foncé dramatique (gradient profond) avec un titre français gras en haut ou en bas + personne africaine visible. Ambiance lancement de marque premium adapté marché africain.
+**2. prompt_hero_poster** = Affiche publicitaire graphique : le produit réel en grand au centre sur fond foncé dramatique (gradient profond) avec un titre français gras en haut ou en bas + EXACTEMENT 3 personnes africaines réelles et photographiques visibles, avec le produit en main de manière naturelle. Ambiance lancement de marque premium adapté marché africain.
 
 ☝️ Les deux prompts doivent être entièrement basés sur CE produit spécifique — jamais générique, jamais copié des exemples.
 
 Le HERO doit être :
 ✅ Le produit réel visible au premier plan (EXACT, jamais recréé), grand, net, dominant — TAILLE RÉELLE (pas surdimensionné)
 ✅ ⚠️ PERSONNE AFRICAINE OBLIGATOIRE avec VISAGE VISIBLE : peau noire naturelle, traits réalistes (PAS caricaturaux), cheveux naturels africains. Expression SUBTILE et naturelle. La personne utilise ou tient le produit de manière naturelle
+✅ Pour le HERO, la personne doit idealement TENIR le produit dans sa main ou ses mains. La main et le produit doivent etre clairement visibles dans le cadre, comme dans une vraie photo publicitaire
 ✅ RÈGLE GENRE : adapte le genre de la personne africaine au produit : produit femme → femme africaine ; produit homme → homme africain ; produit mixte → au choix selon ce qui est le plus naturel ; produit objet/tech → produit au premier plan + personne africaine visible en arrière-plan
 ✅ RÈGLE CRITIQUE DE ZONE : adapte le cadrage à la zone exacte du produit :
    - Produit CHEVEUX → chevelure soignée/brillante ou application sur les cheveux. Cadre sur les cheveux, pas sur le visage.
@@ -510,7 +511,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     "✅ Bénéfice clé 3 avec emoji pertinent",
     "⚡ Bénéfice clé 4 avec emoji pertinent"
   ],
-  "prompt_hero_poster": "[Generate in English: BOLD ADVERTISING POSTER for THIS SPECIFIC product (describe its exact name, type, color, packaging). Square 1:1 graphic-design meets product photography. The product shown LARGE, dominant, perfectly sharp (min 50% of frame), exact same packaging/color/shape. Premium dark gradient background (deep midnight blue to black, OR deep forest green to charcoal, or deep burgundy — choose what contrasts best with product colors). Dramatic cinematic lighting with product glow. MANDATORY: 1 bold French headline in large modern sans-serif font at top or bottom — CRITICAL: French text MUST be 100% perfectly spelled with all accents. Optional thin accent line or minimal graphic element. NO price, NO phone, NO fake button, NO URL. Mood: aspirational, premium brand launch poster, scroll-stopping. Think Apple product launch. Adapted for African market.]",
+  "prompt_hero_poster": "[Generate in English: BOLD ADVERTISING POSTER for THIS SPECIFIC product (describe its exact name, type, color, packaging). Square 1:1 graphic-design meets product photography. The product shown LARGE, dominant, perfectly sharp (min 50% of frame), exact same packaging/color/shape. Premium dark gradient background (deep midnight blue to black, OR deep forest green to charcoal, or deep burgundy — choose what contrasts best with product colors). Dramatic cinematic lighting with product glow. EXACTLY 3 authentic photographed Black African adults must be visible in the composition, all looking real, all naturally posed, and at least 2 of them clearly holding the exact product in hand with believable grip and scale. MANDATORY: 1 bold French headline in large modern sans-serif font at top or bottom — CRITICAL: French text MUST be 100% perfectly spelled with all accents. Optional thin accent line or minimal graphic element. NO price, NO phone, NO fake button, NO URL. Mood: aspirational, premium brand launch poster, scroll-stopping. Think Apple product launch. Adapted for African market.]",
   "prompt_avant_apres": "[Generate in English: Photorealistic split-screen before/after transformation image for the African market. MUST look like a real photograph, NOT AI-generated. LEFT (AVANT): the SPECIFIC problem this product solves — visible but NATURAL, not exaggerated or theatrical. RIGHT (APRÈS): CREDIBLE realistic improvement after using the product — visible but not magical. MANDATORY: Authentic Black African person (dark skin, natural African features, natural African hair). Simple everyday African clothing, SUBTLE facial expressions — NOT theatrical. Setting: realistic African home environment (bathroom, bedroom, living room). The SAME person on both sides. Product visible at REAL SIZE on the AFTER side — natural placement. Small 'Avant'/'Après' labels in perfect French. Square 1:1, tight crop. Soft natural lighting, clean style, NO aggressive filters, NO over-saturation. Match the EXACT body zone of the product. The transformation must be BELIEVABLE — not just sad face vs happy face but a real visual difference related to the product benefit.]",
   "angles": [
     {
@@ -655,7 +656,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   const messages = [
     {
       role: "system",
-      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit complète et optimisée pour la conversion avec des visuels représentant des personnes africaines authentiques. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS PARFAIT (sauf prompts images en anglais) — zéro faute d'orthographe, zéro faute de grammaire. 3) ZÉRO généricité. 4) ZÉRO exagération. 5) CRITIQUE problem_section : 3 vraies douleurs SPÉCIFIQUES. 6) CRITIQUE solution_section : paragraphe persuasif reliant chaque douleur au produit. 7) CRITIQUE hero_cta : bouton d'achat percutant 3-5 mots. 8) CRITIQUE stats_bar : 3 stats crédibles. 9) CRITIQUE seo : meta_title max 60 chars, meta_description max 155 chars, slug kebab-case. 10) RÈGLE GENRE OBLIGATOIRE pour toutes les images : produit FEMME → femme africaine ; produit HOMME → homme africain ; produit MIXTE → genre le plus naturel selon contexte — JAMAIS de femme par défaut pour un produit masculin ou neutre. 11) RÈGLE ZONE CORPORELLE pour toutes les images : identifier la zone exacte (cheveux, visage, corps, ventre, dents, etc.) et cadrer sur cette zone — JAMAIS le visage par défaut si le produit est pour les cheveux ou le corps. 12) LE PRODUIT LUI-MÊME (packaging, flacon, boîte) doit être visible et grand dans chaque image. 13) prompt_hero_poster = affiche graphique, produit grand sur fond sombre dramatique, titre français gras. 14) avant/après : zone correcte + genre correct + produit visible côté APRÈS. 15) angles : 4 visuels, produit visible (40%+) + texte overlay français + zone et genre corrects. 16) Témoignages : noms et villes adaptés au pays. 17) Le template choisi agit uniquement sur le design visuel des images, icones, fonds, ambiance et palette; il ne doit jamais inventer une promesse, une cible ou un usage produit. 18) Les consignes couleur des affiches, visuel hero, décorations, couleur des titres et couleur du contenu doivent être appliquées réellement aux visuels quand elles sont fournies. 19) Les personnes dans les images doivent ressembler a de vraies personnes photographiees: texture de peau naturelle, legere asymetrie, mains correctes, yeux et dents realistes, zero rendu plastique ou uncanny. 20) Chaque image doit illustrer exactement le texte marketing correspondant; aucun badge, icone ou scene ne doit etre decoratif sans lien direct avec le message. 21) Même si du texte est posé sur l'image, la scène doit rester explicite sans lire ce texte: le visuel seul doit raconter la situation. 22) description_optimisee = chaîne vide. 23) JSON uniquement."
+      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit complète et optimisée pour la conversion avec des visuels représentant des personnes africaines authentiques. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS PARFAIT (sauf prompts images en anglais) — zéro faute d'orthographe, zéro faute de grammaire. 3) ZÉRO généricité. 4) ZÉRO exagération. 5) CRITIQUE problem_section : 3 vraies douleurs SPÉCIFIQUES. 6) CRITIQUE solution_section : paragraphe persuasif reliant chaque douleur au produit. 7) CRITIQUE hero_cta : bouton d'achat percutant 3-5 mots. 8) CRITIQUE stats_bar : 3 stats crédibles. 9) CRITIQUE seo : meta_title max 60 chars, meta_description max 155 chars, slug kebab-case. 10) RÈGLE GENRE OBLIGATOIRE pour toutes les images : produit FEMME → femme africaine ; produit HOMME → homme africain ; produit MIXTE → genre le plus naturel selon contexte — JAMAIS de femme par défaut pour un produit masculin ou neutre. 11) RÈGLE ZONE CORPORELLE pour toutes les images : identifier la zone exacte (cheveux, visage, corps, ventre, dents, etc.) et cadrer sur cette zone — JAMAIS le visage par défaut si le produit est pour les cheveux ou le corps. 12) LE PRODUIT LUI-MÊME (packaging, flacon, boîte) doit être visible et grand dans chaque image. 13) prompt_hero_poster = affiche graphique, produit grand sur fond sombre dramatique, titre français gras, avec EXACTEMENT 3 personnes africaines réelles et au moins 2 tenant le produit en main. 14) avant/après : zone correcte + genre correct + produit visible côté APRÈS. 15) angles : 4 visuels, produit visible (40%+) + texte overlay français + zone et genre corrects. Quand des humains sont présents dans ces visuels, privilégier EXACTEMENT 3 personnes africaines réelles avec le produit en main au lieu d'icônes ou de personnages génériques. 16) Témoignages : noms et villes adaptés au pays. 17) Le template choisi agit uniquement sur le design visuel des images, icones, fonds, ambiance et palette; il ne doit jamais inventer une promesse, une cible ou un usage produit. 18) Les consignes couleur des affiches, visuel hero, décorations, couleur des titres et couleur du contenu doivent être appliquées réellement aux visuels quand elles sont fournies. 19) Les personnes dans les images doivent ressembler a de vraies personnes photographiees: texture de peau naturelle, legere asymetrie, mains correctes, yeux et dents realistes, zero rendu plastique ou uncanny. 20) Chaque image doit illustrer exactement le texte marketing correspondant; aucun badge, icone ou scene ne doit etre decoratif sans lien direct avec le message. 21) Même si du texte est posé sur l'image, la scène doit rester explicite sans lire ce texte: le visuel seul doit raconter la situation. 22) description_optimisee = chaîne vide. 23) JSON uniquement."
     },
     {
       role: "user",
@@ -910,14 +911,20 @@ export async function generatePosterImage(promptAffiche, originalImageBuffer = n
     const mode = options?.mode || 'scene';
     console.log(`🎨 Generating ${mode} image with NanoBanana...`);
 
+    if (!originalImageBuffer) {
+      console.warn(`⚠️ Skipping ${mode} generation: missing base product image for image-to-image workflow.`);
+      return null;
+    }
+
     const heroRules = `
 Create a high-converting ecommerce product hero image showing the product IN ACTION. Ultra realistic, 4K quality, sharp focus, advertising photography style.
 USE THE EXACT REAL PRODUCT IMAGE PROVIDED — NEVER invent, recreate or redesign the product.
 Square 1:1 premium composition, tight crop, full-bleed framing, ZERO empty margins.
 
-Visual style: Clean, modern, premium. The product is shown in its REAL USAGE CONTEXT — being held, opened, applied, used, demonstrated. NOT a static cosmetic studio pose. Contextual background matching the product category (kitchen, desk, bathroom, outdoor, gym, home, etc.). Warm natural lighting, professional quality.
+Visual style: Clean, modern, premium. The product is shown in its REAL USAGE CONTEXT — being held IN THE PERSON'S HANDS, opened, applied, used, demonstrated. NOT a static cosmetic studio pose. Contextual background matching the product category (kitchen, desk, bathroom, outdoor, gym, home, etc.). Warm natural lighting, professional quality.
 
 PRODUCT FOCUS (CRITICAL): The product must be the absolute hero of the image — large, sharp, dominant, IN ACTION. Every detail of the product (texture, color, label, shape) must be crystal clear. The product fills at least 50% of the frame and is being actively used or demonstrated.
+HERO HAND RULE: show a real person actually holding the exact product in hand. The grip, fingers and scale must feel natural and photographic.
 
 Composition: Product dominates center or bold foreground, shown in the moment of use. Supporting elements reinforce what the product DOES. Rich visual storytelling: how this product is used, what it does, the result it creates.
 
@@ -979,9 +986,12 @@ TEXT: French only, 100% perfect spelling with accents. Max 3 text elements.
 NO price, NO phone, NO URL, NO CTA button, NO watermark.
 CRITICAL: Follow the SPECIFIC visual style described above — unique background, unique decorations, unique mood for THIS image.`;
 
-    const productRefRule = originalImageBuffer
-      ? `\nCRITICAL: A reference image of the EXACT real product is provided. You MUST include THIS SPECIFIC product (same shape, color, packaging, design) in the generated image. NEVER invent, replace, or redesign the product. The product in the output MUST be recognizably the same as the reference.\n`
-      : `\nIMPORTANT: No product reference image is provided. Do NOT invent or hallucinate any product, packaging, bottle or box. If the scene directive does not explicitly ask for a product, generate the scene WITHOUT any product visible.\n`;
+    const productRefRule = `
+═══ PRODUCT REFERENCE — ABSOLUTELY MANDATORY ═══
+A reference image of the EXACT real product is provided as input. The output image MUST contain THIS SPECIFIC product — same shape, same color, same packaging, same label, same design — clearly visible, sharp, and recognizable.
+NEVER invent, replace, redesign, reinterpret, or omit the product. The product from the reference image MUST appear in every generated visual, even if the scene description doesn't mention it explicitly. If the scene would not naturally contain the product, place it naturally in the hands of the person, on a surface in the scene, or in a prominent position.
+The product must be recognizable as the same item as the reference to anyone looking at both images side by side.
+`;
 
     let modeRules;
     if (mode === 'hero') modeRules = heroRules;
@@ -989,30 +999,19 @@ CRITICAL: Follow the SPECIFIC visual style described above — unique background
     else if (mode === 'before_after') modeRules = beforeAfterRules;
     else modeRules = sceneRules;
 
-    // CRITICAL: flash prompt FIRST (contains unique design), then short quality rules, then ref rule
-    // This ensures the unique design instructions are at the START and survive any prompt truncation
-    const posterPrompt = `${promptAffiche}
-${productRefRule}
+    // CRITICAL: product reference rule FIRST (survives any truncation),
+    // then the unique design prompt, then the mode-specific quality rules.
+    const posterPrompt = `${productRefRule}
+${promptAffiche}
 ${modeRules}`;
 
-    let result;
-
-    if (originalImageBuffer) {
-      console.log('📸 Image-to-image poster generation (with product reference)...');
-      result = await generateNanoBananaImageToImage(
-        posterPrompt,
-        originalImageBuffer,
-        '1:1',
-        1
-      );
-    } else {
-      console.log('📝 Text-to-image poster generation...');
-      result = await generateNanoBananaImage(
-        posterPrompt,
-        '1:1',
-        1
-      );
-    }
+    console.log('📸 Image-to-image poster generation (with product reference)...');
+    const result = await generateNanoBananaImageToImage(
+      posterPrompt,
+      originalImageBuffer,
+      '1:1',
+      1
+    );
 
     return result;
   } catch (err) {

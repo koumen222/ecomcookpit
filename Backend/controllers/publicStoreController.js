@@ -71,7 +71,7 @@ export const getStoreHomepage = async (req, res) => {
     
     const [products, total, categories] = await Promise.all([
       StoreProduct.find(filter)
-        .select('name slug price images category tags stock isPublished')
+        .select('name slug price currency compareAtPrice images category tags stock isPublished')
         .sort(sort)
         .limit(parseInt(limit))
         .skip(skip)

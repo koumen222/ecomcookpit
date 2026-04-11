@@ -641,7 +641,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
               const bgAngle = imgs.angles?.find(ba => ba.index === i + 1);
               return bgAngle ? { ...a, poster_url: bgAngle.poster_url } : a;
             }) || [];
+            const peoplePhotos = Array.isArray(imgs.peoplePhotos) ? imgs.peoplePhotos : (prev.peoplePhotos || []);
             const allImages = [
+              ...peoplePhotos,
               ...(imgs.heroImage ? [imgs.heroImage] : []),
               ...(imgs.beforeAfterImage ? [imgs.beforeAfterImage] : []),
               ...newAngles.map(a => a.poster_url).filter(Boolean)
@@ -651,6 +653,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
               heroImage: imgs.heroImage || prev.heroImage,
               beforeAfterImage: imgs.beforeAfterImage || prev.beforeAfterImage,
               angles: newAngles,
+              peoplePhotos,
               allImages: [...(prev.allImages || []), ...allImages].filter((v, i, a) => v && a.indexOf(v) === i),
             };
           });
@@ -1040,7 +1043,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
               const bgAngle = imgs.angles?.find(ba => ba.index === i + 1);
               return bgAngle ? { ...a, poster_url: bgAngle.poster_url } : a;
             }) || [];
+            const peoplePhotos = Array.isArray(imgs.peoplePhotos) ? imgs.peoplePhotos : (prev.peoplePhotos || []);
             const allImages = [
+              ...peoplePhotos,
               ...(imgs.heroImage ? [imgs.heroImage] : []),
               ...(imgs.beforeAfterImage ? [imgs.beforeAfterImage] : []),
               ...newAngles.map(a => a.poster_url).filter(Boolean)
@@ -1050,6 +1055,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
               heroImage: imgs.heroImage || prev.heroImage,
               beforeAfterImage: imgs.beforeAfterImage || prev.beforeAfterImage,
               angles: newAngles,
+              peoplePhotos,
               allImages: [...(prev.allImages || []), ...allImages].filter((v, i, a) => v && a.indexOf(v) === i),
             };
           });
@@ -1262,10 +1268,24 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
     
     // Collect all images - CORRECTED: Include ALL generated images in gallery
     const allImages = [];
-    
+
+    // 0. People lifestyle photos — personnes réelles tenant le produit (haute conversion)
+    if (product.peoplePhotos?.length) {
+      product.peoplePhotos.forEach((imgUrl, i) => {
+        if (imgUrl && !allImages.find(img => img.url === imgUrl)) {
+          allImages.push({
+            url: imgUrl,
+            alt: `${product.title || 'Produit'} — client ${i + 1}`,
+            order: allImages.length,
+            type: 'lifestyle-photo',
+          });
+        }
+      });
+    }
+
     // 1. Hero image - always first if available
     if (product.heroImage) {
-      allImages.push({ url: product.heroImage, alt: product.title || 'Image Hero principale', order: 0 });
+      allImages.push({ url: product.heroImage, alt: product.title || 'Image Hero principale', order: allImages.length });
     }
 
     // 1b. Hero poster (affiche graphique) - second

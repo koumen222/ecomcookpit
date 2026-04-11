@@ -342,14 +342,13 @@ const ImageGallery = ({ images = [], design = {} }) => {
 
 const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', config = {} }) => {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
   const gallery = { ...PRODUCT_GALLERY_DEFAULTS, ...config };
   const thumbnailSize = Math.max(48, Number.parseInt(gallery.thumbnailSize, 10) || 72);
   const mainImageHeight = Math.max(220, Number.parseInt(gallery.mainImageHeight, 10) || 420);
 
-  if (!images.length) return null;
-
-  const activeImage = images[activeIndex] || images[0];
   const canNavigate = images.length > 1;
+
   const goTo = (nextIndex) => {
     if (!images.length) return;
     if (nextIndex < 0) {
@@ -363,6 +362,39 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', co
     setActiveIndex(nextIndex);
   };
 
+  // Auto-scroll toutes les 3.5s, pause au survol / interaction manuelle
+  useEffect(() => {
+    if (!canNavigate || isPaused) return undefined;
+    const id = setInterval(() => {
+      setActiveIndex(i => (i + 1) % images.length);
+    }, 3500);
+    return () => clearInterval(id);
+  }, [canNavigate, isPaused, images.length]);
+
+  const pauseAndGo = (nextIndex) => {
+    setIsPaused(true);
+    goTo(nextIndex);
+  };
+
+  if (!images.length) return null;
+
+  const activeImage = images[activeIndex] || images[0];
+
+  const navButtonStyle = {
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    border: '1px solid var(--s-border)',
+    background: '#fff',
+    color: 'var(--s-text)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+    flexShrink: 0,
+  };
+
   return (
     <div style={{ marginTop: 14 }}>
       {gallery.showHeader !== false && (
@@ -373,9 +405,9 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', co
           gap: 12,
           marginBottom: 10,
         }}>
-          <div>
+          <div style={{ minWidth: 0, flex: 1 }}>
             {gallery.title && (
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>
                 {gallery.title}
               </p>
             )}
@@ -386,69 +418,93 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', co
             )}
           </div>
           {canNavigate && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               <button
                 type="button"
-                onClick={() => goTo(activeIndex - 1)}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 999,
-                  border: '1px solid var(--s-border)',
-                  background: '#fff',
-                  color: 'var(--s-text)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                }}
+                aria-label="Image précédente"
+                onClick={() => pauseAndGo(activeIndex - 1)}
+                style={navButtonStyle}
               >
-                <ChevronLeft size={16} />
+                <ChevronLeft size={18} />
               </button>
               <button
                 type="button"
-                onClick={() => goTo(activeIndex + 1)}
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 999,
-                  border: '1px solid var(--s-border)',
-                  background: '#fff',
-                  color: 'var(--s-text)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                }}
+                aria-label="Image suivante"
+                onClick={() => pauseAndGo(activeIndex + 1)}
+                style={navButtonStyle}
               >
-                <ChevronRight size={16} />
+                <ChevronRight size={18} />
               </button>
             </div>
           )}
         </div>
       )}
 
-      <div style={{
-        position: 'relative',
-        borderRadius: 'calc(var(--pp-card-radius) + 2px)',
-        overflow: 'hidden',
-        border: '1px solid var(--s-border)',
-        background: '#fff',
-      }}>
+      <div
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+        style={{
+          position: 'relative',
+          borderRadius: 'calc(var(--pp-card-radius) + 2px)',
+          overflow: 'hidden',
+          border: '1px solid var(--s-border)',
+          background: '#fff',
+        }}
+      >
         <div style={{ position: 'relative', height: mainImageHeight, background: '#f4f4f5' }}>
-          <img
-            src={activeImage?.url}
-            alt={activeImage?.alt || 'Photo produit'}
-            loading="lazy"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-            }}
-          />
+          {images.map((image, index) => (
+            <img
+              key={`${image.url}-${index}`}
+              src={image.url}
+              alt={image.alt || 'Photo produit'}
+              loading={index === 0 ? 'eager' : 'lazy'}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                opacity: index === activeIndex ? 1 : 0,
+                transition: 'opacity 0.5s ease',
+                pointerEvents: index === activeIndex ? 'auto' : 'none',
+              }}
+            />
+          ))}
         </div>
+
+        {canNavigate && (
+          <div style={{
+            position: 'absolute',
+            bottom: 10,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            gap: 6,
+            padding: '5px 9px',
+            borderRadius: 999,
+            background: 'rgba(0,0,0,0.35)',
+            backdropFilter: 'blur(4px)',
+          }}>
+            {images.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                aria-label={`Aller à l'image ${i + 1}`}
+                onClick={() => pauseAndGo(i)}
+                style={{
+                  width: i === activeIndex ? 18 : 6,
+                  height: 6,
+                  borderRadius: 999,
+                  border: 'none',
+                  padding: 0,
+                  background: i === activeIndex ? '#fff' : 'rgba(255,255,255,0.55)',
+                  cursor: 'pointer',
+                  transition: 'width 0.25s, background 0.25s',
+                }}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {canNavigate && (
@@ -465,7 +521,7 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', co
               <button
                 key={`${image.url}-${index}`}
                 type="button"
-                onClick={() => setActiveIndex(index)}
+                onClick={() => pauseAndGo(index)}
                 style={{
                   border: active ? `2px solid ${accentColor}` : '1px solid var(--s-border)',
                   borderRadius: 14,
@@ -1015,6 +1071,10 @@ const buildAiGalleryImages = (product) => {
   };
 
   const pageData = product?._pageData || {};
+  // Photos lifestyle "personne tenant le produit" en premier — c'est ce qui convertit le plus
+  (pageData.peoplePhotos || []).forEach((photo, index) => {
+    pushImage(photo, `${product?.name || 'Produit'} — client ${index + 1}`);
+  });
   pushImage(pageData.heroImage, product?.name || 'Hero image');
   pushImage(pageData.beforeAfterImage, product?.name || 'Avant apres');
   (pageData.angles || []).forEach((angle, index) => {
@@ -1791,16 +1851,16 @@ const StoreProductPage = () => {
                 )}
 
                 {/* Price — always shown */}
-                <div className="price-wrapper" style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
-                  <span style={{ fontSize: 28, fontWeight: 900, color: aiVisualTheme?.primary || 'var(--s-primary)', fontFamily: 'var(--s-font)', letterSpacing: '-0.02em' }}>
+                <div className="price-wrapper" style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 16, flexWrap: 'nowrap' }}>
+                  <span style={{ fontSize: 'clamp(20px, 5vw, 28px)', fontWeight: 900, color: aiVisualTheme?.primary || 'var(--s-primary)', fontFamily: 'var(--s-font)', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
                     {fmt(product.price, effectiveCurrency)}
                   </span>
                   {hasDiscount && (
                     <>
-                      <span style={{ fontSize: 17, color: 'var(--s-text2)', textDecoration: 'line-through', fontFamily: 'var(--s-font)' }}>
+                      <span style={{ fontSize: 'clamp(13px, 3.5vw, 17px)', color: 'var(--s-text2)', textDecoration: 'line-through', fontFamily: 'var(--s-font)', whiteSpace: 'nowrap' }}>
                         {fmt(product.compareAtPrice, effectiveCurrency)}
                       </span>
-                      <span style={{ ...resolveBadgeStyle('danger'), fontSize: 12, padding: '3px 9px' }}>
+                      <span style={{ ...resolveBadgeStyle('danger'), fontSize: 12, padding: '3px 9px', whiteSpace: 'nowrap' }}>
                         -{pct}%
                       </span>
                     </>

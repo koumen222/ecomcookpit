@@ -84,6 +84,18 @@ ${bulletList ? `• Benefit cues that must be visible through the scene, icons, 
 • Do not use random smiling portraits unrelated to the copy. The person, the product and the infographic elements must all tell the same story`;
 }
 
+function buildThreePeopleHoldingProductRules() {
+  return `
+
+═══ THREE REAL PEOPLE — MANDATORY ═══
+• The image must feature EXACTLY 3 authentic photographed Black African people, not illustrations, not avatars, not synthetic faces
+• All 3 people must look like real commercial-photo subjects with natural skin texture, natural asymmetry, realistic hands and realistic expressions
+• Each of the 3 people must be clearly visible in the composition, not hidden in the background
+• At least 2 of them must clearly HOLD the exact product in hand, and ideally all 3 are interacting with or presenting the product naturally
+• The product must be visible in their hands at a believable size with correct finger placement and natural grip
+• Prefer a trio composition, 3-panel composition, or grouped scene showing three distinct real people rather than icons or generic infographic characters`;
+}
+
 /**
  * Hero — Product in action layout:
  * The product is shown being USED in its real context (not a cosmetic studio pose).
@@ -144,6 +156,7 @@ function buildHeroPrompt(gptResult, hasProductRef, template = 'general', visualP
     promise: badgeText,
     bullets: benefits,
   });
+  const threePeopleRules = buildThreePeopleHoldingProductRules();
 
   return `Ultra realistic e-commerce product advertisement for the African francophone market. Square 1:1. High-definition photorealistic quality — must look like a REAL professional photograph, NOT AI-generated. Natural soft lighting, no aggressive filters, no cartoon style.
 
@@ -153,15 +166,15 @@ A professional product advertisement for "${productName}" targeting African cons
 ═══ SPLIT LAYOUT — MANDATORY TWO-COLUMN COMPOSITION ═══
 ⚠️ The image MUST be divided into TWO clear zones side by side:
 
-【LEFT SIDE — ~55% of frame】PERSON + PRODUCT ZONE
-• An authentic Black African person occupying the left half of the image
+【LEFT SIDE — ~55% of frame】PEOPLE + PRODUCT ZONE
+• EXACTLY 3 authentic Black African people occupying the left half of the image as a believable trio composition
 • Real dark skin (natural Black African complexion), natural African hair (afro, braids, locs, twists, or headwrap)
 • Wearing simple everyday African clothes — colorful traditional or casual, clean, relatable
-• SUBTLE facial expression — warm natural smile, confident, NOT theatrical, NOT exaggerated
-• They are HOLDING or DEMONSTRATING the product naturally — the product visible in their hands or next to them
+• SUBTLE facial expressions — warm natural smiles, confident, NOT theatrical, NOT exaggerated
+• They are HOLDING THE PRODUCT IN HAND naturally — at least 2 of the 3 people must clearly hold the product, and the hand and the product must both be clearly visible, as in a real commercial photo
 • ${productBlock}
-• The product packaging also visible (box, carton, etc.) near or behind the person
-• Their FACE must be clearly visible — they are THE FACE of this ad
+• The product packaging also visible (box, carton, etc.) near or behind the trio
+• Their FACES must be clearly visible — they are the human face of this ad
 • Warm natural lighting, soft background (blurred African home interior, bokeh)
 
 【RIGHT SIDE — ~45% of frame】BENEFITS + CTA ZONE
@@ -211,7 +224,7 @@ Style: ${accentColor} background, white bold text, large rounded corners, promin
 • The African person is THE FACE of this ad — confident, natural, relatable. Their presence makes the ad authentic for the African market
 • COLOR IDENTITY: The dominant accent color is ${accentColor} — use it for CTA button, checkmark icons, badge background, and key headline words. This color conveys a ${niche.mood} feel matching the product niche
 • Even if text is present, the scene must still be understandable WITHOUT reading the text: the human expression, body zone, gesture and context must already communicate the same situation and benefit
-• Final mood: professional, credible, natural — could be a real brand campaign photo from a top African beauty/lifestyle brand${realismRules}${semanticRules}${customVisualDirectives}`;
+• Final mood: professional, credible, natural — could be a real brand campaign photo from a top African beauty/lifestyle brand${realismRules}${semanticRules}${threePeopleRules}${customVisualDirectives}`;
 }
 
 /**
@@ -219,7 +232,7 @@ Style: ${accentColor} background, white bold text, large rounded corners, promin
  * Each slide (index 0-3) gets a DIFFERENT infographic layout style.
  * Category-specific design (beauty, tech, fashion, health, home, general).
  */
-function buildAngleImagePrompt(angle, gptResult, hasProductRef, template = 'general', slideIndex = 0, visualPrefs = {}) {
+function buildAngleImagePrompt(angle, gptResult, hasProductRef, template = 'general', slideIndex = 0, visualPrefs = {}, method = 'PAS') {
   const title = gptResult.title || 'product';
   const targetPerson = gptResult.hero_target_person || 'authentic Black African person';
   const benefits = gptResult.benefits_bullets || gptResult.raisons_acheter || [];
@@ -239,6 +252,58 @@ function buildAngleImagePrompt(angle, gptResult, hasProductRef, template = 'gene
   // Short versions for text overlays
   const headlineShort = angleTitle.split(' ').slice(0, 7).join(' ');
   const promesseShort = anglePromesse.split(' ').slice(0, 8).join(' ');
+
+  // ─── PAS METHOD: PROBLÈME ANGLE (slide 0) → PROBLEM COLLAGE ────────
+  // When using PAS, the first angle is PROBLÈME — show a realistic collage
+  // of real people experiencing the problem, NOT a polished marketing poster.
+  if (method === 'PAS' && slideIndex === 0) {
+    const painPoints = gptResult.problem_section?.pain_points || [];
+    const problemTitle = gptResult.problem_section?.title || angleTitle;
+    const pain1 = painPoints[0] || angleExplication;
+    const pain2 = painPoints[1] || '';
+    const pain3 = painPoints[2] || '';
+
+    const problemCollagePrompt = `Square 1:1 PHOTOREALISTIC PROBLEM AWARENESS IMAGE for "${title}". This is NOT a marketing poster — it is a RAW, EMOTIONAL, DOCUMENTARY-STYLE collage showing REAL PEOPLE suffering from the problem this product solves. Ultra HD, 4K.
+
+═══ CONCEPT ═══
+A single square image composed as a PHOTO COLLAGE / MOSAIC of 3-4 real photographs arranged in a grid or overlapping layout. Each photo shows a DIFFERENT real African person visibly experiencing the EXACT problem that "${title}" solves. The overall mood is DARK, SERIOUS, EMPATHETIC — like an awareness campaign or documentary.
+
+═══ COLLAGE LAYOUT ═══
+- BACKGROUND: Dark, moody — deep charcoal (#1A1A1A) to black gradient, or dark textured surface
+- PHOTO GRID: 3-4 real photographs arranged as a collage (mix of sizes — one larger main photo + 2-3 smaller ones). Photos can overlap slightly, have thin dark borders or be arranged in an editorial grid
+- Each photo: REAL Black African person (authentic dark skin, natural African features, natural hair) showing the problem PHYSICALLY and VISIBLY:
+  • Photo 1 (largest, ~40% of frame): Close-up of a person showing the main problem — "${pain1}". Their face or body clearly shows discomfort, frustration, or the visible symptom. Expression is GENUINE distress — not theatrical, but real everyday struggle
+  • Photo 2: Another person (different age/gender) also experiencing the problem from a different angle — ${pain2 ? `"${pain2}"` : 'related aspect of the same problem'}. Candid, documentary feel
+  • Photo 3: ${pain3 ? `A third person showing "${pain3}"` : 'Close-up detail shot of the problem itself — the affected area, the symptom, the frustration'}. Raw, unfiltered
+  • Optional Photo 4: Wider shot showing the social/emotional impact of the problem — isolation, embarrassment, discomfort in a social setting
+
+═══ TEXT OVERLAYS ═══
+- MAIN HEADLINE (large, bold, top or center): "${problemTitle}" — in French, bold white or red condensed sans-serif font on dark background. The text should feel like a WARNING or AWARENESS campaign headline
+- Optional small pain point labels near each photo in thin white text
+- Overall text style: raw, editorial, awareness campaign — NOT marketing/sales copy
+- NO product shown, NO solution mentioned — this image is ONLY about the PROBLEM
+
+═══ MOOD & STYLE ═══
+- Documentary / awareness campaign aesthetic — dark, moody, empathetic
+- Photos must look like REAL candid photographs — not studio shots, not posed. Think photojournalism
+- Natural imperfect lighting — like real photos taken in real African homes, bathrooms, streets
+- Each person wears simple everyday African clothing
+- The collage must make the viewer FEEL the problem before they see the solution
+- Color grading: desaturated, slightly cold/blue tint on the photos to convey discomfort. Dark vignettes
+- NO smiling, NO positivity — this is the PROBLEM slide. Raw reality
+- NO product visible anywhere — the product comes later as the solution
+
+═══ STRICT RULES ═══
+• PHOTOREALISTIC — every photo in the collage must look like a REAL photograph
+• African people ONLY: authentic dark skin, natural African features, natural African hair
+• The PROBLEM must be VISIBLE — not just a sad face. Show the actual symptom, condition, frustration physically
+• ALL French text must be 100% PERFECTLY spelled with all accents
+• NO price, NO URL, NO phone, NO CTA button
+• NO product — this is about the PROBLEM only
+• Final feel: a powerful awareness image that makes you empathize with people experiencing this problem${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
+
+    return problemCollagePrompt;
+  }
 
   // ─── INFOGRAPHIC LAYOUTS PER SLIDE INDEX ──────────────────────
   const layouts = getInfographicLayouts(template, {
@@ -269,7 +334,7 @@ function buildAngleImagePrompt(angle, gptResult, hasProductRef, template = 'gene
     supportText: angleExplication,
     promise: anglePromesse,
     bullets: [b1, b2, b3],
-  })}`;
+  })}${buildThreePeopleHoldingProductRules()}`;
 
   const customVisualDirectives = buildVisualPromptDirectives(visualPrefs);
 
@@ -780,6 +845,43 @@ COMPOSITION: Bold African community celebration infographic.
 
 Celebratory, empowering, African pride infographic. PERFECT French.
 NO price, NO phone number, NO URL, NO watermark.`,
+  ];
+}
+
+/**
+ * 4 lifestyle prompts — photos réalistes de personnes africaines tenant LE produit
+ * de référence (même packaging exact). Aucune infographie, aucun texte overlay.
+ * Alimente la galerie photo "Photos du produit" sur la page produit.
+ */
+function buildPeopleHoldingProductPrompts(gptResult, visualPrefs = {}) {
+  const title = gptResult.title || 'product';
+  const productNote = `THE EXACT product from the reference image — same packaging, same shape, same color, same label. Use the provided product reference image. NEVER invent, redesign or replace the product.`;
+
+  const baseRules = `
+═══ MANDATORY REAL PHOTO RULES ═══
+• Must look like a REAL smartphone/camera photograph of a real human being — NOT AI art, NOT a render, NOT a cartoon
+• Authentic Black African person (dark brown skin, natural African features, natural African hair or headwrap). Natural skin texture and pores. Realistic hands with correct finger count and natural grip
+• Simple everyday African clothing, relatable — NOT runway fashion, NOT luxury glam
+• Natural warm lighting (daylight, window light, soft indoor light). NO studio beauty retouch, NO plastic skin, NO oversharpened details
+• The person is HOLDING the product in their hands clearly and naturally — the product and the fingers must both be sharp and unambiguous
+• ${productNote}
+• Tight or mid-range crop. Square 1:1. Photorealistic quality
+• NO text overlay, NO caption, NO price, NO CTA, NO logo, NO frame, NO marketing layout — this is a candid-style product photo, not an ad
+• NO extra objects around the product, no clutter. The product is the visual focus together with the person's face and hands
+${buildHumanPhotoRealismRules()}`;
+
+  return [
+    `Photorealistic candid lifestyle photo of an African woman (25-35 years old, natural hair or braids, soft everyday smile) holding "${title}" in both hands at chest level. Indoor African home setting — soft natural window light, slightly blurred cozy background (living room, bedroom, or kitchen corner). She is looking at the product with a confident, natural, trustworthy expression — like she's about to show it to a friend.
+${baseRules}`,
+
+    `Photorealistic candid lifestyle photo of an African man (28-40 years old, short natural hair or close cut, calm confident expression) holding "${title}" in one hand, product turned slightly toward the camera so the packaging is clearly visible. Casual clothing (simple t-shirt or shirt). Soft daylight from a window, neutral home or office background with gentle bokeh. He looks straight at the camera with a subtle reassuring half-smile.
+${baseRules}`,
+
+    `Photorealistic close-up lifestyle photo of an African woman's hands holding "${title}" — hands are dark-skinned, natural, well-framed, fingers clearly gripping the product naturally. Slight portion of her face/neck/shoulder visible in soft focus in the background. Warm natural lighting, shallow depth of field. Feels like a genuine product showcase photo a real customer would share on WhatsApp or Instagram.
+${baseRules}`,
+
+    `Photorealistic candid lifestyle photo of an African person (any gender, 30-45 years old) outside in a bright warm African daylight — courtyard, street, garden or terrace with soft sunlight. They hold "${title}" in their hand, presenting it naturally toward the camera while smiling genuinely. Real everyday clothes, natural hair. The background is a real African environment, slightly blurred.
+${baseRules}`,
   ];
 }
 
@@ -1336,6 +1438,7 @@ router.get('/images/:jobId', requireEcomAuth, (req, res) => {
   if (job.heroImage) images.heroImage = job.heroImage;
   if (job.beforeAfterImage) images.beforeAfterImage = job.beforeAfterImage;
   if (job.angles?.length) images.angles = job.angles;
+  if (job.peoplePhotos?.length) images.peoplePhotos = job.peoplePhotos;
 
   res.json({
     success: true,
@@ -1626,7 +1729,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     // ══════════════════════════════════════════════════════════════════════════
     // BACKGROUND — Generate all images asynchronously
     // ══════════════════════════════════════════════════════════════════════════
-    const jobData = { status: 'generating', progress: 0, total: 0, heroImage: null, beforeAfterImage: null, angles: [], createdAt: Date.now() };
+    const jobData = { status: 'generating', progress: 0, total: 0, heroImage: null, beforeAfterImage: null, angles: [], peoplePhotos: [], createdAt: Date.now() };
     imageJobs.set(jobId, jobData);
 
     // Fire and forget — errors won't crash the response
@@ -1772,7 +1875,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         bullets: gptResult.benefits_bullets || [],
       })}`;
       const anglePrompt = angle
-        ? buildAngleImagePrompt(angle, gptResult, !!baseImageBuffer, visualTemplate, i, visualContext)
+        ? buildAngleImagePrompt(angle, gptResult, !!baseImageBuffer, visualTemplate, i, visualContext, approach)
         : flash.prompt + africanRealism;
 
       imagePromises.push(
@@ -1781,7 +1884,14 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       );
     }
 
-
+    // ── People photos — 4 photos lifestyle de personnes réelles tenant le produit ──
+    const peoplePhotoPrompts = buildPeopleHoldingProductPrompts(gptResult, visualContext);
+    peoplePhotoPrompts.forEach((peoplePrompt, idx) => {
+      imagePromises.push(
+        generateAndUpload(peoplePrompt, baseImageBuffer, `people-${idx + 1}-${Date.now()}.png`, 'scene')
+          .then(url => ({ type: 'people_photo', index: idx, url }))
+      );
+    });
 
     // Exécuter toutes les générations en parallèle avec timeout global de 180s
     const IMAGE_TIMEOUT_MS = 180000;
@@ -1818,11 +1928,18 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         flashType: r?.flashType || null
       }));
 
+    jobData.peoplePhotos = imageResults
+      .filter(r => r?.type === 'people_photo')
+      .sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0))
+      .map(r => r?.url)
+      .filter(Boolean);
+
     jobData.status = 'done';
     console.log('✅ [BG] Images terminées:', {
       hero: !!jobData.heroImage,
       beforeAfter: !!jobData.beforeAfterImage,
-      posters: jobData.angles.filter(p => p.poster_url).length
+      posters: jobData.angles.filter(p => p.poster_url).length,
+      peoplePhotos: jobData.peoplePhotos.length,
     });
 
       } catch (bgErr) {

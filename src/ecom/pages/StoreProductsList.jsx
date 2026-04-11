@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Package, Plus, Search, Edit, Trash2, Eye, EyeOff, ChevronLeft, ChevronRight, Loader2, AlertCircle, Image, Sparkles, ExternalLink, Zap, Layers, Copy } from 'lucide-react';
 import { storeProductsApi, storeManageApi } from '../services/storeApi.js';
 import ecomApi from '../services/ecommApi.js';
+import { formatMoney } from '../utils/currency.js';
 
 const PRODUCT_VIEWS = {
   catalog: {
@@ -196,9 +197,7 @@ const StoreProductsList = () => {
     }
   };
 
-  const formatPrice = (price, currency = 'XAF') => {
-    return new Intl.NumberFormat('fr-FR').format(price) + ' ' + currency;
-  };
+  const formatPrice = (price, currency = 'XAF') => formatMoney(price, currency);
 
   const getStockBadge = (stock) => {
     if (stock <= 0) {

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import ecomApi from '../services/ecommApi.js';
 import { useEcomAuth } from '../hooks/useEcomAuth.jsx';
+import { formatMoney } from '../utils/currency.js';
 
 /**
  * StoreAnalytics — "Analyses de données" (orienté e-commerce COD Afrique).
@@ -37,7 +38,7 @@ const DATE_PRESETS = [
   { key: 'custom', label: 'Personnalisé' },
 ];
 
-const fmtCurrency = (n) => `${new Intl.NumberFormat('fr-FR').format(Math.round(n || 0))} FCFA`;
+const fmtCurrency = (n) => formatMoney(n);
 const fmtNumber   = (n) => new Intl.NumberFormat('fr-FR').format(n || 0);
 const fmtPct      = (n) => `${Number.isFinite(n) ? (Math.round((n || 0) * 100) / 100) : 0}%`;
 const fmtCompactCurrency = (v) => {
