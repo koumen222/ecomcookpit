@@ -10,11 +10,18 @@ import { useState, useEffect } from 'react';
 import { publicStoreApi } from '../services/storeApi';
 
 const FONT_FAMILIES = {
+  system: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   inter: "'Inter', system-ui, sans-serif",
   poppins: "'Poppins', sans-serif",
   'dm-sans': "'DM Sans', sans-serif",
   montserrat: "'Montserrat', sans-serif",
   satoshi: "'Satoshi', Inter, system-ui, sans-serif",
+  nunito: "'Nunito', sans-serif",
+  roboto: "'Roboto', sans-serif",
+  playfair: "'Playfair Display', serif",
+  lora: "'Lora', serif",
+  outfit: "'Outfit', sans-serif",
+  'space-grotesk': "'Space Grotesk', sans-serif",
 };
 
 const FONT_GFONTS = {
@@ -22,6 +29,12 @@ const FONT_GFONTS = {
   poppins: 'Poppins:wght@400;500;600;700;900',
   'dm-sans': 'DM+Sans:wght@400;500;600;700',
   montserrat: 'Montserrat:wght@400;500;600;700;900',
+  nunito: 'Nunito:wght@400;500;600;700;900',
+  roboto: 'Roboto:wght@400;500;700;900',
+  playfair: 'Playfair+Display:wght@400;600;700;900',
+  lora: 'Lora:wght@400;500;600;700',
+  outfit: 'Outfit:wght@400;500;600;700;800',
+  'space-grotesk': 'Space+Grotesk:wght@400;500;600;700',
 };
 
 function loadGoogleFont(fontId) {
@@ -40,16 +53,25 @@ export function injectStoreCssVars(store) {
   if (!store) return;
   const r = document.documentElement.style;
   // Design overrides from productPageConfig take priority
-  const d = store.productPageConfig?.design;
-  r.setProperty('--s-primary', d?.buttonColor || store.primaryColor || '#0F6B4F');
-  r.setProperty('--s-accent', d?.buttonColor || store.accentColor || '#059669');
-  r.setProperty('--s-bg', d?.backgroundColor || store.backgroundColor || '#FFFFFF');
-  r.setProperty('--s-text', d?.textColor || store.textColor || '#111827');
+  const d = store.productPageConfig?.design || {};
+  r.setProperty('--s-primary', d.buttonColor || store.primaryColor || '#0F6B4F');
+  r.setProperty('--s-accent', d.ctaButtonColor || d.buttonColor || store.accentColor || '#059669');
+  r.setProperty('--s-bg', d.backgroundColor || store.backgroundColor || '#FFFFFF');
+  r.setProperty('--s-text', d.textColor || store.textColor || '#111827');
   r.setProperty('--s-text2', '#6B7280');
-  r.setProperty('--s-font', FONT_FAMILIES[store.font] || FONT_FAMILIES.inter);
+  const fontId = d.fontFamily || store.font || 'inter';
+  r.setProperty('--s-font', FONT_FAMILIES[fontId] || FONT_FAMILIES.inter);
   r.setProperty('--s-border', '#E5E7EB');
-  document.documentElement.style.backgroundColor = d?.backgroundColor || store.backgroundColor || '#FFFFFF';
-  loadGoogleFont(store.font || 'inter');
+  // Extended design tokens
+  r.setProperty('--s-badge', d.badgeColor || '#EF4444');
+  r.setProperty('--s-radius', d.borderRadius || '12px');
+  r.setProperty('--s-btn-style', d.buttonStyle || 'filled');
+  r.setProperty('--s-badge-style', d.badgeStyle || 'filled');
+  r.setProperty('--s-font-base', (d.fontBase || 14) + 'px');
+  r.setProperty('--s-font-weight', d.fontWeight || '600');
+  r.setProperty('--s-shadow', d.shadow !== false ? '0 2px 8px rgba(0,0,0,0.08)' : 'none');
+  document.documentElement.style.backgroundColor = d.backgroundColor || store.backgroundColor || '#FFFFFF';
+  loadGoogleFont(fontId);
 }
 
 // ─── sessionStorage cache ─────────────────────────────────────────────────────
@@ -87,6 +109,10 @@ function toProductPreview(product) {
     price: product.price,
     compareAtPrice: product.compareAtPrice,
     currency: product.currency,
+    targetMarket: product.targetMarket || '',
+    country: product.country || '',
+    city: product.city || '',
+    locale: product.locale || '',
     stock: product.stock,
     images: product.images?.length
       ? product.images

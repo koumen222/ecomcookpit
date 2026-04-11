@@ -40,6 +40,69 @@ const getStoreMetaDescription = (store, fallback = '') => truncateMetaText(
   180,
 );
 
+const RADIUS_MAP = {
+  none: '0px',
+  sm: '10px',
+  md: '14px',
+  lg: '18px',
+  xl: '24px',
+  full: '999px',
+};
+
+const SHADOW_MAP = {
+  none: 'none',
+  soft: '0 12px 32px rgba(15, 23, 42, 0.08)',
+  medium: '0 18px 44px rgba(15, 23, 42, 0.12)',
+  strong: '0 28px 64px rgba(15, 23, 42, 0.16)',
+};
+
+const resolveThemeRadius = (value, fallback = '20px') => {
+  if (typeof value === 'number') return `${value}px`;
+  if (!value) return fallback;
+
+  const normalized = String(value).trim().toLowerCase();
+  if (RADIUS_MAP[normalized]) return RADIUS_MAP[normalized];
+  if (/^\d+$/.test(normalized)) return `${normalized}px`;
+
+  return value;
+};
+
+const resolveThemeShadow = (value) => SHADOW_MAP[String(value || 'soft').trim().toLowerCase()] || SHADOW_MAP.soft;
+
+const buildStorefrontThemeVars = (store) => {
+  const design = store?.productPageConfig?.design || {};
+  const buttonStyle = String(design.buttonStyle || '').trim().toLowerCase();
+  const configuredButton = design.ctaButtonColor || design.buttonColor || null;
+
+  let ctaBackground = configuredButton || '#ffffff';
+  let ctaText = configuredButton ? '#ffffff' : 'var(--s-primary)';
+  let ctaBorder = 'transparent';
+
+  if (buttonStyle === 'outline') {
+    ctaBackground = 'transparent';
+    ctaText = 'var(--s-primary)';
+    ctaBorder = 'var(--s-primary)';
+  } else if (buttonStyle === 'soft') {
+    ctaBackground = 'color-mix(in srgb, var(--s-primary) 12%, var(--s-bg))';
+    ctaText = 'var(--s-primary)';
+  } else if (buttonStyle === 'gradient') {
+    ctaBackground = 'linear-gradient(135deg, var(--s-primary) 0%, var(--s-accent) 100%)';
+    ctaText = '#ffffff';
+  }
+
+  return {
+    '--sf-radius': resolveThemeRadius(design.borderRadius || store?.borderRadius || '20px'),
+    '--sf-shadow': resolveThemeShadow(design.shadow),
+    '--sf-surface': 'color-mix(in srgb, var(--s-bg) 94%, white)',
+    '--sf-soft-surface': 'color-mix(in srgb, var(--s-primary) 6%, var(--s-bg))',
+    '--sf-muted-surface': 'color-mix(in srgb, var(--s-primary) 4%, var(--s-bg))',
+    '--sf-border': 'color-mix(in srgb, var(--s-primary) 16%, var(--s-border))',
+    '--sf-cta-bg': ctaBackground,
+    '--sf-cta-text': ctaText,
+    '--sf-cta-border': ctaBorder,
+  };
+};
+
 // ─── ICON SYSTEM ────────────────────────────────────────────────────────────────
 // Mapping d'identifiants d'icônes vers les composants Lucide
 // Utilisé par le backend pour générer les sections sans emojis
@@ -362,20 +425,21 @@ const AiHeroSection = ({ cfg, store, prefix, products }) => {
             <Link to={`${prefix}/products`}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 10,
-                padding: '16px 36px', borderRadius: 50,
-                backgroundColor: '#fff', color: 'var(--s-primary)',
+                padding: '16px 36px', borderRadius: '999px',
+                background: 'var(--sf-cta-bg)', color: 'var(--sf-cta-text)',
+                border: '1px solid var(--sf-cta-border)',
                 fontWeight: 800, fontSize: 15, textDecoration: 'none',
                 letterSpacing: '-0.01em', fontFamily: 'var(--s-font)',
-                boxShadow: '0 6px 30px rgba(0,0,0,0.20)', transition: 'transform 0.15s, box-shadow 0.15s',
+                boxShadow: 'var(--sf-shadow)', transition: 'transform 0.15s, box-shadow 0.15s',
               }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 12px 44px rgba(0,0,0,0.28)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 6px 30px rgba(0,0,0,0.20)'; }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 18px 40px rgba(15, 23, 42, 0.18)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--sf-shadow)'; }}
             >{cfg.ctaText || 'Découvrir nos produits'} <ArrowRight size={17} /></Link>
           </div>
           {/* Product image */}
           <div style={{ flex: '1 1 260px', maxWidth: 420, margin: '0 auto' }}>
             <div style={{
-              borderRadius: 24, overflow: 'hidden', aspectRatio: '1/1',
+              borderRadius: 'var(--sf-radius)', overflow: 'hidden', aspectRatio: '1/1',
               boxShadow: '0 24px 64px rgba(0,0,0,0.30)',
               border: '4px solid rgba(255,255,255,0.25)',
             }}>
@@ -427,11 +491,12 @@ const HeroContent = ({ cfg, prefix, sectionId = 'hero' }) => {
   
   const ctaStyle = {
     display: 'inline-flex', alignItems: 'center', gap: 10,
-    padding: '17px 40px', borderRadius: 50,
-    backgroundColor: '#fff', color: 'var(--s-primary)',
+    padding: '17px 40px', borderRadius: '999px',
+    background: 'var(--sf-cta-bg)', color: 'var(--sf-cta-text)',
+    border: '1px solid var(--sf-cta-border)',
     fontWeight: 800, fontSize: 15.5, textDecoration: 'none',
     letterSpacing: '-0.01em', fontFamily: 'var(--s-font)',
-    boxShadow: '0 6px 30px rgba(0,0,0,0.22)', transition: 'transform 0.15s, box-shadow 0.15s',
+    boxShadow: 'var(--sf-shadow)', transition: 'transform 0.15s, box-shadow 0.15s',
   };
   
   return (
@@ -498,9 +563,9 @@ const AiBadgesSection = ({ cfg }) => {
   
   return (
     <section ref={sectionRef} style={{ 
-      backgroundColor: '#fff', 
-      borderTop: '1px solid #F3F4F6',
-      borderBottom: '1px solid #F3F4F6',
+      backgroundColor: 'var(--sf-surface)', 
+      borderTop: '1px solid var(--sf-border)',
+      borderBottom: '1px solid var(--sf-border)',
       padding: '32px 0',
       overflow: 'hidden',
     }}>
@@ -552,7 +617,7 @@ const AiBadgesSection = ({ cfg }) => {
           top: 0, 
           bottom: 0, 
           width: 100, 
-          background: 'linear-gradient(to right, #fff, transparent)',
+          background: 'linear-gradient(to right, var(--sf-surface), transparent)',
           zIndex: 1,
           pointerEvents: 'none',
         }} />
@@ -562,7 +627,7 @@ const AiBadgesSection = ({ cfg }) => {
           top: 0, 
           bottom: 0, 
           width: 100, 
-          background: 'linear-gradient(to left, #fff, transparent)',
+          background: 'linear-gradient(to left, var(--sf-surface), transparent)',
           zIndex: 1,
           pointerEvents: 'none',
         }} />
@@ -611,7 +676,7 @@ const AiProductsSection = ({ cfg, products, prefix, store }) => {
   const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
 
   return (
-    <section id="products" style={{ backgroundColor: '#FAFAFA', padding: 'clamp(52px, 8vw, 80px) 24px' }}>
+    <section id="products" style={{ backgroundColor: 'var(--sf-muted-surface)', padding: 'clamp(52px, 8vw, 80px) 24px' }}>
       <style>{`
         .hp-catalog-scroll { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; -ms-overflow-style: none; }
         .hp-catalog-scroll::-webkit-scrollbar { display: none; }
@@ -639,8 +704,9 @@ const AiProductsSection = ({ cfg, products, prefix, store }) => {
                     to={`${prefix}/products?category=${encodeURIComponent(cat)}`}
                     className="hp-cat-card"
                     style={{
-                      width: 140, borderRadius: 16, overflow: 'hidden',
-                      backgroundColor: '#fff', border: '1px solid #F0F0F0',
+                      width: 140, borderRadius: 'calc(var(--sf-radius) - 4px)', overflow: 'hidden',
+                      backgroundColor: 'var(--sf-surface)', border: '1px solid var(--sf-border)',
+                      boxShadow: 'var(--sf-shadow)',
                     }}
                   >
                     <div style={{
@@ -680,13 +746,14 @@ const AiProductsSection = ({ cfg, products, prefix, store }) => {
           <div style={{ textAlign: 'center', marginTop: 40 }}>
             <Link to={`${prefix}/products`} style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
-              padding: '13px 32px', borderRadius: 40,
-              border: '2px solid var(--s-primary)', color: 'var(--s-primary)',
+              padding: '13px 32px', borderRadius: '999px',
+              border: '1px solid var(--sf-cta-border)', color: 'var(--sf-cta-text)',
+              background: 'var(--sf-cta-bg)',
               fontWeight: 700, fontSize: 14, textDecoration: 'none',
-              fontFamily: 'var(--s-font)', transition: 'all 0.15s',
+              fontFamily: 'var(--s-font)', transition: 'all 0.15s', boxShadow: 'var(--sf-shadow)',
             }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--s-primary)'; e.currentTarget.style.color = '#fff'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--s-primary)'; }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
             >
               Voir tous les produits ({products.length}) <ChevronRight size={16} />
             </Link>
@@ -699,7 +766,7 @@ const AiProductsSection = ({ cfg, products, prefix, store }) => {
 
 // ─── FEATURES (why us) ────────────────────────────────────────────────────────
 const AiFeaturesSection = ({ cfg }) => (
-  <section style={{ padding: 'clamp(56px, 9vw, 88px) 24px', backgroundColor: '#fff' }}>
+  <section style={{ padding: 'clamp(56px, 9vw, 88px) 24px', backgroundColor: 'var(--sf-surface)' }}>
     <div style={{ maxWidth: 1100, margin: '0 auto' }}>
       <div style={{ textAlign: 'center', marginBottom: 48 }}>
         <h2 style={{ fontSize: 'clamp(22px, 3.2vw, 34px)', fontWeight: 900, color: 'var(--s-text)', margin: 0, letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>
@@ -710,9 +777,9 @@ const AiFeaturesSection = ({ cfg }) => (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 20 }}>
         {(cfg.items || []).map((f, i) => (
           <div key={i}
-            style={{ backgroundColor: '#FAFAFA', borderRadius: 20, padding: '28px 24px', border: '1px solid #F0F0F0', transition: 'box-shadow 0.2s, transform 0.2s' }}
-            onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
-            onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}
+            style={{ backgroundColor: 'var(--sf-muted-surface)', borderRadius: 'var(--sf-radius)', padding: '28px 24px', border: '1px solid var(--sf-border)', transition: 'box-shadow 0.2s, transform 0.2s', boxShadow: 'var(--sf-shadow)' }}
+            onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 18px 44px rgba(15, 23, 42, 0.12)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = 'var(--sf-shadow)'; e.currentTarget.style.transform = 'none'; }}
           >
             <IconBox icon={f.icon} size={22} boxSize={52} radius={16} />
             <h3 style={{ margin: '18px 0 10px', fontSize: 15.5, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{f.title}</h3>
@@ -757,7 +824,7 @@ const AiFaqSection = ({ cfg }) => {
   };
   
   return (
-    <section style={{ padding: 'clamp(56px, 9vw, 88px) 24px', backgroundColor: '#FAFAFA' }}>
+    <section style={{ padding: 'clamp(56px, 9vw, 88px) 24px', backgroundColor: 'var(--sf-muted-surface)' }}>
       <style>
         {`
           .faq-chevron {
@@ -905,9 +972,10 @@ const AiFaqSection = ({ cfg }) => {
             marginTop: 40, 
             textAlign: 'center', 
             padding: '28px 24px',
-            backgroundColor: '#fff',
-            borderRadius: 16,
-            border: '1px solid #E5E7EB',
+            backgroundColor: 'var(--sf-surface)',
+            borderRadius: 'var(--sf-radius)',
+            border: '1px solid var(--sf-border)',
+            boxShadow: 'var(--sf-shadow)',
           }}>
             <p style={{ 
               fontSize: 14.5, 
@@ -2443,7 +2511,7 @@ export const StoreAllProducts = () => {
   );
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: 'var(--s-bg)', fontFamily: 'var(--s-font)', color: 'var(--s-text)' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: 'var(--s-bg)', fontFamily: 'var(--s-font-base, var(--s-font))', color: 'var(--s-text)', ...buildStorefrontThemeVars(store) }}>
       <style>{`
         *{box-sizing:border-box}
         .s-badges{display:grid;grid-template-columns:1fr}
@@ -2659,7 +2727,7 @@ const PublicStorefrontInner = () => {
             <div style={{ maxWidth: 640, margin: '0 auto' }}>
               <h1 style={{ fontSize: 'clamp(36px, 7vw, 60px)', fontWeight: 900, lineHeight: 1.08, color: '#fff', margin: '0 0 18px', letterSpacing: '-0.03em', fontFamily: 'var(--s-font)' }}>{store?.name}</h1>
               {store?.description && <p style={{ fontSize: 'clamp(15px, 2vw, 18px)', color: 'rgba(255,255,255,0.85)', lineHeight: 1.65, margin: '0 0 40px', fontFamily: 'var(--s-font)' }}>{store.description}</p>}
-              <Link to={`${prefix}/products`} style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '15px 34px', borderRadius: 40, backgroundColor: '#fff', color: 'var(--s-primary)', fontWeight: 700, fontSize: 15, textDecoration: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}>
+              <Link to={`${prefix}/products`} style={{ display: 'inline-flex', alignItems: 'center', gap: 9, padding: '15px 34px', borderRadius: '999px', background: 'var(--sf-cta-bg)', color: 'var(--sf-cta-text)', border: '1px solid var(--sf-cta-border)', fontWeight: 700, fontSize: 15, textDecoration: 'none', boxShadow: 'var(--sf-shadow)' }}>
                 Découvrir nos produits <ArrowRight size={17} />
               </Link>
             </div>
@@ -2672,7 +2740,7 @@ const PublicStorefrontInner = () => {
               {categories.length > 1 && (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {['all', ...categories].map(cat => (
-                    <button key={cat} onClick={() => setActiveCategory(cat)} style={{ padding: '7px 17px', borderRadius: 40, border: '1.5px solid', borderColor: activeCategory === cat ? 'var(--s-primary)' : 'var(--s-border)', backgroundColor: activeCategory === cat ? 'var(--s-primary)' : 'transparent', color: activeCategory === cat ? '#fff' : 'var(--s-text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--s-font)' }}>
+                    <button key={cat} onClick={() => setActiveCategory(cat)} style={{ padding: '7px 17px', borderRadius: '999px', border: '1px solid', borderColor: activeCategory === cat ? 'var(--sf-cta-border)' : 'var(--sf-border)', background: activeCategory === cat ? 'var(--sf-cta-bg)' : 'var(--sf-surface)', color: activeCategory === cat ? 'var(--sf-cta-text)' : 'var(--s-text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--s-font)' }}>
                       {cat === 'all' ? 'Tout' : cat}
                     </button>
                   ))}
@@ -2692,7 +2760,7 @@ const PublicStorefrontInner = () => {
             )}
             {filtered.length > 3 && (
               <div style={{ textAlign: 'center', marginTop: 32 }}>
-                <Link to={`${prefix}/products`} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 28px', borderRadius: 40, border: '2px solid var(--s-primary)', color: 'var(--s-primary)', fontWeight: 700, fontSize: 14, textDecoration: 'none', fontFamily: 'var(--s-font)' }}>
+                <Link to={`${prefix}/products`} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 28px', borderRadius: '999px', border: '1px solid var(--sf-cta-border)', background: 'var(--sf-cta-bg)', color: 'var(--sf-cta-text)', fontWeight: 700, fontSize: 14, textDecoration: 'none', fontFamily: 'var(--s-font)', boxShadow: 'var(--sf-shadow)' }}>
                   Voir tous les produits <ChevronRight size={16} />
                 </Link>
               </div>

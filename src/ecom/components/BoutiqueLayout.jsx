@@ -34,6 +34,11 @@ const BOUTIQUE_NAV = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
       </svg>
     ),
+    children: [
+      { name: 'Tous les produits', href: '/ecom/boutique/products' },
+      { name: 'Catégories', href: '/ecom/boutique/products/categories' },
+      { name: 'Stock', href: '/ecom/boutique/products/stock' },
+    ],
   },
   {
     name: 'Commandes',
@@ -91,12 +96,19 @@ const BOUTIQUE_NAV = [
   },
   {
     name: 'Thème & Design',
-    href: '/ecom/boutique/theme',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
       </svg>
     ),
+    children: [
+      { name: 'Mise en page', href: '/ecom/boutique/theme?tab=layout' },
+      { name: 'Couleurs', href: '/ecom/boutique/theme?tab=colors' },
+      { name: 'Typographie', href: '/ecom/boutique/theme?tab=typo' },
+      { name: 'Boutons & Styles', href: '/ecom/boutique/theme?tab=buttons' },
+      { name: 'Éléments', href: '/ecom/boutique/theme?tab=elements' },
+      { name: 'Aperçu', href: '/ecom/boutique/theme?tab=preview' },
+    ],
   },
   {
     name: 'Manager de formulaire',
@@ -187,14 +199,17 @@ const BoutiqueLayoutInner = () => {
 
   const isParentActive = (item) => {
     if (!item.children) return false;
-    return item.children.some(c => location.pathname === c.href || location.pathname.startsWith(c.href + '/'));
+    return item.children.some(c => {
+      const [cPath] = (c.href || '').split('?');
+      return location.pathname === cPath || location.pathname.startsWith(cPath + '/');
+    });
   };
 
   // Auto-expand parent when a child is active
   useEffect(() => {
     const parent = BOUTIQUE_NAV.find(i => i.children && isParentActive(i));
     if (parent) setExpandedParent(parent.name);
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   const mobileTabs = useMemo(() => BOUTIQUE_NAV.filter(i => !i.children && MOBILE_TABS.includes(i.name)), []);
   const mobileMore = useMemo(() => {
@@ -288,7 +303,8 @@ const BoutiqueLayoutInner = () => {
                     {expanded && (
                       <div className="ml-5 pl-3 border-l-2 border-gray-200 mt-1 space-y-0.5">
                         {item.children.map(child => {
-                          const childActive = location.pathname === child.href;
+                          const [childPath, childQuery] = (child.href || '').split('?');
+                          const childActive = location.pathname === childPath && (!childQuery || location.search === `?${childQuery}`);
                           return (
                             <Link
                               key={child.href}

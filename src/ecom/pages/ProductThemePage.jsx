@@ -1,19 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Save, Loader2, Check, Paintbrush, Eye, Palette, Type, Square, ChevronDown, ChevronUp,
   Droplets, Layout, Zap, MousePointer2, Rows3, Image, ShoppingBag, Star, Truck, Shield,
-  MessageCircle, Heart, Share2, Minus, Plus, ChevronRight, Clock, Award, Flame
+  MessageCircle, Heart, Share2, Minus, Plus, ChevronRight, Clock, Award, Flame, Rocket, Sparkles
 } from 'lucide-react';
 import { storeManageApi } from '../services/storeApi';
 import { useStore } from '../contexts/StoreContext.jsx';
 
 // ── 5 Layout Themes ───────────────────────────────────────────────────────────
 const THEMES = [
-  { id: 'classic', name: 'Classique', desc: 'Galerie à gauche, infos à droite — le standard e-commerce.', badge: 'Par défaut', icon: '🛍️' },
-  { id: 'landing', name: 'Landing Page', desc: 'Images pleine largeur, contenu de vente en dessous — conversions max.', badge: 'Conversions +', icon: '🚀' },
-  { id: 'magazine', name: 'Magazine', desc: 'Image héro plein écran avec overlay — look éditorial premium.', badge: 'Premium', icon: '✨' },
-  { id: 'minimal', name: 'Minimal', desc: 'Design épuré, beaucoup de blanc, focus sur le produit.', badge: 'Élégant', icon: '🤍' },
-  { id: 'bold', name: 'Bold', desc: "Couleurs vives, typographie impactante, appels à l'action forts.", badge: 'Impact', icon: '⚡' },
+  { id: 'classic', name: 'Classique', desc: 'Galerie à gauche, infos à droite — le standard e-commerce.', badge: 'Par défaut', icon: ShoppingBag },
+  { id: 'landing', name: 'Landing Page', desc: 'Images pleine largeur, contenu de vente en dessous — conversions max.', badge: 'Conversions +', icon: Rocket },
+  { id: 'magazine', name: 'Magazine', desc: 'Image héro plein écran avec overlay — look éditorial premium.', badge: 'Premium', icon: Sparkles },
+  { id: 'minimal', name: 'Minimal', desc: 'Design épuré, beaucoup de blanc, focus sur le produit.', badge: 'Élégant', icon: Heart },
+  { id: 'bold', name: 'Bold', desc: "Couleurs vives, typographie impactante, appels à l'action forts.", badge: 'Impact', icon: Zap },
 ];
 
 // ── Theme Previews ────────────────────────────────────────────────────────────
@@ -237,9 +238,18 @@ const ProductThemePage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [activeSection, setActiveSection] = useState('layout');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeSection, setActiveSection] = useState(searchParams.get('tab') || 'layout');
   const [colorTab, setColorTab] = useState('presets');
   const { activeStore } = useStore();
+
+  // Sync tab with URL query param
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && ['layout','colors','typo','buttons','elements','preview'].includes(tab)) {
+      setActiveSection(tab);
+    }
+  }, [searchParams]);
 
   const storeSubdomain = activeStore?.subdomain || activeStore?.storeSettings?.subdomain || '';
 
@@ -326,49 +336,55 @@ const ProductThemePage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-14 z-10">
+      <div className="sticky top-14 z-20 border-b border-gray-200 bg-white/95 backdrop-blur">
+        {/* Header */}
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-200">
-                <Paintbrush size={20} className="text-white" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50">
+                <Paintbrush size={18} className="text-emerald-700" />
               </div>
               <div>
-                <h1 className="text-lg sm:text-xl font-extrabold text-gray-900 tracking-tight">Thème Page Produit</h1>
-                <p className="text-[11px] sm:text-xs text-gray-500 font-medium">Personnalisez l'apparence de vos pages produits</p>
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight">Thème Page Produit</h1>
+                <p className="text-[11px] sm:text-xs text-gray-500">Personnalisez l'apparence de vos pages produits</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               {storeSubdomain && (
                 <a href={`https://${storeSubdomain}.scalor.net`} target="_blank" rel="noopener noreferrer"
-                  className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-gray-500 border border-gray-200 bg-white hover:bg-gray-50 transition">
+                  className="hidden sm:flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-500 transition hover:bg-gray-50">
                   <Eye size={14} /> Voir ma boutique
                 </a>
               )}
+              {hasChanges && (
+                <button
+                  onClick={() => { setCurrentTheme(originalData.theme); setDesign({ ...originalData.design }); setSaved(false); }}
+                  className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
+                >
+                  Annuler
+                </button>
+              )}
               <button onClick={handleSave} disabled={saving || !hasChanges}
-                className={`flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-                  saved ? 'bg-green-500 shadow-green-200' : hasChanges ? 'bg-violet-600 hover:bg-violet-700 shadow-violet-200' : 'bg-gray-400'
+                className={`flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                  saved ? 'bg-emerald-600' : hasChanges ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-gray-300'
                 }`}>
                 {saving ? <Loader2 size={15} className="animate-spin" /> : saved ? <Check size={15} /> : <Save size={15} />}
-                {saving ? 'Sauvegarde…' : saved ? 'Enregistré ✓' : 'Enregistrer'}
+                {saving ? 'Sauvegarde…' : saved ? 'Enregistré' : 'Enregistrer'}
               </button>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Section tabs */}
-      <div className="bg-white border-b border-gray-100">
+        {/* Section tabs */}
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="flex gap-1 overflow-x-auto py-2 scrollbar-none">
+          <div className="flex gap-2 overflow-x-auto py-2 scrollbar-none">
             {SECTIONS.map(s => {
               const Icon = s.icon;
               const isActive = activeSection === s.id;
               return (
-                <button key={s.id} onClick={() => setActiveSection(s.id)}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
-                    isActive ? 'bg-violet-100 text-violet-700' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                <button key={s.id} onClick={() => { setActiveSection(s.id); setSearchParams({ tab: s.id }); }}
+                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium transition ${
+                    isActive ? 'bg-emerald-50 text-emerald-700' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
                   }`}>
                   <Icon size={14} /> {s.label}
                 </button>
@@ -384,33 +400,38 @@ const ProductThemePage = () => {
         {activeSection === 'layout' && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-base font-extrabold text-gray-900 mb-1">Mise en page</h2>
+              <h2 className="mb-1 text-base font-bold text-gray-900">Mise en page</h2>
               <p className="text-sm text-gray-500">Choisissez le layout de votre page produit</p>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               {THEMES.map((theme) => {
                 const isSelected = currentTheme === theme.id;
                 const Preview = PREVIEW_MAP[theme.id];
+                const ThemeIcon = theme.icon;
                 return (
                   <button key={theme.id} type="button" onClick={() => handleSelect(theme.id)}
-                    className={`text-left rounded-2xl border-2 transition-all duration-300 overflow-hidden ${
-                      isSelected ? 'border-violet-500 shadow-xl shadow-violet-100/60 ring-2 ring-violet-200 scale-[1.02]' : 'border-gray-200 hover:border-gray-300 hover:shadow-lg'
-                    }`} style={{ background: '#fafafa' }}>
-                    <div className="relative">
+                    className={`group overflow-hidden rounded-[22px] border text-left transition-all duration-200 ${
+                      isSelected ? 'border-emerald-500 bg-white shadow-[0_22px_44px_-26px_rgba(16,24,40,0.24)] ring-1 ring-emerald-100' : 'border-gray-200 bg-white hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-[0_18px_34px_-26px_rgba(16,24,40,0.2)]'
+                    }`}>
+                    <div className={`relative px-2 pt-2 ${isSelected ? 'bg-gradient-to-b from-emerald-50/70 to-white' : 'bg-gradient-to-b from-gray-50 to-white'}`}>
                       {isSelected && (
-                        <div className="absolute top-2 right-2 z-10 w-6 h-6 rounded-full bg-violet-600 flex items-center justify-center shadow-lg">
+                        <div className="absolute right-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 shadow-[0_10px_18px_-10px_rgba(5,150,105,0.7)]">
                           <Check size={14} color="#fff" strokeWidth={3} />
                         </div>
                       )}
-                      <Preview />
-                    </div>
-                    <div className="px-3 pt-2 pb-2.5 bg-white border-t border-gray-100">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="text-sm">{theme.icon}</span>
-                        <span className={`text-[12px] font-extrabold ${isSelected ? 'text-violet-700' : 'text-gray-800'}`}>{theme.name}</span>
+                      <div className={`overflow-hidden rounded-2xl border ${isSelected ? 'border-emerald-100 bg-white shadow-sm' : 'border-gray-100 bg-white'}`}>
+                        <Preview />
                       </div>
-                      <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-500'}`}>{theme.badge}</span>
-                      <p className="text-[10px] text-gray-500 leading-snug mt-1">{theme.desc}</p>
+                    </div>
+                    <div className="bg-white px-4 pb-4 pt-3">
+                      <div className="mb-1 flex items-center gap-2">
+                        <span className={`flex h-7 w-7 items-center justify-center rounded-full ${isSelected ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-50 text-gray-600'}`}>
+                          <ThemeIcon size={14} />
+                        </span>
+                        <span className={`text-[15px] font-semibold tracking-tight ${isSelected ? 'text-emerald-700' : 'text-gray-900'}`}>{theme.name}</span>
+                      </div>
+                      <span className={`inline-flex rounded-full px-2 py-1 text-[9px] font-semibold uppercase tracking-wide ${isSelected ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{theme.badge}</span>
+                      <p className="mt-2 text-[12px] leading-5 text-gray-500">{theme.desc}</p>
                     </div>
                   </button>
                 );
@@ -419,25 +440,25 @@ const ProductThemePage = () => {
 
             {/* Image & Spacing */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="bg-white rounded-2xl border border-gray-200 p-5">
-                <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2"><Image size={15} className="text-violet-600" /> Ratio des images</h3>
+              <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900"><Image size={15} className="text-emerald-600" /> Ratio des images</h3>
                 <div className="grid grid-cols-2 gap-2">
                   {IMAGE_RATIOS.map(r => (
                     <button key={r.id} onClick={() => updateDesign('imageRatio', r.id)}
-                      className={`p-3 rounded-xl border-2 text-left transition ${design.imageRatio === r.id ? 'border-violet-500 bg-violet-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                      <span className="text-xs font-bold text-gray-800">{r.name}</span>
+                      className={`rounded-xl border p-3 text-left transition ${design.imageRatio === r.id ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <span className="text-xs font-semibold text-gray-800">{r.name}</span>
                       <span className="block text-[10px] text-gray-400 mt-0.5">{r.ratio}</span>
                     </button>
                   ))}
                 </div>
               </div>
-              <div className="bg-white rounded-2xl border border-gray-200 p-5">
-                <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2"><Rows3 size={15} className="text-violet-600" /> Espacement</h3>
+              <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900"><Rows3 size={15} className="text-emerald-600" /> Espacement</h3>
                 <div className="grid grid-cols-3 gap-2">
                   {SPACING_OPTIONS.map(s => (
                     <button key={s.id} onClick={() => updateDesign('spacing', s.value)}
-                      className={`p-3 rounded-xl border-2 text-center transition ${design.spacing === s.value ? 'border-violet-500 bg-violet-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                      <span className="text-xs font-bold text-gray-800">{s.name}</span>
+                      className={`rounded-xl border p-3 text-center transition ${design.spacing === s.value ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <span className="text-xs font-semibold text-gray-800">{s.name}</span>
                     </button>
                   ))}
                 </div>
@@ -798,28 +819,6 @@ const ProductThemePage = () => {
                     )}
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Sticky save bar */}
-        {hasChanges && (
-          <div className="fixed bottom-0 left-0 right-0 lg:left-[240px] z-30 bg-white/95 backdrop-blur-lg border-t border-gray-200 shadow-2xl"
-            style={{ animation: 'slideUp 0.3s ease-out' }}>
-            <style>{`@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }`}</style>
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
-                <span className="text-sm font-semibold text-gray-700 truncate">Modifications non enregistrées</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => { setCurrentTheme(originalData.theme); setDesign({ ...originalData.design }); setSaved(false); }}
-                  className="px-4 py-2 text-sm font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition">Annuler</button>
-                <button onClick={handleSave} disabled={saving}
-                  className="px-5 py-2 bg-violet-600 text-white text-sm font-bold rounded-xl hover:bg-violet-700 transition disabled:opacity-50 flex items-center gap-1.5 shadow-lg shadow-violet-200">
-                  {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Enregistrer
-                </button>
               </div>
             </div>
           </div>

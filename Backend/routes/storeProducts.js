@@ -499,6 +499,25 @@ function normalizeFaq(raw) {
     .filter(f => f.question && f.answer);
 }
 
+function buildSystemProductPayload({ name, price, stock, workspaceId, userId }) {
+  const sellingPrice = Number(price) || 0;
+  const inferredCost = sellingPrice > 0 ? Math.max(0, Math.floor(sellingPrice * 0.4)) : 0;
+
+  return {
+    workspaceId,
+    createdBy: userId,
+    name,
+    status: 'test',
+    sellingPrice,
+    productCost: inferredCost,
+    deliveryCost: 0,
+    avgAdsCost: 0,
+    stock: Number(stock) || 0,
+    reorderThreshold: 10,
+    isActive: true
+  };
+}
+
 /**
  * POST /store-products
  * Create a new store product (dashboard).
@@ -509,6 +528,7 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, async (re
       name, description, price, compareAtPrice, stock,
       images, category, tags, isPublished,
       seoTitle, seoDescription, linkedProductId, currency,
+      targetMarket, country, city, locale,
       testimonials, faq, _pageData
     } = req.body;
 
@@ -519,38 +539,85 @@ router.post('/', requireEcomAuth, requireWorkspace, requireStoreOwner, async (re
       });
     }
 
-    const product = new StoreProduct({
-      workspaceId: req.workspaceId,
-      storeId: req.activeStoreId || null,
-      name,
-      description: description || '',
-      price: Number(price),
-      compareAtPrice: compareAtPrice ? Number(compareAtPrice) : null,
-      currency: currency || req.store?.storeSettings?.storeCurrency || 'XAF',
-      stock: Number(stock) || 0,
-      images: (images || []).map((img, i) => ({
-        url: img.url,
-        alt: img.alt || name,
-        order: img.order ?? i
-      })),
-      category: category || '',
-      tags: tags || [],
-      isPublished: isPublished || false,
-      seoTitle: seoTitle || '',
-      seoDescription: seoDescription || '',
-      linkedProductId: linkedProductId || null,
-      createdBy: req.user.id,
-      ...(testimonials?.length > 0 && { testimonials: normalizeTestimonials(testimonials) }),
-      ...(faq?.length > 0 && { faq: normalizeFaq(faq) }),
-      ...(_pageData && { _pageData })
-    });
+    const userId = req.user?._id || req.user?.id;
+    let resolvedLinkedProductId = linkedProductId || null;
+    let createdSystemProductId = null;
 
-    await product.save();
+    if (resolvedLinkedProductId) {
+      if (!mongoose.Types.ObjectId.isValid(resolvedLinkedProductId)) {
+        return res.status(400).json({ success: false, message: 'Produit système lié invalide' });
+      }
+
+      const existingLinkedProduct = await Product.findOne({
+        _id: resolvedLinkedProductId,
+        workspaceId: req.workspaceId
+      }).select('_id');
+
+      if (!existingLinkedProduct) {
+        return res.status(404).json({ success: false, message: 'Produit système lié introuvable' });
+      }
+    } else {
+      const systemProduct = new Product(buildSystemProductPayload({
+        name,
+        price,
+        stock,
+        workspaceId: req.workspaceId,
+        userId
+      }));
+
+      await systemProduct.save();
+      resolvedLinkedProductId = systemProduct._id;
+      createdSystemProductId = systemProduct._id;
+    }
+
+    let product;
+    try {
+      product = new StoreProduct({
+        workspaceId: req.workspaceId,
+        storeId: req.activeStoreId || null,
+        name,
+        description: description || '',
+        price: Number(price),
+        compareAtPrice: compareAtPrice ? Number(compareAtPrice) : null,
+        currency: typeof currency === 'string' ? currency.trim().toUpperCase() : '',
+        targetMarket: targetMarket || '',
+        country: country || '',
+        city: city || '',
+        locale: locale || '',
+        stock: Number(stock) || 0,
+        images: (images || []).map((img, i) => ({
+          url: img.url,
+          alt: img.alt || name,
+          order: img.order ?? i
+        })),
+        category: category || '',
+        tags: tags || [],
+        isPublished: isPublished || false,
+        seoTitle: seoTitle || '',
+        seoDescription: seoDescription || '',
+        linkedProductId: resolvedLinkedProductId,
+        createdBy: req.user.id,
+        ...(testimonials?.length > 0 && { testimonials: normalizeTestimonials(testimonials) }),
+        ...(faq?.length > 0 && { faq: normalizeFaq(faq) }),
+        ...(_pageData && { _pageData })
+      });
+
+      await product.save();
+    } catch (error) {
+      if (createdSystemProductId) {
+        await Product.deleteOne({ _id: createdSystemProductId, workspaceId: req.workspaceId }).catch(() => {});
+      }
+      throw error;
+    }
 
     res.status(201).json({
       success: true,
       message: 'Produit créé avec succès',
-      data: product.toObject()
+      data: product.toObject(),
+      meta: {
+        linkedProductId: resolvedLinkedProductId,
+        systemProductCreated: Boolean(createdSystemProductId)
+      }
     });
   } catch (error) {
     // Handle duplicate slug
@@ -579,6 +646,7 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
       name, description, price, compareAtPrice, stock,
       images, category, tags, isPublished,
       seoTitle, seoDescription, linkedProductId, currency,
+      targetMarket, country, city, locale,
       testimonials, faq, _pageData, pageBuilder, productPageConfig
     } = req.body;
 
@@ -588,7 +656,11 @@ router.put('/:id', requireEcomAuth, requireWorkspace, requireStoreOwner, async (
     if (description !== undefined) update.description = description;
     if (price !== undefined) update.price = Number(price);
     if (compareAtPrice !== undefined) update.compareAtPrice = compareAtPrice ? Number(compareAtPrice) : null;
-    if (currency !== undefined) update.currency = currency;
+    if (currency !== undefined) update.currency = typeof currency === 'string' ? currency.trim().toUpperCase() : '';
+    if (targetMarket !== undefined) update.targetMarket = targetMarket;
+    if (country !== undefined) update.country = country;
+    if (city !== undefined) update.city = city;
+    if (locale !== undefined) update.locale = locale;
     if (stock !== undefined) update.stock = Number(stock);
     if (images !== undefined) {
       update.images = images.map((img, i) => ({

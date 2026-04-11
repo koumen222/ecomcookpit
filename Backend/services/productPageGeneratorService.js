@@ -147,6 +147,53 @@ function buildDefaultTestimonials(productName, country = '', city = '') {
   ];
 }
 
+function buildVisualTemplateInstruction(template = 'general', preferredColor = '', heroVisualDirection = '', decorationDirection = '', titleColor = '', contentColor = '') {
+  const visualDirections = {
+    beauty: 'ambiance beaute premium, formes douces, icones elegantes, surfaces cosmetiques, composition editoriale feminine et raffinee',
+    tech: 'ambiance tech moderne, lignes nettes, icones fonctionnelles, contrastes francs, composition plus structuree et innovative',
+    fashion: 'ambiance mode editoriale, silhouettes affirmees, details de style, composition lookbook premium et expressive',
+    health: 'ambiance sante bien-etre, visuels propres, icones rassurantes, sensation naturelle, composition claire et energique',
+    home: 'ambiance maison chaleureuse, textures douces, icones pratiques, composition accueillante et concrete',
+    general: 'ambiance e-commerce premium polyvalente, composition propre, visuels clairs, icones simples et universelles',
+  };
+
+  const selectedDirection = visualDirections[template] || visualDirections.general;
+  const colorLine = preferredColor
+    ? `- Couleur des affiches a integrer si elle reste coherente avec le produit : ${preferredColor}`
+    : '- Couleur des affiches : choisis une teinte coherente avec le produit et le template';
+  const heroLine = heroVisualDirection
+    ? `- Visuel hero impose : ${heroVisualDirection}`
+    : '- Visuel hero : choisis un hero coherent avec le produit et le template';
+  const decorationLine = decorationDirection
+    ? `- Visuels de decoration imposes : ${decorationDirection}`
+    : '- Decorations : ajoute seulement des elements graphiques coherents avec le template';
+  const titleColorLine = titleColor
+    ? `- Couleur des titres a respecter si possible : ${titleColor}`
+    : '- Couleur des titres : harmonisee avec le template';
+  const contentColorLine = contentColor
+    ? `- Couleur du contenu a respecter si possible : ${contentColor}`
+    : '- Couleur du contenu : lisible et coherente avec le template';
+
+  return `
+═══════════════════════════════════════════════
+DIRECTION VISUELLE DU TEMPLATE
+═══════════════════════════════════════════════
+- Template choisi : ${template}
+- Direction visuelle attendue : ${selectedDirection}
+${colorLine}
+${heroLine}
+${decorationLine}
+${titleColorLine}
+${contentColorLine}
+
+RÈGLE CRITIQUE : le template influence UNIQUEMENT la couche visuelle.
+- Il doit guider le design des images, des icones, des fonds, des decorations, de la palette, de la composition et de l'ambiance.
+- Les consignes de couleur des affiches, visuel hero, decorations, couleur des titres et couleur du contenu doivent etre vraiment appliquees dans les prompts de generation quand c'est pertinent.
+- Il ne doit PAS changer la verite produit, la cible reelle, les promesses, la structure marketing, les objections, ni la logique copywriting.
+- Si le template et le produit se contredisent, tu gardes la verite produit et tu adaptes seulement le langage visuel.
+- Tous les prompts images et toutes les indications de design doivent etre coherents avec ce template backend.`;
+}
+
 // ─── Parser JSON robuste pour réponses Groq/LLM ────────────────────
 function parseGroqJSON(text) {
   // 1. Supprimer blocs markdown
@@ -176,7 +223,7 @@ function parseGroqJSON(text) {
 
 // ─── Étape 2 : Groq → JSON structuré ultra fiable ──────────────────
 
-export async function analyzeWithVision(scrapedData, imageBuffers = [], marketingApproach = 'AIDA', storeContext = {}, copywritingContext = {}) {
+export async function analyzeWithVision(scrapedData, imageBuffers = [], marketingApproach = 'AIDA', storeContext = {}, copywritingContext = {}, visualContext = {}) {
   const groq = getGroq();
   if (!groq) throw new Error('Clé Groq API non configurée.');
 
@@ -198,6 +245,15 @@ export async function analyzeWithVision(scrapedData, imageBuffers = [], marketin
     tone = 'urgence',
     language = 'français'
   } = copywritingContext;
+  const {
+    template = 'general',
+    preferredColor = '',
+    heroVisualDirection = '',
+    decorationDirection = '',
+    titleColor = '',
+    contentColor = ''
+  } = visualContext;
+  const visualTemplateInstruction = buildVisualTemplateInstruction(template, preferredColor, heroVisualDirection, decorationDirection, titleColor, contentColor);
 
   // Marketing approach definitions
   const approachGuides = {
@@ -251,6 +307,8 @@ TITRE : ${title || 'Non disponible'}
 DESCRIPTION : ${description || 'Non disponible'}
 ${avatarAndProblemInfo}
 
+${visualTemplateInstruction}
+
 🎯 OBJECTIF : Créer une page qui capte l'attention immédiatement, donne confiance, et pousse à l'achat sans friction en suivant la méthode ${marketingApproach}. TOUTE la page (texte, structure, images) doit être cohérente avec cette méthode.
 
 ═══ ÉTAPE 1 : ANALYSE INTELLIGENTE DU PRODUIT ═══
@@ -294,6 +352,9 @@ Identifie la zone corporelle exacte de ce produit et montre UNIQUEMENT cette zon
 6. ✅ Adaptation au marché africain : contexte local, peaux noires, climat, culture
 7. ✅ Témoignages localisés avec noms africains et villes du pays cible
 8. ✅ ${tone === 'urgence' ? 'Urgence psychologique : stock limité, preuve sociale, résultats rapides' : tone === 'premium' ? 'Ton premium et exclusif : qualité exceptionnelle, attention aux détails' : tone === 'fun' ? 'Ton enjoué et dynamique : énergie positive, émojis, phrases courtes' : 'Ton sérieux et professionnel : crédibilité, faits, confiance'}
+9. ✅ Le template choisi guide seulement le rendu visuel : style des images, icones, fonds, palette et ambiance
+10. ✅ La copy, les bénéfices, la cible et les promesses doivent rester dictés par le produit réel et la méthode ${marketingApproach}, jamais par le template seul
+11. ✅ Les consignes couleur des affiches, visuel hero, décorations, couleur des titres et couleur du contenu doivent être prises en compte réellement dans la génération visuelle
 
 ${storeLocaleInstruction}
 
@@ -599,7 +660,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   const messages = [
     {
       role: "system",
-      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit complète et optimisée pour la conversion avec des visuels représentant des personnes africaines authentiques. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS PARFAIT (sauf prompts images en anglais) — zéro faute d'orthographe, zéro faute de grammaire. 3) ZÉRO généricité. 4) ZÉRO exagération. 5) CRITIQUE problem_section : 3 vraies douleurs SPÉCIFIQUES. 6) CRITIQUE solution_section : paragraphe persuasif reliant chaque douleur au produit. 7) CRITIQUE hero_cta : bouton d'achat percutant 3-5 mots. 8) CRITIQUE stats_bar : 3 stats crédibles. 9) CRITIQUE seo : meta_title max 60 chars, meta_description max 155 chars, slug kebab-case. 10) RÈGLE GENRE OBLIGATOIRE pour toutes les images : produit FEMME → femme africaine ; produit HOMME → homme africain ; produit MIXTE → genre le plus naturel selon contexte — JAMAIS de femme par défaut pour un produit masculin ou neutre. 11) RÈGLE ZONE CORPORELLE pour toutes les images : identifier la zone exacte (cheveux, visage, corps, ventre, dents, etc.) et cadrer sur cette zone — JAMAIS le visage par défaut si le produit est pour les cheveux ou le corps. 12) LE PRODUIT LUI-MÊME (packaging, flacon, boîte) doit être visible et grand dans chaque image. 13) prompt_hero_poster = affiche graphique, produit grand sur fond sombre dramatique, titre français gras. 14) avant/après : zone correcte + genre correct + produit visible côté APRÈS. 15) angles : 4 visuels, produit visible (40%+) + texte overlay français + zone et genre corrects. 16) Témoignages : noms et villes adaptés au pays. 17) description_optimisee = chaîne vide. 18) JSON uniquement."
+      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit complète et optimisée pour la conversion avec des visuels représentant des personnes africaines authentiques. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS PARFAIT (sauf prompts images en anglais) — zéro faute d'orthographe, zéro faute de grammaire. 3) ZÉRO généricité. 4) ZÉRO exagération. 5) CRITIQUE problem_section : 3 vraies douleurs SPÉCIFIQUES. 6) CRITIQUE solution_section : paragraphe persuasif reliant chaque douleur au produit. 7) CRITIQUE hero_cta : bouton d'achat percutant 3-5 mots. 8) CRITIQUE stats_bar : 3 stats crédibles. 9) CRITIQUE seo : meta_title max 60 chars, meta_description max 155 chars, slug kebab-case. 10) RÈGLE GENRE OBLIGATOIRE pour toutes les images : produit FEMME → femme africaine ; produit HOMME → homme africain ; produit MIXTE → genre le plus naturel selon contexte — JAMAIS de femme par défaut pour un produit masculin ou neutre. 11) RÈGLE ZONE CORPORELLE pour toutes les images : identifier la zone exacte (cheveux, visage, corps, ventre, dents, etc.) et cadrer sur cette zone — JAMAIS le visage par défaut si le produit est pour les cheveux ou le corps. 12) LE PRODUIT LUI-MÊME (packaging, flacon, boîte) doit être visible et grand dans chaque image. 13) prompt_hero_poster = affiche graphique, produit grand sur fond sombre dramatique, titre français gras. 14) avant/après : zone correcte + genre correct + produit visible côté APRÈS. 15) angles : 4 visuels, produit visible (40%+) + texte overlay français + zone et genre corrects. 16) Témoignages : noms et villes adaptés au pays. 17) Le template choisi agit uniquement sur le design visuel des images, icones, fonds, ambiance et palette; il ne doit jamais inventer une promesse, une cible ou un usage produit. 18) Les consignes couleur des affiches, visuel hero, décorations, couleur des titres et couleur du contenu doivent être appliquées réellement aux visuels quand elles sont fournies. 19) description_optimisee = chaîne vide. 20) JSON uniquement."
     },
     {
       role: "user",

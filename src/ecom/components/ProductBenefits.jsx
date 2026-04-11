@@ -9,11 +9,12 @@ export default function ProductBenefits({ benefits = [], title = "💥 Les bén�
 
   return (
     <div style={{
-      backgroundColor: 'var(--s-bg)',
+      background: 'var(--ai-soft-gradient, var(--s-bg))',
       borderRadius: 16,
       padding: '24px 20px',
       marginBottom: 24,
-      border: '1px solid var(--s-border)',
+      border: '1px solid var(--ai-soft-border, var(--s-border))',
+      boxShadow: 'var(--ai-shadow, none)',
     }}>
       <h3 style={{
         fontSize: 20,
@@ -44,9 +45,9 @@ export default function ProductBenefits({ benefits = [], title = "💥 Les bén�
                 alignItems: 'flex-start',
                 gap: 12,
                 padding: '14px 16px',
-                backgroundColor: '#fff',
+                backgroundColor: 'var(--ai-surface, #fff)',
                 borderRadius: 12,
-                border: '1px solid var(--s-border)',
+                border: '1px solid var(--ai-soft-border, var(--s-border))',
                 transition: 'all 0.2s',
               }}
               className="benefit-item"
@@ -55,7 +56,7 @@ export default function ProductBenefits({ benefits = [], title = "💥 Les bén�
                 width: 22,
                 height: 22,
                 borderRadius: '50%',
-                backgroundColor: 'var(--s-primary)',
+                background: 'var(--ai-gradient, var(--s-primary))',
                 color: '#fff',
                 display: 'flex',
                 alignItems: 'center',

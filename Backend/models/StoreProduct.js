@@ -54,7 +54,27 @@ const storeProductSchema = new mongoose.Schema({
   },
   currency: {
     type: String,
-    default: 'XAF'
+    default: ''
+  },
+  targetMarket: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  country: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  city: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  locale: {
+    type: String,
+    trim: true,
+    default: ''
   },
   stock: {
     type: Number,

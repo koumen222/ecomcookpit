@@ -127,6 +127,7 @@ const CreativeGenerator = lazy(() => import('./pages/CreativeGenerator.jsx'));
 const StoreSetup = lazy(() => import('./pages/StoreSetup.jsx'));
 const StoreProductsList = lazy(() => import('./pages/StoreProductsList.jsx'));
 const StoreProductForm = lazy(() => import('./pages/StoreProductForm.jsx'));
+const ProductPageGeneratorWizard = lazy(() => import('./pages/ProductPageGeneratorWizard.jsx'));
 const ProductPageBuilder = lazy(() => import('./pages/ProductPageBuilder.jsx'));
 const StoreAnalytics = lazy(() => import('./pages/StoreAnalytics.jsx'));
 const StoreDashboard = lazy(() => import('./pages/StoreDashboard.jsx'));
@@ -651,11 +652,14 @@ const EcomApp = () => {
                 <Route path="/ecom/boutique/wizard" element={<ProtectedRoute requiredRole="ecom_admin"><StoreCreationWizard /></ProtectedRoute>} />
                 <Route path="/ecom/boutique/nouvelle" element={<ProtectedRoute requiredRole="ecom_admin"><StoreCreationWizard /></ProtectedRoute>} />
                 {/* Builder — full screen, outside BoutiqueLayout */}
+                <Route path="/ecom/boutique/products/generator" element={<ProtectedRoute requiredRole="ecom_admin"><ProductPageGeneratorWizard /></ProtectedRoute>} />
                 <Route path="/ecom/boutique/products/:id/builder" element={<ProtectedRoute requiredRole="ecom_admin"><ProductPageBuilder /></ProtectedRoute>} />
                 <Route element={<ProtectedRoute requiredRole="ecom_admin"><BoutiqueLayout /></ProtectedRoute>}>
                   <Route path="/ecom/boutique" element={<StoreDashboard />} />
                   <Route path="/ecom/boutique/analytics" element={<StoreDashboard />} />
                   <Route path="/ecom/boutique/products" element={<StoreProductsList />} />
+                  <Route path="/ecom/boutique/products/categories" element={<StoreProductsList />} />
+                  <Route path="/ecom/boutique/products/stock" element={<StoreProductsList />} />
                   <Route path="/ecom/boutique/products/new" element={<StoreProductForm />} />
                   <Route path="/ecom/boutique/products/:id/edit" element={<StoreProductForm />} />
                   <Route path="/ecom/boutique/orders" element={<StoreOrdersDashboard />} />

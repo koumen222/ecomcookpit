@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, ShoppingCart, MessageCircle,
-  ShoppingBag, Shield, RotateCcw, Truck, Check,
+  ShoppingBag, Shield, RotateCcw, Truck, Check, Share2,
   ChevronDown, ChevronUp, Star,
 } from 'lucide-react';
 import { useSubdomain } from '../hooks/useSubdomain';
@@ -135,10 +135,18 @@ const truncateMetaText = (value = '', max = 180) => {
 };
 
 // ── Image Gallery ────────────────────────────────────────────────────────────
-const ImageGallery = ({ images = [] }) => {
+const ImageGallery = ({ images = [], design = {} }) => {
   const [active, setActive] = useState(0);
   const [zoomed, setZoomed] = useState(false);
   const [ratios, setRatios] = useState({});
+  const zoomEnabled = design.imageZoom !== false;
+  const borderRadius = design.borderRadius || '12px';
+  const ratioByPreset = {
+    square: '100%',
+    portrait: '133.33%',
+    landscape: '75%',
+    wide: '56.25%',
+  };
 
   const go = (dir) => setActive(i => Math.max(0, Math.min(images.length - 1, i + dir)));
 
@@ -155,7 +163,7 @@ const ImageGallery = ({ images = [] }) => {
   if (!images.length) return (
     <div style={{
       paddingBottom: '100%', position: 'relative',
-      backgroundColor: '#f4f4f5', overflow: 'hidden',
+      backgroundColor: '#f4f4f5', overflow: 'hidden', borderRadius,
     }}>
       <div style={{
         position: 'absolute', inset: 0,
@@ -170,7 +178,8 @@ const ImageGallery = ({ images = [] }) => {
   const activeRatio = ratios[activeSrc] || 1; // width / height
   // Clamp pour éviter des héros trop plats ou trop hauts sur des images extrêmes.
   // On mobile, limit to 85% so CTA remains partly visible
-  const heroPaddingBottomPct = `${Math.max(45, Math.min(100, (1 / activeRatio) * 100))}%`;
+  const heroPaddingBottomPct = ratioByPreset[design.imageRatio]
+    || `${Math.max(45, Math.min(100, (1 / activeRatio) * 100))}%`;
 
   return (
     <div>
@@ -178,9 +187,10 @@ const ImageGallery = ({ images = [] }) => {
       <div
         style={{
           position: 'relative', paddingBottom: heroPaddingBottomPct,
-          backgroundColor: '#f4f4f5', overflow: 'hidden', cursor: 'zoom-in',
+          backgroundColor: '#f4f4f5', overflow: 'hidden', borderRadius,
+          cursor: zoomEnabled ? 'zoom-in' : 'default',
         }}
-        onClick={() => setZoomed(true)}
+        onClick={zoomEnabled ? () => setZoomed(true) : undefined}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
@@ -257,6 +267,7 @@ const ImageGallery = ({ images = [] }) => {
               borderColor: i === active ? 'var(--s-primary)' : 'transparent',
               cursor: 'pointer', transition: 'border-color 0.15s',
               backgroundColor: '#f4f4f5',
+              borderRadius,
             }}>
               <img
                 src={img?.url || img} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -267,7 +278,7 @@ const ImageGallery = ({ images = [] }) => {
       )}
 
       {/* Zoom modal */}
-      {zoomed && (
+      {zoomed && zoomEnabled && (
         <div
           onClick={() => setZoomed(false)}
           style={{
@@ -280,7 +291,7 @@ const ImageGallery = ({ images = [] }) => {
           <img
             src={images[active]?.url || images[active]}
             alt=""
-            style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius: 12 }}
+            style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain', borderRadius }}
           />
           <button onClick={() => setZoomed(false)} style={{
             position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.15)',
@@ -579,7 +590,7 @@ const CollapsibleSection = ({ title, children, defaultOpen = false }) => {
 };
 
 // ── Stats Bar (social proof numbers) ─────────────────────────────────────────
-const StatsBar = ({ stats = [] }) => {
+const StatsBar = ({ stats = [], visualTheme = null }) => {
   if (!stats || stats.length === 0) return null;
   return (
     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -587,8 +598,9 @@ const StatsBar = ({ stats = [] }) => {
         <div key={i} style={{
           flex: '1 1 auto', minWidth: 90,
           padding: '12px 14px', borderRadius: 14,
-          backgroundColor: 'var(--s-primary)', color: '#fff',
+          background: visualTheme?.gradient || 'var(--s-primary)', color: '#fff',
           textAlign: 'center',
+          boxShadow: visualTheme?.shadow || 'none',
         }}>
           <div style={{ fontSize: 22, fontWeight: 900, lineHeight: 1.1, fontFamily: 'var(--s-font)' }}>
             {stat.value}
@@ -603,23 +615,24 @@ const StatsBar = ({ stats = [] }) => {
 };
 
 // ── Problem / Solution sections ───────────────────────────────────────────────
-const ProblemSection = ({ section }) => {
+const ProblemSection = ({ section, visualTheme = null }) => {
   if (!section?.title && !section?.pain_points?.length) return null;
   return (
     <div style={{
       margin: '24px 0', padding: '22px 20px', borderRadius: 16,
-      backgroundColor: '#FFF7F7', border: '1px solid #FECACA',
+      background: visualTheme?.softGradient || '#FFF7F7', border: `1px solid ${visualTheme?.softBorder || '#FECACA'}`,
+      boxShadow: visualTheme?.shadow || 'none',
     }}>
       {section.title && (
-        <h3 style={{ margin: '0 0 14px', fontSize: 17, fontWeight: 800, color: '#991B1B', fontFamily: 'var(--s-font)', lineHeight: 1.3 }}>
+        <h3 style={{ margin: '0 0 14px', fontSize: 17, fontWeight: 800, color: visualTheme?.text || '#991B1B', fontFamily: 'var(--s-font)', lineHeight: 1.3 }}>
           {section.title}
         </h3>
       )}
       {section.pain_points?.length > 0 && (
         <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 9 }}>
           {section.pain_points.map((point, i) => (
-            <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 14, color: '#7F1D1D', lineHeight: 1.6, fontFamily: 'var(--s-font)' }}>
-              <span style={{ flexShrink: 0, marginTop: 2 }}>😔</span>
+            <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 14, color: visualTheme?.mutedText || '#7F1D1D', lineHeight: 1.6, fontFamily: 'var(--s-font)' }}>
+              <span style={{ flexShrink: 0, marginTop: 2, color: visualTheme?.primary || '#991B1B' }}>●</span>
               <span>{point}</span>
             </li>
           ))}
@@ -629,20 +642,21 @@ const ProblemSection = ({ section }) => {
   );
 };
 
-const SolutionSection = ({ section }) => {
+const SolutionSection = ({ section, visualTheme = null }) => {
   if (!section?.title && !section?.description) return null;
   return (
     <div style={{
       margin: '16px 0 24px', padding: '22px 20px', borderRadius: 16,
-      backgroundColor: '#F0FDF4', border: '1px solid #A7F3D0',
+      background: visualTheme?.softGradient || '#F0FDF4', border: `1px solid ${visualTheme?.softBorder || '#A7F3D0'}`,
+      boxShadow: visualTheme?.shadow || 'none',
     }}>
       {section.title && (
-        <h3 style={{ margin: '0 0 10px', fontSize: 17, fontWeight: 800, color: '#14532D', fontFamily: 'var(--s-font)', lineHeight: 1.3 }}>
+        <h3 style={{ margin: '0 0 10px', fontSize: 17, fontWeight: 800, color: visualTheme?.text || '#14532D', fontFamily: 'var(--s-font)', lineHeight: 1.3 }}>
           {section.title}
         </h3>
       )}
       {section.description && (
-        <p style={{ margin: 0, fontSize: 14.5, color: '#166534', lineHeight: 1.75, fontFamily: 'var(--s-font)' }}>
+        <p style={{ margin: 0, fontSize: 14.5, color: visualTheme?.mutedText || '#166534', lineHeight: 1.75, fontFamily: 'var(--s-font)' }}>
           {section.description}
         </p>
       )}
@@ -651,17 +665,18 @@ const SolutionSection = ({ section }) => {
 };
 
 // ── Offer / Guarantee Block ────────────────────────────────────────────────────
-const OfferBlock = ({ block }) => {
+const OfferBlock = ({ block, visualTheme = null }) => {
   const text = block?.guarantee_text || block?.hook;
   if (!text) return null;
   return (
     <div style={{
       margin: '16px 0', padding: '14px 16px', borderRadius: 12,
-      backgroundColor: '#FFFBEB', border: '1px solid #FDE68A',
+      background: visualTheme?.softGradient || '#FFFBEB', border: `1px solid ${visualTheme?.softBorder || '#FDE68A'}`,
       display: 'flex', alignItems: 'flex-start', gap: 12,
+      boxShadow: visualTheme?.shadow || 'none',
     }}>
-      <span style={{ fontSize: 22, flexShrink: 0 }}>🛡️</span>
-      <p style={{ margin: 0, fontSize: 13.5, color: '#78350F', lineHeight: 1.65, fontWeight: 600, fontFamily: 'var(--s-font)' }}>
+      <span style={{ fontSize: 22, flexShrink: 0, color: visualTheme?.primary || '#78350F' }}>✦</span>
+      <p style={{ margin: 0, fontSize: 13.5, color: visualTheme?.text || '#78350F', lineHeight: 1.65, fontWeight: 600, fontFamily: 'var(--s-font)' }}>
         {text}
       </p>
     </div>
@@ -682,7 +697,7 @@ const ProductFaqAccordion = ({ items = [] }) => {
         {items.map((item, index) => {
           const opened = openIndex === index;
           return (
-            <div key={`${item.question}-${index}`} style={{ borderRadius: 14, border: '1px solid', overflow: 'hidden', borderColor: opened ? 'var(--s-primary)' : 'var(--s-border)', backgroundColor: opened ? '#FAFFFE' : '#fff' }}>
+            <div key={`${item.question}-${index}`} style={{ borderRadius: 14, border: '1px solid', overflow: 'hidden', borderColor: opened ? 'var(--ai-primary, var(--s-primary))' : 'var(--ai-soft-border, var(--s-border))', background: opened ? 'var(--ai-soft-gradient, #FAFFFE)' : 'var(--ai-surface, #fff)', boxShadow: opened ? 'var(--ai-shadow, none)' : 'none' }}>
               <button
                 onClick={() => setOpenIndex(opened ? null : index)}
                 style={{ width: '100%', padding: '18px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
@@ -690,12 +705,12 @@ const ProductFaqAccordion = ({ items = [] }) => {
                 <span style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--s-text)', lineHeight: 1.45, fontFamily: 'var(--s-font)' }}>
                   {item.question}
                 </span>
-                <span style={{ flexShrink: 0, color: opened ? 'var(--s-primary)' : 'var(--s-text2)' }}>
+                <span style={{ flexShrink: 0, color: opened ? 'var(--ai-primary, var(--s-primary))' : 'var(--ai-muted, var(--s-text2))' }}>
                   {opened ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                 </span>
               </button>
               {opened && (
-                <div style={{ padding: '0 18px 18px', fontSize: 14, color: 'var(--s-text2)', lineHeight: 1.7, fontFamily: 'var(--s-font)' }}>
+                <div style={{ padding: '0 18px 18px', fontSize: 14, color: 'var(--ai-muted, var(--s-text2))', lineHeight: 1.7, fontFamily: 'var(--s-font)' }}>
                   {item.answer || item.reponse}
                 </div>
               )}
@@ -725,12 +740,13 @@ const TrustBadges = ({ compact = false }) => (
       <div key={text} style={{
         display: 'flex', alignItems: 'center', gap: 10,
         padding: '10px 14px', borderRadius: 999,
-        border: '1px solid var(--s-border)',
-        backgroundColor: '#fff',
+        border: '1px solid var(--ai-soft-border, var(--s-border))',
+        background: 'var(--ai-surface, #fff)',
         whiteSpace: 'nowrap',
         flexShrink: 0,
+        boxShadow: 'var(--ai-shadow, none)',
       }}>
-        <span style={{ width: 28, height: 28, borderRadius: '50%', backgroundColor: 'var(--s-primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</span>
+        <span style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--ai-gradient, var(--s-primary))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</span>
         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>
           {text}
         </span>
@@ -738,6 +754,87 @@ const TrustBadges = ({ compact = false }) => (
     ))}
   </div>
 );
+
+const SPACING_PRESETS = {
+  compact: {
+    gap: '24px',
+    mobileInfoPadding: '12px',
+    desktopInfoPadding: '18px',
+    landingPadding: '20px',
+  },
+  normal: {
+    gap: '40px',
+    mobileInfoPadding: '16px',
+    desktopInfoPadding: '24px',
+    landingPadding: '24px',
+  },
+  relaxed: {
+    gap: '56px',
+    mobileInfoPadding: '24px',
+    desktopInfoPadding: '32px',
+    landingPadding: '32px',
+  },
+};
+
+const formatCountdown = (seconds) => {
+  const safeSeconds = Math.max(0, seconds || 0);
+  const hours = String(Math.floor(safeSeconds / 3600)).padStart(2, '0');
+  const minutes = String(Math.floor((safeSeconds % 3600) / 60)).padStart(2, '0');
+  const secs = String(safeSeconds % 60).padStart(2, '0');
+  return `${hours}:${minutes}:${secs}`;
+};
+
+const withAlpha = (color, alphaHex, fallback) => {
+  if (typeof color === 'string' && color.startsWith('#')) return `${color}${alphaHex}`;
+  return fallback;
+};
+
+const buildAiVisualTheme = (pageData = null) => {
+  const templateTheme = pageData?.templateTheme;
+  if (!templateTheme) return null;
+
+  const primary = templateTheme.primary || '#0f6b4f';
+  const accent = templateTheme.accent || primary;
+  const background = templateTheme.background || '#ffffff';
+  const surface = templateTheme.surface || '#f8fafc';
+  const text = templateTheme.text || '#111827';
+
+  return {
+    primary,
+    accent,
+    background,
+    surface,
+    text,
+    gradient: `linear-gradient(135deg, ${primary} 0%, ${accent} 100%)`,
+    softGradient: `linear-gradient(180deg, ${withAlpha(primary, '10', 'rgba(15,107,79,0.06)')} 0%, ${withAlpha(accent, '08', 'rgba(15,107,79,0.03)')} 100%)`,
+    border: withAlpha(accent, '40', 'rgba(15,107,79,0.18)'),
+    softBorder: withAlpha(accent, '22', 'rgba(15,107,79,0.10)'),
+    mutedText: withAlpha(text, 'B8', text),
+    shadow: `0 18px 44px ${withAlpha(primary, '22', 'rgba(15,107,79,0.14)')}`,
+  };
+};
+
+const buildAiGalleryImages = (product) => {
+  const seen = new Set();
+  const gallery = [];
+  const pushImage = (entry, fallbackAlt = '') => {
+    if (!entry) return;
+    const rawUrl = typeof entry === 'string' ? entry : entry.url;
+    if (!rawUrl || seen.has(rawUrl)) return;
+    seen.add(rawUrl);
+    gallery.push(typeof entry === 'string' ? { url: rawUrl, alt: fallbackAlt } : { ...entry, url: rawUrl, alt: entry.alt || fallbackAlt });
+  };
+
+  const pageData = product?._pageData || {};
+  pushImage(pageData.heroImage, product?.name || 'Hero image');
+  pushImage(pageData.beforeAfterImage, product?.name || 'Avant apres');
+  (pageData.angles || []).forEach((angle, index) => {
+    pushImage(angle?.poster_url, angle?.titre_angle || `${product?.name || 'Produit'} ${index + 1}`);
+  });
+  (product?.images || []).forEach((image) => pushImage(image, product?.name || 'Produit'));
+
+  return gallery;
+};
 
 // ── Related Products ─────────────────────────────────────────────────────────
 const RelatedCard = ({ product, prefix, store, subdomain }) => {
@@ -753,7 +850,7 @@ const RelatedCard = ({ product, prefix, store, subdomain }) => {
     <Link to={`${prefix}/product/${product.slug}`} style={{ textDecoration: 'none' }}
       onMouseEnter={() => { setHovered(true); handlePrefetch(); }} onMouseLeave={() => setHovered(false)} onFocus={handlePrefetch} onTouchStart={handlePrefetch}>
       <div style={{
-        borderRadius: 14, overflow: 'hidden', border: '1px solid var(--s-border)',
+        borderRadius: 'var(--pp-card-radius)', overflow: 'hidden', border: '1px solid var(--s-border)',
         boxShadow: hovered ? '0 8px 24px rgba(0,0,0,0.1)' : '0 1px 4px rgba(0,0,0,0.04)',
         transform: hovered ? 'translateY(-2px)' : 'none', transition: 'all 0.2s',
       }}>
@@ -801,6 +898,7 @@ const StoreProductPage = () => {
   const [showStickyOrderBar, setShowStickyOrderBar] = useState(false);
   const ctaButtonsRef = useRef(null);
   const [livePageConfig, setLivePageConfig] = useState(null); // real-time override from page builder
+  const [countdownSeconds, setCountdownSeconds] = useState(null);
 
   // Inject pixel scripts and fire ViewContent when product loads
   useEffect(() => {
@@ -810,7 +908,7 @@ const StoreProductPage = () => {
       content_ids: [product._id || product.slug || ''],
       content_name: product.name || '',
       value: product.price || 0,
-      currency: store?.currency || 'XAF',
+      currency: product.currency || store?.currency || 'XAF',
     });
     // Track product view in store analytics
     trackProductView(product._id || product.slug, product.name, product.price);
@@ -875,15 +973,14 @@ const StoreProductPage = () => {
   }, []);
 
 
-  const images = product?.images?.length ? product.images : [];
+  const images = buildAiGalleryImages(product);
   const hasDiscount = product?.compareAtPrice && product.compareAtPrice > product.price;
   const pct = hasDiscount ? Math.round((1 - product.price / product.compareAtPrice) * 100) : 0;
   const inStock = !product || product.stock > 0;
   const lowStock = product && product.stock > 0 && product.stock <= 5;
   const sectionToggles = store?.sectionToggles || {};
   const showWhatsappButton = (sectionToggles.showWhatsappButton ?? false) && !!store?.whatsapp;
-  const showTrustBadges = sectionToggles.showTrustBadges ?? true;
-  const showRelatedProducts = sectionToggles.showRelatedProducts ?? true;
+  const showRelatedProductsFromStore = sectionToggles.showRelatedProducts ?? true;
 
   // ── productPageConfig — live preview > store global, conversion propre au produit en priorité ──
   const productPageConfig = {
@@ -909,31 +1006,232 @@ const StoreProductPage = () => {
   const ppSections = ppGeneral.sections || [];
   const ppSectionOrder = ppSections.length > 0 ? ppSections : null;
   const sectionContentMap = Object.fromEntries(ppSections.map(s => [s.id, s.content || {}]));
-  const isSectionEnabled = (id, fallback = true) => {
-    if (!ppSections.length) return fallback;
-    const s = ppSections.find(s => s.id === id);
-    return s ? s.enabled : fallback;
-  };
 
   // Resolve button icon from config
   const CtaIcon = getIconComponent(ppButton.icon);
   const ctaAnimation = ppButton.animation || 'none';
   const ppFormType = ppGeneral.formType || 'popup';
+  const spacingPreset = SPACING_PRESETS[ppDesign.spacing] || SPACING_PRESETS.normal;
+  const aiVisualTheme = buildAiVisualTheme(product?._pageData);
+  const ctaBtnColor = ppDesign.ctaButtonColor || ppDesign.buttonColor || aiVisualTheme?.primary || 'var(--s-primary)';
+  const ctaBorderRadius = ppDesign.ctaBorderRadius || ppDesign.borderRadius || '14px';
+  const ctaButtonStyle = ppDesign.buttonStyle || 'filled';
+  const ctaFontSize = Number.parseInt(ppDesign.buttonFontSize, 10) || ((Number.parseInt(ppDesign.fontBase, 10) || 14) + 3);
+  const ctaFontWeight = Number.parseInt(ppDesign.fontWeight, 10) || 700;
+  const ctaShadow = ppDesign.shadow === false
+    ? 'none'
+    : (ppDesign.buttonShadow
+      ? `0 ${ppDesign.buttonShadow}px ${Number.parseInt(ppDesign.buttonShadow, 10) * 2}px rgba(0,0,0,0.12)`
+      : '0 4px 16px rgba(0,0,0,0.12)');
+  const ctaTextColor = ppDesign.buttonTextColor
+    || ((ctaButtonStyle === 'outline' || ctaButtonStyle === 'soft') ? ctaBtnColor : '#fff');
+  const badgeColor = ppDesign.badgeColor || aiVisualTheme?.accent || 'var(--s-badge)';
+  const badgeStyle = ppDesign.badgeStyle || 'filled';
+
+  const resolveCtaStyle = (enabled, compact = false) => {
+    const style = {
+      width: compact ? 'auto' : '100%',
+      padding: compact ? '16px 24px' : '18px 24px',
+      borderRadius: ctaBorderRadius,
+      cursor: enabled ? 'pointer' : 'not-allowed',
+      display: 'flex',
+      flexDirection: compact ? 'row' : 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: compact ? 8 : 4,
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      fontFamily: 'var(--s-font)',
+      boxShadow: enabled ? ctaShadow : 'none',
+      minHeight: compact ? 48 : 56,
+      position: 'relative',
+      overflow: 'hidden',
+      fontWeight: ctaFontWeight,
+      fontSize: compact ? Math.max(15, ctaFontSize - 2) : ctaFontSize,
+      fontStyle: ppDesign.buttonItalic ? 'italic' : 'normal',
+    };
+
+    if (!enabled) {
+      return {
+        ...style,
+        backgroundColor: '#d1d5db',
+        color: '#fff',
+        border: 'none',
+      };
+    }
+
+    if (ppDesign.buttonBorderWidth && Number.parseInt(ppDesign.buttonBorderWidth, 10) > 0) {
+      style.border = `${ppDesign.buttonBorderWidth} solid ${ppDesign.buttonBorderColor || 'transparent'}`;
+    } else if (ctaButtonStyle === 'outline') {
+      style.border = `2px solid ${ctaBtnColor}`;
+    } else {
+      style.border = 'none';
+    }
+
+    if (ctaButtonStyle === 'outline') {
+      style.backgroundColor = 'transparent';
+      style.color = ppDesign.buttonTextColor || ctaBtnColor;
+      style.boxShadow = 'none';
+      return style;
+    }
+
+    if (ctaButtonStyle === 'soft') {
+      style.backgroundColor = withAlpha(ctaBtnColor, '18', 'rgba(15,107,79,0.10)');
+      style.color = ppDesign.buttonTextColor || ctaBtnColor;
+      return style;
+    }
+
+    if (ctaButtonStyle === 'gradient') {
+      style.background = `linear-gradient(135deg, ${ctaBtnColor}, ${ppDesign.buttonColor || 'var(--s-accent)'})`;
+      style.color = ctaTextColor;
+      return style;
+    }
+
+    style.background = aiVisualTheme?.gradient && !ppDesign.ctaButtonColor && !ppDesign.buttonColor ? aiVisualTheme.gradient : ctaBtnColor;
+    style.color = ctaTextColor;
+    return style;
+  };
+
+  const resolveBadgeStyle = (tone = 'primary') => {
+    const currentColor = tone === 'warning' ? '#F59E0B' : tone === 'danger' ? badgeColor : 'var(--s-primary)';
+    const softBackground = tone === 'warning'
+      ? '#FEF3C7'
+      : tone === 'danger'
+        ? '#FEF2F2'
+        : withAlpha(ctaBtnColor, '14', 'rgba(15,107,79,0.12)');
+    const softText = tone === 'warning' ? '#B45309' : currentColor;
+
+    if (badgeStyle === 'outline') {
+      return {
+        fontSize: 13,
+        fontWeight: 700,
+        color: currentColor,
+        padding: '4px 12px',
+        borderRadius: ctaBorderRadius,
+        backgroundColor: 'transparent',
+        border: `1px solid ${currentColor}`,
+      };
+    }
+
+    if (badgeStyle === 'soft') {
+      return {
+        fontSize: 13,
+        fontWeight: 700,
+        color: softText,
+        padding: '4px 12px',
+        borderRadius: ctaBorderRadius,
+        backgroundColor: softBackground,
+      };
+    }
+
+    if (badgeStyle === 'ribbon') {
+      return {
+        fontSize: 13,
+        fontWeight: 700,
+        color: '#fff',
+        padding: '4px 12px',
+        borderRadius: '0 999px 999px 0',
+        backgroundColor: currentColor,
+      };
+    }
+
+    return {
+      fontSize: 13,
+      fontWeight: 700,
+      color: '#fff',
+      padding: '4px 12px',
+      borderRadius: ctaBorderRadius,
+      backgroundColor: currentColor,
+    };
+  };
 
   // Build ordered enabled section IDs for rendering
-  const enabledSectionIds = ppSectionOrder
-    ? ppSectionOrder.filter(s => s.enabled).map(s => s.id)
-    : ['heroSlogan', 'heroBaseline', 'reviews', 'orderForm', 'statsBar', 'stockCounter', 'urgencyBadge',
-       'urgencyElements', 'benefitsBullets', 'conversionBlocks', 'offerBlock', 'description',
-       'problemSection', 'solutionSection', 'faq', 'testimonials', 'relatedProducts',
-       'stickyOrderBar', 'upsell', 'orderBump'];
+  const sectionToggleOverrides = {
+    reviews: ppDesign.showReviews,
+    relatedProducts: ppDesign.showRelatedProducts ?? showRelatedProductsFromStore,
+    stockCounter: ppDesign.showStockIndicator,
+    stickyOrderBar: ppDesign.stickyAddToCart,
+    trustBadges: ppDesign.showTrustBadges,
+    shareButtons: ppDesign.showShareButtons,
+    deliveryInfo: ppDesign.showDeliveryInfo,
+    secureBadge: ppDesign.showSecureBadge,
+    countdownBar: ppDesign.showCountdown,
+  };
+
+  const enabledSectionIds = (() => {
+    const ids = ppSectionOrder
+      ? ppSectionOrder.filter(s => s.enabled).map(s => s.id)
+      : ['heroSlogan', 'heroBaseline', 'reviews', 'stockCounter', 'urgencyBadge', 'countdownBar',
+         'orderForm', 'trustBadges', 'secureBadge', 'deliveryInfo', 'shareButtons', 'statsBar',
+         'urgencyElements', 'benefitsBullets', 'conversionBlocks', 'offerBlock', 'description',
+         'problemSection', 'solutionSection', 'faq', 'testimonials', 'relatedProducts',
+         'stickyOrderBar', 'upsell', 'orderBump'];
+
+    const insertAfterMap = {
+      countdownBar: 'urgencyBadge',
+      trustBadges: 'orderForm',
+      secureBadge: 'trustBadges',
+      deliveryInfo: 'secureBadge',
+      shareButtons: 'deliveryInfo',
+    };
+
+    Object.entries(sectionToggleOverrides).forEach(([sectionId, enabled]) => {
+      const existingIndex = ids.indexOf(sectionId);
+      if (enabled === false && existingIndex >= 0) {
+        ids.splice(existingIndex, 1);
+      }
+      if (enabled === true && existingIndex === -1) {
+        const anchor = insertAfterMap[sectionId];
+        const anchorIndex = anchor ? ids.indexOf(anchor) : -1;
+        if (anchorIndex >= 0) ids.splice(anchorIndex + 1, 0, sectionId);
+        else ids.push(sectionId);
+      }
+    });
+
+    return ids;
+  })();
+
   const showStickyBar = enabledSectionIds.includes('stickyOrderBar');
   const showRelatedProductsSetting = enabledSectionIds.includes('relatedProducts');
   const showTestimonials = enabledSectionIds.includes('testimonials');
-  const ctaBtnColor = ppDesign.ctaButtonColor || '#0F6B4F';
-  const ctaBorderRadius = ppDesign.ctaBorderRadius || '14px';
-  const ctaShadow = ppDesign.buttonShadow ? `0 ${ppDesign.buttonShadow}px ${parseInt(ppDesign.buttonShadow)*2}px rgba(0,0,0,0.12)` : '0 4px 16px rgba(0,0,0,0.12)';
+  const showCountdownBarSetting = enabledSectionIds.includes('countdownBar');
   const ctaAnimClass = ctaAnimation === 'pulse' ? 'pp-pulse' : ctaAnimation === 'bounce' ? 'pp-bounce' : ctaAnimation === 'shake' ? 'pp-shake' : ctaAnimation === 'glow' ? 'pp-glow' : '';
+  const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+  const shareText = product?.name ? `${product.name} - ${shareUrl}` : shareUrl;
+
+  const handleShare = async () => {
+    if (!shareUrl || typeof navigator === 'undefined') return;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: product?.name || store?.name || 'Produit',
+          text: product?.name || '',
+          url: shareUrl,
+        });
+        return;
+      }
+    } catch {}
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (!showCountdownBarSetting) {
+      setCountdownSeconds(null);
+      return;
+    }
+
+    const initialSeconds = Math.max(60, (Number.parseInt(ppConversion.countdownMinutes, 10) || 15) * 60);
+    setCountdownSeconds(initialSeconds);
+    const timer = window.setInterval(() => {
+      setCountdownSeconds((currentValue) => (currentValue > 0 ? currentValue - 1 : 0));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [showCountdownBarSetting, ppConversion.countdownMinutes, product?._id]);
 
   useEffect(() => {
     if (!product || !inStock) {
@@ -967,7 +1265,7 @@ const StoreProductPage = () => {
       content_ids: [product?._id || product?.slug || ''],
       content_name: product?.name || '',
       value: product?.price || 0,
-      currency: store?.currency || 'XAF',
+      currency: product?.currency || store?.currency || 'XAF',
     });
   };
 
@@ -983,7 +1281,29 @@ const StoreProductPage = () => {
   );
 
   return (
-    <div className={ppTheme === 'landing' ? 'theme-landing-active' : ''} style={{ minHeight: '100vh', backgroundColor: 'var(--s-bg)', fontFamily: 'var(--s-font)', color: 'var(--s-text)' }}>
+    <div className={ppTheme === 'landing' ? 'theme-landing-active' : ''} style={{
+      minHeight: '100vh',
+      background: aiVisualTheme?.softGradient || 'var(--s-bg)',
+      fontFamily: 'var(--s-font)',
+      color: 'var(--s-text)',
+      fontSize: 'var(--s-font-base)',
+      '--pp-gap': spacingPreset.gap,
+      '--pp-mobile-info-padding': spacingPreset.mobileInfoPadding,
+      '--pp-desktop-info-padding': spacingPreset.desktopInfoPadding,
+      '--pp-landing-padding': spacingPreset.landingPadding,
+      '--pp-card-radius': ctaBorderRadius,
+      '--ai-primary': aiVisualTheme?.primary || 'var(--s-primary)',
+      '--ai-accent': aiVisualTheme?.accent || 'var(--s-accent, var(--s-primary))',
+      '--ai-bg': aiVisualTheme?.background || 'var(--s-bg)',
+      '--ai-surface': aiVisualTheme?.surface || '#ffffff',
+      '--ai-text': aiVisualTheme?.text || 'var(--s-text)',
+      '--ai-muted': aiVisualTheme?.mutedText || 'var(--s-text2)',
+      '--ai-border': aiVisualTheme?.border || 'var(--s-border)',
+      '--ai-soft-border': aiVisualTheme?.softBorder || 'var(--s-border)',
+      '--ai-gradient': aiVisualTheme?.gradient || 'linear-gradient(135deg, var(--s-primary), var(--s-primary))',
+      '--ai-soft-gradient': aiVisualTheme?.softGradient || 'var(--s-bg)',
+      '--ai-shadow': aiVisualTheme?.shadow || '0 10px 30px rgba(0,0,0,0.08)',
+    }}>
       <style>{`
         *{box-sizing:border-box} body{margin:0;padding:0}
         .sf-no-scrollbar { scrollbar-width:none; -ms-overflow-style:none; }
@@ -1002,39 +1322,39 @@ const StoreProductPage = () => {
         /* ═══ THEME: CLASSIC ═══ */
         .product-grid.theme-classic { display:grid; grid-template-columns:1fr; gap:0; align-items:start; }
         .theme-classic .product-gallery { position:relative; }
-        .theme-classic .product-info { padding:16px 16px 48px; }
+        .theme-classic .product-info { padding:var(--pp-mobile-info-padding) var(--pp-mobile-info-padding) 48px; }
         @media(min-width:769px){
-          .product-grid.theme-classic { grid-template-columns:1fr 1fr; gap:40px; }
+          .product-grid.theme-classic { grid-template-columns:1fr 1fr; gap:var(--pp-gap); }
           .theme-classic .product-gallery { position:sticky; top:72px; }
-          .theme-classic .product-info { padding:0 24px 48px 0; }
+          .theme-classic .product-info { padding:0 var(--pp-desktop-info-padding) 48px 0; }
         }
 
         /* ═══ THEME: LANDING PAGE ═══ */
-        .product-grid.theme-landing { display:flex; flex-direction:column; gap:0; background:#fff; }
+        .product-grid.theme-landing { display:flex; flex-direction:column; gap:0; background:var(--ai-bg, #fff); }
         .theme-landing .product-gallery { position:relative; width:100%; height:75vh; min-height:500px; overflow:hidden; }
         .theme-landing .product-gallery img { width:100%; height:100%; object-fit:cover; object-position:center; }
         .theme-landing .product-gallery .thumb-track, .theme-landing .product-gallery .dots-track { display:none !important; }
         .theme-landing .product-gallery button { display:none !important; } /* Hide gallery arrows on landing */
         .theme-landing .product-gallery::after {
           content:''; position:absolute; bottom:0; left:0; right:0; height:35vh;
-          background:linear-gradient(to top, #fff 0%, rgba(255,255,255,0.8) 40%, transparent 100%); pointer-events:none; z-index:5;
+          background:linear-gradient(to top, var(--ai-bg, #fff) 0%, rgba(255,255,255,0.8) 40%, transparent 100%); pointer-events:none; z-index:5;
         }
         .theme-landing .product-info {
-          padding:0 24px 80px; max-width:850px; margin:0 auto; width:100%; position:relative; z-index:10; margin-top:-15vh;
+          padding:0 var(--pp-landing-padding) 80px; max-width:850px; margin:0 auto; width:100%; position:relative; z-index:10; margin-top:-15vh;
         }
         /* Top-level header elements centered */
         .theme-landing h1, .theme-landing .price-wrapper, .theme-landing .hero-slogan, .theme-landing .hero-baseline { text-align:center !important; justify-content:center !important; }
         .theme-landing h1 { font-size:clamp(38px, 6vw, 64px) !important; margin-bottom:20px !important; line-height:1.05 !important; letter-spacing:-0.04em !important; }
         .theme-landing .price-wrapper span:first-child { font-size:42px !important; }
         /* Blocks */
-        .theme-landing .ai-desc { text-align:left; margin-top:40px; background:#fff; padding:0; }
+        .theme-landing .ai-desc { text-align:left; margin-top:40px; background:var(--ai-bg, #fff); padding:0; }
         .theme-landing .ai-desc h3 { text-align:center; font-size:28px !important; margin:40px 0 24px !important; }
         .theme-landing .ai-desc p { font-size:17px !important; line-height:1.8 !important; }
         .theme-landing .ai-desc img { border-radius:16px; margin:32px 0 !important; box-shadow:0 12px 32px rgba(0,0,0,0.08); }
         .theme-landing .order-btn-wrapper button { min-height:72px !important; font-size:20px !important; border-radius:100px !important; }
         @media(min-width:769px){
           .theme-landing .product-gallery { height:85vh; }
-          .theme-landing .product-info { padding:0 32px 100px; margin-top:-20vh; }
+          .theme-landing .product-info { padding:0 calc(var(--pp-landing-padding) + 8px) 100px; margin-top:-20vh; }
         }
         /* Hide navbar completely for landing pages to remove distractions */
         .theme-landing-active .sf-header { display:none !important; }
@@ -1047,15 +1367,15 @@ const StoreProductPage = () => {
           background:linear-gradient(transparent, var(--s-bg)); pointer-events:none;
         }
         .theme-magazine .product-info {
-          position:relative; z-index:2; margin:-60px 16px 0; padding:28px 24px 48px;
-          background:var(--s-bg); border-radius:24px 24px 0 0;
-          box-shadow:0 -8px 40px rgba(0,0,0,0.08);
+          position:relative; z-index:2; margin:-60px 16px 0; padding:28px var(--pp-mobile-info-padding) 48px;
+          background:var(--ai-bg, var(--s-bg)); border-radius:var(--pp-card-radius) var(--pp-card-radius) 0 0;
+          box-shadow:var(--ai-shadow);
         }
         @media(min-width:769px){
           .theme-magazine .product-gallery { max-height:80vh; }
           .theme-magazine .product-info {
-            margin:-100px auto 0; max-width:720px; padding:40px 40px 60px;
-            border-radius:28px 28px 0 0; box-shadow:0 -12px 60px rgba(0,0,0,0.1);
+            margin:-100px auto 0; max-width:720px; padding:40px calc(var(--pp-desktop-info-padding) + 16px) 60px;
+            border-radius:var(--pp-card-radius) var(--pp-card-radius) 0 0; box-shadow:0 -12px 60px rgba(0,0,0,0.1);
           }
         }
 
@@ -1065,6 +1385,23 @@ const StoreProductPage = () => {
         .ai-desc img { width:auto !important; max-width:100% !important; height:auto !important; aspect-ratio:auto !important; object-fit:contain !important; display:block; margin:0; }
         .ai-desc ul { margin:0; padding:0; list-style:none; }
         .ai-desc ul li { display:flex; align-items:flex-start; gap:8px; margin-bottom:8px; font-size:13px; }
+        .product-info.ai-themed {
+          position: relative;
+        }
+        .product-info.ai-themed::before {
+          content:'';
+          position:absolute;
+          inset:0;
+          background:var(--ai-soft-gradient);
+          border:1px solid var(--ai-soft-border);
+          border-radius:calc(var(--pp-card-radius) + 8px);
+          pointer-events:none;
+          opacity:0.9;
+        }
+        .product-info.ai-themed > * {
+          position:relative;
+          z-index:1;
+        }
         @media(min-width:769px){
           .ai-desc h3 { font-size:20px; }
           .ai-desc p { font-size:15px; }
@@ -1108,11 +1445,11 @@ const StoreProductPage = () => {
         <div className={`product-grid theme-${ppTheme}`}>
           {/* ── Gallery ────────────────────────────────────────────────────── */}
           <div className="product-gallery">
-            <ImageGallery images={images} />
+            <ImageGallery images={images} design={ppDesign} />
           </div>
 
           {/* ── Right: Info ───────────────────────────────────────────────── */}
-          <div className="product-info">
+          <div className={`product-info ${aiVisualTheme ? 'ai-themed' : ''}`}>
             {product ? (
               <>
                 {/* Category badge */}
@@ -1128,10 +1465,10 @@ const StoreProductPage = () => {
                   return (
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', gap: 5,
-                      fontSize: 11, fontWeight: 700, color: 'var(--s-primary)',
+                      fontSize: 11, fontWeight: 700,
                       textTransform: 'uppercase', letterSpacing: '0.08em',
-                      backgroundColor: 'color-mix(in srgb, var(--s-primary) 12%, transparent)',
-                      padding: '3px 10px', borderRadius: 20, marginBottom: 4,
+                      marginBottom: 4,
+                      ...resolveBadgeStyle('primary'),
                     }}>
                       {icon} {product.category}
                     </span>
@@ -1140,7 +1477,7 @@ const StoreProductPage = () => {
 
                 {/* Name */}
                 <h1 style={{
-                  fontSize: 'clamp(26px, 4vw, 38px)', fontWeight: 900,
+                  fontSize: `clamp(${Math.max(24, (Number.parseInt(ppDesign.fontBase, 10) || 14) + 12)}px, 4vw, ${Math.max(36, (Number.parseInt(ppDesign.fontBase, 10) || 14) + 24)}px)`, fontWeight: 900,
                   color: 'var(--s-text)', margin: '8px 0 8px',
                   lineHeight: 1.1, letterSpacing: '-0.03em', fontFamily: 'var(--s-font)',
                 }}>
@@ -1154,14 +1491,14 @@ const StoreProductPage = () => {
                   </p>
                 )}
                 {enabledSectionIds.includes('heroBaseline') && (sectionContentMap.heroBaseline?.text || product._pageData?.hero_baseline) && (
-                  <p className="hero-baseline" style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--s-primary)', fontWeight: 700, fontFamily: 'var(--s-font)' }}>
+                  <p className="hero-baseline" style={{ margin: '0 0 10px', fontSize: 13, color: aiVisualTheme?.primary || 'var(--s-primary)', fontWeight: 700, fontFamily: 'var(--s-font)' }}>
                     ✅ {sectionContentMap.heroBaseline?.text || product._pageData.hero_baseline}
                   </p>
                 )}
 
                 {/* Price — always shown */}
                 <div className="price-wrapper" style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 16 }}>
-                  <span style={{ fontSize: 28, fontWeight: 900, color: 'var(--s-primary)', fontFamily: 'var(--s-font)', letterSpacing: '-0.02em' }}>
+                  <span style={{ fontSize: 28, fontWeight: 900, color: aiVisualTheme?.primary || 'var(--s-primary)', fontFamily: 'var(--s-font)', letterSpacing: '-0.02em' }}>
                     {fmt(product.price, product.currency || store?.currency || 'XAF')}
                   </span>
                   {hasDiscount && (
@@ -1169,7 +1506,7 @@ const StoreProductPage = () => {
                       <span style={{ fontSize: 17, color: 'var(--s-text2)', textDecoration: 'line-through', fontFamily: 'var(--s-font)' }}>
                         {fmt(product.compareAtPrice, product.currency || store?.currency || 'XAF')}
                       </span>
-                      <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 9px', borderRadius: 20, backgroundColor: '#FEE2E2', color: '#EF4444' }}>
+                      <span style={{ ...resolveBadgeStyle('danger'), fontSize: 12, padding: '3px 9px' }}>
                         -{pct}%
                       </span>
                     </>
@@ -1198,27 +1535,12 @@ const StoreProductPage = () => {
                               disabled={!inStock}
                               className={ctaAnimClass}
                               onMouseEnter={(e) => {
-                                if (inStock) { e.target.style.transform = 'scale(1.02)'; e.target.style.boxShadow = '0 8px 24px rgba(0,0,0,0.2)'; }
+                                if (inStock) { e.currentTarget.style.transform = 'scale(1.02)'; if (ctaShadow !== 'none') e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.2)'; }
                               }}
                               onMouseLeave={(e) => {
-                                if (inStock) { e.target.style.transform = 'scale(1)'; e.target.style.boxShadow = '0 4px 16px rgba(0,0,0,0.12)'; }
+                                if (inStock) { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = ctaShadow; }
                               }}
-                              style={{
-                                width: '100%', padding: '18px 24px', borderRadius: ctaBorderRadius,
-                                border: ppDesign.buttonBorderWidth && parseInt(ppDesign.buttonBorderWidth) > 0
-                                  ? `${ppDesign.buttonBorderWidth} solid ${ppDesign.buttonBorderColor || 'transparent'}`
-                                  : 'none',
-                                backgroundColor: inStock ? ctaBtnColor : '#d1d5db',
-                                color: ppDesign.buttonTextColor || '#fff',
-                                fontWeight: ppDesign.buttonBold ? 700 : 700,
-                                fontSize: parseInt(ppDesign.buttonFontSize) || 17,
-                                fontStyle: ppDesign.buttonItalic ? 'italic' : 'normal',
-                                cursor: inStock ? 'pointer' : 'not-allowed',
-                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
-                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', fontFamily: 'var(--s-font)',
-                                boxShadow: inStock ? ctaShadow : 'none',
-                                minHeight: 56, position: 'relative', overflow: 'hidden'
-                              }}
+                              style={resolveCtaStyle(inStock)}
                             >
                               <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                                 <CtaIcon size={18} /> {ppButton.text || 'Commander maintenant'}
@@ -1231,11 +1553,97 @@ const StoreProductPage = () => {
                         </div>
                       );
 
+                    case 'countdownBar':
+                      return countdownSeconds !== null && inStock ? (
+                        <div key={sectionId} style={{ marginBottom: 14 }}>
+                          <div style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 10,
+                            padding: '10px 14px', borderRadius: ctaBorderRadius,
+                            backgroundColor: withAlpha(badgeColor, '12', 'rgba(239,68,68,0.12)'), color: badgeColor,
+                            fontSize: 13, fontWeight: 700,
+                          }}>
+                            <span>Offre limitée</span>
+                            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatCountdown(countdownSeconds)}</span>
+                          </div>
+                        </div>
+                      ) : null;
+
+                    case 'trustBadges':
+                      return <TrustBadges key={sectionId} compact />;
+
+                    case 'secureBadge':
+                      return (
+                        <div key={sectionId} style={{ marginBottom: 12 }}>
+                          <div style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 8,
+                            padding: '10px 14px', borderRadius: ctaBorderRadius,
+                            background: aiVisualTheme?.softGradient || withAlpha(ctaBtnColor, '12', 'rgba(15,107,79,0.12)'), color: aiVisualTheme?.text || 'var(--s-text)', fontSize: 13, fontWeight: 700,
+                            border: `1px solid ${aiVisualTheme?.softBorder || withAlpha(ctaBtnColor, '22', 'rgba(15,107,79,0.18)')}`,
+                            boxShadow: aiVisualTheme?.shadow || 'none',
+                          }}>
+                            <Shield size={14} color={aiVisualTheme?.primary || ctaBtnColor} /> Paiement 100% sécurisé
+                          </div>
+                        </div>
+                      );
+
+                    case 'deliveryInfo':
+                      return (
+                        <div key={sectionId} style={{ marginBottom: 14 }}>
+                          <div style={{
+                            display: 'flex', alignItems: 'center', gap: 10,
+                            padding: '12px 14px', borderRadius: ctaBorderRadius,
+                            border: `1px solid ${aiVisualTheme?.softBorder || 'var(--s-border)'}`, background: 'var(--ai-surface, #fff)', boxShadow: aiVisualTheme?.shadow || 'none',
+                          }}>
+                            <Truck size={16} color={aiVisualTheme?.primary || ctaBtnColor} />
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>
+                                Livraison estimée : 2 à 4 jours
+                              </div>
+                              <div style={{ fontSize: 12, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>
+                                Paiement à la livraison disponible
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+
+                    case 'shareButtons':
+                      return (
+                        <div key={sectionId} style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                          {showWhatsappButton && (
+                            <a
+                              href={`https://wa.me/?text=${encodeURIComponent(shareText)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 8,
+                                padding: '10px 14px', borderRadius: ctaBorderRadius,
+                                backgroundColor: '#25D366', color: '#fff', textDecoration: 'none', fontSize: 13, fontWeight: 700,
+                              }}
+                            >
+                              <MessageCircle size={15} /> WhatsApp
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={handleShare}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 8,
+                              padding: '10px 14px', borderRadius: ctaBorderRadius,
+                              border: '1px solid var(--s-border)', backgroundColor: '#fff', color: 'var(--s-text)', fontSize: 13, fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Share2 size={15} /> Partager
+                          </button>
+                        </div>
+                      );
+
                     case 'statsBar': {
                       const customStats = sectionContentMap.statsBar?.stats?.filter(st => st.value && st.label);
                       const statsData = customStats?.length > 0 ? customStats : product._pageData?.stats_bar;
                       return statsData?.length > 0
-                        ? <StatsBar key={sectionId} stats={statsData} />
+                        ? <StatsBar key={sectionId} stats={statsData} visualTheme={aiVisualTheme} />
                         : null;
                     }
 
@@ -1243,15 +1651,15 @@ const StoreProductPage = () => {
                       return (
                         <div key={sectionId} style={{ marginBottom: 10, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
                           {!inStock ? (
-                            <span style={{ fontSize: 13, fontWeight: 600, color: '#EF4444', padding: '4px 12px', borderRadius: 20, backgroundColor: '#FEE2E2' }}>
+                            <span style={{ ...resolveBadgeStyle('danger'), fontWeight: 600, boxShadow: aiVisualTheme?.shadow || 'none' }}>
                               Rupture de stock
                             </span>
                           ) : lowStock ? (
-                            <span style={{ fontSize: 13, fontWeight: 600, color: '#F59E0B', padding: '4px 12px', borderRadius: 20, backgroundColor: '#FEF3C7' }}>
+                            <span style={{ ...resolveBadgeStyle('warning'), fontWeight: 600, boxShadow: aiVisualTheme?.shadow || 'none' }}>
                               ⚡ Plus que {product.stock} en stock
                             </span>
                           ) : (
-                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--s-primary)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: aiVisualTheme?.primary || 'var(--s-primary)', display: 'flex', alignItems: 'center', gap: 5 }}>
                               <Check size={14} /> En stock
                             </span>
                           )}
@@ -1262,7 +1670,7 @@ const StoreProductPage = () => {
                       const urgencyText = sectionContentMap.urgencyBadge?.text || product._pageData?.urgency_badge;
                       return urgencyText && inStock ? (
                         <div key={sectionId} style={{ marginBottom: 10 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: '#DC2626', padding: '4px 12px', borderRadius: 20, backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
+                          <span style={{ ...resolveBadgeStyle('danger'), boxShadow: aiVisualTheme?.shadow || 'none' }}>
                             {urgencyText}
                           </span>
                         </div>
@@ -1298,7 +1706,7 @@ const StoreProductPage = () => {
                         offer_label: sc.offerLabel || aiBlock?.offer_label || 'Offre spéciale',
                         guarantee_text: sc.guaranteeText || aiBlock?.guarantee_text,
                       } : null;
-                      return mergedBlock ? <OfferBlock key={sectionId} block={mergedBlock} /> : null;
+                      return mergedBlock ? <OfferBlock key={sectionId} block={mergedBlock} visualTheme={aiVisualTheme} /> : null;
                     }
 
                     case 'description': {
@@ -1321,7 +1729,7 @@ const StoreProductPage = () => {
                         title: sc.title || aiSection?.title || 'Le problème',
                         pain_points: customPainPoints?.length > 0 ? customPainPoints : aiSection?.pain_points,
                       } : null;
-                      return mergedSection ? <ProblemSection key={sectionId} section={mergedSection} /> : null;
+                      return mergedSection ? <ProblemSection key={sectionId} section={mergedSection} visualTheme={aiVisualTheme} /> : null;
                     }
 
                     case 'solutionSection': {
@@ -1331,7 +1739,7 @@ const StoreProductPage = () => {
                         title: sc.title || aiSection?.title || 'La solution',
                         description: sc.description || aiSection?.description,
                       } : null;
-                      return mergedSection ? <SolutionSection key={sectionId} section={mergedSection} /> : null;
+                      return mergedSection ? <SolutionSection key={sectionId} section={mergedSection} visualTheme={aiVisualTheme} /> : null;
                     }
 
                     case 'faq': {
@@ -1377,7 +1785,7 @@ const StoreProductPage = () => {
             ? product._pageData.testimonials
             : product?.testimonials?.length > 0
               ? product.testimonials
-              : getDefaultTestimonials(store?.country);
+              : getDefaultTestimonials(product?.country || store?.country);
         const prodImg = product?._pageData?.heroImage || product?.images?.[0]?.url || product?.images?.[0] || null;
         const groupImg = product?._pageData?.testimonialsGroupImage || null;
         const socialImg = product?._pageData?.testimonialsSocialProofImage || null;
@@ -1407,9 +1815,9 @@ const StoreProductPage = () => {
         <div style={{
           position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 70,
           padding: '10px 16px calc(env(safe-area-inset-bottom, 0px) + 10px)',
-          backgroundColor: 'rgba(255,255,255,0.96)',
-          borderTop: '1px solid var(--s-border)',
-          boxShadow: '0 -8px 24px rgba(0,0,0,0.08)',
+          background: aiVisualTheme?.background ? `linear-gradient(180deg, ${withAlpha(aiVisualTheme.background, 'F2', 'rgba(255,255,255,0.95)')} 0%, ${withAlpha(aiVisualTheme.surface, 'FA', 'rgba(255,255,255,0.98)')} 100%)` : 'rgba(255,255,255,0.96)',
+          borderTop: `1px solid ${aiVisualTheme?.softBorder || 'var(--s-border)'}`,
+          boxShadow: aiVisualTheme?.shadow || '0 -8px 24px rgba(0,0,0,0.08)',
           backdropFilter: 'blur(10px)',
           WebkitBackdropFilter: 'blur(10px)',
           animation: 'slide-up 0.2s ease-out',
@@ -1417,7 +1825,7 @@ const StoreProductPage = () => {
           <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ minWidth: 0, flex: 1 }}>
               <p style={{ margin: 0, fontSize: 12, color: 'var(--s-text2)', fontFamily: 'var(--s-font)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.name}</p>
-              <p style={{ margin: '2px 0 0', fontSize: 17, fontWeight: 800, color: 'var(--s-primary)', fontFamily: 'var(--s-font)' }}>
+              <p style={{ margin: '2px 0 0', fontSize: 17, fontWeight: 800, color: aiVisualTheme?.primary || 'var(--s-primary)', fontFamily: 'var(--s-font)' }}>
                 {fmt(product.price, product.currency || store?.currency || 'XAF')}
               </p>
             </div>
@@ -1430,21 +1838,7 @@ const StoreProductPage = () => {
                 }
               }}
               disabled={!inStock}
-              style={{
-                border: ppDesign.buttonBorderWidth && parseInt(ppDesign.buttonBorderWidth) > 0
-                  ? `${ppDesign.buttonBorderWidth} solid ${ppDesign.buttonBorderColor || 'transparent'}`
-                  : 'none',
-                borderRadius: ctaBorderRadius, padding: '16px 24px',
-                backgroundColor: inStock ? ctaBtnColor : '#d1d5db',
-                color: ppDesign.buttonTextColor || '#fff',
-                fontSize: parseInt(ppDesign.buttonFontSize) || 15,
-                fontWeight: ppDesign.buttonBold ? 800 : 800,
-                fontStyle: ppDesign.buttonItalic ? 'italic' : 'normal',
-                fontFamily: 'var(--s-font)',
-                cursor: inStock ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap',
-                minHeight: 48,
-                boxShadow: inStock ? ctaShadow : 'none',
-              }}
+              style={{ ...resolveCtaStyle(inStock, true), whiteSpace: 'nowrap' }}
             >
               {ppButton.text || 'Commander'}
             </button>

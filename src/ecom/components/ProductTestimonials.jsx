@@ -79,13 +79,6 @@ export default function ProductTestimonials({ testimonials = [], productImage = 
 
   if (!validTestimonials.length) return null;
 
-  // Generate deterministic avatar colors based on name
-  const avatarColors = [
-    ['#4F46E5', '#7C3AED'], ['#059669', '#0D9488'], ['#D97706', '#DC2626'],
-    ['#2563EB', '#7C3AED'], ['#DC2626', '#F59E0B'], ['#7C3AED', '#EC4899'],
-    ['#0891B2', '#0284C7'], ['#16A34A', '#65A30D'],
-  ];
-
   return (
     <div style={{ margin: '32px 0', overflow: 'hidden' }}>
 
@@ -149,7 +142,6 @@ export default function ProductTestimonials({ testimonials = [], productImage = 
           .testimonials-scroll::-webkit-scrollbar { display: none; }
         `}</style>
         {validTestimonials.map((t, i) => {
-          const colors = avatarColors[i % avatarColors.length];
           const initials = (t.name || 'C').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
           return (
@@ -157,12 +149,12 @@ export default function ProductTestimonials({ testimonials = [], productImage = 
               key={i}
               style={{
                 minWidth: 300, maxWidth: 340, flex: '0 0 auto', scrollSnapAlign: 'start',
-                background: '#F3F4F6',
+                background: 'var(--ai-surface, #F3F4F6)',
                 borderRadius: 20,
-                border: 'none',
+                border: '1px solid var(--ai-soft-border, transparent)',
                 overflow: 'hidden',
                 position: 'relative',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                boxShadow: 'var(--ai-shadow, 0 2px 8px rgba(0,0,0,0.06))',
               }}
             >
 
@@ -172,9 +164,9 @@ export default function ProductTestimonials({ testimonials = [], productImage = 
                 {t.verified && (
                   <div style={{
                     display: 'inline-flex', alignItems: 'center', gap: 4,
-                    background: '#D1FAE5', borderRadius: 99, padding: '3px 10px', marginBottom: 10,
+                    background: 'var(--ai-soft-gradient, #D1FAE5)', borderRadius: 99, padding: '3px 10px', marginBottom: 10,
                   }}>
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--s-primary, #059669)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--ai-primary, var(--s-primary, #059669))" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="20 6 9 17 4 12"/>
                     </svg>
                     <span style={{ fontSize: 10, color: 'var(--s-primary, #059669)', fontWeight: 700, fontFamily: 'var(--s-font, sans-serif)' }}>
@@ -192,7 +184,7 @@ export default function ProductTestimonials({ testimonials = [], productImage = 
 
                 {/* Text */}
                 <p style={{
-                  margin: '0 0 14px', fontSize: 13, lineHeight: 1.65, color: '#1F2937',
+                  margin: '0 0 14px', fontSize: 13, lineHeight: 1.65, color: 'var(--ai-text, #1F2937)',
                   fontFamily: 'var(--s-font, sans-serif)', fontWeight: 500,
                 }}>
                   "{t.text || t.comment}"
@@ -202,7 +194,7 @@ export default function ProductTestimonials({ testimonials = [], productImage = 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{
                     width: 40, height: 40, borderRadius: '50%',
-                    background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})`,
+                    background: 'var(--ai-gradient, linear-gradient(135deg, #4F46E5, #7C3AED))',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     color: '#fff', fontWeight: 700, fontSize: 14, flexShrink: 0,
                     fontFamily: 'var(--s-font, sans-serif)',
@@ -211,10 +203,10 @@ export default function ProductTestimonials({ testimonials = [], productImage = 
                     {initials}
                   </div>
                   <div style={{ minWidth: 0 }}>
-                    <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: '#111827', fontFamily: 'var(--s-font, sans-serif)' }}>
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: 'var(--ai-text, #111827)', fontFamily: 'var(--s-font, sans-serif)' }}>
                       {t.name || 'Client vérifié'}
                     </p>
-                    <p style={{ margin: '2px 0 0', fontSize: 11, color: '#6B7280', fontFamily: 'var(--s-font, sans-serif)' }}>
+                    <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--ai-muted, #6B7280)', fontFamily: 'var(--s-font, sans-serif)' }}>
                       {t.location ? `📍 ${t.location}` : ''}{t.date ? (t.location ? ` · ${t.date}` : t.date) : ''}
                     </p>
                   </div>
