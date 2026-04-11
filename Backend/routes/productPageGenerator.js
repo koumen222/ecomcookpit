@@ -55,6 +55,35 @@ function buildVisualPromptDirectives(visualPrefs = {}) {
   return '';
 }
 
+function buildHumanPhotoRealismRules() {
+  return `
+
+═══ HUMAN REALISM — NON-NEGOTIABLE ═══
+• The person must look like a REAL photographed human being, not a synthetic AI face
+• Keep natural skin texture, pores, tiny imperfections, realistic teeth, realistic eyes, realistic ears, realistic hands
+• Natural facial asymmetry is required. Do NOT make the face too perfect, too smooth, too glossy, too symmetrical, or wax-like
+• Hands and fingers must be anatomically correct: no extra fingers, fused fingers, broken wrists, duplicated limbs, or distorted nails
+• Hairline, braids, locs, afro texture, edges and baby hairs must look naturally photographed, never plastic or painted
+• Avoid uncanny AI traits: plastic skin, fake smile, glassy eyes, over-beautified face, over-sharpened pores, blurred accessories, broken jewelry, distorted backgrounds
+• Final result must feel like a real commercial photo captured by a skilled photographer with a real model`;
+}
+
+function buildSemanticIllustrationRules({ mainClaim = '', supportText = '', promise = '', bullets = [] } = {}) {
+  const bulletList = bullets.filter(Boolean).slice(0, 4).join(' | ');
+  return `
+
+═══ SEMANTIC ILLUSTRATION — MANDATORY ═══
+• The image must VISUALLY EXPLAIN the exact marketing message, not just decorate it
+• Main claim to illustrate: "${mainClaim || 'specific product benefit'}"
+• Supporting text to reflect: "${supportText || 'specific product explanation'}"
+• Concrete promise to make visible: "${promise || 'credible visible result'}"
+${bulletList ? `• Benefit cues that must be visible through the scene, icons, callouts or body language: ${bulletList}` : ''}
+• If the text mentions a problem, show that problem concretely in the visual context, expression, body zone, object state, or environment
+• If the text mentions relief, transformation, comfort, cleanliness, speed, confidence, simplicity or another result, make that exact result readable in the image itself
+• Infographic elements must NOT be generic decoration. Every icon, badge, mini-scene, annotation, object and gesture must correspond to what the text says
+• Do not use random smiling portraits unrelated to the copy. The person, the product and the infographic elements must all tell the same story`;
+}
+
 /**
  * Hero — Product in action layout:
  * The product is shown being USED in its real context (not a cosmetic studio pose).
@@ -108,6 +137,13 @@ function buildHeroPrompt(gptResult, hasProductRef, template = 'general', visualP
   const niche = getNicheAccentColor(template);
   const accentColor = niche.color;
   const customVisualDirectives = buildVisualPromptDirectives(visualPrefs);
+  const realismRules = buildHumanPhotoRealismRules();
+  const semanticRules = buildSemanticIllustrationRules({
+    mainClaim: headline,
+    supportText: subheadline,
+    promise: badgeText,
+    bullets: benefits,
+  });
 
   return `Ultra realistic e-commerce product advertisement for the African francophone market. Square 1:1. High-definition photorealistic quality — must look like a REAL professional photograph, NOT AI-generated. Natural soft lighting, no aggressive filters, no cartoon style.
 
@@ -174,7 +210,8 @@ Style: ${accentColor} background, white bold text, large rounded corners, promin
 • Product packaging sharp and clear — every label readable
 • The African person is THE FACE of this ad — confident, natural, relatable. Their presence makes the ad authentic for the African market
 • COLOR IDENTITY: The dominant accent color is ${accentColor} — use it for CTA button, checkmark icons, badge background, and key headline words. This color conveys a ${niche.mood} feel matching the product niche
-• Final mood: professional, credible, natural — could be a real brand campaign photo from a top African beauty/lifestyle brand${customVisualDirectives}`;
+• Even if text is present, the scene must still be understandable WITHOUT reading the text: the human expression, body zone, gesture and context must already communicate the same situation and benefit
+• Final mood: professional, credible, natural — could be a real brand campaign photo from a top African beauty/lifestyle brand${realismRules}${semanticRules}${customVisualDirectives}`;
 }
 
 /**
@@ -224,7 +261,15 @@ function buildAngleImagePrompt(angle, gptResult, hasProductRef, template = 'gene
 • Soft, clean, natural visual style — NOT flashy, NOT over-saturated, NOT aggressive filters
 • ALL French text: 100% PERFECT spelling with every accent. Simple, direct, local African tone
 • NO body distortion, NO visual inconsistencies, NO uncanny facial features
-• Final feel: a REAL professional product photo that could run as a Facebook/TikTok Ad for African consumers`;
+• If the angle text talks about a visible problem, the person and scene must clearly show that exact problem before the viewer reads the text
+• If the angle text talks about a result or promise, the person and scene must clearly show that exact result in a believable way
+• The image must work as a persuasive visual even if the text overlay is hidden
+• Final feel: a REAL professional product photo that could run as a Facebook/TikTok Ad for African consumers${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
+    mainClaim: angleTitle,
+    supportText: angleExplication,
+    promise: anglePromesse,
+    bullets: [b1, b2, b3],
+  })}`;
 
   const customVisualDirectives = buildVisualPromptDirectives(visualPrefs);
 
@@ -1720,7 +1765,12 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       const angle = angles[i] || null;
 
       // Build an infographic prompt that visually illustrates the angle as an infographic
-      const africanRealism = `\n\n═══ AFRICAN MARKET REALISM — MANDATORY ═══\n• PHOTOREALISTIC — must look like a real photograph. No cartoon, no AI artifacts\n• African person: authentic dark skin, natural African features, natural African hair. Simple everyday clothing, SUBTLE expressions — NOT theatrical\n• Setting: real African environment, natural warm lighting. Product at REAL proportions\n• Soft, clean, natural style. ALL French text 100% PERFECT. NO distortion, NO inconsistencies`;
+      const africanRealism = `\n\n═══ AFRICAN MARKET REALISM — MANDATORY ═══\n• PHOTOREALISTIC — must look like a real photograph. No cartoon, no AI artifacts\n• African person: authentic dark skin, natural African features, natural African hair. Simple everyday clothing, SUBTLE expressions — NOT theatrical\n• Setting: real African environment, natural warm lighting. Product at REAL proportions\n• Soft, clean, natural style. ALL French text 100% PERFECT. NO distortion, NO inconsistencies${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
+        mainClaim: angle?.titre_angle || gptResult.hero_headline || title,
+        supportText: angle?.explication || angle?.message_principal || '',
+        promise: angle?.promesse || '',
+        bullets: gptResult.benefits_bullets || [],
+      })}`;
       const anglePrompt = angle
         ? buildAngleImagePrompt(angle, gptResult, !!baseImageBuffer, visualTemplate, i, visualContext)
         : flash.prompt + africanRealism;

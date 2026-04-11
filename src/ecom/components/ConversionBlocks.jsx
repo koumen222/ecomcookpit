@@ -23,7 +23,7 @@ function BlockIcon({ icon, color }) {
  * Blocs de conversion pour rassurer et pousser à l'achat
  * Optimisé pour le marché africain
  */
-export default function ConversionBlocks({ blocks = null }) {
+export default function ConversionBlocks({ blocks = null, compact = false }) {
   // Blocs par défaut si non fournis
   const defaultBlocks = [
     { icon: '✅', text: 'Paiement à la livraison' },
@@ -37,10 +37,10 @@ export default function ConversionBlocks({ blocks = null }) {
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-      gap: 12,
-      marginTop: 24,
-      marginBottom: 24,
+      gridTemplateColumns: compact ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(140px, 1fr))',
+      gap: compact ? 8 : 12,
+      marginTop: compact ? 10 : 24,
+      marginBottom: compact ? 12 : 24,
     }}>
       {displayBlocks.map((block, index) => (
         <div
@@ -50,10 +50,10 @@ export default function ConversionBlocks({ blocks = null }) {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '16px 12px',
+            padding: compact ? '10px 8px' : '16px 12px',
             backgroundColor: 'var(--ai-surface, #fff)',
             border: '2px solid var(--ai-primary, var(--s-primary))',
-            borderRadius: 12,
+            borderRadius: compact ? 10 : 12,
             textAlign: 'center',
             transition: 'all 0.2s',
             boxShadow: 'var(--ai-shadow, none)',
@@ -61,18 +61,18 @@ export default function ConversionBlocks({ blocks = null }) {
           className="conversion-block"
         >
           <span style={{
-            marginBottom: 6,
+            marginBottom: compact ? 4 : 6,
             lineHeight: 1,
           }}>
             <BlockIcon icon={block.icon} color="var(--ai-primary, var(--s-primary))" />
           </span>
           <p style={{
-            fontSize: 13,
+            fontSize: compact ? 11.5 : 13,
             fontWeight: 700,
             color: 'var(--s-text)',
             margin: 0,
             fontFamily: 'var(--s-font)',
-            lineHeight: 1.3,
+            lineHeight: compact ? 1.2 : 1.3,
           }}>
             {block.text}
           </p>
