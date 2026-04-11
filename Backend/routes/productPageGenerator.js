@@ -855,32 +855,37 @@ NO price, NO phone number, NO URL, NO watermark.`,
  */
 function buildPeopleHoldingProductPrompts(gptResult, visualPrefs = {}) {
   const title = gptResult.title || 'product';
-  const productNote = `THE EXACT product from the reference image — same packaging, same shape, same color, same label. Use the provided product reference image. NEVER invent, redesign or replace the product.`;
+  const productNote = `THE EXACT product from the reference image — same packaging, same shape, same color, same label, same design. CRITICAL: Use the provided product reference image and reproduce the IDENTICAL product. If someone compares the reference and this photo, they must see it is the EXACT SAME product. NEVER invent, redesign, change colors, or replace the product.`;
 
   const baseRules = `
-═══ MANDATORY REAL PHOTO RULES ═══
-• Must look like a REAL smartphone/camera photograph of a real human being — NOT AI art, NOT a render, NOT a cartoon
-• Authentic Black African person (dark brown skin, natural African features, natural African hair or headwrap). Natural skin texture and pores. Realistic hands with correct finger count and natural grip
-• Simple everyday African clothing, relatable — NOT runway fashion, NOT luxury glam
-• Natural warm lighting (daylight, window light, soft indoor light). NO studio beauty retouch, NO plastic skin, NO oversharpened details
-• The person is HOLDING the product in their hands clearly and naturally — the product and the fingers must both be sharp and unambiguous
+═══ MANDATORY REAL CUSTOMER PHOTO RULES ═══
+• This must look EXACTLY like a real photo taken by a CUSTOMER with their smartphone — NOT a professional photoshoot, NOT AI art, NOT a studio render
+• Think: a real person just received their order, they're happy, they take a quick photo/selfie with the product to share on WhatsApp or Instagram
+• Authentic Black African person (dark brown skin, natural African features, natural African hair or headwrap). Natural skin texture, pores, imperfections — REAL human skin
+• Realistic hands with correct finger count (5 fingers per hand) and natural grip on the product
+• Simple everyday African clothing — t-shirt, casual dress, pagne, regular clothes worn at HOME. NOT fashion, NOT luxury, NOT styled
+• FACE MUST BE CLEARLY VISIBLE — this is like a selfie or a photo taken by a friend. We see the person's face, their smile, their eyes. The face is a major part of the photo
+• Natural warm lighting — smartphone flash, window light, room light, daylight. Slightly imperfect lighting like a real phone photo
+• The person is HOLDING the EXACT product (from reference image) in their hands clearly — the product packaging/label must be recognizable and readable
 • ${productNote}
-• Tight or mid-range crop. Square 1:1. Photorealistic quality
-• NO text overlay, NO caption, NO price, NO CTA, NO logo, NO frame, NO marketing layout — this is a candid-style product photo, not an ad
-• NO extra objects around the product, no clutter. The product is the visual focus together with the person's face and hands
+• Mid-range or selfie-style crop. Square 1:1. Smartphone photo quality — sharp but not studio-perfect
+• Setting: REAL African home interior — living room with sofa, bedroom, kitchen, bathroom mirror. Real furniture, real walls, real African home decor. NOT a blank background, NOT a studio
+• NO text overlay, NO caption, NO price, NO CTA, NO logo, NO frame, NO marketing layout
+• NO extra objects arranged around the product — this is NOT a flat lay. It's a person holding the product
+• The overall feel must be: "a real customer took this photo after receiving their package"
 ${buildHumanPhotoRealismRules()}`;
 
   return [
-    `Photorealistic candid lifestyle photo of an African woman (25-35 years old, natural hair or braids, soft everyday smile) holding "${title}" in both hands at chest level. Indoor African home setting — soft natural window light, slightly blurred cozy background (living room, bedroom, or kitchen corner). She is looking at the product with a confident, natural, trustworthy expression — like she's about to show it to a friend.
+    `A real smartphone selfie photo of a young African woman (25-35 years old, natural hair or braids, genuine happy smile showing teeth) holding "${title}" up next to her face with one hand while taking the selfie with the other. She is at home in her living room — we can see a sofa, cushions, or curtains slightly blurred behind her. The product packaging is clearly visible and facing the camera. Her face takes up about 40% of the frame, the product about 30%. Natural room lighting, slightly warm. This looks like a real photo she just posted on WhatsApp saying "Mon colis est arrivé!" — genuine excitement, not posed.
 ${baseRules}`,
 
-    `Photorealistic candid lifestyle photo of an African man (28-40 years old, short natural hair or close cut, calm confident expression) holding "${title}" in one hand, product turned slightly toward the camera so the packaging is clearly visible. Casual clothing (simple t-shirt or shirt). Soft daylight from a window, neutral home or office background with gentle bokeh. He looks straight at the camera with a subtle reassuring half-smile.
+    `A real smartphone photo of an African man (28-40 years old, short natural hair or close cut, relaxed genuine smile) sitting on a sofa or chair in his living room, holding "${title}" in both hands at chest level, product label facing the camera. He looks directly at the camera like a friend just took his photo. We see his full face clearly, his everyday casual t-shirt or polo. The background shows a real African home interior — TV, shelves, curtains, wall decorations visible but slightly blurred. Natural indoor lighting. This looks like a real testimonial photo a customer would send.
 ${baseRules}`,
 
-    `Photorealistic close-up lifestyle photo of an African woman's hands holding "${title}" — hands are dark-skinned, natural, well-framed, fingers clearly gripping the product naturally. Slight portion of her face/neck/shoulder visible in soft focus in the background. Warm natural lighting, shallow depth of field. Feels like a genuine product showcase photo a real customer would share on WhatsApp or Instagram.
+    `A real smartphone photo of an African woman (30-40 years old, natural hair wrapped in a headwrap, expression of delight and surprise) who just opened her package. She holds "${title}" up with one hand, the product clearly visible with its packaging. There's a torn delivery package or cardboard box visible on the table or her lap. She is sitting in her bedroom or living room. Her face is clearly visible — genuine joy of receiving an order. We see the product AND her face prominently. Natural indoor lighting, slightly warm. This looks like a real unboxing moment shared on social media.
 ${baseRules}`,
 
-    `Photorealistic candid lifestyle photo of an African person (any gender, 30-45 years old) outside in a bright warm African daylight — courtyard, street, garden or terrace with soft sunlight. They hold "${title}" in their hand, presenting it naturally toward the camera while smiling genuinely. Real everyday clothes, natural hair. The background is a real African environment, slightly blurred.
+    `A real smartphone photo of an African person (any gender, 25-40 years old, bright genuine smile) standing outside in warm African daylight — in a courtyard, on a balcony, or in front of their house. They hold "${title}" forward toward the camera with one hand, product label clearly visible, while their face is clearly visible behind/beside the product with a proud expression. Simple everyday clothes. The background shows a real African street, courtyard, or neighborhood, slightly blurred. Bright natural sunlight. This looks like a real photo posted on Facebook with a caption about the product.
 ${baseRules}`,
   ];
 }
@@ -1756,7 +1761,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         }
 
         imageBuffer = await sharp(imageBuffer)
-          .resize(1080, 1100, { fit: 'cover', position: 'centre' })
+          .resize(1080, 1080, { fit: 'cover', position: 'centre' })
           .jpeg({ quality: 92 })
           .toBuffer();
 
