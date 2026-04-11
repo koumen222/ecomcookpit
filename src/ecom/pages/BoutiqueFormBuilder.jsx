@@ -241,11 +241,156 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
 
           {/* Trust badge / Guarantee text */}
           {['trust_badge', 'guarantee'].includes(field.type) && (
-            <div>
-              <label className="block text-[10px] font-semibold text-gray-400 mb-1">Texte affiché</label>
-              <input className={inputCls} value={field.label || ''}
-                onChange={e => onChange(index, 'label', e.target.value)}
-                placeholder={field.type === 'trust_badge' ? 'Paiement sécurisé' : 'Satisfait ou remboursé'} />
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 mb-1">Texte affiché</label>
+                <input className={inputCls} value={field.label || ''}
+                  onChange={e => onChange(index, 'label', e.target.value)}
+                  placeholder={field.type === 'trust_badge' ? 'Paiement sécurisé' : 'Satisfait ou remboursé'} />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-400 mb-1">Fond</label>
+                  <div className="flex items-center gap-1.5">
+                    <input type="color" className="w-7 h-7 rounded border border-gray-200 cursor-pointer"
+                      value={field.bgColor || (field.type === 'trust_badge' ? '#ecfdf5' : '#eff6ff')}
+                      onChange={e => onChange(index, 'bgColor', e.target.value)} />
+                    <input className={inputCls + ' text-[10px] flex-1'} value={field.bgColor || (field.type === 'trust_badge' ? '#ecfdf5' : '#eff6ff')}
+                      onChange={e => onChange(index, 'bgColor', e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-400 mb-1">Texte</label>
+                  <div className="flex items-center gap-1.5">
+                    <input type="color" className="w-7 h-7 rounded border border-gray-200 cursor-pointer"
+                      value={field.textColor || (field.type === 'trust_badge' ? '#15803d' : '#1d4ed8')}
+                      onChange={e => onChange(index, 'textColor', e.target.value)} />
+                    <input className={inputCls + ' text-[10px] flex-1'} value={field.textColor || (field.type === 'trust_badge' ? '#15803d' : '#1d4ed8')}
+                      onChange={e => onChange(index, 'textColor', e.target.value)} />
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-400 mb-1">Bordure</label>
+                  <div className="flex items-center gap-1.5">
+                    <input type="color" className="w-7 h-7 rounded border border-gray-200 cursor-pointer"
+                      value={field.borderColor || (field.type === 'trust_badge' ? '#bbf7d0' : '#bfdbfe')}
+                      onChange={e => onChange(index, 'borderColor', e.target.value)} />
+                    <input className={inputCls + ' text-[10px] flex-1'} value={field.borderColor || (field.type === 'trust_badge' ? '#bbf7d0' : '#bfdbfe')}
+                      onChange={e => onChange(index, 'borderColor', e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-400 mb-1">Icône</label>
+                  <div className="flex items-center gap-1.5">
+                    <input type="color" className="w-7 h-7 rounded border border-gray-200 cursor-pointer"
+                      value={field.iconColor || (field.type === 'trust_badge' ? '#16a34a' : '#2563eb')}
+                      onChange={e => onChange(index, 'iconColor', e.target.value)} />
+                    <input className={inputCls + ' text-[10px] flex-1'} value={field.iconColor || (field.type === 'trust_badge' ? '#16a34a' : '#2563eb')}
+                      onChange={e => onChange(index, 'iconColor', e.target.value)} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {field.type === 'title' && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 mb-1">Texte</label>
+                <input className={inputCls} value={field.label || ''}
+                  onChange={e => onChange(index, 'label', e.target.value)}
+                  placeholder="Veuillez remplir le formulaire" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 mb-1">Couleur du texte</label>
+                <div className="flex items-center gap-1.5">
+                  <input type="color" className="w-7 h-7 rounded border border-gray-200 cursor-pointer"
+                    value={field.textColor || '#1f2937'}
+                    onChange={e => onChange(index, 'textColor', e.target.value)} />
+                  <input className={inputCls + ' text-[10px] flex-1'} value={field.textColor || '#1f2937'}
+                    onChange={e => onChange(index, 'textColor', e.target.value)} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {field.type === 'summary' && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 mb-1">Titre du récapitulatif</label>
+                <input className={inputCls} value={field.label || ''}
+                  onChange={e => onChange(index, 'label', e.target.value)}
+                  placeholder="Récapitulatif de la commande" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 mb-1">Texte secondaire</label>
+                <input className={inputCls} value={field.summaryText || ''}
+                  onChange={e => onChange(index, 'summaryText', e.target.value)}
+                  placeholder="Vérifiez vos informations avant validation" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-400 mb-1">Fond</label>
+                  <div className="flex items-center gap-1.5">
+                    <input type="color" className="w-7 h-7 rounded border border-gray-200 cursor-pointer"
+                      value={field.bgColor || '#f9fafb'}
+                      onChange={e => onChange(index, 'bgColor', e.target.value)} />
+                    <input className={inputCls + ' text-[10px] flex-1'} value={field.bgColor || '#f9fafb'}
+                      onChange={e => onChange(index, 'bgColor', e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-400 mb-1">Bordure</label>
+                  <div className="flex items-center gap-1.5">
+                    <input type="color" className="w-7 h-7 rounded border border-gray-200 cursor-pointer"
+                      value={field.borderColor || '#e5e7eb'}
+                      onChange={e => onChange(index, 'borderColor', e.target.value)} />
+                    <input className={inputCls + ' text-[10px] flex-1'} value={field.borderColor || '#e5e7eb'}
+                      onChange={e => onChange(index, 'borderColor', e.target.value)} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {field.type === 'shipping' && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 mb-1">Texte principal</label>
+                <input className={inputCls} value={field.label || ''}
+                  onChange={e => onChange(index, 'label', e.target.value)}
+                  placeholder="Paiement à la livraison" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 mb-1">Texte secondaire</label>
+                <input className={inputCls} value={field.shippingNote || ''}
+                  onChange={e => onChange(index, 'shippingNote', e.target.value)}
+                  placeholder="Vous payez à la réception" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-400 mb-1">Couleur principale</label>
+                  <div className="flex items-center gap-1.5">
+                    <input type="color" className="w-7 h-7 rounded border border-gray-200 cursor-pointer"
+                      value={field.textColor || '#059669'}
+                      onChange={e => onChange(index, 'textColor', e.target.value)} />
+                    <input className={inputCls + ' text-[10px] flex-1'} value={field.textColor || '#059669'}
+                      onChange={e => onChange(index, 'textColor', e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-400 mb-1">Couleur secondaire</label>
+                  <div className="flex items-center gap-1.5">
+                    <input type="color" className="w-7 h-7 rounded border border-gray-200 cursor-pointer"
+                      value={field.subtextColor || '#6b7280'}
+                      onChange={e => onChange(index, 'subtextColor', e.target.value)} />
+                    <input className={inputCls + ' text-[10px] flex-1'} value={field.subtextColor || '#6b7280'}
+                      onChange={e => onChange(index, 'subtextColor', e.target.value)} />
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -428,12 +573,30 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
 
           {/* Call schedule options */}
           {field.type === 'call_schedule' && (
-            <div>
-              <label className="block text-[10px] font-semibold text-gray-400 mb-1">Options horaires (une par ligne)</label>
-              <textarea className={inputCls + ' text-[11px]'} rows={4}
-                value={(field.scheduleOptions || ['Matin (8h-12h)', 'Après-midi (12h-17h)', 'Soir (17h-20h)']).join('\n')}
-                onChange={e => onChange(index, 'scheduleOptions', e.target.value.split('\n'))}
-                placeholder="Matin (8h-12h)&#10;Après-midi (12h-17h)&#10;Soir (17h-20h)" />
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 mb-1">Question affichée</label>
+                <input className={inputCls} value={field.question || field.label || ''}
+                  onChange={e => onChange(index, 'question', e.target.value)}
+                  placeholder="Quand vous appeler ?" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 mb-1">Options horaires (une par ligne)</label>
+                <textarea className={inputCls + ' text-[11px]'} rows={4}
+                  value={(field.scheduleOptions || ['Matin (8h-12h)', 'Après-midi (12h-17h)', 'Soir (17h-20h)']).join('\n')}
+                  onChange={e => onChange(index, 'scheduleOptions', e.target.value.split('\n'))}
+                  placeholder="Matin (8h-12h)&#10;Après-midi (12h-17h)&#10;Soir (17h-20h)" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 mb-1">Couleur du texte</label>
+                <div className="flex items-center gap-1.5">
+                  <input type="color" className="w-7 h-7 rounded border border-gray-200 cursor-pointer"
+                    value={field.textColor || '#1f2937'}
+                    onChange={e => onChange(index, 'textColor', e.target.value)} />
+                  <input className={inputCls + ' text-[10px] flex-1'} value={field.textColor || '#1f2937'}
+                    onChange={e => onChange(index, 'textColor', e.target.value)} />
+                </div>
+              </div>
             </div>
           )}
 
@@ -603,7 +766,7 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
       case 'title':
         return (
           <div key={i} className="font-bold py-1" style={{
-            color: formTextColor, fontSize: formFontSize, textAlign: labelAlign,
+            color: field.textColor || formTextColor, fontSize: formFontSize, textAlign: labelAlign,
             fontWeight: formBold ? 'bold' : '600', fontStyle: formItalic ? 'italic' : 'normal'
           }}>
             {field.label}
@@ -623,13 +786,28 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
           </div>
         );
       case 'summary':
-        return null;
+        return (
+          <div key={i} className="rounded-xl border p-3 space-y-1.5"
+            style={{
+              backgroundColor: field.bgColor || '#f9fafb',
+              borderColor: field.borderColor || '#e5e7eb',
+            }}>
+            <p className="text-xs font-bold" style={{ color: field.textColor || formTextColor }}>
+              {field.label || 'Récapitulatif de la commande'}
+            </p>
+            {field.summaryText && (
+              <p className="text-[11px]" style={{ color: field.subtextColor || '#6b7280' }}>
+                {field.summaryText}
+              </p>
+            )}
+          </div>
+        );
       case 'shipping':
         return (
           <div key={i} className="flex items-center gap-2 py-1.5">
-            <ShoppingCart size={16} className="text-emerald-600 flex-shrink-0" />
-            <span className="text-xs font-bold text-emerald-600">Paiement à la livraison</span>
-            <span className="text-xs text-gray-500">— vous payez à la réception</span>
+            <ShoppingCart size={16} className="flex-shrink-0" style={{ color: field.iconColor || field.textColor || '#059669' }} />
+            <span className="text-xs font-bold" style={{ color: field.textColor || '#059669' }}>{field.label || 'Paiement à la livraison'}</span>
+            <span className="text-xs" style={{ color: field.subtextColor || '#6b7280' }}>— {field.shippingNote || 'vous payez à la réception'}</span>
           </div>
         );
       case 'textarea':
@@ -684,13 +862,13 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
       case 'call_schedule':
         return callSchedule.enabled !== false ? (
           <div key={i} className="space-y-2.5 pt-1">
-            <p className="text-xs font-bold" style={{ color: design.textColor || '#1f2937' }}>
-              {callSchedule.question || field.label}
+            <p className="text-xs font-bold" style={{ color: field.textColor || design.textColor || '#1f2937' }}>
+              {field.question || callSchedule.question || field.label}
             </p>
             <div className="space-y-2">
-              {(callSchedule.options || []).map((opt, j) => (
+              {(field.scheduleOptions?.length ? field.scheduleOptions.map(label => ({ label, value: label })) : callSchedule.options || []).map((opt, j) => (
                 <label key={j} className="flex items-center gap-2.5 text-xs cursor-pointer"
-                  style={{ color: design.textColor || '#4b5563' }}>
+                  style={{ color: field.textColor || design.textColor || '#4b5563' }}>
                   <div className="w-4 h-4 rounded border-2 border-gray-300 flex-shrink-0" />
                   {opt.label}
                 </label>
@@ -765,16 +943,18 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
         );
       case 'trust_badge':
         return (
-          <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-green-50 border border-green-200">
-            <Shield size={16} className="text-green-600 flex-shrink-0" />
-            <span className="text-xs font-medium text-green-700">{field.label || 'Paiement sécurisé'}</span>
+          <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg border"
+            style={{ backgroundColor: field.bgColor || '#ecfdf5', borderColor: field.borderColor || '#bbf7d0' }}>
+            <Shield size={16} className="flex-shrink-0" style={{ color: field.iconColor || '#16a34a' }} />
+            <span className="text-xs font-medium" style={{ color: field.textColor || '#15803d' }}>{field.label || 'Paiement sécurisé'}</span>
           </div>
         );
       case 'guarantee':
         return (
-          <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-blue-50 border border-blue-200">
-            <CheckCircle size={16} className="text-blue-600 flex-shrink-0" />
-            <span className="text-xs font-medium text-blue-700">{field.label || 'Satisfait ou remboursé'}</span>
+          <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg border"
+            style={{ backgroundColor: field.bgColor || '#eff6ff', borderColor: field.borderColor || '#bfdbfe' }}>
+            <CheckCircle size={16} className="flex-shrink-0" style={{ color: field.iconColor || '#2563eb' }} />
+            <span className="text-xs font-medium" style={{ color: field.textColor || '#1d4ed8' }}>{field.label || 'Satisfait ou remboursé'}</span>
           </div>
         );
       case 'testimonials': {
