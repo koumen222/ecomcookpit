@@ -16,6 +16,7 @@ import { sendWhatsAppMessage, sendOrderNotification } from '../services/whatsapp
 import { sendOrderConfirmationToClient } from '../services/shopifyWhatsappService.js';
 import { formatInternationalPhone, isValidWhatsAppNumber, normalizePhone } from '../utils/phoneUtils.js';
 import EcomWorkspace from '../models/Workspace.js';
+import StoreOrder from '../models/StoreOrder.js';
 import WhatsAppInstance from '../models/WhatsAppInstance.js';
 import { EventEmitter } from 'events';
 
@@ -461,7 +462,17 @@ router.delete('/bulk-selected', requireEcomAuth, validateEcomAccess('products', 
     }
     // Limit to max 200 at a time to avoid abuse
     const safeIds = ids.slice(0, 200);
+    // Récupérer les storeOrderId liés avant suppression
+    const orders = await Order.find({ _id: { $in: safeIds }, workspaceId: req.workspaceId }).select('storeOrderId').lean();
+    const storeOrderIds = orders.map(o => o.storeOrderId).filter(Boolean);
+
     const result = await Order.deleteMany({ _id: { $in: safeIds }, workspaceId: req.workspaceId });
+
+    // Cascade: supprimer les StoreOrders liées
+    if (storeOrderIds.length > 0) {
+      StoreOrder.deleteMany({ _id: { $in: storeOrderIds } }).catch(err => console.warn('⚠️ Cascade bulk delete StoreOrders failed:', err.message));
+    }
+
     res.json({ success: true, message: `${result.deletedCount} commande(s) supprimée(s)`, data: { deletedCount: result.deletedCount } });
   } catch (error) {
     console.error('Erreur suppression bulk-selected:', error);
@@ -3403,6 +3414,13 @@ router.put('/:id', requireEcomAuth, async (req, res) => {
       }
     }
 
+    // Sync status vers StoreOrder liée
+    if (statusChanged && updatedOrder.storeOrderId) {
+      const REVERSE_STATUS_MAP = { pending: 'pending', confirmed: 'confirmed', shipped: 'shipped', delivered: 'delivered', cancelled: 'cancelled', 'annulé': 'cancelled', returned: 'cancelled' };
+      const storeStatus = REVERSE_STATUS_MAP[req.body.status] || req.body.status;
+      StoreOrder.findByIdAndUpdate(updatedOrder.storeOrderId, { $set: { status: storeStatus } }).catch(err => console.warn('⚠️ Reverse sync StoreOrder status failed:', err.message));
+    }
+
     res.json({ success: true, message: 'Commande mise à jour', data: updatedOrder });
   } catch (error) {
     console.error('Erreur update order:', error);
@@ -3481,6 +3499,13 @@ router.patch('/:id/status', requireEcomAuth, async (req, res) => {
       notifyOrderStatus(req.workspaceId, order, status).catch(() => {});
       notifyTeamOrderStatusChanged(req.workspaceId, req.ecomUser._id, order, status, req.ecomUser.email).catch(() => {});
       console.log(`📱 [Orders] Push statut envoyé via notifyOrderStatus: ${order._id} -> ${status}`);
+
+      // Sync status vers StoreOrder liée
+      if (order.storeOrderId) {
+        const REVERSE_STATUS_MAP = { pending: 'pending', confirmed: 'confirmed', shipped: 'shipped', delivered: 'delivered', cancelled: 'cancelled', 'annulé': 'cancelled', returned: 'cancelled' };
+        const storeStatus = REVERSE_STATUS_MAP[status] || status;
+        StoreOrder.findByIdAndUpdate(order.storeOrderId, { $set: { status: storeStatus } }).catch(err => console.warn('⚠️ Reverse sync StoreOrder status failed:', err.message));
+      }
     }
 
     res.json({ 
@@ -3832,6 +3857,12 @@ router.delete('/:id', requireEcomAuth, async (req, res) => {
     }
 
     await Order.deleteOne({ _id: req.params.id });
+
+    // Cascade: supprimer la StoreOrder liée
+    if (order.storeOrderId) {
+      StoreOrder.findByIdAndDelete(order.storeOrderId).catch(err => console.warn('⚠️ Cascade delete StoreOrder failed:', err.message));
+    }
+
     res.json({ success: true, message: 'Commande supprimée' });
   } catch (error) {
     console.error('Erreur delete order:', error);

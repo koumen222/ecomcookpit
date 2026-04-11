@@ -255,6 +255,7 @@ const PLATFORM_TITLE_RULES = [
   { path: '/ecom/super-admin/support', title: 'Support super admin' },
   { path: '/ecom/super-admin/billing', title: 'Facturation super admin' },
   { path: '/ecom/super-admin', title: 'Dashboard super admin' },
+  { path: '/ecom/boutique/analyses', title: 'Analyses de données' },
   { path: '/ecom/boutique/wizard', title: 'Création boutique' },
   { path: '/ecom/boutique/products/new', title: 'Nouveau produit boutique' },
   { path: '/ecom/boutique/products/:id/edit', title: 'Modifier produit boutique' },
@@ -659,6 +660,7 @@ const EcomApp = () => {
                   <Route path="/ecom/boutique/products/:id/edit" element={<StoreProductForm />} />
                   <Route path="/ecom/boutique/orders" element={<StoreOrdersDashboard />} />
                   <Route path="/ecom/boutique/old-analytics" element={<StoreAnalytics />} />
+                  <Route path="/ecom/boutique/analyses" element={<StoreAnalytics />} />
                   <Route path="/ecom/boutique/pages" element={<BoutiquePages />} />
                   <Route path="/ecom/boutique/pixel" element={<BoutiquePixel />} />
                   <Route path="/ecom/boutique/payments" element={<BoutiquePayments />} />

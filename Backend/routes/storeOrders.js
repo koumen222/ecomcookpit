@@ -126,6 +126,67 @@ router.get('/stats', requireEcomAuth, requireWorkspace, async (req, res) => {
 });
 
 /**
+ * POST /store-orders/bulk-delete
+ * Delete multiple store orders
+ */
+router.post('/bulk-delete', requireEcomAuth, requireWorkspace, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'IDs requis' });
+    }
+    // Récupérer les linkedOrderId avant suppression
+    const storeOrders = await StoreOrder.find({ _id: { $in: ids }, workspaceId: req.workspaceId }).select('linkedOrderId').lean();
+    const linkedIds = storeOrders.map(o => o.linkedOrderId).filter(Boolean);
+
+    const result = await StoreOrder.deleteMany({
+      _id: { $in: ids },
+      workspaceId: req.workspaceId
+    });
+
+    // Cascade: supprimer les commandes globales liées
+    if (linkedIds.length > 0) {
+      Order.deleteMany({ _id: { $in: linkedIds } }).catch(err => console.warn('⚠️ Cascade bulk delete Orders failed:', err.message));
+    }
+
+    res.json({ success: true, message: `${result.deletedCount} commande(s) supprimée(s)` });
+  } catch (error) {
+    console.error('Erreur POST /store-orders/bulk-delete:', error.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+/**
+ * PUT /store-orders/bulk-status
+ * Update status of multiple store orders
+ */
+router.put('/bulk-status', requireEcomAuth, requireWorkspace, async (req, res) => {
+  try {
+    const { ids, status } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0 || !status) {
+      return res.status(400).json({ success: false, message: 'IDs et statut requis' });
+    }
+    const result = await StoreOrder.updateMany(
+      { _id: { $in: ids }, workspaceId: req.workspaceId },
+      { $set: { status } }
+    );
+
+    // Sync status vers les Orders liées
+    const storeOrders = await StoreOrder.find({ _id: { $in: ids }, workspaceId: req.workspaceId }).select('linkedOrderId').lean();
+    const linkedIds = storeOrders.map(o => o.linkedOrderId).filter(Boolean);
+    if (linkedIds.length > 0) {
+      const mainStatus = STATUS_MAP[status] || status;
+      Order.updateMany({ _id: { $in: linkedIds } }, { $set: { status: mainStatus, updatedAt: new Date() } }).catch(err => console.warn('⚠️ Bulk sync Order status failed:', err.message));
+    }
+
+    res.json({ success: true, message: `${result.modifiedCount} commande(s) mise(s) à jour` });
+  } catch (error) {
+    console.error('Erreur PUT /store-orders/bulk-status:', error.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+/**
  * GET /store-orders/:id
  * Get single order detail (dashboard).
  */
@@ -239,6 +300,30 @@ router.put('/:id/status', requireEcomAuth, requireWorkspace, async (req, res) =>
     });
   } catch (error) {
     console.error('Erreur PUT /store-orders/:id/status:', error.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+/**
+ * DELETE /store-orders/:id
+ * Delete a store order
+ */
+router.delete('/:id', requireEcomAuth, requireWorkspace, async (req, res) => {
+  try {
+    const order = await StoreOrder.findOneAndDelete({
+      _id: req.params.id,
+      workspaceId: req.workspaceId
+    });
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Commande introuvable' });
+    }
+    // Cascade: supprimer la commande globale liée
+    if (order.linkedOrderId) {
+      Order.findByIdAndDelete(order.linkedOrderId).catch(err => console.warn('⚠️ Cascade delete Order failed:', err.message));
+    }
+    res.json({ success: true, message: 'Commande supprimée' });
+  } catch (error) {
+    console.error('Erreur DELETE /store-orders/:id:', error.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });

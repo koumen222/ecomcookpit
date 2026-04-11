@@ -163,7 +163,6 @@ const AdminDashboard = () => {
   const [loadingSecondary, setLoadingSecondary] = useState(true); // Phase 2 : reste
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0); // Progression du chargement
-  const [showLoadingScreen, setShowLoadingScreen] = useState(true);
   const loadingTimeoutRef = useRef(null);
 
   // NOTE: early return moved to main render to avoid Rules of Hooks violation
@@ -203,7 +202,6 @@ const AdminDashboard = () => {
   // Animation de progression du chargement + timeout de sécurité anti-infinite-loading
   useEffect(() => {
     if (loadingKpi || loadingSecondary) {
-      setShowLoadingScreen(true);
       const interval = setInterval(() => {
         setLoadingProgress(prev => {
           if (prev >= 95) return prev;
@@ -216,7 +214,6 @@ const AdminDashboard = () => {
       loadingTimeoutRef.current = setTimeout(() => {
         setLoadingKpi(false);
         setLoadingSecondary(false);
-        setShowLoadingScreen(false);
         setLoadingProgress(100);
       }, 12000);
 
@@ -229,7 +226,6 @@ const AdminDashboard = () => {
       setLoadingProgress(100);
       const t = setTimeout(() => {
         setLoadingProgress(0);
-        setShowLoadingScreen(false);
       }, 350);
       return () => clearTimeout(t);
     }
@@ -354,7 +350,6 @@ const AdminDashboard = () => {
     if (isFirstLoad) {
       setLoadingKpi(true);
       setLoadingSecondary(true);
-      setShowLoadingScreen(true);
       setLoadingProgress(5);
     } else {
       // Refresh silencieux : pas de loader, juste l'indicateur isRefreshing
@@ -721,31 +716,13 @@ const AdminDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50 relative">
 
-      {/* Écran de chargement minimaliste */}
-      {showLoadingScreen && (
-        <div className="fixed inset-0 bg-white z-40 flex items-center justify-center">
-          <div className="relative">
-            {/* Icône avec effet de remplissage */}
-            <div className="relative w-20 h-20">
-              {/* Icône en arrière-plan (grisée) */}
-              <img 
-                src="/icon.png" 
-                alt="Loading" 
-                className="w-20 h-20 object-contain opacity-20"
-              />
-              {/* Icône qui se remplit progressivement */}
-              <div 
-                className="absolute inset-0 overflow-hidden transition-all duration-300 ease-out"
-                style={{ clipPath: `inset(${100 - Math.min(loadingProgress, 100)}% 0 0 0)` }}
-              >
-                <img 
-                  src="/icon.png" 
-                  alt="Loading" 
-                  className="w-20 h-20 object-contain"
-                />
-              </div>
-            </div>
-          </div>
+      {/* Barre de progression subtile en haut */}
+      {(loadingKpi || loadingSecondary) && (
+        <div className="fixed top-0 left-0 right-0 h-1 bg-gray-200 z-40">
+          <div 
+            className="h-full bg-emerald-500 transition-all duration-300 ease-out"
+            style={{ width: `${Math.min(loadingProgress, 100)}%` }}
+          />
         </div>
       )}
       

@@ -3,15 +3,17 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   TrendingUp, Eye, ShoppingCart, DollarSign, Users,
   Package, Clock, ExternalLink, Download, RefreshCw,
-  Monitor, Smartphone, Tablet, ArrowUp, ArrowDown,
+  ArrowUp, ArrowDown,
   Calendar, TrendingDown, Activity, BarChart3, PieChart
 } from 'lucide-react';
 import ecomApi from '../services/ecommApi';
 import { useEcomAuth } from '../hooks/useEcomAuth';
+import { useStore } from '../contexts/StoreContext.jsx';
 
 export default function StoreDashboard() {
   const navigate = useNavigate();
   const { workspace } = useEcomAuth();
+  const { activeStore } = useStore();
   const [storeUrl, setStoreUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -85,31 +87,9 @@ export default function StoreDashboard() {
     return `${formatNumber(amount)} FCFA`;
   };
 
-  const getDeviceIcon = (device) => {
-    switch(device) {
-      case 'mobile': return <Smartphone size={20} />;
-      case 'tablet': return <Tablet size={20} />;
-      default: return <Monitor size={20} />;
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-emerald-500 border-t-transparent mx-auto"></div>
-          <p className="mt-6 text-lg font-medium text-gray-700">Chargement de votre boutique...</p>
-          <p className="mt-2 text-sm text-gray-500">Analyse des données en cours</p>
-        </div>
-      </div>
-    );
-  }
-
   const analytics = dashboardData?.analytics?.overview || {};
   const orders = dashboardData?.orders || {};
   const timeline = dashboardData?.analytics?.timeline || [];
-  const topProducts = dashboardData?.analytics?.topProducts || [];
-  const deviceStats = dashboardData?.analytics?.deviceStats || [];
   
   // Calculer les tendances
   const calculateTrend = (current, previous) => {
@@ -136,9 +116,9 @@ export default function StoreDashboard() {
           </div>
         
         <div className="flex flex-wrap items-center gap-2">
-          {storeUrl && (
+          {(storeUrl || activeStore?.subdomain) && (
             <a
-              href={storeUrl}
+              href={storeUrl || `https://${activeStore.subdomain}.scalor.net`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition font-medium"
@@ -188,6 +168,7 @@ export default function StoreDashboard() {
           trend={calculateTrend(analytics.uniqueVisitors, 0)}
           sparklineData={timeline}
           color="blue"
+          loading={loading}
         />
         <ShopifyMetricCard
           title="Ventes totales"
@@ -195,6 +176,7 @@ export default function StoreDashboard() {
           trend={calculateTrend(orders.totalRevenue, 0)}
           sparklineData={timeline}
           color="green"
+          loading={loading}
         />
         <ShopifyMetricCard
           title="Commandes"
@@ -203,6 +185,7 @@ export default function StoreDashboard() {
           trend={calculateTrend(orders.total, 0)}
           sparklineData={timeline}
           color="orange"
+          loading={loading}
         />
         <ShopifyMetricCard
           title="Taux de conversion"
@@ -211,6 +194,7 @@ export default function StoreDashboard() {
           trend={calculateTrend(analytics.conversionRate, 0)}
           sparklineData={timeline}
           color="purple"
+          loading={loading}
         />
       </div>
 
@@ -223,6 +207,25 @@ export default function StoreDashboard() {
             <Link to="/ecom/boutique/orders" className="text-sm text-emerald-600 hover:text-emerald-700 font-medium">Tout afficher</Link>
           </div>
           <div className="space-y-3">
+            {loading ? (
+              <>
+                <div className="flex items-start gap-3 p-3 rounded-lg">
+                  <div className="w-8 h-8 bg-gray-200 rounded-lg animate-pulse flex-shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-4 w-48 bg-gray-200 rounded animate-pulse" />
+                    <div className="h-3 w-64 bg-gray-100 rounded animate-pulse" />
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 rounded-lg">
+                  <div className="w-8 h-8 bg-gray-200 rounded-lg animate-pulse flex-shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-4 w-40 bg-gray-200 rounded animate-pulse" />
+                    <div className="h-3 w-56 bg-gray-100 rounded animate-pulse" />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
             <TaskCard
               icon="📦"
               title={`${orders.pending || 0} commande${(orders.pending || 0) > 1 ? 's' : ''} à traiter`}
@@ -235,6 +238,8 @@ export default function StoreDashboard() {
               description="Enregistrez les paiements reçus"
               link="/ecom/boutique/orders"
             />
+              </>
+            )}
           </div>
         </div>
 
@@ -304,91 +309,12 @@ export default function StoreDashboard() {
         </div>
       )}
 
-      {/* Stats appareils & Top produits */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Appareils */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Monitor size={18} className="text-blue-600" />
-            </div>
-            Appareils
-          </h2>
-          <div className="space-y-3">
-            {deviceStats && deviceStats.length > 0 ? deviceStats.map((device, index) => {
-              const total = deviceStats.reduce((sum, d) => sum + d.count, 0);
-              const percentage = total > 0 ? ((device.count / total) * 100).toFixed(1) : 0;
-              return (
-                <div key={index} className="group hover:bg-gray-50 transition-colors rounded-xl p-4 border border-gray-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white">
-                        {getDeviceIcon(device._id)}
-                      </div>
-                      <span className="font-semibold capitalize text-gray-900">{device._id || 'Inconnu'}</span>
-                    </div>
-                    <span className="font-bold text-blue-600 text-lg">{formatNumber(device.count)}</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                    <div className="bg-gradient-to-r from-blue-500 to-purple-600 h-full transition-all duration-500" style={{ width: `${percentage}%` }}></div>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">{percentage}% du trafic</p>
-                </div>
-              );
-            }) : (
-              <div className="text-center py-8 text-gray-500">
-                <Monitor size={40} className="mx-auto mb-3 opacity-30" />
-                <p className="text-sm">Aucune donnée disponible</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Top produits */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-            <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-              <Package size={18} className="text-purple-600" />
-            </div>
-            Produits populaires
-          </h2>
-          <div className="space-y-3">
-            {topProducts && topProducts.length > 0 ? topProducts.slice(0, 5).map((product, index) => (
-              <div key={index} className="group hover:bg-gray-50 transition-colors rounded-xl p-4 border border-gray-100">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-white ${
-                      index === 0 ? 'bg-gradient-to-br from-yellow-400 to-orange-500' :
-                      index === 1 ? 'bg-gradient-to-br from-gray-300 to-gray-400' :
-                      index === 2 ? 'bg-gradient-to-br from-orange-400 to-red-500' :
-                      'bg-gradient-to-br from-purple-500 to-pink-600'
-                    }`}>
-                      #{index + 1}
-                    </div>
-                    <span className="font-medium text-gray-900 truncate">{product.name || 'Sans nom'}</span>
-                  </div>
-                  <div className="text-right ml-3">
-                    <div className="font-bold text-purple-600 text-lg">{formatNumber(product.views)}</div>
-                    <div className="text-xs text-gray-500">vues</div>
-                  </div>
-                </div>
-              </div>
-            )) : (
-              <div className="text-center py-8 text-gray-500">
-                <Package size={40} className="mx-auto mb-3 opacity-30" />
-                <p className="text-sm">Aucun produit consulté</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
     </div>
   );
 }
 
 // Composants helpers - Style Shopify
-const ShopifyMetricCard = ({ title, value, subtitle, trend, sparklineData, color }) => {
+const ShopifyMetricCard = ({ title, value, subtitle, trend, sparklineData, color, loading }) => {
   const trendColors = trend?.isPositive 
     ? 'text-green-600 bg-green-50' 
     : 'text-red-600 bg-red-50';
@@ -397,7 +323,7 @@ const ShopifyMetricCard = ({ title, value, subtitle, trend, sparklineData, color
     <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-3">
         <h3 className="text-sm font-medium text-gray-600">{title}</h3>
-        {trend && trend.value > 0 && (
+        {!loading && trend && trend.value > 0 && (
           <div className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${trendColors}`}>
             {trend.isPositive ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
             {trend.value}%
@@ -406,10 +332,19 @@ const ShopifyMetricCard = ({ title, value, subtitle, trend, sparklineData, color
       </div>
       <div className="flex items-end justify-between">
         <div>
-          <p className="text-2xl font-bold text-gray-900 mb-1">{value}</p>
-          {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
+          {loading ? (
+            <>
+              <div className="h-7 w-28 bg-gray-200 rounded animate-pulse mb-1" />
+              <div className="h-3 w-20 bg-gray-100 rounded animate-pulse" />
+            </>
+          ) : (
+            <>
+              <p className="text-2xl font-bold text-gray-900 mb-1">{value}</p>
+              {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
+            </>
+          )}
         </div>
-        {sparklineData && sparklineData.length > 0 && (
+        {!loading && sparklineData && sparklineData.length > 0 && (
           <MiniSparkline data={sparklineData} color={color} />
         )}
       </div>

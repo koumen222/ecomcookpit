@@ -3,7 +3,14 @@ import mongoose from 'mongoose';
 import rateLimit from 'express-rate-limit';
 import StoreProduct from '../models/StoreProduct.js';
 import StoreOrder from '../models/StoreOrder.js';
+import Order from '../models/Order.js';
+import OrderSource from '../models/OrderSource.js';
+import EcomUser from '../models/EcomUser.js';
 import EcomWorkspace from '../models/Workspace.js';
+import { memCache } from '../services/memoryCache.js';
+import { notifyNewOrder } from '../services/notificationHelper.js';
+import { sendClientOrderConfirmation } from '../services/shopifyWhatsappService.js';
+import { normalizeCity } from '../utils/cityNormalizer.js';
 import { resolveStoreBySubdomain } from '../middleware/storeAuth.js';
 
 const router = express.Router();
@@ -349,6 +356,111 @@ router.post('/:subdomain/orders', orderLimiter, resolveStoreBySubdomain, async (
         total: order.total,
         currency: order.currency,
         status: order.status
+      }
+    });
+
+    // ── Sync asynchrone vers Order principale ──────────────────────────────
+    setImmediate(async () => {
+      try {
+        const workspaceId = req.storeWorkspaceId;
+
+        // Créer ou récupérer la source "Scalor Store"
+        let orderSource = await OrderSource.findOne({
+          workspaceId,
+          'metadata.type': 'scalor_store'
+        });
+
+        if (!orderSource) {
+          const adminUser = await EcomUser.findOne({
+            workspaceId,
+            role: { $in: ['ecom_admin', 'super_admin'] },
+            isActive: true
+          }).select('_id').lean();
+
+          if (adminUser) {
+            try {
+              orderSource = await OrderSource.create({
+                name: 'Scalor Store',
+                description: 'Commandes reçues via la boutique en ligne Scalor',
+                color: '#0F6B4F',
+                icon: '🛒',
+                workspaceId,
+                createdBy: adminUser._id,
+                isActive: true,
+                metadata: { type: 'scalor_store', createdAt: new Date() }
+              });
+            } catch (srcErr) {
+              console.error('❌ [PublicStore] Erreur création OrderSource:', srcErr.message);
+            }
+          }
+        }
+
+        // Dédoublonnage
+        const existing = await Order.findOne({ orderId: order.orderNumber, source: 'skelor', workspaceId }).lean();
+        if (existing) return;
+
+        const productSummary = orderProducts.map(p => {
+          const qty = p.quantity > 1 ? ` x${p.quantity}` : '';
+          return `${p.name}${qty}`;
+        }).join(', ');
+
+        const normalizedPhone = (order.phone || '').replace(/\D/g, '');
+        const normalizedCityVal = normalizeCity(order.city || '') || order.city;
+
+        const mainOrder = new Order({
+          workspaceId,
+          sourceId: orderSource?._id || null,
+          sourceName: orderSource?.name || 'Scalor Store',
+          orderId: order.orderNumber,
+          date: order.createdAt || new Date(),
+          clientName: order.customerName,
+          clientPhone: normalizedPhone || order.phone,
+          clientPhoneNormalized: normalizedPhone || order.phone,
+          city: normalizedCityVal,
+          address: order.address,
+          product: productSummary,
+          quantity: orderProducts.reduce((sum, p) => sum + p.quantity, 0),
+          price: order.total,
+          currency: order.currency,
+          status: 'pending',
+          source: 'skelor',
+          storeOrderId: order._id,
+          notes: [order.orderNumber, order.notes].filter(Boolean).join(' — ')
+        });
+
+        await mainOrder.save();
+
+        order.linkedOrderId = mainOrder._id;
+        await order.save();
+
+        memCache.delByPrefix(`stats:${workspaceId.toString()}`);
+        memCache.delByPrefix(`filterOpts:${workspaceId.toString()}`);
+
+        console.log(`✅ [PublicStore] Commande ${order.orderNumber} → Order créée (${mainOrder._id})`);
+
+        notifyNewOrder(workspaceId, mainOrder).catch(() => {});
+
+        // WhatsApp auto-confirm
+        const workspace = await EcomWorkspace.findById(workspaceId).lean();
+        if (workspace?.whatsappAutoConfirm && mainOrder.clientPhone) {
+          const shopifyPayload = {
+            order_number: order.orderNumber,
+            currency: order.currency,
+            created_at: order.createdAt?.toISOString() || new Date().toISOString(),
+            customer: { first_name: (order.customerName || '').split(' ')[0], last_name: (order.customerName || '').split(' ').slice(1).join(' '), phone: order.phone },
+            line_items: orderProducts.map(p => ({ title: p.name, quantity: p.quantity, price: String(p.price) })),
+            total_price: String(order.total)
+          };
+          sendClientOrderConfirmation(mainOrder, shopifyPayload, workspaceId.toString(), {
+            storeName: workspace.storeSettings?.storeName || workspace.name || '',
+            instanceId: workspace.whatsappAutoInstanceId || null,
+            customTemplate: workspace.whatsappOrderTemplate || null,
+            imageUrl: workspace.whatsappAutoImageUrl || null,
+            audioUrl: workspace.whatsappAutoAudioUrl || null,
+          }).catch(err => console.error('⚠️ [PublicStore] WhatsApp auto-confirm échoué:', err.message));
+        }
+      } catch (syncErr) {
+        console.error('❌ [PublicStore] Sync vers Order échouée:', syncErr.message);
       }
     });
   } catch (error) {

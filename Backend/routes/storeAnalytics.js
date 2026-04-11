@@ -129,24 +129,99 @@ router.get('/dashboard', requireEcomAuth, async (req, res) => {
       end
     );
 
-    // Récupérer les stats de commandes
+    // Récupérer les stats de commandes (orienté COD — marchés africains)
     const orders = await StoreOrder.find({
       workspaceId,
       createdAt: { $gte: start, $lte: end }
     }).lean();
 
+    const sumBy = (arr, fn) => arr.reduce((s, o) => s + (fn(o) || 0), 0);
+    const byStatus = (s) => orders.filter(o => o.status === s);
+
+    const deliveredOrders = byStatus('delivered');
+    const cancelledOrders = byStatus('cancelled');
+    const shippedOrders   = byStatus('shipped');
+    const confirmedOrders = byStatus('confirmed');
+    const processingOrders= byStatus('processing');
+    const pendingOrders   = byStatus('pending');
+
+    const potentialRevenue = sumBy(orders, o => o.total);
+    const realizedRevenue  = sumBy(deliveredOrders, o => o.total);
+    const shippingCost     = sumBy(orders, o => o.deliveryCost);
+
+    // Confirmation: orders that left pending state (regardless of final status)
+    const confirmedOrHigher = orders.filter(o => o.status !== 'pending').length;
+    const confirmationRate = orders.length > 0
+      ? +((confirmedOrHigher / orders.length) * 100).toFixed(1)
+      : 0;
+
+    // Delivery success: delivered / (delivered + cancelled after confirmation)
+    const shippedOrLater = orders.filter(o => ['shipped', 'delivered', 'cancelled'].includes(o.status));
+    const deliveryRate = shippedOrLater.length > 0
+      ? +((deliveredOrders.length / shippedOrLater.length) * 100).toFixed(1)
+      : 0;
+
+    const cancellationRate = orders.length > 0
+      ? +((cancelledOrders.length / orders.length) * 100).toFixed(1)
+      : 0;
+
+    // Top delivery cities / zones
+    const topCities = Object.entries(orders.reduce((acc, o) => {
+      const key = (o.city || o.deliveryZone || 'Inconnu').trim() || 'Inconnu';
+      if (!acc[key]) acc[key] = { name: key, count: 0, delivered: 0, revenue: 0 };
+      acc[key].count += 1;
+      acc[key].revenue += o.total || 0;
+      if (o.status === 'delivered') acc[key].delivered += 1;
+      return acc;
+    }, {})).map(([, v]) => v).sort((a, b) => b.count - a.count).slice(0, 8);
+
+    // Channel breakdown (storefront vs WhatsApp)
+    const channelStats = orders.reduce((acc, o) => {
+      const k = o.channel || 'store';
+      acc[k] = (acc[k] || 0) + 1;
+      return acc;
+    }, {});
+
+    // Repeat customers by phone
+    const phoneCounts = orders.reduce((acc, o) => {
+      if (!o.phone) return acc;
+      acc[o.phone] = (acc[o.phone] || 0) + 1;
+      return acc;
+    }, {});
+    const uniqueCustomers = Object.keys(phoneCounts).length;
+    const repeatCustomers = Object.values(phoneCounts).filter(c => c > 1).length;
+    const repeatRate = uniqueCustomers > 0
+      ? +((repeatCustomers / uniqueCustomers) * 100).toFixed(1)
+      : 0;
+
     const orderStats = {
       total: orders.length,
-      pending: orders.filter(o => o.status === 'pending').length,
-      confirmed: orders.filter(o => o.status === 'confirmed').length,
-      processing: orders.filter(o => o.status === 'processing').length,
-      shipped: orders.filter(o => o.status === 'shipped').length,
-      delivered: orders.filter(o => o.status === 'delivered').length,
-      cancelled: orders.filter(o => o.status === 'cancelled').length,
-      totalRevenue: orders.reduce((sum, o) => sum + (o.total || 0), 0),
-      averageOrderValue: orders.length > 0 
-        ? orders.reduce((sum, o) => sum + (o.total || 0), 0) / orders.length 
+      pending:    pendingOrders.length,
+      confirmed:  confirmedOrders.length,
+      processing: processingOrders.length,
+      shipped:    shippedOrders.length,
+      delivered:  deliveredOrders.length,
+      cancelled:  cancelledOrders.length,
+      // Revenue views
+      totalRevenue: potentialRevenue,          // kept for compat
+      potentialRevenue,                        // all orders (COD not yet collected)
+      realizedRevenue,                         // delivered only — cash actually collected
+      shippingCost,                            // total delivery cost across all orders
+      averageOrderValue: orders.length > 0 ? potentialRevenue / orders.length : 0,
+      averageDeliveredValue: deliveredOrders.length > 0
+        ? realizedRevenue / deliveredOrders.length
         : 0,
+      // COD KPIs
+      confirmationRate,
+      deliveryRate,
+      cancellationRate,
+      // Customer loyalty
+      uniqueCustomers,
+      repeatCustomers,
+      repeatRate,
+      // Segments
+      topCities,
+      channelStats,
     };
 
     res.json({
