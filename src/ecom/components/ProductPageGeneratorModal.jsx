@@ -248,6 +248,9 @@ const buildTemplateTheme = (templateId) => ({
 function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
   if (!product) return null;
 
+  const descriptionTitleColor = templateTheme.primary;
+  const descriptionContentColor = templateTheme.text;
+
   const gallery = [
     ...(product.heroImage ? [{ url: product.heroImage, alt: product.title || 'Hero' }] : []),
     ...(product.heroPosterImage ? [{ url: product.heroPosterImage, alt: `Affiche ${product.title || 'Produit'}` }] : []),
@@ -268,7 +271,7 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
         <div className="flex items-center gap-3">
           <div
             className="flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-black text-white"
-            style={{ background: `linear-gradient(135deg, ${templateTheme.primary} 0%, ${templateTheme.accent} 100%)` }}
+            style={{ background: descriptionTitleColor }}
           >
             {(product.title || 'P').slice(0, 1).toUpperCase()}
           </div>
@@ -286,13 +289,13 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
         <div
           className="mx-auto w-full max-w-[980px]"
           style={{
-            background: `linear-gradient(180deg, ${templateTheme.background} 0%, #ffffff 38%)`,
-            color: templateTheme.text,
+            background: '#ffffff',
+            color: descriptionContentColor,
           }}
         >
           <div className="flex items-center justify-between border-b px-4 py-3 sm:px-6" style={{ borderColor: `${templateTheme.accent}30`, backgroundColor: 'rgba(255,255,255,0.82)' }}>
-            <div className="text-sm font-black" style={{ color: templateTheme.text }}>Ma boutique</div>
-            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold" style={{ borderColor: `${templateTheme.accent}44`, color: templateTheme.primary }}>
+            <div className="text-sm font-black" style={{ color: descriptionContentColor }}>Ma boutique</div>
+            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold" style={{ borderColor: `${descriptionTitleColor}44`, color: descriptionTitleColor }}>
               <Package className="h-3.5 w-3.5" />
               1 produit au panier
             </div>
@@ -321,27 +324,44 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
             </div>
 
             <div className="p-4 sm:p-6 lg:p-7">
-              <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em]" style={{ backgroundColor: `${templateTheme.primary}10`, color: templateTheme.primary }}>
+              <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em]" style={{ backgroundColor: `${descriptionTitleColor}10`, color: descriptionTitleColor }}>
                 <Sparkles className="h-3.5 w-3.5" />
                 {selectedTemplate.label}
               </div>
               <h1 className="mt-3 text-3xl font-black leading-tight sm:text-4xl">{product.title}</h1>
               {product.hero_slogan && (
-                <p className="mt-3 text-sm font-medium sm:text-base" style={{ color: `${templateTheme.text}CC` }}>{product.hero_slogan}</p>
+                <p className="mt-3 text-sm font-medium sm:text-base" style={{ color: `${descriptionContentColor}CC` }}>{product.hero_slogan}</p>
               )}
               {product.hero_baseline && (
-                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: templateTheme.primary }}>{product.hero_baseline}</p>
+                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: descriptionTitleColor }}>{product.hero_baseline}</p>
               )}
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <div className="rounded-2xl border bg-white px-3 py-2.5" style={{ borderColor: `${descriptionTitleColor}33` }}>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-500">Titres description</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="h-4 w-4 rounded-full border border-white/70 shadow-sm" style={{ backgroundColor: descriptionTitleColor }} />
+                    <span className="text-xs font-semibold" style={{ color: descriptionTitleColor }}>{descriptionTitleColor}</span>
+                  </div>
+                </div>
+                <div className="rounded-2xl border bg-white px-3 py-2.5" style={{ borderColor: `${descriptionContentColor}22` }}>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-500">Contenu description</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="h-4 w-4 rounded-full border border-white/70 shadow-sm" style={{ backgroundColor: descriptionContentColor }} />
+                    <span className="text-xs font-semibold" style={{ color: descriptionContentColor }}>{descriptionContentColor}</span>
+                  </div>
+                </div>
+              </div>
 
               {(product.urgency_badge || product.hero_cta) && (
                 <div className="mt-4 flex flex-wrap gap-2">
                   {product.urgency_badge && (
-                    <span className="rounded-full border px-3 py-1 text-xs font-bold" style={{ borderColor: `${templateTheme.accent}50`, backgroundColor: `${templateTheme.accent}24`, color: templateTheme.text }}>
+                    <span className="rounded-full border px-3 py-1 text-xs font-bold" style={{ borderColor: `${descriptionTitleColor}40`, backgroundColor: `${descriptionTitleColor}14`, color: descriptionContentColor }}>
                       {product.urgency_badge}
                     </span>
                   )}
                   {product.hero_cta && (
-                    <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: `linear-gradient(135deg, ${templateTheme.primary} 0%, ${templateTheme.accent} 100%)` }}>
+                    <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: descriptionTitleColor }}>
                       {product.hero_cta}
                     </span>
                   )}
@@ -351,7 +371,7 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
               {stats.length > 0 && (
                 <div className="mt-5 grid grid-cols-3 gap-2">
                   {stats.map((stat, index) => (
-                    <div key={`${stat}-${index}`} className="rounded-2xl px-3 py-3 text-center text-xs font-bold text-white" style={{ background: `linear-gradient(135deg, ${templateTheme.primary} 0%, ${templateTheme.accent} 100%)` }}>
+                    <div key={`${stat}-${index}`} className="rounded-2xl px-3 py-3 text-center text-xs font-bold text-white" style={{ background: descriptionTitleColor }}>
                       {stat}
                     </div>
                   ))}
@@ -360,13 +380,13 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
 
               <div className="mt-5 rounded-[24px] border bg-white p-4 shadow-sm" style={{ borderColor: `${templateTheme.accent}26` }}>
                 <div className="flex items-end gap-3">
-                  <span className="text-3xl font-black" style={{ color: templateTheme.primary }}>Prix</span>
+                  <span className="text-3xl font-black" style={{ color: descriptionTitleColor }}>Prix</span>
                   <span className="text-sm font-semibold text-gray-500">Paiement à la livraison</span>
                 </div>
                 <button
                   type="button"
                   className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black text-white shadow-sm"
-                  style={{ background: `linear-gradient(135deg, ${templateTheme.primary} 0%, ${templateTheme.accent} 100%)` }}
+                  style={{ background: descriptionTitleColor }}
                 >
                   <ArrowRight className="h-4 w-4" />
                   {product.hero_cta || templateTheme.cta}
@@ -375,12 +395,12 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
 
               {benefits.length > 0 && (
                 <div className="mt-5 rounded-[24px] border p-4" style={{ borderColor: `${templateTheme.accent}24`, backgroundColor: templateTheme.surface }}>
-                  <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: templateTheme.primary }}>Bénéfices</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: descriptionTitleColor }}>Bénéfices</p>
                   <div className="mt-3 space-y-2.5">
                     {benefits.map((benefit, index) => (
-                      <div key={`${benefit}-${index}`} className="flex items-start gap-3 rounded-2xl px-3 py-2.5" style={{ backgroundColor: `${templateTheme.primary}08` }}>
-                        <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ backgroundColor: templateTheme.primary }}>✓</span>
-                        <span className="text-sm" style={{ color: `${templateTheme.text}D9` }}>{benefit}</span>
+                      <div key={`${benefit}-${index}`} className="flex items-start gap-3 rounded-2xl px-3 py-2.5" style={{ backgroundColor: `${descriptionTitleColor}08` }}>
+                        <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ backgroundColor: descriptionTitleColor }}>✓</span>
+                        <span className="text-sm" style={{ color: `${descriptionContentColor}D9` }}>{benefit}</span>
                       </div>
                     ))}
                   </div>
@@ -395,7 +415,7 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
                 {conversionBlocks.map((block, index) => (
                   <div key={`${block.text}-${index}`} className="rounded-[22px] border bg-white px-4 py-4 shadow-sm" style={{ borderColor: `${templateTheme.accent}22` }}>
                     <div className="text-lg">{block.icon}</div>
-                    <p className="mt-2 text-sm font-semibold" style={{ color: templateTheme.text }}>{block.text}</p>
+                    <p className="mt-2 text-sm font-semibold" style={{ color: descriptionContentColor }}>{block.text}</p>
                   </div>
                 ))}
               </div>
@@ -403,12 +423,12 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
 
             {product.problem_section && (
               <section className="rounded-[24px] border p-5" style={{ borderColor: `${templateTheme.accent}24`, backgroundColor: `${templateTheme.primary}08` }}>
-                <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: templateTheme.primary }}>Problème</p>
-                {product.problem_section.title && <h3 className="mt-2 text-xl font-black" style={{ color: templateTheme.text }}>{product.problem_section.title}</h3>}
+                <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: descriptionTitleColor }}>Problème</p>
+                {product.problem_section.title && <h3 className="mt-2 text-xl font-black" style={{ color: descriptionTitleColor }}>{product.problem_section.title}</h3>}
                 <div className="mt-3 space-y-2.5">
                   {(product.problem_section.pain_points || []).map((point, index) => (
-                    <div key={`${point}-${index}`} className="flex items-start gap-3 text-sm" style={{ color: `${templateTheme.text}D0` }}>
-                      <span style={{ color: templateTheme.primary }}>•</span>
+                    <div key={`${point}-${index}`} className="flex items-start gap-3 text-sm" style={{ color: `${descriptionContentColor}D0` }}>
+                      <span style={{ color: descriptionTitleColor }}>•</span>
                       <span>{point}</span>
                     </div>
                   ))}
@@ -418,15 +438,15 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
 
             {product.solution_section && (
               <section className="rounded-[24px] border bg-white p-5" style={{ borderColor: `${templateTheme.accent}24` }}>
-                <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: templateTheme.primary }}>Solution</p>
-                {product.solution_section.title && <h3 className="mt-2 text-xl font-black" style={{ color: templateTheme.text }}>{product.solution_section.title}</h3>}
-                {product.solution_section.description && <p className="mt-3 text-sm leading-7" style={{ color: `${templateTheme.text}C9` }}>{product.solution_section.description}</p>}
+                <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: descriptionTitleColor }}>Solution</p>
+                {product.solution_section.title && <h3 className="mt-2 text-xl font-black" style={{ color: descriptionTitleColor }}>{product.solution_section.title}</h3>}
+                {product.solution_section.description && <p className="mt-3 text-sm leading-7" style={{ color: `${descriptionContentColor}C9` }}>{product.solution_section.description}</p>}
               </section>
             )}
 
             {testimonials.length > 0 && (
               <section className="rounded-[24px] border bg-white p-4 sm:p-5" style={{ borderColor: `${templateTheme.accent}24` }}>
-                <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: templateTheme.primary }}>Avis clients</p>
+                <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: descriptionTitleColor }}>Avis clients</p>
                 <div className="mt-3">
                   <TestimonialsCarousel
                     testimonials={testimonials.map((t) => ({
@@ -445,12 +465,12 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
 
             {faq.length > 0 && (
               <section className="rounded-[24px] border bg-white p-5" style={{ borderColor: `${templateTheme.accent}24` }}>
-                <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: templateTheme.primary }}>Questions fréquentes</p>
+                <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: descriptionTitleColor }}>Questions fréquentes</p>
                 <div className="mt-3 space-y-3">
                   {faq.map((item, index) => (
-                    <div key={`${item.question}-${index}`} className="rounded-[18px] border px-4 py-3" style={{ borderColor: `${templateTheme.accent}20`, backgroundColor: `${templateTheme.primary}05` }}>
-                      <p className="text-sm font-bold" style={{ color: templateTheme.text }}>{item.question}</p>
-                      <p className="mt-1 text-sm leading-6" style={{ color: `${templateTheme.text}C9` }}>{item.reponse}</p>
+                    <div key={`${item.question}-${index}`} className="rounded-[18px] border px-4 py-3" style={{ borderColor: `${templateTheme.accent}20`, backgroundColor: `${descriptionTitleColor}05` }}>
+                      <p className="text-sm font-bold" style={{ color: descriptionTitleColor }}>{item.question}</p>
+                      <p className="mt-1 text-sm leading-6" style={{ color: `${descriptionContentColor}C9` }}>{item.reponse}</p>
                     </div>
                   ))}
                 </div>
@@ -886,7 +906,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
     formData.append('withImages', 'true');
     formData.append('marketingApproach', marketingApproach);
     formData.append('visualTemplate', visualTemplate);
-    formData.append('preferredColor', templateTheme.accent);
     if (heroVisualDirection.trim()) formData.append('heroVisualDirection', heroVisualDirection.trim());
     if (decorationDirection.trim()) formData.append('decorationDirection', decorationDirection.trim());
     formData.append('titleColor', templateTheme.primary);
@@ -1156,6 +1175,15 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
 
   const handleApply = () => {
     if (!product) return;
+
+    const descriptionTitleColor = templateTheme.primary;
+    const descriptionContentColor = templateTheme.text;
+    const descriptionAccentColor = templateTheme.accent;
+    const descriptionSurfaceColor = templateTheme.surface;
+    const descriptionTitleSoft = `${descriptionTitleColor}10`;
+    const descriptionTitleBorder = `${descriptionTitleColor}33`;
+    const descriptionAccentBorder = `${descriptionAccentColor}40`;
+    const descriptionContentSoft = `${descriptionContentColor}CC`;
     
     // Build rich HTML description: 5 angles (H3 + desc + image) → testimonials → FAQ
     let descHtml = '';
@@ -1164,15 +1192,15 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
 
     // ── 5 Arguments marketing : H3 gras + description 3-4 lignes + image ─────
     if (product.angles?.length) {
-      descHtml += `<div style="margin:32px 0;">`;
+      descHtml += `<div style="margin:32px 0;color:${descriptionContentColor};">`;
       product.angles.slice(0, 5).forEach((angle, idx) => {
-        descHtml += `<div style="margin-bottom:40px;padding-bottom:40px;${idx < product.angles.length - 1 ? 'border-bottom:1px solid #f0f0f0;' : ''}">`;
+        descHtml += `<div style="margin-bottom:40px;padding-bottom:40px;${idx < product.angles.length - 1 ? `border-bottom:1px solid ${descriptionAccentBorder};` : ''}">`;
         // H3 bold title
-        descHtml += `<h3 style="font-size:20px;font-weight:800;color:#111;margin:0 0 12px;line-height:1.3;"><strong>${angle.titre_angle}</strong></h3>`;
+        descHtml += `<h3 style="font-size:20px;font-weight:800;color:${descriptionTitleColor};margin:0 0 12px;line-height:1.3;"><strong>${angle.titre_angle}</strong></h3>`;
         // 3-4 line description
         const explication = angle.explication || angle.message_principal || '';
         if (explication) {
-          descHtml += `<p style="font-size:15px;line-height:1.75;color:#555;margin:0 0 16px;">${explication}</p>`;
+          descHtml += `<p style="font-size:15px;line-height:1.75;color:${descriptionContentSoft};margin:0 0 16px;">${explication}</p>`;
         }
         // Image
         if (angle.poster_url) {
@@ -1191,11 +1219,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
 
     // ── Raisons d'acheter ──────────────────────────────────────────────────────
     if (product.raisons_acheter?.length) {
-      descHtml += `<div style="margin:32px 0;padding:24px;background:#f0fdf4;border-radius:16px;border:1px solid #bbf7d0;">`;
-      descHtml += `<h3 style="font-size:18px;font-weight:800;color:#166534;margin:0 0 16px;"><strong>✅ Pourquoi choisir ce produit ?</strong></h3>`;
+      descHtml += `<div style="margin:32px 0;padding:24px;background:${descriptionTitleSoft};border-radius:16px;border:1px solid ${descriptionTitleBorder};">`;
+      descHtml += `<h3 style="font-size:18px;font-weight:800;color:${descriptionTitleColor};margin:0 0 16px;"><strong>✅ Pourquoi choisir ce produit ?</strong></h3>`;
       descHtml += `<ul style="margin:0;padding:0;list-style:none;">`;
       product.raisons_acheter.forEach(r => {
-        descHtml += `<li style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;font-size:14px;color:#166534;"><span style="margin-top:2px;flex-shrink:0;">✓</span><span>${r}</span></li>`;
+        descHtml += `<li style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;font-size:14px;color:${descriptionContentColor};"><span style="margin-top:2px;flex-shrink:0;color:${descriptionTitleColor};">✓</span><span>${r}</span></li>`;
       });
       descHtml += `</ul></div>`;
     }
@@ -1203,14 +1231,14 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
     // ── Guide d'utilisation (si applicable) ───────────────────────────────────
     if (product.guide_utilisation?.applicable !== false && product.guide_utilisation?.etapes?.length) {
       const g = product.guide_utilisation;
-      descHtml += `<div style="margin:40px 0;padding:28px;background:linear-gradient(135deg,#eff6ff,#e0f2fe);border-radius:20px;border:1px solid #bae6fd;">`;
-      descHtml += `<h3 style="font-size:20px;font-weight:800;color:#0369a1;margin:0 0 20px;"><strong>📋 ${g.titre || 'Comment utiliser ce produit'}</strong></h3>`;
+      descHtml += `<div style="margin:40px 0;padding:28px;background:${descriptionTitleSoft};border-radius:20px;border:1px solid ${descriptionAccentBorder};">`;
+      descHtml += `<h3 style="font-size:20px;font-weight:800;color:${descriptionTitleColor};margin:0 0 20px;"><strong>📋 ${g.titre || 'Comment utiliser ce produit'}</strong></h3>`;
       descHtml += `<div style="display:flex;flex-direction:column;gap:14px;">`;
       g.etapes.forEach((e) => {
         descHtml += `<div style="display:flex;align-items:flex-start;gap:14px;">`;
-        descHtml += `<div style="min-width:32px;height:32px;border-radius:50%;background:#0369a1;color:#fff;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${e.numero}</div>`;
-        descHtml += `<div><p style="margin:0 0 4px;font-weight:700;font-size:15px;color:#0c4a6e;">${e.action}</p>`;
-        if (e.detail) descHtml += `<p style="margin:0;font-size:13px;color:#0369a1;line-height:1.5;">${e.detail}</p>`;
+        descHtml += `<div style="min-width:32px;height:32px;border-radius:50%;background:${descriptionTitleColor};color:#fff;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${e.numero}</div>`;
+        descHtml += `<div><p style="margin:0 0 4px;font-weight:700;font-size:15px;color:${descriptionTitleColor};">${e.action}</p>`;
+        if (e.detail) descHtml += `<p style="margin:0;font-size:13px;color:${descriptionContentColor};line-height:1.5;">${e.detail}</p>`;
         descHtml += `</div></div>`;
       });
       descHtml += `</div></div>`;
@@ -1219,13 +1247,13 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
     // ── Garantie / Réassurance ─────────────────────────────────────────────────
     if (product.reassurance?.titre) {
       const r = product.reassurance;
-      descHtml += `<div style="margin:40px 0;padding:28px;background:linear-gradient(135deg,#fefce8,#fef9c3);border-radius:20px;border:1px solid #fde68a;">`;
-      descHtml += `<h3 style="font-size:20px;font-weight:800;color:#92400e;margin:0 0 12px;"><strong>🛡️ ${r.titre}</strong></h3>`;
-      if (r.texte) descHtml += `<p style="font-size:15px;color:#78350f;line-height:1.7;margin:0 0 16px;">${r.texte}</p>`;
+      descHtml += `<div style="margin:40px 0;padding:28px;background:${descriptionSurfaceColor};border-radius:20px;border:1px solid ${descriptionAccentBorder};">`;
+      descHtml += `<h3 style="font-size:20px;font-weight:800;color:${descriptionTitleColor};margin:0 0 12px;"><strong>🛡️ ${r.titre}</strong></h3>`;
+      if (r.texte) descHtml += `<p style="font-size:15px;color:${descriptionContentColor};line-height:1.7;margin:0 0 16px;">${r.texte}</p>`;
       if (r.points?.length) {
         descHtml += `<ul style="margin:0;padding:0;list-style:none;">`;
         r.points.forEach(p => {
-          descHtml += `<li style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;font-size:14px;color:#78350f;font-weight:600;"><span style="flex-shrink:0;">✅</span><span>${p}</span></li>`;
+          descHtml += `<li style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;font-size:14px;color:${descriptionContentColor};font-weight:600;"><span style="flex-shrink:0;color:${descriptionTitleColor};">✅</span><span>${p}</span></li>`;
         });
         descHtml += `</ul>`;
       }
@@ -1285,7 +1313,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
       _pageData: {
         ...product,
         templateTheme,
-        posterColor: templateTheme.accent,
         heroVisualDirection: heroVisualDirection.trim(),
         decorationDirection: decorationDirection.trim(),
         titleColor: templateTheme.primary,
@@ -1463,7 +1490,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                       <div
                         className="overflow-hidden rounded-[18px] border shadow-sm"
                         style={{
-                          backgroundColor: templateTheme.background,
+                          backgroundColor: '#ffffff',
                           borderColor: templateTheme.accent,
                         }}
                       >
@@ -1559,9 +1586,8 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                             />
                           </label>
 
-                          <div className="grid grid-cols-3 gap-2">
+                          <div className="grid grid-cols-2 gap-2">
                             {[
-                              ['accent', 'Couleur des affiches'],
                               ['primary', 'Titres description'],
                               ['text', 'Contenu description'],
                             ].map(([key, label]) => (
@@ -1580,7 +1606,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                           <div className="rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2">
                             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">Résumé</p>
                             <p className="mt-1 text-xs font-semibold text-gray-900">{selectedTemplate.label}</p>
-                            <p className="mt-1 text-[11px] text-gray-600">Affiches : {templateTheme.accent}</p>
                             <p className="mt-1 text-[11px] text-gray-600">Titres description : {templateTheme.primary}</p>
                             <p className="mt-1 text-[11px] text-gray-600">Contenu description : {templateTheme.text}</p>
                             {heroVisualDirection.trim() && <p className="mt-1 text-[11px] text-gray-600">Hero : {heroVisualDirection.trim()}</p>}

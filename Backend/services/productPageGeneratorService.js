@@ -158,21 +158,12 @@ function buildVisualTemplateInstruction(template = 'general', preferredColor = '
   };
 
   const selectedDirection = visualDirections[template] || visualDirections.general;
-  const colorLine = preferredColor
-    ? `- Couleur des affiches a integrer si elle reste coherente avec le produit : ${preferredColor}`
-    : '- Couleur des affiches : choisis une teinte coherente avec le produit et le template';
-  const heroLine = heroVisualDirection
-    ? `- Visuel hero impose : ${heroVisualDirection}`
-    : '- Visuel hero : choisis un hero coherent avec le produit et le template';
-  const decorationLine = decorationDirection
-    ? `- Visuels de decoration imposes : ${decorationDirection}`
-    : '- Decorations : ajoute seulement des elements graphiques coherents avec le template';
   const titleColorLine = titleColor
-    ? `- Couleur des titres a respecter si possible : ${titleColor}`
-    : '- Couleur des titres : harmonisee avec le template';
+    ? `- Couleur des titres de description a respecter : ${titleColor}`
+    : '- Couleur des titres de description : issue du theme de la boutique';
   const contentColorLine = contentColor
-    ? `- Couleur du contenu a respecter si possible : ${contentColor}`
-    : '- Couleur du contenu : lisible et coherente avec le template';
+    ? `- Couleur du contenu de description a respecter : ${contentColor}`
+    : '- Couleur du contenu de description : issue du theme de la boutique';
 
   return `
 ═══════════════════════════════════════════════
@@ -180,15 +171,13 @@ DIRECTION VISUELLE DU TEMPLATE
 ═══════════════════════════════════════════════
 - Template choisi : ${template}
 - Direction visuelle attendue : ${selectedDirection}
-${colorLine}
-${heroLine}
-${decorationLine}
 ${titleColorLine}
 ${contentColorLine}
 
-RÈGLE CRITIQUE : le template influence UNIQUEMENT la couche visuelle.
-- Il doit guider le design des images, des icones, des fonds, des decorations, de la palette, de la composition et de l'ambiance.
-- Les consignes de couleur des affiches, visuel hero, decorations, couleur des titres et couleur du contenu doivent etre vraiment appliquees dans les prompts de generation quand c'est pertinent.
+RÈGLE CRITIQUE : le template influence UNIQUEMENT le style general du contenu.
+- Il peut guider le ton visuel global, les icones et la composition generale.
+- Les couleurs de titres et de contenu ne s'appliquent qu'aux textes descriptifs rendus sur la page, jamais aux images generees.
+- Le template ne doit jamais imposer l'arriere-plan final de la page publique, qui doit rester pilote par la configuration theme de la boutique.
 - Il ne doit PAS changer la verite produit, la cible reelle, les promesses, la structure marketing, les objections, ni la logique copywriting.
 - Si le template et le produit se contredisent, tu gardes la verite produit et tu adaptes seulement le langage visuel.
 - Tous les prompts images et toutes les indications de design doivent etre coherents avec ce template backend.`;

@@ -247,11 +247,9 @@ const BoutiqueSettings = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const [settingsRes, domainsRes] = await Promise.all([
-          api.get('/store/settings'),
-          api.get('/store/domains').catch(() => ({ data: {} })),
-        ]);
-        const s = settingsRes.data?.data || {};
+        const settingsRes = await storeManageApi.getStoreConfig();
+        const data = settingsRes.data?.data || {};
+        const s = data.storeSettings || {};
         setForm(prev => ({
           ...prev,
           storeName:       s.storeName       || workspace?.name || '',
@@ -271,7 +269,7 @@ const BoutiqueSettings = () => {
           announcement:    s.announcement     || '',
           announcementEnabled: s.announcementEnabled ?? false,
         }));
-        setSubdomain(domainsRes.data?.data?.subdomain || '');
+        setSubdomain(data.subdomain || '');
       } catch (err) {
         console.error('BoutiqueSettings load error:', err);
       }
@@ -284,9 +282,24 @@ const BoutiqueSettings = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.put('/store/settings', {
-        ...form,
+      await storeManageApi.updateStoreConfig({
+        storeName: form.storeName,
+        storeDescription: form.storeDescription,
+        storeLogo: form.storeLogo,
+        storeFavicon: form.storeFavicon,
+        storePhone: form.storePhone,
+        storeWhatsApp: form.storeWhatsApp,
+        storeCountry: form.storeCountry,
+        storeCurrency: form.storeCurrency,
+        isStoreEnabled: form.isStoreEnabled,
         storeThemeColor: form.primaryColor,
+        primaryColor: form.primaryColor,
+        accentColor: form.accentColor,
+        backgroundColor: form.backgroundColor,
+        textColor: form.textColor,
+        font: form.font,
+        announcement: form.announcement,
+        announcementEnabled: form.announcementEnabled,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);

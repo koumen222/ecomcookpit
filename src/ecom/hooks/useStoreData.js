@@ -98,7 +98,7 @@ function getProductCacheKey(subdomain, slug) {
   return `sfp_${subdomain}_${slug}`;
 }
 
-function toProductPreview(product) {
+function toProductPreview(product, fallbackCurrency) {
   if (!product) return null;
 
   return {
@@ -108,7 +108,7 @@ function toProductPreview(product) {
     description: product.description || '',
     price: product.price,
     compareAtPrice: product.compareAtPrice,
-    currency: product.currency,
+    currency: product.currency || fallbackCurrency || 'XAF',
     targetMarket: product.targetMarket || '',
     country: product.country || '',
     city: product.city || '',
@@ -218,7 +218,7 @@ export function useStoreProduct(subdomain, slug) {
   const cachedStore = storeCacheKey ? readCache(storeCacheKey) : null;
   const productCacheKey = getProductCacheKey(subdomain, slug);
   const cachedProduct = productCacheKey ? readCache(productCacheKey) : null;
-  const previewProduct = cachedProduct || toProductPreview(cachedStore?.products?.find((item) => item.slug === slug));
+  const previewProduct = cachedProduct || toProductPreview(cachedStore?.products?.find((item) => item.slug === slug), cachedStore?.store?.currency);
 
   const [store, setStore] = useState(cachedStore?.store || null);
   const [pixels, setPixels] = useState(cachedStore?.pixels || null);
