@@ -131,12 +131,24 @@ const storeOrderSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Generate human-readable order number before save
-storeOrderSchema.pre('save', function (next) {
+// Generate sequential order number before save (SC1, SC2, ... SCN per workspace)
+storeOrderSchema.pre('save', async function (next) {
   if (this.isNew && !this.orderNumber) {
-    // Format: SC-XXXXXX (short, easy to communicate via WhatsApp)
-    const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
-    this.orderNumber = `SC-${rand}`;
+    try {
+      const last = await this.constructor.findOne(
+        { workspaceId: this.workspaceId },
+        { orderNumber: 1 },
+        { sort: { createdAt: -1 } }
+      );
+      let nextNum = 1;
+      if (last?.orderNumber) {
+        const match = last.orderNumber.match(/^SC(\d+)$/);
+        if (match) nextNum = parseInt(match[1], 10) + 1;
+      }
+      this.orderNumber = `SC${nextNum}`;
+    } catch {
+      this.orderNumber = `SC${Date.now().toString().slice(-6)}`;
+    }
   }
   next();
 });

@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useEcomAuth } from '../hooks/useEcomAuth';
 import api from '../../lib/api';
 import { storeManageApi } from '../services/storeApi.js';
-import { ExternalLink, Check, Upload, Palette, Type, Store, Megaphone, Sparkles, Loader2, RefreshCw } from 'lucide-react';
+import { ExternalLink, Check, Upload, Palette, Type, Store, Megaphone, Sparkles, Loader2, RefreshCw, Settings, Eye } from 'lucide-react';
 
 const FONTS = [
   { id: 'inter',      name: 'Inter',      sample: 'Modern & Clean' },
@@ -25,7 +25,60 @@ const FONT_FAMILIES = {
   satoshi:    '"Satoshi", Inter, system-ui, sans-serif',
 };
 
-const CURRENCIES = ['FCFA', 'MST', 'USD', 'EUR', 'GHS', 'NGN', 'MAD'];
+const CURRENCIES = [
+  { code: 'XAF', label: 'FCFA (XAF)' },
+  { code: 'XOF', label: 'FCFA (XOF)' },
+  { code: 'USD', label: 'Dollar US (USD)' },
+  { code: 'EUR', label: 'Euro (EUR)' },
+  { code: 'GBP', label: 'Livre Sterling (GBP)' },
+  { code: 'GHS', label: 'Cedi (GHS)' },
+  { code: 'NGN', label: 'Naira (NGN)' },
+  { code: 'MAD', label: 'Dirham (MAD)' },
+  { code: 'TND', label: 'Dinar Tunisien (TND)' },
+  { code: 'DZD', label: 'Dinar Algérien (DZD)' },
+  { code: 'KES', label: 'Shilling Kenyan (KES)' },
+  { code: 'ZAR', label: 'Rand (ZAR)' },
+  { code: 'RWF', label: 'Franc Rwandais (RWF)' },
+  { code: 'CDF', label: 'Franc Congolais (CDF)' },
+  { code: 'GNF', label: 'Franc Guinéen (GNF)' },
+  { code: 'MGA', label: 'Ariary (MGA)' },
+  { code: 'MRU', label: 'Ouguiya (MRU)' },
+  { code: 'CVE', label: 'Escudo (CVE)' },
+  { code: 'BIF', label: 'Franc Burundais (BIF)' },
+  { code: 'CAD', label: 'Dollar Canadien (CAD)' },
+  { code: 'CHF', label: 'Franc Suisse (CHF)' },
+  { code: 'CNY', label: 'Yuan (CNY)' },
+  { code: 'INR', label: 'Roupie Indienne (INR)' },
+  { code: 'BRL', label: 'Réal (BRL)' },
+  { code: 'AED', label: 'Dirham EAU (AED)' },
+];
+
+const COUNTRIES = [
+  'Afghanistan','Afrique du Sud','Albanie','Algérie','Allemagne','Andorre','Angola','Antigua-et-Barbuda','Arabie Saoudite','Argentine','Arménie','Australie','Autriche','Azerbaïdjan',
+  'Bahamas','Bahreïn','Bangladesh','Barbade','Belgique','Belize','Bénin','Bhoutan','Biélorussie','Birmanie','Bolivie','Bosnie-Herzégovine','Botswana','Brésil','Brunei','Bulgarie','Burkina Faso','Burundi',
+  'Cambodge','Cameroun','Canada','Cap-Vert','Centrafrique','Chili','Chine','Chypre','Colombie','Comores','Congo','Congo (RDC)','Corée du Nord','Corée du Sud','Costa Rica','Côte d\'Ivoire','Croatie','Cuba',
+  'Danemark','Djibouti','Dominique',
+  'Égypte','Émirats arabes unis','Équateur','Érythrée','Espagne','Estonie','Eswatini','États-Unis','Éthiopie',
+  'Fidji','Finlande','France',
+  'Gabon','Gambie','Géorgie','Ghana','Grèce','Grenade','Guatemala','Guinée','Guinée équatoriale','Guinée-Bissau','Guyana',
+  'Haïti','Honduras','Hongrie',
+  'Inde','Indonésie','Irak','Iran','Irlande','Islande','Israël','Italie',
+  'Jamaïque','Japon','Jordanie',
+  'Kazakhstan','Kenya','Kirghizistan','Kiribati','Koweït',
+  'Laos','Lesotho','Lettonie','Liban','Liberia','Libye','Liechtenstein','Lituanie','Luxembourg',
+  'Macédoine du Nord','Madagascar','Malaisie','Malawi','Maldives','Mali','Malte','Maroc','Maurice','Mauritanie','Mexique','Micronésie','Moldavie','Monaco','Mongolie','Monténégro','Mozambique',
+  'Namibie','Nauru','Népal','Nicaragua','Niger','Nigeria','Norvège','Nouvelle-Zélande',
+  'Oman','Ouganda','Ouzbékistan',
+  'Pakistan','Palaos','Palestine','Panama','Papouasie-Nouvelle-Guinée','Paraguay','Pays-Bas','Pérou','Philippines','Pologne','Portugal',
+  'Qatar',
+  'Roumanie','Royaume-Uni','Russie','Rwanda',
+  'Saint-Kitts-et-Nevis','Saint-Vincent-et-les-Grenadines','Sainte-Lucie','Salomon','Salvador','Samoa','São Tomé-et-Príncipe','Sénégal','Serbie','Seychelles','Sierra Leone','Singapour','Slovaquie','Slovénie','Somalie','Soudan','Soudan du Sud','Sri Lanka','Suède','Suisse','Suriname','Syrie',
+  'Tadjikistan','Tanzanie','Tchad','Tchéquie','Thaïlande','Timor oriental','Togo','Tonga','Trinité-et-Tobago','Tunisie','Turkménistan','Turquie','Tuvalu',
+  'Ukraine','Uruguay',
+  'Vanuatu','Vatican','Venezuela','Viêt Nam',
+  'Yémen',
+  'Zambie','Zimbabwe'
+];
 
 const fmt = (n, cur = 'FCFA') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
 
@@ -147,9 +200,11 @@ const BoutiqueSettings = () => {
     storeName: '',
     storeDescription: '',
     storeLogo: '',
+    storeFavicon: '',
     storePhone: '',
     storeWhatsApp: '',
-    storeCurrency: 'FCFA',
+    storeCountry: 'Cameroun',
+    storeCurrency: 'XAF',
     isStoreEnabled: true,
     primaryColor: '#0F6B4F',
     accentColor: '#059669',
@@ -165,6 +220,13 @@ const BoutiqueSettings = () => {
   const [subdomain, setSubdomain] = useState('');
   const [regenerating, setRegenerating] = useState(false);
   const [regenMsg, setRegenMsg] = useState('');
+  const [activeTab, setActiveTab] = useState('general');
+
+  const TABS = [
+    { id: 'general', label: 'Général', icon: <Store size={15} /> },
+    { id: 'apparence', label: 'Apparence', icon: <Palette size={15} /> },
+    { id: 'avance', label: 'Avancé', icon: <Settings size={15} /> },
+  ];
 
   const handleRegenerate = async () => {
     setRegenerating(true);
@@ -195,9 +257,11 @@ const BoutiqueSettings = () => {
           storeName:       s.storeName       || workspace?.name || '',
           storeDescription: s.storeDescription || '',
           storeLogo:       s.storeLogo        || '',
+          storeFavicon:    s.storeFavicon     || '',
           storePhone:      s.storePhone       || '',
           storeWhatsApp:   s.storeWhatsApp    || '',
-          storeCurrency:   s.storeCurrency    || 'FCFA',
+          storeCountry:    s.storeCountry     || 'Cameroun',
+          storeCurrency:   s.storeCurrency    || 'XAF',
           isStoreEnabled:  s.isStoreEnabled   ?? true,
           primaryColor:    s.primaryColor     || s.storeThemeColor || '#0F6B4F',
           accentColor:     s.accentColor      || '#059669',
@@ -243,7 +307,7 @@ const BoutiqueSettings = () => {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Ma Boutique</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Nom, logo, couleurs et police — c'est tout.</p>
+          <p className="text-sm text-gray-500 mt-0.5">Configurez votre boutique en ligne</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           {previewUrl && (
@@ -266,236 +330,211 @@ const BoutiqueSettings = () => {
         </div>
       </div>
 
-      {/* ── Quick action: Edit with Wizard ─────────────────────────────── */}
-      <div className="bg-gradient-to-r from-[#0F6B4F] to-[#0A5740] rounded-2xl p-6 text-white shadow-lg">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h3 className="text-lg font-bold flex items-center gap-2 mb-1">
-              <Sparkles size={20} /> Modifier votre boutique
-            </h3>
-            <p className="text-sm text-white/80">Utilisez notre assistant pour configurer votre boutique en détail : cible, ton, audience, localisation, etc.</p>
-          </div>
+      {/* ── Tabs ───────────────────────────────────────────────────────── */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+        {TABS.map(tab => (
           <button
-            onClick={() => navigate('/ecom/boutique/wizard')}
-            className="px-6 py-2.5 rounded-xl bg-white text-[#0F6B4F] font-bold text-sm hover:bg-gray-100 transition whitespace-nowrap flex-shrink-0"
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition flex-1 justify-center ${
+              activeTab === tab.id
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
           >
-            Ouvrir l'assistant
+            {tab.icon} {tab.label}
           </button>
-        </div>
+        ))}
       </div>
 
-      {/* ── 1. Informations boutique ────────────────────────────────────── */}
-      <Section
-        icon={<Store size={18} />}
-        title="Informations"
-        desc="Le nom et la description que vos clients voient"
-      >
-        <div className="space-y-4">
-          <Field label="Nom de la boutique *">
-            <input
-              type="text"
-              value={form.storeName}
-              onChange={(e) => set('storeName', e.target.value)}
-              placeholder="Ma Super Boutique"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none transition"
-            />
-          </Field>
+      {/* ── Tab: Général ───────────────────────────────────────────────── */}
+      {activeTab === 'general' && (
+        <>
+          <Section
+            icon={<Store size={18} />}
+            title="Informations"
+            desc="Le nom et la description que vos clients voient"
+          >
+            <div className="space-y-4">
+              <Field label="Nom de la boutique *">
+                <input
+                  type="text"
+                  value={form.storeName}
+                  onChange={(e) => set('storeName', e.target.value)}
+                  placeholder="Ma Super Boutique"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none transition"
+                />
+              </Field>
 
-          <Field label="Description courte" hint="Affichée dans le hero de votre homepage et dans les métadonnées SEO">
-            <textarea
-              rows={3}
-              value={form.storeDescription}
-              onChange={(e) => set('storeDescription', e.target.value)}
-              placeholder="Découvrez notre sélection de produits soigneusement choisis…"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none resize-none transition"
-            />
-          </Field>
+              <Field label="Description courte" hint="Affichée dans le hero de votre homepage et dans les métadonnées SEO">
+                <textarea
+                  rows={3}
+                  value={form.storeDescription}
+                  onChange={(e) => set('storeDescription', e.target.value)}
+                  placeholder="Découvrez notre sélection de produits soigneusement choisis…"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none resize-none transition"
+                />
+              </Field>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Téléphone">
-              <input
-                type="tel"
-                value={form.storePhone}
-                onChange={(e) => set('storePhone', e.target.value)}
-                placeholder="+237 6XX XXX XXX"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none transition"
-              />
-            </Field>
-            <Field label="WhatsApp" hint="Activer le bouton 'Commander via WhatsApp'">
-              <input
-                type="tel"
-                value={form.storeWhatsApp}
-                onChange={(e) => set('storeWhatsApp', e.target.value)}
-                placeholder="237600000000"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none transition"
-              />
-            </Field>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Devise">
-              <select
-                value={form.storeCurrency}
-                onChange={(e) => set('storeCurrency', e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none transition bg-white"
-              >
-                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </Field>
-            <Field label="Boutique active">
-              <div className="flex items-center gap-3 mt-1">
-                <button
-                  type="button"
-                  onClick={() => set('isStoreEnabled', !form.isStoreEnabled)}
-                  className={`relative w-11 h-6 rounded-full transition-colors ${form.isStoreEnabled ? 'bg-[#0F6B4F]' : 'bg-gray-300'}`}
-                >
-                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.isStoreEnabled ? 'translate-x-5' : ''}`} />
-                </button>
-                <span className="text-sm text-gray-600">{form.isStoreEnabled ? 'En ligne' : 'Hors ligne'}</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Téléphone">
+                  <input
+                    type="tel"
+                    value={form.storePhone}
+                    onChange={(e) => set('storePhone', e.target.value)}
+                    placeholder="+237 6XX XXX XXX"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none transition"
+                  />
+                </Field>
+                <Field label="WhatsApp" hint="Activer le bouton 'Commander via WhatsApp'">
+                  <input
+                    type="tel"
+                    value={form.storeWhatsApp}
+                    onChange={(e) => set('storeWhatsApp', e.target.value)}
+                    placeholder="237600000000"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none transition"
+                  />
+                </Field>
               </div>
-            </Field>
-          </div>
-        </div>
-      </Section>
 
-      {/* ── 2. Annonce ────────────────────────────────────────────────── */}
-      <Section
-        icon={<Megaphone size={18} />}
-        title="Barre d'annonce"
-        desc="Message promotionnel affiché en haut de toutes les pages"
-      >
-        <div className="space-y-4">
-          <Field label="Message d'annonce" hint="Ex: 🎉 Livraison gratuite dès 50 000 XAF !">
-            <input
-              type="text"
-              value={form.announcement}
-              onChange={(e) => set('announcement', e.target.value)}
-              placeholder="Votre message promotionnel..."
-              className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-900 focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none transition"
-            />
-          </Field>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Pays de la boutique">
+                  <select
+                    value={form.storeCountry}
+                    onChange={(e) => set('storeCountry', e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none transition bg-white"
+                  >
+                    {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </Field>
+                <Field label="Devise">
+                  <select
+                    value={form.storeCurrency}
+                    onChange={(e) => set('storeCurrency', e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none transition bg-white"
+                  >
+                    {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                  </select>
+                </Field>
+              </div>
 
-          <Field label="Activer l'annonce">
-            <div className="flex items-center gap-3 mt-1">
-              <button
-                type="button"
-                onClick={() => set('announcementEnabled', !form.announcementEnabled)}
-                className={`relative w-11 h-6 rounded-full transition-colors ${form.announcementEnabled ? 'bg-[#0F6B4F]' : 'bg-gray-300'}`}
-              >
-                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.announcementEnabled ? 'translate-x-5' : ''}`} />
-              </button>
-              <span className="text-sm text-gray-600">{form.announcementEnabled ? 'Active' : 'Inactive'}</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Boutique active">
+                  <div className="flex items-center gap-3 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => set('isStoreEnabled', !form.isStoreEnabled)}
+                      className={`relative w-11 h-6 rounded-full transition-colors ${form.isStoreEnabled ? 'bg-[#0F6B4F]' : 'bg-gray-300'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.isStoreEnabled ? 'translate-x-5' : ''}`} />
+                    </button>
+                    <span className="text-sm text-gray-600">{form.isStoreEnabled ? 'En ligne' : 'Hors ligne'}</span>
+                  </div>
+                </Field>
+              </div>
             </div>
-          </Field>
-        </div>
-      </Section>
+          </Section>
 
-      {/* ── 3. Logo ─────────────────────────────────────────────────────── */}
-      <Section
-        icon={<Upload size={18} />}
-        title="Logo"
-        desc="Affiché en header sur toutes les pages de votre boutique"
-      >
-        <LogoUploader value={form.storeLogo} onChange={(v) => set('storeLogo', v)} />
-      </Section>
+        </>
+      )}
 
-      {/* ── 3. Couleurs ─────────────────────────────────────────────────── */}
-      <Section
-        icon={<Palette size={18} />}
-        title="Couleurs"
-        desc="4 couleurs, injectées automatiquement partout dans votre boutique"
-      >
-        <div className="grid grid-cols-2 gap-5 mb-6">
-          <ColorPicker label="Couleur principale" value={form.primaryColor} onChange={(v) => set('primaryColor', v)} />
-          <ColorPicker label="Couleur accent" value={form.accentColor} onChange={(v) => set('accentColor', v)} />
-          <ColorPicker label="Fond de page" value={form.backgroundColor} onChange={(v) => set('backgroundColor', v)} />
-          <ColorPicker label="Couleur du texte" value={form.textColor} onChange={(v) => set('textColor', v)} />
-        </div>
+      {/* ── Tab: Apparence ─────────────────────────────────────────────── */}
+      {activeTab === 'apparence' && (
+        <>
+          <Section
+            icon={<Upload size={18} />}
+            title="Logo"
+            desc="Affiché en header sur toutes les pages de votre boutique"
+          >
+            <LogoUploader value={form.storeLogo} onChange={(v) => set('storeLogo', v)} />
+          </Section>
 
-        {/* Live preview */}
-        <div
-          className="rounded-2xl border border-gray-100 p-5 overflow-hidden"
-          style={{ backgroundColor: form.backgroundColor, fontFamily: FONT_FAMILIES[form.font] }}
-        >
-          <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: form.primaryColor }}>
-            Aperçu
-          </p>
-          <p className="text-lg font-bold mb-1" style={{ color: form.textColor }}>
-            {form.storeName || 'Nom de la boutique'}
-          </p>
-          <p className="text-sm mb-4" style={{ color: form.textColor + '99' }}>
-            {form.storeDescription || 'La description de votre boutique apparaît ici.'}
-          </p>
-          <div className="flex gap-3 flex-wrap">
-            <span className="px-5 py-2.5 rounded-full text-sm font-bold text-white"
-              style={{ backgroundColor: form.primaryColor }}>
-              Voir les produits
-            </span>
-            <span className="px-5 py-2.5 rounded-full text-sm font-bold"
-              style={{ backgroundColor: form.accentColor + '18', color: form.accentColor }}>
-              {fmt(15000, form.storeCurrency)}
-            </span>
+          <Section
+            icon={<Upload size={18} />}
+            title="Favicon"
+            desc="Petite icône affichée dans l'onglet du navigateur (32x32 ou 64x64 recommandé)"
+          >
+            <LogoUploader value={form.storeFavicon} onChange={(v) => set('storeFavicon', v)} />
+          </Section>
+          <Section
+            icon={<Type size={18} />}
+            title="Police"
+            desc="Appliquée à l'ensemble de votre boutique"
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {FONTS.map(f => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => set('font', f.id)}
+                  className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                    form.font === f.id
+                      ? 'border-[#0F6B4F] bg-[#E6F2ED] shadow-sm'
+                      : 'border-gray-100 hover:border-gray-200 bg-white'
+                  }`}
+                >
+                  <p className="text-xl font-bold text-gray-900 leading-tight" style={{ fontFamily: FONT_FAMILIES[f.id] }}>
+                    {f.name}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5" style={{ fontFamily: FONT_FAMILIES[f.id] }}>
+                    {f.sample}
+                  </p>
+                  {form.font === f.id && (
+                    <span className="inline-flex items-center gap-1 mt-2 text-[10px] font-bold text-[#0A5740] bg-[#C0DDD2] px-2 py-0.5 rounded-full">
+                      <Check size={10} /> Actif
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </Section>
+        </>
+      )}
+
+      {/* ── Tab: Avancé ───────────────────────────────────────────────── */}
+      {activeTab === 'avance' && (
+        <>
+          <div className="bg-gradient-to-r from-[#0F6B4F] to-[#0A5740] rounded-2xl p-6 text-white shadow-lg">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <h3 className="text-lg font-bold flex items-center gap-2 mb-1">
+                  <Sparkles size={20} /> Modifier votre boutique
+                </h3>
+                <p className="text-sm text-white/80">Utilisez notre assistant pour configurer votre boutique en détail : cible, ton, audience, localisation, etc.</p>
+              </div>
+              <button
+                onClick={() => navigate('/ecom/boutique/wizard')}
+                className="px-6 py-2.5 rounded-xl bg-white text-[#0F6B4F] font-bold text-sm hover:bg-gray-100 transition whitespace-nowrap flex-shrink-0"
+              >
+                Ouvrir l'assistant
+              </button>
+            </div>
           </div>
-        </div>
-      </Section>
 
-      {/* ── 4. Police ───────────────────────────────────────────────────── */}
-      <Section
-        icon={<Type size={18} />}
-        title="Police"
-        desc="Appliquée à l'ensemble de votre boutique"
-      >
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {FONTS.map(f => (
+          <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-2xl border border-purple-100 p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <span className="w-9 h-9 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600 flex-shrink-0">
+                <Sparkles size={17} />
+              </span>
+              <div>
+                <h2 className="text-sm font-bold text-gray-900">Régénérer la homepage par IA</h2>
+                <p className="text-xs text-gray-500 mt-0.5">L'IA recrée toute votre page d'accueil en fonction de votre niche, audience et produits.</p>
+              </div>
+            </div>
             <button
-              key={f.id}
-              type="button"
-              onClick={() => set('font', f.id)}
-              className={`p-4 rounded-2xl border-2 text-left transition-all ${
-                form.font === f.id
-                  ? 'border-[#0F6B4F] bg-[#E6F2ED] shadow-sm'
-                  : 'border-gray-100 hover:border-gray-200 bg-white'
-              }`}
+              onClick={handleRegenerate}
+              disabled={regenerating}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 transition disabled:opacity-60 shadow-md shadow-purple-200"
             >
-              <p className="text-xl font-bold text-gray-900 leading-tight" style={{ fontFamily: FONT_FAMILIES[f.id] }}>
-                {f.name}
-              </p>
-              <p className="text-xs text-gray-400 mt-0.5" style={{ fontFamily: FONT_FAMILIES[f.id] }}>
-                {f.sample}
-              </p>
-              {form.font === f.id && (
-                <span className="inline-flex items-center gap-1 mt-2 text-[10px] font-bold text-[#0A5740] bg-[#C0DDD2] px-2 py-0.5 rounded-full">
-                  <Check size={10} /> Actif
-                </span>
-              )}
+              {regenerating ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+              {regenerating ? regenMsg || 'Génération…' : 'Régénérer la page d\'accueil'}
             </button>
-          ))}
-        </div>
-      </Section>
-
-      {/* ── IA Homepage regeneration ─────────────────────────────────── */}
-      <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-2xl border border-purple-100 p-6">
-        <div className="flex items-start gap-3 mb-4">
-          <span className="w-9 h-9 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600 flex-shrink-0">
-            <Sparkles size={17} />
-          </span>
-          <div>
-            <h2 className="text-sm font-bold text-gray-900">Régénérer la homepage par IA</h2>
-            <p className="text-xs text-gray-500 mt-0.5">L'IA recrée toute votre page d'accueil en fonction de votre niche, audience et produits.</p>
+            {regenMsg && !regenerating && (
+              <p className="text-xs mt-3 font-medium text-purple-700">{regenMsg}</p>
+            )}
           </div>
-        </div>
-        <button
-          onClick={handleRegenerate}
-          disabled={regenerating}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 transition disabled:opacity-60 shadow-md shadow-purple-200"
-        >
-          {regenerating ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
-          {regenerating ? regenMsg || 'Génération…' : 'Régénérer la page d\'accueil'}
-        </button>
-        {regenMsg && !regenerating && (
-          <p className="text-xs mt-3 font-medium text-purple-700">{regenMsg}</p>
-        )}
-      </div>
+        </>
+      )}
 
       {/* ── Bottom save ─────────────────────────────────────────────────── */}
       <div className="flex justify-end pb-8">

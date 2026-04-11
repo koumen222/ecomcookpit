@@ -176,18 +176,70 @@ storeAnalyticsSchema.statics.getStoreDashboardStats = async function(workspaceId
     { $limit: 10 }
   ]);
   
-  // Appareils
+  // Appareils (visites de pages seulement — évite compter add_to_cart, etc.)
+  const visitMatch = { ...matchQuery, eventType: { $in: ['page_view', 'product_view'] } };
   const deviceStats = await this.aggregate([
-    { $match: matchQuery },
-    { 
-      $group: { 
-        _id: '$visitor.device', 
-        count: { $sum: 1 } 
-      } 
-    }
+    { $match: visitMatch },
+    { $group: { _id: '$visitor.device', count: { $sum: 1 } } },
+    { $sort: { count: -1 } }
   ]);
-  
-  // Timeline (par jour)
+
+  // Pays
+  const countryStats = await this.aggregate([
+    { $match: visitMatch },
+    { $group: { _id: { $ifNull: ['$visitor.country', ''] }, count: { $sum: 1 } } },
+    { $sort: { count: -1 } },
+    { $limit: 12 }
+  ]);
+
+  // Villes
+  const cityStats = await this.aggregate([
+    { $match: visitMatch },
+    { $group: { _id: { $ifNull: ['$visitor.city', ''] }, count: { $sum: 1 } } },
+    { $sort: { count: -1 } },
+    { $limit: 12 }
+  ]);
+
+  // Navigateurs
+  const browserStats = await this.aggregate([
+    { $match: visitMatch },
+    { $group: { _id: { $ifNull: ['$visitor.browser', ''] }, count: { $sum: 1 } } },
+    { $sort: { count: -1 } },
+    { $limit: 10 }
+  ]);
+
+  // Langues
+  const languageStats = await this.aggregate([
+    { $match: visitMatch },
+    { $group: { _id: { $ifNull: ['$visitor.language', ''] }, count: { $sum: 1 } } },
+    { $sort: { count: -1 } },
+    { $limit: 8 }
+  ]);
+
+  // Top pages visitées (path)
+  const topPages = await this.aggregate([
+    { $match: { ...matchQuery, eventType: 'page_view' } },
+    { $group: { _id: '$page.path', count: { $sum: 1 } } },
+    { $sort: { count: -1 } },
+    { $limit: 10 }
+  ]);
+
+  // Visites quotidiennes (pour chart d'aire)
+  const dailyVisits = await this.aggregate([
+    { $match: visitMatch },
+    {
+      $group: {
+        _id: { $dateToString: { format: '%Y-%m-%d', date: '$timestamp' } },
+        count: { $sum: 1 },
+        uniqueVisitors: { $addToSet: { $cond: [{ $ne: ['$visitorId', ''] }, '$visitorId', '$sessionId'] } },
+      }
+    },
+    { $addFields: { uniqueCount: { $size: '$uniqueVisitors' } } },
+    { $project: { _id: 1, count: 1, uniqueCount: 1 } },
+    { $sort: { _id: 1 } }
+  ]);
+
+  // Timeline générique (legacy — pour compat)
   const timeline = await this.aggregate([
     { $match: matchQuery },
     {
@@ -201,7 +253,7 @@ storeAnalyticsSchema.statics.getStoreDashboardStats = async function(workspaceId
     },
     { $sort: { '_id.date': 1 } }
   ]);
-  
+
   return {
     overview: {
       uniqueVisitors: uniqueVisitors.length,
@@ -218,6 +270,12 @@ storeAnalyticsSchema.statics.getStoreDashboardStats = async function(workspaceId
     visitsPerProduct,
     trafficSources,
     deviceStats,
+    countryStats,
+    cityStats,
+    browserStats,
+    languageStats,
+    topPages,
+    dailyVisits,
     timeline,
   };
 };

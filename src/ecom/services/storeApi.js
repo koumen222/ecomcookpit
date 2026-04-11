@@ -72,6 +72,9 @@ export const storeOrdersApi = {
   getOrders: (params = {}) => ecomApi.get('/store-orders', { params }),
   getOrder: (id) => ecomApi.get(`/store-orders/${id}`),
   updateOrderStatus: (id, status) => ecomApi.put(`/store-orders/${id}/status`, { status }),
+  deleteOrder: (id) => ecomApi.delete(`/store-orders/${id}`),
+  bulkDelete: (ids) => ecomApi.post('/store-orders/bulk-delete', { ids }),
+  bulkStatus: (ids, status) => ecomApi.put('/store-orders/bulk-status', { ids, status }),
   getStats: () => ecomApi.get('/store-orders/stats'),
 };
 
