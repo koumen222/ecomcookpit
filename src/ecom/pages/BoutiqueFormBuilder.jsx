@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Save, Loader2, Check, GripVertical, Eye, EyeOff, Plus, ChevronUp, ChevronDown, Settings2, ShoppingCart, Layers, Phone, User, MapPin, Trash2, Mail, FileText, Hash, Calendar } from 'lucide-react';
+import { Save, Loader2, Check, GripVertical, Eye, EyeOff, Plus, ChevronUp, ChevronDown, Settings2, ShoppingCart, Layers, Phone, User, MapPin, Trash2, Mail, FileText, Hash, Calendar, Type, Image, Minus, Shield, CheckCircle, Clock, PhoneCall, MessageSquare, ListOrdered, CheckSquare, Link2, Globe, Star, ChevronLeft, ChevronRight } from 'lucide-react';
 import { storeManageApi, storeProductsApi } from '../services/storeApi';
 import { useStore } from '../contexts/StoreContext.jsx';
 import defaultConfig from '../components/productSettings/defaultConfig.js';
@@ -71,11 +71,14 @@ const inputCls = 'w-full px-3 py-2 rounded-lg border border-gray-200 text-[13px]
 
 // ── Section card pour les champs du formulaire ────────────────────────────────
 const FIELD_TYPE_ICONS = {
-  title: '✏️', product_info: '🛒', summary: '📦', shipping: '🚚',
-  call_schedule: '📞', urgency: '⏳', cta_button: '🔘',
-  text: '✏️', phone: '📱', city_select: '🏙️',
-  email: '📧', textarea: '📝', number: '🔢', date: '📅',
-  whatsapp: '💬', timer: '⏱️', select: '📋', checkbox: '☑️',
+  title: Type, product_info: ShoppingCart, summary: ShoppingCart, shipping: Globe,
+  call_schedule: PhoneCall, urgency: Clock, cta_button: CheckCircle,
+  text: Type, phone: Phone, city_select: MapPin,
+  email: Mail, textarea: MessageSquare, number: Hash, date: Calendar,
+  whatsapp: MessageSquare, timer: Clock, select: ListOrdered, checkbox: CheckSquare,
+  radio: CheckCircle, address: MapPin, consent: Shield, html: FileText,
+  image: Image, divider: Minus, trust_badge: Shield, guarantee: CheckCircle,
+  testimonials: Star, country: Globe,
 };
 
 const ICON_OPTIONS = [
@@ -98,9 +101,9 @@ const FIELD_ICON_MAP = {
 
 const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, shopColor, onDragStart, onDragOver, onDrop, onDragEnd, isDragOver, isDragging }) => {
   const [expanded, setExpanded] = useState(false);
-  const isSpecial = field.editable === false;
+  const isSpecial = false; // All fields are now editable
   const FieldIcon = field.icon ? FIELD_ICON_MAP[field.icon] : null;
-  const fallbackEmoji = FIELD_TYPE_ICONS[field.type] || '✏️';
+  const FallbackIcon = FIELD_TYPE_ICONS[field.type] || Type;
   const iconColor = field.iconColor || shopColor || '#0F6B4F';
 
   return (
@@ -122,7 +125,7 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
             <FieldIcon size={15} style={{ color: iconColor }} />
           </div>
         ) : (
-          <span className="text-base flex-shrink-0">{fallbackEmoji}</span>
+          <FallbackIcon size={16} className="text-gray-500 flex-shrink-0" />
         )}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-900 truncate">{field.label}</p>
@@ -146,23 +149,296 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
       </div>
 
       {/* Expanded editor */}
-      {expanded && !isSpecial && (
+      {expanded && (
         <div className="px-3 pb-3 border-t border-gray-100 pt-3 space-y-3">
-          {/* Label + placeholder */}
+          {/* Label + placeholder (for input types) */}
+          {!['divider', 'image'].includes(field.type) && (
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-[10px] font-semibold text-gray-400 mb-1">Libellé</label>
               <input className={inputCls} value={field.label || ''}
                 onChange={e => onChange(index, 'label', e.target.value)} placeholder="Nom du champ" />
             </div>
+            {!['title', 'html', 'summary', 'urgency', 'call_schedule', 'trust_badge', 'guarantee', 'consent', 'divider'].includes(field.type) && (
             <div>
               <label className="block text-[10px] font-semibold text-gray-400 mb-1">Placeholder</label>
               <input className={inputCls} value={field.placeholder || ''}
                 onChange={e => onChange(index, 'placeholder', e.target.value)} placeholder="Texte indicatif" />
             </div>
+            )}
           </div>
+          )}
+
+          {/* ── Type-specific editors ── */}
+
+          {/* HTML content */}
+          {field.type === 'html' && (
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 mb-1">Code HTML</label>
+              <textarea className={inputCls + ' font-mono text-[11px]'} rows={5}
+                value={field.htmlContent || ''}
+                onChange={e => onChange(index, 'htmlContent', e.target.value)}
+                placeholder="<p>Votre contenu HTML ici</p>" />
+            </div>
+          )}
+
+          {/* Image URL + Upload */}
+          {field.type === 'image' && (
+            <div className="space-y-2">
+              <label className="block text-[10px] font-semibold text-gray-400 mb-1">Image</label>
+              <div className="flex gap-2">
+                <input className={inputCls + ' flex-1'} value={field.imageUrl || ''}
+                  onChange={e => onChange(index, 'imageUrl', e.target.value)}
+                  placeholder="https://exemple.com/image.jpg" />
+                <label className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-[11px] font-semibold rounded-lg border border-emerald-200 cursor-pointer hover:bg-emerald-100 transition shrink-0">
+                  {field._uploading ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+                  Upload
+                  <input type="file" accept="image/*" className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      onChange(index, '_uploading', true);
+                      try {
+                        const res = await storeProductsApi.uploadImages([file]);
+                        const urls = res.data?.urls || res.data?.images || [];
+                        if (urls.length > 0) {
+                          onChange(index, 'imageUrl', urls[0]);
+                        }
+                      } catch (err) {
+                        console.error('Upload failed:', err);
+                      }
+                      onChange(index, '_uploading', false);
+                      e.target.value = '';
+                    }} />
+                </label>
+              </div>
+              {field.imageUrl && (
+                <img src={field.imageUrl} alt="Aperçu" className="rounded-lg max-h-32 object-contain border border-gray-200" />
+              )}
+            </div>
+          )}
+
+          {/* Options for select, radio, checkbox */}
+          {['select', 'radio', 'checkbox'].includes(field.type) && (
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 mb-1">Options (une par ligne)</label>
+              <textarea className={inputCls + ' text-[11px]'} rows={4}
+                value={(field.options || []).join('\n')}
+                onChange={e => onChange(index, 'options', e.target.value.split('\n'))}
+                placeholder="Option 1&#10;Option 2&#10;Option 3" />
+            </div>
+          )}
+
+          {/* Consent text */}
+          {field.type === 'consent' && (
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 mb-1">Texte du consentement</label>
+              <input className={inputCls} value={field.label || ''}
+                onChange={e => onChange(index, 'label', e.target.value)}
+                placeholder="J'accepte les conditions générales" />
+            </div>
+          )}
+
+          {/* Trust badge / Guarantee text */}
+          {['trust_badge', 'guarantee'].includes(field.type) && (
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 mb-1">Texte affiché</label>
+              <input className={inputCls} value={field.label || ''}
+                onChange={e => onChange(index, 'label', e.target.value)}
+                placeholder={field.type === 'trust_badge' ? 'Paiement sécurisé' : 'Satisfait ou remboursé'} />
+            </div>
+          )}
+
+          {/* Urgency countdown settings */}
+          {field.type === 'urgency' && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 mb-1">Texte d'urgence</label>
+                <input className={inputCls} value={field.urgencyText || ''}
+                  onChange={e => onChange(index, 'urgencyText', e.target.value)}
+                  placeholder="Stock presque épuisé !" />
+              </div>
+
+              {/* Style */}
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 mb-1">Style</label>
+                <div className="flex gap-1.5">
+                  {[{ v: 'banner', l: 'Bannière' }, { v: 'bar', l: 'Barre' }, { v: 'floating', l: 'Flottant' }].map(s => (
+                    <button key={s.v} type="button"
+                      onClick={() => onChange(index, 'urgencyStyle', s.v)}
+                      className={`flex-1 py-1.5 text-[10px] font-semibold rounded-lg border transition ${(field.urgencyStyle || 'banner') === s.v ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}>
+                      {s.l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Colors */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-400 mb-1">Couleur de fond</label>
+                  <div className="flex items-center gap-1.5">
+                    <input type="color" className="w-7 h-7 rounded border border-gray-200 cursor-pointer"
+                      value={field.urgencyBgColor || '#ef4444'}
+                      onChange={e => onChange(index, 'urgencyBgColor', e.target.value)} />
+                    <input className={inputCls + ' text-[10px] flex-1'} value={field.urgencyBgColor || '#ef4444'}
+                      onChange={e => onChange(index, 'urgencyBgColor', e.target.value)} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-400 mb-1">Couleur du texte</label>
+                  <div className="flex items-center gap-1.5">
+                    <input type="color" className="w-7 h-7 rounded border border-gray-200 cursor-pointer"
+                      value={field.urgencyTextColor || '#ffffff'}
+                      onChange={e => onChange(index, 'urgencyTextColor', e.target.value)} />
+                    <input className={inputCls + ' text-[10px] flex-1'} value={field.urgencyTextColor || '#ffffff'}
+                      onChange={e => onChange(index, 'urgencyTextColor', e.target.value)} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Border radius */}
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 mb-1">Arrondi (px)</label>
+                <input type="range" min="0" max="24" className="w-full accent-emerald-600"
+                  value={parseInt(field.urgencyRadius || 12)}
+                  onChange={e => onChange(index, 'urgencyRadius', e.target.value + 'px')} />
+                <span className="text-[10px] text-gray-400">{field.urgencyRadius || '12px'}</span>
+              </div>
+
+              {/* Icon */}
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 mb-1">Icône</label>
+                <div className="flex gap-1.5">
+                  {[{ v: 'fire', l: '🔥' }, { v: 'warning', l: '⚠️' }, { v: 'clock', l: '⏰' }, { v: 'bolt', l: '⚡' }, { v: 'none', l: '❌' }].map(ic => (
+                    <button key={ic.v} type="button"
+                      onClick={() => onChange(index, 'urgencyIcon', ic.v)}
+                      className={`w-9 h-9 flex items-center justify-center rounded-lg border text-sm transition ${(field.urgencyIcon || 'fire') === ic.v ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      {ic.l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Animation */}
+              <div>
+                <label className="block text-[10px] font-semibold text-gray-400 mb-1">Animation</label>
+                <select className={inputCls + ' text-[11px]'}
+                  value={field.urgencyAnimation || 'pulse'}
+                  onChange={e => onChange(index, 'urgencyAnimation', e.target.value)}>
+                  <option value="none">Aucune</option>
+                  <option value="pulse">Pulsation</option>
+                  <option value="shake">Secousse</option>
+                  <option value="glow">Brillance</option>
+                </select>
+              </div>
+
+              {/* Countdown */}
+              <div className="grid grid-cols-2 gap-2">
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input type="checkbox" className="rounded accent-emerald-600 w-3.5 h-3.5"
+                    checked={field.showCountdown !== false}
+                    onChange={e => onChange(index, 'showCountdown', e.target.checked)} />
+                  <span className="text-[11px] text-gray-600 font-medium">Compte à rebours</span>
+                </label>
+                <div>
+                  <input type="number" min="1" max="120" className={inputCls + ' text-center text-[11px]'}
+                    value={field.countdownMinutes || 15}
+                    onChange={e => onChange(index, 'countdownMinutes', parseInt(e.target.value))} />
+                  <span className="text-[10px] text-gray-400 ml-1">minutes</span>
+                </div>
+              </div>
+
+              {/* Countdown label text */}
+              {field.showCountdown !== false && (
+                <div>
+                  <label className="block text-[10px] font-semibold text-gray-400 mb-1">Texte du compteur</label>
+                  <input className={inputCls} value={field.countdownText || ''}
+                    onChange={e => onChange(index, 'countdownText', e.target.value)}
+                    placeholder="Offre expire dans :" />
+                </div>
+              )}
+
+              {/* Progress bar */}
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input type="checkbox" className="rounded accent-emerald-600 w-3.5 h-3.5"
+                  checked={field.showProgressBar === true}
+                  onChange={e => onChange(index, 'showProgressBar', e.target.checked)} />
+                <span className="text-[11px] text-gray-600 font-medium">Barre de progression</span>
+              </label>
+            </div>
+          )}
+
+          {/* Testimonials editor */}
+          {field.type === 'testimonials' && (
+            <div className="space-y-3">
+              <label className="block text-[10px] font-semibold text-gray-400 mb-1">Témoignages</label>
+              {(field.testimonials || []).map((t, ti) => (
+                <div key={ti} className="border border-gray-200 rounded-lg p-2.5 space-y-2 bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-gray-500">#{ti + 1}</span>
+                    <button type="button" onClick={() => {
+                      const arr = [...(field.testimonials || [])];
+                      arr.splice(ti, 1);
+                      onChange(index, 'testimonials', arr);
+                    }} className="text-red-400 hover:text-red-600"><Trash2 size={12} /></button>
+                  </div>
+                  <input className={inputCls + ' text-[11px]'} placeholder="Nom" value={t.name || ''}
+                    onChange={e => {
+                      const arr = [...(field.testimonials || [])];
+                      arr[ti] = { ...arr[ti], name: e.target.value };
+                      onChange(index, 'testimonials', arr);
+                    }} />
+                  <textarea className={inputCls + ' text-[11px]'} rows={2} placeholder="Témoignage..." value={t.text || ''}
+                    onChange={e => {
+                      const arr = [...(field.testimonials || [])];
+                      arr[ti] = { ...arr[ti], text: e.target.value };
+                      onChange(index, 'testimonials', arr);
+                    }} />
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-gray-400 mr-1">Note :</span>
+                    {[1,2,3,4,5].map(s => (
+                      <button key={s} type="button" onClick={() => {
+                        const arr = [...(field.testimonials || [])];
+                        arr[ti] = { ...arr[ti], rating: s };
+                        onChange(index, 'testimonials', arr);
+                      }}>
+                        <Star size={14} className={s <= (t.rating || 5) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <button type="button" onClick={() => {
+                const arr = [...(field.testimonials || []), { name: '', text: '', rating: 5 }];
+                onChange(index, 'testimonials', arr);
+              }} className="w-full py-1.5 border border-dashed border-gray-300 rounded-lg text-[11px] text-gray-400 hover:border-emerald-400 hover:text-emerald-600 transition flex items-center justify-center gap-1">
+                <Plus size={12} /> Ajouter un témoignage
+              </button>
+
+              {/* Auto-scroll */}
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <input type="checkbox" className="rounded accent-emerald-600 w-3.5 h-3.5"
+                  checked={field.autoScroll !== false}
+                  onChange={e => onChange(index, 'autoScroll', e.target.checked)} />
+                <span className="text-[11px] text-gray-600 font-medium">Défilement automatique</span>
+              </label>
+            </div>
+          )}
+
+          {/* Call schedule options */}
+          {field.type === 'call_schedule' && (
+            <div>
+              <label className="block text-[10px] font-semibold text-gray-400 mb-1">Options horaires (une par ligne)</label>
+              <textarea className={inputCls + ' text-[11px]'} rows={4}
+                value={(field.scheduleOptions || ['Matin (8h-12h)', 'Après-midi (12h-17h)', 'Soir (17h-20h)']).join('\n')}
+                onChange={e => onChange(index, 'scheduleOptions', e.target.value.split('\n'))}
+                placeholder="Matin (8h-12h)&#10;Après-midi (12h-17h)&#10;Soir (17h-20h)" />
+            </div>
+          )}
 
           {/* Toggle row: show label, show icon, required */}
+          {!['divider', 'html', 'image', 'trust_badge', 'guarantee'].includes(field.type) && (
           <div className="flex items-center gap-4 flex-wrap">
             <label className="flex items-center gap-1.5 cursor-pointer select-none">
               <input type="checkbox" className="rounded accent-emerald-600 w-3.5 h-3.5"
@@ -183,6 +459,7 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
               <span className="text-[11px] text-gray-600 font-medium">Obligatoire</span>
             </label>
           </div>
+          )}
 
           {/* City auto mode toggle */}
           {field.type === 'city_select' && (
@@ -204,7 +481,7 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
           )}
 
           {/* Icon picker + icon color */}
-          {field.showIcon !== false && (
+          {field.showIcon !== false && !['divider', 'html', 'image', 'consent', 'trust_badge', 'guarantee', 'title', 'summary'].includes(field.type) && (
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[10px] font-semibold text-gray-400 mb-1">Icône</label>
@@ -247,18 +524,38 @@ const FieldCard = ({ field, index, total, onMove, onToggle, onChange, onRemove, 
 
 // Custom field types available to add
 const CUSTOM_FIELD_TYPES = [
-  { type: 'text', label: 'Champ texte', icon: '✏️', defaults: { name: 'custom_text', label: 'Champ texte', placeholder: 'Saisir...', icon: 'user', showLabel: true, showIcon: true, required: false } },
-  { type: 'phone', label: 'Téléphone', icon: '📱', defaults: { name: 'custom_phone', label: 'Téléphone', placeholder: 'Numéro', icon: 'phone', showLabel: true, showIcon: true, required: true } },
-  { type: 'email', label: 'Email', icon: '📧', defaults: { name: 'custom_email', label: 'Email', placeholder: 'email@exemple.com', icon: 'mail', showLabel: true, showIcon: true, required: false } },
-  { type: 'textarea', label: 'Zone de texte', icon: '📝', defaults: { name: 'custom_textarea', label: 'Message', placeholder: 'Écrire ici...', icon: 'file', showLabel: true, showIcon: false, required: false } },
-  { type: 'number', label: 'Nombre', icon: '🔢', defaults: { name: 'custom_number', label: 'Quantité', placeholder: '1', icon: 'hash', showLabel: true, showIcon: true, required: false } },
-  { type: 'date', label: 'Date', icon: '📅', defaults: { name: 'custom_date', label: 'Date', placeholder: 'JJ/MM/AAAA', icon: 'calendar', showLabel: true, showIcon: true, required: false } },
-  { type: 'select', label: 'Liste déroulante', icon: '📋', defaults: { name: 'custom_select', label: 'Choisir', placeholder: 'Sélectionner...', icon: 'none', showLabel: true, showIcon: false, required: false, options: ['Option 1', 'Option 2'] } },
-  { type: 'city_select', label: 'Ville', icon: '🏙️', defaults: { name: 'custom_city', label: 'Ville', placeholder: 'Ex : Douala', icon: 'map', showLabel: true, showIcon: true, required: false, cityAuto: false } },
-  { type: 'title', label: 'Titre / Slogan', icon: '✏️', defaults: { name: 'custom_title', label: 'Veuillez remplir le formulaire', type: 'title', editable: false, enabled: true } },
-  { type: 'summary', label: 'Récapitulatif', icon: '📦', defaults: { name: 'custom_summary', label: 'Récapitulatif de la commande', type: 'summary', editable: false, enabled: true } },
-  { type: 'urgency', label: 'Compte à rebours', icon: '⏱️', defaults: { name: 'custom_timer', label: 'Compte à rebours', editable: false, enabled: true } },
-  { type: 'call_schedule', label: 'Horaire d\'appel', icon: '📞', defaults: { name: 'custom_call', label: 'Quand vous appeler ?', editable: false, enabled: true } },
+  // ── Entrées ──
+  { category: 'Entrées', type: 'text', label: 'Champ texte', Icon: Type, defaults: { name: 'custom_text', label: 'Champ texte', placeholder: 'Saisir...', icon: 'user', showLabel: true, showIcon: true, required: false } },
+  { category: 'Entrées', type: 'phone', label: 'Téléphone', Icon: Phone, defaults: { name: 'custom_phone', label: 'Téléphone', placeholder: 'Numéro', icon: 'phone', showLabel: true, showIcon: true, required: true } },
+  { category: 'Entrées', type: 'email', label: 'Email', Icon: Mail, defaults: { name: 'custom_email', label: 'Email', placeholder: 'email@exemple.com', icon: 'mail', showLabel: true, showIcon: true, required: false } },
+  { category: 'Entrées', type: 'textarea', label: 'Saisie multi-lignes', Icon: MessageSquare, defaults: { name: 'custom_textarea', label: 'Message', placeholder: 'Écrire ici...', icon: 'file', showLabel: true, showIcon: false, required: false } },
+  { category: 'Entrées', type: 'number', label: 'Nombre', Icon: Hash, defaults: { name: 'custom_number', label: 'Quantité', placeholder: '1', icon: 'hash', showLabel: true, showIcon: true, required: false } },
+  { category: 'Entrées', type: 'date', label: 'Saisie des dates', Icon: Calendar, defaults: { name: 'custom_date', label: 'Date', placeholder: 'JJ/MM/AAAA', icon: 'calendar', showLabel: true, showIcon: true, required: false } },
+  { category: 'Entrées', type: 'select', label: 'Liste de sélection', Icon: ListOrdered, defaults: { name: 'custom_select', label: 'Choisir', placeholder: 'Sélectionner...', icon: 'none', showLabel: true, showIcon: false, required: false, options: ['Option 1', 'Option 2'] } },
+  { category: 'Entrées', type: 'radio', label: 'Choix unique', Icon: CheckCircle, defaults: { name: 'custom_radio', label: 'Choisir une option', showLabel: true, showIcon: false, required: false, options: ['Option 1', 'Option 2'] } },
+  { category: 'Entrées', type: 'checkbox', label: 'Choix multiples', Icon: CheckSquare, defaults: { name: 'custom_checkbox', label: 'Sélectionner', showLabel: true, showIcon: false, required: false, options: ['Option 1', 'Option 2'] } },
+  { category: 'Entrées', type: 'city_select', label: 'Ville', Icon: MapPin, defaults: { name: 'custom_city', label: 'Ville', placeholder: 'Ex : Douala', icon: 'map', showLabel: true, showIcon: true, required: false, cityAuto: false } },
+  { category: 'Entrées', type: 'address', label: 'Adresse complète', Icon: MapPin, defaults: { name: 'custom_address', label: 'Adresse', placeholder: 'Rue, quartier...', icon: 'pin', showLabel: true, showIcon: true, required: false } },
+  { category: 'Entrées', type: 'country', label: 'Pays', Icon: Globe, defaults: { name: 'custom_country', label: 'Pays', placeholder: 'Sélectionner un pays', icon: 'map', showLabel: true, showIcon: true, required: false } },
+  { category: 'Entrées', type: 'consent', label: 'Consentement / CGV', Icon: Shield, defaults: { name: 'custom_consent', label: 'J\'accepte les conditions générales', type: 'consent', showLabel: true, showIcon: false, required: true } },
+
+  // ── Contenu ──
+  { category: 'Contenu', type: 'title', label: 'Titre / Texte', Icon: Type, defaults: { name: 'custom_title', label: 'Veuillez remplir le formulaire', type: 'title', editable: false, enabled: true } },
+  { category: 'Contenu', type: 'html', label: 'Texte / HTML', Icon: FileText, defaults: { name: 'custom_html', label: 'Contenu HTML', type: 'html', htmlContent: '<p>Votre texte ici</p>', editable: false, enabled: true } },
+  { category: 'Contenu', type: 'image', label: 'Image', Icon: Image, defaults: { name: 'custom_image', label: 'Image', type: 'image', imageUrl: '', editable: false, enabled: true } },
+  { category: 'Contenu', type: 'divider', label: 'Séparateur', Icon: Minus, defaults: { name: 'custom_divider', label: 'Séparateur', type: 'divider', editable: false, enabled: true } },
+  { category: 'Contenu', type: 'summary', label: 'Récapitulatif', Icon: ShoppingCart, defaults: { name: 'custom_summary', label: 'Récapitulatif de la commande', type: 'summary', editable: false, enabled: true } },
+
+  // ── Conversion ──
+  { category: 'Conversion', type: 'urgency', label: 'Compte à rebours', Icon: Clock, defaults: { name: 'custom_timer', label: 'Compte à rebours', editable: false, enabled: true } },
+  { category: 'Conversion', type: 'call_schedule', label: 'Horaire d\'appel', Icon: PhoneCall, defaults: { name: 'custom_call', label: 'Quand vous appeler ?', editable: false, enabled: true } },
+  { category: 'Conversion', type: 'trust_badge', label: 'Badge de confiance', Icon: Shield, defaults: { name: 'custom_trust', label: 'Paiement sécurisé', type: 'trust_badge', editable: false, enabled: true } },
+  { category: 'Conversion', type: 'guarantee', label: 'Garantie', Icon: CheckCircle, defaults: { name: 'custom_guarantee', label: 'Satisfait ou remboursé', type: 'guarantee', editable: false, enabled: true } },
+  { category: 'Conversion', type: 'testimonials', label: 'Témoignages', Icon: Star, defaults: { name: 'custom_testimonials', label: 'Ce que disent nos clients', type: 'testimonials', editable: false, enabled: true, testimonials: [
+    { name: 'Marie K.', text: 'Produit excellent, livraison rapide !', rating: 5 },
+    { name: 'Jean P.', text: 'Très satisfait de ma commande.', rating: 5 },
+    { name: 'Aïcha D.', text: 'Je recommande à 100% !', rating: 4 }
+  ] } },
 ];
 
 // ── Preview du formulaire ─────────────────────────────────────────────────────
@@ -401,19 +698,39 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
             </div>
           </div>
         ) : null;
-      case 'urgency':
+      case 'urgency': {
+        const uf = fields[i] || {};
+        const bgColor = uf.urgencyBgColor || urgency.bgColor || btnColor;
+        const textColor = uf.urgencyTextColor || '#ffffff';
+        const radius = uf.urgencyRadius || '12px';
+        const style = uf.urgencyStyle || 'banner';
+        const icon = uf.urgencyIcon || 'fire';
+        const anim = uf.urgencyAnimation || 'pulse';
+        const iconMap = { fire: '🔥', warning: '⚠️', clock: '⏰', bolt: '⚡', none: '' };
+        const animCls = anim === 'pulse' ? 'animate-pulse' : anim === 'shake' ? 'animate-bounce' : '';
         return urgency.enabled !== false ? (
-          <div key={i} className="rounded-xl p-3 text-xs text-white" style={{ backgroundColor: btnColor }}>
-            <p className="leading-relaxed">
-              {urgency.text || 'Stock presque épuisé. La promotion se termine bientôt.'}
+          <div key={i} className={`p-3 text-xs text-white ${animCls} ${style === 'floating' ? 'shadow-lg' : ''}`}
+            style={{ backgroundColor: bgColor, color: textColor, borderRadius: radius }}>
+            <p className="leading-relaxed font-medium">
+              {iconMap[icon] ? <span className="mr-1">{iconMap[icon]}</span> : null}
+              {uf.urgencyText || urgency.text || 'Stock presque épuisé. La promotion se termine bientôt.'}
             </p>
-            {urgency.countdown && (
-              <span className="inline-block mt-1 font-mono font-bold text-sm bg-white/20 px-2 py-0.5 rounded">
-                {String(urgency.countdownMinutes || 15).padStart(2, '0')}:47
-              </span>
+            {(uf.showCountdown !== false && urgency.countdown !== false) && (
+              <div className="mt-1.5 flex items-center gap-2">
+                {uf.countdownText && <span className="text-xs opacity-90">{uf.countdownText}</span>}
+                <span className="inline-block font-mono font-bold text-sm bg-white/20 px-2.5 py-1 rounded">
+                  {String(uf.countdownMinutes || urgency.countdownMinutes || 15).padStart(2, '0')}:47
+                </span>
+              </div>
+            )}
+            {uf.showProgressBar && (
+              <div className="mt-2 w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
+                <div className="h-full bg-white/70 rounded-full" style={{ width: '65%' }} />
+              </div>
             )}
           </div>
         ) : null;
+      }
       case 'cta_button':
         return (
           <button key={i}
@@ -430,6 +747,108 @@ const FormPreview = ({ config, offersPreview = null, shopColor = '#0F6B4F' }) =>
             {showIcon && <ShoppingCart size={18} />}
             <span>{field.label || btn.text || 'Commander'}</span>
           </button>
+        );
+      case 'image':
+        return field.imageUrl ? (
+          <img key={i} src={field.imageUrl} alt={field.label || 'Image'} className="w-full rounded-xl object-contain max-h-48" />
+        ) : (
+          <div key={i} className="w-full h-32 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-400 text-sm">
+            <Image size={20} className="mr-2" /> Aucune image
+          </div>
+        );
+      case 'divider':
+        return <hr key={i} className="border-t border-gray-200 my-1" />;
+      case 'html':
+        return (
+          <div key={i} className="text-xs text-gray-600 prose prose-sm max-w-none"
+            dangerouslySetInnerHTML={{ __html: field.htmlContent || '<p>Contenu HTML</p>' }} />
+        );
+      case 'trust_badge':
+        return (
+          <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-green-50 border border-green-200">
+            <Shield size={16} className="text-green-600 flex-shrink-0" />
+            <span className="text-xs font-medium text-green-700">{field.label || 'Paiement sécurisé'}</span>
+          </div>
+        );
+      case 'guarantee':
+        return (
+          <div key={i} className="flex items-center gap-2 py-2 px-3 rounded-lg bg-blue-50 border border-blue-200">
+            <CheckCircle size={16} className="text-blue-600 flex-shrink-0" />
+            <span className="text-xs font-medium text-blue-700">{field.label || 'Satisfait ou remboursé'}</span>
+          </div>
+        );
+      case 'testimonials': {
+        const testimonials = field.testimonials || [
+          { name: 'Marie K.', text: 'Produit excellent !', rating: 5 },
+          { name: 'Jean P.', text: 'Très satisfait.', rating: 5 },
+        ];
+        return (
+          <div key={i} className="space-y-2">
+            {field.showLabel !== false && <p className="text-xs font-bold" style={{ color: formTextColor }}>{field.label}</p>}
+            <div className="relative overflow-hidden">
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                {testimonials.map((t, ti) => (
+                  <div key={ti} className="min-w-[200px] max-w-[220px] flex-shrink-0 bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-1.5">
+                    <div className="flex gap-0.5">
+                      {[1,2,3,4,5].map(s => (
+                        <Star key={s} size={11} className={s <= (t.rating || 5) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'} />
+                      ))}
+                    </div>
+                    <p className="text-[11px] text-gray-600 leading-relaxed">"{t.text}"</p>
+                    <p className="text-[10px] font-semibold text-gray-800">— {t.name}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      }
+      case 'country':
+        return (
+          <div key={i} className="border h-12 flex items-center gap-0 overflow-hidden"
+            style={{ borderColor, backgroundColor: fieldBg, borderRadius: fieldRadius, borderWidth: formBorderWidth }}>
+            {showIcon && (
+              <div className="flex items-center justify-center px-3 h-full flex-shrink-0"
+                style={{ backgroundColor: fieldIconBg }}>
+                <Globe size={18} style={{ color: fIconColor }} />
+              </div>
+            )}
+            <div className="flex-1 px-3 flex items-center justify-between">
+              <span className="text-sm" style={{ color: '#9ca3af' }}>{placeholderText}</span>
+              <ChevronDown size={14} className="text-gray-400" />
+            </div>
+          </div>
+        );
+      case 'consent':
+        return (
+          <label key={i} className="flex items-start gap-2.5 text-xs cursor-pointer py-1">
+            <div className="w-4 h-4 rounded border-2 border-gray-300 flex-shrink-0 mt-0.5" />
+            <span style={{ color: design.textColor || '#4b5563' }}>{field.label}</span>
+          </label>
+        );
+      case 'radio':
+        return (
+          <div key={i} className="space-y-2 pt-1">
+            {field.showLabel !== false && <p className="text-xs font-semibold" style={{ color: formTextColor }}>{field.label}</p>}
+            {(field.options || ['Option 1', 'Option 2']).map((opt, j) => (
+              <label key={j} className="flex items-center gap-2 text-xs cursor-pointer">
+                <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
+                <span style={{ color: design.textColor || '#4b5563' }}>{opt}</span>
+              </label>
+            ))}
+          </div>
+        );
+      case 'checkbox':
+        return (
+          <div key={i} className="space-y-2 pt-1">
+            {field.showLabel !== false && <p className="text-xs font-semibold" style={{ color: formTextColor }}>{field.label}</p>}
+            {(field.options || ['Option 1', 'Option 2']).map((opt, j) => (
+              <label key={j} className="flex items-center gap-2 text-xs cursor-pointer">
+                <div className="w-4 h-4 rounded border-2 border-gray-300 flex-shrink-0" />
+                <span style={{ color: design.textColor || '#4b5563' }}>{opt}</span>
+              </label>
+            ))}
+          </div>
         );
       default: {
         return (
@@ -552,7 +971,12 @@ const BoutiqueFormBuilder = () => {
   const [offersPreviewData, setOffersPreviewData] = useState(null);
   const [offersPreviewSelected, setOffersPreviewSelected] = useState(0);
   const [buttonSectionOpen, setButtonSectionOpen] = useState(true);
+  const [countrySectionOpen, setCountrySectionOpen] = useState(false);
+  const [fieldsSectionOpen, setFieldsSectionOpen] = useState(true);
+  const [formStyleSectionOpen, setFormStyleSectionOpen] = useState(false);
+  const [fieldStyleSectionOpen, setFieldStyleSectionOpen] = useState(false);
   const [addFieldMenuOpen, setAddFieldMenuOpen] = useState(false);
+  const [addFieldTab, setAddFieldTab] = useState('Entrées');
   const [shopColor, setShopColor] = useState('#0F6B4F');
   const { activeStore } = useStore();
   const storeSubdomain = activeStore?.subdomain || '';
@@ -669,7 +1093,7 @@ const BoutiqueFormBuilder = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-14 z-10">
+      <div className="bg-white border-b border-gray-200 fixed top-0 left-0 lg:left-[240px] right-0 z-30">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
@@ -688,6 +1112,10 @@ const BoutiqueFormBuilder = () => {
                   <Eye size={14} /> Voir la boutique
                 </a>
               )}
+              <button onClick={() => { if (window.confirm('Réinitialiser tous les réglages du formulaire ?')) setConfig(deepClone(defaultConfig)); }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-gray-500 border border-gray-200 bg-white hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition">
+                Réinitialiser
+              </button>
               <button onClick={handleSave} disabled={saving}
                 className={`flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
                   saved ? 'bg-green-500 shadow-green-200' : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200'
@@ -700,7 +1128,7 @@ const BoutiqueFormBuilder = () => {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-20 pb-6 sm:pb-8">
         {/* Type de formulaire */}
         <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-6">
           <h2 className="text-sm font-bold text-gray-800 mb-3">Type de formulaire</h2>
@@ -819,11 +1247,11 @@ const BoutiqueFormBuilder = () => {
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-500 mb-1">Couleur du bouton</label>
                   <div className="flex items-center gap-2">
-                    <input type="color" value={config.design?.formButtonColor || config.design?.buttonColor || shopColor || '#0F6B4F'}
-                      onChange={e => update(c => ({ ...c, design: { ...c.design, formButtonColor: e.target.value } }))}
+                    <input type="color" value={config.design?.ctaButtonColor || '#0F6B4F'}
+                      onChange={e => update(c => ({ ...c, design: { ...c.design, ctaButtonColor: e.target.value } }))}
                       className="w-7 h-7 border border-gray-200 rounded-lg cursor-pointer flex-shrink-0" />
-                    <input className={inputCls + ' font-mono text-[11px]'} value={config.design?.formButtonColor || config.design?.buttonColor || shopColor || '#0F6B4F'}
-                      onChange={e => update(c => ({ ...c, design: { ...c.design, formButtonColor: e.target.value } }))} />
+                    <input className={inputCls + ' font-mono text-[11px]'} value={config.design?.ctaButtonColor || '#0F6B4F'}
+                      onChange={e => update(c => ({ ...c, design: { ...c.design, ctaButtonColor: e.target.value } }))} />
                   </div>
                 </div>
                 <div>
@@ -871,8 +1299,8 @@ const BoutiqueFormBuilder = () => {
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-500 mb-1">Coins arrondis</label>
                   <input type="range" min="0" max="40" className="w-full"
-                    value={parseInt(config.design?.formInputRadius || config.design?.borderRadius) || 8}
-                    onChange={e => update(c => ({ ...c, design: { ...c.design, formInputRadius: `${e.target.value}px` } }))} />
+                    value={parseInt(config.design?.ctaBorderRadius) || 14}
+                    onChange={e => update(c => ({ ...c, design: { ...c.design, ctaBorderRadius: `${e.target.value}px` } }))} />
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-500 mb-1">Ombre</label>
@@ -887,7 +1315,13 @@ const BoutiqueFormBuilder = () => {
 
             {/* ─── Sélectionner les pays ─── */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
-              <h3 className="text-sm font-bold text-gray-800">Pays du formulaire (indicatif téléphone)</h3>
+              <div className="flex items-center justify-between cursor-pointer select-none" onClick={() => setCountrySectionOpen(v => !v)}>
+                <h3 className="text-sm font-bold text-gray-800">Pays du formulaire (indicatif téléphone)</h3>
+                <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-semibold">
+                  {countrySectionOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </span>
+              </div>
+              {countrySectionOpen && (<>
               <p className="text-xs text-gray-500">Le premier pays sélectionné détermine l'indicatif par défaut du formulaire.</p>
               {config.general?.countries?.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-2">
@@ -925,16 +1359,23 @@ const BoutiqueFormBuilder = () => {
                   );
                 })}
               </div>
+              </>)}
             </div>
 
             {/* ─── Formulaire (champs) ─── */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-3">
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between cursor-pointer select-none" onClick={() => setFieldsSectionOpen(v => !v)}>
                 <h3 className="text-sm font-bold text-gray-800">Formulaire</h3>
-                <span className="text-xs text-gray-400">
-                  {config.form.fields.filter(f => f.enabled).length}/{config.form.fields.length} actifs
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400">
+                    {config.form.fields.filter(f => f.enabled).length}/{config.form.fields.length} actifs
+                  </span>
+                  <span className="flex items-center text-[11px] text-emerald-600 font-semibold">
+                    {fieldsSectionOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </span>
+                </div>
               </div>
+              {fieldsSectionOpen && (<>
               <div className="space-y-2">
                 {config.form.fields.map((field, idx) => (
                   <FieldCard
@@ -964,23 +1405,40 @@ const BoutiqueFormBuilder = () => {
                   <Plus size={14} /> Ajouter un champ
                 </button>
                 {addFieldMenuOpen && (
-                  <div className="absolute left-0 right-0 mt-1 bg-white rounded-xl border border-gray-200 shadow-lg z-20 max-h-64 overflow-y-auto">
-                    {CUSTOM_FIELD_TYPES.map(ft => (
-                      <button key={ft.type + ft.defaults.name}
-                        onClick={() => { addField(ft); setAddFieldMenuOpen(false); }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-emerald-50 transition text-sm">
-                        <span className="text-base">{ft.icon}</span>
-                        <span className="font-medium text-gray-700">{ft.label}</span>
-                      </button>
-                    ))}
+                  <div className="absolute left-0 right-0 bottom-full mb-1 bg-white rounded-xl border border-gray-200 shadow-lg z-50 max-h-80 overflow-hidden flex flex-col">
+                    <div className="flex border-b border-gray-200 shrink-0">
+                      {['Entrées', 'Contenu', 'Conversion'].map(cat => (
+                        <button key={cat} onClick={() => setAddFieldTab(cat)}
+                          className={`flex-1 py-2.5 text-xs font-semibold transition ${addFieldTab === cat ? 'text-emerald-600 border-b-2 border-emerald-500 bg-emerald-50/50' : 'text-gray-400 hover:text-gray-600'}`}>
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="overflow-y-auto">
+                      {CUSTOM_FIELD_TYPES.filter(ft => ft.category === addFieldTab).map(ft => (
+                        <button key={ft.type + ft.defaults.name}
+                          onClick={() => { addField(ft); setAddFieldMenuOpen(false); }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-emerald-50 transition text-sm">
+                          <ft.Icon size={16} className="text-gray-500" />
+                          <span className="font-medium text-gray-700">{ft.label}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
+              </>)}
             </div>
 
             {/* ─── Style de formulaire ─── */}
             <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-              <h3 className="text-sm font-bold text-gray-800">Style de formulaire</h3>
+              <div className="flex items-center justify-between cursor-pointer select-none" onClick={() => setFormStyleSectionOpen(v => !v)}>
+                <h3 className="text-sm font-bold text-gray-800">Style de formulaire</h3>
+                <span className="flex items-center text-[11px] text-emerald-600 font-semibold">
+                  {formStyleSectionOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </span>
+              </div>
+              {formStyleSectionOpen && (<>
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-500 mb-1">Couleur du texte</label>
@@ -1067,11 +1525,20 @@ const BoutiqueFormBuilder = () => {
                     onChange={e => update(c => ({ ...c, design: { ...c.design, formShadow: `${e.target.value}` } }))} />
                 </div>
               </div>
-            </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1">Couleur du bouton</label>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={config.design?.formButtonColor || '#0F6B4F'}
+                    onChange={e => update(c => ({ ...c, design: { ...c.design, formButtonColor: e.target.value } }))}
+                    className="w-7 h-7 border border-gray-200 rounded-lg cursor-pointer flex-shrink-0" />
+                  <input className={inputCls + ' font-mono text-[11px]'} value={config.design?.formButtonColor || '#0F6B4F'}
+                    onChange={e => update(c => ({ ...c, design: { ...c.design, formButtonColor: e.target.value } }))} />
+                </div>
+              </div>
 
-            {/* ─── Style de champ ─── */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
-              <h3 className="text-sm font-bold text-gray-800">Style de champ</h3>
+              <hr className="border-gray-100 my-2" />
+              <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Champs</h4>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-500 mb-1">Couleur du texte</label>
@@ -1116,6 +1583,7 @@ const BoutiqueFormBuilder = () => {
                   </div>
                 </div>
               </div>
+              </>)}
             </div>
           </div>
 
@@ -1126,6 +1594,34 @@ const BoutiqueFormBuilder = () => {
               <span className="text-sm font-bold text-gray-600">Aperçu en direct:</span>
             </div>
             <div className="sticky top-[7.5rem]">
+              {/* Aperçu bouton CTA (popup uniquement) */}
+              {(config.general?.formType || 'popup') === 'popup' && (
+                <div className="mb-4">
+                  <button className="w-full flex flex-col items-center justify-center gap-1" style={{
+                    padding: '18px 24px',
+                    borderRadius: config.design?.ctaBorderRadius || '14px',
+                    border: config.design?.buttonBorderWidth && parseInt(config.design?.buttonBorderWidth) > 0
+                      ? `${config.design.buttonBorderWidth} solid ${config.design?.buttonBorderColor || 'transparent'}`
+                      : 'none',
+                    backgroundColor: config.design?.ctaButtonColor || '#0F6B4F',
+                    color: config.design?.buttonTextColor || '#fff',
+                    fontWeight: config.design?.buttonBold ? 700 : 700,
+                    fontSize: parseInt(config.design?.buttonFontSize) || 17,
+                    fontStyle: config.design?.buttonItalic ? 'italic' : 'normal',
+                    boxShadow: config.design?.buttonShadow && parseInt(config.design?.buttonShadow) > 0
+                      ? `0 ${config.design.buttonShadow}px ${parseInt(config.design.buttonShadow)*2}px rgba(0,0,0,0.12)`
+                      : '0 4px 16px rgba(0,0,0,0.12)',
+                    cursor: 'default',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                      <ShoppingCart size={18} /> {config.button?.text || 'Commander maintenant'}
+                    </div>
+                    <span style={{ fontSize: 12, opacity: 0.9, fontWeight: 500 }}>
+                      {config.button?.subtext || 'Paiement à la livraison'}
+                    </span>
+                  </button>
+                </div>
+              )}
               <FormPreview
                 config={config}
                 shopColor={shopColor}
