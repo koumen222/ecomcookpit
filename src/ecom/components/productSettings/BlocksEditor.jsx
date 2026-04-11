@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Eye, EyeOff, ChevronDown, ChevronUp, Plus, Trash2, Star } from 'lucide-react';
+import { GripVertical, Eye, EyeOff, ChevronDown, ChevronUp, Plus, Trash2, Star, Upload, Loader2 } from 'lucide-react';
+import { storeProductsApi } from '../../services/storeApi.js';
 
 const SECTION_META = {
   heroSlogan:       { icon: '✍️', desc: 'Sous-titre marketing généré par IA' },
@@ -74,8 +75,21 @@ const PRODUCT_GALLERY_DEFAULTS = {
   thumbnailSize: 72,
 };
 
+const MAIN_IMAGE_HEIGHT_OPTIONS = [240, 320, 420, 520, 640, 760, 900];
+const THUMBNAIL_SIZE_OPTIONS = [48, 56, 64, 72, 80, 96, 112, 128, 144, 160];
+
+const normalizeToPreset = (value, presets, fallback) => {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) return fallback;
+  if (presets.includes(parsed)) return parsed;
+  return presets.reduce((closest, current) => (
+    Math.abs(current - parsed) < Math.abs(closest - parsed) ? current : closest
+  ), presets[0]);
+};
+
 const SectionContentEditor = ({ section, onChange }) => {
   const schema = EDITABLE_SECTIONS[section.id];
+  const [galleryUploading, setGalleryUploading] = useState(false);
   if (!schema) return (
     <div className="text-[11px] text-gray-400 italic py-1">Contenu généré automatiquement par l'IA</div>
   );
@@ -214,6 +228,8 @@ const SectionContentEditor = ({ section, onChange }) => {
   if (schema.fields === 'productGallery') {
     const gallery = { ...PRODUCT_GALLERY_DEFAULTS, ...content };
     const images = gallery.images || [];
+    const mainImageHeight = normalizeToPreset(gallery.mainImageHeight, MAIN_IMAGE_HEIGHT_OPTIONS, PRODUCT_GALLERY_DEFAULTS.mainImageHeight);
+    const thumbnailSize = normalizeToPreset(gallery.thumbnailSize, THUMBNAIL_SIZE_OPTIONS, PRODUCT_GALLERY_DEFAULTS.thumbnailSize);
     const updateImage = (index, key, val) => {
       const nextImages = [...images];
       nextImages[index] = { ...nextImages[index], [key]: val };
@@ -221,6 +237,30 @@ const SectionContentEditor = ({ section, onChange }) => {
     };
     const addImage = () => update('images', [...images, { url: '', alt: '' }]);
     const removeImage = (index) => update('images', images.filter((_, idx) => idx !== index));
+    const uploadImages = async (files, replaceIndex = null) => {
+      if (!files?.length) return;
+      setGalleryUploading(true);
+      try {
+        const res = await storeProductsApi.uploadImages(Array.from(files));
+        const urls = res.data?.urls || res.data?.images || [];
+        if (!urls.length) return;
+
+        if (replaceIndex !== null && urls[0]) {
+          updateImage(replaceIndex, 'url', urls[0]);
+          return;
+        }
+
+        const nextImages = [
+          ...images,
+          ...urls.map((url) => ({ url, alt: '' })),
+        ];
+        update('images', nextImages);
+      } catch (error) {
+        console.error('Gallery image upload failed:', error);
+      } finally {
+        setGalleryUploading(false);
+      }
+    };
     const moveImage = (index, direction) => {
       const target = index + direction;
       if (target < 0 || target >= images.length) return;
@@ -247,26 +287,51 @@ const SectionContentEditor = ({ section, onChange }) => {
         <div className="grid grid-cols-2 gap-2">
           <div>
             <div className="text-[11px] font-semibold text-gray-500 mb-1">Hauteur image principale</div>
-            <input type="number" min="180" max="900" className={inputCls} value={gallery.mainImageHeight || 420} onChange={e => update('mainImageHeight', Math.max(180, parseInt(e.target.value, 10) || 420))} />
+            <select className={inputCls} value={mainImageHeight} onChange={e => update('mainImageHeight', Number.parseInt(e.target.value, 10))}>
+              {MAIN_IMAGE_HEIGHT_OPTIONS.map((size) => (
+                <option key={size} value={size}>{size}px</option>
+              ))}
+            </select>
           </div>
           <div>
             <div className="text-[11px] font-semibold text-gray-500 mb-1">Taille miniatures</div>
-            <input type="number" min="48" max="160" className={inputCls} value={gallery.thumbnailSize || 72} onChange={e => update('thumbnailSize', Math.max(48, parseInt(e.target.value, 10) || 72))} />
+            <select className={inputCls} value={thumbnailSize} onChange={e => update('thumbnailSize', Number.parseInt(e.target.value, 10))}>
+              {THUMBNAIL_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>{size}px</option>
+              ))}
+            </select>
           </div>
         </div>
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={gallery.useProductImages !== false} onChange={e => update('useProductImages', e.target.checked)} className="w-4 h-4 accent-emerald-500" />
-          <span className="text-[12px] text-gray-600">Utiliser automatiquement les photos du produit</span>
+          <span className="text-[12px] text-gray-600">Utiliser aussi les photos natives du produit</span>
         </label>
         <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50/60 p-3">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold text-gray-700">Photos personnalisées</span>
-            <button onClick={addImage} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700">
-              <Plus size={12} /> Ajouter
-            </button>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-[11px] font-semibold text-emerald-700 cursor-pointer hover:bg-emerald-100 transition">
+                {galleryUploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                Uploader
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  disabled={galleryUploading}
+                  onChange={async (e) => {
+                    await uploadImages(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              <button onClick={addImage} className="flex items-center gap-1 text-[11px] text-emerald-600 font-medium hover:text-emerald-700">
+                <Plus size={12} /> Ajouter
+              </button>
+            </div>
           </div>
           {images.length === 0 && (
-            <div className="text-[10px] text-gray-400">Ajoutez vos propres URLs d'images si vous voulez remplacer les photos produit.</div>
+            <div className="text-[10px] text-gray-400">Uploadez vos images ou collez une URL. Si l'option ci-dessus est activée, elles seront ajoutées au carrousel; sinon elles remplaceront les photos produit.</div>
           )}
           {images.map((image, index) => (
             <div key={index} className="rounded-lg border border-gray-200 bg-white p-2 space-y-2">
@@ -284,12 +349,29 @@ const SectionContentEditor = ({ section, onChange }) => {
                   </button>
                 </div>
               </div>
+              {image.url && (
+                <img src={image.url} alt={image.alt || `Photo ${index + 1}`} className="w-full h-28 rounded-lg border border-gray-200 object-cover bg-gray-50" />
+              )}
               <input className={inputCls} value={image.url || ''} onChange={e => updateImage(index, 'url', e.target.value)} placeholder="https://..." />
+              <label className="flex items-center justify-center gap-1 w-full px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-[11px] font-medium text-gray-600 cursor-pointer hover:bg-gray-100 transition">
+                {galleryUploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                Remplacer par upload
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={galleryUploading}
+                  onChange={async (e) => {
+                    await uploadImages(e.target.files, index);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
               <input className={inputCls} value={image.alt || ''} onChange={e => updateImage(index, 'alt', e.target.value)} placeholder="Texte alternatif (optionnel)" />
             </div>
           ))}
         </div>
-        <div className="text-[10px] text-gray-400">Si aucune photo personnalisée n'est renseignée, la galerie affiche les images du produit.</div>
+        <div className="text-[10px] text-gray-400">Les tailles sont limitées aux formats supportés pour garder une mise en page propre. Si aucune photo personnalisée n'est renseignée, la galerie affiche les images du produit.</div>
       </div>
     );
   }

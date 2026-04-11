@@ -162,7 +162,10 @@ const PRODUCT_GALLERY_DEFAULTS = {
 
 const resolveProductGalleryImages = (content = {}, fallbackImages = []) => {
   const customImages = (content.images || []).filter(image => image?.url);
-  return content.useProductImages === false && customImages.length > 0 ? customImages : fallbackImages;
+  if (content.useProductImages === false) {
+    return customImages.length > 0 ? customImages : fallbackImages;
+  }
+  return customImages.length > 0 ? [...fallbackImages, ...customImages] : fallbackImages;
 };
 
 // ── Image Gallery ────────────────────────────────────────────────────────────
@@ -856,13 +859,13 @@ const OfferBlock = ({ block, visualTheme = null }) => {
   if (!text) return null;
   return (
     <div style={{
-      margin: '16px 0', padding: '14px 16px', borderRadius: 12,
+      margin: '8px 0 10px', padding: '10px 12px', borderRadius: 10,
       background: visualTheme?.softGradient || '#FFFBEB', border: `1px solid ${visualTheme?.softBorder || '#FDE68A'}`,
-      display: 'flex', alignItems: 'flex-start', gap: 12,
+      display: 'flex', alignItems: 'flex-start', gap: 10,
       boxShadow: visualTheme?.shadow || 'none',
     }}>
-      <span style={{ fontSize: 22, flexShrink: 0, color: visualTheme?.primary || '#78350F' }}>✦</span>
-      <p style={{ margin: 0, fontSize: 13.5, color: visualTheme?.text || '#78350F', lineHeight: 1.65, fontWeight: 600, fontFamily: 'var(--s-font)' }}>
+      <span style={{ fontSize: 18, flexShrink: 0, color: visualTheme?.primary || '#78350F', lineHeight: 1 }}>✦</span>
+      <p style={{ margin: 0, fontSize: 12.5, color: visualTheme?.text || '#78350F', lineHeight: 1.45, fontWeight: 600, fontFamily: 'var(--s-font)' }}>
         {text}
       </p>
     </div>
@@ -2013,13 +2016,13 @@ const StoreProductPage = () => {
                       const customBullets = sectionContentMap.benefitsBullets?.items?.filter(Boolean);
                       const bulletsData = customBullets?.length > 0 ? customBullets : product._pageData?.benefits_bullets;
                       return bulletsData?.length > 0 ? (
-                        <ProductBenefits key={sectionId} benefits={bulletsData} title="💥 Les bénéfices" />
+                        <ProductBenefits key={sectionId} benefits={bulletsData} title="" compact />
                       ) : null;
                     }
 
                     case 'conversionBlocks':
                       return product._pageData?.conversion_blocks?.length > 0 ? (
-                        <ConversionBlocks key={sectionId} blocks={product._pageData.conversion_blocks} />
+                        <ConversionBlocks key={sectionId} blocks={product._pageData.conversion_blocks} compact />
                       ) : null;
 
                     case 'offerBlock': {

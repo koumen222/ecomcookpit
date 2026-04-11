@@ -43,7 +43,10 @@ const PRODUCT_GALLERY_DEFAULTS = {
 
 const resolveGalleryImages = (content = {}, images = []) => {
   const customImages = (content.images || []).filter(image => image?.url);
-  return content.useProductImages === false && customImages.length > 0 ? customImages : images;
+  if (content.useProductImages === false) {
+    return customImages.length > 0 ? customImages : images;
+  }
+  return customImages.length > 0 ? [...images, ...customImages] : images;
 };
 
 const LivePreview = ({ config, product: productProp, onSectionClick, activeSectionId }) => {
@@ -503,12 +506,12 @@ const LivePreview = ({ config, product: productProp, onSectionClick, activeSecti
                 const bulletsData = customBullets?.length > 0 ? customBullets : pd.benefits_bullets;
                 return bulletsData?.length > 0 ? (
                   <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
-                    <div style={{ marginBottom: 10 }}>
-                      <div style={{ fontSize: 9, fontWeight: 700, color: '#374151', marginBottom: 4 }}>💥 Les bénéfices</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <div style={{ marginBottom: 8 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
                         {bulletsData.slice(0, 4).map((b, i) => (
-                          <div key={i} style={{ fontSize: 8.5, color: '#374151', display: 'flex', alignItems: 'flex-start', gap: 4, lineHeight: 1.4 }}>
-                            {b}
+                          <div key={i} style={{ fontSize: 8.2, color: '#374151', display: 'flex', alignItems: 'flex-start', gap: 4, lineHeight: 1.3, padding: '4px 6px', borderRadius: 8, backgroundColor: '#FFFFFF', border: '1px solid #F3F4F6' }}>
+                            <span style={{ color: btnColor, fontWeight: 700, lineHeight: 1 }}>✓</span>
+                            <span>{b}</span>
                           </div>
                         ))}
                       </div>
@@ -520,14 +523,14 @@ const LivePreview = ({ config, product: productProp, onSectionClick, activeSecti
               case 'conversionBlocks':
                 return pd.conversion_blocks?.length > 0 ? (
                   <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 10 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 8 }}>
                       {pd.conversion_blocks.slice(0, 4).map((b, i) => (
                         <div key={i} style={{
-                          display: 'flex', alignItems: 'center', gap: 4, padding: '5px 6px',
+                          display: 'flex', alignItems: 'center', gap: 4, padding: '4px 5px', minHeight: 34,
                           borderRadius: 8, backgroundColor: '#F9FAFB', border: '1px solid #F3F4F6',
                         }}>
                           <span style={{ fontSize: 12, flexShrink: 0 }}>{b.icon}</span>
-                          <span style={{ fontSize: 7.5, color: '#374151', lineHeight: 1.3 }}>{b.text}</span>
+                          <span style={{ fontSize: 7.2, color: '#374151', lineHeight: 1.2 }}>{b.text}</span>
                         </div>
                       ))}
                     </div>
@@ -540,15 +543,11 @@ const LivePreview = ({ config, product: productProp, onSectionClick, activeSecti
                 return (pd.offer_block || s.content?.offerLabel || s.content?.guaranteeText) ? (
                   <EditableWrap key={s.id} sectionId={s.id} onSectionClick={onSectionClick} activeSectionId={activeSectionId}>
                     <div style={{
-                      padding: '8px 10px', borderRadius: 10, marginBottom: 10,
+                      padding: '6px 8px', borderRadius: 8, marginBottom: 8,
                       backgroundColor: '#FFFBEB', border: '1px solid #FDE68A',
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
-                        <Gift size={10} color="#D97706" />
-                        <span style={{ fontSize: 9, fontWeight: 800, color: '#92400E' }}>{offerLabel}</span>
-                      </div>
                       {guaranteeText && (
-                        <div style={{ fontSize: 8, color: '#78350F', lineHeight: 1.4 }}>{guaranteeText}</div>
+                        <div style={{ fontSize: 7.8, color: '#78350F', lineHeight: 1.3 }}>{guaranteeText}</div>
                       )}
                     </div>
                   </EditableWrap>
