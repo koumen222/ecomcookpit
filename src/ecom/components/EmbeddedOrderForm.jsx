@@ -5,7 +5,7 @@ import defaultConfig from './productSettings/defaultConfig.js';
 import { firePixelEvent } from '../utils/pixelTracking';
 import { PHONE_CODES, getDefaultPhoneCodeFromConfig, buildFullPhone } from '../utils/phoneCodes.js';
 
-const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur}`;
+const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur === 'XAF' || cur === 'XOF' ? 'FCFA' : cur}`;
 const ICON_MAP = { user: User, phone: Phone, map: MapPin, pin: MapPin, mail: Mail, cart: ShoppingCart, file: FileText, hash: Hash, calendar: Calendar, bag: ShoppingBag, arrow: ArrowRight, check: Check };
 const FIELD_KEY_MAP = { fullname: 'customerName', phone: 'phone', city: 'city', address: 'address', note: 'notes' };
 

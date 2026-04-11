@@ -109,7 +109,7 @@ const WhatsAppSendModal = ({
     
     return message
       .replace(/\[PRODUIT\]/g, productData.name || '[PRODUIT]')
-      .replace(/\[PRIX\]/g, productData.price ? `${productData.price} XAF` : '[PRIX]')
+      .replace(/\[PRIX\]/g, productData.price ? `${productData.price} FCFA` : '[PRIX]')
       .replace(/\[LIEN\]/g, productData.link || '[LIEN]');
   };
 
@@ -240,7 +240,7 @@ const WhatsAppSendModal = ({
                 <p className="text-xs font-semibold text-blue-800 mb-1">Variables disponibles:</p>
                 <div className="text-xs text-blue-700 space-y-1">
                   <p><code className="bg-blue-100 px-1 rounded">[PRODUIT]</code> → {productData.name || 'Non défini'}</p>
-                  <p><code className="bg-blue-100 px-1 rounded">[PRIX]</code> → {productData.price ? `${productData.price} XAF` : 'Non défini'}</p>
+                  <p><code className="bg-blue-100 px-1 rounded">[PRIX]</code> → {productData.price ? `${productData.price} FCFA` : 'Non défini'}</p>
                   <p><code className="bg-blue-100 px-1 rounded">[LIEN]</code> → {productData.link ? 'Lien défini' : 'Non défini'}</p>
                 </div>
               </div>
