@@ -443,9 +443,15 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
                 return (
                   <React.Fragment key={field.name}>
                     <button type="submit" disabled={submitting} style={{
-                      width: '100%', padding: '15px 20px', borderRadius: parseInt(borderRadius) >= 20 ? 40 : borderRadius, border: 'none',
+                      width: '100%', padding: '15px 20px',
+                      borderRadius: design.formBorderRadius || (parseInt(borderRadius) >= 20 ? 40 : borderRadius),
+                      border: design.formBorderWidth && parseInt(design.formBorderWidth) > 0
+                        ? `${design.formBorderWidth} solid ${design.formBorderColor || 'transparent'}`
+                        : 'none',
                       backgroundColor: submitting ? '#9CA3AF' : btnColor,
-                      boxShadow: design.shadow !== false ? `0 4px 14px ${btnColor}40` : 'none',
+                      boxShadow: design.formShadow && parseInt(design.formShadow) > 0
+                        ? `0 ${design.formShadow}px ${parseInt(design.formShadow)*2}px ${btnColor}40`
+                        : 'none',
                       color: '#fff', fontWeight: 700, fontSize: 15, cursor: submitting ? 'not-allowed' : 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                       transition: 'opacity 0.15s', fontFamily: 'inherit',

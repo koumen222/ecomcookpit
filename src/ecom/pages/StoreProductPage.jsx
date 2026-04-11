@@ -930,9 +930,9 @@ const StoreProductPage = () => {
   const showStickyBar = enabledSectionIds.includes('stickyOrderBar');
   const showRelatedProductsSetting = enabledSectionIds.includes('relatedProducts');
   const showTestimonials = enabledSectionIds.includes('testimonials');
-  const ctaBtnColor = ppDesign.buttonColor || 'var(--s-primary)';
-  const ctaBorderRadius = ppDesign.borderRadius || '14px';
-  const ctaShadow = ppDesign.shadow !== false ? '0 4px 16px rgba(0,0,0,0.12)' : 'none';
+  const ctaBtnColor = ppDesign.ctaButtonColor || '#0F6B4F';
+  const ctaBorderRadius = ppDesign.ctaBorderRadius || '14px';
+  const ctaShadow = ppDesign.buttonShadow ? `0 ${ppDesign.buttonShadow}px ${parseInt(ppDesign.buttonShadow)*2}px rgba(0,0,0,0.12)` : '0 4px 16px rgba(0,0,0,0.12)';
   const ctaAnimClass = ctaAnimation === 'pulse' ? 'pp-pulse' : ctaAnimation === 'bounce' ? 'pp-bounce' : ctaAnimation === 'shake' ? 'pp-shake' : ctaAnimation === 'glow' ? 'pp-glow' : '';
 
   useEffect(() => {
@@ -1204,9 +1204,16 @@ const StoreProductPage = () => {
                                 if (inStock) { e.target.style.transform = 'scale(1)'; e.target.style.boxShadow = '0 4px 16px rgba(0,0,0,0.12)'; }
                               }}
                               style={{
-                                width: '100%', padding: '18px 24px', borderRadius: ctaBorderRadius, border: 'none',
+                                width: '100%', padding: '18px 24px', borderRadius: ctaBorderRadius,
+                                border: ppDesign.buttonBorderWidth && parseInt(ppDesign.buttonBorderWidth) > 0
+                                  ? `${ppDesign.buttonBorderWidth} solid ${ppDesign.buttonBorderColor || 'transparent'}`
+                                  : 'none',
                                 backgroundColor: inStock ? ctaBtnColor : '#d1d5db',
-                                color: '#fff', fontWeight: 700, fontSize: 17, cursor: inStock ? 'pointer' : 'not-allowed',
+                                color: ppDesign.buttonTextColor || '#fff',
+                                fontWeight: ppDesign.buttonBold ? 700 : 700,
+                                fontSize: parseInt(ppDesign.buttonFontSize) || 17,
+                                fontStyle: ppDesign.buttonItalic ? 'italic' : 'normal',
+                                cursor: inStock ? 'pointer' : 'not-allowed',
                                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
                                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', fontFamily: 'var(--s-font)',
                                 boxShadow: inStock ? ctaShadow : 'none',
@@ -1424,11 +1431,19 @@ const StoreProductPage = () => {
               }}
               disabled={!inStock}
               style={{
-                border: 'none', borderRadius: 999, padding: '16px 24px',
-                backgroundColor: inStock ? 'var(--s-primary)' : '#d1d5db', color: '#fff',
-                fontSize: 15, fontWeight: 800, fontFamily: 'var(--s-font)',
+                border: ppDesign.buttonBorderWidth && parseInt(ppDesign.buttonBorderWidth) > 0
+                  ? `${ppDesign.buttonBorderWidth} solid ${ppDesign.buttonBorderColor || 'transparent'}`
+                  : 'none',
+                borderRadius: ctaBorderRadius, padding: '16px 24px',
+                backgroundColor: inStock ? ctaBtnColor : '#d1d5db',
+                color: ppDesign.buttonTextColor || '#fff',
+                fontSize: parseInt(ppDesign.buttonFontSize) || 15,
+                fontWeight: ppDesign.buttonBold ? 800 : 800,
+                fontStyle: ppDesign.buttonItalic ? 'italic' : 'normal',
+                fontFamily: 'var(--s-font)',
                 cursor: inStock ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap',
                 minHeight: 48,
+                boxShadow: inStock ? ctaShadow : 'none',
               }}
             >
               {ppButton.text || 'Commander'}

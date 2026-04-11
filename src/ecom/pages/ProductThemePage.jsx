@@ -442,6 +442,7 @@ const ProductThemePage = () => {
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <ColorInput label="Bouton / Accent" value={design.buttonColor} onChange={v => updateDesign('buttonColor', v)} />
+              <ColorInput label="Bouton CTA" value={design.ctaButtonColor || design.buttonColor} onChange={v => updateDesign('ctaButtonColor', v)} />
               <ColorInput label="Fond de page" value={design.backgroundColor} onChange={v => updateDesign('backgroundColor', v)} />
               <ColorInput label="Texte principal" value={design.textColor} onChange={v => updateDesign('textColor', v)} />
               <ColorInput label="Badge promo" value={design.badgeColor} onChange={v => updateDesign('badgeColor', v)} />

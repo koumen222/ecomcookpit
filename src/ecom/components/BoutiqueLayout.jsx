@@ -344,7 +344,7 @@ const BoutiqueLayoutInner = () => {
       <div className={`flex-1 flex flex-col min-w-0 lg:ml-[240px] transition-all duration-500 ${entering ? 'opacity-0' : 'opacity-100'}`}>
 
         {/* Mobile header */}
-        <header className="lg:hidden fixed top-0 left-0 right-0 z-20 bg-white border-b border-gray-200">
+        {!location.pathname.includes('/form-builder') && <header className="lg:hidden fixed top-0 left-0 right-0 z-20 bg-white border-b border-gray-200">
           <div className="flex items-center justify-between h-14 px-4">
             <div className="flex items-center gap-3">
               <button onClick={() => navigate('/ecom/dashboard/admin')} className="p-1.5 rounded-lg hover:bg-gray-100 transition">
@@ -372,10 +372,10 @@ const BoutiqueLayoutInner = () => {
               </svg>
             </a>
           </div>
-        </header>
+        </header>}
 
         {/* Desktop header */}
-        <header className="hidden lg:flex border-b h-14 items-center px-6 fixed top-0 left-[240px] right-0 z-20 bg-white border-gray-200">
+        {!location.pathname.includes('/form-builder') && <header className="hidden lg:flex border-b h-14 items-center px-6 fixed top-0 left-[240px] right-0 z-20 bg-white border-gray-200">
           <h1 className="text-[15px] font-semibold text-gray-900">
             {getBoutiquePageTitle(location.pathname)}
           </h1>
@@ -392,10 +392,10 @@ const BoutiqueLayoutInner = () => {
             </svg>
             Voir ma boutique
           </a>
-        </header>
+        </header>}
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden pt-14 pb-20 lg:pt-14 lg:pb-0">
+        <main className={`flex-1 overflow-y-auto overflow-x-hidden pb-20 lg:pb-0 ${location.pathname.includes('/form-builder') ? 'pt-0' : 'pt-14 lg:pt-14'}`}>
           {hasNoStores ? (
             <div className="flex items-center justify-center min-h-[70vh] px-4">
               <div className="text-center max-w-md">
