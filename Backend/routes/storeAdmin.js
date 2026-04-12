@@ -1,6 +1,7 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import Workspace from '../models/Workspace.js';
+import Order from '../models/Order.js';
 import StoreOrder from '../models/StoreOrder.js';
 import StoreProduct from '../models/StoreProduct.js';
 import StoreAnalytics from '../models/StoreAnalytics.js';
@@ -11,6 +12,98 @@ import { invalidateStoreCache } from './storeApi.js';
 
 const router = express.Router();
 const DEBUG_TAG = '[StoreAdmin:Settings]';
+const SCALOR_ORDER_SOURCES = ['skelor', 'boutique'];
+
+function buildStoreOrderMatchFilter(workspaceId, activeStoreId) {
+  const matchFilter = {
+    workspaceId: new mongoose.Types.ObjectId(workspaceId)
+  };
+
+  if (activeStoreId) {
+    matchFilter.storeId = new mongoose.Types.ObjectId(activeStoreId);
+  }
+
+  return matchFilter;
+}
+
+function appendScalorStoreOrderFilter(pipeline = []) {
+  return [
+    ...pipeline,
+    {
+      $lookup: {
+        from: Order.collection.name,
+        localField: 'linkedOrderId',
+        foreignField: '_id',
+        as: 'linkedOrder'
+      }
+    },
+    {
+      $unwind: {
+        path: '$linkedOrder',
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $match: {
+        $or: [
+          { linkedOrderId: null },
+          { linkedOrder: null },
+          { 'linkedOrder.source': { $in: SCALOR_ORDER_SOURCES } }
+        ]
+      }
+    }
+  ];
+}
+
+async function getScalorStoreOrdersSummary(workspaceId, activeStoreId) {
+  const matchFilter = buildStoreOrderMatchFilter(workspaceId, activeStoreId);
+  const results = await StoreOrder.aggregate(appendScalorStoreOrderFilter([
+    { $match: matchFilter },
+    {
+      $group: {
+        _id: '$status',
+        count: { $sum: 1 },
+        revenue: { $sum: '$total' }
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        byStatus: { $push: { status: '$_id', count: '$count', revenue: '$revenue' } },
+        totalOrders: { $sum: '$count' },
+        totalRevenue: { $sum: '$revenue' }
+      }
+    },
+    { $project: { _id: 0 } }
+  ]));
+
+  return results?.[0] || {
+    totalOrders: 0,
+    totalRevenue: 0,
+    byStatus: []
+  };
+}
+
+async function countScalorStoreOrders(matchFilter) {
+  const results = await StoreOrder.aggregate(appendScalorStoreOrderFilter([
+    { $match: matchFilter },
+    { $count: 'count' }
+  ]));
+
+  return results?.[0]?.count || 0;
+}
+
+async function findScalorStoreOrders(matchFilter, { page = 1, limit = 20, sort = { createdAt: -1 } } = {}) {
+  const skip = (Math.max(1, page) - 1) * limit;
+
+  return StoreOrder.aggregate(appendScalorStoreOrderFilter([
+    { $match: matchFilter },
+    { $sort: sort },
+    { $skip: skip },
+    { $limit: limit },
+    { $project: { linkedOrder: 0 } }
+  ]));
+}
 
 function summarizeStoreSettingsPayload(payload = {}) {
   const logoValue = payload.logo || '';
@@ -45,38 +138,29 @@ function summarizeStoreSettingsPayload(payload = {}) {
 router.get('/analytics/summary', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
     const workspaceId = req.workspaceId;
+    const storeOrderMatchFilter = buildStoreOrderMatchFilter(workspaceId, req.activeStoreId);
 
     // Build store-scoped filter
     const productFilter = req.activeStoreId
       ? { workspaceId, storeId: req.activeStoreId }
       : { workspaceId };
 
-    // Get stats from StoreOrder using the built-in getQuickStats method
     const [orderStats, productCount] = await Promise.all([
-      StoreOrder.getQuickStats(workspaceId, req.activeStoreId),
+      getScalorStoreOrdersSummary(workspaceId, req.activeStoreId),
       StoreProduct.countDocuments(productFilter)
     ]);
 
-    // Parse the aggregation result
-    const stats = orderStats && orderStats.length > 0 ? orderStats[0] : {
-      totalOrders: 0,
-      totalRevenue: 0,
-      byStatus: []
-    };
+    const stats = orderStats;
 
     // Calculate today's sales (orders created today)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayMatchFilter = {
-          workspaceId: new mongoose.Types.ObjectId(workspaceId),
-          createdAt: { $gte: today }
-        };
-    if (req.activeStoreId) {
-      todayMatchFilter.storeId = new mongoose.Types.ObjectId(req.activeStoreId);
-    }
-    const todayStats = await StoreOrder.aggregate([
+    const todayStats = await StoreOrder.aggregate(appendScalorStoreOrderFilter([
       {
-        $match: todayMatchFilter
+        $match: {
+          ...storeOrderMatchFilter,
+          createdAt: { $gte: today }
+        }
       },
       {
         $group: {
@@ -86,7 +170,7 @@ router.get('/analytics/summary', requireEcomAuth, requireWorkspace, async (req, 
         }
       },
       { $project: { _id: 0 } }
-    ]);
+    ]));
 
     const todayData = todayStats && todayStats.length > 0 ? todayStats[0] : { todayOrders: 0, todaySales: 0 };
 
@@ -104,8 +188,8 @@ router.get('/analytics/summary', requireEcomAuth, requireWorkspace, async (req, 
         visitorId: '',
         timestamp: { $gte: thirtyDaysAgo }
       }),
-      StoreOrder.countDocuments({
-        workspaceId: new mongoose.Types.ObjectId(workspaceId),
+      countScalorStoreOrders({
+        ...storeOrderMatchFilter,
         createdAt: { $gte: thirtyDaysAgo }
       })
     ]);
@@ -140,14 +224,12 @@ router.get('/orders', requireEcomAuth, requireWorkspace, async (req, res) => {
     const workspaceId = req.workspaceId;
     const { limit = 20, page = 1, sort = '-createdAt' } = req.query;
 
-    const orderFilter = { workspaceId };
-    if (req.activeStoreId) {
-      orderFilter.storeId = req.activeStoreId;
-    }
+    const orderFilter = buildStoreOrderMatchFilter(workspaceId, req.activeStoreId);
+    const parsedSort = String(sort) === 'createdAt' ? { createdAt: 1 } : { createdAt: -1 };
 
-    const orders = await StoreOrder.findPaginated(
+    const orders = await findScalorStoreOrders(
       orderFilter,
-      { page: parseInt(page), limit: parseInt(limit), sort: { createdAt: -1 } }
+      { page: parseInt(page), limit: parseInt(limit), sort: parsedSort }
     );
 
     res.json({

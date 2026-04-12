@@ -1859,29 +1859,6 @@ const StoreProductPage = () => {
           <div className={`product-info ${aiVisualTheme ? 'ai-themed' : ''}`}>
             {product ? (
               <>
-                {/* Category badge */}
-                {product.category && (() => {
-                  const cat = product.category.toLowerCase();
-                  let icon = '🛍️';
-                  if (/tech|electron|phone|mobile|laptop|gadget|accessoire|câble|cable|casque|earphone|smartwatch/.test(cat)) icon = '⚡';
-                  else if (/mode|vêtement|vetement|robe|wax|tissu|fashion|clothing|bijou|sac|chaussure|shoe|bag|jewel/.test(cat)) icon = '👑';
-                  else if (/beaut|cosmét|soin|skin|crème|creme|sérum|serum|makeup|maquillage|parfum|cheveux|hair/.test(cat)) icon = '🌿';
-                  else if (/aliment|food|nutri|santé|sante|supplement|complément|protéine|protein|minceur|régime|diet|bio|organic/.test(cat)) icon = '💪';
-                  else if (/maison|home|deco|décor|cuisine|kitchen|ménage|menage|électroménager|electromenager/.test(cat)) icon = '🏠';
-                  else if (/bébé|bebe|enfant|child|kids|maternité|maternite|jouet|toy/.test(cat)) icon = '👶';
-                  return (
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 5,
-                      fontSize: 11, fontWeight: 700,
-                      textTransform: 'uppercase', letterSpacing: '0.08em',
-                      marginBottom: 4,
-                      ...resolveBadgeStyle('primary'),
-                    }}>
-                      {icon} {product.category}
-                    </span>
-                  );
-                })()}
-
                 {/* Name */}
                 <h1 style={{
                   fontSize: `clamp(${Math.max(24, (Number.parseInt(ppDesign.fontBase, 10) || 14) + 12)}px, 4vw, ${Math.max(36, (Number.parseInt(ppDesign.fontBase, 10) || 14) + 24)}px)`, fontWeight: 900,

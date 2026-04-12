@@ -10,7 +10,7 @@
 import axios from 'axios';
 import Groq from 'groq-sdk';
 import { uploadImage, isConfigured } from './cloudflareImagesService.js';
-import { generateNanoBananaImage, generateNanoBananaImageToImage } from './nanoBananaService.js';
+import { generateAnimatedGifFromImages, generateKieImageToVideo, generateNanoBananaImage, generateNanoBananaImageToImage } from './nanoBananaService.js';
 import { randomUUID } from 'crypto';
 
 let _groq = null;
@@ -1026,6 +1026,36 @@ ${modeRules}`;
     console.warn(`⚠️ Erreur génération affiche NanoBanana: ${err.message}`);
     // STRICT: throw so upstream generateAndUpload retry logic can retry
     throw err;
+  }
+}
+
+export async function generateDescriptionGif(prompt, imageInput, options = {}) {
+  try {
+    return await generateKieImageToVideo(prompt, imageInput, {
+      duration: options.duration || '6',
+      resolution: options.resolution || '480p',
+      aspectRatio: options.aspectRatio || '16:9',
+      mode: options.mode || 'normal',
+      maxWaitMs: options.maxWaitMs || 300000,
+    });
+  } catch (error) {
+    console.error(`❌ GIF description generation failed: ${error.message}`);
+    throw error;
+  }
+}
+
+export async function generateDescriptionGifFromImages(imageInputs, options = {}) {
+  try {
+    return await generateAnimatedGifFromImages(imageInputs, {
+      width: options.width || 768,
+      height: options.height || 432,
+      fps: options.fps || 8,
+      frameDurationMs: options.frameDurationMs || 1200,
+      filePrefix: options.filePrefix,
+    });
+  } catch (error) {
+    console.error(`❌ GIF-from-images generation failed: ${error.message}`);
+    throw error;
   }
 }
 

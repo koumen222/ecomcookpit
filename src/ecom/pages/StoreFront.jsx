@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Search, ShoppingBag, ChevronLeft, ChevronRight, Phone, MessageCircle, Filter } from 'lucide-react';
+import { Search, ShoppingBag, ChevronLeft, ChevronRight, Phone, MessageCircle, Filter, SlidersHorizontal, X, Check, Shield, Truck, Headphones, ArrowUpDown } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
 import { injectStoreCssVars } from '../hooks/useStoreData.js';
@@ -35,6 +35,13 @@ const resolveRadius = (value, fallback = '18px') => {
 };
 
 const resolveShadow = (value) => SHADOW_MAP[String(value || 'soft').trim().toLowerCase()] || SHADOW_MAP.soft;
+
+const SORT_OPTIONS = [
+  { value: '-createdAt', label: 'Plus récents' },
+  { value: 'price', label: 'Prix croissant' },
+  { value: '-price', label: 'Prix décroissant' },
+  { value: 'name', label: 'Nom A-Z' },
+];
 
 const buildButtonVars = (design = {}) => {
   const buttonStyle = String(design.buttonStyle || '').trim().toLowerCase();
@@ -103,6 +110,9 @@ const StoreFront = () => {
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, pages: 0 });
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [sortBy, setSortBy] = useState('-createdAt');
+  const [availability, setAvailability] = useState('all');
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   // Load store config + products + categories in a SINGLE call
   // The unified /api/store/:subdomain endpoint returns everything at once
@@ -146,10 +156,10 @@ const StoreFront = () => {
     })();
   }, [subdomain]);
 
-  const fetchProducts = useCallback(async (page = 1, cat = selectedCategory, searchTerm = search) => {
+  const fetchProducts = useCallback(async (page = 1, cat = selectedCategory, searchTerm = search, sortValue = sortBy) => {
     setLoadingProducts(true);
     try {
-      const params = { page, limit: 20 };
+      const params = { page, limit: 20, sort: sortValue };
       if (cat) params.category = cat;
       if (searchTerm) params.search = searchTerm;
       const res = await publicStoreApi.getProducts(subdomain, params);
@@ -160,19 +170,38 @@ const StoreFront = () => {
     } finally {
       setLoadingProducts(false);
     }
-  }, [subdomain, selectedCategory, search]);
+  }, [subdomain, selectedCategory, search, sortBy]);
 
   // Debounced search
   useEffect(() => {
     if (!store) return;
     const timer = setTimeout(() => {
-      fetchProducts(1, selectedCategory, search);
+      fetchProducts(1, selectedCategory, search, sortBy);
     }, 400);
     return () => clearTimeout(timer);
-  }, [search, selectedCategory, store, fetchProducts]);
+  }, [search, selectedCategory, sortBy, store, fetchProducts]);
 
   const handleCategoryChange = (cat) => {
     setSelectedCategory(cat);
+  };
+
+  const filteredProducts = products.filter((product) => {
+    if (availability === 'in-stock') return Number(product.stock || 0) > 0;
+    if (availability === 'out-of-stock') return Number(product.stock || 0) <= 0;
+    return true;
+  });
+
+  const activeFilters = [
+    selectedCategory ? { key: 'category', label: selectedCategory, clear: () => setSelectedCategory('') } : null,
+    search ? { key: 'search', label: `Recherche: ${search}`, clear: () => setSearch('') } : null,
+    availability !== 'all' ? { key: 'availability', label: availability === 'in-stock' ? 'En stock' : 'Rupture', clear: () => setAvailability('all') } : null,
+  ].filter(Boolean);
+
+  const clearAllFilters = () => {
+    setSelectedCategory('');
+    setSearch('');
+    setAvailability('all');
+    setSortBy('-createdAt');
   };
 
   const formatPrice = (price, currency) => formatMoney(price, currency);
@@ -188,6 +217,20 @@ const StoreFront = () => {
     '--sf-soft-border': 'color-mix(in srgb, var(--s-primary) 18%, var(--s-border))',
     ...buildButtonVars(design),
   } : null;
+
+  const sidebarCardStyle = {
+    backgroundColor: 'var(--sf-surface)',
+    border: '1px solid var(--sf-soft-border)',
+    borderRadius: 'var(--sf-radius)',
+    boxShadow: 'var(--sf-shadow)',
+  };
+
+  const sectionLabelStyle = {
+    color: 'var(--s-text)',
+    fontWeight: 700,
+    fontSize: 13,
+    letterSpacing: '-0.01em',
+  };
 
   if (loading) {
     return (
@@ -325,70 +368,109 @@ const StoreFront = () => {
         </div>
       </header>
 
-      {/* Search + Categories */}
-      <div className="max-w-6xl mx-auto px-4 py-4 space-y-3">
-        {/* Search bar */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--s-text2)' }} />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher un produit..."
-            className="w-full pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:border-transparent"
-            style={{
-              '--tw-ring-color': 'var(--s-primary)',
-              backgroundColor: 'var(--sf-surface)',
-              color: 'var(--s-text)',
-              border: '1px solid var(--sf-soft-border)',
-              borderRadius: 'var(--sf-radius)',
-              boxShadow: 'var(--sf-shadow)',
-            }}
-          />
-        </div>
-
-        {/* Category pills */}
-        {categories.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
+      <main className="max-w-7xl mx-auto px-4 pb-12 pt-6 lg:pt-8">
+        <section className="mb-6 lg:mb-8" style={{ ...sidebarCardStyle, padding: '20px 22px' }}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--s-text2)' }}>
+                <span>Boutique</span>
+                <span>/</span>
+                <span>Produits</span>
+              </div>
+              <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl" style={{ color: 'var(--s-text)' }}>Catalogue</h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: 'var(--s-text2)' }}>
+                Découvrez les produits disponibles avec une navigation plus claire, des filtres visibles et un affichage catalogue plus structuré.
+              </p>
+            </div>
             <button
-              onClick={() => handleCategoryChange('')}
-              className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition"
-              style={selectedCategory === '' ? {
-                background: 'var(--sf-btn-bg)',
-                color: 'var(--sf-btn-text)',
-                border: '1px solid var(--sf-btn-border)',
-              } : {
-                backgroundColor: 'var(--sf-surface)',
-                color: 'var(--s-text2)',
-                border: '1px solid var(--sf-soft-border)',
-              }}
+              type="button"
+              onClick={() => setMobileFiltersOpen((open) => !open)}
+              className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold lg:hidden"
+              style={{ backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)' }}
             >
-              Tout
+              {mobileFiltersOpen ? <X className="w-4 h-4" /> : <Filter className="w-4 h-4" />}
+              Filtres
             </button>
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => handleCategoryChange(cat)}
-                className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition"
-                style={selectedCategory === cat ? {
-                  background: 'var(--sf-btn-bg)',
-                  color: 'var(--sf-btn-text)',
-                  border: '1px solid var(--sf-btn-border)',
-                } : {
-                  backgroundColor: 'var(--sf-surface)',
-                  color: 'var(--s-text2)',
-                  border: '1px solid var(--sf-soft-border)',
-                }}
-              >
-                {cat}
-              </button>
-            ))}
           </div>
-        )}
-      </div>
+        </section>
 
-      {/* Product Grid */}
-      <div className="max-w-6xl mx-auto px-4 pb-8">
+        <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)]">
+          <aside className={`${mobileFiltersOpen ? 'block' : 'hidden'} lg:block`}>
+            <div className="space-y-4 lg:sticky lg:top-24">
+              <div style={{ ...sidebarCardStyle, padding: '18px' }}>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-extrabold" style={{ color: 'var(--s-text)' }}>Filter Options</h3>
+                  {activeFilters.length > 0 && (
+                    <button type="button" onClick={clearAllFilters} className="text-xs font-semibold" style={{ color: 'var(--s-primary)' }}>
+                      Effacer
+                    </button>
+                  )}
+                </div>
+                <div className="mt-4 relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--s-text2)' }} />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Rechercher..."
+                    className="w-full pl-10 pr-4 py-2.5 text-sm focus:outline-none"
+                    style={{ backgroundColor: 'var(--s-bg)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)', borderRadius: 'calc(var(--sf-radius) - 6px)' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ ...sidebarCardStyle, padding: '18px' }}>
+                <div style={sectionLabelStyle}>Catégories</div>
+                <div className="mt-4 space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => handleCategoryChange('')}
+                    className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-sm transition"
+                    style={selectedCategory === '' ? { backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)' } : { color: 'var(--s-text2)', border: '1px solid transparent' }}
+                  >
+                    <span>Toutes les catégories</span>
+                    {selectedCategory === '' && <Check className="w-4 h-4" style={{ color: 'var(--s-primary)' }} />}
+                  </button>
+                  {categories.map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => handleCategoryChange(cat)}
+                      className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-sm transition"
+                      style={selectedCategory === cat ? { backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)' } : { color: 'var(--s-text2)', border: '1px solid transparent' }}
+                    >
+                      <span>{cat}</span>
+                      {selectedCategory === cat && <Check className="w-4 h-4" style={{ color: 'var(--s-primary)' }} />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ ...sidebarCardStyle, padding: '18px' }}>
+                <div style={sectionLabelStyle}>Disponibilité</div>
+                <div className="mt-4 space-y-2">
+                  {[
+                    { value: 'all', label: 'Tout afficher' },
+                    { value: 'in-stock', label: 'En stock' },
+                    { value: 'out-of-stock', label: 'Rupture' },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setAvailability(option.value)}
+                      className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-sm transition"
+                      style={availability === option.value ? { backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)' } : { color: 'var(--s-text2)', border: '1px solid transparent' }}
+                    >
+                      <span>{option.label}</span>
+                      {availability === option.value && <Check className="w-4 h-4" style={{ color: 'var(--s-primary)' }} />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <section className="min-w-0">
         {loadingProducts ? (
           <div className="space-y-4">
             {/* Loading skeleton cards */}
@@ -413,29 +495,68 @@ const StoreFront = () => {
               <span className="text-sm" style={{ color: 'var(--s-text2)' }}>Chargement des produits...</span>
             </div>
           </div>
-        ) : products.length === 0 ? (
+        ) : filteredProducts.length === 0 ? (
           <div className="text-center py-16">
             <ShoppingBag className="w-12 h-12 mx-auto" style={{ color: 'var(--s-text2)' }} />
             <p className="mt-3 text-sm" style={{ color: 'var(--s-text2)' }}>
-              {search ? 'Aucun produit trouvé' : 'Aucun produit disponible'}
+              {search || availability !== 'all' || selectedCategory ? 'Aucun produit trouvé avec ces filtres' : 'Aucun produit disponible'}
             </p>
           </div>
         ) : (
           <>
-            <p className="text-xs mb-3" style={{ color: 'var(--s-text2)' }}>{pagination.total} produit{pagination.total !== 1 ? 's' : ''}</p>
+            <div className="mb-4 space-y-4" style={{ ...sidebarCardStyle, padding: '16px 18px' }}>
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
+                    Showing {filteredProducts.length} of {pagination.total} results
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold" style={{ backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text2)' }}>
+                    <ArrowUpDown className="w-3.5 h-3.5" />
+                    Sort by
+                  </div>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="px-3 py-2 text-sm focus:outline-none"
+                    style={{ backgroundColor: 'var(--s-bg)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)', borderRadius: '999px' }}
+                  >
+                    {SORT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-            {/* Responsive grid: 2 cols mobile, 3 tablet, 4 desktop */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-              {products.map((product) => (
+              {activeFilters.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {activeFilters.map((filterItem) => (
+                    <button
+                      key={filterItem.key}
+                      type="button"
+                      onClick={filterItem.clear}
+                      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold"
+                      style={{ backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)' }}
+                    >
+                      <span>{filterItem.label}</span>
+                      <X className="w-3 h-3" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {filteredProducts.map((product) => (
                 <a
                   key={product._id}
                   href={storeUrl(`/product/${product.slug}`)}
-                  className="overflow-hidden text-left transition-shadow duration-200 group cursor-pointer"
+                  className="overflow-hidden text-left transition duration-300 group cursor-pointer"
                   style={{ backgroundColor: 'var(--sf-surface)', borderRadius: 'var(--sf-radius)', border: '1px solid var(--sf-soft-border)', boxShadow: 'var(--sf-shadow)' }}
                   title={`Voir les détails de ${product.name}`}
                 >
-                  {/* Product image */}
-                  <div className="aspect-square overflow-hidden relative" style={{ backgroundColor: 'var(--sf-soft-surface)' }}>
+                  <div className="aspect-[0.95/1] overflow-hidden relative" style={{ backgroundColor: 'var(--sf-soft-surface)' }}>
                     {product.image ? (
                       <img
                         src={product.image}
@@ -455,48 +576,45 @@ const StoreFront = () => {
                         <ShoppingBag className="w-8 h-8 text-gray-300" />
                       </div>
                     )}
-                    {/* Hover overlay */}
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-opacity duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
-                      <div className="px-3 py-1.5 rounded-full text-xs font-medium" style={{ backgroundColor: 'var(--sf-surface)', color: 'var(--s-text)' }}>
-                        Voir détails
+                    {product.compareAtPrice && product.compareAtPrice > product.price && (
+                      <div className="absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ backgroundColor: 'var(--s-primary)', color: '#fff' }}>
+                        Promo
                       </div>
-                    </div>
+                    )}
                   </div>
 
-                  {/* Product info */}
-                  <div className="p-2.5 sm:p-3">
-                    <h3 className="text-lg font-semibold line-clamp-2 leading-tight transition-colors" style={{ color: 'var(--s-text)' }}>
+                  <div className="p-3 sm:p-4">
+                    {product.category && (
+                      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: 'var(--s-text2)' }}>
+                        {product.category}
+                      </div>
+                    )}
+                    <h3 className="line-clamp-2 text-sm font-extrabold leading-snug sm:text-base" style={{ color: 'var(--s-text)' }}>
                       {product.name}
                     </h3>
-                    <div className="mt-1.5 flex items-baseline gap-1.5">
-                      <span className="text-sm font-bold" style={{ color: 'var(--s-primary)' }}>
+                    <div className="mt-3 flex items-baseline gap-2">
+                      <span className="text-base font-black sm:text-lg" style={{ color: 'var(--s-primary)' }}>
                         {formatPrice(product.price, product.currency || store.currency)}
                       </span>
                       {product.compareAtPrice && product.compareAtPrice > product.price && (
-                        <span className="text-xs line-through" style={{ color: 'var(--s-text2)' }}>
+                        <span className="text-xs line-through sm:text-sm" style={{ color: 'var(--s-text2)' }}>
                           {formatPrice(product.compareAtPrice, product.currency || store.currency)}
                         </span>
                       )}
                     </div>
-                    {product.stock <= 0 && (
-                      <span className="inline-block mt-1 px-1.5 py-0.5 text-[10px] font-medium rounded" style={{ backgroundColor: 'color-mix(in srgb, #ef4444 12%, var(--s-bg))', color: '#dc2626' }}>
-                        Rupture
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <span className="inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em]" style={Number(product.stock || 0) > 0 ? { backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text)' } : { backgroundColor: 'color-mix(in srgb, #ef4444 12%, var(--s-bg))', color: '#dc2626' }}>
+                        {Number(product.stock || 0) > 0 ? 'En stock' : 'Rupture'}
                       </span>
-                    )}
-                    {/* Category tag */}
-                    {product.category && (
-                      <span className="inline-block mt-1 px-1.5 py-0.5 text-[10px] font-medium rounded" style={{ backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text2)' }}>
-                        {product.category}
-                      </span>
-                    )}
+                      <span className="text-[11px] font-semibold" style={{ color: 'var(--s-text2)' }}>Voir détails</span>
+                    </div>
                   </div>
                 </a>
               ))}
             </div>
 
-            {/* Pagination */}
             {pagination.pages > 1 && (
-              <div className="flex items-center justify-center gap-3 mt-6">
+              <div className="mt-8 flex items-center justify-center gap-2">
                 <button
                   onClick={() => fetchProducts(pagination.page - 1)}
                   disabled={pagination.page <= 1}
@@ -505,7 +623,22 @@ const StoreFront = () => {
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <span className="text-sm" style={{ color: 'var(--s-text2)' }}>{pagination.page} / {pagination.pages}</span>
+                {Array.from({ length: Math.min(pagination.pages, 5) }, (_, index) => {
+                  const pageNumber = index + 1;
+                  const active = pageNumber === pagination.page;
+                  return (
+                    <button
+                      key={pageNumber}
+                      type="button"
+                      onClick={() => fetchProducts(pageNumber)}
+                      className="h-10 w-10 text-sm font-bold transition"
+                      style={active ? { borderRadius: '999px', backgroundColor: 'var(--s-primary)', color: '#fff' } : { borderRadius: '999px', backgroundColor: 'var(--sf-surface)', color: 'var(--s-text2)', border: '1px solid var(--sf-soft-border)' }}
+                    >
+                      {pageNumber}
+                    </button>
+                  );
+                })}
+                {pagination.pages > 5 && <span className="px-1 text-sm" style={{ color: 'var(--s-text2)' }}>…</span>}
                 <button
                   onClick={() => fetchProducts(pagination.page + 1)}
                   disabled={pagination.page >= pagination.pages}
@@ -518,7 +651,32 @@ const StoreFront = () => {
             )}
           </>
         )}
-      </div>
+          </section>
+        </div>
+
+        <section className="mt-10 grid gap-4 md:grid-cols-3">
+          {[
+            { icon: Truck, title: 'Livraison rapide', text: 'Des expéditions organisées avec un suivi clair.' },
+            { icon: Shield, title: 'Paiement flexible', text: 'Des options simples et rassurantes selon votre boutique.' },
+            { icon: Headphones, title: 'Support disponible', text: 'Une assistance accessible pour accompagner la commande.' },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <div key={item.title} style={{ ...sidebarCardStyle, padding: '18px 18px 16px' }}>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-primary)' }}>
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold" style={{ color: 'var(--s-text)' }}>{item.title}</h3>
+                    <p className="mt-1 text-sm leading-6" style={{ color: 'var(--s-text2)' }}>{item.text}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </section>
+      </main>
 
       {/* Fixed WhatsApp FAB for mobile */}
       {store.whatsapp && (

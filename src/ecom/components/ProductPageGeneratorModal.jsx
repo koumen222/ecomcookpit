@@ -121,6 +121,22 @@ function ImagePreview({ src, label, className = '' }) {
   );
 }
 
+function GifPreview({ src, label, className = '' }) {
+  if (!src) return null;
+  return (
+    <div className="space-y-2">
+      <div className={`relative rounded-xl overflow-hidden bg-gray-100 border border-gray-200 ${className}`}>
+        <img
+          src={src}
+          alt={label || 'GIF généré'}
+          className="w-full h-full object-cover"
+        />
+      </div>
+      {label && <p className="text-xs font-medium text-gray-500 px-1">{label}</p>}
+    </div>
+  );
+}
+
 // Typing effect component
 function TypingText({ text }) {
   const [displayedText, setDisplayedText] = useState('');
@@ -660,6 +676,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
             const socialProofImages = Array.isArray(imgs.socialProofImages)
               ? imgs.socialProofImages
               : [...peoplePhotos, ...beforeAfterImages].filter((value, index, array) => value && array.indexOf(value) === index);
+            const descriptionGifs = Array.isArray(imgs.descriptionGifs) ? imgs.descriptionGifs : (prev.descriptionGifs || []);
             const allImages = [
               ...peoplePhotos,
               ...(imgs.heroImage ? [imgs.heroImage] : []),
@@ -676,6 +693,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
               angles: newAngles,
               peoplePhotos,
               socialProofImages,
+              descriptionGifs,
               allImages: [...(prev.allImages || []), ...allImages].filter((v, i, a) => v && a.indexOf(v) === i),
             };
           });
@@ -1069,6 +1087,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
             const socialProofImages = Array.isArray(imgs.socialProofImages)
               ? imgs.socialProofImages
               : [...peoplePhotos, ...beforeAfterImages].filter((value, index, array) => value && array.indexOf(value) === index);
+            const descriptionGifs = Array.isArray(imgs.descriptionGifs) ? imgs.descriptionGifs : (prev.descriptionGifs || []);
             const allImages = [
               ...peoplePhotos,
               ...(imgs.heroImage ? [imgs.heroImage] : []),
@@ -1085,6 +1104,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
               angles: newAngles,
               peoplePhotos,
               socialProofImages,
+              descriptionGifs,
               allImages: [...(prev.allImages || []), ...allImages].filter((v, i, a) => v && a.indexOf(v) === i),
             };
           });
@@ -1222,6 +1242,17 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
     const themeSoftBackground = `color-mix(in srgb, ${themePrimaryToken} 8%, white)`;
     const themeSoftBorder = `color-mix(in srgb, ${themePrimaryToken} 18%, white)`;
     const themeBorderToken = `var(--s-border, ${descriptionAccentColor}40)`;
+    const descriptionGifs = Array.isArray(product.descriptionGifs) ? product.descriptionGifs.filter((entry) => entry?.url) : [];
+
+    const renderDescriptionGifBlock = (gif, index) => {
+      if (!gif?.url) return '';
+      const title = gif.title || `Démo ${index + 1}`;
+      return `
+        <div style="margin:24px 0 0;padding:18px;border:1px solid ${themeSoftBorder};border-radius:18px;background:${themeSoftBackground};">
+          <p style="margin:0 0 12px;font-size:13px;font-weight:800;color:${themePrimaryToken};letter-spacing:0.02em;text-transform:uppercase;">${title}</p>
+          <img src="${gif.url}" alt="${title}" style="width:100%;aspect-ratio:16 / 9;object-fit:cover;display:block;border-radius:14px;background:#000;" />
+        </div>`;
+    };
     
     // Build rich HTML description: 5 angles (H3 + desc + image) → testimonials → FAQ
     let descHtml = '';
@@ -1243,6 +1274,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
         // Image UGC (also in carousel)
         if (angle.poster_url) {
           descHtml += `<img src="${angle.poster_url}" alt="${angle.titre_angle}" style="width:100%;aspect-ratio:1 / 1;object-fit:cover;display:block;margin:0;"/>`;
+        }
+        if (descriptionGifs[idx] && idx < 2) {
+          descHtml += renderDescriptionGifBlock(descriptionGifs[idx], idx);
         }
         descHtml += `</div>`;
       });
@@ -1349,6 +1383,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
       _pageData: {
         ...product,
         socialProofImages: finalSocialProofImages.map((image) => image.url),
+        descriptionGifs: descriptionGifs.map((gif) => gif.url),
         heroVisualDirection: heroVisualDirection.trim(),
         decorationDirection: decorationDirection.trim(),
       }
@@ -2670,6 +2705,25 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                             src={angle.poster_url}
                             label={angle.titre_angle}
                             className="aspect-square"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {(product.descriptionGifs || []).length > 0 && (
+                    <div className="rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 space-y-4">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">GIFs dans la description</p>
+                        <p className="text-xs text-gray-500 mt-1">2 clips générés automatiquement et injectés dans la description finale.</p>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {(product.descriptionGifs || []).map((gif, index) => (
+                          <GifPreview
+                            key={`${gif.url || 'gif'}-${index}`}
+                            src={gif.url}
+                            label={gif.title || `GIF ${index + 1}`}
+                            className="w-full aspect-video"
                           />
                         ))}
                       </div>
