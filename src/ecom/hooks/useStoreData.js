@@ -50,11 +50,24 @@ function loadGoogleFont(fontId) {
   document.head.appendChild(link);
 }
 
+function withAlpha(color, alphaHex, fallback) {
+  if (typeof color === 'string' && color.startsWith('#')) return `${color}${alphaHex}`;
+  return fallback;
+}
+
 export function injectStoreCssVars(store) {
   if (!store) return;
   const r = document.documentElement.style;
   // Design overrides from productPageConfig take priority
   const d = store.productPageConfig?.design || {};
+  const sectionColors = {
+    socialProof: store.sectionColors?.socialProof || store.accentColor || store.primaryColor || '#7C3AED',
+    benefits: store.sectionColors?.benefits || store.primaryColor || '#0F6B4F',
+    trust: store.sectionColors?.trust || store.accentColor || store.primaryColor || '#2563EB',
+    problem: store.sectionColors?.problem || store.errorColor || d.badgeColor || '#DC2626',
+    solution: store.sectionColors?.solution || d.buttonColor || store.primaryColor || '#059669',
+    faq: store.sectionColors?.faq || store.accentColor || store.primaryColor || '#7C3AED',
+  };
   r.setProperty('--s-primary', d.buttonColor || store.primaryColor || '#0F6B4F');
   r.setProperty('--s-accent', d.ctaButtonColor || d.buttonColor || store.accentColor || '#059669');
   r.setProperty('--s-bg', d.backgroundColor || store.backgroundColor || '#FFFFFF');
@@ -71,6 +84,12 @@ export function injectStoreCssVars(store) {
   r.setProperty('--s-font-base', (d.fontBase || 14) + 'px');
   r.setProperty('--s-font-weight', d.fontWeight || '600');
   r.setProperty('--s-shadow', d.shadow !== false ? '0 2px 8px rgba(0,0,0,0.08)' : 'none');
+  Object.entries(sectionColors).forEach(([key, color]) => {
+    r.setProperty(`--s-section-${key}`, color);
+    r.setProperty(`--s-section-${key}-soft`, withAlpha(color, '12', 'rgba(15,107,79,0.08)'));
+    r.setProperty(`--s-section-${key}-border`, withAlpha(color, '33', 'rgba(15,107,79,0.18)'));
+    r.setProperty(`--s-section-${key}-shadow`, `0 12px 30px ${withAlpha(color, '1F', 'rgba(15,107,79,0.12)')}`);
+  });
   document.documentElement.style.backgroundColor = d.backgroundColor || store.backgroundColor || '#FFFFFF';
   loadGoogleFont(fontId);
 }

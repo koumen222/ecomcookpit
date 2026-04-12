@@ -851,7 +851,16 @@ NO price, NO phone number, NO URL, NO watermark.`,
  */
 function buildPeopleHoldingProductPrompts(gptResult, visualPrefs = {}) {
   const title = 'the product';
+  const template = visualPrefs?.template || 'general';
   const productNote = `THE EXACT product from the reference image — same packaging, same shape, same color, same label, same design. CRITICAL: Use the provided product reference image and reproduce the IDENTICAL product as it appears in the photo. Do NOT redraw, redesign, or invent a product. If you cannot faithfully reproduce the EXACT same product, generate the photo WITHOUT the product visible rather than showing a wrong/invented product. A photo without the product is better than a photo with a fake product.`;
+  const nichePrompt = {
+    beauty: 'Niche context: beauty/cosmetics. Use bathroom vanity, skincare routine energy, glow, softness, and beauty confidence when relevant.',
+    health: 'Niche context: health/wellness. Use a credible daily routine, energy, vitality, supplement or wellness context.',
+    tech: 'Niche context: tech/electronics. Use modern desk, sleek living room, setup or gadget usage context.',
+    fashion: 'Niche context: fashion/accessories. Use style confidence, mirror-selfie feel, outfit coordination, and personal lookbook energy.',
+    home: 'Niche context: home/kitchen. Use warm domestic comfort, organization, cooking or home-practicality context.',
+    general: 'Niche context: adapt the customer photo to the real category and benefit of the product.',
+  }[template] || 'Niche context: adapt the customer photo to the real category and benefit of the product.';
 
   const baseRules = `
 ═══ MANDATORY REAL CUSTOMER PHOTO RULES ═══
@@ -869,6 +878,7 @@ function buildPeopleHoldingProductPrompts(gptResult, visualPrefs = {}) {
 • NO text overlay, NO caption, NO price, NO CTA, NO logo, NO frame, NO marketing layout
 • NO extra objects arranged around the product — this is NOT a flat lay. It's a person holding the product
 • The overall feel must be: "a real customer took this photo after receiving their package"
+• ${nichePrompt}
 ${buildHumanPhotoRealismRules()}`;
 
   return [
@@ -886,10 +896,19 @@ ${baseRules}`,
 /**
  * Construit un 2e prompt avant/après basé sur un bénéfice différent du premier.
  */
-function buildSecondBeforeAfterPrompt(gptResult) {
+function buildSecondBeforeAfterPrompt(gptResult, visualPrefs = {}) {
   const benefits = gptResult.benefits_bullets || [];
   const secondBenefit = (benefits[1] || benefits[2] || benefits[0] || 'improved appearance').replace(/^[^\w]*/, '');
   const targetPerson = gptResult.hero_target_person || 'african person';
+  const template = visualPrefs?.template || 'general';
+  const nichePrompt = {
+    beauty: 'Adapt the transformation to skincare, haircare, beauty comfort or visible aesthetic improvement.',
+    health: 'Adapt the transformation to wellness, relief, energy, posture, comfort or health-related improvement.',
+    tech: 'Adapt the transformation to convenience, usability, productivity or visible everyday ease.',
+    fashion: 'Adapt the transformation to fit, elegance, style confidence or stronger presence.',
+    home: 'Adapt the transformation to cleanliness, comfort, organization, cooking ease or household practicality.',
+    general: 'Adapt the transformation to the product niche and make the benefit visually obvious.',
+  }[template] || 'Adapt the transformation to the product niche and make the benefit visually obvious.';
   // Inverser le genre pour varier
   const altPerson = targetPerson.toLowerCase().includes('woman') || targetPerson.toLowerCase().includes('femme')
     ? 'an African man (30-40 years old, short natural hair, confident expression)'
@@ -912,50 +931,8 @@ MANDATORY:
 - Soft natural lighting, clean style, NO aggressive filters
 - PHOTOREALISTIC — must look like a REAL photograph, NOT AI-generated
 - NO title text, NO price, NO CTA, NO URL
-- Tight crop, ZERO empty margins${buildHumanPhotoRealismRules()}`;
-}
-
-/**
- * Construit un prompt pour un screenshot de témoignage WhatsApp réaliste.
- */
-function buildWhatsAppTestimonyPrompt(gptResult) {
-  const productTitle = gptResult.title || 'le produit';
-  const benefit = (gptResult.benefits_bullets?.[0] || 'très satisfait du produit').replace(/^[^\w]*/, '');
-  const testimonial = gptResult.testimonials?.[0] || {};
-  const customerName = testimonial.name || 'Aminata K.';
-  const quickResult = gptResult.urgency_elements?.quick_result || 'résultats visibles rapidement';
-
-  return `A hyper-realistic screenshot of a WhatsApp mobile conversation displayed on a modern smartphone screen. The screenshot must look 100% AUTHENTIC — exactly like a real WhatsApp chat screenshot taken on an Android or iPhone. Vertical 4:5 (1080×1250).
-
-═══ WHATSAPP INTERFACE — PIXEL PERFECT ═══
-- WhatsApp header bar at top: back arrow, small circular profile photo of an African person, contact name "${customerName}", "en ligne" status text, video/call icons
-- Chat background: WhatsApp default light wallpaper pattern
-- Message bubbles with correct WhatsApp styling:
-  • INCOMING messages (white/light gray bubbles, LEFT aligned, small tail on left)
-  • OUTGOING messages (light green bubbles, RIGHT aligned, small tail on right)
-  • Each bubble has timestamp (e.g. 14:32) in small gray text at bottom-right
-  • Blue double-check marks (✓✓) on sent messages
-  • Delivered status indicators
-
-═══ CONVERSATION CONTENT IN FRENCH ═══
-The conversation shows a real customer sharing their experience:
-
-Bubble 1 (incoming, white): "Bonjour ! Je voulais vous remercier pour ${productTitle} 🙏"
-Bubble 2 (incoming, white): "${benefit}. Franchement je suis trop contente, ${quickResult} 😍"
-Bubble 3 (incoming, white): A small photo thumbnail showing a happy African person (selfie-style, genuine smile) — like a photo shared in WhatsApp chat
-Bubble 4 (incoming, white): "Je vais recommander à toutes mes amies ! ⭐⭐⭐⭐⭐"
-Bubble 5 (outgoing, green): "Merci beaucoup ${customerName} ! 🙏 Votre retour nous fait très plaisir ❤️"
-Bubble 6 (outgoing, green): "N'hésitez pas à revenir, on a des nouveautés bientôt 😊"
-
-═══ STYLE RULES ═══
-- The phone screen fills most of the frame — thin bezels, modern smartphone
-- ALL text must be 100% PERFECTLY READABLE — clear, sharp, no blur on text
-- ALL French text must have PERFECT spelling with all accents (é, è, ê, à, ù, ç)
-- The emojis must look like real WhatsApp/system emojis
-- Background behind the phone: clean, simple (dark or blurred lifestyle scene)
-- NO watermarks, NO labels outside the phone, NO marketing overlay
-- This must look like someone took a REAL screenshot of their WhatsApp and shared it as social proof
-- PHOTOREALISTIC rendering of the smartphone and screen content`;
+- Tight crop, ZERO empty margins
+- ${nichePrompt}${buildHumanPhotoRealismRules()}`;
 }
 
 /**
@@ -1507,11 +1484,12 @@ router.get('/images/:jobId', requireEcomAuth, (req, res) => {
 
   const images = {};
   if (job.heroImage) images.heroImage = job.heroImage;
+  if (job.heroPosterImage) images.heroPosterImage = job.heroPosterImage;
   if (job.beforeAfterImage) images.beforeAfterImage = job.beforeAfterImage;
   if (job.beforeAfterImages?.length) images.beforeAfterImages = job.beforeAfterImages;
-  if (job.whatsappTestimony) images.whatsappTestimony = job.whatsappTestimony;
   if (job.angles?.length) images.angles = job.angles;
   if (job.peoplePhotos?.length) images.peoplePhotos = job.peoplePhotos;
+  if (job.socialProofImages?.length) images.socialProofImages = job.socialProofImages;
 
   res.json({
     success: true,
@@ -1530,6 +1508,9 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     url,
     description: userDescription,
     skipScraping,
+    withImages,
+    imageGenerationMode: rawImageGenerationMode,
+    imageAspectRatio: rawImageAspectRatio,
     marketingApproach,
     visualTemplate: rawVisualTemplate,
     preferredColor: rawPreferredColor,
@@ -1546,6 +1527,9 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
   const imageFiles = req.files || [];
   const approach = marketingApproach || 'PAS';
   const visualTemplate = rawVisualTemplate || 'general';
+  const imageGenerationMode = rawImageGenerationMode === 'standard' ? 'standard' : 'ad_4_5';
+  const shouldGenerateImages = withImages !== 'false';
+  const imageAspectRatio = rawImageAspectRatio === '1:1' ? '1:1' : '4:5';
   const preferredColor = typeof rawPreferredColor === 'string' ? rawPreferredColor.trim().slice(0, 80) : '';
   const heroVisualDirection = typeof rawHeroVisualDirection === 'string' ? rawHeroVisualDirection.trim().slice(0, 180) : '';
   const decorationDirection = typeof rawDecorationDirection === 'string' ? rawDecorationDirection.trim().slice(0, 180) : '';
@@ -1563,6 +1547,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
   const visualContext = {
     template: visualTemplate,
+    imageGenerationMode,
+    imageAspectRatio,
     preferredColor,
     heroVisualDirection,
     decorationDirection,
@@ -1726,7 +1712,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     // ══════════════════════════════════════════════════════════════════════════
     // RESPOND EARLY — Send text data immediately, generate images in background
     // ══════════════════════════════════════════════════════════════════════════
-    const jobId = `gen_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const jobId = shouldGenerateImages ? `gen_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` : null;
 
     // Testimonials sans images individuelles
     const finalTestimonials = (gptResult.testimonials || []).map(t => ({ ...t, image: '' }));
@@ -1749,9 +1735,10 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       offer_block: gptResult.offer_block || null,
       seo: gptResult.seo || null,
       heroImage: null,
+      heroPosterImage: null,
       beforeAfterImage: null,
       beforeAfterImages: [],
-      whatsappTestimony: null,
+      socialProofImages: [],
       angles: (gptResult.angles || []).map((a, i) => ({ ...a, poster_url: null, index: i + 1 })),
       raisons_acheter: gptResult.raisons_acheter || [],
       benefits_bullets: gptResult.benefits_bullets || [],
@@ -1770,6 +1757,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       createdByAI: true,
       generatedAt: new Date().toISOString(),
       imageJobId: jobId,
+      imageGenerationMode,
+      imageAspectRatio,
       visualTemplate,
       preferredColor,
       heroVisualDirection,
@@ -1811,10 +1800,15 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       imageJobId: jobId,
     });
 
+    if (!shouldGenerateImages) {
+      console.log('🖼️ [PG] Génération d\'images désactivée par la requête');
+      return;
+    }
+
     // ══════════════════════════════════════════════════════════════════════════
     // BACKGROUND — Generate all images asynchronously
     // ══════════════════════════════════════════════════════════════════════════
-    const jobData = { status: 'generating', progress: 0, total: 0, heroImage: null, beforeAfterImage: null, beforeAfterImages: [], angles: [], peoplePhotos: [], whatsappTestimony: null, createdAt: Date.now() };
+    const jobData = { status: 'generating', progress: 0, total: 0, heroImage: null, beforeAfterImage: null, beforeAfterImages: [], angles: [], peoplePhotos: [], socialProofImages: [], createdAt: Date.now() };
     imageJobs.set(jobId, jobData);
 
     // Fire and forget — errors won't crash the response
@@ -1944,7 +1938,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     // ── Hero PRO — African FB-ads template (LEFT: product | RIGHT: person + problem) ──
     imageTasks.push(
-      () => generateAndUpload(buildHeroPrompt(gptResult, !!baseImageBuffer, visualTemplate, visualContext), baseImageBuffer, `hero-${Date.now()}.png`, 'hero', '4:5')
+      () => generateAndUpload(buildHeroPrompt(gptResult, !!baseImageBuffer, visualTemplate, visualContext), baseImageBuffer, `hero-${Date.now()}.png`, 'hero', imageAspectRatio)
         .then(url => ({ type: 'hero', url }))
     );
 
@@ -1952,13 +1946,13 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     const beforeAfterPrompt1 = gptResult.prompt_avant_apres || null;
     if (beforeAfterPrompt1) {
       imageTasks.push(
-        () => generateAndUpload(beforeAfterPrompt1, baseImageBuffer, `before-after-1-${Date.now()}.png`, 'before_after', '4:5')
+        () => generateAndUpload(beforeAfterPrompt1, baseImageBuffer, `before-after-1-${Date.now()}.png`, 'before_after', '1:1')
           .then(url => ({ type: 'before_after', index: 0, url }))
       );
     }
-    const beforeAfterPrompt2 = buildSecondBeforeAfterPrompt(gptResult);
+    const beforeAfterPrompt2 = buildSecondBeforeAfterPrompt(gptResult, visualContext);
     imageTasks.push(
-      () => generateAndUpload(beforeAfterPrompt2, baseImageBuffer, `before-after-2-${Date.now()}.png`, 'before_after', '4:5')
+      () => generateAndUpload(beforeAfterPrompt2, baseImageBuffer, `before-after-2-${Date.now()}.png`, 'before_after', '1:1')
         .then(url => ({ type: 'before_after', index: 1, url }))
     );
 
@@ -1983,7 +1977,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         : flash.prompt + africanRealism;
 
       imageTasks.push(
-        () => generateAndUpload(anglePrompt, baseImageBuffer, `flash-${i + 1}-${Date.now()}.png`, 'scene', '4:5')
+        () => generateAndUpload(anglePrompt, baseImageBuffer, `flash-${i + 1}-${Date.now()}.png`, 'scene', imageAspectRatio)
           .then(url => ({ type: 'poster', index: i, url, angle, flashType: flash.type }))
       );
     }
@@ -1992,17 +1986,10 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     const peoplePhotoPrompts = buildPeopleHoldingProductPrompts(gptResult, visualContext);
     peoplePhotoPrompts.forEach((peoplePrompt, idx) => {
       imageTasks.push(
-        () => generateAndUpload(peoplePrompt, baseImageBuffer, `people-${idx + 1}-${Date.now()}.png`, 'scene', '4:5')
+        () => generateAndUpload(peoplePrompt, baseImageBuffer, `people-${idx + 1}-${Date.now()}.png`, 'scene', '1:1')
           .then(url => ({ type: 'people_photo', index: idx, url }))
       );
     });
-
-    // ── WhatsApp testimony — 1 screenshot de témoignage WhatsApp ──
-    const whatsappPrompt = buildWhatsAppTestimonyPrompt(gptResult);
-    imageTasks.push(
-      () => generateAndUpload(whatsappPrompt, baseImageBuffer, `whatsapp-testimony-${Date.now()}.png`, 'scene', '4:5')
-        .then(url => ({ type: 'whatsapp_testimony', url }))
-    );
 
     // Exécuter les générations par batch de 5 pour aller plus vite (rate-limit Kie.ai géré par retry)
     const BATCH_SIZE = 5;
@@ -2058,8 +2045,6 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       .filter(Boolean);
     jobData.beforeAfterImage = jobData.beforeAfterImages[0] || null; // backward compat
 
-    jobData.whatsappTestimony = imageResults.find(r => r?.type === 'whatsapp_testimony')?.url || null;
-
     jobData.angles = imageResults
       .filter(r => r?.type === 'poster')
       .sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0))
@@ -2070,19 +2055,28 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         flashType: r?.flashType || null
       }));
 
+    // Backward compatibility: expose the first marketing poster as heroPosterImage
+    jobData.heroPosterImage = jobData.angles.find((angle) => angle?.poster_url)?.poster_url || null;
+
     jobData.peoplePhotos = imageResults
       .filter(r => r?.type === 'people_photo')
       .sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0))
       .map(r => r?.url)
       .filter(Boolean);
 
+    jobData.socialProofImages = [
+      ...jobData.peoplePhotos,
+      ...jobData.beforeAfterImages,
+    ].filter((url, index, array) => url && array.indexOf(url) === index);
+
     jobData.status = 'done';
     console.log('✅ [BG] Images terminées:', {
       hero: !!jobData.heroImage,
+      heroPoster: !!jobData.heroPosterImage,
       beforeAfterImages: jobData.beforeAfterImages.length,
-      whatsappTestimony: !!jobData.whatsappTestimony,
       posters: jobData.angles.filter(p => p.poster_url).length,
       peoplePhotos: jobData.peoplePhotos.length,
+      socialProofImages: jobData.socialProofImages.length,
     });
 
       } catch (bgErr) {

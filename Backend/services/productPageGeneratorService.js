@@ -910,6 +910,13 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
 export async function generatePosterImage(promptAffiche, originalImageBuffer = null, options = {}) {
   try {
     const mode = options?.mode || 'scene';
+    const aspectRatio = options?.aspectRatio || '4:5';
+    const ratioPrompt = aspectRatio === '1:1'
+      ? 'Square 1:1 (1080×1080) premium composition, balanced framing, full-bleed crop, ZERO empty margins.'
+      : 'Vertical 4:5 (1080×1250) premium composition, tight crop, full-bleed framing, ZERO empty margins.';
+    const formatOverride = aspectRatio === '1:1'
+      ? 'FORMAT OVERRIDE: Generate the final image in SQUARE 1:1 (1080×1080). Ignore any previous mention of 4:5, portrait, or vertical-only framing elsewhere in the prompt.'
+      : 'FORMAT OVERRIDE: Generate the final image in VERTICAL 4:5 (1080×1250). Ignore any previous mention of other aspect ratios elsewhere in the prompt.';
     console.log(`🎨 Generating ${mode} image with NanoBanana...`);
 
     if (!originalImageBuffer) {
@@ -920,7 +927,7 @@ export async function generatePosterImage(promptAffiche, originalImageBuffer = n
     const heroRules = `
 Create a high-converting ecommerce product hero image showing the product IN ACTION. Ultra realistic, 4K quality, sharp focus, advertising photography style.
 USE EXACTLY the product appearance from the reference image provided — do NOT redraw, recreate, or redesign the product. If you cannot reproduce the EXACT same product, generate the scene WITHOUT the product rather than inventing a different one.
-Vertical 4:5 (1080×1250) premium composition, tight crop, full-bleed framing, ZERO empty margins.
+${ratioPrompt}
 
 Visual style: Clean, modern, premium. The product is shown in its REAL USAGE CONTEXT — being held IN THE PERSON'S HANDS, opened, applied, used, demonstrated. NOT a static cosmetic studio pose. Contextual background matching the product category (kitchen, desk, bathroom, outdoor, gym, home, etc.). Warm natural lighting, professional quality.
 
@@ -938,7 +945,7 @@ Mood: Premium ecommerce, trustworthy, high-conversion, scroll-stopping — the p
     const heroPosterRules = `
 Create a bold, visually striking advertising poster for THIS specific product. Premium graphic design meets ultra-realistic product photography.
 USE EXACTLY the product appearance from the reference image provided — do NOT redraw, recreate, or redesign the product. If you cannot reproduce the EXACT same product, generate the poster WITHOUT the product rather than inventing a different one.
-Vertical 4:5 (1080×1250), dramatic full-bleed composition, ZERO empty margins.
+${ratioPrompt}
 
 PRODUCT PLACEMENT (CRITICAL): The product must be LARGE, DOMINANT, and PERFECTLY SHARP in the center or lower third. It should occupy at least 50% of the frame. Every detail of the product (color, texture, label, packaging) must be crystal clear and instantly recognizable.
 
@@ -963,7 +970,7 @@ Mood: Bold, aspirational, premium brand launch — think Apple product launch po
 
     const beforeAfterRules = `
 Create a high-converting before/after product transformation image. Ultra realistic, 4K quality, sharp focus, advertising photography style.
-Vertical 4:5 (1080×1250) split-screen visual specific to this product.
+${aspectRatio === '1:1' ? 'Square 1:1 (1080×1080) split-screen visual specific to this product.' : 'Vertical 4:5 (1080×1250) split-screen visual specific to this product.'}
 
 MANDATORY: feature an authentic Black African person (dark brown skin, natural African hair, African facial features). Natural expression, realistic skin and features — not fake or plastic.
 
@@ -978,7 +985,7 @@ NO arrows, NO heavy graphic overlays, NO empty margins, NO price, NO CTA.
 Mood: Trustworthy, convincing, high-conversion, impossible to ignore in a Facebook or TikTok feed.`;
 
     const sceneRules = `
-QUALITY: Ultra HD 4K, razor-sharp, zero blur. Vertical 4:5 (1080×1250).
+QUALITY: Ultra HD 4K, razor-sharp, zero blur. ${aspectRatio === '1:1' ? 'Square 1:1 (1080×1080).' : 'Vertical 4:5 (1080×1250).'}
 PRODUCT REFERENCE (CRITICAL): The reference product image provided MUST be reproduced EXACTLY in the output — same packaging, same colors, same label, same shape, same size proportions. Use the EXACT visual appearance from the reference photo, do NOT recreate or redraw the product. If you cannot faithfully reproduce the EXACT same product, generate the scene WITHOUT the product rather than inventing a different one. A scene without the product is ALWAYS better than a scene with a wrong product.
 PERSON: ALWAYS include authentic Black African person (dark skin, natural hair, confident expression) in a MODERN UPSCALE setting.
 PRODUCT: Large, dominant, sharp, 40-60% of frame. Must match the reference image exactly.
@@ -1001,12 +1008,12 @@ The product MUST appear in the generated visual. If it cannot be faithfully repr
 
     // CRITICAL: product reference rule FIRST (survives any truncation),
     // then the unique design prompt, then the mode-specific quality rules.
-    const posterPrompt = `${productRefRule}
+    const posterPrompt = `${formatOverride}
+  ${productRefRule}
 ${promptAffiche}
 ${modeRules}`;
 
     console.log('📸 Image-to-image poster generation (with product reference)...');
-    const aspectRatio = options?.aspectRatio || '4:5';
     const result = await generateNanoBananaImageToImage(
       posterPrompt,
       originalImageBuffer,

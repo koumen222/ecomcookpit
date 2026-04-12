@@ -310,6 +310,25 @@ const StoreProductForm = () => {
     setSuccess('');
   };
 
+  const syncHeroWithImages = (updater) => {
+    setForm((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      const images = Array.isArray(next.images) ? next.images : [];
+      const primaryImage = images[0]?.url || null;
+      const nextPageData = next._pageData || prev._pageData || null;
+
+      return {
+        ...next,
+        _pageData: nextPageData
+          ? {
+              ...nextPageData,
+              heroImage: primaryImage,
+            }
+          : nextPageData,
+      };
+    });
+  };
+
   // ─── _pageData helpers ──────────────────────────────────────────────────
   const getPageData = (key, fallback) => form._pageData?.[key] ?? fallback;
   const setPageData = (key, value) => {
@@ -347,7 +366,7 @@ const StoreProductForm = () => {
           throw new Error('Réponse upload invalide (URL manquante)');
         }
 
-        setForm(prev => ({
+        syncHeroWithImages(prev => ({
           ...prev,
           images: [...prev.images, { url, alt: prev.name || file.name, order: prev.images.length }]
         }));
@@ -367,14 +386,14 @@ const StoreProductForm = () => {
   };
 
   const handleRemoveImage = (index) => {
-    setForm(prev => ({
+    syncHeroWithImages(prev => ({
       ...prev,
       images: prev.images.filter((_, i) => i !== index)
     }));
   };
 
   const handleMoveImage = (index, direction) => {
-    setForm(prev => {
+    syncHeroWithImages(prev => {
       const imgs = [...prev.images];
       const target = index + direction;
       if (target < 0 || target >= imgs.length) return prev;
@@ -385,7 +404,7 @@ const StoreProductForm = () => {
 
   const handleSetHero = (index) => {
     if (index === 0) return;
-    setForm(prev => {
+    syncHeroWithImages(prev => {
       const imgs = [...prev.images];
       const [moved] = imgs.splice(index, 1);
       imgs.unshift(moved);
@@ -397,7 +416,7 @@ const StoreProductForm = () => {
   const [imageUrlInput, setImageUrlInput] = useState('');
   const handleAddImageUrl = () => {
     if (!imageUrlInput.trim()) return;
-    setForm(prev => ({
+    syncHeroWithImages(prev => ({
       ...prev,
       images: [...prev.images, { url: imageUrlInput.trim(), alt: prev.name, order: prev.images.length }]
     }));
@@ -549,6 +568,14 @@ const StoreProductForm = () => {
     setSaving(true);
     setError('');
 
+    const primaryImage = form.images?.[0]?.url || null;
+    const syncedPageData = form._pageData
+      ? {
+          ...form._pageData,
+          heroImage: primaryImage,
+        }
+      : form._pageData;
+
     const payload = {
       name: form.name.trim(),
       description: form.description.trim(),
@@ -569,7 +596,7 @@ const StoreProductForm = () => {
       linkedProductId: form.linkedProductId || null,
       ...(form.testimonials?.length > 0 && { testimonials: form.testimonials }),
       ...(form.faq?.length > 0 && { faq: form.faq }),
-      ...(form._pageData && { _pageData: form._pageData })
+      ...(syncedPageData && { _pageData: syncedPageData })
     };
 
     try {

@@ -565,11 +565,11 @@ const startServer = async () => {
     console.log(`🔍 Debug mode: ENABLED (all requests logged)`);
     
     server.listen(PORT, () => {
-      // Allow long-running AI generation requests (up to 8 minutes).
+      // Allow long-running AI generation requests (up to 25 minutes).
       // Railway/Nginx proxy can drop idle connections at ~60s; setting
-      // headersTimeout=0 + requestTimeout=480000 prevents that cut-off.
+      // headersTimeout=0 + requestTimeout=1500000 prevents that cut-off.
       server.headersTimeout = 0;        // no headers-phase timeout
-      server.requestTimeout = 480000;   // 8 min max per request
+      server.requestTimeout = 1500000;  // 25 min max per request
       server.keepAliveTimeout = 65000;  // slightly above Railway's 60s keepalive
 
       console.log(`🌐 Server ready on port ${PORT}`);

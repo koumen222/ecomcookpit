@@ -296,6 +296,14 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
     }));
 
     const theme = workspace.storeTheme || {};
+    const sectionColors = {
+      socialProof: theme.sectionColors?.socialProof || theme.accentColor || theme.primaryColor || '#7C3AED',
+      benefits: theme.sectionColors?.benefits || theme.primaryColor || '#0F6B4F',
+      trust: theme.sectionColors?.trust || theme.accentColor || theme.primaryColor || '#2563EB',
+      problem: theme.sectionColors?.problem || theme.errorColor || '#DC2626',
+      solution: theme.sectionColors?.solution || theme.primaryColor || '#059669',
+      faq: theme.sectionColors?.faq || theme.accentColor || theme.primaryColor || '#7C3AED',
+    };
     const pages = workspace.storePages;  // intentional: null if never set
     const pixels = workspace.storePixels || {};
 
@@ -324,6 +332,7 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
           textColor: settings.textColor || theme.textColor || '#111827',
           font: settings.font || theme.font || 'inter',
           borderRadius: theme.borderRadius || 'lg',
+          sectionColors,
           sectionToggles: theme.sections || {},
           // Settings extras
           email: settings.email || '',

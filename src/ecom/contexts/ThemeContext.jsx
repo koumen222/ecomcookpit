@@ -16,6 +16,14 @@ export const DEFAULT_THEME = {
   successColor: '#10B981',
   errorColor: '#EF4444',
   warningColor: '#F59E0B',
+  sectionColors: {
+    socialProof: '#7C3AED',
+    benefits: '#0F6B4F',
+    trust: '#2563EB',
+    problem: '#DC2626',
+    solution: '#059669',
+    faq: '#7C3AED',
+  },
   font: 'inter',
   borderRadius: 'lg',
   sections: {
@@ -66,6 +74,7 @@ export function ThemeProvider({ children, subdomain = null }) {
   const generateCssVariables = useCallback((themeData) => {
     const fontFamily = FONT_FAMILIES[themeData.font] || FONT_FAMILIES.inter;
     const borderRadius = BORDER_RADIUS_VALUES[themeData.borderRadius] || BORDER_RADIUS_VALUES.lg;
+    const sectionColors = { ...DEFAULT_THEME.sectionColors, ...(themeData.sectionColors || {}) };
     
     return {
       '--theme-primary': themeData.primaryColor,
@@ -77,6 +86,12 @@ export function ThemeProvider({ children, subdomain = null }) {
       '--theme-success': themeData.successColor || '#10B981',
       '--theme-error': themeData.errorColor || '#EF4444',
       '--theme-warning': themeData.warningColor || '#F59E0B',
+      '--theme-section-social-proof': sectionColors.socialProof,
+      '--theme-section-benefits': sectionColors.benefits,
+      '--theme-section-trust': sectionColors.trust,
+      '--theme-section-problem': sectionColors.problem,
+      '--theme-section-solution': sectionColors.solution,
+      '--theme-section-faq': sectionColors.faq,
       '--theme-font-family': fontFamily,
       '--theme-border-radius': borderRadius,
       '--theme-border-radius-sm': `calc(${borderRadius} * 0.5)`,

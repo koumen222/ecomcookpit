@@ -108,11 +108,12 @@ const DEFAULT_TESTIMONIALS = [
 
 const LEGACY_PRODUCT_GALLERY_TITLE = 'Ils nous font confiance';
 const LEGACY_PRODUCT_GALLERY_SUBTITLE = 'Découvrez les retours de nos clients satisfaits';
+const SOCIAL_PROOF_GALLERY_TITLE = 'Ces clients nous ont fait confiance';
 
 const PRODUCT_GALLERY_DEFAULTS = {
-  title: '',
+  title: SOCIAL_PROOF_GALLERY_TITLE,
   subtitle: '',
-  showHeader: false,
+  showHeader: true,
   useProductImages: true,
   images: [],
   mainImageHeight: 420,
@@ -124,9 +125,9 @@ const normalizeProductGalleryContent = (content = {}) => {
   const title = String(normalized.title || '').trim();
   const subtitle = String(normalized.subtitle || '').trim();
   if (title === LEGACY_PRODUCT_GALLERY_TITLE && subtitle === LEGACY_PRODUCT_GALLERY_SUBTITLE) {
-    normalized.title = '';
+    normalized.title = SOCIAL_PROOF_GALLERY_TITLE;
     normalized.subtitle = '';
-    normalized.showHeader = false;
+    normalized.showHeader = true;
   }
   return normalized;
 };
@@ -383,8 +384,17 @@ const SectionContentEditor = ({ section, onChange, product }) => {
     const gallery = normalizeProductGalleryContent(content);
     const customImages = Array.isArray(gallery.images) ? gallery.images : [];
     const validCustomImages = customImages.filter((image) => image?.url);
-    const productImages = Array.isArray(product?.images)
-      ? product.images
+    const pageData = product?._pageData || {};
+    const socialProofSource = Array.isArray(pageData.socialProofImages) && pageData.socialProofImages.length > 0
+      ? pageData.socialProofImages
+      : [
+          ...(Array.isArray(pageData.peoplePhotos) ? pageData.peoplePhotos : []),
+          ...(Array.isArray(pageData.beforeAfterImages) && pageData.beforeAfterImages.length > 0
+            ? pageData.beforeAfterImages
+            : (pageData.beforeAfterImage ? [pageData.beforeAfterImage] : [])),
+        ];
+    const productImages = Array.isArray(socialProofSource)
+      ? socialProofSource
           .map((image) => (typeof image === 'string'
             ? { url: image, alt: '' }
             : { url: image?.url || '', alt: image?.alt || '' }))
@@ -460,11 +470,11 @@ const SectionContentEditor = ({ section, onChange, product }) => {
         <div className="grid grid-cols-2 gap-2">
           <div>
             <div className="text-[11px] font-semibold text-gray-500 mb-1">Titre</div>
-            <input className={inputCls} value={gallery.title || ''} onChange={e => update('title', e.target.value)} placeholder="Photos du produit" />
+            <input className={inputCls} value={gallery.title || ''} onChange={e => update('title', e.target.value)} placeholder="Ces clients nous ont fait confiance" />
           </div>
           <div>
             <div className="text-[11px] font-semibold text-gray-500 mb-1">Sous-titre</div>
-            <input className={inputCls} value={gallery.subtitle || ''} onChange={e => update('subtitle', e.target.value)} placeholder="Faites défiler les visuels..." />
+            <input className={inputCls} value={gallery.subtitle || ''} onChange={e => update('subtitle', e.target.value)} placeholder="Avant / après et clients avec le produit" />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
@@ -488,6 +498,7 @@ const SectionContentEditor = ({ section, onChange, product }) => {
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={gallery.useProductImages !== false} onChange={e => update('useProductImages', e.target.checked)} className="w-4 h-4 accent-emerald-500" />
           <span className="text-[12px] text-gray-600">Utiliser aussi les photos natives du produit</span>
+                  <span className="text-[12px] text-gray-600">Utiliser les images de preuve sociale générées</span>
         </label>
         <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50/60 p-3">
           <div className="flex items-center justify-between">

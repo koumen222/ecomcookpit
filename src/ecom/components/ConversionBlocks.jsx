@@ -23,7 +23,7 @@ function BlockIcon({ icon, color }) {
  * Blocs de conversion pour rassurer et pousser à l'achat
  * Optimisé pour le marché africain
  */
-export default function ConversionBlocks({ blocks = null, compact = false }) {
+export default function ConversionBlocks({ blocks = null, compact = false, iconColor = 'var(--s-section-trust, var(--s-primary))', borderColor = 'var(--s-section-trust-border, var(--s-border))', backgroundColor = 'var(--s-section-trust-soft, var(--s-bg))', textColor = 'var(--s-text)' }) {
   // Blocs par défaut si non fournis
   const defaultBlocks = [
     { icon: '✅', text: 'Paiement à la livraison' },
@@ -50,19 +50,19 @@ export default function ConversionBlocks({ blocks = null, compact = false }) {
             alignItems: 'center',
             gap: 6,
             padding: compact ? '6px 10px' : '8px 12px',
-            backgroundColor: 'var(--s-bg, #fff)',
-            border: '1px solid var(--s-border, #e5e7eb)',
+            backgroundColor,
+            border: `1px solid ${borderColor}`,
             borderRadius: 999,
             whiteSpace: 'nowrap',
             maxWidth: '100%',
             overflow: 'hidden',
           }}
         >
-          <BlockIcon icon={block.icon} color="var(--s-primary, #16a34a)" />
+          <BlockIcon icon={block.icon} color={iconColor} />
           <span style={{
             fontSize: compact ? 11.5 : 12.5,
             fontWeight: 600,
-            color: 'var(--s-text)',
+            color: textColor,
             fontFamily: 'var(--s-font)',
           }}>
             {block.text}
