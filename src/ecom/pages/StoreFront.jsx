@@ -207,6 +207,15 @@ const StoreFront = () => {
     availability !== 'all' ? { key: 'availability', label: availability === 'in-stock' ? 'En stock' : 'Rupture', clear: () => setAvailability('all') } : null,
   ].filter(Boolean);
 
+  const totalVisibleProducts = filteredProducts.length;
+
+  const getDiscountPercent = (product) => {
+    const comparePrice = Number(product.compareAtPrice || 0);
+    const currentPrice = Number(product.price || 0);
+    if (!comparePrice || comparePrice <= currentPrice || currentPrice <= 0) return null;
+    return Math.round(((comparePrice - currentPrice) / comparePrice) * 100);
+  };
+
   const clearAllFilters = () => {
     setSelectedCategory('');
     setSearch('');
@@ -378,146 +387,152 @@ const StoreFront = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 pb-12 pt-6 lg:pt-8">
-        <section
-          className="relative mb-6 overflow-hidden lg:mb-8"
-          style={{
-            ...sidebarCardStyle,
-            padding: '38px 22px',
-            background: 'linear-gradient(180deg, color-mix(in srgb, var(--s-bg) 92%, white) 0%, var(--sf-surface) 100%)',
-          }}
-        >
-          <div
-            aria-hidden="true"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              backgroundImage: 'radial-gradient(circle, color-mix(in srgb, var(--s-primary) 16%, transparent) 1.5px, transparent 1.5px)',
-              backgroundSize: '22px 22px',
-              opacity: 0.16,
-              maskImage: 'linear-gradient(135deg, transparent 10%, black 40%, transparent 90%)',
-            }}
-          />
-          <div className="relative text-center">
-            <div className="flex items-center justify-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em]" style={{ color: 'var(--s-text2)' }}>
-              <span>Home</span>
-              <span>/</span>
-              <span>Shop</span>
-            </div>
-            <h2 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl" style={{ color: 'var(--s-text)' }}>Shop</h2>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-6" style={{ color: 'var(--s-text2)' }}>
-              Parcourez le catalogue avec une structure claire, des filtres visibles et une grille produit pensée comme une vraie page boutique.
-            </p>
-            <button
-              type="button"
-              onClick={() => setMobileFiltersOpen((open) => !open)}
-              className="mt-5 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold lg:hidden"
-              style={{ backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)' }}
-            >
-              {mobileFiltersOpen ? <X className="w-4 h-4" /> : <SlidersHorizontal className="w-4 h-4" />}
-              Filtres
-            </button>
+      <main className="max-w-6xl mx-auto px-4 pb-12 pt-8 lg:pt-10">
+        <section className="text-center">
+          <div className="text-xs font-semibold uppercase tracking-[0.22em]" style={{ color: 'var(--s-text2)' }}>
+            Accueil / Produits
           </div>
+          <h2 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl" style={{ color: 'var(--s-text)' }}>
+            Tous nos produits
+          </h2>
+          <p className="mt-3 text-sm font-medium" style={{ color: 'var(--s-text2)' }}>
+            {pagination.total || totalVisibleProducts} article{(pagination.total || totalVisibleProducts) > 1 ? 's' : ''} disponible{(pagination.total || totalVisibleProducts) > 1 ? 's' : ''}
+          </p>
         </section>
 
-        <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className={`${mobileFiltersOpen ? 'block' : 'hidden'} lg:block`}>
-            <div className="space-y-4 lg:sticky lg:top-24">
-              <div style={{ ...sidebarCardStyle, padding: '18px' }}>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-extrabold" style={{ color: 'var(--s-text)' }}>Filter Options</h3>
-                  {activeFilters.length > 0 && (
-                    <button type="button" onClick={clearAllFilters} className="text-xs font-semibold" style={{ color: 'var(--s-primary)' }}>
-                      Effacer
-                    </button>
-                  )}
-                </div>
-                <div className="mt-4 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--s-text2)' }} />
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Rechercher..."
-                    className="w-full pl-10 pr-4 py-2.5 text-sm focus:outline-none"
-                    style={{ backgroundColor: 'var(--s-bg)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)', borderRadius: 'calc(var(--sf-radius) - 6px)' }}
-                  />
-                </div>
-              </div>
+        <section className="mt-6 flex flex-wrap items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => handleCategoryChange('')}
+            className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition"
+            style={selectedCategory === '' ? { backgroundColor: 'var(--s-text)', color: 'var(--s-bg)' } : { backgroundColor: 'var(--sf-surface)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)' }}
+          >
+            <span>Tout</span>
+            <span className="text-xs opacity-70">{pagination.total || products.length}</span>
+          </button>
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => handleCategoryChange(cat)}
+              className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition"
+              style={selectedCategory === cat ? { backgroundColor: 'var(--s-text)', color: 'var(--s-bg)' } : { backgroundColor: 'var(--sf-surface)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)' }}
+            >
+              <span>{cat}</span>
+              <span className="text-xs opacity-70">{categoryCounts[cat] || 0}</span>
+            </button>
+          ))}
+        </section>
 
-              <div style={{ ...sidebarCardStyle, padding: '18px' }}>
-                <div style={sectionLabelStyle}>Catégories</div>
-                <div className="mt-4 space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => handleCategoryChange('')}
-                    className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-sm transition"
-                    style={selectedCategory === '' ? { backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)' } : { color: 'var(--s-text2)', border: '1px solid transparent' }}
-                  >
-                    <span>Toutes les catégories</span>
-                    {selectedCategory === '' && <Check className="w-4 h-4" style={{ color: 'var(--s-primary)' }} />}
-                  </button>
-                  {categories.map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => handleCategoryChange(cat)}
-                      className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-sm transition"
-                      style={selectedCategory === cat ? { backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)' } : { color: 'var(--s-text2)', border: '1px solid transparent' }}
-                    >
-                      <span>{cat}</span>
-                      <span className="ml-auto mr-2 text-[11px] font-semibold" style={{ color: 'var(--s-text2)' }}>{categoryCounts[cat] || 0}</span>
-                      {selectedCategory === cat && <Check className="w-4 h-4" style={{ color: 'var(--s-primary)' }} />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ ...sidebarCardStyle, padding: '18px' }}>
-                <div style={sectionLabelStyle}>Prix</div>
-                <div className="mt-4">
-                  <div className="flex items-center justify-between text-xs font-semibold" style={{ color: 'var(--s-text2)' }}>
-                    <span>{formatPrice(minPrice, store.currency)}</span>
-                    <span>{formatPrice(maxPrice, store.currency)}</span>
-                  </div>
-                  <div className="mt-3 h-2 rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--s-primary) 10%, var(--s-bg))' }}>
-                    <div className="h-full rounded-full" style={{ width: '100%', background: 'linear-gradient(90deg, var(--s-primary), var(--s-accent))' }} />
-                  </div>
-                  <p className="mt-3 text-xs leading-5" style={{ color: 'var(--s-text2)' }}>
-                    Aperçu de la fourchette de prix des produits affichés.
-                  </p>
-                </div>
-              </div>
-
-              <div style={{ ...sidebarCardStyle, padding: '18px' }}>
-                <div style={sectionLabelStyle}>Disponibilité</div>
-                <div className="mt-4 space-y-2">
-                  {[
-                    { value: 'all', label: 'Tout afficher' },
-                    { value: 'in-stock', label: 'En stock' },
-                    { value: 'out-of-stock', label: 'Rupture' },
-                  ].map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setAvailability(option.value)}
-                      className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-sm transition"
-                      style={availability === option.value ? { backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)' } : { color: 'var(--s-text2)', border: '1px solid transparent' }}
-                    >
-                      <span>{option.label}</span>
-                      {availability === option.value && <Check className="w-4 h-4" style={{ color: 'var(--s-primary)' }} />}
-                    </button>
-                  ))}
-                </div>
-              </div>
+        <section className="mt-6" style={{ ...sidebarCardStyle, padding: '16px 18px' }}>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--s-text2)' }} />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Rechercher un produit"
+                className="w-full pl-10 pr-4 py-3 text-sm focus:outline-none"
+                style={{ backgroundColor: 'var(--s-bg)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)', borderRadius: '999px' }}
+              />
             </div>
-          </aside>
 
-          <section className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+              <button
+                type="button"
+                onClick={() => setMobileFiltersOpen((open) => !open)}
+                className="inline-flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold md:hidden"
+                style={{ backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)' }}
+              >
+                {mobileFiltersOpen ? <X className="w-4 h-4" /> : <SlidersHorizontal className="w-4 h-4" />}
+                Filtres
+              </button>
+
+              <div className="hidden md:flex items-center gap-2">
+                {[
+                  { value: 'all', label: 'Tout' },
+                  { value: 'in-stock', label: 'En stock' },
+                  { value: 'out-of-stock', label: 'Rupture' },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setAvailability(option.value)}
+                    className="rounded-full px-4 py-2 text-sm font-semibold transition"
+                    style={availability === option.value ? { backgroundColor: 'var(--s-text)', color: 'var(--s-bg)' } : { backgroundColor: 'var(--sf-surface)', color: 'var(--s-text2)', border: '1px solid var(--sf-soft-border)' }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold" style={{ backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text2)' }}>
+                <ArrowUpDown className="w-3.5 h-3.5" />
+                Trier
+              </div>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="px-4 py-3 text-sm focus:outline-none"
+                style={{ backgroundColor: 'var(--s-bg)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)', borderRadius: '999px' }}
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {mobileFiltersOpen && (
+            <div className="mt-4 flex flex-wrap gap-2 md:hidden">
+              {[
+                { value: 'all', label: 'Tout' },
+                { value: 'in-stock', label: 'En stock' },
+                { value: 'out-of-stock', label: 'Rupture' },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setAvailability(option.value)}
+                  className="rounded-full px-4 py-2 text-sm font-semibold transition"
+                  style={availability === option.value ? { backgroundColor: 'var(--s-text)', color: 'var(--s-bg)' } : { backgroundColor: 'var(--sf-surface)', color: 'var(--s-text2)', border: '1px solid var(--sf-soft-border)' }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {(activeFilters.length > 0 || minPrice || maxPrice) && (
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs" style={{ color: 'var(--s-text2)' }}>
+              {activeFilters.map((filterItem) => (
+                <button
+                  key={filterItem.key}
+                  type="button"
+                  onClick={filterItem.clear}
+                  className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 font-semibold"
+                  style={{ backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)' }}
+                >
+                  <span>{filterItem.label}</span>
+                  <X className="w-3 h-3" />
+                </button>
+              ))}
+              {(minPrice || maxPrice) ? <span>Prix: {formatPrice(minPrice, store.currency)} - {formatPrice(maxPrice, store.currency)}</span> : null}
+              {activeFilters.length > 0 && (
+                <button type="button" onClick={clearAllFilters} className="font-semibold" style={{ color: 'var(--s-primary)' }}>
+                  Effacer les filtres
+                </button>
+              )}
+            </div>
+          )}
+        </section>
+
+        <section className="min-w-0 mt-6">
         {loadingProducts ? (
           <div className="space-y-4">
             {/* Loading skeleton cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
               {[...Array(8)].map((_, i) => (
                 <div key={i} className="overflow-hidden" style={{ backgroundColor: 'var(--sf-surface)', borderRadius: 'var(--sf-radius)', border: '1px solid var(--sf-soft-border)' }}>
                   {/* Image skeleton */}
@@ -547,59 +562,20 @@ const StoreFront = () => {
           </div>
         ) : (
           <>
-            <div className="mb-4 space-y-4" style={{ ...sidebarCardStyle, padding: '16px 18px' }}>
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold" style={{ color: 'var(--s-text)' }}>
-                    Showing {filteredProducts.length} of {pagination.total} results
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold" style={{ backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text2)' }}>
-                    <ArrowUpDown className="w-3.5 h-3.5" />
-                    Sort by
-                  </div>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="px-3 py-2 text-sm focus:outline-none"
-                    style={{ backgroundColor: 'var(--s-bg)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)', borderRadius: '999px' }}
-                  >
-                    {SORT_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {activeFilters.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {activeFilters.map((filterItem) => (
-                    <button
-                      key={filterItem.key}
-                      type="button"
-                      onClick={filterItem.clear}
-                      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold"
-                      style={{ backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)' }}
-                    >
-                      <span>{filterItem.label}</span>
-                      <X className="w-3 h-3" />
-                    </button>
-                  ))}
-                </div>
-              )}
+            <div className="mb-5 text-center text-sm font-medium" style={{ color: 'var(--s-text2)' }}>
+              {totalVisibleProducts} produit{totalVisibleProducts > 1 ? 's' : ''} affiché{totalVisibleProducts > 1 ? 's' : ''}
             </div>
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
               {filteredProducts.map((product) => (
                 <a
                   key={product._id}
                   href={storeUrl(`/product/${product.slug}`)}
                   className="overflow-hidden text-left transition duration-300 group cursor-pointer"
-                  style={{ backgroundColor: 'var(--sf-surface)', borderRadius: 'var(--sf-radius)', border: '1px solid var(--sf-soft-border)', boxShadow: 'var(--sf-shadow)' }}
+                  style={{ backgroundColor: 'var(--sf-surface)', borderRadius: 'calc(var(--sf-radius) - 4px)', border: '1px solid var(--sf-soft-border)' }}
                   title={`Voir les détails de ${product.name}`}
                 >
-                  <div className="aspect-[0.95/1] overflow-hidden relative" style={{ backgroundColor: 'var(--sf-soft-surface)' }}>
+                  <div className="aspect-square overflow-hidden relative" style={{ backgroundColor: 'var(--sf-soft-surface)' }}>
                     {product.image ? (
                       <img
                         src={product.image}
@@ -619,11 +595,11 @@ const StoreFront = () => {
                         <ShoppingBag className="w-8 h-8 text-gray-300" />
                       </div>
                     )}
-                    {product.compareAtPrice && product.compareAtPrice > product.price && (
-                      <div className="absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.16em]" style={{ backgroundColor: 'var(--s-primary)', color: '#fff' }}>
-                        Promo
+                    {getDiscountPercent(product) ? (
+                      <div className="absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em]" style={{ backgroundColor: 'var(--s-primary)', color: '#fff' }}>
+                        -{getDiscountPercent(product)}%
                       </div>
-                    )}
+                    ) : null}
                   </div>
 
                   <div className="p-3 sm:p-4">
@@ -649,7 +625,7 @@ const StoreFront = () => {
                       <span className="inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em]" style={Number(product.stock || 0) > 0 ? { backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text)' } : { backgroundColor: 'color-mix(in srgb, #ef4444 12%, var(--s-bg))', color: '#dc2626' }}>
                         {Number(product.stock || 0) > 0 ? 'En stock' : 'Rupture'}
                       </span>
-                      <span className="text-[11px] font-semibold" style={{ color: 'var(--s-text2)' }}>Voir détails</span>
+                      <span className="text-[11px] font-semibold" style={{ color: 'var(--s-text2)' }}>Voir le produit</span>
                     </div>
                   </div>
                 </a>
@@ -694,8 +670,7 @@ const StoreFront = () => {
             )}
           </>
         )}
-          </section>
-        </div>
+        </section>
 
         <section className="mt-10 grid gap-4 md:grid-cols-3">
           {[
