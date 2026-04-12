@@ -180,7 +180,14 @@ RÈGLE CRITIQUE : le template influence UNIQUEMENT le style general du contenu.
 - Le template ne doit jamais imposer l'arriere-plan final de la page publique, qui doit rester pilote par la configuration theme de la boutique.
 - Il ne doit PAS changer la verite produit, la cible reelle, les promesses, la structure marketing, les objections, ni la logique copywriting.
 - Si le template et le produit se contredisent, tu gardes la verite produit et tu adaptes seulement le langage visuel.
-- Tous les prompts images et toutes les indications de design doivent etre coherents avec ce template backend.`;
+- INTERDICTION ABSOLUE : ne jamais reutiliser une maquette fixe, un layout rigide ou une structure identique d'un produit a l'autre.
+- Pour chaque produit, la structure visuelle doit etre repensee de facon dynamique selon : la promesse du produit, le type d'objet, la cible, les couleurs, le niveau de premium, le contexte d'usage, et l'angle marketing.
+- Les images de description ne doivent PAS donner l'impression d'utiliser toujours le meme template. Elles doivent sembler concues specifiquement pour ce produit.
+- L'IA doit choisir elle-meme la meilleure composition, la meilleure hierarchie visuelle, le meilleur placement du produit, du texte, des badges et des elements graphiques en fonction du produit reel.
+- Les differents visuels d'une MEME page produit doivent aussi varier entre eux : hero, preuve, benefices, reassurance et lifestyle ne doivent pas reprendre la meme grammaire visuelle.
+- Alterne selon le produit entre des approches comme : editorial minimal, macro tactile, collage UGC, poster conversion, mise en scene lifestyle, composition preuve-scientifique ou mise en avant premium.
+- La direction artistique doit etre decidee au cas par cas, pas seulement par categorie. Deux produits d'une meme categorie ne doivent pas automatiquement produire le meme style d'image.
+- Tous les prompts images et toutes les indications de design doivent etre coherents avec ce template backend sans figer la structure.`;
 }
 
 // ─── Parser JSON robuste pour réponses Groq/LLM ────────────────────
@@ -300,6 +307,13 @@ ${visualTemplateInstruction}
 
 🎯 OBJECTIF : Créer une page qui capte l'attention immédiatement, donne confiance, et pousse à l'achat sans friction en suivant la méthode ${marketingApproach}. TOUTE la page (texte, structure, images) doit être cohérente avec cette méthode.
 
+RÈGLE ABSOLUE ANTI-GÉNÉRIQUE :
+- La description, les arguments, les sections, les visuels et les titres ne doivent jamais ressembler à un template générique réutilisé.
+- Chaque page doit sembler conçue spécifiquement pour CE produit, sa promesse, sa cible, son niveau de prix, son contexte d'usage et son identité visuelle.
+- Interdiction d'utiliser des formulations passe-partout, des promesses vagues, des blocs génériques qui pourraient convenir à n'importe quel autre produit.
+- Chaque angle marketing doit être spécifique, concret, visuel, crédible, et ancré dans le produit réel.
+- Les visuels de description doivent varier d'un produit à l'autre dans leur structure, leur hiérarchie, leur rythme visuel et leur mise en scène.
+
 ═══ ÉTAPE 1 : ANALYSE INTELLIGENTE DU PRODUIT ═══
 Avant de générer quoi que ce soit, réponds mentalement à ces questions :
 - À quoi sert réellement ce produit ?
@@ -337,6 +351,7 @@ Identifie la zone corporelle exacte de ce produit et montre UNIQUEMENT cette zon
 2. 🚫 PAS de ton médical ou compliqué — langage simple, direct, compréhensible localement
 3. 🚫 PAS de promesses irréalistes — seulement des bénéfices concrets et crédibles
 4. 🚫 PAS de généricité — chaque mot doit être spécifique à CE produit
+4.bis ✅ Chaque section doit avoir une personnalité propre, pas une structure répétée d'un produit à l'autre
 5. ✅ Focus sur RÉSULTATS CONCRETS et TRANSFORMATION visible
 6. ✅ Adaptation au marché africain : contexte local, peaux noires, climat, culture
 7. ✅ Témoignages localisés avec noms africains et villes du pays cible

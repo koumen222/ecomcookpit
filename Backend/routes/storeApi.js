@@ -488,8 +488,8 @@ router.get('/:subdomain/products/:slug', readLimiter, async (req, res) => {
       isActive: true
     }).sort({ createdAt: -1 }).lean();
 
-    // Product pages cached 10 minutes — they change rarely
-    setCacheHeaders(res, 600);
+    // Product page builder edits must appear quickly on the live page
+    setCacheHeaders(res, 30);
 
     // Per-product-page currency/country ALWAYS override the store's global config.
     // Why: a single store can publish multiple product pages, each targeting a different market.

@@ -712,6 +712,7 @@ const EcomApp = () => {
 
               {/* Public Store Routes (no auth, for iframe previews & dev) */}
               <Route path="/store/:subdomain" element={<Suspense fallback={<PageLoader storeMode />}><PublicStorefront /></Suspense>} />
+              <Route path="/store/:subdomain/products" element={<Suspense fallback={<PageLoader storeMode />}><StoreAllProducts /></Suspense>} />
               <Route path="/store/:subdomain/product/:slug" element={<Suspense fallback={<PageLoader storeMode />}><StoreProductPage /></Suspense>} />
               <Route path="/store/:subdomain/legal/:pageType" element={<Suspense fallback={<PageLoader storeMode />}><StoreLegalPage /></Suspense>} />
               <Route path="/store/:subdomain/checkout" element={<Suspense fallback={<PageLoader storeMode />}><StoreCheckout /></Suspense>} />
