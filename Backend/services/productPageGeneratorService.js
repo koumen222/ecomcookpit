@@ -683,7 +683,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   }
 
   // Helper: appel Groq avec timeout + retries
-  const GROQ_TIMEOUT_MS = 120000; // 2 minutes max par tentative
+  const GROQ_TIMEOUT_MS = 60000; // 60s max par tentative (Groq est rapide)
 
   async function callGroqWithTimeout(model, msgs, withImages) {
     const controller = new AbortController();

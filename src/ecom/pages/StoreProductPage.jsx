@@ -163,11 +163,7 @@ const PRODUCT_GALLERY_DEFAULTS = {
 
 const resolveProductGalleryImages = (content = {}, fallbackImages = []) => {
   const customImages = (content.images || []).filter(image => image?.url);
-  if (content.useProductImages === false) {
-    // Only show custom images — never fall back to hero/product images
-    return customImages;
-  }
-  // AI-generated images (fallbackImages) take priority — put them first
+  // AI-generated per-product images ALWAYS take priority over store-level custom images
   if (fallbackImages.length > 0) {
     const fallbackUrls = new Set(fallbackImages.map(f => f?.url).filter(Boolean));
     return [...fallbackImages, ...customImages.filter(img => !fallbackUrls.has(img.url))];
@@ -1080,7 +1076,12 @@ const buildAiGalleryImages = (product) => {
   pushImage(pageData.heroImage, product?.name || 'Hero image');
   // Affiche hero graphique (poster)
   pushImage(pageData.heroPosterImage, product?.name || 'Affiche produit');
-  pushImage(pageData.beforeAfterImage, product?.name || 'Avant apres');
+  // Before/After images (array ou single pour backward compat)
+  (pageData.beforeAfterImages?.length ? pageData.beforeAfterImages : (pageData.beforeAfterImage ? [pageData.beforeAfterImage] : [])).forEach((photo, index) => {
+    pushImage(photo, `${product?.name || 'Produit'} — avant/après ${index + 1}`);
+  });
+  // WhatsApp testimony
+  pushImage(pageData.whatsappTestimony, `${product?.name || 'Produit'} — témoignage WhatsApp`);
   // Angles/affiches marketing ensuite
   (pageData.angles || []).forEach((angle, index) => {
     pushImage(angle?.poster_url, angle?.titre_angle || `${product?.name || 'Produit'} ${index + 1}`);

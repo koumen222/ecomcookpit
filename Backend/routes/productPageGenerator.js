@@ -880,10 +880,82 @@ ${baseRules}`,
 
     `A real smartphone photo of an African woman (30-40 years old, natural hair wrapped in a headwrap, expression of delight and surprise) who just opened her package. She holds "${title}" up with one hand, the product clearly visible with its packaging. There's a torn delivery package or cardboard box visible on the table or her lap. She is sitting in her modern bedroom or sleek living room. Her face is clearly visible — genuine joy of receiving an order. We see the product AND her face prominently. Natural indoor lighting, slightly warm. This looks like a real unboxing moment shared on social media.
 ${baseRules}`,
-
-    `A real smartphone photo of an African person (any gender, 25-40 years old, bright genuine smile) standing outside in warm daylight — on a modern balcony, in front of a contemporary building, or in a chic urban area. They hold "${title}" forward toward the camera with one hand, product label clearly visible, while their face is clearly visible behind/beside the product with a proud expression. Modern stylish clothes. The background shows a modern urban setting, clean architecture, slightly blurred. Bright natural sunlight. This looks like a real photo posted on Facebook with a caption about the product.
-${baseRules}`,
   ];
+}
+
+/**
+ * Construit un 2e prompt avant/après basé sur un bénéfice différent du premier.
+ */
+function buildSecondBeforeAfterPrompt(gptResult) {
+  const benefits = gptResult.benefits_bullets || [];
+  const secondBenefit = (benefits[1] || benefits[2] || benefits[0] || 'improved appearance').replace(/^[^\w]*/, '');
+  const targetPerson = gptResult.hero_target_person || 'african person';
+  // Inverser le genre pour varier
+  const altPerson = targetPerson.toLowerCase().includes('woman') || targetPerson.toLowerCase().includes('femme')
+    ? 'an African man (30-40 years old, short natural hair, confident expression)'
+    : 'an African woman (25-35 years old, natural braids or afro, warm expression)';
+  const painPoints = gptResult.problem_section?.pain_points || [];
+  const secondProblem = painPoints[1] || painPoints[0] || secondBenefit;
+
+  return `Photorealistic split-screen before/after transformation image for a product. Ultra realistic, 4K quality, sharp focus. Vertical 4:5 (1080×1250).
+
+LEFT SIDE (AVANT): ${altPerson} clearly showing the problem "${secondProblem}" — visible discomfort, frustration, or issue related to this specific product benefit. The problem must be PHYSICALLY VISIBLE, not just a sad expression. Natural, not exaggerated.
+
+RIGHT SIDE (APRÈS): The SAME person showing clear improvement after using the product — "${secondBenefit}". Confident, relieved, visibly better. The product visible at REAL SIZE on the AFTER side, natural placement.
+
+MANDATORY:
+- Authentic Black African person with dark brown skin, natural African features, natural African hair
+- Modern stylish clothing, SUBTLE natural expressions — NOT theatrical
+- Setting: MODERN CONTEMPORARY interior (sleek living room, modern bedroom, contemporary bathroom — NOT traditional, NOT a market)
+- The SAME person on BOTH sides with clear visual transformation
+- Small 'Avant' / 'Après' labels in perfect French with correct accents
+- Soft natural lighting, clean style, NO aggressive filters
+- PHOTOREALISTIC — must look like a REAL photograph, NOT AI-generated
+- NO title text, NO price, NO CTA, NO URL
+- Tight crop, ZERO empty margins${buildHumanPhotoRealismRules()}`;
+}
+
+/**
+ * Construit un prompt pour un screenshot de témoignage WhatsApp réaliste.
+ */
+function buildWhatsAppTestimonyPrompt(gptResult) {
+  const productTitle = gptResult.title || 'le produit';
+  const benefit = (gptResult.benefits_bullets?.[0] || 'très satisfait du produit').replace(/^[^\w]*/, '');
+  const testimonial = gptResult.testimonials?.[0] || {};
+  const customerName = testimonial.name || 'Aminata K.';
+  const quickResult = gptResult.urgency_elements?.quick_result || 'résultats visibles rapidement';
+
+  return `A hyper-realistic screenshot of a WhatsApp mobile conversation displayed on a modern smartphone screen. The screenshot must look 100% AUTHENTIC — exactly like a real WhatsApp chat screenshot taken on an Android or iPhone. Vertical 4:5 (1080×1250).
+
+═══ WHATSAPP INTERFACE — PIXEL PERFECT ═══
+- WhatsApp header bar at top: back arrow, small circular profile photo of an African person, contact name "${customerName}", "en ligne" status text, video/call icons
+- Chat background: WhatsApp default light wallpaper pattern
+- Message bubbles with correct WhatsApp styling:
+  • INCOMING messages (white/light gray bubbles, LEFT aligned, small tail on left)
+  • OUTGOING messages (light green bubbles, RIGHT aligned, small tail on right)
+  • Each bubble has timestamp (e.g. 14:32) in small gray text at bottom-right
+  • Blue double-check marks (✓✓) on sent messages
+  • Delivered status indicators
+
+═══ CONVERSATION CONTENT IN FRENCH ═══
+The conversation shows a real customer sharing their experience:
+
+Bubble 1 (incoming, white): "Bonjour ! Je voulais vous remercier pour ${productTitle} 🙏"
+Bubble 2 (incoming, white): "${benefit}. Franchement je suis trop contente, ${quickResult} 😍"
+Bubble 3 (incoming, white): A small photo thumbnail showing a happy African person (selfie-style, genuine smile) — like a photo shared in WhatsApp chat
+Bubble 4 (incoming, white): "Je vais recommander à toutes mes amies ! ⭐⭐⭐⭐⭐"
+Bubble 5 (outgoing, green): "Merci beaucoup ${customerName} ! 🙏 Votre retour nous fait très plaisir ❤️"
+Bubble 6 (outgoing, green): "N'hésitez pas à revenir, on a des nouveautés bientôt 😊"
+
+═══ STYLE RULES ═══
+- The phone screen fills most of the frame — thin bezels, modern smartphone
+- ALL text must be 100% PERFECTLY READABLE — clear, sharp, no blur on text
+- ALL French text must have PERFECT spelling with all accents (é, è, ê, à, ù, ç)
+- The emojis must look like real WhatsApp/system emojis
+- Background behind the phone: clean, simple (dark or blurred lifestyle scene)
+- NO watermarks, NO labels outside the phone, NO marketing overlay
+- This must look like someone took a REAL screenshot of their WhatsApp and shared it as social proof
+- PHOTOREALISTIC rendering of the smartphone and screen content`;
 }
 
 /**
@@ -1436,6 +1508,8 @@ router.get('/images/:jobId', requireEcomAuth, (req, res) => {
   const images = {};
   if (job.heroImage) images.heroImage = job.heroImage;
   if (job.beforeAfterImage) images.beforeAfterImage = job.beforeAfterImage;
+  if (job.beforeAfterImages?.length) images.beforeAfterImages = job.beforeAfterImages;
+  if (job.whatsappTestimony) images.whatsappTestimony = job.whatsappTestimony;
   if (job.angles?.length) images.angles = job.angles;
   if (job.peoplePhotos?.length) images.peoplePhotos = job.peoplePhotos;
 
@@ -1601,11 +1675,39 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     // ══════════════════════════════════════════════════════════════════════════
     // ÉTAPE 2 : GPT-4o Vision → JSON structuré
     // ══════════════════════════════════════════════════════════════════════════
-    console.log('🧠 Étape 2: GPT-4o analyse + copywriting, photos:', imageFiles.length);
+    // ══════════════════════════════════════════════════════════════════════════
+    // ÉTAPES 2 & 3 EN PARALLÈLE : Groq analyse + Upload photos simultanément
+    // ══════════════════════════════════════════════════════════════════════════
+    console.log('🧠⚡ Étape 2+3: Groq analyse + Upload photos EN PARALLÈLE');
 
     const imageBuffers = (imageFiles || []).map(f => f.buffer);
 
-    gptResult = await analyzeWithVision(scraped, imageBuffers, approach, storeContext, copywritingContext, visualContext);
+    // Lancer les deux en parallèle
+    const UPLOAD_TIMEOUT_MS = 30000; // 30s max par photo
+    const uploadWithTimeout = (uploadPromise) =>
+      Promise.race([
+        uploadPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Upload timeout')), UPLOAD_TIMEOUT_MS))
+      ]);
+
+    const [gptResultSettled, uploadResults] = await Promise.all([
+      // Groq analyse
+      analyzeWithVision(scraped, imageBuffers, approach, storeContext, copywritingContext, visualContext),
+      // Uploads photos en parallèle (toutes en même temps)
+      Promise.allSettled(
+        imageFiles.slice(0, 8).map(f =>
+          uploadWithTimeout(
+            uploadImage(f.buffer, f.originalname || `photo-${Date.now()}.jpg`, {
+              workspaceId: req.workspaceId,
+              uploadedBy: userId,
+              mimeType: f.mimetype
+            })
+          )
+        )
+      )
+    ]);
+
+    gptResult = gptResultSettled;
 
     console.log('✅ GPT OK:', {
       title: gptResult.title?.slice(0, 40),
@@ -1614,29 +1716,10 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       faq: gptResult.faq?.length
     });
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // ÉTAPE 3 : Upload des photos utilisateur → R2
-    // ══════════════════════════════════════════════════════════════════════════
-    console.log('📸 Étape 3: Upload', imageFiles.length, 'photos');
-    const UPLOAD_TIMEOUT_MS = 30000; // 30s max par photo
-    const uploadWithTimeout = (uploadPromise) =>
-      Promise.race([
-        uploadPromise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Upload timeout')), UPLOAD_TIMEOUT_MS))
-      ]);
-    for (const f of imageFiles.slice(0, 8)) {
-      try {
-        const uploaded = await uploadWithTimeout(
-          uploadImage(f.buffer, f.originalname || `photo-${Date.now()}.jpg`, {
-            workspaceId: req.workspaceId,
-            uploadedBy: userId,
-            mimeType: f.mimetype
-          })
-        );
-        if (uploaded?.url) realPhotos.push(uploaded.url);
-      } catch (uploadErr) {
-        console.warn('⚠️ Upload photo échoué:', uploadErr.message);
-      }
+    // Collecter les URLs des photos uploadées
+    for (const r of uploadResults) {
+      if (r.status === 'fulfilled' && r.value?.url) realPhotos.push(r.value.url);
+      else if (r.status === 'rejected') console.warn('⚠️ Upload photo échoué:', r.reason?.message);
     }
     console.log('✅ Photos uploadées:', realPhotos.length);
 
@@ -1667,6 +1750,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       seo: gptResult.seo || null,
       heroImage: null,
       beforeAfterImage: null,
+      beforeAfterImages: [],
+      whatsappTestimony: null,
       angles: (gptResult.angles || []).map((a, i) => ({ ...a, poster_url: null, index: i + 1 })),
       raisons_acheter: gptResult.raisons_acheter || [],
       benefits_bullets: gptResult.benefits_bullets || [],
@@ -1729,7 +1814,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     // ══════════════════════════════════════════════════════════════════════════
     // BACKGROUND — Generate all images asynchronously
     // ══════════════════════════════════════════════════════════════════════════
-    const jobData = { status: 'generating', progress: 0, total: 0, heroImage: null, beforeAfterImage: null, angles: [], peoplePhotos: [], createdAt: Date.now() };
+    const jobData = { status: 'generating', progress: 0, total: 0, heroImage: null, beforeAfterImage: null, beforeAfterImages: [], angles: [], peoplePhotos: [], whatsappTestimony: null, createdAt: Date.now() };
     imageJobs.set(jobId, jobData);
 
     // Fire and forget — errors won't crash the response
@@ -1781,8 +1866,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       } catch (err1) {
         console.warn(`⚠️ Image ${filename} tentative 1 échouée: ${err1.message} — retry...`);
       }
-      // Retry unique avec 3s de délai
-      await new Promise(r => setTimeout(r, 3000));
+      // Retry unique avec 1.5s de délai
+      await new Promise(r => setTimeout(r, 1500));
       try {
         return await attempt();
       } catch (err2) {
@@ -1863,14 +1948,19 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         .then(url => ({ type: 'hero', url }))
     );
 
-    // ── Avant/Après ──
-    const beforeAfterPrompt = gptResult.prompt_avant_apres || null;
-    if (beforeAfterPrompt) {
+    // ── Avant/Après (2 images) ──
+    const beforeAfterPrompt1 = gptResult.prompt_avant_apres || null;
+    if (beforeAfterPrompt1) {
       imageTasks.push(
-        () => generateAndUpload(beforeAfterPrompt, baseImageBuffer, `before-after-${Date.now()}.png`, 'before_after', '1:1')
-          .then(url => ({ type: 'before_after', url }))
+        () => generateAndUpload(beforeAfterPrompt1, baseImageBuffer, `before-after-1-${Date.now()}.png`, 'before_after', '1:1')
+          .then(url => ({ type: 'before_after', index: 0, url }))
       );
     }
+    const beforeAfterPrompt2 = buildSecondBeforeAfterPrompt(gptResult);
+    imageTasks.push(
+      () => generateAndUpload(beforeAfterPrompt2, baseImageBuffer, `before-after-2-${Date.now()}.png`, 'before_after', '1:1')
+        .then(url => ({ type: 'before_after', index: 1, url }))
+    );
 
     // ── Flash images — 5 affiches marketing (1 par angle) ─
     const angles = gptResult.angles || [];
@@ -1898,7 +1988,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       );
     }
 
-    // ── People photos — 4 photos lifestyle de personnes réelles tenant le produit ──
+    // ── People photos — 3 photos lifestyle de personnes réelles tenant le produit ──
     const peoplePhotoPrompts = buildPeopleHoldingProductPrompts(gptResult, visualContext);
     peoplePhotoPrompts.forEach((peoplePrompt, idx) => {
       imageTasks.push(
@@ -1907,16 +1997,31 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       );
     });
 
-    // Exécuter les générations par batch de 3 pour éviter le rate-limit Kie.ai (429)
-    const BATCH_SIZE = 3;
-    const BATCH_DELAY_MS = 3000;
-    const IMAGE_TIMEOUT_MS = 180000;
+    // ── WhatsApp testimony — 1 screenshot de témoignage WhatsApp ──
+    const whatsappPrompt = buildWhatsAppTestimonyPrompt(gptResult);
+    imageTasks.push(
+      () => generateAndUpload(whatsappPrompt, baseImageBuffer, `whatsapp-testimony-${Date.now()}.png`, 'scene', '1:1')
+        .then(url => ({ type: 'whatsapp_testimony', url }))
+    );
+
+    // Exécuter les générations par batch de 5 pour aller plus vite (rate-limit Kie.ai géré par retry)
+    const BATCH_SIZE = 5;
+    const BATCH_DELAY_MS = 1500;
+    const IMAGE_TIMEOUT_MS = 90000; // 90s max par image
+    const GLOBAL_TIMEOUT_MS = 600000; // 10 min timeout global
+    const globalDeadline = Date.now() + GLOBAL_TIMEOUT_MS;
 
     jobData.total = imageTasks.length;
     console.log(`🎨 [BG] ${imageTasks.length} images à générer, par batch de ${BATCH_SIZE}...`);
 
     const imageResults = [];
     for (let b = 0; b < imageTasks.length; b += BATCH_SIZE) {
+      // Vérifier le timeout global avant chaque batch
+      if (Date.now() > globalDeadline) {
+        console.warn(`⏰ [BG] Timeout global de ${GLOBAL_TIMEOUT_MS / 1000}s atteint — arrêt de la génération d'images`);
+        break;
+      }
+
       const batch = imageTasks.slice(b, b + BATCH_SIZE);
       console.log(`🔄 [BG] Batch ${Math.floor(b / BATCH_SIZE) + 1}/${Math.ceil(imageTasks.length / BATCH_SIZE)} (${batch.length} images)...`);
 
@@ -1942,7 +2047,15 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     // Extraire les résultats
     jobData.heroImage = imageResults.find(r => r?.type === 'hero')?.url || null;
-    jobData.beforeAfterImage = imageResults.find(r => r?.type === 'before_after')?.url || null;
+
+    jobData.beforeAfterImages = imageResults
+      .filter(r => r?.type === 'before_after')
+      .sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0))
+      .map(r => r?.url)
+      .filter(Boolean);
+    jobData.beforeAfterImage = jobData.beforeAfterImages[0] || null; // backward compat
+
+    jobData.whatsappTestimony = imageResults.find(r => r?.type === 'whatsapp_testimony')?.url || null;
 
     jobData.angles = imageResults
       .filter(r => r?.type === 'poster')
@@ -1963,7 +2076,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     jobData.status = 'done';
     console.log('✅ [BG] Images terminées:', {
       hero: !!jobData.heroImage,
-      beforeAfter: !!jobData.beforeAfterImage,
+      beforeAfterImages: jobData.beforeAfterImages.length,
+      whatsappTestimony: !!jobData.whatsappTestimony,
       posters: jobData.angles.filter(p => p.poster_url).length,
       peoplePhotos: jobData.peoplePhotos.length,
     });

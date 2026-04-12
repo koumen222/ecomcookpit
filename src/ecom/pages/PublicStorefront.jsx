@@ -774,18 +774,30 @@ const AiFeaturesSection = ({ cfg }) => (
         </h2>
         {cfg.subtitle && <p style={{ fontSize: 15, color: 'var(--s-text2)', margin: '10px 0 0', fontFamily: 'var(--s-font)' }}>{cfg.subtitle}</p>}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 20 }}>
-        {(cfg.items || []).map((f, i) => (
-          <div key={i}
-            style={{ backgroundColor: 'var(--sf-muted-surface)', borderRadius: 'var(--sf-radius)', padding: '28px 24px', border: '1px solid var(--sf-border)', transition: 'box-shadow 0.2s, transform 0.2s', boxShadow: 'var(--sf-shadow)' }}
-            onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 18px 44px rgba(15, 23, 42, 0.12)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
-            onMouseLeave={e => { e.currentTarget.style.boxShadow = 'var(--sf-shadow)'; e.currentTarget.style.transform = 'none'; }}
-          >
-            <IconBox icon={f.icon} size={22} boxSize={52} radius={16} />
-            <h3 style={{ margin: '18px 0 10px', fontSize: 15.5, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{f.title}</h3>
-            <p style={{ margin: 0, fontSize: 13.5, color: 'var(--s-text2)', lineHeight: 1.65, fontFamily: 'var(--s-font)' }}>{f.desc}</p>
+      <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        {cfg.image && (
+          <div style={{ flex: '0 0 auto', width: 'min(320px, 100%)', margin: '0 auto' }}>
+            <img
+              src={cfg.image}
+              alt={cfg.title || 'Pourquoi nous choisir'}
+              loading="lazy"
+              style={{ width: '100%', borderRadius: 'var(--sf-radius)', objectFit: 'cover', boxShadow: 'var(--sf-shadow)', aspectRatio: '4/5' }}
+            />
           </div>
-        ))}
+        )}
+        <div style={{ flex: 1, minWidth: 280, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 20 }}>
+          {(cfg.items || []).map((f, i) => (
+            <div key={i}
+              style={{ backgroundColor: 'var(--sf-muted-surface)', borderRadius: 'var(--sf-radius)', padding: '28px 24px', border: '1px solid var(--sf-border)', transition: 'box-shadow 0.2s, transform 0.2s', boxShadow: 'var(--sf-shadow)' }}
+              onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 18px 44px rgba(15, 23, 42, 0.12)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow = 'var(--sf-shadow)'; e.currentTarget.style.transform = 'none'; }}
+            >
+              <IconBox icon={f.icon} size={22} boxSize={52} radius={16} />
+              <h3 style={{ margin: '18px 0 10px', fontSize: 15.5, fontWeight: 700, color: 'var(--s-text)', fontFamily: 'var(--s-font)' }}>{f.title}</h3>
+              <p style={{ margin: 0, fontSize: 13.5, color: 'var(--s-text2)', lineHeight: 1.65, fontFamily: 'var(--s-font)' }}>{f.desc}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   </section>
