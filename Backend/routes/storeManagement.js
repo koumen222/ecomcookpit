@@ -199,10 +199,61 @@ PERSON: Authentic Black African person with natural features, warm genuine smile
 
 SETTING: MODERN UPSCALE environment — clean neutral background, modern studio, or soft-focus contemporary interior. Professional studio lighting with warm tones.
 
-COMPOSITION: Portrait orientation (4:5), person from waist up, t-shirt clearly visible and in focus. The branding on the t-shirt is the focal point.
+COMPOSITION: Perfect square 1:1 composition, person from waist up, t-shirt clearly visible and fully in frame. The branding on the t-shirt is the focal point. Do not crop the t-shirt branding or the subject.
 
 ABSOLUTELY NO additional text on the image. No headline, no overlay text, no labels. Only the branding on the t-shirt itself.
 NO watermark, NO price, NO CTA button.`;
+}
+
+function buildLogoPrompt({ storeName = 'Boutique', productType = 'autre', themeColor = '#0F6B4F', tone = '', variant = 'wordmark' }) {
+  const productTypeLabel = PRODUCT_TYPE_LABELS[productType] || 'retail';
+  const toneHint = TONE_LABELS[tone]?.split('—')[0]?.trim() || 'premium';
+  const variantInstructions = {
+    wordmark: 'Create a clean premium wordmark logo with elegant typography and a subtle icon accent. The store name must be perfectly readable.',
+    emblem: 'Create a premium emblem logo with a central icon inside a refined badge or seal, plus a compact readable brand name lockup.',
+    monogram: 'Create a minimalist monogram or symbol-led logo using the initials or essence of the store name, paired with a small elegant wordmark.',
+  };
+
+  return `Create a professional ecommerce logo on a clean square canvas.
+
+Brand name: ${storeName}
+Category: ${productTypeLabel}
+Brand tone: ${toneHint}
+Primary brand color: ${themeColor}
+
+${variantInstructions[variant] || variantInstructions.wordmark}
+
+Rules:
+- Square 1:1 logo presentation
+- Clean premium brand identity for a modern ecommerce store
+- White or very light neutral background only
+- Use ${themeColor} as the main accent color
+- Keep the logo centered, balanced, and fully visible
+- No mockup on wall, no t-shirt, no business card, no 3D scene
+- No extra decorative objects, no people, no environment
+- No watermark, no fake UI, no pricing
+- Typography must be sharp and readable if text is present
+- Final result should look like a real finished brand logo proposal, not clipart`;
+}
+
+async function generateLogoOptions({ storeName, productType, themeColor, tone }) {
+  const variants = ['wordmark', 'emblem', 'monogram'];
+  const results = await Promise.allSettled(
+    variants.map(async (variant) => {
+      const prompt = buildLogoPrompt({ storeName, productType, themeColor, tone, variant });
+      const tempUrl = await generateNanoBananaImage(prompt, '1:1');
+      const buffer = await downloadImageBuffer(tempUrl);
+      const uploaded = await uploadToR2(buffer, `store-logo-${variant}-${Date.now()}.jpg`, 'image/jpeg');
+      return {
+        variant,
+        url: uploaded?.success ? uploaded.url : tempUrl,
+      };
+    })
+  );
+
+  return results
+    .filter((entry) => entry.status === 'fulfilled' && entry.value?.url)
+    .map((entry) => entry.value);
 }
 
 /**
@@ -241,7 +292,7 @@ async function generateHomepageImages(s) {
       (async () => {
         console.log('🎨 [Homepage] Generating AI "Notre Histoire" image...');
         const storyPrompt = buildWhyChooseUsImagePrompt(s);
-        const storyTempUrl = await generateNanoBananaImage(storyPrompt, '4:5');
+        const storyTempUrl = await generateNanoBananaImage(storyPrompt, '1:1');
         // Download and upload to R2 for permanent storage
         const storyBuffer = await downloadImageBuffer(storyTempUrl);
         const storyR2 = await uploadToR2(storyBuffer, `homepage-story-${Date.now()}.jpg`, 'image/jpeg');
@@ -804,6 +855,41 @@ router.get('/config', requireEcomAuth, requireWorkspace, async (req, res) => {
   } catch (error) {
     console.error('Erreur GET /store-manage/config:', error.message);
     res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+});
+
+/**
+ * POST /store-manage/generate-logos
+ * Generate 3 square logo proposals for the store creation wizard.
+ */
+router.post('/generate-logos', requireEcomAuth, requireWorkspace, async (req, res) => {
+  try {
+    const {
+      storeName,
+      productType = 'autre',
+      themeColor = '#0F6B4F',
+      tone = '',
+    } = req.body || {};
+
+    if (!String(storeName || '').trim()) {
+      return res.status(400).json({ success: false, message: 'Le nom de la boutique est requis.' });
+    }
+
+    const logos = await generateLogoOptions({
+      storeName: String(storeName).trim().slice(0, 80),
+      productType,
+      themeColor: String(themeColor || '#0F6B4F').trim().slice(0, 20),
+      tone: String(tone || '').trim().slice(0, 40),
+    });
+
+    if (!logos.length) {
+      return res.status(500).json({ success: false, message: 'Impossible de générer des logos pour le moment.' });
+    }
+
+    return res.json({ success: true, data: logos });
+  } catch (error) {
+    console.error('Erreur POST /store-manage/generate-logos:', error.message);
+    return res.status(500).json({ success: false, message: 'Erreur lors de la génération des logos.' });
   }
 });
 
