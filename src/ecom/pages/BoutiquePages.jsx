@@ -827,6 +827,12 @@ const BoutiquePages = () => {
     }
   };
 
+  const previewFrameClass = useMemo(() => {
+    if (previewDevice === 'mobile') return 'w-[390px] h-[780px]';
+    if (previewDevice === 'tablet') return 'w-[820px] h-[920px]';
+    return 'w-full h-[920px]';
+  }, [previewDevice]);
+
   if (loading) {
     return (
       <div className="p-6 flex items-center justify-center">
@@ -834,12 +840,6 @@ const BoutiquePages = () => {
       </div>
     );
   }
-
-  const previewFrameClass = useMemo(() => {
-    if (previewDevice === 'mobile') return 'w-[390px] h-[780px]';
-    if (previewDevice === 'tablet') return 'w-[820px] h-[920px]';
-    return 'w-full h-[920px]';
-  }, [previewDevice]);
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
