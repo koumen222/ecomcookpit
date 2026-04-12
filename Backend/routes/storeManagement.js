@@ -219,11 +219,11 @@ async function downloadImageBuffer(url) {
  * Non-blocking: if image generation fails, returns null for that image.
  */
 async function generateHomepageImages(s) {
-  const results = { heroImageUrl: null, featuresImageUrl: null };
+  const results = { heroImageUrl: null, storyImageUrl: null };
 
   try {
     // Generate both images in parallel
-    const [heroResult, featuresResult] = await Promise.allSettled([
+    const [heroResult, storyResult] = await Promise.allSettled([
       (async () => {
         console.log('🎨 [Homepage] Generating AI hero image...');
         const heroPrompt = buildHomepageHeroImagePrompt(s);
@@ -239,29 +239,29 @@ async function generateHomepageImages(s) {
         return heroTempUrl;
       })(),
       (async () => {
-        console.log('🎨 [Homepage] Generating AI "why choose us" image...');
-        const featuresPrompt = buildWhyChooseUsImagePrompt(s);
-        const featuresTempUrl = await generateNanoBananaImage(featuresPrompt, '4:5');
+        console.log('🎨 [Homepage] Generating AI "Notre Histoire" image...');
+        const storyPrompt = buildWhyChooseUsImagePrompt(s);
+        const storyTempUrl = await generateNanoBananaImage(storyPrompt, '4:5');
         // Download and upload to R2 for permanent storage
-        const featuresBuffer = await downloadImageBuffer(featuresTempUrl);
-        const featuresR2 = await uploadToR2(featuresBuffer, `homepage-features-${Date.now()}.jpg`, 'image/jpeg');
-        if (featuresR2.success) {
-          console.log('✅ [Homepage] Features image generated and uploaded to R2');
-          return featuresR2.url;
+        const storyBuffer = await downloadImageBuffer(storyTempUrl);
+        const storyR2 = await uploadToR2(storyBuffer, `homepage-story-${Date.now()}.jpg`, 'image/jpeg');
+        if (storyR2.success) {
+          console.log('✅ [Homepage] Story image generated and uploaded to R2');
+          return storyR2.url;
         }
-        console.warn('⚠️ [Homepage] Features R2 upload failed, using temp URL');
-        return featuresTempUrl;
+        console.warn('⚠️ [Homepage] Story R2 upload failed, using temp URL');
+        return storyTempUrl;
       })(),
     ]);
 
     results.heroImageUrl = heroResult.status === 'fulfilled' ? heroResult.value : null;
-    results.featuresImageUrl = featuresResult.status === 'fulfilled' ? featuresResult.value : null;
+    results.storyImageUrl = storyResult.status === 'fulfilled' ? storyResult.value : null;
 
     if (heroResult.status === 'rejected') {
       console.warn('⚠️ [Homepage] Hero image generation failed:', heroResult.reason?.message);
     }
-    if (featuresResult.status === 'rejected') {
-      console.warn('⚠️ [Homepage] Features image generation failed:', featuresResult.reason?.message);
+    if (storyResult.status === 'rejected') {
+      console.warn('⚠️ [Homepage] Story image generation failed:', storyResult.reason?.message);
     }
   } catch (err) {
     console.warn('⚠️ [Homepage] Image generation error:', err.message);
@@ -279,9 +279,9 @@ function injectAIImages(sections, images) {
     if (sec.type === 'hero' && images.heroImageUrl) {
       return { ...sec, config: { ...sec.config, backgroundImage: images.heroImageUrl } };
     }
-    // Features "Pourquoi nous choisir" image
-    if (sec.type === 'features' && images.featuresImageUrl) {
-      return { ...sec, config: { ...sec.config, image: images.featuresImageUrl } };
+    // Story image on the "Notre Histoire" section
+    if (sec.type === 'image_text' && images.storyImageUrl) {
+      return { ...sec, config: { ...sec.config, image: images.storyImageUrl } };
     }
     return sec;
   });
@@ -574,7 +574,7 @@ RÈGLES DE QUALITÉ NON-NÉGOCIABLES:
 
     // Inject AI-generated images (overrides Unsplash fallback)
     const aiImages = imagesResult.status === 'fulfilled' ? imagesResult.value : {};
-    if (aiImages.heroImageUrl || aiImages.featuresImageUrl) {
+    if (aiImages.heroImageUrl || aiImages.storyImageUrl) {
       sections = injectAIImages(sections, aiImages);
     }
 

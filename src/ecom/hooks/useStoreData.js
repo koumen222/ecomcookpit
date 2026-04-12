@@ -8,6 +8,7 @@
  */
 import { useState, useEffect } from 'react';
 import { publicStoreApi } from '../services/storeApi';
+import { normalizeHomepageSections } from '../utils/homepageSections';
 
 const FONT_FAMILIES = {
   system: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
@@ -159,10 +160,11 @@ export async function prefetchStoreProduct(subdomain, slug) {
 export function useStoreData(subdomain) {
   const cacheKey = subdomain ? `sf_${subdomain}` : null;
   const cached = cacheKey ? readCache(cacheKey) : null;
+  const normalizedCachedSections = normalizeHomepageSections(cached?.sections ?? null);
 
   // Initialise with cached data → instant render, no loading flash
   const [store, setStore] = useState(cached?.store || null);
-  const [sections, setSections] = useState(cached?.sections ?? null);
+  const [sections, setSections] = useState(normalizedCachedSections ?? null);
   const [products, setProducts] = useState(cached?.products || []);
   const [pixels, setPixels] = useState(cached?.pixels || null);
   const [footer, setFooter] = useState(cached?.footer || null);
@@ -186,7 +188,7 @@ export function useStoreData(subdomain) {
 
         const data = res.data?.data || {};
         const storeData = data.store || data;
-        const sectionsData = data.sections ?? null;
+        const sectionsData = normalizeHomepageSections(data.sections ?? null);
         // products come from the combined endpoint — no second getProducts call needed
         const productsData = data.products || [];
 
