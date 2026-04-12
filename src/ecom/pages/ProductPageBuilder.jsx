@@ -106,8 +106,8 @@ const DEFAULT_TESTIMONIALS = [
 ];
 
 const PRODUCT_GALLERY_DEFAULTS = {
-  title: 'Photos du produit',
-  subtitle: 'Faites défiler les visuels avant de commander',
+  title: 'Ils nous font confiance',
+  subtitle: 'Découvrez les retours de nos clients satisfaits',
   showHeader: true,
   useProductImages: true,
   images: [],
@@ -214,13 +214,24 @@ const SectionContentEditor = ({ section, onChange, product }) => {
     <div className="text-[11px] text-gray-400 italic py-2">Contenu généré automatiquement par l'IA ou géré via les paramètres de la boutique.</div>
   );
 
-  // Merge: saved content takes priority, fallback to product data
-  // For testimonials: if no saved items, always load defaults so user can edit them
+  // Merge: saved content takes priority, fallback to product data (AI defaults)
+  // For list-based sections: only use savedContent if it has meaningful data,
+  // otherwise show AI defaults so user can edit them
   const defaults = getDefaultContent(section.id, product);
   const savedContent = section.content || {};
-  const content = section.id === 'testimonials'
-    ? { ...defaults, ...(savedContent.items?.length > 0 ? savedContent : {}) }
-    : { ...defaults, ...savedContent };
+  const hasSavedListData = (key) => Array.isArray(savedContent[key]) && savedContent[key].length > 0;
+  const content = (() => {
+    // List-based sections: prefer saved items if present, else show editable defaults
+    if (['testimonials', 'benefitsBullets', 'conversionBlocks'].includes(section.id)) {
+      const key = section.id === 'testimonials' || section.id === 'benefitsBullets' ? 'items' : 'items';
+      return hasSavedListData(key) ? { ...defaults, ...savedContent } : { ...defaults };
+    }
+    if (section.id === 'faq') {
+      return hasSavedListData('faqItems') ? { ...defaults, ...savedContent } : { ...defaults };
+    }
+    // Scalar sections: savedContent always overrides defaults
+    return { ...defaults, ...savedContent };
+  })();
   const update = (key, val) => onChange({ ...section, content: { ...content, [key]: val } });
 
   if (schema.fields === 'stats') {
@@ -368,13 +379,15 @@ const SectionContentEditor = ({ section, onChange, product }) => {
     const mainImageHeight = normalizeToPreset(gallery.mainImageHeight, MAIN_IMAGE_HEIGHT_OPTIONS, PRODUCT_GALLERY_DEFAULTS.mainImageHeight);
     const thumbnailSize = normalizeToPreset(gallery.thumbnailSize, THUMBNAIL_SIZE_OPTIONS, PRODUCT_GALLERY_DEFAULTS.thumbnailSize);
     const saveImages = (nextImages, nextUseProductImages = false) => {
+      const validNextImages = Array.isArray(nextImages) ? nextImages.filter((image) => image?.url) : [];
+      const shouldRestoreProductImages = validNextImages.length === 0 && productImages.length > 0;
       onChange({
         ...section,
         content: {
           ...content,
           ...gallery,
           images: nextImages,
-          useProductImages: nextUseProductImages,
+          useProductImages: shouldRestoreProductImages ? true : nextUseProductImages,
         },
       });
     };
@@ -440,7 +453,7 @@ const SectionContentEditor = ({ section, onChange, product }) => {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <div className="text-[11px] font-semibold text-gray-500 mb-1">Hauteur image principale</div>
+            <div className="text-[11px] font-semibold text-gray-500 mb-1">Hauteur max image principale</div>
             <select className={inputCls} value={mainImageHeight} onChange={e => update('mainImageHeight', Number.parseInt(e.target.value, 10))}>
               {MAIN_IMAGE_HEIGHT_OPTIONS.map((size) => (
                 <option key={size} value={size}>{size}px</option>
@@ -1430,20 +1443,24 @@ const ProductPageBuilder = () => {
       } catch {
         setSaveStatus('error');
       }
-    }, 1200);
+    }, 400);
   }, [id]);
 
   // Auto-save productPageConfig sections with debounce
   // IMPORTANT: Only save general.sections — never overwrite form/design/button/conversion
   const configSaveTimer = useRef(null);
+  const storeConfigRef = useRef(storeConfig);
+  useEffect(() => { storeConfigRef.current = storeConfig; }, [storeConfig]);
+
   const autoSaveConfig = useCallback((newConfigSections) => {
-    // Broadcast live immediately (debounced 150ms)
-    broadcastLive(storeConfig, newConfigSections);
+    // Broadcast live to iframe immediately (no debounce)
+    broadcastLive(storeConfigRef.current, newConfigSections);
+    // Save to backend with short debounce (400ms) to avoid data loss on quick reload
     clearTimeout(configSaveTimer.current);
     configSaveTimer.current = setTimeout(async () => {
       try {
         // Preserve existing config — only update general.sections
-        const existing = storeConfig || {};
+        const existing = storeConfigRef.current || {};
         const updatedConfig = {
           ...existing,
           general: {
@@ -1452,13 +1469,15 @@ const ProductPageBuilder = () => {
           },
         };
         await storeManageApi.updateStoreConfig({ productPageConfig: updatedConfig });
+        // Update local ref so next save doesn't use stale config
+        setStoreConfig(updatedConfig);
         setSaveStatus('saved');
         setTimeout(() => setSaveStatus(null), 2000);
       } catch {
         setSaveStatus('error');
       }
-    }, 1200);
-  }, [storeConfig, broadcastLive]);
+    }, 400);
+  }, [broadcastLive]);
 
   // Config section handlers
   const handleConfigMove = useCallback((index, direction) => {

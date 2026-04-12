@@ -7,6 +7,7 @@ import StoreAnalytics from '../models/StoreAnalytics.js';
 import Store from '../models/Store.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { emitThemeUpdate } from '../services/socketService.js';
+import { invalidateStoreCache } from './storeApi.js';
 
 const router = express.Router();
 const DEBUG_TAG = '[StoreAdmin:Settings]';
@@ -271,6 +272,12 @@ router.put('/pages', requireEcomAuth, requireWorkspace, async (req, res) => {
         { $set: { storePages: req.body } }
       );
     }
+
+    // Invalidate public store cache so storefront reflects changes immediately
+    const storeForCache = req.activeStoreId
+      ? await Store.findById(req.activeStoreId).select('subdomain').lean()
+      : await Workspace.findById(req.workspaceId).select('subdomain').lean();
+    if (storeForCache?.subdomain) invalidateStoreCache(storeForCache.subdomain);
 
     console.log('✅ Pages updated successfully');
     res.json({

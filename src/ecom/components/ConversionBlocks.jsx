@@ -49,11 +49,13 @@ export default function ConversionBlocks({ blocks = null, compact = false }) {
             display: 'flex',
             alignItems: 'center',
             gap: 6,
-            padding: compact ? '6px 10px' : '8px 14px',
+            padding: compact ? '6px 10px' : '8px 12px',
             backgroundColor: 'var(--s-bg, #fff)',
             border: '1px solid var(--s-border, #e5e7eb)',
             borderRadius: 999,
             whiteSpace: 'nowrap',
+            maxWidth: '100%',
+            overflow: 'hidden',
           }}
         >
           <BlockIcon icon={block.icon} color="var(--s-primary, #16a34a)" />

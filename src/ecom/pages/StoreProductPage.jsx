@@ -152,8 +152,8 @@ const mergeProductSections = (stored) => {
 };
 
 const PRODUCT_GALLERY_DEFAULTS = {
-  title: 'Photos du produit',
-  subtitle: 'Faites défiler les visuels avant de commander',
+  title: 'Ils nous font confiance',
+  subtitle: 'Découvrez les retours de nos clients satisfaits',
   showHeader: true,
   useProductImages: true,
   images: [],
@@ -163,12 +163,27 @@ const PRODUCT_GALLERY_DEFAULTS = {
 
 const resolveProductGalleryImages = (content = {}, fallbackImages = []) => {
   const customImages = (content.images || []).filter(image => image?.url);
-  // AI-generated per-product images ALWAYS take priority over store-level custom images
-  if (fallbackImages.length > 0) {
-    const fallbackUrls = new Set(fallbackImages.map(f => f?.url).filter(Boolean));
-    return [...fallbackImages, ...customImages.filter(img => !fallbackUrls.has(img.url))];
+  // Custom images from page builder ALWAYS take priority over AI/product images
+  if (customImages.length > 0) {
+    return customImages;
   }
-  return customImages;
+  // Only use product/AI images as fallback when no custom images exist
+  if (content.useProductImages !== false && fallbackImages.length > 0) {
+    return fallbackImages;
+  }
+  return [];
+};
+
+const clampDisplayAspectRatio = (ratio) => {
+  if (!Number.isFinite(ratio) || ratio <= 0) return 1;
+  return Math.max(0.68, Math.min(1.8, ratio));
+};
+
+const GALLERY_RATIO_PRESETS = {
+  square: 1,
+  portrait: 0.75,
+  landscape: 1.33,
+  wide: 1.78,
 };
 
 // ── Image Gallery ────────────────────────────────────────────────────────────
@@ -178,12 +193,6 @@ const ImageGallery = ({ images = [], design = {} }) => {
   const [ratios, setRatios] = useState({});
   const zoomEnabled = design.imageZoom !== false;
   const borderRadius = design.borderRadius || '12px';
-  const ratioByPreset = {
-    square: '125%',
-    portrait: '133.33%',
-    landscape: '75%',
-    wide: '56.25%',
-  };
 
   const go = (dir) => setActive(i => Math.max(0, Math.min(images.length - 1, i + dir)));
 
@@ -212,19 +221,17 @@ const ImageGallery = ({ images = [], design = {} }) => {
   );
 
   const activeSrc = images[active]?.url || images[active];
-  const activeRatio = ratios[activeSrc] || 1; // width / height
-  // Clamp pour éviter des héros trop plats ou trop hauts sur des images extrêmes.
-  // On mobile, limit to 85% so CTA remains partly visible
-  const heroPaddingBottomPct = ratioByPreset[design.imageRatio]
-    || `${Math.max(45, Math.min(100, (1 / activeRatio) * 100))}%`;
+  const activeRatio = clampDisplayAspectRatio(ratios[activeSrc] || 1);
+  const activeAspectRatio = GALLERY_RATIO_PRESETS[design.imageRatio] || activeRatio;
 
   return (
     <div>
       {/* Main image */}
       <div
         style={{
-          position: 'relative', paddingBottom: heroPaddingBottomPct,
+          position: 'relative', aspectRatio: activeAspectRatio,
           backgroundColor: '#f4f4f5', overflow: 'hidden', borderRadius,
+          minHeight: 'min(280px, 70vw)',
           maxHeight: '75vh',
           cursor: zoomEnabled ? 'zoom-in' : 'default',
         }}
@@ -297,10 +304,10 @@ const ImageGallery = ({ images = [], design = {} }) => {
 
       {/* Thumbnails */}
       {images.length > 1 && (
-        <div className="thumb-track" style={{ display: 'flex', gap: 8, marginTop: 8, overflowX: 'auto', paddingBottom: 4 }}>
+        <div className="thumb-track sf-no-scrollbar" style={{ display: 'flex', gap: 6, marginTop: 8, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none', msOverflowStyle: 'none', maxWidth: '100%' }}>
           {images.map((img, i) => (
             <button key={i} onClick={() => setActive(i)} style={{
-              flexShrink: 0, width: 68, height: 68, overflow: 'hidden', padding: 0,
+              flexShrink: 0, width: 60, height: 60, overflow: 'hidden', padding: 0,
               border: '2.5px solid',
               borderColor: i === active ? 'var(--s-primary)' : 'transparent',
               cursor: 'pointer', transition: 'border-color 0.15s',
@@ -345,6 +352,7 @@ const ImageGallery = ({ images = [], design = {} }) => {
 const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', config = {} }) => {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [ratios, setRatios] = useState({});
   const gallery = { ...PRODUCT_GALLERY_DEFAULTS, ...config };
   const thumbnailSize = Math.max(48, Number.parseInt(gallery.thumbnailSize, 10) || 72);
   const mainImageHeight = Math.max(220, Number.parseInt(gallery.mainImageHeight, 10) || 420);
@@ -381,6 +389,8 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', co
   if (!images.length) return null;
 
   const activeImage = images[activeIndex] || images[0];
+  const activeImageSrc = activeImage?.url || '';
+  const activeAspectRatio = clampDisplayAspectRatio(ratios[activeImageSrc] || 1);
 
   const navButtonStyle = {
     width: 34,
@@ -453,25 +463,31 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', co
           background: '#fff',
         }}
       >
-        <div style={{ position: 'relative', paddingBottom: '125%', maxHeight: '75vh', background: '#f4f4f5' }}>
-          {images.map((image, index) => (
-            <img
-              key={`${image.url}-${index}`}
-              src={image.url}
-              alt={image.alt || 'Photo produit'}
-              loading={index === 0 ? 'eager' : 'lazy'}
-              style={{
-                position: 'absolute',
-                inset: 0,
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                opacity: index === activeIndex ? 1 : 0,
-                transition: 'opacity 0.5s ease',
-                pointerEvents: index === activeIndex ? 'auto' : 'none',
-              }}
-            />
-          ))}
+        <div style={{ position: 'relative', aspectRatio: activeAspectRatio, minHeight: 'min(260px, 68vw)', maxHeight: `${mainImageHeight}px`, background: '#f4f4f5' }}>
+          <img
+            key={`${activeImage.url}-${activeIndex}`}
+            src={activeImage.url}
+            alt={activeImage.alt || 'Client satisfait'}
+            loading={activeIndex === 0 ? 'eager' : 'lazy'}
+            onLoad={(e) => {
+              const img = e.currentTarget;
+              const w = img.naturalWidth || 0;
+              const h = img.naturalHeight || 0;
+              if (!activeImageSrc || !w || !h) return;
+              const ratio = w / h;
+              if (!Number.isFinite(ratio) || ratio <= 0) return;
+              setRatios((prev) => (prev[activeImageSrc] ? prev : { ...prev, [activeImageSrc]: ratio }));
+            }}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              objectPosition: 'center',
+              display: 'block',
+            }}
+          />
         </div>
 
         {canNavigate && (
@@ -510,15 +526,18 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', co
       </div>
 
       {canNavigate && (
-        <div style={{
+        <div className="sf-no-scrollbar" style={{
           display: 'flex',
-          gap: 8,
+          gap: 6,
           overflowX: 'auto',
           paddingTop: 10,
-          scrollbarWidth: 'thin',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          maxWidth: '100%',
         }}>
           {images.map((image, index) => {
             const active = index === activeIndex;
+            const thumbSz = Math.min(thumbnailSize, 64);
             return (
               <button
                 key={`${image.url}-${index}`}
@@ -526,12 +545,12 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', co
                 onClick={() => pauseAndGo(index)}
                 style={{
                   border: active ? `2px solid ${accentColor}` : '1px solid var(--s-border)',
-                  borderRadius: 14,
+                  borderRadius: 12,
                   padding: 0,
                   overflow: 'hidden',
-                  minWidth: thumbnailSize,
-                  width: thumbnailSize,
-                  height: thumbnailSize,
+                  minWidth: thumbSz,
+                  width: thumbSz,
+                  height: thumbSz,
                   background: '#fff',
                   cursor: 'pointer',
                   boxShadow: active ? '0 6px 18px rgba(0,0,0,0.10)' : 'none',
@@ -540,7 +559,7 @@ const InlinePhotoCarousel = ({ images = [], accentColor = 'var(--s-primary)', co
               >
                 <img
                   src={image.url}
-                  alt={image.alt || `Photo ${index + 1}`}
+                  alt={image.alt || `Témoignage ${index + 1}`}
                   loading="lazy"
                   style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                 />
@@ -973,30 +992,30 @@ const ProductFaqAccordion = ({ items = [] }) => {
 
 // ── Trust Badges ─────────────────────────────────────────────────────────────
 const TrustBadges = ({ compact = false }) => (
-  <div className="sf-no-scrollbar" style={{
-    display: 'flex', gap: 12,
+  <div style={{
+    display: 'flex', gap: 8,
     marginTop: compact ? 24 : 28,
     padding: compact ? '0 0 4px' : '20px 0 4px',
     borderTop: compact ? 'none' : '1px solid var(--s-border)',
-    overflowX: 'auto',
-    flexWrap: 'nowrap',
+    flexWrap: 'wrap',
   }}>
     {[
-      { icon: <Truck size={16} />, text: 'Livraison rapide' },
-      { icon: <Shield size={16} />, text: 'Paiement sécurisé' },
-      { icon: <RotateCcw size={16} />, text: 'Retours acceptés' },
+      { icon: <Truck size={14} />, text: 'Livraison rapide' },
+      { icon: <Shield size={14} />, text: 'Paiement sécurisé' },
+      { icon: <RotateCcw size={14} />, text: 'Retours acceptés' },
     ].map(({ icon, text }) => (
       <div key={text} style={{
-        display: 'flex', alignItems: 'center', gap: 10,
-        padding: '10px 14px', borderRadius: 999,
+        display: 'flex', alignItems: 'center', gap: 6,
+        padding: '8px 10px', borderRadius: 999,
         border: '1px solid var(--ai-soft-border, var(--s-border))',
         background: 'var(--ai-surface, #fff)',
         whiteSpace: 'nowrap',
-        flexShrink: 0,
         boxShadow: 'var(--ai-shadow, none)',
+        flex: '0 1 auto',
+        minWidth: 0,
       }}>
-        <span style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--ai-gradient, var(--s-primary))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</span>
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>
+        <span style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--ai-gradient, var(--s-primary))', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</span>
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--s-text2)', fontFamily: 'var(--s-font)' }}>
           {text}
         </span>
       </div>
@@ -1249,14 +1268,35 @@ const StoreProductPage = () => {
   const showWhatsappButton = (sectionToggles.showWhatsappButton ?? false) && !!store?.whatsapp;
   const showRelatedProductsFromStore = sectionToggles.showRelatedProducts ?? true;
 
-  // ── productPageConfig — live preview > store global, conversion propre au produit en priorité ──
+  // ── productPageConfig — priority: livePreview > product-specific > store global ──
+  const storePC = store?.productPageConfig || {};
+  const productPC = product?.productPageConfig || {};
   const productPageConfig = {
-    ...(store?.productPageConfig || {}),
+    ...storePC,
+    ...productPC,
     ...(livePageConfig || {}),
+    // Deep-merge general so product-level sections override store-level
+    general: {
+      ...(storePC.general || {}),
+      ...(productPC.general || {}),
+      ...((livePageConfig || {}).general || {}),
+    },
+    // Deep-merge design so product-level design overrides store-level
+    design: {
+      ...(storePC.design || {}),
+      ...(productPC.design || {}),
+      ...((livePageConfig || {}).design || {}),
+    },
+    // Deep-merge button
+    button: {
+      ...(storePC.button || {}),
+      ...(productPC.button || {}),
+      ...((livePageConfig || {}).button || {}),
+    },
     conversion: {
-      ...(store?.productPageConfig?.conversion || {}),
+      ...(storePC.conversion || {}),
       ...(livePageConfig?.conversion || {}),
-      ...(product?.productPageConfig?.conversion || {}),
+      ...(productPC.conversion || {}),
       // Quantity offers from QuantityOffer model take highest priority
       ...(product?.quantityOffers?.length > 0 ? {
         offersEnabled: true,
@@ -1298,7 +1338,8 @@ const StoreProductPage = () => {
   const resolveCtaStyle = (enabled, compact = false) => {
     const style = {
       width: compact ? 'auto' : '100%',
-      padding: compact ? '16px 24px' : '18px 24px',
+      maxWidth: '100%',
+      padding: compact ? '14px 18px' : '16px 20px',
       borderRadius: ctaBorderRadius,
       cursor: enabled ? 'pointer' : 'not-allowed',
       display: 'flex',
@@ -1309,11 +1350,11 @@ const StoreProductPage = () => {
       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       fontFamily: 'var(--s-font)',
       boxShadow: enabled ? ctaShadow : 'none',
-      minHeight: compact ? 48 : 56,
+      minHeight: compact ? 44 : 52,
       position: 'relative',
       overflow: 'hidden',
       fontWeight: ctaFontWeight,
-      fontSize: compact ? Math.max(15, ctaFontSize - 2) : ctaFontSize,
+      fontSize: compact ? Math.max(13, ctaFontSize - 2) : ctaFontSize,
       fontStyle: ppDesign.buttonItalic ? 'italic' : 'normal',
     };
 
@@ -1657,6 +1698,9 @@ const StoreProductPage = () => {
       fontFamily: 'var(--s-font)',
       color: 'var(--s-text)',
       fontSize: 'var(--s-font-base)',
+      overflowX: 'hidden',
+      maxWidth: '100vw',
+      width: '100%',
       '--pp-gap': spacingPreset.gap,
       '--pp-mobile-info-padding': spacingPreset.mobileInfoPadding,
       '--pp-desktop-info-padding': spacingPreset.desktopInfoPadding,
@@ -1676,8 +1720,10 @@ const StoreProductPage = () => {
     }}>
       <style>{`
         *{box-sizing:border-box} body{margin:0;padding:0}
+        html,body{ overflow-x:hidden; max-width:100vw; }
         .sf-no-scrollbar { scrollbar-width:none; -ms-overflow-style:none; }
         .sf-no-scrollbar::-webkit-scrollbar { display:none; }
+        img { max-width:100%; height:auto; }
         @keyframes slide-up { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         /* Button animations from product page config */
         .pp-pulse { animation: pp-pulse-kf 2s ease-in-out infinite; }
@@ -1689,19 +1735,25 @@ const StoreProductPage = () => {
         @keyframes pp-shake-kf { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-3px)} 75%{transform:translateX(3px)} }
         @keyframes pp-glow-kf { 0%,100%{box-shadow:0 0 5px rgba(255,255,255,0.2)} 50%{box-shadow:0 0 20px rgba(255,255,255,0.5)} }
 
+        /* ═══ GLOBAL CONTAINMENT ═══ */
+        .product-grid { overflow:hidden; width:100%; max-width:100%; }
+        .product-gallery { overflow:hidden; max-width:100%; }
+        .product-info { overflow:hidden; max-width:100%; word-wrap:break-word; overflow-wrap:break-word; }
+        .product-info button { max-width:100%; }
+
         /* ═══ THEME: CLASSIC ═══ */
         .product-grid.theme-classic { display:grid; grid-template-columns:1fr; gap:0; align-items:start; }
         .theme-classic .product-gallery { position:relative; }
         .theme-classic .product-info { padding:var(--pp-mobile-info-padding) var(--pp-mobile-info-padding) 48px; }
         @media(min-width:769px){
           .product-grid.theme-classic { grid-template-columns:1fr 1fr; gap:var(--pp-gap); }
-          .theme-classic .product-gallery { position:sticky; top:72px; max-height:75vh; }
+          .theme-classic .product-gallery { position:sticky; top:72px; max-height:75vh; overflow-y:auto; }
           .theme-classic .product-info { padding:0 var(--pp-desktop-info-padding) 48px 0; }
         }
 
         /* ═══ THEME: LANDING PAGE ═══ */
         .product-grid.theme-landing { display:flex; flex-direction:column; gap:0; background:var(--ai-bg, #fff); }
-        .theme-landing .product-gallery { position:relative; width:100%; height:75vh; min-height:500px; overflow:hidden; }
+        .theme-landing .product-gallery { position:relative; width:100%; height:60vh; min-height:360px; overflow:hidden; }
         .theme-landing .product-gallery img { width:100%; height:100%; object-fit:cover; object-position:center; }
         .theme-landing .product-gallery .thumb-track, .theme-landing .product-gallery .dots-track { display:none !important; }
         .theme-landing .product-gallery button { display:none !important; } /* Hide gallery arrows on landing */
@@ -1714,16 +1766,16 @@ const StoreProductPage = () => {
         }
         /* Top-level header elements centered */
         .theme-landing h1, .theme-landing .price-wrapper, .theme-landing .hero-slogan, .theme-landing .hero-baseline { text-align:center !important; justify-content:center !important; }
-        .theme-landing h1 { font-size:clamp(38px, 6vw, 64px) !important; margin-bottom:20px !important; line-height:1.05 !important; letter-spacing:-0.04em !important; }
-        .theme-landing .price-wrapper span:first-child { font-size:42px !important; }
+        .theme-landing h1 { font-size:clamp(28px, 6vw, 64px) !important; margin-bottom:20px !important; line-height:1.05 !important; letter-spacing:-0.04em !important; }
+        .theme-landing .price-wrapper span:first-child { font-size:clamp(24px, 7vw, 42px) !important; }
         /* Blocks */
         .theme-landing .ai-desc { text-align:left; margin-top:40px; background:var(--ai-bg, #fff); padding:0; }
-        .theme-landing .ai-desc h3 { text-align:center; font-size:28px !important; margin:40px 0 24px !important; }
-        .theme-landing .ai-desc p { font-size:17px !important; line-height:1.8 !important; }
+        .theme-landing .ai-desc h3 { text-align:center; font-size:clamp(20px, 4vw, 28px) !important; margin:40px 0 24px !important; }
+        .theme-landing .ai-desc p { font-size:clamp(14px, 2.5vw, 17px) !important; line-height:1.8 !important; }
         .theme-landing .ai-desc img { border-radius:16px; margin:32px 0 !important; box-shadow:0 12px 32px rgba(0,0,0,0.08); }
-        .theme-landing .order-btn-wrapper button { min-height:72px !important; font-size:20px !important; border-radius:100px !important; }
+        .theme-landing .order-btn-wrapper button { min-height:64px !important; font-size:clamp(16px, 3vw, 20px) !important; border-radius:100px !important; }
         @media(min-width:769px){
-          .theme-landing .product-gallery { height:75vh; }
+          .theme-landing .product-gallery { height:75vh; min-height:500px; }
           .theme-landing .product-info { padding:0 calc(var(--pp-landing-padding) + 8px) 100px; margin-top:-20vh; }
         }
         /* Hide navbar completely for landing pages to remove distractions */
@@ -1737,7 +1789,7 @@ const StoreProductPage = () => {
           background:linear-gradient(transparent, var(--s-bg)); pointer-events:none;
         }
         .theme-magazine .product-info {
-          position:relative; z-index:2; margin:-60px 16px 0; padding:28px var(--pp-mobile-info-padding) 48px;
+          position:relative; z-index:2; margin:-60px 12px 0; padding:24px var(--pp-mobile-info-padding) 48px;
           background:var(--ai-bg, var(--s-bg)); border-radius:var(--pp-card-radius) var(--pp-card-radius) 0 0;
           box-shadow:var(--ai-shadow);
         }
@@ -1751,7 +1803,7 @@ const StoreProductPage = () => {
 
         .ai-desc h3 { font-size:18px; font-weight:800; color:var(--s-text); margin:0 0 10px; line-height:1.3; }
         .ai-desc h3 strong { font-weight:800; }
-        .ai-desc p { font-size:14px; line-height:1.75; color:var(--s-text2); margin:0 0 12px; }
+        .ai-desc p { font-size:14px; line-height:1.75; color:var(--s-text2); margin:0 0 12px; word-wrap:break-word; overflow-wrap:break-word; }
         .ai-desc img { width:auto !important; max-width:100% !important; height:auto !important; aspect-ratio:auto !important; object-fit:contain !important; display:block; margin:0; }
         .ai-desc ul { margin:0; padding:0; list-style:none; }
         .ai-desc ul li { display:flex; align-items:flex-start; gap:8px; margin-bottom:8px; font-size:13px; }
@@ -1777,8 +1829,15 @@ const StoreProductPage = () => {
           .ai-desc p { font-size:15px; }
           .ai-desc ul li { font-size:14px; }
         }
-        /* Hide nav links on very small screens */
-        @media(max-width:480px){ .sf-nav-link { display:none !important; } }
+        /* Mobile-specific fixes */
+        @media(max-width:480px){
+          .sf-nav-link { display:none !important; }
+          .product-info h1 { font-size:clamp(22px, 6vw, 32px) !important; }
+          .price-wrapper { flex-wrap:wrap !important; }
+        }
+        @media(max-width:360px){
+          .product-info { padding-left:10px !important; padding-right:10px !important; }
+        }
       `}</style>
 
       {/* Barre d'annonce défilante */}
@@ -1811,7 +1870,7 @@ const StoreProductPage = () => {
       </div>
 
       {/* Product Detail */}
-      <div style={{ maxWidth: ppTheme === 'landing' || ppTheme === 'magazine' ? '100%' : 1200, margin: '0 auto', padding: '0' }}>
+      <div style={{ maxWidth: ppTheme === 'landing' || ppTheme === 'magazine' ? '100%' : 1200, margin: '0 auto', padding: '0', overflow: 'hidden', width: '100%' }}>
         <div className={`product-grid theme-${ppTheme}`}>
           {/* ── Gallery ────────────────────────────────────────────────────── */}
           <div className="product-gallery">
@@ -1867,8 +1926,8 @@ const StoreProductPage = () => {
                 )}
 
                 {/* Price — always shown */}
-                <div className="price-wrapper" style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 16, flexWrap: 'nowrap' }}>
-                  <span style={{ fontSize: 'clamp(20px, 5vw, 28px)', fontWeight: 900, color: aiVisualTheme?.primary || 'var(--s-primary)', fontFamily: 'var(--s-font)', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
+                <div className="price-wrapper" style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 'clamp(20px, 5vw, 28px)', fontWeight: 900, color: aiVisualTheme?.primary || 'var(--s-primary)', fontFamily: 'var(--s-font)', letterSpacing: '-0.02em' }}>
                     {fmt(product.price, effectiveCurrency)}
                   </span>
                   {hasDiscount && (
@@ -2208,7 +2267,7 @@ const StoreProductPage = () => {
         const groupImg = product?._pageData?.testimonialsGroupImage || null;
         const socialImg = product?._pageData?.testimonialsSocialProofImage || null;
         return (
-          <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
+          <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px', overflow: 'hidden' }}>
             <ProductTestimonials testimonials={t} productImage={prodImg} groupImage={groupImg} socialProofImage={socialImg} />
           </div>
         );
@@ -2216,14 +2275,14 @@ const StoreProductPage = () => {
 
       {/* ── Related Products ───────────────────────────────────────────────── */}
       {showRelatedProductsSetting && related.length > 0 && (
-        <section style={{ maxWidth: 1200, margin: '48px auto 0', padding: '0 16px' }}>
+        <section style={{ maxWidth: 1200, margin: '48px auto 0', padding: '0 16px', overflow: 'hidden' }}>
           <h2 style={{
             fontSize: 'clamp(18px, 3vw, 24px)', fontWeight: 800, color: 'var(--s-text)',
             margin: '0 0 20px', letterSpacing: '-0.02em', fontFamily: 'var(--s-font)',
           }}>
             Vous aimerez aussi
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(140px, 45%), 1fr))', gap: 12 }}>
             {related.map(p => <RelatedCard key={p._id} product={p} prefix={prefix} store={store} subdomain={store?.subdomain} />)}
           </div>
         </section>
@@ -2232,7 +2291,7 @@ const StoreProductPage = () => {
       {showStickyBar && showStickyOrderBar && product && (
         <div style={{
           position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 70,
-          padding: '10px 16px calc(env(safe-area-inset-bottom, 0px) + 10px)',
+          padding: '10px 12px calc(env(safe-area-inset-bottom, 0px) + 10px)',
           background: aiVisualTheme?.background ? `linear-gradient(180deg, ${withAlpha(aiVisualTheme.background, 'F2', 'rgba(255,255,255,0.95)')} 0%, ${withAlpha(aiVisualTheme.surface, 'FA', 'rgba(255,255,255,0.98)')} 100%)` : 'rgba(255,255,255,0.96)',
           borderTop: `1px solid ${aiVisualTheme?.softBorder || 'var(--s-border)'}`,
           boxShadow: aiVisualTheme?.shadow || '0 -8px 24px rgba(0,0,0,0.08)',
@@ -2240,10 +2299,10 @@ const StoreProductPage = () => {
           WebkitBackdropFilter: 'blur(10px)',
           animation: 'slide-up 0.2s ease-out',
         }}>
-          <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
               <p style={{ margin: 0, fontSize: 12, color: 'var(--s-text2)', fontFamily: 'var(--s-font)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{product.name}</p>
-              <p style={{ margin: '2px 0 0', fontSize: 17, fontWeight: 800, color: aiVisualTheme?.primary || 'var(--s-primary)', fontFamily: 'var(--s-font)' }}>
+              <p style={{ margin: '2px 0 0', fontSize: 'clamp(14px, 3.5vw, 17px)', fontWeight: 800, color: aiVisualTheme?.primary || 'var(--s-primary)', fontFamily: 'var(--s-font)' }}>
                 {fmt(product.price, effectiveCurrency)}
               </p>
             </div>
@@ -2256,7 +2315,7 @@ const StoreProductPage = () => {
                 }
               }}
               disabled={!inStock}
-              style={{ ...resolveCtaStyle(inStock, true), whiteSpace: 'nowrap' }}
+              style={{ ...resolveCtaStyle(inStock, true), whiteSpace: 'nowrap', flexShrink: 0, maxWidth: '55%', fontSize: 'clamp(13px, 3vw, 16px)' }}
             >
               {ppButton.text || 'Commander'}
             </button>

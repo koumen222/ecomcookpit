@@ -134,6 +134,87 @@ const STEPS = [
 // COMPOSANTS UI
 // ═══════════════════════════════════════════════════════════════════════════════
 
+const GENERATION_STEPS = [
+  { key: 'subdomain', label: 'Création de votre boutique' },
+  { key: 'config', label: 'Enregistrement de vos informations' },
+  { key: 'theme', label: 'Application du thème' },
+  { key: 'homepage', label: "Génération de la page d'accueil par l'IA" },
+  { key: 'images', label: 'Création des visuels personnalisés' },
+  { key: 'done', label: 'Votre boutique est prête !' },
+];
+
+const GenerationOverlay = ({ currentStep, storeName }) => {
+  const currentIdx = GENERATION_STEPS.findIndex(s => s.key === currentStep);
+
+  return (
+    <div className="fixed inset-0 z-[100] bg-gradient-to-br from-gray-900 via-gray-900 to-emerald-950 flex items-center justify-center">
+      <div className="max-w-md w-full mx-6">
+        <div className="text-center mb-10">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+            <Sparkles className="w-10 h-10 text-white" />
+          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">
+            {currentStep === 'done' ? '🎉 Boutique créée !' : 'Création en cours...'}
+          </h2>
+          <p className="text-gray-400 text-sm">
+            {currentStep === 'done'
+              ? `${storeName || 'Votre boutique'} est prête`
+              : "L'IA construit votre boutique sur mesure"}
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {GENERATION_STEPS.map((step, idx) => {
+            const isDone = idx < currentIdx || currentStep === 'done';
+            const isActive = idx === currentIdx && currentStep !== 'done';
+            const isPending = idx > currentIdx && currentStep !== 'done';
+
+            return (
+              <div
+                key={step.key}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-500 ${
+                  isDone ? 'bg-emerald-500/10' : isActive ? 'bg-white/10' : 'bg-white/5'
+                }`}
+              >
+                <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-500 ${
+                  isDone ? 'bg-emerald-500 text-white' : isActive ? 'bg-emerald-500/20 border-2 border-emerald-400' : 'bg-white/10'
+                }`}>
+                  {isDone ? (
+                    <Check className="w-4 h-4" />
+                  ) : isActive ? (
+                    <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
+                  ) : (
+                    <span className="w-2 h-2 rounded-full bg-gray-500" />
+                  )}
+                </div>
+                <span className={`text-sm font-medium transition-colors duration-300 ${
+                  isDone ? 'text-emerald-400' : isActive ? 'text-white' : 'text-gray-500'
+                }`}>
+                  {step.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {currentStep !== 'done' && (
+          <div className="mt-8">
+            <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-emerald-400 to-teal-400 transition-all duration-700 ease-out"
+                style={{ width: `${Math.max(5, ((currentIdx + 0.5) / GENERATION_STEPS.length) * 100)}%` }}
+              />
+            </div>
+            <p className="text-xs text-gray-500 text-center mt-3">
+              Cela peut prendre 30 à 60 secondes
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const ProgressBar = ({ current, total }) => (
   <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
     <div
@@ -327,6 +408,7 @@ const StoreCreationWizard = ({ onComplete }) => {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [savingStep, setSavingStep] = useState('');
+  const [generationStep, setGenerationStep] = useState(null); // key from GENERATION_STEPS
   const [loading, setLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
   const [errors, setErrors] = useState({});
@@ -549,6 +631,7 @@ const StoreCreationWizard = ({ onComplete }) => {
   const handleSubmit = async () => {
     if (!validate()) return;
     setSaving(true);
+    setGenerationStep('subdomain');
 
     try {
       const emptyStore = createEmptyStore({
@@ -561,7 +644,6 @@ const StoreCreationWizard = ({ onComplete }) => {
 
       // ── NEW STORE MODE: create a new Store document, then configure it ──────
       if (isNewStoreMode) {
-        setSavingStep('Création de votre nouvelle boutique...');
         const createRes = await storesApi.createStore({
           name: form.storeName,
           subdomain: form.subdomain
@@ -575,13 +657,12 @@ const StoreCreationWizard = ({ onComplete }) => {
       }
 
       // Étape 1 : Sous-domaine
-      setSavingStep('Création de votre boutique...');
       if (!isEditMode || isResetMode || isNewStoreMode) {
         if (!isNewStoreMode) await storeManageApi.setSubdomain(form.subdomain);
       }
 
       // Étape 2 : Config boutique
-      setSavingStep('Enregistrement de vos informations...');
+      setGenerationStep('config');
       await storeManageApi.updateStoreConfig({
         storeName: form.storeName,
         storeDescription: form.storeDescription,
@@ -598,15 +679,19 @@ const StoreCreationWizard = ({ onComplete }) => {
       });
 
       // Étape 3 : Thème
+      setGenerationStep('theme');
       try {
         await storeManageApi.updateTheme({ ...emptyStore.theme, primaryColor: form.themeColor });
       } catch {}
 
       // Étape 4 : Génération IA de la page d'accueil (nouveau)
+      // Le backend sauvegarde directement les sections en base.
+      // En cas d'échec on ne sauvegarde PAS de sections vides — le storefront
+      // affichera son fallback automatique (hero + grille produits).
       if (!isEditMode || isResetMode) {
-        setSavingStep("L'IA construit votre page d'accueil...");
+        setGenerationStep('homepage');
         try {
-          const genRes = await storeManageApi.generateHomepage({
+          await storeManageApi.generateHomepage({
             storeName: form.storeName,
             storeDescription: form.storeDescription,
             productType: form.productType,
@@ -617,23 +702,24 @@ const StoreCreationWizard = ({ onComplete }) => {
             country: form.country,
             storeWhatsApp: form.storeWhatsApp,
           });
-          const sections = genRes.data?.sections;
-          if (Array.isArray(sections) && sections.length > 0) {
-            await storeManageApi.updatePages({ sections });
-          } else {
-            await storeManageApi.updatePages({ sections: [] });
-          }
         } catch {
-          await storeManageApi.updatePages({ sections: [] });
+          // Silently continue — the backend fallback sections are already saved,
+          // or the storefront will use its default layout.
+          console.warn('Homepage AI generation failed, storefront will use fallback');
         }
+        // Images are generated in parallel server-side during generateHomepage,
+        // so by the time we reach here everything (text + images) is ready.
+        setGenerationStep('images');
+        // Small pause so user sees the "images" step check off
+        await new Promise(r => setTimeout(r, 800));
       }
 
-      setSavingStep('Votre boutique est prête !');
+      // Step final : tout est prêt
+      setGenerationStep('done');
       onComplete?.();
 
       // Refresh stores list & switch to the new store
       await refreshStores();
-      // Re-force active store to the new one (in case refreshStores reset it)
       if (isNewStoreMode) {
         const freshRes = await storesApi.getStores();
         const freshList = freshRes.data?.data || [];
@@ -643,19 +729,18 @@ const StoreCreationWizard = ({ onComplete }) => {
         }
       }
 
-      // Redirection directe vers la boutique publique
+      // Laisser voir le message de succès 2.5s puis rediriger
       const storeUrl = `https://${form.subdomain}.scalor.net`;
+      await new Promise(r => setTimeout(r, 2500));
 
-      // Petit délai pour laisser voir le message de succès
-      setTimeout(() => {
-        window.open(storeUrl, '_blank');
-        navigate('/ecom/boutique');
-      }, 1500);
+      window.open(storeUrl, '_blank');
+      navigate('/ecom/boutique');
     } catch (err) {
       setErrors({ submit: err.response?.data?.message || 'Une erreur est survenue' });
     } finally {
       setSaving(false);
       setSavingStep('');
+      setGenerationStep(null);
     }
   };
 
@@ -677,6 +762,9 @@ const StoreCreationWizard = ({ onComplete }) => {
 
   return (
     <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-emerald-50/30 overflow-auto">
+      {/* Overlay plein écran pendant la génération */}
+      {generationStep && <GenerationOverlay currentStep={generationStep} storeName={form.storeName} />}
+
       {/* Header fixe */}
       <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-100">
         <div className="max-w-2xl mx-auto px-6 py-4">
