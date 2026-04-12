@@ -167,13 +167,13 @@ A professional product advertisement for "${productName}" targeting African cons
 【LEFT SIDE — ~55% of frame】PEOPLE + PRODUCT ZONE
 • EXACTLY 3 authentic Black African people occupying the left half of the image as a believable trio composition
 • Real dark skin (natural Black African complexion), natural African hair (afro, braids, locs, twists, or headwrap)
-• Wearing simple everyday African clothes — colorful traditional or casual, clean, relatable
+• Wearing modern stylish clothes — smart casual, contemporary, clean and relatable
 • SUBTLE facial expressions — warm natural smiles, confident, NOT theatrical, NOT exaggerated
 • They are HOLDING THE PRODUCT IN HAND naturally — at least 2 of the 3 people must clearly hold the product, and the hand and the product must both be clearly visible, as in a real commercial photo
 • ${productBlock}
 • The product packaging also visible (box, carton, etc.) near or behind the trio
 • Their FACES must be clearly visible — they are the human face of this ad
-• Warm natural lighting, soft background (blurred African home interior, bokeh)
+• Warm natural lighting, soft background (blurred modern interior, contemporary space, bokeh)
 
 【RIGHT SIDE — ~45% of frame】BENEFITS + CTA ZONE
 • Clean white or very light background — NO clutter, professional spacing
@@ -191,14 +191,9 @@ A professional product advertisement for "${productName}" targeting African cons
      ✓ ${benefits[3]}
      Font: clean modern sans-serif, dark gray text, 14-16px equivalent
 
-═══ TOP ZONE — HEADLINE (spanning full width above the split) ═══
-Line 1 (LARGE, BOLD, dominant — the biggest text in the image):
-"${headline}"
-Font: extra-bold modern sans-serif, dark text (#1a1a1a) with key emotional words in ${accentColor}
-
-Line 2 (smaller subheadline, below the headline):
-"${subheadline}"
-Font: medium weight, dark gray (#555)
+═══ TOP ZONE — NO TITLE (spanning full width above the split) ═══
+NO headline or title text on the image. The image should be purely visual at the top.
+Keep this zone clean — a subtle accent color strip or minimal brand element is acceptable.
 
 ═══ BOTTOM ZONE — TRUST BAR + CTA (spanning full width below the split) ═══
 TRUST STRIP (full width, light gray background):
@@ -214,15 +209,15 @@ Style: ${accentColor} background, white bold text, large rounded corners, promin
 • The SPLIT LAYOUT is NON-NEGOTIABLE — left side is photographic (person + product), right side is clean graphic design (badges + benefits)
 • ALL French text: 100% PERFECT spelling with every accent (é, è, ê, à, ù, ç, î, ô). ZERO errors. Simple, direct, African-local tone
 • Soft, clean, natural visual style — NOT flashy, NOT over-saturated, NOT aggressive filters
-• Natural warm lighting on the person — like real daylight in an African home
+• Natural warm lighting on the person — like real daylight in a modern space
 • NO body distortion, NO product distortion, NO visual inconsistencies
 • NO price in numbers, NO phone number, NO URL, NO watermark
 • Modern typography: clean sans-serif, high contrast, perfectly aligned
 • Product packaging sharp and clear — every label readable
-• The African person is THE FACE of this ad — confident, natural, relatable. Their presence makes the ad authentic for the African market
+• The African person is THE FACE of this ad — confident, natural, relatable in a MODERN UPSCALE setting. Their presence makes the ad authentic
 • COLOR IDENTITY: The dominant accent color is ${accentColor} — use it for CTA button, checkmark icons, badge background, and key headline words. This color conveys a ${niche.mood} feel matching the product niche
 • Even if text is present, the scene must still be understandable WITHOUT reading the text: the human expression, body zone, gesture and context must already communicate the same situation and benefit
-• Final mood: professional, credible, natural — could be a real brand campaign photo from a top African beauty/lifestyle brand${realismRules}${semanticRules}${threePeopleRules}${customVisualDirectives}`;
+• Final mood: professional, credible, natural — could be a real brand campaign photo from a top premium brand${realismRules}${semanticRules}${threePeopleRules}${customVisualDirectives}`;
 }
 
 /**
@@ -271,10 +266,10 @@ A single square image composed as a PHOTO COLLAGE / MOSAIC of 3-4 real photograp
   • Photo 1 (largest, ~40% of frame): Close-up of a person showing the main problem — "${pain1}". Their face or body clearly shows discomfort, frustration, or the visible symptom. Expression is GENUINE distress — not theatrical, but real everyday struggle
   • Photo 2: Another person (different age/gender) also experiencing the problem from a different angle — ${pain2 ? `"${pain2}"` : 'related aspect of the same problem'}. Candid, documentary feel
   • Photo 3: ${pain3 ? `A third person showing "${pain3}"` : 'Close-up detail shot of the problem itself — the affected area, the symptom, the frustration'}. Raw, unfiltered
-  • Optional Photo 4: Wider shot showing the social/emotional impact of the problem — isolation, embarrassment, discomfort in a social setting
+  • Optional Photo 4: Wider shot showing the social/emotional impact of the problem — isolation, embarrassment, discomfort in a modern setting
 
 ═══ TEXT OVERLAYS ═══
-- MAIN HEADLINE (large, bold, top or center): "${problemTitle}" — in French, bold white or red condensed sans-serif font on dark background. The text should feel like a WARNING or AWARENESS campaign headline
+- NO title or headline text on this image. Keep it purely photographic and documentary
 - Optional small pain point labels near each photo in thin white text
 - Overall text style: raw, editorial, awareness campaign — NOT marketing/sales copy
 - NO product shown, NO solution mentioned — this image is ONLY about the PROBLEM
@@ -282,8 +277,8 @@ A single square image composed as a PHOTO COLLAGE / MOSAIC of 3-4 real photograp
 ═══ MOOD & STYLE ═══
 - Documentary / awareness campaign aesthetic — dark, moody, empathetic
 - Photos must look like REAL candid photographs — not studio shots, not posed. Think photojournalism
-- Natural imperfect lighting — like real photos taken in real African homes, bathrooms, streets
-- Each person wears simple everyday African clothing
+- Natural imperfect lighting — like real photos taken in modern interiors, contemporary bathrooms, urban settings
+- Each person wears modern stylish clothing
 - The collage must make the viewer FEEL the problem before they see the solution
 - Color grading: desaturated, slightly cold/blue tint on the photos to convey discomfort. Dark vignettes
 - NO smiling, NO positivity — this is the PROBLEM slide. Raw reality
@@ -318,18 +313,19 @@ A reference image of the EXACT product is provided. Use EXACTLY the product appe
 ═══ AFRICAN MARKET REALISM — MANDATORY RULES ═══
 • PHOTOREALISTIC — must look like a real photograph, NOT AI-generated. No cartoon, no uncanny valley, no visible AI artifacts
 • African person: authentic dark skin, natural African features (NOT caricatural), natural African hair (afro, braids, locs, twists, headwrap)
-• Simple everyday African clothing — clean, relatable, NOT exaggerated luxury
+• Modern stylish clothing — clean, relatable, elegant. NOT traditional market clothing
 • SUBTLE facial expressions — natural, NOT theatrical or exaggerated. Genuine confidence, not forced poses
-• Setting must feel like a REAL African environment — natural warm lighting, not artificial studio
+• Setting must feel MODERN and UPSCALE — contemporary apartment, sleek studio, modern office, chic urban area. NOT a market, NOT a village, NOT a traditional setting
 • Product at REAL proportions — not oversized or miniature. Sharp, clear, no distortion. THE EXACT SAME product from the reference image
 • Soft, clean, natural visual style — NOT flashy, NOT over-saturated, NOT aggressive filters
-• ALL French text: 100% PERFECT spelling with every accent. Simple, direct, local African tone
+• ALL French text: 100% PERFECT spelling with every accent. NO title/headline on the image. Only short descriptive text if needed
 • NO body distortion, NO visual inconsistencies, NO uncanny facial features
 • If the angle text talks about a visible problem, the person and scene must clearly show that exact problem before the viewer reads the text
 • If the angle text talks about a result or promise, the person and scene must clearly show that exact result in a believable way
 • The image must work as a persuasive visual even if the text overlay is hidden
 • FORMAT: Vertical 4:5 (1080×1250) — portrait orientation, NOT square
-• Final feel: a REAL professional product photo that could run as a Facebook/TikTok Ad for African consumers${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
+• Final feel: a REAL professional product photo that could run as a Facebook/TikTok Ad for African consumers
+• ⚠️ CRITICAL OVERRIDE: Do NOT put any title or headline text on the image. Ignore any headline instruction from the layout above. The image must be purely visual — only benefit labels, stat numbers, or short descriptive phrases are allowed. NO large bold title text.${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
     mainClaim: angleTitle,
     supportText: angleExplication,
     promise: anglePromesse,
@@ -556,7 +552,7 @@ NO price, NO phone number, NO URL, NO watermark.`,
       `Vertical 4:5 (1080×1250) FASHION STYLING INFOGRAPHIC for "${title}". Street style lookbook. Ultra HD, 4K.
 
 COMPOSITION: How-to-style infographic.
-- BACKGROUND: Modern urban setting — trendy African city street, modern architecture, warm natural light
+- BACKGROUND: Modern urban setting — trendy city street, modern architecture, warm natural light
 - HEADLINE (overlay): "${headlineShort}" — bold white on dark frosted bar
 - MAIN (60%): ${targetPerson} — African person styled head-to-toe, showing how "${title}" fits into a complete look, candid fashion-forward pose
 - PRODUCT: ${productNote} — highlighted with subtle outline or glow to draw attention
@@ -722,7 +718,7 @@ NO price, NO phone number, NO URL, NO watermark.`,
 COMPOSITION: Home lifestyle usage infographic.
 - BACKGROUND: Warm natural home interior — bright kitchen, cozy living room. Warm natural light
 - HEADLINE (overlay): "${headlineShort}" — bold on warm frosted bar
-- MAIN: ${targetPerson} — African person naturally using "${title}" in their home, comfortable warm expression
+- MAIN: ${targetPerson} — African person naturally using "${title}" in a modern interior, comfortable warm expression
 - PRODUCT: ${productNote} — in use, prominent
 - INFO CARDS: 3 frosted warm-glass cards:
   "FACILE" + usage tip, "RAPIDE" + benefit, "EFFICACE" + result
@@ -737,7 +733,7 @@ NO price, NO phone number, NO URL, NO watermark.`,
 COMPOSITION: Home trust & satisfaction infographic.
 - BACKGROUND: Gradient — warm terracotta (#C0622A) to deep warm brown (#5D4037). Cozy, trustworthy
 - TOP: Bold cream condensed headline: "${headlineShort}"
-- CENTER: ${targetPerson} — African person or family in warm home setting, happy with product, golden warm lighting
+- CENTER: ${targetPerson} — African person or family in warm modern setting, happy with product, golden warm lighting
 - PRODUCT: ${productNote} — visible in home context
 - STATS (3): Cream numbers on warm dark glass badges:
   • Family satisfaction % + label
@@ -754,7 +750,7 @@ NO price, NO phone number, NO URL, NO watermark.`,
 COMPOSITION: Bold African family home celebration infographic.
 - BACKGROUND: Warm rich gradient — deep chocolate (#3E2723) to warm terracotta (#D4845A). African home warmth
 - TOP (15%): Bold warm cream condensed headline: "${headlineShort}" — inviting, family-centered
-- CENTER (55%): DOMINANT African family scene (dark skin, natural African features) — a person or family warmly using "${title}" in their modern African home. Genuine warm smiles, cozy golden ambient lighting, lived-in warm atmosphere. The FACES are clearly visible and joyful
+- CENTER (55%): DOMINANT African family scene (dark skin, natural African features) — a person or family warmly using "${title}" in a modern contemporary home. Genuine warm smiles, cozy golden ambient lighting, elegant atmosphere. The FACES are clearly visible and joyful
 - PRODUCT: ${productNote} — integrated naturally into the home scene, catching warm golden light
 - HOME VALUES (3): 3 warm glass-morphism cards:
   "Famille" + heart icon, "Confort" + home, "Qualité" + star
@@ -863,29 +859,29 @@ function buildPeopleHoldingProductPrompts(gptResult, visualPrefs = {}) {
 • Think: a real person just received their order, they're happy, they take a quick photo/selfie with the product to share on WhatsApp or Instagram
 • Authentic Black African person (dark brown skin, natural African features, natural African hair or headwrap). Natural skin texture, pores, imperfections — REAL human skin
 • Realistic hands with correct finger count (5 fingers per hand) and natural grip on the product
-• Simple everyday African clothing — t-shirt, casual dress, pagne, regular clothes worn at HOME. NOT fashion, NOT luxury, NOT styled
+• Modern stylish clothing — t-shirt, casual dress, smart casual, regular modern clothes. NOT traditional market attire
 • FACE MUST BE CLEARLY VISIBLE — this is like a selfie or a photo taken by a friend. We see the person's face, their smile, their eyes. The face is a major part of the photo
 • Natural warm lighting — smartphone flash, window light, room light, daylight. Slightly imperfect lighting like a real phone photo
 • The person is HOLDING the EXACT product (from reference image) in their hands clearly — the product packaging/label must be recognizable and readable
 • ${productNote}
 • Mid-range or selfie-style crop. Vertical 4:5 (1080×1250). Smartphone photo quality — sharp but not studio-perfect
-• Setting: REAL African home interior — living room with sofa, bedroom, kitchen, bathroom mirror. Real furniture, real walls, real African home decor. NOT a blank background, NOT a studio
+• Setting: MODERN UPSCALE interior — contemporary living room, sleek bedroom, modern kitchen, minimalist bathroom. Modern furniture, clean walls, contemporary decor. NOT a traditional setting, NOT a market
 • NO text overlay, NO caption, NO price, NO CTA, NO logo, NO frame, NO marketing layout
 • NO extra objects arranged around the product — this is NOT a flat lay. It's a person holding the product
 • The overall feel must be: "a real customer took this photo after receiving their package"
 ${buildHumanPhotoRealismRules()}`;
 
   return [
-    `A real smartphone selfie photo of a young African woman (25-35 years old, natural hair or braids, genuine happy smile showing teeth) holding "${title}" up next to her face with one hand while taking the selfie with the other. She is at home in her living room — we can see a sofa, cushions, or curtains slightly blurred behind her. The product packaging is clearly visible and facing the camera. Her face takes up about 40% of the frame, the product about 30%. Natural room lighting, slightly warm. This looks like a real photo she just posted on WhatsApp saying "Mon colis est arrivé!" — genuine excitement, not posed.
+    `A real smartphone selfie photo of a young African woman (25-35 years old, natural hair or braids, genuine happy smile showing teeth) holding "${title}" up next to her face with one hand while taking the selfie with the other. She is at home in her modern living room — we can see a contemporary sofa, stylish cushions, or modern curtains slightly blurred behind her. The product packaging is clearly visible and facing the camera. Her face takes up about 40% of the frame, the product about 30%. Natural room lighting, slightly warm. This looks like a real photo she just posted on WhatsApp saying "Mon colis est arrivé!" — genuine excitement, not posed.
 ${baseRules}`,
 
-    `A real smartphone photo of an African man (28-40 years old, short natural hair or close cut, relaxed genuine smile) sitting on a sofa or chair in his living room, holding "${title}" in both hands at chest level, product label facing the camera. He looks directly at the camera like a friend just took his photo. We see his full face clearly, his everyday casual t-shirt or polo. The background shows a real African home interior — TV, shelves, curtains, wall decorations visible but slightly blurred. Natural indoor lighting. This looks like a real testimonial photo a customer would send.
+    `A real smartphone photo of an African man (28-40 years old, short natural hair or close cut, relaxed genuine smile) sitting on a sofa or chair in his living room, holding "${title}" in both hands at chest level, product label facing the camera. He looks directly at the camera like a friend just took his photo. We see his full face clearly, his modern casual t-shirt or polo. The background shows a modern interior — contemporary TV setup, clean shelves, modern curtains visible but slightly blurred. Natural indoor lighting. This looks like a real testimonial photo a customer would send.
 ${baseRules}`,
 
-    `A real smartphone photo of an African woman (30-40 years old, natural hair wrapped in a headwrap, expression of delight and surprise) who just opened her package. She holds "${title}" up with one hand, the product clearly visible with its packaging. There's a torn delivery package or cardboard box visible on the table or her lap. She is sitting in her bedroom or living room. Her face is clearly visible — genuine joy of receiving an order. We see the product AND her face prominently. Natural indoor lighting, slightly warm. This looks like a real unboxing moment shared on social media.
+    `A real smartphone photo of an African woman (30-40 years old, natural hair wrapped in a headwrap, expression of delight and surprise) who just opened her package. She holds "${title}" up with one hand, the product clearly visible with its packaging. There's a torn delivery package or cardboard box visible on the table or her lap. She is sitting in her modern bedroom or sleek living room. Her face is clearly visible — genuine joy of receiving an order. We see the product AND her face prominently. Natural indoor lighting, slightly warm. This looks like a real unboxing moment shared on social media.
 ${baseRules}`,
 
-    `A real smartphone photo of an African person (any gender, 25-40 years old, bright genuine smile) standing outside in warm African daylight — in a courtyard, on a balcony, or in front of their house. They hold "${title}" forward toward the camera with one hand, product label clearly visible, while their face is clearly visible behind/beside the product with a proud expression. Simple everyday clothes. The background shows a real African street, courtyard, or neighborhood, slightly blurred. Bright natural sunlight. This looks like a real photo posted on Facebook with a caption about the product.
+    `A real smartphone photo of an African person (any gender, 25-40 years old, bright genuine smile) standing outside in warm daylight — on a modern balcony, in front of a contemporary building, or in a chic urban area. They hold "${title}" forward toward the camera with one hand, product label clearly visible, while their face is clearly visible behind/beside the product with a proud expression. Modern stylish clothes. The background shows a modern urban setting, clean architecture, slightly blurred. Bright natural sunlight. This looks like a real photo posted on Facebook with a caption about the product.
 ${baseRules}`,
   ];
 }
@@ -1026,7 +1022,7 @@ Clean technical design, dark premium tech. PERFECT French specs labels.`,
         prompt: `Vertical 4:5 (1080×1250) TECH LIFESTYLE INFOGRAPHIC for "${title}". Modern usage context. Ultra HD, 4K.
 
 COMPOSITION: Tech in everyday life.
-- BACKGROUND: Modern African indoor scene — sleek living room, bright coworking space, or home office with warm LED lighting and clean modern furniture. NOT studio
+- BACKGROUND: Modern indoor scene — sleek living room, bright coworking space, or modern home office with warm LED lighting and clean modern furniture. NOT studio
 - PERSON (dominant 60%): ${targetPerson} — African person in modern casual outfit, ACTIVELY using "${title}" in a natural tech context (gaming, working, listening, computing). Engaged expression, natural pose, warm mixed lighting (ambient + device glow)
 - PRODUCT: clearly visible in use — ${productNote}
 - OVERLAY: 3 floating dark glass-morphism cards with blue accent:
@@ -1110,15 +1106,15 @@ Craftsmanship, warm African luxury. PERFECT French.`,
         prompt: `Vertical 4:5 (1080×1250) FASHION STYLING INFOGRAPHIC for "${title}". Street style / lifestyle. Ultra HD, 4K.
 
 COMPOSITION: How to style / wear.
-- BACKGROUND: Vibrant urban African scene — colorful market street, modern African city backdrop, bright natural daylight with warm golden tones. NOT studio white
-- PERSON (dominant 65%): ${targetPerson} — African fashion-forward person, confidently wearing/using "${title}" in street-style context. Dynamic pose (walking, turning, posing). Bright natural light, vivid colors. This IS the image
+- BACKGROUND: Vibrant urban scene — modern city street, contemporary urban backdrop, bright natural daylight with warm golden tones. NOT studio white
+- PERSON (dominant 65%): ${targetPerson} — African fashion-forward person, confidently wearing/using "${title}" in modern street-style context. Dynamic pose (walking, turning, posing). Bright natural light, vivid colors. This IS the image
 - PRODUCT: worn or held prominently — ${productNote}
 - OVERLAY: 2-3 floating gold-accent glass cards:
   "COMMENT PORTER" or "STYLE TIP 1" + brief French styling advice
   Connected with thin gold dotted lines to relevant parts of the outfit
 - Color palette: warm gold, terracotta, vibrant African prints/colors in background
 
-Vibrant African street style energy. PERFECT French.`,
+Vibrant modern street style energy. PERFECT French.`,
         type: 'fashion_styling',
       },
       {
@@ -1252,7 +1248,7 @@ COMPOSITION: Home product hero.
 - 4 benefit badges as warm-toned rounded cards (terracotta/brown):
   "${b1}", "${b2}", "${b3}", "${b4}"
   Each with home-related icon (house, clock, sparkle, shield)
-- PERSON (40%): ${targetPerson} — African person in comfortable home setting, using the product naturally, warm genuine smile, cozy home lighting
+- PERSON (40%): ${targetPerson} — African person in comfortable modern setting, using the product naturally, warm genuine smile, elegant lighting
 
 Warm, cozy, trustworthy home design. PERFECT French.`,
         type: 'home_hero',
@@ -1265,7 +1261,7 @@ COMPOSITION: Practical features spotlight.
 - LAYOUT: Left panel (info) / Right panel (product in context)
 - LEFT (45%): 3 practical features listed with generous spacing. Each: terracotta icon + bold French feature name + short practical benefit. Clean warm typography
 - RIGHT (55%): ${productNote} Product shown IN USE in a realistic home context (kitchen counter, living room shelf, bathroom). Warm ambient home lighting
-- PERSON: ${targetPerson} — African person using the product in their home, natural comfortable pose, warm genuine expression
+- PERSON: ${targetPerson} — African person using the product in a modern interior, natural comfortable pose, warm genuine expression
 - BOTTOM: warm terracotta bar with quality badge and French tagline
 
 Practical, warm, trustworthy home product feel. PERFECT French.`,
@@ -1275,8 +1271,8 @@ Practical, warm, trustworthy home product feel. PERFECT French.`,
         prompt: `Vertical 4:5 (1080×1250) HOME LIFESTYLE INFOGRAPHIC for "${title}". Real home context. Ultra HD, 4K.
 
 COMPOSITION: Product in home life.
-- BACKGROUND: Real African home interior — modern warm living room, bright kitchen, or cozy bedroom. Warm natural light through windows, lived-in but clean. NOT studio
-- PERSON (dominant 60%): ${targetPerson} — African person in comfortable home clothes, NATURALLY using "${title}" in their everyday home routine. Relaxed genuine smile, warm atmosphere. This person is LIVING with the product
+- BACKGROUND: Modern contemporary interior — sleek living room, bright modern kitchen, or elegant bedroom. Warm natural light through windows, clean and stylish. NOT studio
+- PERSON (dominant 60%): ${targetPerson} — African person in modern stylish clothes, NATURALLY using "${title}" in an everyday modern routine. Relaxed genuine smile, warm atmosphere. This person is LIVING with the product
 - PRODUCT: in use or prominently placed — ${productNote}
 - OVERLAY: 2-3 small frosted-glass warm-toned cards:
   "FACILE" + usage step, "RAPIDE" + benefit, "EFFICACE" + result
@@ -1886,7 +1882,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       const angle = angles[i] || null;
 
       // Build an infographic prompt that visually illustrates the angle as an infographic
-      const africanRealism = `\n\n═══ PRODUCT REFERENCE — IMAGE-TO-IMAGE MANDATORY ═══\nUse EXACTLY the product appearance from the reference image — same packaging, colors, label, shape. Do NOT redraw or invent a product. If you cannot reproduce the EXACT same product, generate the scene WITHOUT the product rather than showing a wrong one.\n\n═══ AFRICAN MARKET REALISM — MANDATORY ═══\n• PHOTOREALISTIC — must look like a real photograph. No cartoon, no AI artifacts\n• African person: authentic dark skin, natural African features, natural African hair. Simple everyday clothing, SUBTLE expressions — NOT theatrical\n• Setting: real African environment, natural warm lighting. Product at REAL proportions — THE EXACT SAME product from the reference image\n• Soft, clean, natural style. ALL French text 100% PERFECT. NO distortion, NO inconsistencies\n• FORMAT: Vertical 4:5 (1080×1250) — portrait orientation${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
+      const africanRealism = `\n\n═══ PRODUCT REFERENCE — IMAGE-TO-IMAGE MANDATORY ═══\nUse EXACTLY the product appearance from the reference image — same packaging, colors, label, shape. Do NOT redraw or invent a product. If you cannot reproduce the EXACT same product, generate the scene WITHOUT the product rather than showing a wrong one.\n\n═══ AFRICAN MARKET REALISM — MANDATORY ═══\n• PHOTOREALISTIC — must look like a real photograph. No cartoon, no AI artifacts\n• African person: authentic dark skin, natural African features, natural African hair. Modern stylish clothing, SUBTLE expressions — NOT theatrical\n• Setting: MODERN UPSCALE environment (contemporary apartment, sleek studio, modern office, chic urban area — NOT a market, NOT a village, NOT traditional). Natural warm lighting. Product at REAL proportions — THE EXACT SAME product from the reference image\n• Soft, clean, natural style. NO title/headline text on image. NO distortion, NO inconsistencies\n• FORMAT: Vertical 4:5 (1080×1250) — portrait orientation${buildHumanPhotoRealismRules()}${buildSemanticIllustrationRules({
         mainClaim: angle?.titre_angle || gptResult.hero_headline || title,
         supportText: angle?.explication || angle?.message_principal || '',
         promise: angle?.promesse || '',
