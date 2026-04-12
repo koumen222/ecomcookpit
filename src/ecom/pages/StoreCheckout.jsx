@@ -5,7 +5,7 @@ import { PHONE_CODES, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, 
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
 import { setDocumentMeta } from '../utils/pageMeta';
-import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking.js';
+import { createMetaEventId, firePixelEvent, trackStorefrontEvent } from '../utils/pixelTracking.js';
 import { formatMoney } from '../utils/currency.js';
 
 /**
@@ -165,17 +165,21 @@ const StoreCheckout = () => {
         setPixels(data.pixels || null);
         // Inject pixels + fire InitiateCheckout
         if (data.pixels) {
-          injectPixelScripts(data.pixels);
           const total = cartProducts.reduce((sum, p) => sum + (p.price || 0) * (p.quantity || 1), 0);
           const cartCurrencies = [...new Set(cartProducts.map((p) => String(p.currency || '').trim().toUpperCase()).filter(Boolean))];
           const checkoutCurrency = cartCurrencies.length === 1
             ? cartCurrencies[0]
             : (data.store?.currency || storeData?.currency || 'XAF');
-          firePixelEvent('InitiateCheckout', {
-            value: total,
-            currency: checkoutCurrency,
-            num_items: cartProducts.length,
-            content_ids: cartProducts.map(p => p._id || p.productId || ''),
+          trackStorefrontEvent({
+            subdomain,
+            pixels: data.pixels,
+            eventName: 'InitiateCheckout',
+            params: {
+              value: total,
+              currency: checkoutCurrency,
+              num_items: cartProducts.length,
+              content_ids: cartProducts.map(p => p._id || p.productId || ''),
+            },
           });
         }
       } catch {
@@ -266,6 +270,7 @@ const StoreCheckout = () => {
 
     try {
       const fullPhone = buildFullPhone(phoneCode, form.phone);
+      const purchaseEventId = createMetaEventId('purchase');
       const res = await publicStoreApi.placeOrder(subdomain, {
         customerName: form.customerName.trim(),
         phone: fullPhone,
@@ -280,7 +285,9 @@ const StoreCheckout = () => {
           productId: p.productId,
           quantity: p.quantity
         })),
-        channel: 'store'
+        channel: 'store',
+        metaEventId: purchaseEventId,
+        metaSourceUrl: typeof window !== 'undefined' ? window.location.href : '',
       });
 
       const orderData = res.data?.data;
@@ -293,6 +300,7 @@ const StoreCheckout = () => {
         currency,
         content_ids: cartProducts.map(p => p._id || p.productId || ''),
         num_items: cartProducts.length,
+        eventId: purchaseEventId,
       });
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur lors de la commande');

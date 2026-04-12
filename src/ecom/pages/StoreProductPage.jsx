@@ -16,7 +16,7 @@ import ProductTestimonials from '../components/ProductTestimonials';
 import { StorefrontHeader, StorefrontFooter } from '../components/StorefrontShared';
 import { io } from 'socket.io-client';
 import { setDocumentMeta } from '../utils/pageMeta';
-import { injectPixelScripts, firePixelEvent } from '../utils/pixelTracking';
+import { trackStorefrontEvent } from '../utils/pixelTracking';
 import { useStoreAnalytics } from '../hooks/useStoreAnalytics';
 import { preloadStoreCheckoutRoute, preloadStoreProductRoute } from '../utils/routePrefetch';
 import { getIconComponent } from '../components/productSettings/ButtonEditor';
@@ -1179,16 +1179,25 @@ const StoreProductPage = () => {
   // Inject pixel scripts and fire ViewContent when product loads
   useEffect(() => {
     if (!product || !pixels) return;
-    injectPixelScripts(pixels);
-    firePixelEvent('ViewContent', {
+    trackStorefrontEvent({
+      subdomain,
+      pixels,
+      eventName: 'PageView',
+    });
+    trackStorefrontEvent({
+      subdomain,
+      pixels,
+      eventName: 'ViewContent',
+      params: {
       content_ids: [product._id || product.slug || ''],
       content_name: product.name || '',
       value: product.price || 0,
       currency: effectiveCurrency,
+      },
     });
     // Track product view in store analytics
     trackProductView(product._id || product.slug, product.name, product.price);
-  }, [product, pixels, effectiveCurrency]);
+  }, [product, pixels, effectiveCurrency, subdomain, trackProductView]);
 
   useEffect(() => {
     if (!store?.name || !product?.name) return;
@@ -1650,11 +1659,16 @@ const StoreProductPage = () => {
     if (!inStock) return;
     setShowOrderModal(true);
     trackAddToCart(product?._id || product?.slug, product?.name, product?.price);
-    firePixelEvent('AddToCart', {
-      content_ids: [product?._id || product?.slug || ''],
-      content_name: product?.name || '',
-      value: product?.price || 0,
-      currency: effectiveCurrency,
+    trackStorefrontEvent({
+      subdomain,
+      pixels,
+      eventName: 'AddToCart',
+      params: {
+        content_ids: [product?._id || product?.slug || ''],
+        content_name: product?.name || '',
+        value: product?.price || 0,
+        currency: effectiveCurrency,
+      },
     });
   };
 

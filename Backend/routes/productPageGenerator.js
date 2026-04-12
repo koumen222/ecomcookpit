@@ -155,6 +155,52 @@ function getMainBenefit(gptResult = {}) {
     || 'Résultats visibles rapidement';
 }
 
+function getHeroContextHints(gptResult = {}, template = 'general') {
+  const textCorpus = [
+    gptResult.title,
+    gptResult.hero_headline,
+    gptResult.hero_slogan,
+    gptResult.hero_baseline,
+    gptResult.problem_section?.title,
+    ...(gptResult.problem_section?.pain_points || []),
+    ...(gptResult.benefits_bullets || []),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  const isToiletCleaning = /(wc|toilet|toilette|cuvette|odeur|odeurs|mauvaises odeurs|desodoris|nettoyant wc|toilet bowl|bathroom odor)/.test(textCorpus);
+  const isHouseholdCleaning = /(nettoy|cleaner|detergent|degraiss|desinfect|menage|maison propre|salle de bain|kitchen|cuisine|surface sale)/.test(textCorpus);
+
+  if (isToiletCleaning) {
+    return {
+      scene: 'modern upscale bathroom or WC, the exact product attached to or used around a clean toilet bowl, visible freshness and odor-relief result, believable household context',
+      subject: 'an authentic Black African parent or household adult naturally using or presenting the product in the bathroom',
+      placement: 'the product must be large, real-size, and clearly visible near the toilet rim or in the hand during usage, never floating and never oversized',
+      mood: 'fresh, relieved, hygienic, practical, reassuring, premium household realism',
+      composition: 'show the real problem being solved through the environment: clean WC, freshness, comfort, confidence, no generic beauty pose',
+    };
+  }
+
+  if (template === 'home' || isHouseholdCleaning) {
+    return {
+      scene: 'real modern home usage context matching the exact room or surface the product is made for',
+      subject: 'an authentic Black African adult naturally using or showing the product in a believable domestic scene',
+      placement: 'the product must stay clearly visible in the hands or in active use on the exact household area it improves',
+      mood: 'practical, clean, trustworthy, warm, premium domestic realism',
+      composition: 'the image must explain the concrete household benefit, not a generic portrait',
+    };
+  }
+
+  return {
+    scene: 'believable usage context matching the real product category and benefit',
+    subject: `a ${resolveHeroAvatar(gptResult, template)} naturally interacting with the product`,
+    placement: 'the exact product must be clearly visible at realistic size, naturally held or used in context',
+    mood: 'premium, trustworthy, realistic, ecommerce-ready',
+    composition: 'avoid static generic posing and make the product benefit readable in the scene',
+  };
+}
+
 function getBenefitPairs(gptResult = {}) {
   const rawItems = [
     ...(gptResult.benefits_bullets || []),
@@ -332,25 +378,32 @@ ${buildArtDirectionProfile(2, gptResult, template, visualPrefs, 'social proof an
  * Bold headline + product dominant + contextual usage scene.
  */
 function buildHeroPrompt(gptResult, hasProductRef, template = 'general', visualPrefs = {}) {
-  const avatar = resolveHeroAvatar(gptResult, template);
   const mainBenefit = getMainBenefit(gptResult);
   const brandColor = resolveBrandColor(visualPrefs, template);
-  const productNote = 'THE EXACT product from the reference image, clearly visible near the face, same packaging, same label, same colors, same shape.';
+  const heroContext = getHeroContextHints(gptResult, template);
+  const productNote = 'THE EXACT product from the reference image, same packaging, same label, same colors, same shape, no redesign, no approximation.';
 
   return `Create a high-converting ecommerce hero image for an African audience.
 
-A ${avatar} holding the exact product in her or his hand, smiling confidently, looking at the camera.
+A realistic hero scene showing ${heroContext.subject}.
 
-The product must be clearly visible near the face.
+Scene and environment: ${heroContext.scene}.
+Composition goal: ${heroContext.composition}.
+Emotional tone: ${heroContext.mood}.
+
+The product must be clearly visible and placed naturally in the usage scene.
 ${productNote}
+${heroContext.placement}.
 
-Clean soft lighting, premium beauty or ecommerce photography style, realistic and trustworthy.
+Clean soft lighting, premium ecommerce photography style, realistic and trustworthy.
 Background color must match the website color: ${brandColor}.
 
 Add subtle marketing text in perfect French:
 "${mainBenefit}"
 
 Style: realistic, premium, trustworthy, no stock feeling, no fake hands, no watermark, no phone number, no URL.
+Do not force the product near the face unless that is the natural real usage of the product.
+For home, bathroom, kitchen or cleaning products, the image must prioritize the exact usage context and the solved problem in the room itself.
 ${buildArtDirectionProfile(0, gptResult, template, visualPrefs, 'hero hook image')}${buildDynamicDesignRules(gptResult, template, visualPrefs, 'hero hook image')}${buildHumanPhotoRealismRules()}${buildVisualPromptDirectives(visualPrefs)}`;
 }
 

@@ -128,6 +128,9 @@ export const publicStoreApi = {
   // Get delivery zones for checkout
   getDeliveryZones: (subdomain) => publicApi.get(`/${subdomain}/delivery-zones`),
 
+  // Server-side tracking bridge (Meta CAPI dedup)
+  trackEvent: (subdomain, payload) => publicApi.post(`/${subdomain}/track`, payload),
+
   // Place a public order (guest checkout)
   placeOrder: (subdomain, orderData) => publicApi.post(`/${subdomain}/orders`, orderData),
 };

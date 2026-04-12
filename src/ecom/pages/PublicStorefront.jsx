@@ -17,6 +17,7 @@ import { EditableWrapper, EditToolbar } from '../components/storefront/EditableW
 import { useStoreAnalytics } from '../hooks/useStoreAnalytics';
 import { StorefrontFooter as SharedStorefrontFooter } from '../components/StorefrontShared';
 import { formatMoney } from '../utils/currency.js';
+import { trackStorefrontEvent } from '../utils/pixelTracking.js';
 
 // Lazy load des sections below-the-fold pour performance
 const TestimonialsCarousel = lazy(() => import('../components/TestimonialsCarousel'));
@@ -2797,12 +2798,13 @@ export const StoreAllProducts = () => {
 
     // Inject pixel scripts + fire PageView
     if (pixels) {
-      import('../utils/pixelTracking.js').then(({ injectPixelScripts, firePixelEvent }) => {
-        injectPixelScripts(pixels);
-        firePixelEvent('PageView');
+      trackStorefrontEvent({
+        subdomain,
+        pixels,
+        eventName: 'PageView',
       });
     }
-  }, [store?.name, pixels]);
+  }, [store?.name, pixels, subdomain, trackPageView]);
 
   if (error) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
@@ -3078,12 +3080,13 @@ const PublicStorefrontInner = () => {
 
     // Inject pixel scripts + fire PageView
     if (innerPixels) {
-      import('../utils/pixelTracking.js').then(({ injectPixelScripts, firePixelEvent }) => {
-        injectPixelScripts(innerPixels);
-        firePixelEvent('PageView');
+      trackStorefrontEvent({
+        subdomain,
+        pixels: innerPixels,
+        eventName: 'PageView',
       });
     }
-  }, [store, innerPixels]);
+  }, [store, innerPixels, subdomain]);
 
   if (error) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
