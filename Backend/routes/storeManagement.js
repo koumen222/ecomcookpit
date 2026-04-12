@@ -5,6 +5,9 @@ import Store from '../models/Store.js';
 import { requireEcomAuth, requireWorkspace } from '../middleware/ecomAuth.js';
 import { requireStoreOwner } from '../middleware/storeAuth.js';
 import { invalidateStoreCache } from './storeApi.js';
+import { generateNanoBananaImage } from '../services/nanoBananaService.js';
+import { uploadToR2 } from '../services/cloudflareImagesService.js';
+import axios from 'axios';
 
 // Helper: get active Store for the current request (from activeStoreId or primaryStoreId)
 async function getActiveStore(req) {
@@ -135,6 +138,150 @@ function injectHeroImage(sections, productType, country) {
   return sections.map(sec => {
     if (sec.type === 'hero' && !sec.config?.backgroundImage) {
       return { ...sec, config: { ...sec.config, backgroundImage: img } };
+    }
+    return sec;
+  });
+}
+
+// ─── AI Image Generation for Homepage ────────────────────────────────────────
+
+/**
+ * Build prompt for hero background image (text-to-image, no product reference needed).
+ * Modern upscale setting, Black/African people, NO text on image.
+ */
+function buildHomepageHeroImagePrompt(s) {
+  const productTypeLabel = PRODUCT_TYPE_LABELS[s.productType] || 'lifestyle products';
+  const nicheKeywords = {
+    beaute: 'beauty, skincare, cosmetics, glowing skin, beauty products on vanity table',
+    fitness: 'fitness, sport, gym equipment, athletic lifestyle, workout',
+    mode: 'fashion, stylish outfit, trendy clothing, accessories, fashion editorial',
+    tech: 'technology, gadgets, modern devices, digital lifestyle, sleek tech setup',
+    maison: 'home decor, modern interior design, cozy living space, elegant furniture',
+    sante: 'wellness, health, natural products, peaceful lifestyle, vitality',
+    enfants: 'children, family, happy moments, playful, bright colorful environment',
+    autre: 'premium lifestyle, modern shopping, aspirational living',
+  };
+  const niche = nicheKeywords[s.productType] || nicheKeywords.autre;
+
+  return `Ultra-realistic 4K advertising photography for an online store selling ${productTypeLabel}.
+
+SCENE: A confident, stylish Black African person in a MODERN UPSCALE environment — contemporary apartment, sleek studio, or chic urban setting. The scene evokes ${niche}.
+
+SETTING: Modern, premium, aspirational. NOT a market, NOT a village, NOT traditional decor. Think luxury apartment, modern studio, high-end urban backdrop.
+
+COMPOSITION: Wide 16:9 cinematic hero banner composition. The person is naturally posed, looking confident and aspirational. Warm natural lighting, soft bokeh background, professional quality.
+
+MOOD: Premium, aspirational, trustworthy. The image should make you want to buy from this store. Scroll-stopping visual.
+
+ABSOLUTELY NO TEXT on the image. No title, no headline, no words, no labels. Pure photographic image only.
+NO logo, NO watermark, NO price, NO CTA button.`;
+}
+
+/**
+ * Build prompt for "why choose us" section image — person wearing branded t-shirt.
+ * Shows the store logo on t-shirt if logo URL is provided, otherwise store name text on t-shirt.
+ */
+function buildWhyChooseUsImagePrompt(s) {
+  const storeName = s.storeName || 'Notre Boutique';
+  const hasLogo = !!(s.storeLogo || s.logo);
+
+  const brandingInstruction = hasLogo
+    ? `The t-shirt prominently displays the store LOGO — a clear, visible, professional brand logo printed on the front chest area of the t-shirt.`
+    : `The t-shirt prominently displays the store name "${storeName}" — printed in bold, clean, modern typography on the front chest area of the t-shirt. The text "${storeName}" must be clearly readable and centered on the t-shirt.`;
+
+  return `Ultra-realistic 4K professional brand photography.
+
+SCENE: A smiling, confident Black African person wearing a clean, modern CREW-NECK T-SHIRT. ${brandingInstruction}
+
+T-SHIRT DETAILS: Clean solid-color t-shirt (white, black, or brand-colored). The branding/text is sharp, centered, well-sized (not too small, not too large). The t-shirt fits well, looks premium quality.
+
+PERSON: Authentic Black African person with natural features, warm genuine smile, confident posture. Arms relaxed or slightly crossed. Modern stylish appearance — NOT traditional clothing.
+
+SETTING: MODERN UPSCALE environment — clean neutral background, modern studio, or soft-focus contemporary interior. Professional studio lighting with warm tones.
+
+COMPOSITION: Portrait orientation (4:5), person from waist up, t-shirt clearly visible and in focus. The branding on the t-shirt is the focal point.
+
+ABSOLUTELY NO additional text on the image. No headline, no overlay text, no labels. Only the branding on the t-shirt itself.
+NO watermark, NO price, NO CTA button.`;
+}
+
+/**
+ * Download an image from URL and return as Buffer.
+ */
+async function downloadImageBuffer(url) {
+  const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 30000 });
+  return Buffer.from(response.data);
+}
+
+/**
+ * Generate AI images for homepage hero and features sections.
+ * Returns { heroImageUrl, featuresImageUrl }.
+ * Non-blocking: if image generation fails, returns null for that image.
+ */
+async function generateHomepageImages(s) {
+  const results = { heroImageUrl: null, featuresImageUrl: null };
+
+  try {
+    // Generate both images in parallel
+    const [heroResult, featuresResult] = await Promise.allSettled([
+      (async () => {
+        console.log('🎨 [Homepage] Generating AI hero image...');
+        const heroPrompt = buildHomepageHeroImagePrompt(s);
+        const heroTempUrl = await generateNanoBananaImage(heroPrompt, '16:9');
+        // Download and upload to R2 for permanent storage
+        const heroBuffer = await downloadImageBuffer(heroTempUrl);
+        const heroR2 = await uploadToR2(heroBuffer, `homepage-hero-${Date.now()}.jpg`, 'image/jpeg');
+        if (heroR2.success) {
+          console.log('✅ [Homepage] Hero image generated and uploaded to R2');
+          return heroR2.url;
+        }
+        console.warn('⚠️ [Homepage] Hero R2 upload failed, using temp URL');
+        return heroTempUrl;
+      })(),
+      (async () => {
+        console.log('🎨 [Homepage] Generating AI "why choose us" image...');
+        const featuresPrompt = buildWhyChooseUsImagePrompt(s);
+        const featuresTempUrl = await generateNanoBananaImage(featuresPrompt, '4:5');
+        // Download and upload to R2 for permanent storage
+        const featuresBuffer = await downloadImageBuffer(featuresTempUrl);
+        const featuresR2 = await uploadToR2(featuresBuffer, `homepage-features-${Date.now()}.jpg`, 'image/jpeg');
+        if (featuresR2.success) {
+          console.log('✅ [Homepage] Features image generated and uploaded to R2');
+          return featuresR2.url;
+        }
+        console.warn('⚠️ [Homepage] Features R2 upload failed, using temp URL');
+        return featuresTempUrl;
+      })(),
+    ]);
+
+    results.heroImageUrl = heroResult.status === 'fulfilled' ? heroResult.value : null;
+    results.featuresImageUrl = featuresResult.status === 'fulfilled' ? featuresResult.value : null;
+
+    if (heroResult.status === 'rejected') {
+      console.warn('⚠️ [Homepage] Hero image generation failed:', heroResult.reason?.message);
+    }
+    if (featuresResult.status === 'rejected') {
+      console.warn('⚠️ [Homepage] Features image generation failed:', featuresResult.reason?.message);
+    }
+  } catch (err) {
+    console.warn('⚠️ [Homepage] Image generation error:', err.message);
+  }
+
+  return results;
+}
+
+/**
+ * Inject AI-generated images into homepage sections.
+ */
+function injectAIImages(sections, images) {
+  return sections.map(sec => {
+    // Hero background image
+    if (sec.type === 'hero' && images.heroImageUrl) {
+      return { ...sec, config: { ...sec.config, backgroundImage: images.heroImageUrl } };
+    }
+    // Features "Pourquoi nous choisir" image
+    if (sec.type === 'features' && images.featuresImageUrl) {
+      return { ...sec, config: { ...sec.config, image: images.featuresImageUrl } };
     }
     return sec;
   });
@@ -369,13 +516,17 @@ async function generateAIHomepageSections(s) {
   if (!groq) return buildFallbackSections(s);
 
   try {
-    const prompt = buildHomepagePrompt(s);
-    const response = await groq.chat.completions.create({
-      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-      messages: [
-        {
-          role: 'system',
-          content: `Tu es un expert copywriter e-commerce spécialisé dans le marché africain.
+    // Generate text content AND AI images in parallel
+    const [textResult, imagesResult] = await Promise.allSettled([
+      // 1. Groq text generation
+      (async () => {
+        const prompt = buildHomepagePrompt(s);
+        const response = await groq.chat.completions.create({
+          model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+          messages: [
+            {
+              role: 'system',
+              content: `Tu es un expert copywriter e-commerce spécialisé dans le marché africain.
 
 RÈGLES DE QUALITÉ NON-NÉGOCIABLES:
 • Tu génères UNIQUEMENT du JSON valide, jamais de texte en dehors du JSON
@@ -385,28 +536,53 @@ RÈGLES DE QUALITÉ NON-NÉGOCIABLES:
 • Le storytelling doit être authentique, ancré dans la réalité africaine, pas du marketing occidental traduit
 • Les FAQ doivent anticiper les vraies objections locales (authenticité, livraison, Mobile Money, retours)
 • Chaque section doit servir la conversion — pas de remplissage décoratif`
-        },
-        { role: 'user', content: prompt }
-      ],
-      max_tokens: 6000,
-      temperature: 0.7,
-      response_format: { type: 'json_object' }
-    });
+            },
+            { role: 'user', content: prompt }
+          ],
+          max_tokens: 6000,
+          temperature: 0.7,
+          response_format: { type: 'json_object' }
+        });
 
-    const raw = response.choices[0]?.message?.content || '{}';
-    const parsed = JSON.parse(raw);
-    let sections = parsed.sections;
+        const raw = response.choices[0]?.message?.content || '{}';
+        const parsed = JSON.parse(raw);
+        const sections = parsed.sections;
+        if (!Array.isArray(sections) || sections.length === 0) {
+          throw new Error('Sections invalides retournées par le modèle');
+        }
+        return sections;
+      })(),
+      // 2. AI image generation (hero + "why choose us")
+      generateHomepageImages(s),
+    ]);
 
-    if (!Array.isArray(sections) || sections.length === 0) {
-      throw new Error('Sections invalides retournées par le modèle');
+    // Process text result
+    let sections;
+    if (textResult.status === 'fulfilled') {
+      sections = textResult.value;
+    } else {
+      console.warn('⚠️ Groq text generation failed, using fallback:', textResult.reason?.message);
+      sections = buildFallbackSections(s);
     }
 
+    // Normalize sections
     sections = sections.map((sec, i) => ({
       ...sec,
       id: sec.id || `${sec.type}-${i + 1}`,
       visible: true,
     }));
-    sections = injectHeroImage(sections, s.productType, s.country);
+
+    // Inject AI-generated images (overrides Unsplash fallback)
+    const aiImages = imagesResult.status === 'fulfilled' ? imagesResult.value : {};
+    if (aiImages.heroImageUrl || aiImages.featuresImageUrl) {
+      sections = injectAIImages(sections, aiImages);
+    }
+
+    // Fallback: inject Unsplash hero only if no AI hero image
+    if (!aiImages.heroImageUrl) {
+      sections = injectHeroImage(sections, s.productType, s.country);
+    }
+
     return sections;
   } catch (aiError) {
     console.warn('⚠️ Groq homepage generation failed, using fallback:', aiError.message);

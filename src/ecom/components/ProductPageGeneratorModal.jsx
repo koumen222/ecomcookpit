@@ -642,16 +642,20 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
               return bgAngle ? { ...a, poster_url: bgAngle.poster_url } : a;
             }) || [];
             const peoplePhotos = Array.isArray(imgs.peoplePhotos) ? imgs.peoplePhotos : (prev.peoplePhotos || []);
+            const beforeAfterImages = Array.isArray(imgs.beforeAfterImages) ? imgs.beforeAfterImages : (prev.beforeAfterImages || []);
             const allImages = [
               ...peoplePhotos,
               ...(imgs.heroImage ? [imgs.heroImage] : []),
-              ...(imgs.beforeAfterImage ? [imgs.beforeAfterImage] : []),
+              ...beforeAfterImages,
+              ...(imgs.whatsappTestimony ? [imgs.whatsappTestimony] : []),
               ...newAngles.map(a => a.poster_url).filter(Boolean)
             ];
             return {
               ...prev,
               heroImage: imgs.heroImage || prev.heroImage,
               beforeAfterImage: imgs.beforeAfterImage || prev.beforeAfterImage,
+              beforeAfterImages,
+              whatsappTestimony: imgs.whatsappTestimony || prev.whatsappTestimony,
               angles: newAngles,
               peoplePhotos,
               allImages: [...(prev.allImages || []), ...allImages].filter((v, i, a) => v && a.indexOf(v) === i),
@@ -926,9 +930,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
     abortRef.current = controller;
     const safetyTimer = setTimeout(() => {
       controller.abort();
-      setError('Timeout: La génération a pris trop de temps (5 minutes max)');
+      setError('Timeout: La génération a pris trop de temps (10 minutes max)');
       setPhase('input');
-    }, 300000);
+    }, 600000);
 
     try {
       console.log('🚀 Starting Product Page Generation:', { url: url.trim(), photosCount: photos.length });
@@ -1044,16 +1048,20 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
               return bgAngle ? { ...a, poster_url: bgAngle.poster_url } : a;
             }) || [];
             const peoplePhotos = Array.isArray(imgs.peoplePhotos) ? imgs.peoplePhotos : (prev.peoplePhotos || []);
+            const beforeAfterImages = Array.isArray(imgs.beforeAfterImages) ? imgs.beforeAfterImages : (prev.beforeAfterImages || []);
             const allImages = [
               ...peoplePhotos,
               ...(imgs.heroImage ? [imgs.heroImage] : []),
-              ...(imgs.beforeAfterImage ? [imgs.beforeAfterImage] : []),
+              ...beforeAfterImages,
+              ...(imgs.whatsappTestimony ? [imgs.whatsappTestimony] : []),
               ...newAngles.map(a => a.poster_url).filter(Boolean)
             ];
             return {
               ...prev,
               heroImage: imgs.heroImage || prev.heroImage,
               beforeAfterImage: imgs.beforeAfterImage || prev.beforeAfterImage,
+              beforeAfterImages,
+              whatsappTestimony: imgs.whatsappTestimony || prev.whatsappTestimony,
               angles: newAngles,
               peoplePhotos,
               allImages: [...(prev.allImages || []), ...allImages].filter((v, i, a) => v && a.indexOf(v) === i),
@@ -1293,9 +1301,30 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
       allImages.push({ url: product.heroPosterImage, alt: `Affiche — ${product.title || 'Produit'}`, order: 1 });
     }
 
-    // 2. Before/After image - third if available
-    if (product.beforeAfterImage) {
+    // 2. Before/After images (array of 2) - with backward compat
+    if (product.beforeAfterImages?.length) {
+      product.beforeAfterImages.forEach((imgUrl, i) => {
+        if (imgUrl && !allImages.find(img => img.url === imgUrl)) {
+          allImages.push({
+            url: imgUrl,
+            alt: `Avant / Après ${i + 1} — Résultats visibles`,
+            order: allImages.length,
+            type: 'before-after',
+          });
+        }
+      });
+    } else if (product.beforeAfterImage) {
       allImages.push({ url: product.beforeAfterImage, alt: 'Avant / Après - Résultats visibles', order: 2, type: 'before-after' });
+    }
+
+    // 2b. WhatsApp testimony
+    if (product.whatsappTestimony) {
+      allImages.push({
+        url: product.whatsappTestimony,
+        alt: 'Témoignage client WhatsApp',
+        order: allImages.length,
+        type: 'whatsapp-testimony',
+      });
     }
     
     // 3. Real photos uploaded by user
@@ -2560,7 +2589,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                     </div>
                   )}
                   {/* Visuels IA galerie principale */}
-                  {(product.heroImage || product.heroPosterImage || product.beforeAfterImage) && (
+                  {(product.heroImage || product.heroPosterImage || product.beforeAfterImage || product.beforeAfterImages?.length || product.whatsappTestimony) && (
                     <div>
                       <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#0A5740]"><ImageIcon className="h-3.5 w-3.5" />Visuels galerie principale</p>
                       <div className="grid grid-cols-2 gap-3">
@@ -2576,10 +2605,16 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                             <p className="text-xs text-center text-gray-400 mt-1">Affiche publicitaire</p>
                           </div>
                         )}
-                        {product.beforeAfterImage && (
+                        {(product.beforeAfterImages?.length ? product.beforeAfterImages : (product.beforeAfterImage ? [product.beforeAfterImage] : [])).map((imgUrl, i) => (
+                          <div key={`ba-${i}`}>
+                            <ImagePreview src={imgUrl} label={`Avant / Après ${i + 1}`} className="aspect-square" />
+                            <p className="text-xs text-center text-gray-400 mt-1">Transformation {i + 1}</p>
+                          </div>
+                        ))}
+                        {product.whatsappTestimony && (
                           <div>
-                            <ImagePreview src={product.beforeAfterImage} label="Avant / Après" className="aspect-square" />
-                            <p className="text-xs text-center text-gray-400 mt-1">Transformation</p>
+                            <ImagePreview src={product.whatsappTestimony} label="Témoignage WhatsApp" className="aspect-square" />
+                            <p className="text-xs text-center text-gray-400 mt-1">Preuve sociale WhatsApp</p>
                           </div>
                         )}
                       </div>
