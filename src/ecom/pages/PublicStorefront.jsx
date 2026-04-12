@@ -777,12 +777,14 @@ const AiFeaturesSection = ({ cfg }) => (
       <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         {cfg.image && (
           <div style={{ flex: '0 0 auto', width: 'min(320px, 100%)', margin: '0 auto' }}>
-            <img
-              src={cfg.image}
-              alt={cfg.title || 'Pourquoi nous choisir'}
-              loading="lazy"
-              style={{ width: '100%', borderRadius: 'var(--sf-radius)', objectFit: 'cover', boxShadow: 'var(--sf-shadow)', aspectRatio: '4/5' }}
-            />
+            <div style={{ width: '100%', borderRadius: 'var(--sf-radius)', overflow: 'hidden', boxShadow: 'var(--sf-shadow)', aspectRatio: '1/1', backgroundColor: 'var(--sf-muted-surface)' }}>
+              <img
+                src={cfg.image}
+                alt={cfg.title || 'Pourquoi nous choisir'}
+                loading="lazy"
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+              />
+            </div>
           </div>
         )}
         <div style={{ flex: 1, minWidth: 280, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 20 }}>
@@ -1297,14 +1299,18 @@ const AiImageTextSection = ({ cfg }) => {
         </div>
         <div style={{ direction: 'ltr' }}>
           {cfg.image ? (
-            <img src={cfg.image} alt={cfg.title || ''} style={{
+            <div style={{
               width: '100%', borderRadius: 'var(--sf-radius, 16px)',
-              aspectRatio: '4/3', objectFit: 'cover',
-              boxShadow: '0 20px 50px rgba(0,0,0,0.1)',
-            }} loading="lazy" />
+              aspectRatio: '1/1', backgroundColor: 'var(--sf-muted-surface)',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.1)', overflow: 'hidden',
+            }}>
+              <img src={cfg.image} alt={cfg.title || ''} style={{
+                width: '100%', height: '100%', objectFit: 'contain',
+              }} loading="lazy" />
+            </div>
           ) : (
             <div style={{
-              width: '100%', aspectRatio: '4/3', borderRadius: 'var(--sf-radius, 16px)',
+              width: '100%', aspectRatio: '1/1', borderRadius: 'var(--sf-radius, 16px)',
               background: 'linear-gradient(135deg, color-mix(in srgb, var(--s-primary) 15%, white), color-mix(in srgb, var(--s-primary) 5%, white))',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
