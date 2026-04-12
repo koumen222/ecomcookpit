@@ -15,7 +15,7 @@ import express from 'express';
 import multer from 'multer';
 import sharp from 'sharp';
 import { requireEcomAuth, validateEcomAccess } from '../middleware/ecomAuth.js';
-import { analyzeWithVision, generatePosterImage } from '../services/productPageGeneratorService.js';
+import { analyzeWithVision, generateDescriptionGifFromImages, generatePosterImage } from '../services/productPageGeneratorService.js';
 import { uploadImage } from '../services/cloudflareImagesService.js';
 import { extractProductInfo } from '../services/geminiProductExtractor.js';
 import EcomWorkspace from '../models/Workspace.js';
@@ -94,6 +94,14 @@ function buildThreePeopleHoldingProductRules() {
 • At least 2 of them must clearly HOLD the exact product in hand, and ideally all 3 are interacting with or presenting the product naturally
 • The product must be visible in their hands at a believable size with correct finger placement and natural grip
 • Prefer a trio composition, 3-panel composition, or grouped scene showing three distinct real people rather than icons or generic infographic characters`;
+}
+
+function buildDescriptionGifSpecs(gptResult = {}) {
+  const productTitle = gptResult.title || 'Produit';
+  return [
+    { key: 'usage-demo', title: `GIF usage — ${productTitle}` },
+    { key: 'result-demo', title: `GIF résultat — ${productTitle}` },
+  ];
 }
 
 /**
@@ -1490,6 +1498,7 @@ router.get('/images/:jobId', requireEcomAuth, (req, res) => {
   if (job.angles?.length) images.angles = job.angles;
   if (job.peoplePhotos?.length) images.peoplePhotos = job.peoplePhotos;
   if (job.socialProofImages?.length) images.socialProofImages = job.socialProofImages;
+  if (job.descriptionGifs?.length) images.descriptionGifs = job.descriptionGifs;
 
   res.json({
     success: true,
@@ -1739,6 +1748,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       beforeAfterImage: null,
       beforeAfterImages: [],
       socialProofImages: [],
+      descriptionGifs: [],
       angles: (gptResult.angles || []).map((a, i) => ({ ...a, poster_url: null, index: i + 1 })),
       raisons_acheter: gptResult.raisons_acheter || [],
       benefits_bullets: gptResult.benefits_bullets || [],
@@ -1808,7 +1818,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     // ══════════════════════════════════════════════════════════════════════════
     // BACKGROUND — Generate all images asynchronously
     // ══════════════════════════════════════════════════════════════════════════
-    const jobData = { status: 'generating', progress: 0, total: 0, heroImage: null, beforeAfterImage: null, beforeAfterImages: [], angles: [], peoplePhotos: [], socialProofImages: [], createdAt: Date.now() };
+    const jobData = { status: 'generating', progress: 0, total: 0, heroImage: null, beforeAfterImage: null, beforeAfterImages: [], angles: [], peoplePhotos: [], socialProofImages: [], descriptionGifs: [], createdAt: Date.now() };
     imageJobs.set(jobId, jobData);
 
     // Fire and forget — errors won't crash the response
@@ -1872,6 +1882,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
 
     // Préparer toutes les tâches de génération (lazy — NOT started yet)
     const imageTasks = [];
+    const descriptionGifSpecs = buildDescriptionGifSpecs(gptResult);
 
     // Normaliser l'image de référence produit : JPEG 768px max, pour que Gemini
     // reçoive un format cohérent (mimeType + taille raisonnable pour inline data).
@@ -1998,7 +2009,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     const GLOBAL_TIMEOUT_MS = 900000; // 15 min timeout global
     const globalDeadline = Date.now() + GLOBAL_TIMEOUT_MS;
 
-    jobData.total = imageTasks.length;
+    jobData.total = imageTasks.length + descriptionGifSpecs.length;
     console.log(`🎨 [BG] ${imageTasks.length} images à générer, par batch de ${BATCH_SIZE}...`);
 
     const imageResults = [];
@@ -2069,6 +2080,55 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       ...jobData.beforeAfterImages,
     ].filter((url, index, array) => url && array.indexOf(url) === index);
 
+    const descriptionGifImageGroups = [
+      [
+        jobData.heroImage,
+        jobData.angles[0]?.poster_url,
+        jobData.peoplePhotos[0],
+        jobData.beforeAfterImages[0],
+        realPhotos[0],
+      ],
+      [
+        jobData.heroPosterImage,
+        jobData.angles[1]?.poster_url,
+        jobData.peoplePhotos[1] || jobData.peoplePhotos[0],
+        jobData.beforeAfterImages[1] || jobData.beforeAfterImages[0],
+        jobData.angles[2]?.poster_url,
+      ],
+    ].map((group) => group.filter(Boolean));
+
+    const descriptionGifTasks = descriptionGifSpecs.map((gifSpec, index) => async () => {
+      const sourceImages = descriptionGifImageGroups[index] || [];
+      if (sourceImages.length < 2) return null;
+      try {
+        const url = await generateDescriptionGifFromImages(sourceImages, {
+          width: 768,
+          height: 432,
+          fps: 8,
+          frameDurationMs: 1200,
+          filePrefix: `${gifSpec.key}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        });
+        return { type: 'description_gif', index, url, key: gifSpec.key, title: gifSpec.title };
+      } catch (gifErr) {
+        console.warn(`⚠️ GIF description ${gifSpec.key} échoué: ${gifErr.message}`);
+        return null;
+      } finally {
+        jobData.progress++;
+      }
+    });
+
+    const gifResults = await Promise.allSettled(descriptionGifTasks.map((factory) => factory()));
+    jobData.descriptionGifs = gifResults
+      .map((result) => (result.status === 'fulfilled' ? result.value : null))
+      .filter((entry) => entry?.url)
+      .sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0))
+      .map((entry) => ({
+        url: entry.url,
+        type: 'direct',
+        title: entry.title || (entry.key === 'usage-demo' ? 'GIF usage' : 'GIF résultat'),
+        order: entry.index,
+      }));
+
     jobData.status = 'done';
     console.log('✅ [BG] Images terminées:', {
       hero: !!jobData.heroImage,
@@ -2077,6 +2137,7 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       posters: jobData.angles.filter(p => p.poster_url).length,
       peoplePhotos: jobData.peoplePhotos.length,
       socialProofImages: jobData.socialProofImages.length,
+      descriptionGifs: jobData.descriptionGifs.length,
     });
 
       } catch (bgErr) {

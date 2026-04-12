@@ -258,13 +258,6 @@ const LivePreview = ({ config, product: productProp, onSectionClick, activeSecti
 
         {/* Product Info */}
         <div style={{ padding: '12px 12px 0' }}>
-          {/* Category */}
-          {product.category && (
-            <div style={{ fontSize: 8.5, fontWeight: 700, color: btnColor, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-              {product.category}
-            </div>
-          )}
-
           {/* Name */}
           <div style={{ fontSize: 14, fontWeight: 900, color: '#111827', lineHeight: 1.15, marginBottom: 4, letterSpacing: '-0.02em' }}>
             {product.name}
