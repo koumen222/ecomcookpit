@@ -1,6 +1,6 @@
 /**
- * Google Pro I2I — Kie.ai pro-image-to-image (primary, single provider)
- * Model: pro-image-to-image (image-to-image only — always requires image_input)
+ * Google Nano Banana 2 — Kie.ai (primary, single provider)
+ * Model: nano-banana-2 (text-to-image + image-to-image)
  * Docs: https://docs.kie.ai
  */
 
@@ -12,7 +12,7 @@ import { uploadToR2 } from './cloudflareImagesService.js';
 const KIE_API_KEY = process.env.NANOBANANA_PRO_API_KEY;
 const KIE_BASE = 'https://api.kie.ai/api/v1/jobs';
 const KIE_UPLOAD_BASE = 'https://kieai.redpandaai.co';
-const NANOBANANA_MODEL = process.env.NANOBANANA_MODEL || 'gpt-image/1.5-image-to-image';
+const NANOBANANA_MODEL = process.env.NANOBANANA_MODEL || 'nano-banana-2';
 
 const NANOBANANA_PRO_COST_USD = 0.09; // 1K Pro
 const USD_TO_FCFA = 600;
@@ -96,12 +96,21 @@ async function submitGrokImagineTask(prompt, imageUrls = [], aspectRatio = '1:1'
   // Acquire rate-limit slot before calling API
   await acquireSlot();
 
+  // nano-banana-2 supports up to 20000 chars
+  const truncatedPrompt = prompt.length > 20000
+    ? prompt.slice(0, 19900) + '\n[...prompt truncated]'
+    : prompt;
+
   const input = {
-    prompt: prompt.slice(0, 20000),
-    input_urls: imageUrls.slice(0, 14),
+    prompt: truncatedPrompt,
     aspect_ratio: aspectRatio || '1:1',
-    quality: 'medium',
+    resolution: '1K',
+    output_format: 'jpg',
   };
+  // image_input is optional for nano-banana-2 (supports text-to-image)
+  if (imageUrls.length > 0) {
+    input.image_input = imageUrls.slice(0, 14);
+  }
 
   const body = { model: NANOBANANA_MODEL, input };
 
@@ -223,11 +232,11 @@ async function generateViaGrokImagine(prompt, imageUrls = [], aspectRatio = '1:1
 }
 
 /**
- * Text-to-image — DISABLED: pro-image-to-image requires an image reference.
- * Always use generateNanoBananaImageToImage instead.
+ * Text-to-image — nano-banana-2 supports text-to-image natively.
  */
 export async function generateNanoBananaImage(prompt, aspectRatio = '1:1', numImages = 1) {
-  throw new Error('pro-image-to-image requires an image reference. Use generateNanoBananaImageToImage instead of text-to-image.');
+  console.log(`🎨 NanoBanana 2 text-to-image (${aspectRatio})...`);
+  return await generateViaGrokImagine(prompt, [], aspectRatio);
 }
 
 /**
@@ -251,7 +260,7 @@ export async function generateNanoBananaImageToImage(prompt, imageInput, aspectR
   }
 
   try {
-    console.log(`🎨 NanoBanana Pro image-to-image (gpt-image/1.5)...`);
+    console.log(`🎨 NanoBanana 2 image-to-image...`);
     let imageUrls = [];
     if (base64Image) {
       // 1st try: R2 (reliable public URL, works with all models)

@@ -1801,8 +1801,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       }
     };
 
-    // Préparer toutes les tâches de génération
-    const imagePromises = [];
+    // Préparer toutes les tâches de génération (lazy — NOT started yet)
+    const imageTasks = [];
 
     // Normaliser l'image de référence produit : JPEG 768px max, pour que Gemini
     // reçoive un format cohérent (mimeType + taille raisonnable pour inline data).
@@ -1868,16 +1868,16 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     }
 
     // ── Hero PRO — African FB-ads template (LEFT: product | RIGHT: person + problem) ──
-    imagePromises.push(
-      generateAndUpload(buildHeroPrompt(gptResult, !!baseImageBuffer, visualTemplate, visualContext), baseImageBuffer, `hero-${Date.now()}.png`, 'hero', '1:1')
+    imageTasks.push(
+      () => generateAndUpload(buildHeroPrompt(gptResult, !!baseImageBuffer, visualTemplate, visualContext), baseImageBuffer, `hero-${Date.now()}.png`, 'hero', '1:1')
         .then(url => ({ type: 'hero', url }))
     );
 
     // ── Avant/Après ──
     const beforeAfterPrompt = gptResult.prompt_avant_apres || null;
     if (beforeAfterPrompt) {
-      imagePromises.push(
-        generateAndUpload(beforeAfterPrompt, baseImageBuffer, `before-after-${Date.now()}.png`, 'before_after', '1:1')
+      imageTasks.push(
+        () => generateAndUpload(beforeAfterPrompt, baseImageBuffer, `before-after-${Date.now()}.png`, 'before_after', '1:1')
           .then(url => ({ type: 'before_after', url }))
       );
     }
@@ -1902,8 +1902,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
         ? buildAngleImagePrompt(angle, gptResult, !!baseImageBuffer, visualTemplate, i, visualContext, approach)
         : flash.prompt + africanRealism;
 
-      imagePromises.push(
-        generateAndUpload(anglePrompt, baseImageBuffer, `flash-${i + 1}-${Date.now()}.png`, 'scene', '1:1')
+      imageTasks.push(
+        () => generateAndUpload(anglePrompt, baseImageBuffer, `flash-${i + 1}-${Date.now()}.png`, 'scene', '1:1')
           .then(url => ({ type: 'poster', index: i, url, angle, flashType: flash.type }))
       );
     }
@@ -1911,32 +1911,44 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     // ── People photos — 4 photos lifestyle de personnes réelles tenant le produit ──
     const peoplePhotoPrompts = buildPeopleHoldingProductPrompts(gptResult, visualContext);
     peoplePhotoPrompts.forEach((peoplePrompt, idx) => {
-      imagePromises.push(
-        generateAndUpload(peoplePrompt, baseImageBuffer, `people-${idx + 1}-${Date.now()}.png`, 'scene', '1:1')
+      imageTasks.push(
+        () => generateAndUpload(peoplePrompt, baseImageBuffer, `people-${idx + 1}-${Date.now()}.png`, 'scene', '1:1')
           .then(url => ({ type: 'people_photo', index: idx, url }))
       );
     });
 
-    // Exécuter toutes les générations en parallèle avec timeout global de 180s
+    // Exécuter les générations par batch de 3 pour éviter le rate-limit Kie.ai (429)
+    const BATCH_SIZE = 3;
+    const BATCH_DELAY_MS = 3000;
     const IMAGE_TIMEOUT_MS = 180000;
-    const withTimeout = (promise, fallback) =>
-      Promise.race([
-        promise,
-        new Promise(resolve => setTimeout(() => resolve(fallback), IMAGE_TIMEOUT_MS))
-      ]);
 
-    jobData.total = imagePromises.length;
+    jobData.total = imageTasks.length;
+    console.log(`🎨 [BG] ${imageTasks.length} images à générer, par batch de ${BATCH_SIZE}...`);
 
-    // Wrap each promise to update progress
-    const trackedPromises = imagePromises.map(p =>
-      withTimeout(p, null).then(result => {
-        jobData.progress++;
-        return result;
-      })
-    );
+    const imageResults = [];
+    for (let b = 0; b < imageTasks.length; b += BATCH_SIZE) {
+      const batch = imageTasks.slice(b, b + BATCH_SIZE);
+      console.log(`🔄 [BG] Batch ${Math.floor(b / BATCH_SIZE) + 1}/${Math.ceil(imageTasks.length / BATCH_SIZE)} (${batch.length} images)...`);
 
-    const imageResults = await Promise.allSettled(trackedPromises)
-      .then(results => results.map(r => (r.status === 'fulfilled' ? r.value : null)));
+      const batchResults = await Promise.allSettled(
+        batch.map(factory =>
+          Promise.race([
+            factory(),
+            new Promise(resolve => setTimeout(() => resolve(null), IMAGE_TIMEOUT_MS))
+          ]).then(result => {
+            jobData.progress++;
+            return result;
+          })
+        )
+      );
+
+      batchResults.forEach(r => imageResults.push(r.status === 'fulfilled' ? r.value : null));
+
+      // Wait between batches to avoid 429
+      if (b + BATCH_SIZE < imageTasks.length) {
+        await new Promise(r => setTimeout(r, BATCH_DELAY_MS));
+      }
+    }
 
     // Extraire les résultats
     jobData.heroImage = imageResults.find(r => r?.type === 'hero')?.url || null;
