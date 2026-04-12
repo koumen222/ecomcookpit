@@ -989,11 +989,9 @@ NO price, NO phone, NO URL, NO CTA button, NO watermark.
 CRITICAL: Follow the SPECIFIC visual style described above — unique background, unique decorations, unique mood for THIS image.`;
 
     const productRefRule = `
-═══ PRODUCT REFERENCE — ABSOLUTELY MANDATORY ═══
-A reference image of the EXACT real product is provided as input. You MUST use EXACTLY the product appearance from this reference image — same shape, same color, same packaging, same label, same design — as it appears in the reference photo. Do NOT recreate, redraw, redesign, reinterpret, or invent a product image. Copy the EXACT visual appearance of the product from the reference.
-The product from the reference image MUST appear in every generated visual, even if the scene description doesn't mention it explicitly. If the scene would not naturally contain the product, place it naturally in the hands of the person, on a surface in the scene, or in a prominent position.
-The product must be recognizable as the same item as the reference to anyone looking at both images side by side.
-CRITICAL: If you cannot faithfully reproduce the EXACT same product from the reference image, generate the scene WITHOUT the product rather than inventing a different product. A scene without the product is ALWAYS better than a scene with a wrong/invented product.
+═══ PRODUCT REFERENCE — IMAGE-TO-IMAGE MANDATORY ═══
+A reference image of the EXACT product is provided as input. Reproduce EXCLUSIVELY the product visible in this reference — same shape, color, packaging, label, design. Do NOT name, describe, or invent any product. The reference image is the ONLY source of truth for the product.
+The product MUST appear in the generated visual. If it cannot be faithfully reproduced, generate the scene WITHOUT any product rather than inventing a different one.
 `;
 
     let modeRules;

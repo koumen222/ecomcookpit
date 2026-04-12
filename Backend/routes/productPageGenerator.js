@@ -102,7 +102,7 @@ function buildThreePeopleHoldingProductRules() {
  * Bold headline + product dominant + contextual usage scene.
  */
 function buildHeroPrompt(gptResult, hasProductRef, template = 'general', visualPrefs = {}) {
-  const productName = gptResult.title || 'product';
+  const productName = 'le produit';
   const ctaText = (gptResult.hero_cta || 'JE COMMANDE MAINTENANT').toUpperCase();
 
   // Headline: use the hero_headline or derive from the problem/solution
@@ -140,10 +140,8 @@ function buildHeroPrompt(gptResult, hasProductRef, template = 'general', visualP
   }
   const labelsLine = trustLabels.slice(0, 4).join('  •  ');
 
-  // Product placement description
-  const productBlock = hasProductRef
-    ? `THE EXACT product from the reference image (same packaging, shape, colors, label, every detail identical) — large, dominant, ultra sharp`
-    : `premium packaging of "${productName}" — large, dominant, ultra sharp`;
+  // Product placement description — ONLY from reference image
+  const productBlock = `THE EXACT product from the reference image (same packaging, shape, colors, label, every detail identical) — large, dominant, ultra sharp. Do NOT name or describe the product in text; the reference image is the ONLY product source`;
 
   // Accent color — dynamic per niche
   const niche = getNicheAccentColor(template);
@@ -233,16 +231,14 @@ Style: ${accentColor} background, white bold text, large rounded corners, promin
  * Category-specific design (beauty, tech, fashion, health, home, general).
  */
 function buildAngleImagePrompt(angle, gptResult, hasProductRef, template = 'general', slideIndex = 0, visualPrefs = {}, method = 'PAS') {
-  const title = gptResult.title || 'product';
+  const title = 'the product';
   const targetPerson = gptResult.hero_target_person || 'authentic Black African person';
   const benefits = gptResult.benefits_bullets || gptResult.raisons_acheter || [];
   const b1 = benefits[0]?.text || benefits[0] || '';
   const b2 = benefits[1]?.text || benefits[1] || '';
   const b3 = benefits[2]?.text || benefits[2] || '';
 
-  const productNote = hasProductRef
-    ? `THE EXACT SAME product from the reference image (same packaging, color, shape, label — critical) shown large and sharp`
-    : `"${title}" product shown large and sharp`;
+  const productNote = `THE EXACT product from the reference image (same packaging, color, shape, label — critical) shown large and sharp. The reference image is the ONLY product source`;
 
   // Extract angle content
   const angleTitle = (angle.titre_angle || '').slice(0, 120);
@@ -858,7 +854,7 @@ NO price, NO phone number, NO URL, NO watermark.`,
  * Alimente la galerie photo "Photos du produit" sur la page produit.
  */
 function buildPeopleHoldingProductPrompts(gptResult, visualPrefs = {}) {
-  const title = gptResult.title || 'product';
+  const title = 'the product';
   const productNote = `THE EXACT product from the reference image — same packaging, same shape, same color, same label, same design. CRITICAL: Use the provided product reference image and reproduce the IDENTICAL product as it appears in the photo. Do NOT redraw, redesign, or invent a product. If you cannot faithfully reproduce the EXACT same product, generate the photo WITHOUT the product visible rather than showing a wrong/invented product. A photo without the product is better than a photo with a fake product.`;
 
   const baseRules = `
@@ -900,16 +896,14 @@ ${baseRules}`,
  * TOUJOURS: personnes africaines cibles + produit visible + texte français.
  */
 function buildFlashPrompts(gptResult, hasProductRef, method = 'PAS', template = 'general', visualPrefs = {}) {
-  const title = gptResult.title || 'product';
+  const title = 'the product';
   const targetPerson = gptResult.hero_target_person || 'authentic African person';
   const benefits = gptResult.benefits_bullets || [];
   const b1 = (benefits[0] || '').replace(/^[^\w]*/,'');
   const b2 = (benefits[1] || '').replace(/^[^\w]*/,'');
   const b3 = (benefits[2] || '').replace(/^[^\w]*/,'');
   const b4 = (benefits[3] || '').replace(/^[^\w]*/,'');
-  const productNote = hasProductRef
-    ? `THE EXACT REFERENCE PRODUCT ("${title}") must be shown large, sharp, dominant — same packaging, shape, color, label. Use the provided product image as reference.`
-    : `A premium product packaging for "${title}" shown large, sharp, dominant.`;
+  const productNote = `THE EXACT product from the reference image must be shown large, sharp, dominant — same packaging, shape, color, label. The reference image is the ONLY product source. Do NOT name or describe the product in text.`;
 
   // ─── BEAUTY / COSMÉTIQUE ─────────────────────────────────────────────
   if (template === 'beauty') {

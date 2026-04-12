@@ -324,7 +324,7 @@ function getCategoryStyle(category = '', brandColors = '') {
 
 function buildCreativePrompt(analysis, format, hasRefImage, visualTemplate = 'general') {
   const { productName, keyBenefits, painPoints, usageSteps, targetAudience, brandColors, slogans, emotionalHook, category } = analysis;
-  const name = productName || 'produit';
+  const name = 'the product';
   const benefits = (keyBenefits || []).slice(0, 4);
   const b1 = benefits[0] || 'Efficace';
   const b2 = benefits[1] || 'Naturel';
