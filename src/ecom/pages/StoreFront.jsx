@@ -191,6 +191,16 @@ const StoreFront = () => {
     return true;
   });
 
+  const categoryCounts = products.reduce((acc, product) => {
+    const category = product.category || 'Autres';
+    acc[category] = (acc[category] || 0) + 1;
+    return acc;
+  }, {});
+
+  const priceValues = filteredProducts.map((product) => Number(product.price || 0)).filter((price) => Number.isFinite(price) && price > 0);
+  const minPrice = priceValues.length ? Math.min(...priceValues) : 0;
+  const maxPrice = priceValues.length ? Math.max(...priceValues) : 0;
+
   const activeFilters = [
     selectedCategory ? { key: 'category', label: selectedCategory, clear: () => setSelectedCategory('') } : null,
     search ? { key: 'search', label: `Recherche: ${search}`, clear: () => setSearch('') } : null,
@@ -369,26 +379,42 @@ const StoreFront = () => {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 pb-12 pt-6 lg:pt-8">
-        <section className="mb-6 lg:mb-8" style={{ ...sidebarCardStyle, padding: '20px 22px' }}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: 'var(--s-text2)' }}>
-                <span>Boutique</span>
-                <span>/</span>
-                <span>Produits</span>
-              </div>
-              <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl" style={{ color: 'var(--s-text)' }}>Catalogue</h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: 'var(--s-text2)' }}>
-                Découvrez les produits disponibles avec une navigation plus claire, des filtres visibles et un affichage catalogue plus structuré.
-              </p>
+        <section
+          className="relative mb-6 overflow-hidden lg:mb-8"
+          style={{
+            ...sidebarCardStyle,
+            padding: '38px 22px',
+            background: 'linear-gradient(180deg, color-mix(in srgb, var(--s-bg) 92%, white) 0%, var(--sf-surface) 100%)',
+          }}
+        >
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: 'radial-gradient(circle, color-mix(in srgb, var(--s-primary) 16%, transparent) 1.5px, transparent 1.5px)',
+              backgroundSize: '22px 22px',
+              opacity: 0.16,
+              maskImage: 'linear-gradient(135deg, transparent 10%, black 40%, transparent 90%)',
+            }}
+          />
+          <div className="relative text-center">
+            <div className="flex items-center justify-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em]" style={{ color: 'var(--s-text2)' }}>
+              <span>Home</span>
+              <span>/</span>
+              <span>Shop</span>
             </div>
+            <h2 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl" style={{ color: 'var(--s-text)' }}>Shop</h2>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-6" style={{ color: 'var(--s-text2)' }}>
+              Parcourez le catalogue avec une structure claire, des filtres visibles et une grille produit pensée comme une vraie page boutique.
+            </p>
             <button
               type="button"
               onClick={() => setMobileFiltersOpen((open) => !open)}
-              className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold lg:hidden"
+              className="mt-5 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold lg:hidden"
               style={{ backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)' }}
             >
-              {mobileFiltersOpen ? <X className="w-4 h-4" /> : <Filter className="w-4 h-4" />}
+              {mobileFiltersOpen ? <X className="w-4 h-4" /> : <SlidersHorizontal className="w-4 h-4" />}
               Filtres
             </button>
           </div>
@@ -440,9 +466,26 @@ const StoreFront = () => {
                       style={selectedCategory === cat ? { backgroundColor: 'var(--sf-soft-surface)', color: 'var(--s-text)', border: '1px solid var(--sf-soft-border)' } : { color: 'var(--s-text2)', border: '1px solid transparent' }}
                     >
                       <span>{cat}</span>
+                      <span className="ml-auto mr-2 text-[11px] font-semibold" style={{ color: 'var(--s-text2)' }}>{categoryCounts[cat] || 0}</span>
                       {selectedCategory === cat && <Check className="w-4 h-4" style={{ color: 'var(--s-primary)' }} />}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div style={{ ...sidebarCardStyle, padding: '18px' }}>
+                <div style={sectionLabelStyle}>Prix</div>
+                <div className="mt-4">
+                  <div className="flex items-center justify-between text-xs font-semibold" style={{ color: 'var(--s-text2)' }}>
+                    <span>{formatPrice(minPrice, store.currency)}</span>
+                    <span>{formatPrice(maxPrice, store.currency)}</span>
+                  </div>
+                  <div className="mt-3 h-2 rounded-full" style={{ backgroundColor: 'color-mix(in srgb, var(--s-primary) 10%, var(--s-bg))' }}>
+                    <div className="h-full rounded-full" style={{ width: '100%', background: 'linear-gradient(90deg, var(--s-primary), var(--s-accent))' }} />
+                  </div>
+                  <p className="mt-3 text-xs leading-5" style={{ color: 'var(--s-text2)' }}>
+                    Aperçu de la fourchette de prix des produits affichés.
+                  </p>
                 </div>
               </div>
 
