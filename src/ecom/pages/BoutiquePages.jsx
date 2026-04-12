@@ -879,11 +879,6 @@ const BoutiquePages = () => {
                 Enregistrement...
               </>
             ) : saveStatus === 'saved' ? (
-              <>✓ Sauvegardé</>
-            ) : saveStatus === 'saving' ? (
-              <>Sauvegarde auto...</>
-            ) : saveStatus === 'error' ? (
-              <>Erreur</>
             ) : (
               <>Sauvegarder</>
             )}
