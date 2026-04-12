@@ -36,6 +36,7 @@ import { notifyNewOrder } from '../services/notificationHelper.js';
 import { memCache } from '../services/memoryCache.js';
 import { sendClientOrderConfirmation } from '../services/shopifyWhatsappService.js';
 import { normalizeCity } from '../utils/cityNormalizer.js';
+import { buildMetaEventPayload, buildMetaUserData, isSupportedMetaEvent, sendMetaCapiEvent } from '../services/metaCapi.js';
 
 const router = express.Router();
 
@@ -57,6 +58,14 @@ const orderLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Trop de commandes, réessayez dans 10 minutes.' },
+});
+
+const trackLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 180,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Trop d\'événements de tracking, réessayez dans une minute.' },
 });
 
 // ─── Simple in-memory cache for workspace lookups ─────────────────────────────
@@ -568,6 +577,71 @@ router.get('/:subdomain/categories', readLimiter, async (req, res) => {
 });
 
 /**
+ * POST /api/store/:subdomain/track
+ *
+ * Public storefront tracking bridge for Meta CAPI deduplicated events.
+ */
+router.post('/:subdomain/track', trackLimiter, async (req, res) => {
+  try {
+    const workspace = await resolveStore(req.params.subdomain);
+    if (!workspace) {
+      return res.status(404).json({ success: false, message: 'Store not found' });
+    }
+
+    const {
+      eventName,
+      eventId,
+      eventSourceUrl,
+      customData,
+      userData,
+    } = req.body || {};
+
+    if (!isSupportedMetaEvent(eventName)) {
+      return res.status(400).json({ success: false, message: 'Unsupported event name' });
+    }
+
+    const metaAccessToken = workspace.storePixels?.metaAccessToken;
+    const metaPixelId = workspace.storePixels?.metaPixelId;
+    if (!metaAccessToken || !metaPixelId) {
+      return res.status(202).json({ success: true, skipped: true, reason: 'meta-not-configured' });
+    }
+
+    const clientIpAddress = (req.headers['x-forwarded-for'] || req.ip || '')
+      .toString()
+      .split(',')[0]
+      .trim();
+    const clientUserAgent = req.get('user-agent') || '';
+    const normalizedUserData = buildMetaUserData(
+      {
+        ...(userData || {}),
+        fbp: userData?.fbp || req.cookies?._fbp,
+        fbc: userData?.fbc || req.cookies?._fbc,
+      },
+      { clientIpAddress, clientUserAgent },
+    );
+
+    const payload = buildMetaEventPayload({
+      eventName,
+      eventId,
+      eventSourceUrl,
+      userData: normalizedUserData,
+      customData,
+    });
+
+    await sendMetaCapiEvent({
+      pixelId: metaPixelId,
+      accessToken: metaAccessToken,
+      eventPayload: payload,
+    });
+
+    return res.status(202).json({ success: true, deduplicated: Boolean(eventId) });
+  } catch (error) {
+    console.warn('⚠️ POST /api/store/:subdomain/track error:', error.message);
+    return res.status(202).json({ success: true, skipped: true, reason: 'tracking-error' });
+  }
+});
+
+/**
  * POST /api/store/:subdomain/orders
  *
  * Guest checkout — place a public order without authentication.
@@ -580,7 +654,7 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Store not found' });
     }
 
-    const { customerName, phone, email, address, city, products, notes, channel } = req.body;
+    const { customerName, phone, email, address, city, country, products, notes, channel, metaEventId, metaSourceUrl } = req.body;
 
     if (!customerName || !phone || !products?.length) {
       return res.status(400).json({
@@ -871,36 +945,42 @@ router.post('/:subdomain/orders', orderLimiter, async (req, res) => {
         const metaAccessToken = workspace.storePixels?.metaAccessToken;
         const metaPixelId = workspace.storePixels?.metaPixelId;
         if (metaAccessToken && metaPixelId) {
-          const { createHash } = await import('crypto');
-          const hash = (v) => v ? createHash('sha256').update(v.trim().toLowerCase()).digest('hex') : undefined;
-          const capiPayload = {
-            data: [{
-              event_name: 'Purchase',
-              event_time: Math.floor(Date.now() / 1000),
-              action_source: 'website',
-              event_id: order._id.toString(),
-              user_data: {
-                ph: [hash(order.phone)],
-                em: order.email ? [hash(order.email)] : undefined,
+          const [firstName = '', ...restNames] = String(customerName || '').trim().split(/\s+/);
+          const lastName = restNames.join(' ');
+          const payload = buildMetaEventPayload({
+            eventName: 'Purchase',
+            eventId: metaEventId || order._id.toString(),
+            eventSourceUrl: metaSourceUrl,
+            userData: buildMetaUserData(
+              {
+                phone: order.phone,
+                email: order.email,
+                firstName,
+                lastName,
+                city,
+                country,
               },
-              custom_data: {
-                value: order.total,
-                currency: order.currency,
-                order_id: order.orderNumber,
-                contents: orderProducts.map(p => ({ id: p.productId.toString(), quantity: p.quantity })),
-                num_items: orderProducts.reduce((s, p) => s + p.quantity, 0),
-              }
-            }]
-          };
-          // Validate pixelId is numeric before building URL
-          if (/^\d{10,20}$/.test(metaPixelId)) {
-            const capiUrl = `https://graph.facebook.com/v18.0/${metaPixelId}/events?access_token=${encodeURIComponent(metaAccessToken)}`;
-            fetch(capiUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(capiPayload),
-            }).catch(err => console.warn('⚠️ [Scalor Store] Meta CAPI error:', err.message));
-          }
+              {
+                clientIpAddress: (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim(),
+                clientUserAgent: req.get('user-agent') || '',
+              },
+            ),
+            customData: {
+              value: order.total,
+              currency: order.currency,
+              order_id: order.orderNumber,
+              content_type: 'product',
+              content_ids: orderProducts.map((p) => p.productId.toString()),
+              contents: orderProducts.map((p) => ({ id: p.productId.toString(), quantity: p.quantity })),
+              num_items: orderProducts.reduce((sum, productItem) => sum + productItem.quantity, 0),
+            },
+          });
+
+          sendMetaCapiEvent({
+            pixelId: metaPixelId,
+            accessToken: metaAccessToken,
+            eventPayload: payload,
+          }).catch(err => console.warn('⚠️ [Scalor Store] Meta CAPI error:', err.message));
         }
       } catch (asyncErr) {
         console.error(`❌ [Scalor Store] Erreur traitement async commande ${order.orderNumber}:`, asyncErr.message);

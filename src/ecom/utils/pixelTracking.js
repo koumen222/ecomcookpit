@@ -4,8 +4,59 @@
  * and provides unified event firing for e-commerce events.
  */
 
+import { publicStoreApi } from '../services/storeApi.js';
+
 let _injected = false;
 let _pixels = null;
+
+function readCookie(name) {
+  if (typeof document === 'undefined') return '';
+  const cookie = document.cookie
+    .split('; ')
+    .find((entry) => entry.startsWith(`${name}=`));
+  return cookie ? decodeURIComponent(cookie.split('=').slice(1).join('=')) : '';
+}
+
+function buildMetaCustomData(params = {}) {
+  const {
+    value,
+    currency,
+    content_ids,
+    content_name,
+    content_type,
+    num_items,
+    contents,
+    order_id,
+  } = params;
+
+  return Object.fromEntries(
+    Object.entries({
+      value,
+      currency,
+      content_ids,
+      content_name,
+      content_type: content_type || 'product',
+      num_items,
+      contents,
+      order_id,
+    }).filter(([, entry]) => {
+      if (entry == null) return false;
+      if (Array.isArray(entry)) return entry.length > 0;
+      return true;
+    }),
+  );
+}
+
+export function createMetaEventId(prefix = 'meta') {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function getMetaBrowserData() {
+  return {
+    fbp: readCookie('_fbp'),
+    fbc: readCookie('_fbc'),
+  };
+}
 
 /**
  * Inject pixel scripts into the page <head>.
@@ -37,7 +88,6 @@ export function injectPixelScripts(pixels) {
         s.parentNode.insertBefore(t, s);
       })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
       window.fbq('init', metaPixelId);
-      window.fbq('track', 'PageView');
     }
   }
 
@@ -133,7 +183,16 @@ export function injectPixelScripts(pixels) {
 export function firePixelEvent(eventName, params = {}) {
   if (typeof window === 'undefined') return;
 
-  const { value, currency = 'XAF', content_ids = [], content_name = '', num_items = 1 } = params;
+  const {
+    value,
+    currency = 'XAF',
+    content_ids = [],
+    content_name = '',
+    num_items = 1,
+    eventId,
+    eventID,
+  } = params;
+  const resolvedEventId = eventId || eventID;
 
   // ─── Meta Pixel ──────────────────────────────────────────────────────────
   if (window.fbq) {
@@ -145,7 +204,11 @@ export function firePixelEvent(eventName, params = {}) {
     };
     if (value != null) fbParams.value = value;
     if (num_items) fbParams.num_items = num_items;
-    window.fbq('track', eventName, fbParams);
+    if (resolvedEventId) {
+      window.fbq('track', eventName, fbParams, { eventID: resolvedEventId });
+    } else {
+      window.fbq('track', eventName, fbParams);
+    }
   }
 
   // ─── TikTok Pixel ──────────────────────────────────────────────────────
@@ -202,4 +265,45 @@ export function firePixelEvent(eventName, params = {}) {
       window.snaptr('track', snapEvent, snapParams);
     }
   }
+}
+
+export async function trackStorefrontEvent({
+  subdomain,
+  pixels,
+  eventName,
+  params = {},
+  userData = {},
+  eventId,
+  sendServer = true,
+  eventSourceUrl,
+}) {
+  const resolvedEventId = eventId || createMetaEventId(eventName.toLowerCase());
+
+  if (pixels) {
+    injectPixelScripts(pixels);
+  }
+
+  firePixelEvent(eventName, {
+    ...params,
+    eventId: resolvedEventId,
+  });
+
+  if (sendServer && subdomain && pixels?.metaPixelId) {
+    try {
+      await publicStoreApi.trackEvent(subdomain, {
+        eventName,
+        eventId: resolvedEventId,
+        eventSourceUrl: eventSourceUrl || (typeof window !== 'undefined' ? window.location.href : ''),
+        customData: buildMetaCustomData(params),
+        userData: {
+          ...getMetaBrowserData(),
+          ...userData,
+        },
+      });
+    } catch (error) {
+      console.warn('[Pixels] Meta tracking bridge failed:', error?.message || error);
+    }
+  }
+
+  return resolvedEventId;
 }

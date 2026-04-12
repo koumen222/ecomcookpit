@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, Truck, Plus, Minus, AlertCircle, ChevronDown, Mail, FileText, Hash, Calendar, Clock, Shield, Globe, Star, ShoppingBag, ArrowRight, Check } from 'lucide-react';
 import { publicStoreApi } from '../services/storeApi.js';
 import defaultConfig from './productSettings/defaultConfig.js';
-import { firePixelEvent } from '../utils/pixelTracking';
+import { createMetaEventId, firePixelEvent } from '../utils/pixelTracking';
 import { PHONE_CODES, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, buildFullPhone } from '../utils/phoneCodes.js';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur === 'XAF' || cur === 'XOF' ? 'FCFA' : cur}`;
@@ -130,6 +130,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
 
       const fullPhone = buildFullPhone(phoneCode, form.phone);
       const selectedCountry = getSelectedCountryValue(effectiveFields, form);
+      const purchaseEventId = createMetaEventId('purchase');
       const res = await publicStoreApi.placeOrder(subdomain, {
         customerName: form.customerName.trim(),
         phone: fullPhone,
@@ -141,6 +142,8 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
         notes: form.notes.trim(),
         products: [{ productId: product._id, quantity: form.quantity, ...offerPriceOverride }],
         channel: 'store',
+        metaEventId: purchaseEventId,
+        metaSourceUrl: typeof window !== 'undefined' ? window.location.href : '',
       });
       setOrderResult(res.data?.data);
       setSuccess(true);
@@ -151,6 +154,7 @@ const EmbeddedOrderForm = ({ product, subdomain, store, productPageConfig }) => 
         value: total,
         currency,
         num_items: form.quantity,
+        eventId: purchaseEventId,
       });
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur lors de la commande. Réessayez.');
