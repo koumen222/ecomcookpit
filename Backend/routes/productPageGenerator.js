@@ -2007,8 +2007,8 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
     // Exécuter les générations par batch de 5 pour aller plus vite (rate-limit Kie.ai géré par retry)
     const BATCH_SIZE = 5;
     const BATCH_DELAY_MS = 1500;
-    const IMAGE_TIMEOUT_MS = 90000; // 90s max par image
-    const GLOBAL_TIMEOUT_MS = 600000; // 10 min timeout global
+    const IMAGE_TIMEOUT_MS = 210000; // 210s max par image (Kie.ai poll=180s + upload/download overhead)
+    const GLOBAL_TIMEOUT_MS = 900000; // 15 min timeout global
     const globalDeadline = Date.now() + GLOBAL_TIMEOUT_MS;
 
     jobData.total = imageTasks.length;
@@ -2026,10 +2026,13 @@ router.post('/', requireEcomAuth, validateEcomAccess('products', 'write'), uploa
       console.log(`🔄 [BG] Batch ${Math.floor(b / BATCH_SIZE) + 1}/${Math.ceil(imageTasks.length / BATCH_SIZE)} (${batch.length} images)...`);
 
       const batchResults = await Promise.allSettled(
-        batch.map(factory =>
+        batch.map((factory, idx) =>
           Promise.race([
             factory(),
-            new Promise(resolve => setTimeout(() => resolve(null), IMAGE_TIMEOUT_MS))
+            new Promise(resolve => setTimeout(() => {
+              console.warn(`⏰ [BG] Image ${b + idx + 1} timeout après ${IMAGE_TIMEOUT_MS / 1000}s — résultat perdu`);
+              resolve(null);
+            }, IMAGE_TIMEOUT_MS))
           ]).then(result => {
             jobData.progress++;
             return result;
