@@ -787,6 +787,11 @@ router.post('/:id/duplicate', requireEcomAuth, requireWorkspace, requireStoreOwn
     const { _id, createdAt, updatedAt, slug, ...rest } = original;
     const clonedName = String(name || '').trim() || `${rest.name} (copie)`;
 
+    const createdBy = req.user?._id || req.user?.id || req.ecomUser?._id;
+    if (!createdBy) {
+      return res.status(401).json({ success: false, message: 'Utilisateur introuvable pour la duplication' });
+    }
+
     const cloned = new StoreProduct({
       ...rest,
       name: clonedName,
@@ -811,7 +816,7 @@ router.post('/:id/duplicate', requireEcomAuth, requireWorkspace, requireStoreOwn
       ...(productPageConfig !== undefined ? { productPageConfig } : {}),
       isPublished: isPublished === true ? true : false,
       storeId: req.activeStoreId || original.storeId || null,
-      createdBy: req.user._id,
+      createdBy,
       workspaceId: req.workspaceId,
     });
 

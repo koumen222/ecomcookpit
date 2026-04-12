@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { storeManageApi } from '../services/storeApi.js';
 import RichTextEditor from '../components/RichTextEditor.jsx';
@@ -177,14 +177,21 @@ const ItemsEditor = ({ items = [], onChange, renderItem, newItem, label = 'Élé
 // SECTION CARD
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const SectionCard = ({ section, index, total, onMove, onToggle, onEdit, onDelete }) => {
+const SectionCard = ({ section, index, total, onMove, onToggle, onEdit, onDelete, isActive, onSelect }) => {
   const typeInfo = SECTION_TYPES[section.type] || SECTION_TYPES.custom;
   const itemCount = section.config?.items?.length;
   
   return (
-    <div className={`group bg-white rounded-xl border-2 transition-all ${
-      section.visible !== false ? 'border-gray-200 hover:border-[#4D9F82]' : 'border-gray-100 opacity-60'
-    }`}>
+    <div
+      className={`group bg-white rounded-xl border-2 transition-all cursor-pointer ${
+        isActive
+          ? 'border-[#0F6B4F] shadow-md shadow-[#0F6B4F]/10'
+          : section.visible !== false
+            ? 'border-gray-200 hover:border-[#4D9F82]'
+            : 'border-gray-100 opacity-60'
+      }`}
+      onClick={() => onSelect?.(section)}
+    >
       <div className="flex items-center gap-3 px-4 py-3">
         {/* Drag handle */}
         <div className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition">
@@ -207,23 +214,23 @@ const SectionCard = ({ section, index, total, onMove, onToggle, onEdit, onDelete
 
         {/* Actions */}
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
-          <button onClick={() => onMove(index, -1)} disabled={index === 0} className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 transition" title="Monter">
+          <button onClick={(e) => { e.stopPropagation(); onMove(index, -1); }} disabled={index === 0} className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 transition" title="Monter">
             <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
           </button>
-          <button onClick={() => onMove(index, 1)} disabled={index === total - 1} className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 transition" title="Descendre">
+          <button onClick={(e) => { e.stopPropagation(); onMove(index, 1); }} disabled={index === total - 1} className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 transition" title="Descendre">
             <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
           </button>
-          <button onClick={() => onEdit(section)} className="p-1.5 rounded-lg hover:bg-[#E6F2ED] transition" title="Modifier">
+          <button onClick={(e) => { e.stopPropagation(); onEdit(section); }} className="p-1.5 rounded-lg hover:bg-[#E6F2ED] transition" title="Modifier">
             <svg className="w-4 h-4 text-[#0F6B4F]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
           </button>
-          <button onClick={() => onDelete(section.id)} className="p-1.5 rounded-lg hover:bg-red-50 transition" title="Supprimer">
+          <button onClick={(e) => { e.stopPropagation(); onDelete(section.id); }} className="p-1.5 rounded-lg hover:bg-red-50 transition" title="Supprimer">
             <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
           </button>
         </div>
 
         {/* Toggle visibility */}
         <button
-          onClick={() => onToggle(section.id)}
+          onClick={(e) => { e.stopPropagation(); onToggle(section.id); }}
           className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
             section.visible !== false ? 'bg-[#0F6B4F]' : 'bg-gray-300'
           }`}
@@ -240,7 +247,7 @@ const SectionCard = ({ section, index, total, onMove, onToggle, onEdit, onDelete
 // ═══════════════════════════════════════════════════════════════════════════════
 // SECTION EDITOR MODAL — Édition complète de chaque type
 // ═══════════════════════════════════════════════════════════════════════════════
-const SectionEditor = ({ section, onSave, onClose }) => {
+const SectionEditor = ({ section, onSave, onClose, inline = false }) => {
   const [config, setConfig] = useState(JSON.parse(JSON.stringify(section?.config || {})));
   const typeInfo = SECTION_TYPES[section?.type] || SECTION_TYPES.custom;
 
@@ -557,9 +564,8 @@ const SectionEditor = ({ section, onSave, onClose }) => {
   const renderFields = renderers[section?.type] || renderCustom;
   const isWide = ['badges', 'features', 'testimonials', 'faq', 'image_text', 'gallery'].includes(section?.type);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className={`bg-white rounded-2xl shadow-2xl border border-gray-200 w-full ${isWide ? 'max-w-2xl' : 'max-w-md'} max-h-[90vh] flex flex-col`} onClick={e => e.stopPropagation()}>
+  const content = (
+      <div className={`bg-white rounded-2xl ${inline ? 'border border-gray-200 h-full' : 'shadow-2xl border border-gray-200'} w-full ${inline ? 'max-w-none' : isWide ? 'max-w-2xl' : 'max-w-md'} ${inline ? 'flex-1' : 'max-h-[90vh]'} flex flex-col`} onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -568,11 +574,13 @@ const SectionEditor = ({ section, onSave, onClose }) => {
             </span>
             <h3 className="text-sm font-bold text-gray-900">Modifier : {typeInfo.label}</h3>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition">
-            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          {onClose ? (
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition">
+              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          ) : <div className="w-8" />}
         </div>
         {/* Body */}
         <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
@@ -580,14 +588,27 @@ const SectionEditor = ({ section, onSave, onClose }) => {
         </div>
         {/* Footer */}
         <div className="px-5 py-4 border-t border-gray-100 flex gap-3 flex-shrink-0">
-          <button onClick={onClose} className="flex-1 px-4 py-2.5 text-sm font-semibold text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition">
-            Annuler
-          </button>
+          {onClose ? (
+            <button onClick={onClose} className="flex-1 px-4 py-2.5 text-sm font-semibold text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition">
+              Annuler
+            </button>
+          ) : (
+            <div className="flex-1 px-4 py-2.5 text-sm font-semibold text-gray-400 bg-gray-50 rounded-xl text-center">
+              Sauvegarde automatique active
+            </div>
+          )}
           <button onClick={handleSave} className="flex-1 px-4 py-2.5 text-sm font-bold text-white bg-[#0F6B4F] rounded-xl hover:bg-[#0A5740] transition">
-            Enregistrer
+            {inline ? 'Appliquer' : 'Enregistrer'}
           </button>
         </div>
       </div>
+  );
+
+  if (inline) return content;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+      {content}
     </div>
   );
 };
@@ -633,10 +654,13 @@ const BoutiquePages = () => {
   const [storeUrl, setStoreUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [editingSection, setEditingSection] = useState(null);
+  const [saveStatus, setSaveStatus] = useState(null);
+  const [activeSection, setActiveSection] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [previewDevice, setPreviewDevice] = useState('desktop');
+  const [iframeKey, setIframeKey] = useState(0);
+  const saveTimer = useRef(null);
 
   // Load sections
   useEffect(() => {
@@ -649,7 +673,9 @@ const BoutiquePages = () => {
         
         const data = pagesRes.data?.data || pagesRes.data;
         if (Array.isArray(data?.sections)) {
-          setSections(normalizeHomepageSections(data.sections));
+          const normalized = normalizeHomepageSections(data.sections);
+          setSections(normalized);
+          setActiveSection(normalized[0] || null);
         }
         
         const subdomain = configRes.data?.data?.subdomain;
@@ -665,6 +691,22 @@ const BoutiquePages = () => {
     load();
   }, []);
 
+  const autoSave = useCallback((nextSections) => {
+    clearTimeout(saveTimer.current);
+    setSaveStatus('saving');
+    saveTimer.current = setTimeout(async () => {
+      try {
+        await storeManageApi.updatePages({ sections: nextSections });
+        setSaveStatus('saved');
+        setIframeKey((current) => current + 1);
+        setTimeout(() => setSaveStatus(null), 2200);
+      } catch (err) {
+        console.error('Autosave failed:', err);
+        setSaveStatus('error');
+      }
+    }, 450);
+  }, []);
+
   // Move section
   const handleMove = useCallback((index, direction) => {
     setSections(prev => {
@@ -672,31 +714,45 @@ const BoutiquePages = () => {
       if (newIndex < 0 || newIndex >= prev.length) return prev;
       const next = [...prev];
       [next[index], next[newIndex]] = [next[newIndex], next[index]];
+      autoSave(next);
       return next;
     });
-    setSaved(false);
-  }, []);
+    setSaveStatus('saving');
+  }, [autoSave]);
 
   // Toggle visibility
   const handleToggle = useCallback((id) => {
-    setSections(prev => prev.map(s => 
-      s.id === id ? { ...s, visible: s.visible === false ? true : false } : s
-    ));
-    setSaved(false);
-  }, []);
+    setSections(prev => {
+      const next = prev.map(s => 
+        s.id === id ? { ...s, visible: s.visible === false ? true : false } : s
+      );
+      autoSave(next);
+      return next;
+    });
+  }, [autoSave]);
 
   // Update section
   const handleUpdate = useCallback((updated) => {
-    setSections(prev => prev.map(s => s.id === updated.id ? updated : s));
-    setSaved(false);
-  }, []);
+    setSections(prev => {
+      const next = prev.map(s => s.id === updated.id ? updated : s);
+      autoSave(next);
+      return next;
+    });
+    setActiveSection(updated);
+  }, [autoSave]);
 
   // Delete section
   const handleDelete = useCallback((id) => {
     if (!confirm('Supprimer cette section ?')) return;
-    setSections(prev => prev.filter(s => s.id !== id));
-    setSaved(false);
-  }, []);
+    setSections(prev => {
+      const next = prev.filter(s => s.id !== id);
+      autoSave(next);
+      if (activeSection?.id === id) {
+        setActiveSection(next[0] || null);
+      }
+      return next;
+    });
+  }, [activeSection?.id, autoSave]);
 
   // Add section with proper defaults
   const handleAdd = useCallback((type) => {
@@ -725,19 +781,25 @@ const BoutiquePages = () => {
       visible: true,
       config: defaults[type] || { title: typeInfo.label },
     };
-    setSections(prev => [...prev, newSection]);
-    setSaved(false);
-  }, []);
+    setSections(prev => {
+      const next = [...prev, newSection];
+      autoSave(next);
+      return next;
+    });
+    setActiveSection(newSection);
+  }, [autoSave]);
 
   // Save
   const handleSave = async () => {
     setSaving(true);
     try {
       await storeManageApi.updatePages({ sections });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      setSaveStatus('saved');
+      setIframeKey((current) => current + 1);
+      setTimeout(() => setSaveStatus(null), 2500);
     } catch (err) {
       alert('Erreur lors de la sauvegarde');
+      setSaveStatus('error');
     } finally {
       setSaving(false);
     }
@@ -753,8 +815,10 @@ const BoutiquePages = () => {
       if (Array.isArray(newSections) && newSections.length > 0) {
         const normalizedSections = normalizeHomepageSections(newSections);
         setSections(normalizedSections);
+        setActiveSection(normalizedSections[0] || null);
         await storeManageApi.updatePages({ sections: normalizedSections });
-        setSaved(true);
+        setSaveStatus('saved');
+        setIframeKey((current) => current + 1);
       }
     } catch (err) {
       alert('Erreur lors de la régénération');
@@ -771,13 +835,19 @@ const BoutiquePages = () => {
     );
   }
 
+  const previewFrameClass = useMemo(() => {
+    if (previewDevice === 'mobile') return 'w-[390px] h-[780px]';
+    if (previewDevice === 'tablet') return 'w-[820px] h-[920px]';
+    return 'w-full h-[920px]';
+  }, [previewDevice]);
+
   return (
-    <div className="p-4 lg:p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 lg:p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Ma Boutique</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Gérez les sections de votre page d'accueil</p>
+          <h1 className="text-xl font-bold text-gray-900">Page Builder Accueil</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Construisez votre page d'accueil avec un vrai builder et un aperçu live</p>
         </div>
         <div className="flex gap-2">
           {storeUrl && (
@@ -798,7 +868,7 @@ const BoutiquePages = () => {
             onClick={handleSave}
             disabled={saving}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white transition shadow-md ${
-              saved ? 'bg-green-500' : 'bg-[#0F6B4F] hover:bg-[#0A5740]'
+              saveStatus === 'saved' ? 'bg-green-500' : saveStatus === 'error' ? 'bg-red-500' : 'bg-[#0F6B4F] hover:bg-[#0A5740]'
             } disabled:opacity-60`}
           >
             {saving ? (
@@ -808,8 +878,12 @@ const BoutiquePages = () => {
                 </svg>
                 Enregistrement...
               </>
-            ) : saved ? (
+            ) : saveStatus === 'saved' ? (
               <>✓ Sauvegardé</>
+            ) : saveStatus === 'saving' ? (
+              <>Sauvegarde auto...</>
+            ) : saveStatus === 'error' ? (
+              <>Erreur</>
             ) : (
               <>Sauvegarder</>
             )}
@@ -848,56 +922,125 @@ const BoutiquePages = () => {
         </div>
       )}
 
-      {/* Info */}
       <div className="bg-[#E6F2ED] border border-[#96C7B5] rounded-2xl p-4 flex items-start gap-3">
         <svg className="w-4 h-4 text-[#0F6B4F] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <p className="text-xs text-[#0A5740]">
-          <strong>Organisez votre page</strong> en déplaçant les sections avec les flèches. 
-          Activez/désactivez avec le toggle. Cliquez sur le crayon pour modifier le contenu.
+          <strong>Builder homepage</strong> : sélectionnez une section, modifiez-la à droite et visualisez le rendu de votre boutique en direct.
         </p>
       </div>
 
-      {/* Sections list */}
-      {sections.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
-          <p className="text-gray-500 mb-4">Aucune section configurée</p>
-          <button
-            onClick={handleRegenerate}
-            disabled={regenerating}
-            className="px-6 py-3 bg-[#0F6B4F] text-white rounded-xl font-semibold hover:bg-[#0A5740] transition"
-          >
-            {regenerating ? 'Génération en cours...' : 'Générer avec l\'IA'}
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {sections.map((section, idx) => (
-            <SectionCard
-              key={section.id}
-              section={section}
-              index={idx}
-              total={sections.length}
-              onMove={handleMove}
-              onToggle={handleToggle}
-              onEdit={setEditingSection}
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
-      )}
+      <div className="grid gap-6 xl:grid-cols-[320px_minmax(360px,460px)_minmax(420px,1fr)]">
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-4 sticky top-[88px]">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold text-gray-900">Sections</p>
+                <p className="text-xs text-gray-400">{sections.length} blocs sur la page d'accueil</p>
+              </div>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold text-[#0F6B4F] bg-[#E6F2ED] hover:bg-[#D1E8DC] transition"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Ajouter
+              </button>
+            </div>
 
-      {/* Add section button */}
-      <button
-        onClick={() => setShowAddModal(true)}
-        className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-xl text-sm font-semibold text-gray-500 hover:border-[#4D9F82] hover:text-[#0F6B4F] hover:bg-[#E6F2ED] transition"
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-        </svg>
-        Ajouter une section
-      </button>
+            {sections.length === 0 ? (
+              <div className="text-center py-10 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+                <p className="text-gray-500 mb-4">Aucune section configurée</p>
+                <button
+                  onClick={handleRegenerate}
+                  disabled={regenerating}
+                  className="px-5 py-2.5 bg-[#0F6B4F] text-white rounded-xl font-semibold hover:bg-[#0A5740] transition"
+                >
+                  {regenerating ? 'Génération...' : 'Générer avec l\'IA'}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
+                {sections.map((section, idx) => (
+                  <SectionCard
+                    key={section.id}
+                    section={section}
+                    index={idx}
+                    total={sections.length}
+                    onMove={handleMove}
+                    onToggle={handleToggle}
+                    onEdit={setActiveSection}
+                    onDelete={handleDelete}
+                    isActive={activeSection?.id === section.id}
+                    onSelect={setActiveSection}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="min-h-[720px]">
+          {activeSection ? (
+            <SectionEditor
+              section={activeSection}
+              onSave={handleUpdate}
+              inline
+            />
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-200 p-10 text-center text-gray-400 h-full flex items-center justify-center">
+              Sélectionnez une section pour modifier son contenu.
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl border border-gray-200 p-4 sticky top-[88px] space-y-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-sm font-bold text-gray-900">Aperçu live</p>
+                <p className="text-xs text-gray-400">Rendu réel de votre homepage boutique</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {['desktop', 'tablet', 'mobile'].map((device) => (
+                  <button
+                    key={device}
+                    onClick={() => setPreviewDevice(device)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${previewDevice === device ? 'bg-[#0F6B4F] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                  >
+                    {device === 'desktop' ? 'Desktop' : device === 'tablet' ? 'Tablette' : 'Mobile'}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setIframeKey((current) => current + 1)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
+                >
+                  Recharger
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-gray-100 rounded-[28px] p-3 overflow-auto">
+              {storeUrl ? (
+                <div className={`${previewDevice === 'desktop' ? '' : 'flex justify-center'} min-w-full`}>
+                  <iframe
+                    key={iframeKey}
+                    src={`${storeUrl}${storeUrl.includes('?') ? '&' : '?'}builderPreview=${iframeKey}`}
+                    title="Aperçu boutique"
+                    className={`${previewFrameClass} rounded-[20px] border border-gray-200 bg-white`}
+                  />
+                </div>
+              ) : (
+                <div className="h-[640px] flex items-center justify-center text-sm text-gray-400 bg-white rounded-[20px] border border-gray-200">
+                  L'aperçu sera disponible dès qu'un sous-domaine sera configuré.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Quick links */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-4 border-t border-gray-200">
@@ -932,11 +1075,11 @@ const BoutiquePages = () => {
       </div>
 
       {/* Modals */}
-      {editingSection && (
+      {false && activeSection && (
         <SectionEditor
-          section={editingSection}
+          section={activeSection}
           onSave={handleUpdate}
-          onClose={() => setEditingSection(null)}
+          onClose={() => setActiveSection(null)}
         />
       )}
 
