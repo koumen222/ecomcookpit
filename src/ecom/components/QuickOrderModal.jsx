@@ -3,11 +3,17 @@ import { X, ShoppingCart, User, Phone, MapPin, Loader2, CheckCircle, AlertCircle
 import { publicStoreApi } from '../services/storeApi.js';
 import { firePixelEvent } from '../utils/pixelTracking';
 import defaultConfig from './productSettings/defaultConfig.js';
-import { PHONE_CODES, getDefaultPhoneCodeFromConfig, buildFullPhone } from '../utils/phoneCodes.js';
+import { PHONE_CODES, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, buildFullPhone } from '../utils/phoneCodes.js';
 
 const fmt = (n, cur = 'XAF') => `${new Intl.NumberFormat('fr-FR').format(n)} ${cur === 'XAF' || cur === 'XOF' ? 'FCFA' : cur}`;
 const ICON_MAP = { user: User, phone: Phone, map: MapPin, pin: MapPin, mail: Mail, cart: ShoppingCart, file: FileText, hash: Hash, calendar: Calendar, bag: ShoppingBag, arrow: ArrowRight, check: Check };
 const FIELD_KEY_MAP = { fullname: 'customerName', phone: 'phone', city: 'city', address: 'address', note: 'notes' };
+
+const getSelectedCountryValue = (fields, formState) => {
+  const countryField = (fields || []).find((field) => field.type === 'country');
+  if (!countryField) return '';
+  return (formState[countryField.name] || '').trim();
+};
 
 /**
  * QuickOrderModal — Modal commande rapide depuis la page produit.
@@ -84,6 +90,14 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
     return () => { cancelled = true; };
   }, [subdomain]);
 
+  useEffect(() => {
+    const countryValue = getSelectedCountryValue(effectiveFields, form);
+    const nextPhoneCode = getPhoneCodeByCountryName(countryValue);
+    if (nextPhoneCode && nextPhoneCode !== phoneCode) {
+      setPhoneCode(nextPhoneCode);
+    }
+  }, [effectiveFields, form, phoneCode]);
+
   const configQuantities = conversionConfig.quantities || [];
   const useQuantityButtons = configQuantities.length > 0;
   const offersEnabled = conversionConfig.offersEnabled && conversionConfig.offers?.length > 0;
@@ -121,6 +135,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
         : {};
 
       const fullPhone = buildFullPhone(phoneCode, form.phone);
+      const selectedCountry = getSelectedCountryValue(effectiveFields, form);
       const res = await publicStoreApi.placeOrder(subdomain, {
         customerName: form.customerName.trim(),
         phone: fullPhone,
@@ -128,6 +143,7 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
         email: '',
         address: form.address.trim(),
         city: form.city.trim(),
+        country: selectedCountry,
         notes: form.notes.trim(),
         products: [{ productId: product._id, quantity: form.quantity, ...offerPriceOverride }],
         channel: 'store',
@@ -162,7 +178,8 @@ const QuickOrderModal = ({ isOpen, onClose, product, subdomain, store, productPa
     const firstName = form.customerName.split(' ')[0];
     const storeWhatsapp = (store?.whatsapp || store?.phone || '').replace(/[^0-9+]/g, '');
     const displayPhone = buildFullPhone(phoneCode, form.phone);
-    const waMsg = `Bonjour ! 👋\n\nJe viens de passer une commande sur votre boutique.\n\n📦 *Commande N° ${orderResult.orderNumber}*\n💰 *Montant : ${fmt(orderResult.total, orderResult.currency)}*\n👤 Nom : ${form.customerName}\n📞 Téléphone : ${displayPhone}\n\nMerci de confirmer ma commande ! 🙏`;
+    const selectedCountry = getSelectedCountryValue(effectiveFields, form);
+    const waMsg = `Bonjour ! 👋\n\nJe viens de passer une commande sur votre boutique.\n\n📦 *Commande N° ${orderResult.orderNumber}*\n💰 *Montant : ${fmt(orderResult.total, orderResult.currency)}*\n👤 Nom : ${form.customerName}\n📞 Téléphone : ${displayPhone}${selectedCountry ? `\n🌍 Pays : ${selectedCountry}` : ''}\n\nMerci de confirmer ma commande ! 🙏`;
     const waLink = storeWhatsapp ? `https://wa.me/${storeWhatsapp.replace(/^\+/, '')}?text=${encodeURIComponent(waMsg)}` : null;
 
     return (

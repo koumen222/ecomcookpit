@@ -282,26 +282,26 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
   const faq = Array.isArray(product.faq) ? product.faq.slice(0, 5) : [];
 
   return (
-    <div className="overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3">
+    <div className="overflow-hidden rounded-[32px] border border-[#e6dacc] bg-[linear-gradient(180deg,#fffdf9_0%,#f8f2ea_100%)] shadow-[0_24px_80px_rgba(96,72,45,0.12)]">
+      <div className="flex items-center justify-between border-b border-[#eadfd2] bg-[linear-gradient(135deg,rgba(255,255,255,0.88),rgba(249,241,233,0.96))] px-5 py-4">
         <div className="flex items-center gap-3">
           <div
-            className="flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-black text-white"
+            className="flex h-11 w-11 items-center justify-center rounded-[18px] text-sm font-black text-white shadow-[0_10px_24px_rgba(0,0,0,0.12)]"
             style={{ background: descriptionTitleColor }}
           >
             {(product.title || 'P').slice(0, 1).toUpperCase()}
           </div>
           <div>
-            <p className="text-sm font-bold text-gray-900">Boutique preview</p>
-            <p className="text-[11px] text-gray-500">Rendu final avec la direction visuelle {selectedTemplate.label.toLowerCase()}</p>
+            <p className="text-sm font-black text-[#1f1915]">Boutique preview</p>
+            <p className="text-[11px] text-[#756556]">Rendu final avec la direction visuelle {selectedTemplate.label.toLowerCase()}</p>
           </div>
         </div>
-        <div className="rounded-full border border-gray-200 px-3 py-1 text-[11px] font-semibold text-gray-600">
+        <div className="rounded-full border border-[#dfd2c5] bg-white/80 px-3.5 py-1.5 text-[11px] font-semibold text-[#665647]">
           Page finale
         </div>
       </div>
 
-      <div className="max-h-[72vh] overflow-y-auto bg-[#FCFCFC]">
+      <div className="max-h-[72vh] overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.85),transparent_38%),#f7f0e8]">
         <div
           className="mx-auto w-full max-w-[980px]"
           style={{
@@ -309,16 +309,16 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
             color: descriptionContentColor,
           }}
         >
-          <div className="flex items-center justify-between border-b px-4 py-3 sm:px-6" style={{ borderColor: `${templateTheme.accent}30`, backgroundColor: 'rgba(255,255,255,0.82)' }}>
+          <div className="flex items-center justify-between border-b px-4 py-3 sm:px-6" style={{ borderColor: `${templateTheme.accent}24`, backgroundColor: 'rgba(255,251,247,0.92)' }}>
             <div className="text-sm font-black" style={{ color: descriptionContentColor }}>Ma boutique</div>
-            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold" style={{ borderColor: `${descriptionTitleColor}44`, color: descriptionTitleColor }}>
+            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold shadow-sm" style={{ borderColor: `${descriptionTitleColor}33`, color: descriptionTitleColor, backgroundColor: `${descriptionTitleColor}08` }}>
               <Package className="h-3.5 w-3.5" />
               1 produit au panier
             </div>
           </div>
 
           <div className="grid gap-0 lg:grid-cols-[1.02fr_0.98fr]">
-            <div className="border-b lg:border-b-0 lg:border-r" style={{ borderColor: `${templateTheme.accent}24` }}>
+            <div className="border-b lg:border-b-0 lg:border-r bg-[linear-gradient(180deg,rgba(255,251,247,0.84),rgba(255,255,255,1))]" style={{ borderColor: `${templateTheme.accent}20` }}>
               <div className="aspect-square w-full overflow-hidden bg-white">
                 {gallery[0]?.url ? (
                   <img src={gallery[0].url} alt={gallery[0].alt} className="h-full w-full object-cover" />
@@ -329,9 +329,9 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
                 )}
               </div>
               {gallery.length > 1 && (
-                <div className="grid grid-cols-4 gap-2 border-t bg-white p-2" style={{ borderColor: `${templateTheme.accent}20` }}>
+                <div className="grid grid-cols-4 gap-2 border-t bg-white p-3" style={{ borderColor: `${templateTheme.accent}18` }}>
                   {gallery.slice(1, 5).map((image, index) => (
-                    <div key={`${image.url}-${index}`} className="aspect-square overflow-hidden rounded-xl border" style={{ borderColor: `${templateTheme.accent}24` }}>
+                    <div key={`${image.url}-${index}`} className="aspect-square overflow-hidden rounded-2xl border shadow-sm" style={{ borderColor: `${templateTheme.accent}20` }}>
                       <img src={image.url} alt={image.alt} className="h-full w-full object-cover" />
                     </div>
                   ))}
@@ -339,28 +339,28 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
               )}
             </div>
 
-            <div className="p-4 sm:p-6 lg:p-7">
-              <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em]" style={{ backgroundColor: `${descriptionTitleColor}10`, color: descriptionTitleColor }}>
+            <div className="p-5 sm:p-6 lg:p-8">
+              <div className="inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] shadow-sm" style={{ backgroundColor: `${descriptionTitleColor}10`, color: descriptionTitleColor }}>
                 <Sparkles className="h-3.5 w-3.5" />
                 {selectedTemplate.label}
               </div>
-              <h1 className="mt-3 text-3xl font-black leading-tight sm:text-4xl">{product.title}</h1>
+              <h1 className="mt-4 text-3xl font-black leading-[1.02] tracking-[-0.03em] text-[#1f1915] sm:text-4xl">{product.title}</h1>
               {product.hero_slogan && (
-                <p className="mt-3 text-sm font-medium sm:text-base" style={{ color: `${descriptionContentColor}CC` }}>{product.hero_slogan}</p>
+                <p className="mt-3 text-sm font-medium leading-6 sm:text-base" style={{ color: `${descriptionContentColor}CC` }}>{product.hero_slogan}</p>
               )}
               {product.hero_baseline && (
                 <p className="mt-2 text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: descriptionTitleColor }}>{product.hero_baseline}</p>
               )}
 
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                <div className="rounded-2xl border bg-white px-3 py-2.5" style={{ borderColor: `${descriptionTitleColor}33` }}>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[22px] border bg-white px-4 py-3 shadow-sm" style={{ borderColor: `${descriptionTitleColor}26` }}>
                   <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-500">Titres description</p>
                   <div className="mt-2 flex items-center gap-2">
                     <span className="h-4 w-4 rounded-full border border-white/70 shadow-sm" style={{ backgroundColor: descriptionTitleColor }} />
                     <span className="text-xs font-semibold" style={{ color: descriptionTitleColor }}>{descriptionTitleColor}</span>
                   </div>
                 </div>
-                <div className="rounded-2xl border bg-white px-3 py-2.5" style={{ borderColor: `${descriptionContentColor}22` }}>
+                <div className="rounded-[22px] border bg-white px-4 py-3 shadow-sm" style={{ borderColor: `${descriptionContentColor}14` }}>
                   <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-500">Contenu description</p>
                   <div className="mt-2 flex items-center gap-2">
                     <span className="h-4 w-4 rounded-full border border-white/70 shadow-sm" style={{ backgroundColor: descriptionContentColor }} />
@@ -370,7 +370,7 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
               </div>
 
               {(product.urgency_badge || product.hero_cta) && (
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-5 flex flex-wrap gap-2">
                   {product.urgency_badge && (
                     <span className="rounded-full border px-3 py-1 text-xs font-bold" style={{ borderColor: `${descriptionTitleColor}40`, backgroundColor: `${descriptionTitleColor}14`, color: descriptionContentColor }}>
                       {product.urgency_badge}
@@ -385,23 +385,23 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
               )}
 
               {stats.length > 0 && (
-                <div className="mt-5 grid grid-cols-3 gap-2">
+                <div className="mt-6 grid grid-cols-3 gap-3">
                   {stats.map((stat, index) => (
-                    <div key={`${stat}-${index}`} className="rounded-2xl px-3 py-3 text-center text-xs font-bold text-white" style={{ background: descriptionTitleColor }}>
+                    <div key={`${stat}-${index}`} className="rounded-[22px] px-3 py-3 text-center text-xs font-bold text-white shadow-[0_12px_24px_rgba(0,0,0,0.08)]" style={{ background: descriptionTitleColor }}>
                       {stat}
                     </div>
                   ))}
                 </div>
               )}
 
-              <div className="mt-5 rounded-[24px] border bg-white p-4 shadow-sm" style={{ borderColor: `${templateTheme.accent}26` }}>
+              <div className="mt-6 rounded-[28px] border bg-[linear-gradient(180deg,#ffffff,#fbf6ef)] p-5 shadow-[0_16px_38px_rgba(88,64,38,0.08)]" style={{ borderColor: `${templateTheme.accent}20` }}>
                 <div className="flex items-end gap-3">
                   <span className="text-3xl font-black" style={{ color: descriptionTitleColor }}>Prix</span>
                   <span className="text-sm font-semibold text-gray-500">Paiement à la livraison</span>
                 </div>
                 <button
                   type="button"
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black text-white shadow-sm"
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-[20px] px-4 py-3.5 text-sm font-black text-white shadow-[0_14px_30px_rgba(0,0,0,0.12)]"
                   style={{ background: descriptionTitleColor }}
                 >
                   <ArrowRight className="h-4 w-4" />
@@ -410,11 +410,11 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
               </div>
 
               {benefits.length > 0 && (
-                <div className="mt-5 rounded-[24px] border p-4" style={{ borderColor: `${templateTheme.accent}24`, backgroundColor: templateTheme.surface }}>
+                <div className="mt-6 rounded-[28px] border p-5 shadow-sm" style={{ borderColor: `${templateTheme.accent}20`, backgroundColor: templateTheme.surface }}>
                   <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: descriptionTitleColor }}>Bénéfices</p>
                   <div className="mt-3 space-y-2.5">
                     {benefits.map((benefit, index) => (
-                      <div key={`${benefit}-${index}`} className="flex items-start gap-3 rounded-2xl px-3 py-2.5" style={{ backgroundColor: `${descriptionTitleColor}08` }}>
+                      <div key={`${benefit}-${index}`} className="flex items-start gap-3 rounded-[20px] px-3.5 py-3" style={{ backgroundColor: `${descriptionTitleColor}08` }}>
                         <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold text-white" style={{ backgroundColor: descriptionTitleColor }}>✓</span>
                         <span className="text-sm" style={{ color: `${descriptionContentColor}D9` }}>{benefit}</span>
                       </div>
@@ -425,11 +425,11 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
             </div>
           </div>
 
-          <div className="space-y-4 px-4 py-5 sm:px-6 sm:py-6">
+            <div className="space-y-5 px-4 py-5 sm:px-6 sm:py-6">
             {conversionBlocks.length > 0 && (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {conversionBlocks.map((block, index) => (
-                  <div key={`${block.text}-${index}`} className="rounded-[22px] border bg-white px-4 py-4 shadow-sm" style={{ borderColor: `${templateTheme.accent}22` }}>
+                  <div key={`${block.text}-${index}`} className="rounded-[24px] border bg-white px-4 py-4 shadow-[0_14px_32px_rgba(83,60,35,0.06)]" style={{ borderColor: `${templateTheme.accent}18` }}>
                     <div className="text-lg">{block.icon}</div>
                     <p className="mt-2 text-sm font-semibold" style={{ color: descriptionContentColor }}>{block.text}</p>
                   </div>
@@ -438,7 +438,7 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
             )}
 
             {product.problem_section && (
-              <section className="rounded-[24px] border p-5" style={{ borderColor: `${templateTheme.accent}24`, backgroundColor: `${templateTheme.primary}08` }}>
+              <section className="rounded-[28px] border p-5 shadow-sm" style={{ borderColor: `${templateTheme.accent}20`, backgroundColor: `${templateTheme.primary}08` }}>
                 <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: descriptionTitleColor }}>Problème</p>
                 {product.problem_section.title && <h3 className="mt-2 text-xl font-black" style={{ color: descriptionTitleColor }}>{product.problem_section.title}</h3>}
                 <div className="mt-3 space-y-2.5">
@@ -453,7 +453,7 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
             )}
 
             {product.solution_section && (
-              <section className="rounded-[24px] border bg-white p-5" style={{ borderColor: `${templateTheme.accent}24` }}>
+              <section className="rounded-[28px] border bg-white p-5 shadow-sm" style={{ borderColor: `${templateTheme.accent}20` }}>
                 <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: descriptionTitleColor }}>Solution</p>
                 {product.solution_section.title && <h3 className="mt-2 text-xl font-black" style={{ color: descriptionTitleColor }}>{product.solution_section.title}</h3>}
                 {product.solution_section.description && <p className="mt-3 text-sm leading-7" style={{ color: `${descriptionContentColor}C9` }}>{product.solution_section.description}</p>}
@@ -461,7 +461,7 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
             )}
 
             {testimonials.length > 0 && (
-              <section className="rounded-[24px] border bg-white p-4 sm:p-5" style={{ borderColor: `${templateTheme.accent}24` }}>
+              <section className="rounded-[28px] border bg-white p-4 shadow-sm sm:p-5" style={{ borderColor: `${templateTheme.accent}20` }}>
                 <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: descriptionTitleColor }}>Avis clients</p>
                 <div className="mt-3">
                   <TestimonialsCarousel
@@ -480,7 +480,7 @@ function FinalPagePreview({ product, templateTheme, selectedTemplate }) {
             )}
 
             {faq.length > 0 && (
-              <section className="rounded-[24px] border bg-white p-5" style={{ borderColor: `${templateTheme.accent}24` }}>
+              <section className="rounded-[28px] border bg-white p-5 shadow-sm" style={{ borderColor: `${templateTheme.accent}20` }}>
                 <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: descriptionTitleColor }}>Questions fréquentes</p>
                 <div className="mt-3 space-y-3">
                   {faq.map((item, index) => (
@@ -536,6 +536,63 @@ const COPYWRITING_APPROACHES = [
 const COPYWRITING_SUBSTEPS = ['Méthode'];
 const TARGETING_SUBSTEPS = ['Avatar', 'Problème'];
 
+const TARGET_GENDER_OPTIONS = [
+  { value: 'auto', label: 'Auto', hint: 'L’IA déduit selon le produit' },
+  { value: 'female', label: 'Femme', hint: 'Audience majoritairement féminine' },
+  { value: 'male', label: 'Homme', hint: 'Audience majoritairement masculine' },
+  { value: 'mixed', label: 'Les deux', hint: 'Audience mixte / unisexe' },
+];
+
+const TARGET_AGE_OPTIONS = [
+  { value: 'auto', label: 'Âge auto' },
+  { value: '18-24', label: '18-24 ans' },
+  { value: '25-34', label: '25-34 ans' },
+  { value: '35-44', label: '35-44 ans' },
+  { value: '45-54', label: '45-54 ans' },
+  { value: '55+', label: '55 ans et plus' },
+];
+
+const TARGET_PROFILE_OPTIONS = [
+  { value: 'auto', label: 'Profil auto' },
+  { value: 'general', label: 'Grand public' },
+  { value: 'urban_active', label: 'Actif urbain' },
+  { value: 'parent', label: 'Parent / maman / papa' },
+  { value: 'student', label: 'Étudiant / jeune actif' },
+  { value: 'professional', label: 'Professionnel' },
+  { value: 'sporty', label: 'Sportif / lifestyle actif' },
+  { value: 'premium', label: 'Client premium' },
+  { value: 'senior', label: 'Senior' },
+];
+
+const TARGET_GENDER_LABELS = {
+  auto: '',
+  female: 'femme',
+  male: 'homme',
+  mixed: 'hommes et femmes',
+};
+
+const TARGET_PROFILE_LABELS = {
+  auto: '',
+  general: 'grand public',
+  urban_active: 'actif urbain',
+  parent: 'parent actif',
+  student: 'etudiant ou jeune actif',
+  professional: 'professionnel',
+  sporty: 'profil sportif et actif',
+  premium: 'client premium',
+  senior: 'senior',
+};
+
+function buildTargetAvatarSummary({ gender = 'auto', ageRange = 'auto', profile = 'auto' } = {}) {
+  const parts = [
+    TARGET_GENDER_LABELS[gender],
+    ageRange !== 'auto' ? `${ageRange} ans` : '',
+    TARGET_PROFILE_LABELS[profile],
+  ].filter(Boolean);
+
+  return parts.join(', ');
+}
+
 const IMAGE_GENERATION_MODES = [
   {
     id: 'standard',
@@ -579,7 +636,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
   
   // États copywriting simplifiés
   const [tone, setTone] = useState('urgence');
-  const [targetAvatar, setTargetAvatar] = useState('');
+  const [targetGender, setTargetGender] = useState('auto');
+  const [targetAgeRange, setTargetAgeRange] = useState('auto');
+  const [targetProfile, setTargetProfile] = useState('auto');
   const [mainProblem, setMainProblem] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [imageGenerationMode, setImageGenerationMode] = useState('ad_4_5');
@@ -601,6 +660,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
   const hasRequiredPhotos = photos.length > 0;
   const totalProductSubsteps = PRODUCT_SUBSTEPS.length;
   const selectedTemplate = VISUAL_TEMPLATES.find((template) => template.id === visualTemplate) || VISUAL_TEMPLATES[0];
+  const targetAvatarSummary = buildTargetAvatarSummary({
+    gender: targetGender,
+    ageRange: targetAgeRange,
+    profile: targetProfile,
+  });
   const visibleSteps = [
     {
       num: 1,
@@ -620,7 +684,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
       num: 3,
       label: 'Ciblage',
       details: TARGETING_SUBSTEPS,
-      currentDetail: targetAvatar.trim() || mainProblem.trim() ? 'Personnalisation' : TARGETING_SUBSTEPS[0],
+      currentDetail: targetAvatarSummary || mainProblem.trim() ? 'Personnalisation' : TARGETING_SUBSTEPS[0],
       progress: '2/2',
     },
   ];
@@ -956,7 +1020,10 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
     // Paramètres copywriting simplifiés
     formData.append('tone', tone);
     formData.append('language', 'français');
-    if (targetAvatar.trim()) formData.append('targetAvatar', targetAvatar.trim());
+    if (targetAvatarSummary) formData.append('targetAvatar', targetAvatarSummary);
+    formData.append('targetGender', targetGender);
+    formData.append('targetAgeRange', targetAgeRange);
+    formData.append('targetProfile', targetProfile);
     if (mainProblem.trim()) formData.append('mainProblem', mainProblem.trim());
     
     photos.forEach(f => formData.append('images', f));
@@ -1405,9 +1472,83 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
   };
 
   return (
-    <div className={pageMode ? 'min-h-screen bg-stone-50' : 'fixed inset-0 z-50 h-screen w-screen overflow-hidden bg-black/50 backdrop-blur-sm'}>
-      <div className={pageMode ? 'mx-auto flex min-h-screen w-full max-w-6xl items-stretch px-4 py-6 sm:px-6' : 'flex h-full w-full items-stretch justify-stretch'}>
-        <div className={pageMode ? 'relative flex min-h-[calc(100vh-3rem)] w-full flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm' : 'relative flex h-full w-full flex-col overflow-hidden bg-white shadow-2xl'}>
+    <div className={pageMode ? 'relative min-h-screen overflow-hidden bg-[#f4efe7]' : 'fixed inset-0 z-50 h-screen w-screen overflow-hidden bg-black/50 backdrop-blur-sm'}>
+      {pageMode && (
+        <>
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(15,107,79,0.16),transparent_32%),radial-gradient(circle_at_top_right,rgba(212,128,63,0.18),transparent_28%),linear-gradient(180deg,#f7f2eb_0%,#efe5d7_48%,#f4efe7_100%)]" />
+          <div className="pointer-events-none absolute left-[-120px] top-24 h-72 w-72 rounded-full bg-[#0F6B4F]/10 blur-3xl" />
+          <div className="pointer-events-none absolute bottom-0 right-[-120px] h-80 w-80 rounded-full bg-[#D4803F]/10 blur-3xl" />
+        </>
+      )}
+      <div className={pageMode ? 'relative z-10 mx-auto grid min-h-screen w-full max-w-[1480px] gap-6 px-4 py-6 lg:grid-cols-[320px_minmax(0,1fr)] xl:px-8' : 'flex h-full w-full items-stretch justify-stretch'}>
+        {pageMode && (
+          <aside className="hidden lg:flex lg:flex-col lg:gap-5">
+            <div className="overflow-hidden rounded-[32px] border border-white/60 bg-[#0E2B24] text-white shadow-[0_24px_80px_rgba(12,38,31,0.24)]">
+              <div className="border-b border-white/10 px-6 py-6">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/72">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  AI Product Studio
+                </div>
+                <h1 className="mt-4 text-[28px] font-black leading-[1.05] tracking-[-0.03em]">Crée une page produit qui vend avant même la première pub.</h1>
+                <p className="mt-3 text-sm leading-6 text-white/74">
+                  Structure, visuels, angles marketing et preuve sociale dans un seul flux, pensé pour des creatives e-commerce africaines plus fortes.
+                </p>
+              </div>
+
+              <div className="space-y-4 px-6 py-6">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl border border-white/10 bg-white/6 p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55">Template</p>
+                    <p className="mt-2 text-sm font-bold text-white">{selectedTemplate.label}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/6 p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55">Méthode</p>
+                    <p className="mt-2 text-sm font-bold text-white">{marketingApproach}</p>
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55">Ce que tu génères</p>
+                  <div className="mt-4 space-y-3">
+                    {[
+                      'Hero orienté conversion avec produit fidèle',
+                      'Affiches bénéfices et preuve sociale',
+                      'Description enrichie avec GIFs et visuels dynamiques',
+                      'FAQ, avis, angles marketing et structure finale',
+                    ].map((item) => (
+                      <div key={item} className="flex items-start gap-3 text-sm text-white/82">
+                        <span className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/12 text-[11px] font-bold text-white">+</span>
+                        <span>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-[#D0A27B]/30 bg-[#E8C8AA]/10 p-4 text-white">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55">Ciblage</p>
+                  <p className="mt-2 text-sm font-bold text-white">{targetAvatarSummary || 'Auto selon le produit'}</p>
+                  <p className="mt-2 text-xs leading-5 text-white/68">L’IA adapte automatiquement le casting, l’âge apparent et la mise en scène au produit et à tes choix.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[28px] border border-white/60 bg-white/72 p-5 shadow-[0_18px_60px_rgba(73,52,31,0.08)] backdrop-blur-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7A6855]">Direction visuelle</p>
+                  <p className="mt-1 text-sm font-bold text-[#1F1A17]">{templateTheme.hero}</p>
+                </div>
+                <div className="flex gap-1.5">
+                  <span className="h-3 w-3 rounded-full border border-white shadow-sm" style={{ backgroundColor: templateTheme.primary }} />
+                  <span className="h-3 w-3 rounded-full border border-white shadow-sm" style={{ backgroundColor: templateTheme.accent }} />
+                  <span className="h-3 w-3 rounded-full border border-white shadow-sm" style={{ backgroundColor: templateTheme.text }} />
+                </div>
+              </div>
+              <p className="mt-3 text-xs leading-5 text-[#6D5D4E]">{templateTheme.subline}</p>
+            </div>
+          </aside>
+        )}
+        <div className={pageMode ? 'relative flex min-h-[calc(100vh-3rem)] w-full flex-col overflow-hidden rounded-[36px] border border-white/70 bg-[rgba(255,251,246,0.84)] shadow-[0_30px_90px_rgba(100,74,47,0.14)] backdrop-blur-xl' : 'relative flex h-full w-full flex-col overflow-hidden bg-white shadow-2xl'}>
 
           <button
             type="button"
@@ -1421,89 +1562,127 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
           <div className="flex min-h-0 flex-1 flex-col">
 
           {/* Header */}
-          <div className={pageMode ? 'relative flex flex-col gap-3 border-b border-stone-200 px-5 py-4 sm:px-6' : 'flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0'}>
-          <div className={pageMode ? 'flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between' : 'flex w-full items-center justify-between gap-4'}>
-          <div className="flex-1">
-            <div className="mb-2.5 flex items-center gap-3">
-              {pageMode ? (
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="inline-flex items-center gap-2 rounded-xl border border-stone-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-stone-50 hover:text-slate-900"
-                >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  Retour
-                </button>
-              ) : null}
-              <div className={pageMode ? 'flex h-10 w-10 items-center justify-center rounded-xl bg-scalor-green shadow-sm' : 'w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg'}>
-                <Sparkles className={pageMode ? 'h-5.5 w-5.5 text-white' : 'w-5 h-5 text-white'} />
-              </div>
-              <div className="flex-1">
-                <h2 className={pageMode ? 'text-xl font-bold text-slate-900 leading-tight' : 'text-xl font-black text-gray-900 leading-tight'}>Générateur de page produit IA</h2>
-                <p className={pageMode ? 'mt-0.5 text-xs text-slate-500' : 'mt-0.5 text-xs text-gray-600'}>Crée une page produit claire, simple et prête à publier.</p>
-              </div>
-            </div>
-            
-            {/* Stepper Progress */}
-            {phase === 'input' && (
-              <div className="grid gap-2 md:grid-cols-3">
-                {visibleSteps.map((s) => (
-                  <React.Fragment key={s.num}>
-                    <div className={`rounded-xl border px-3 py-2.5 transition ${
-                      step === s.num
-                        ? 'border-[#96C7B5] bg-[#E6F2ED] text-[#0A5740]'
-                        : step > s.num
-                        ? 'border-[#96C7B5] bg-[#E6F2ED] text-[#0A5740]'
-                        : 'border-stone-200 bg-stone-50 text-slate-400'
-                    }`}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${
-                            step === s.num
-                              ? 'bg-scalor-green text-white'
-                              : step > s.num
-                              ? 'bg-scalor-green text-white'
-                              : 'bg-stone-300 text-stone-600'
-                          }`}>
-                            {step > s.num ? '✓' : s.num}
-                          </div>
-                          <span className="text-xs font-semibold">{s.label}</span>
-                        </div>
-                        <span className="text-[9px] font-bold uppercase tracking-wide opacity-80">{s.progress}</span>
-                      </div>
-                      <p className="mt-1.5 text-[11px] leading-relaxed opacity-80">
-                        {s.details.join(' · ')}
-                      </p>
-                      {step === s.num && (
-                        <p className="mt-1.5 text-[10px] font-bold uppercase tracking-wide">
-                          En cours : {s.currentDetail}
-                        </p>
-                      )}
+          {pageMode ? (
+            <div className="relative overflow-hidden border-b border-[#e4d8ca] px-5 py-5 sm:px-6 lg:px-8">
+              <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.82),rgba(255,248,241,0.65)_45%,rgba(242,231,218,0.65)_100%)]" />
+              <div className="absolute right-0 top-0 h-32 w-32 rounded-full bg-[#0F6B4F]/8 blur-3xl" />
+              <div className="absolute bottom-0 left-12 h-24 w-24 rounded-full bg-[#D4803F]/10 blur-2xl" />
+              <div className="relative">
+                <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="max-w-3xl">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={onClose}
+                        className="inline-flex items-center gap-2 rounded-full border border-[#d9ccbf] bg-white/86 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5b4a3c] transition hover:bg-white"
+                      >
+                        <ArrowLeft className="h-3.5 w-3.5" />
+                        Retour catalogue
+                      </button>
+                      <span className="inline-flex items-center gap-2 rounded-full bg-[#0F6B4F] px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-white shadow-sm">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Generator Studio
+                      </span>
                     </div>
-                  </React.Fragment>
-                ))}
-              </div>
-            )}
-          </div>
-          
-          <div className={pageMode ? 'flex items-center gap-2.5 self-start lg:ml-4' : 'flex items-center gap-3 ml-4'}>
-            {/* Compteur de générations - Affichage détaillé */}
-            {generationsInfo && (
-              <div className={pageMode ? 'flex items-center gap-2 rounded-xl border border-[#96C7B5] bg-[#E6F2ED] px-3 py-2' : 'flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 shadow-sm'}>
-                <Zap className={pageMode ? 'h-4 w-4 text-[#0A5740]' : 'w-5 h-5 text-violet-600'} />
-                <div className="flex flex-col">
-                  <div className="flex items-center gap-2 text-[11px] font-bold">
-                    <span className={pageMode ? 'text-[#0A5740]' : 'text-violet-600'}>{generationsInfo.remaining || 0} crédit{(generationsInfo.remaining || 0) > 1 ? 's' : ''}</span>
+
+                    <h2 className="mt-4 max-w-2xl text-[32px] font-black leading-[1.02] tracking-[-0.04em] text-[#1c1713] sm:text-[42px]">
+                      Génère une page produit, ses visuels et ses angles de vente dans un seul workflow.
+                    </h2>
+                    <p className="mt-3 max-w-2xl text-sm leading-6 text-[#6a5a4b] sm:text-[15px]">
+                      Source produit, photos réelles, méthode copywriting, ciblage et rendu final boutique. Tout est centralisé ici dans une interface pensée comme un vrai studio créatif.
+                    </p>
+
+                    {phase === 'input' && (
+                      <div className="mt-5 grid gap-3 md:grid-cols-3">
+                        {visibleSteps.map((s) => (
+                          <div key={s.num} className={`rounded-[24px] border p-4 transition ${
+                            step === s.num
+                              ? 'border-[#0F6B4F]/30 bg-[#0F6B4F] text-white shadow-[0_18px_50px_rgba(15,107,79,0.18)]'
+                              : step > s.num
+                              ? 'border-[#96C7B5] bg-[#E6F2ED] text-[#0A5740]'
+                              : 'border-[#e4d8ca] bg-white/82 text-[#8a7767]'
+                          }`}>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-center gap-3">
+                                <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-black ${
+                                  step === s.num
+                                    ? 'bg-white text-[#0F6B4F]'
+                                    : step > s.num
+                                    ? 'bg-[#0F6B4F] text-white'
+                                    : 'bg-[#efe3d5] text-[#7e6c5d]'
+                                }`}>
+                                  {step > s.num ? '✓' : s.num}
+                                </div>
+                                <div>
+                                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-75">Étape</p>
+                                  <p className="text-sm font-bold">{s.label}</p>
+                                </div>
+                              </div>
+                              <span className="rounded-full border border-current/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] opacity-80">{s.progress}</span>
+                            </div>
+                            <p className="mt-3 text-xs leading-5 opacity-80">{s.details.join(' • ')}</p>
+                            {step === s.num && <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.16em] opacity-90">Maintenant: {s.currentDetail}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <span className={pageMode ? 'text-[10px] text-[#0F6B4F]' : 'text-[10px] text-violet-600'}>crédits restants</span>
+
+                  <div className="grid gap-3 sm:grid-cols-3 xl:w-[360px] xl:grid-cols-1">
+                    <div className="rounded-[24px] border border-white/80 bg-white/78 p-4 shadow-[0_12px_35px_rgba(80,60,35,0.08)] backdrop-blur-sm">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#8b7762]">Template actif</p>
+                      <p className="mt-2 text-base font-black text-[#1f1915]">{selectedTemplate.label}</p>
+                      <p className="mt-2 text-xs leading-5 text-[#6b5a4b]">{templateTheme.vibe}</p>
+                    </div>
+                    <div className="rounded-[24px] border border-white/80 bg-white/78 p-4 shadow-[0_12px_35px_rgba(80,60,35,0.08)] backdrop-blur-sm">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#8b7762]">Méthode</p>
+                      <p className="mt-2 text-base font-black text-[#1f1915]">{marketingApproach}</p>
+                      <p className="mt-2 text-xs leading-5 text-[#6b5a4b]">Le texte et les visuels suivent la logique choisie du début à la fin.</p>
+                    </div>
+                    <div className="rounded-[24px] border border-[#b9dccf] bg-[#E6F2ED] p-4 shadow-[0_12px_35px_rgba(15,107,79,0.10)]">
+                      <div className="flex items-center gap-2 text-[#0A5740]">
+                        <Zap className="h-4.5 w-4.5" />
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em]">Crédits</p>
+                      </div>
+                      <p className="mt-2 text-2xl font-black text-[#0A5740]">{generationsInfo?.remaining || 0}</p>
+                      <p className="mt-1 text-xs text-[#2e6f59]">crédit{(generationsInfo?.remaining || 0) > 1 ? 's' : ''} disponible{(generationsInfo?.remaining || 0) > 1 ? 's' : ''}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-        </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+              <div className="flex w-full items-center justify-between gap-4">
+                <div className="flex-1">
+                  <div className="mb-2.5 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg">
+                      <Sparkles className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h2 className="text-xl font-black text-gray-900 leading-tight">Générateur de page produit IA</h2>
+                      <p className="mt-0.5 text-xs text-gray-600">Crée une page produit claire, simple et prête à publier.</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 ml-4">
+                  {generationsInfo && (
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 shadow-sm">
+                      <Zap className="w-5 h-5 text-violet-600" />
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2 text-[11px] font-bold">
+                          <span className="text-violet-600">{generationsInfo.remaining || 0} crédit{(generationsInfo.remaining || 0) > 1 ? 's' : ''}</span>
+                        </div>
+                        <span className="text-[10px] text-violet-600">crédits restants</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
-        <div className="flex-1 overflow-y-auto">
+        <div className={pageMode ? 'flex-1 overflow-y-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.36))]' : 'flex-1 overflow-y-auto'}>
 
           {/* ─── INPUT PHASE ─── */}
           {phase === 'input' && (
@@ -1514,7 +1693,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                 <>
                   {/* Template de page produit */}
                   {productSubstep === 1 && (
-                  <div>
+                  <div className="rounded-[30px] border border-[#e3d7ca] bg-[linear-gradient(180deg,rgba(255,255,255,0.90),rgba(249,242,234,0.88))] p-5 shadow-[0_16px_40px_rgba(86,63,39,0.08)] sm:p-6">
                     <label className="mb-1 flex items-center gap-2 text-sm font-semibold text-gray-700">
                       <Layers className="h-4 w-4 text-slate-700" />
                       Template visuel
@@ -1528,10 +1707,10 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                           key={t.id}
                           type="button"
                           onClick={() => setVisualTemplate(t.id)}
-                          className={`w-[148px] min-w-[148px] flex-shrink-0 overflow-hidden rounded-[16px] border-2 text-left transition-all duration-200 ${
+                          className={`w-[160px] min-w-[160px] flex-shrink-0 overflow-hidden rounded-[20px] border text-left transition-all duration-200 ${
                             visualTemplate === t.id
-                              ? `${t.border} shadow-md scale-[1.02]`
-                              : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
+                              ? `${t.border} shadow-[0_16px_38px_rgba(70,55,38,0.14)] scale-[1.02]`
+                              : 'border-[#e4d8ca] bg-white/85 hover:border-gray-300 hover:shadow-sm'
                           }`}
                         >
                           <div
@@ -1555,9 +1734,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                       )})}
                     </div>
 
-                    <div className="mt-3 grid gap-3 lg:grid-cols-[0.95fr_1.05fr]">
+                    <div className="mt-4 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
                       <div
-                        className="overflow-hidden rounded-[18px] border shadow-sm"
+                        className="overflow-hidden rounded-[24px] border shadow-[0_16px_36px_rgba(79,60,38,0.08)]"
                         style={{
                           backgroundColor: '#ffffff',
                           borderColor: templateTheme.accent,
@@ -1615,7 +1794,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                         </div>
                       </div>
 
-                      <div className="rounded-[18px] border border-gray-200 bg-white p-3.5 shadow-sm">
+                        <div className="rounded-[24px] border border-[#e4d8ca] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(249,242,234,0.9))] p-4 shadow-[0_16px_36px_rgba(79,60,38,0.07)]">
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-xs font-semibold text-gray-900">Direction visuelle</p>
                           <button
@@ -1626,14 +1805,14 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                               setHeroVisualDirection(nextTheme.heroVisual || '');
                               setDecorationDirection(nextTheme.decorationVisual || '');
                             }}
-                            className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-[11px] font-medium text-gray-700 transition hover:bg-gray-50"
+                              className="rounded-xl border border-[#dbcfc2] bg-white/80 px-3 py-1.5 text-[11px] font-medium text-gray-700 transition hover:bg-white"
                           >
                             Réinitialiser
                           </button>
                         </div>
 
                         <div className="mt-3 space-y-3">
-                          <label className="block rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2.5">
+                            <label className="block rounded-[18px] border border-[#e6dbd0] bg-white/78 px-3 py-3 shadow-sm">
                             <span className="block text-[11px] font-semibold text-gray-800">Visuel hero</span>
                             <input
                               type="text"
@@ -1644,7 +1823,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                             />
                           </label>
 
-                          <label className="block rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2.5">
+                            <label className="block rounded-[18px] border border-[#e6dbd0] bg-white/78 px-3 py-3 shadow-sm">
                             <span className="block text-[11px] font-semibold text-gray-800">Visuel décorations</span>
                             <input
                               type="text"
@@ -1660,7 +1839,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                               ['primary', 'Titres description'],
                               ['text', 'Contenu description'],
                             ].map(([key, label]) => (
-                              <label key={key} className="rounded-xl border border-gray-100 bg-gray-50/70 p-2 text-center">
+                              <label key={key} className="rounded-[18px] border border-[#e6dbd0] bg-white/78 p-2.5 text-center shadow-sm">
                                 <input
                                   type="color"
                                   value={templateTheme[key]}
@@ -1672,7 +1851,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                             ))}
                           </div>
 
-                          <div className="rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2">
+                          <div className="rounded-[18px] border border-[#e6dbd0] bg-white/72 px-3 py-3 shadow-sm">
                             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">Résumé</p>
                             <p className="mt-1 text-xs font-semibold text-gray-900">{selectedTemplate.label}</p>
                             <p className="mt-1 text-[11px] text-gray-600">Titres description : {templateTheme.primary}</p>
@@ -1688,19 +1867,19 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
 
                   {/* Source + contenu source */}
                   {productSubstep === 2 && (
-                  <div className="space-y-4">
+                  <div className="space-y-4 rounded-[30px] border border-[#e3d7ca] bg-[linear-gradient(180deg,rgba(255,255,255,0.90),rgba(249,242,234,0.88))] p-5 shadow-[0_16px_40px_rgba(86,63,39,0.08)] sm:p-6">
                     <div>
                       <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700">
                         <Globe className="h-4 w-4 text-slate-700" />
                         Source du produit
                       </label>
-                      <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+                      <div className="flex gap-2 rounded-[18px] border border-[#e4d8ca] bg-white/82 p-1.5 shadow-sm">
                         <button
                           type="button"
                           onClick={() => setInputMode('url')}
                           className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition ${
                             inputMode === 'url'
-                              ? 'bg-white text-[#0A5740] shadow-sm ring-1 ring-[#96C7B5]'
+                                ? 'rounded-2xl bg-[#0F6B4F] text-white shadow-[0_10px_22px_rgba(15,107,79,0.16)]'
                               : 'text-gray-600 hover:text-gray-900'
                           }`}
                         >
@@ -1714,7 +1893,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                           onClick={() => setInputMode('description')}
                           className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition ${
                             inputMode === 'description'
-                              ? 'bg-white text-[#0A5740] shadow-sm ring-1 ring-[#96C7B5]'
+                                ? 'rounded-2xl bg-[#0F6B4F] text-white shadow-[0_10px_22px_rgba(15,107,79,0.16)]'
                               : 'text-gray-600 hover:text-gray-900'
                           }`}
                         >
@@ -1727,7 +1906,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                     </div>
 
                     {inputMode === 'url' ? (
-                      <div>
+                      <div className="rounded-[22px] border border-[#e4d8ca] bg-white/84 p-4 shadow-sm">
                         <label className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-gray-700">
                           <Globe className="h-4 w-4 text-slate-700" />
                           Lien du produit (Amazon, Alibaba, AliExpress, etc.)
@@ -1748,7 +1927,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                         </div>
                       </div>
                     ) : (
-                      <div>
+                      <div className="rounded-[22px] border border-[#e4d8ca] bg-white/84 p-4 shadow-sm">
                         <label className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-gray-700">
                           <FileText className="h-4 w-4 text-slate-700" />
                           Description du produit
@@ -1770,7 +1949,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
 
                   {/* Photo Upload */}
                   {productSubstep === 3 && (
-                  <div>
+                  <div className="rounded-[30px] border border-[#e3d7ca] bg-[linear-gradient(180deg,rgba(255,255,255,0.90),rgba(249,242,234,0.88))] p-5 shadow-[0_16px_40px_rgba(86,63,39,0.08)] sm:p-6">
                     <label className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-gray-700">
                       <Upload className="h-4 w-4 text-slate-700" />
                       Tes vraies photos du produit <span className="font-normal text-gray-500">(3–8 recommandées)</span>
@@ -1780,7 +1959,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                       onDragOver={e => { e.preventDefault(); setDragOver(true); }}
                       onDragLeave={() => setDragOver(false)}
                       onClick={() => fileInputRef.current?.click()}
-                      className={`relative border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition ${
+                      className={`relative rounded-[24px] border-2 border-dashed p-6 text-center cursor-pointer transition ${
                         dragOver ? 'border-[#0F6B4F] bg-[#E6F2ED]' : 'border-gray-200 hover:border-[#96C7B5] hover:bg-[#E6F2ED]/60'
                       }`}
                     >
@@ -1798,9 +1977,9 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                     </div>
 
                     {photos.length > 0 && (
-                      <div className="mt-3 grid grid-cols-4 gap-2">
+                      <div className="mt-4 grid grid-cols-4 gap-3">
                         {photos.map((photo, i) => (
-                          <div key={i} className="relative group aspect-square rounded-lg overflow-hidden bg-gray-100 border border-gray-200">
+                          <div key={i} className="relative group aspect-square rounded-[18px] overflow-hidden bg-gray-100 border border-[#dfd4c8] shadow-sm">
                             <img
                               src={URL.createObjectURL(photo)}
                               alt={`Photo ${i + 1}`}
@@ -1822,7 +2001,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                           <button
                             type="button"
                             onClick={() => fileInputRef.current?.click()}
-                            className="aspect-square rounded-lg border-2 border-dashed border-gray-200 hover:border-[#96C7B5] flex items-center justify-center text-gray-400 hover:text-scalor-green transition"
+                            className="aspect-square rounded-[18px] border-2 border-dashed border-gray-200 hover:border-[#96C7B5] flex items-center justify-center text-gray-400 hover:text-scalor-green transition bg-white/75"
                           >
                             <Upload className="w-5 h-5" />
                           </button>
@@ -1838,7 +2017,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
               {step === 2 && (
                 <>
                   {/* 3 Méthodes Copywriting */}
-                  <div>
+                  <div className="rounded-[30px] border border-[#e3d7ca] bg-[linear-gradient(180deg,rgba(255,255,255,0.90),rgba(249,242,234,0.88))] p-5 shadow-[0_16px_40px_rgba(86,63,39,0.08)] sm:p-6">
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Choisis ta méthode copywriting
                     </label>
@@ -1849,10 +2028,10 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                           key={approach.value}
                           type="button"
                           onClick={() => setMarketingApproach(approach.value)}
-                          className={`p-4 rounded-xl border-2 text-left transition ${
+                          className={`p-4 rounded-[22px] border text-left transition ${
                             marketingApproach === approach.value
-                              ? 'border-[#96C7B5] bg-[#E6F2ED] shadow-sm'
-                              : 'border-gray-200 hover:border-[#96C7B5] bg-white'
+                              ? 'border-[#96C7B5] bg-[#E6F2ED] shadow-[0_14px_28px_rgba(15,107,79,0.10)]'
+                              : 'border-[#e4d8ca] hover:border-[#96C7B5] bg-white/84'
                           }`}
                         >
                           <div className="flex items-center justify-between mb-1">
@@ -1892,7 +2071,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                     <p className="text-xs text-gray-500">Ces infos aident l'IA a mieux cibler ta page produit</p>
                   </div>
 
-                  <div className="space-y-3 rounded-xl border border-[#D8CFC4] bg-white p-4 mb-4">
+                  <div className="space-y-3 rounded-[28px] border border-[#e3d7ca] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(249,242,234,0.9))] p-5 mb-4 shadow-[0_16px_40px_rgba(86,63,39,0.07)]">
                     <div>
                       <label className="block text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
                         <ImageIcon className="h-3.5 w-3.5 text-scalor-green" />
@@ -1909,7 +2088,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                             key={mode.id}
                             type="button"
                             onClick={() => setImageGenerationMode(mode.id)}
-                            className={`rounded-xl border p-4 text-left transition ${isActive ? 'border-[#96C7B5] bg-[#E6F2ED]' : 'border-stone-200 bg-stone-50 hover:border-[#D8CFC4] hover:bg-white'}`}
+                            className={`rounded-[20px] border p-4 text-left transition ${isActive ? 'border-[#96C7B5] bg-[#E6F2ED] shadow-sm' : 'border-[#e4d8ca] bg-white/82 hover:border-[#D8CFC4] hover:bg-white'}`}
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div>
@@ -1931,20 +2110,71 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                   </div>
 
                   {/* Avatar cible */}
-                  <div className="space-y-4 rounded-xl border border-[#D8CFC4] bg-[#EDE8E2]/50 p-4">
+                  <div className="space-y-4 rounded-[28px] border border-[#e3d7ca] bg-[linear-gradient(180deg,rgba(255,251,246,0.92),rgba(242,234,225,0.76))] p-5 shadow-[0_16px_40px_rgba(86,63,39,0.07)]">
                     <div>
                       <label className="block text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
                         <User className="h-3.5 w-3.5 text-scalor-green" />
                         Avatar client cible
                       </label>
-                      <textarea
-                        value={targetAvatar}
-                        onChange={(e) => setTargetAvatar(e.target.value)}
-                        placeholder="Ex: Femme 28-45 ans, maman active, zone urbaine, sensible au naturel..."
-                        rows={2}
-                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-scalor-green focus:border-[#96C7B5] resize-none"
-                      />
-                      <p className="text-xs text-gray-400 mt-1">Qui est ton client ideal ?</p>
+                      <p className="text-xs text-gray-500">Choisis le genre, l’âge et le profil sans devoir tout écrire à la main.</p>
+                    </div>
+
+                    <div>
+                      <p className="mb-2 text-xs font-semibold text-gray-700">Genre</p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {TARGET_GENDER_OPTIONS.map((option) => {
+                          const isActive = targetGender === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => setTargetGender(option.value)}
+                              className={`rounded-[20px] border px-3 py-3 text-left transition ${isActive ? 'border-[#96C7B5] bg-[#E6F2ED] shadow-sm' : 'border-[#e4d8ca] bg-white/86 hover:border-[#D8CFC4]'}`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-900">{option.label}</p>
+                                  <p className="mt-1 text-xs text-gray-500">{option.hint}</p>
+                                </div>
+                                <div className={`mt-0.5 h-4 w-4 rounded-full border ${isActive ? 'border-[#0F6B4F] bg-[#0F6B4F]' : 'border-stone-300 bg-white'}`} />
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-gray-700">Tranche d’âge</label>
+                        <select
+                          value={targetAgeRange}
+                          onChange={(e) => setTargetAgeRange(e.target.value)}
+                          className="w-full rounded-[16px] border border-[#ddd1c5] bg-white px-3 py-2.5 text-sm focus:border-[#96C7B5] focus:outline-none focus:ring-2 focus:ring-scalor-green"
+                        >
+                          {TARGET_AGE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold text-gray-700">Profil</label>
+                        <select
+                          value={targetProfile}
+                          onChange={(e) => setTargetProfile(e.target.value)}
+                          className="w-full rounded-[16px] border border-[#ddd1c5] bg-white px-3 py-2.5 text-sm focus:border-[#96C7B5] focus:outline-none focus:ring-2 focus:ring-scalor-green"
+                        >
+                          {TARGET_PROFILE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="rounded-[18px] border border-dashed border-[#96C7B5] bg-white px-3 py-3 shadow-sm">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500">Résumé avatar</p>
+                      <p className="mt-1 text-sm font-medium text-slate-800">{targetAvatarSummary || 'Auto selon le produit et les photos'}</p>
                     </div>
 
                     {/* Probleme principal */}
@@ -1958,7 +2188,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                         onChange={(e) => setMainProblem(e.target.value)}
                         placeholder="Ex: Peau terne avec des taches, perte de confiance en soi..."
                         rows={2}
-                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-scalor-green focus:border-[#96C7B5] resize-none"
+                        className="w-full px-3 py-2.5 border border-[#ddd1c5] rounded-[16px] text-sm focus:outline-none focus:ring-2 focus:ring-scalor-green focus:border-[#96C7B5] resize-none bg-white"
                       />
                       <p className="text-xs text-gray-400 mt-1">Quel probleme ton produit resout ?</p>
                     </div>
@@ -2085,7 +2315,12 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
 
           {/* ─── AI STORE BUILDER PHASE ─── */}
           {phase === 'loading' && (
-            <div className="p-8 flex flex-col items-center justify-center gap-8 min-h-[500px] relative overflow-hidden">
+            <div className={pageMode ? 'relative min-h-[620px] overflow-hidden px-8 py-10' : 'p-8 flex flex-col items-center justify-center gap-8 min-h-[500px] relative overflow-hidden'}>
+              {pageMode && (
+                <div className="pointer-events-none absolute inset-0 px-6 py-8">
+                  <div className="mx-auto h-full w-full max-w-4xl rounded-[34px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(248,241,232,0.92))] shadow-[0_24px_70px_rgba(92,66,39,0.10)]" />
+                </div>
+              )}
               {/* Confetti effect */}
               {showConfetti && (
                 <div className="absolute inset-0 pointer-events-none z-50">
@@ -2123,16 +2358,16 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
               )}
 
               {/* Main icon animation */}
-              <div className="relative">
-                <div className="w-24 h-24 rounded-full bg-[#E6F2ED] flex items-center justify-center relative">
+              <div className="relative z-10">
+                <div className={pageMode ? 'relative flex h-28 w-28 items-center justify-center rounded-full bg-[linear-gradient(135deg,#0F6B4F,#14855F)] shadow-[0_22px_60px_rgba(15,107,79,0.26)]' : 'w-24 h-24 rounded-full bg-[#E6F2ED] flex items-center justify-center relative'}>
                   <div className="absolute inset-0 rounded-full border-4 border-[#96C7B5] animate-ping opacity-20" />
-                  <Sparkles className="w-12 h-12 text-scalor-green animate-pulse" />
+                  <Sparkles className={pageMode ? 'h-14 w-14 text-white animate-pulse' : 'w-12 h-12 text-scalor-green animate-pulse'} />
                 </div>
               </div>
 
               {/* Step title */}
               <div className="text-center space-y-2 relative z-10">
-                <h3 className="text-2xl font-black text-gray-900">
+                <h3 className={pageMode ? 'text-3xl font-black tracking-[-0.03em] text-[#1c1713]' : 'text-2xl font-black text-gray-900'}>
                   {[
                     'Analyse de votre produit',
                     'Génération du contenu marketing',
@@ -2142,20 +2377,20 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                 </h3>
                 
                 {/* Typing effect message */}
-                <p className="text-base text-gray-600 font-medium h-6">
+                <p className={pageMode ? 'h-6 text-base font-medium text-[#6c5b4b]' : 'text-base text-gray-600 font-medium h-6'}>
                   <TypingText text={buildMessage} />
                 </p>
               </div>
 
               {/* Progress bar */}
-              <div className="w-full max-w-md space-y-2">
+              <div className={pageMode ? 'relative z-10 w-full max-w-xl space-y-2' : 'w-full max-w-md space-y-2'}>
                 <div className="flex justify-between text-xs font-bold">
                   <span className="text-scalor-green">Progression</span>
                   <span className="text-scalor-green">{Math.round(buildProgress)}%</span>
                 </div>
-                <div className="h-3 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full overflow-hidden shadow-inner">
+                <div className={pageMode ? 'h-4 overflow-hidden rounded-full bg-[#e7ddd2] shadow-inner' : 'h-3 bg-gradient-to-r from-gray-100 to-gray-200 rounded-full overflow-hidden shadow-inner'}>
                   <div
-                    className="h-full bg-gradient-to-r from-[#0A5740] via-[#0F6B4F] to-[#14855F] rounded-full transition-all duration-500 ease-out relative overflow-hidden"
+                    className={`h-full bg-gradient-to-r from-[#0A5740] via-[#0F6B4F] to-[#14855F] rounded-full transition-all duration-500 ease-out relative overflow-hidden ${pageMode ? 'shadow-[0_8px_24px_rgba(15,107,79,0.24)]' : ''}`}
                     style={{ width: `${buildProgress}%` }}
                   >
                     <div className="absolute inset-0 bg-white/30 animate-pulse" />
@@ -2164,7 +2399,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
               </div>
 
               {/* Steps indicators */}
-              <div className="flex items-center justify-center gap-3">
+              <div className="relative z-10 flex items-center justify-center gap-3">
                 {[0, 1, 2, 3].map((step) => (
                   <div
                     key={step}
@@ -2181,7 +2416,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                         step < buildStep
                           ? 'bg-scalor-green text-white'
                           : step === buildStep
-                          ? 'bg-scalor-copper text-white shadow-lg'
+                          ? `${pageMode ? 'bg-[#D4803F] text-white shadow-[0_12px_30px_rgba(212,128,63,0.30)]' : 'bg-scalor-copper text-white shadow-lg'}`
                           : 'bg-gray-200 text-gray-400'
                       }`}
                     >
@@ -2206,7 +2441,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                   setBuildMessage('');
                   setShowConfetti(false);
                 }}
-                className="text-sm text-gray-400 hover:text-gray-600 underline transition mt-4"
+                className={pageMode ? 'relative z-10 mt-4 text-sm text-[#8a7767] underline transition hover:text-[#5d4c3e]' : 'text-sm text-gray-400 hover:text-gray-600 underline transition mt-4'}
               >
                 Annuler
               </button>
@@ -2218,14 +2453,14 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
             <div className="p-6 space-y-5">
 
               {/* Success Banner */}
-              <div className="rounded-xl border-2 border-[#96C7B5] bg-[#E6F2ED] p-4">
+              <div className={pageMode ? 'rounded-[28px] border border-[#cfe5dc] bg-[linear-gradient(135deg,#edf8f3,#f7fbf7)] p-5 shadow-[0_14px_40px_rgba(15,107,79,0.08)]' : 'rounded-xl border-2 border-[#96C7B5] bg-[#E6F2ED] p-4'}>
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-scalor-green flex items-center justify-center shrink-0">
+                  <div className={pageMode ? 'flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#0A5740,#14855F)] shadow-[0_14px_34px_rgba(15,107,79,0.20)]' : 'w-12 h-12 rounded-full bg-scalor-green flex items-center justify-center shrink-0'}>
                     <CheckCircle className="w-7 h-7 text-white" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-base font-bold text-[#0A5740] mb-1">Génération terminée avec succès</h3>
-                    <p className="text-sm text-[#0F6B4F]">
+                    <h3 className={pageMode ? 'mb-1 text-lg font-black text-[#0A5740]' : 'text-base font-bold text-[#0A5740] mb-1'}>Génération terminée avec succès</h3>
+                    <p className={pageMode ? 'text-sm leading-6 text-[#2e6f59]' : 'text-sm text-[#0F6B4F]'}>
                       Voici l'aperçu de votre page produit générée par IA. Explorez les onglets ci-dessous puis cliquez sur <strong>"Appliquer"</strong> pour l'utiliser.
                     </p>
                   </div>
@@ -2233,7 +2468,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
               </div>
 
               {/* Tabs */}
-              <div className="flex gap-1 p-1 bg-gray-100 rounded-xl">
+              <div className={pageMode ? 'flex gap-1.5 rounded-[20px] border border-[#e3d7ca] bg-white/80 p-1.5 shadow-[0_10px_28px_rgba(90,65,40,0.05)]' : 'flex gap-1 p-1 bg-gray-100 rounded-xl'}>
                 {[
                   { id: 'page', label: 'Page', icon: Package },
                   { id: 'final', label: 'Finale', icon: Smartphone },
@@ -2245,8 +2480,10 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                     key={id}
                     type="button"
                     onClick={() => setActiveTab(id)}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-medium transition ${
-                      activeTab === id ? 'bg-white text-[#0A5740] shadow-sm ring-1 ring-[#96C7B5]' : 'text-gray-500 hover:text-gray-700'
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 px-2 text-xs font-medium transition ${
+                      activeTab === id
+                        ? `${pageMode ? 'rounded-2xl bg-[#0F6B4F] text-white shadow-[0_12px_24px_rgba(15,107,79,0.18)]' : 'bg-white text-[#0A5740] shadow-sm ring-1 ring-[#96C7B5]'}`
+                        : `${pageMode ? 'rounded-2xl text-[#7a6958] hover:bg-[#f5efe7] hover:text-[#1f1813]' : 'text-gray-500 hover:text-gray-700'}`
                     }`}
                   >
                     <Icon className="w-3.5 h-3.5" />
@@ -2736,11 +2973,11 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 shrink-0">
+        <div className={pageMode ? 'border-t border-[#e4d8ca] bg-[linear-gradient(180deg,rgba(255,250,244,0.88),rgba(245,236,226,0.92))] px-6 py-4 shadow-[0_-14px_40px_rgba(104,76,46,0.06)] backdrop-blur-sm shrink-0' : 'px-6 py-4 border-t border-gray-100 shrink-0'}>
           {phase === 'input' && (
             <>
               {/* Info générations restantes */}
-              {generationsInfo && (
+              {generationsInfo && !pageMode && (
                 <div className="mb-3 rounded-lg border border-[#96C7B5] bg-[#E6F2ED] p-3">
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
@@ -2762,12 +2999,19 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
               )}
               
               {/* Navigation buttons */}
-              <div className="flex items-center gap-3">
+              <div className={pageMode ? 'flex flex-col gap-3 md:flex-row md:items-center' : 'flex items-center gap-3'}>
+                {pageMode && (
+                  <div className="rounded-2xl border border-[#d8cab9] bg-white/72 px-4 py-3 text-xs leading-5 text-[#6d5b4a] md:max-w-[340px]">
+                    {step < 3
+                      ? 'Renseigne le produit, définis la méthode puis affine le ciblage avant de lancer la génération.'
+                      : 'Tout est prêt. Lance la génération pour produire la page, les visuels et les blocs marketing.'}
+                  </div>
+                )}
                 {(step > 1 || productSubstep > 1) && (
                   <button
                     type="button"
                     onClick={handlePrevStep}
-                    className="flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold text-sm hover:bg-gray-50 transition flex items-center justify-center gap-2"
+                    className={pageMode ? 'min-w-[180px] py-3 border border-[#cdbca8] bg-white/86 text-[#5d4d40] rounded-2xl font-semibold text-sm hover:bg-white transition flex items-center justify-center gap-2' : 'flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold text-sm hover:bg-gray-50 transition flex items-center justify-center gap-2'}
                   >
                     <ArrowLeft className="h-4 w-4" />
                     Précédent
@@ -2779,7 +3023,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                     type="button"
                     onClick={handleNextStep}
                     disabled={step === 1 && !isCurrentProductSubstepValid()}
-                    className={`py-3 bg-scalor-green text-white rounded-xl font-bold text-sm hover:bg-scalor-green-dark transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg ${step === 1 ? 'w-full' : 'flex-[2]'}`}
+                    className={`py-3 text-white font-bold text-sm transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg ${pageMode ? 'rounded-2xl bg-[linear-gradient(135deg,#0A5740,#14855F)] hover:brightness-105' : 'bg-scalor-green rounded-xl hover:bg-scalor-green-dark'} ${step === 1 ? 'w-full' : 'flex-[2]'}`}
                   >
                     <Sparkles className="w-4 h-4" />
                     {step === 1 && (productSubstep < totalProductSubsteps ? 'Suivant' : 'Suivant : Copywriting')}
@@ -2793,7 +3037,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                       type="button"
                       onClick={() => handleGenerate()}
                       disabled={!canGenerate() || (generationsInfo !== null && (generationsInfo?.remaining || 0) <= 0)}
-                      className="w-full py-3 bg-scalor-green text-white rounded-xl font-bold text-sm hover:bg-scalor-green-dark transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
+                      className={`w-full py-3 text-white font-bold text-sm transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg ${pageMode ? 'rounded-2xl bg-[linear-gradient(135deg,#0A5740,#14855F)] hover:brightness-105' : 'bg-scalor-green rounded-xl hover:bg-scalor-green-dark'}`}
                     >
                       <Sparkles className="w-4 h-4" />
                       Générer ma page produit
@@ -2807,7 +3051,7 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
           {phase === 'preview' && (
             <div className="space-y-3">
               {/* Info message */}
-              <div className="px-4 py-2 bg-[#E6F2ED] border border-[#96C7B5] rounded-lg">
+              <div className={pageMode ? 'rounded-2xl border border-[#cfe5dc] bg-[#eef8f3] px-4 py-3' : 'px-4 py-2 bg-[#E6F2ED] border border-[#96C7B5] rounded-lg'}>
                 <p className="text-xs text-[#0A5740] text-center">
                   Explorez l'aperçu ci-dessus, puis cliquez sur <strong>"Utiliser cette page"</strong> pour l'ajouter à votre boutique.
                 </p>
@@ -2817,14 +3061,14 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
                 <button
                   type="button"
                   onClick={handleRestart}
-                  className="flex-1 py-3 border-2 border-gray-200 text-gray-600 rounded-xl font-medium text-sm hover:bg-gray-50 hover:border-gray-300 transition"
+                  className={pageMode ? 'flex-1 py-3 border border-[#cdbca8] bg-white/86 text-[#5d4d40] rounded-2xl font-medium text-sm hover:bg-white transition' : 'flex-1 py-3 border-2 border-gray-200 text-gray-600 rounded-xl font-medium text-sm hover:bg-gray-50 hover:border-gray-300 transition'}
                 >
                   <span className="inline-flex items-center gap-2"><RefreshCw className="h-4 w-4" />Recommencer</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleApply}
-                  className="flex-[2] py-3.5 bg-scalor-copper text-white rounded-xl font-bold text-sm hover:bg-scalor-copper-dark transition flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
+                  className={pageMode ? 'flex-[2] py-3.5 rounded-2xl bg-[linear-gradient(135deg,#C56A2D,#D4803F)] text-white font-bold text-sm transition flex items-center justify-center gap-2 shadow-[0_18px_40px_rgba(197,106,45,0.28)] hover:brightness-105' : 'flex-[2] py-3.5 bg-scalor-copper text-white rounded-xl font-bold text-sm hover:bg-scalor-copper-dark transition flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]'}
                 >
                   <CheckCircle className="w-5 h-5" />
                   Utiliser cette page

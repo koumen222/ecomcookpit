@@ -1,6 +1,61 @@
 import React, { useState } from 'react';
 import { X, Upload, Wand2, AlertCircle } from 'lucide-react';
 
+const TARGET_GENDER_OPTIONS = [
+  { value: 'auto', label: 'Auto', hint: 'L’IA choisit selon le produit' },
+  { value: 'female', label: 'Femme', hint: 'Audience surtout féminine' },
+  { value: 'male', label: 'Homme', hint: 'Audience surtout masculine' },
+  { value: 'mixed', label: 'Les deux', hint: 'Audience mixte / unisexe' },
+];
+
+const TARGET_AGE_OPTIONS = [
+  { value: 'auto', label: 'Âge auto' },
+  { value: '18-24', label: '18-24 ans' },
+  { value: '25-34', label: '25-34 ans' },
+  { value: '35-44', label: '35-44 ans' },
+  { value: '45-54', label: '45-54 ans' },
+  { value: '55+', label: '55 ans et plus' },
+];
+
+const TARGET_PROFILE_OPTIONS = [
+  { value: 'auto', label: 'Profil auto' },
+  { value: 'general', label: 'Grand public' },
+  { value: 'urban_active', label: 'Actif urbain' },
+  { value: 'parent', label: 'Parent actif' },
+  { value: 'student', label: 'Étudiant / jeune actif' },
+  { value: 'professional', label: 'Professionnel' },
+  { value: 'sporty', label: 'Sportif / lifestyle actif' },
+  { value: 'premium', label: 'Client premium' },
+  { value: 'senior', label: 'Senior' },
+];
+
+const TARGET_GENDER_LABELS = {
+  auto: '',
+  female: 'femme',
+  male: 'homme',
+  mixed: 'hommes et femmes',
+};
+
+const TARGET_PROFILE_LABELS = {
+  auto: '',
+  general: 'grand public',
+  urban_active: 'actif urbain',
+  parent: 'parent actif',
+  student: 'etudiant ou jeune actif',
+  professional: 'professionnel',
+  sporty: 'profil sportif et actif',
+  premium: 'client premium',
+  senior: 'senior',
+};
+
+function buildTargetAvatarSummary({ gender = 'auto', ageRange = 'auto', profile = 'auto' } = {}) {
+  return [
+    TARGET_GENDER_LABELS[gender],
+    ageRange !== 'auto' ? `${ageRange} ans` : '',
+    TARGET_PROFILE_LABELS[profile],
+  ].filter(Boolean).join(', ');
+}
+
 /**
  * Composant Modal de Génération de Page Produit Avancée
  * Intègre tous les paramètres copywriting pour une génération optimale
@@ -22,8 +77,15 @@ const ProductGeneratorModal = ({ isOpen, onClose, workspaceId, onSuccess }) => {
     marketingApproach: 'PAS',
     language: 'français',
     tone: 'urgence',
-    targetAvatar: '',
+    targetGender: 'auto',
+    targetAgeRange: 'auto',
+    targetProfile: 'auto',
     mainProblem: ''
+  });
+  const targetAvatarSummary = buildTargetAvatarSummary({
+    gender: formData.targetGender,
+    ageRange: formData.targetAgeRange,
+    profile: formData.targetProfile,
   });
 
   const marketingApproaches = [
@@ -70,9 +132,10 @@ const ProductGeneratorModal = ({ isOpen, onClose, workspaceId, onSuccess }) => {
       formDataToSend.append('language', formData.language);
       formDataToSend.append('tone', formData.tone);
 
-      if (formData.targetAvatar) {
-        formDataToSend.append('targetAvatar', formData.targetAvatar);
-      }
+      if (targetAvatarSummary) formDataToSend.append('targetAvatar', targetAvatarSummary);
+      formDataToSend.append('targetGender', formData.targetGender);
+      formDataToSend.append('targetAgeRange', formData.targetAgeRange);
+      formDataToSend.append('targetProfile', formData.targetProfile);
       if (formData.mainProblem) {
         formDataToSend.append('mainProblem', formData.mainProblem);
       }
@@ -309,13 +372,64 @@ const ProductGeneratorModal = ({ isOpen, onClose, workspaceId, onSuccess }) => {
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Avatar client cible (optionnel)
                 </label>
-                <textarea
-                  value={formData.targetAvatar}
-                  onChange={(e) => setFormData(prev => ({ ...prev, targetAvatar: e.target.value }))}
-                  placeholder="Ex: Femme 28-45 ans, maman active, zone urbaine, sensible au naturel..."
-                  rows={2}
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none text-sm"
-                />
+                <p className="text-xs text-gray-500 mb-3">Choisis directement le genre, l’âge et le profil de l’audience.</p>
+
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  {TARGET_GENDER_OPTIONS.map((option) => {
+                    const isActive = formData.targetGender === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, targetGender: option.value }))}
+                        className={`p-3 rounded-lg border-2 text-left transition ${
+                          isActive ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="font-semibold text-sm">{option.label}</div>
+                            <div className="text-xs text-gray-500 mt-1">{option.hint}</div>
+                          </div>
+                          <div className={`mt-0.5 h-4 w-4 rounded-full border ${isActive ? 'border-purple-600 bg-purple-600' : 'border-gray-300 bg-white'}`} />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Tranche d’âge</label>
+                    <select
+                      value={formData.targetAgeRange}
+                      onChange={(e) => setFormData(prev => ({ ...prev, targetAgeRange: e.target.value }))}
+                      className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm bg-white"
+                    >
+                      {TARGET_AGE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Profil</label>
+                    <select
+                      value={formData.targetProfile}
+                      onChange={(e) => setFormData(prev => ({ ...prev, targetProfile: e.target.value }))}
+                      className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm bg-white"
+                    >
+                      {TARGET_PROFILE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-3 rounded-lg border border-dashed border-purple-200 bg-purple-50 px-4 py-3">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500">Résumé avatar</div>
+                  <div className="text-sm font-medium text-gray-800 mt-1">{targetAvatarSummary || 'Auto selon le produit'}</div>
+                </div>
               </div>
 
               {/* Probleme principal */}

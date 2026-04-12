@@ -2055,6 +2055,125 @@ const ProductCard = ({ product, prefix, store, subdomain }) => {
 // Memoize ProductCard to prevent unnecessary re-renders
 const MemoizedProductCard = React.memo(ProductCard);
 
+const CollectionProductCard = React.memo(({ product, prefix, store, subdomain }) => {
+  const hasDiscount = product.compareAtPrice && product.compareAtPrice > product.price;
+  const discountPercent = hasDiscount ? Math.round((1 - product.price / product.compareAtPrice) * 100) : 0;
+  const productImage = product.image || product.images?.[0]?.url || '';
+
+  const handlePrefetch = () => {
+    preloadStoreProductRoute();
+    if (subdomain && product?.slug) {
+      prefetchStoreProduct(subdomain, product.slug);
+    }
+  };
+
+  return (
+    <Link
+      to={`${prefix}/product/${product.slug}`}
+      style={{ textDecoration: 'none', display: 'block', height: '100%' }}
+      onMouseEnter={handlePrefetch}
+      onFocus={handlePrefetch}
+      onTouchStart={handlePrefetch}
+    >
+      <article style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        backgroundColor: '#fff',
+        border: '1px solid rgba(15, 23, 42, 0.08)',
+        borderRadius: 18,
+        overflow: 'hidden',
+        boxShadow: '0 10px 30px rgba(15, 23, 42, 0.05)',
+        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+      }}>
+        <div style={{ position: 'relative', aspectRatio: '1 / 1', backgroundColor: '#F8FAFC' }}>
+          {productImage ? (
+            <img
+              src={productImage}
+              alt={product.name}
+              loading="lazy"
+              decoding="async"
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+          ) : (
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <ShoppingBag size={34} style={{ color: '#CBD5E1' }} />
+            </div>
+          )}
+
+          {hasDiscount && (
+            <div style={{
+              position: 'absolute',
+              top: 12,
+              left: 12,
+              padding: '6px 10px',
+              borderRadius: 999,
+              backgroundColor: '#EF4444',
+              color: '#fff',
+              fontSize: 11,
+              fontWeight: 800,
+              letterSpacing: '-0.02em',
+            }}>
+              -{discountPercent}%
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: '16px 16px 18px', display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
+          {product.category && (
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--s-text2)' }}>
+              {product.category}
+            </div>
+          )}
+
+          <h3 style={{
+            margin: 0,
+            fontSize: 16,
+            lineHeight: 1.35,
+            fontWeight: 700,
+            color: 'var(--s-text)',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            minHeight: 44,
+          }}>
+            {product.name}
+          </h3>
+
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 21, fontWeight: 900, color: 'var(--s-text)' }}>
+              {fmt(product.price, store?.currency || product.currency || 'XAF')}
+            </span>
+            {hasDiscount && (
+              <span style={{ fontSize: 13, color: 'var(--s-text2)', textDecoration: 'line-through' }}>
+                {fmt(product.compareAtPrice, store?.currency || product.currency || 'XAF')}
+              </span>
+            )}
+          </div>
+
+          <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <span style={{
+              fontSize: 11,
+              fontWeight: 700,
+              padding: '6px 10px',
+              borderRadius: 999,
+              backgroundColor: Number(product.stock || 0) > 0 ? 'color-mix(in srgb, var(--s-primary) 10%, white)' : '#FEF2F2',
+              color: Number(product.stock || 0) > 0 ? 'var(--s-primary)' : '#DC2626',
+            }}>
+              {Number(product.stock || 0) > 0 ? 'En stock' : 'Rupture'}
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--s-primary)' }}>
+              Voir le produit
+            </span>
+          </div>
+        </div>
+      </article>
+    </Link>
+  );
+});
+
 // ── Mobile Bottom Navigation ──────────────────────────────────────────────────
 const MobileBottomNav = ({ prefix, cartCount, store }) => {
   return (
@@ -2620,12 +2739,46 @@ export const StoreAllProducts = () => {
   const [search, setSearch] = useState('');
   const initialCategory = searchParams.get('category') || 'all';
   const [activeCategory, setActiveCategory] = useState(initialCategory);
+  const [sortBy, setSortBy] = useState('featured');
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [availability, setAvailability] = useState('all');
+  const [priceRange, setPriceRange] = useState('all');
 
   const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
+  const categoryCountMap = products.reduce((acc, product) => {
+    if (!product.category) return acc;
+    acc[product.category] = (acc[product.category] || 0) + 1;
+    return acc;
+  }, {});
+  const allPrices = products
+    .map((product) => Number(product.price || 0))
+    .filter((price) => Number.isFinite(price) && price >= 0);
+  const minAvailablePrice = allPrices.length ? Math.min(...allPrices) : 0;
+  const maxAvailablePrice = allPrices.length ? Math.max(...allPrices) : 0;
+  const priceRanges = [
+    { value: 'all', label: 'Tous les prix', matches: () => true },
+    { value: 'under-10000', label: 'Moins de 10 000', matches: (price) => price < 10000 },
+    { value: '10000-20000', label: '10 000 - 20 000', matches: (price) => price >= 10000 && price <= 20000 },
+    { value: 'over-20000', label: 'Plus de 20 000', matches: (price) => price > 20000 },
+  ];
+  const activePriceFilter = priceRanges.find((range) => range.value === priceRange) || priceRanges[0];
   const filtered = products.filter(p => {
     const matchCat = activeCategory === 'all' || p.category === activeCategory;
     const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchSearch;
+    const stock = Number(p.stock || 0);
+    const matchAvailability = availability === 'all'
+      || (availability === 'in-stock' && stock > 0)
+      || (availability === 'out-of-stock' && stock <= 0);
+    const price = Number(p.price || 0);
+    const matchPrice = activePriceFilter.matches(price);
+    return matchCat && matchSearch && matchAvailability && matchPrice;
+  });
+  const sortedProducts = [...filtered].sort((left, right) => {
+    if (sortBy === 'price-asc') return Number(left.price || 0) - Number(right.price || 0);
+    if (sortBy === 'price-desc') return Number(right.price || 0) - Number(left.price || 0);
+    if (sortBy === 'name-asc') return String(left.name || '').localeCompare(String(right.name || ''), 'fr', { sensitivity: 'base' });
+    if (sortBy === 'name-desc') return String(right.name || '').localeCompare(String(left.name || ''), 'fr', { sensitivity: 'base' });
+    return 0;
   });
 
   useEffect(() => {
@@ -2670,125 +2823,223 @@ export const StoreAllProducts = () => {
         .s-badges{display:grid;grid-template-columns:1fr}
         .s-badge-item{border-bottom:1px solid #F3F4F6}
         .s-badge-item:last-child{border-bottom:none}
+        .store-products-shell{max-width:1280px;margin:0 auto;padding:44px 16px 88px}
+        .store-collection-layout{display:grid;gap:24px;align-items:start}
+        .store-filter-panel{background:#fff;border:1px solid rgba(15,23,42,0.08);border-radius:20px;padding:18px;box-shadow:0 10px 30px rgba(15,23,42,0.05)}
+        .store-filter-sticky{display:none}
+        .store-filter-sticky.is-open{display:block}
+        .store-filter-list{display:flex;flex-direction:column;gap:8px}
+        .store-filter-item{width:100%;display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:12px;border:1px solid transparent;background:transparent;color:var(--s-text2);font-size:14px;font-weight:600;cursor:pointer;transition:all .18s ease}
+        .store-filter-item:hover{background:#F8FAFC;color:var(--s-text)}
+        .store-filter-item.active{background:color-mix(in srgb, var(--s-primary) 9%, white);border-color:color-mix(in srgb, var(--s-primary) 18%, #E2E8F0);color:var(--s-text)}
+        .store-filter-note{font-size:12px;line-height:1.5;color:var(--s-text2)}
+        .store-search-input::placeholder{color:#B4BAC5}
+        .store-products-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+        .store-toolbar{display:flex;flex-direction:column;gap:12px;padding:16px 18px;border:1px solid rgba(15,23,42,0.08);border-radius:18px;background:#fff;box-shadow:0 10px 30px rgba(15,23,42,0.04)}
+        @media(min-width:900px){.store-collection-layout{grid-template-columns:280px minmax(0,1fr)}.store-filter-sticky{display:block;position:sticky;top:110px}.store-toolbar{flex-direction:row;align-items:center;justify-content:space-between}.store-products-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+        @media(min-width:1180px){.store-products-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
         @media(min-width:560px){.s-badges{grid-template-columns:repeat(2,1fr)}.s-badge-item{border-right:1px solid #F3F4F6;border-bottom:1px solid #F3F4F6}.s-badge-item:nth-child(2n){border-right:none}}
         @media(min-width:900px){.s-badges{grid-template-columns:repeat(4,1fr)}.s-badge-item{border-bottom:none;border-right:1px solid #F3F4F6}.s-badge-item:last-child{border-right:none}}
       `}</style>
       <AnnouncementBar store={store} />
       <StorefrontHeader store={store} cartCount={cartCount} prefix={prefix} />
 
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: 'clamp(32px, 6vw, 64px) 16px 80px' }}>
-        {/* Header */}
-        <div style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 'clamp(24px, 4vw, 38px)', fontWeight: 900, color: 'var(--s-text)', margin: '0 0 6px', letterSpacing: '-0.025em', fontFamily: 'var(--s-font)' }}>
-            {activeCategory !== 'all' ? activeCategory : 'Tous nos produits'}
-          </h1>
-          <p style={{ fontSize: 14, color: 'var(--s-text2)', margin: 0 }}>
-            {filtered.length} article{filtered.length !== 1 ? 's' : ''} disponible{filtered.length !== 1 ? 's' : ''}
-          </p>
+      <div className="store-products-shell">
+        <div style={{ marginBottom: 28, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--s-text2)' }}>
+            Accueil / Produits
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <h1 style={{ fontSize: 'clamp(32px, 5vw, 52px)', fontWeight: 900, color: 'var(--s-text)', margin: 0, letterSpacing: '-0.04em', lineHeight: 0.98, fontFamily: 'var(--s-font)' }}>
+              Tous nos produits
+            </h1>
+            <p style={{ fontSize: 15, color: 'var(--s-text2)', margin: 0, maxWidth: 760 }}>
+              Une vraie page collection e-commerce avec filtres, tri et grille produit plus proche d'une boutique Shopify.
+            </p>
+          </div>
         </div>
 
-        {/* Catalog category cards */}
-        {categories.length > 0 && (
-          <div style={{ marginBottom: 28 }}>
-            <style>{`
-              .catalog-cards { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: none; -ms-overflow-style: none; }
-              .catalog-cards::-webkit-scrollbar { display: none; }
-              .catalog-card { flex-shrink: 0; cursor: pointer; transition: all 0.2s ease; border: none; font-family: var(--s-font); text-align: left; }
-              .catalog-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); }
-              .catalog-card:active { transform: scale(0.97); }
-            `}</style>
-            <div className="catalog-cards">
-              <button
-                className="catalog-card"
-                onClick={() => setActiveCategory('all')}
-                style={{
-                  padding: '12px 20px', borderRadius: 14,
-                  backgroundColor: activeCategory === 'all' ? 'var(--s-primary)' : '#fff',
-                  color: activeCategory === 'all' ? '#fff' : 'var(--s-text)',
-                  border: `1.5px solid ${activeCategory === 'all' ? 'var(--s-primary)' : '#E5E7EB'}`,
-                  fontWeight: 700, fontSize: 13, minWidth: 80,
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                }}
-              >
-                <Package size={18} style={{ opacity: 0.8 }} />
-                <span>Tout</span>
-                <span style={{ fontSize: 11, opacity: 0.7, fontWeight: 500 }}>{products.length}</span>
-              </button>
-              {categories.map(cat => {
-                const catProducts = products.filter(p => p.category === cat);
-                const catImage = catProducts.find(p => p.image)?.image;
-                const isActive = activeCategory === cat;
-                return (
+        <div className="store-collection-layout">
+          <aside className={`store-filter-sticky ${mobileFiltersOpen ? 'is-open' : ''}`}>
+            <div className="store-filter-panel">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--s-text2)' }}>Filtres</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--s-text)', marginTop: 4 }}>Collection</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileFiltersOpen(false)}
+                  style={{ display: mobileFiltersOpen ? 'inline-flex' : 'none', border: 'none', background: 'transparent', color: 'var(--s-text2)', cursor: 'pointer' }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--s-text)', marginBottom: 8 }}>Recherche</div>
+                <input
+                  type="text"
+                  placeholder="Rechercher un produit"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="store-search-input"
+                  style={{ width: '100%', padding: '13px 14px', borderRadius: 14, border: '1px solid #E5E7EB', fontSize: 14, fontFamily: 'var(--s-font)', color: 'var(--s-text)', backgroundColor: '#fff', outline: 'none' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--s-text)', marginBottom: 8 }}>Catégories</div>
+                <div className="store-filter-list">
                   <button
-                    key={cat}
-                    className="catalog-card"
-                    onClick={() => setActiveCategory(isActive ? 'all' : cat)}
-                    style={{
-                      padding: 0, borderRadius: 14, overflow: 'hidden',
-                      backgroundColor: '#fff',
-                      border: `2px solid ${isActive ? 'var(--s-primary)' : '#E5E7EB'}`,
-                      minWidth: 120, width: 120, position: 'relative',
-                    }}
+                    type="button"
+                    className={`store-filter-item ${activeCategory === 'all' ? 'active' : ''}`}
+                    onClick={() => setActiveCategory('all')}
                   >
-                    <div style={{
-                      height: 64, width: '100%',
-                      backgroundColor: catImage ? undefined : `color-mix(in srgb, var(--s-primary) 12%, white)`,
-                      backgroundImage: catImage ? `url(${catImage})` : undefined,
-                      backgroundSize: 'cover', backgroundPosition: 'center',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      {!catImage && <Package size={20} color="var(--s-primary)" style={{ opacity: 0.4 }} />}
-                      {isActive && (
-                        <div style={{
-                          position: 'absolute', top: 0, left: 0, right: 0, height: 64,
-                          backgroundColor: 'rgba(0,0,0,0.3)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          <Check size={20} color="#fff" strokeWidth={3} />
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ padding: '8px 10px' }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: isActive ? 'var(--s-primary)' : 'var(--s-text)', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {cat}
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--s-text2)', marginTop: 2 }}>
-                        {catProducts.length} article{catProducts.length !== 1 ? 's' : ''}
-                      </div>
-                    </div>
+                    <span>Tous les produits</span>
+                    <span>{products.length}</span>
                   </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+                  {categories.map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      className={`store-filter-item ${activeCategory === cat ? 'active' : ''}`}
+                      onClick={() => setActiveCategory(cat)}
+                    >
+                      <span>{cat}</span>
+                      <span>{categoryCountMap[cat] || 0}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-        {/* Search bar */}
-        <div style={{ marginBottom: 24 }}>
-          <input
-            type="text" placeholder="Rechercher un produit..." value={search} onChange={e => setSearch(e.target.value)}
-            style={{ width: '100%', maxWidth: 400, padding: '11px 16px', borderRadius: 40, border: '1.5px solid var(--s-border)', fontSize: 14, fontFamily: 'var(--s-font)', color: 'var(--s-text)', backgroundColor: 'var(--s-bg)', outline: 'none' }}
-          />
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--s-text)', marginBottom: 8 }}>Disponibilité</div>
+                <div className="store-filter-list">
+                  {[
+                    { value: 'all', label: 'Tout afficher' },
+                    { value: 'in-stock', label: 'En stock' },
+                    { value: 'out-of-stock', label: 'Rupture' },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`store-filter-item ${availability === option.value ? 'active' : ''}`}
+                      onClick={() => setAvailability(option.value)}
+                    >
+                      <span>{option.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--s-text)', marginBottom: 8 }}>Prix</div>
+                <div className="store-filter-list">
+                  {priceRanges.map((range) => (
+                    <button
+                      key={range.value}
+                      type="button"
+                      className={`store-filter-item ${priceRange === range.value ? 'active' : ''}`}
+                      onClick={() => setPriceRange(range.value)}
+                    >
+                      <span>{range.label}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="store-filter-note" style={{ marginTop: 10 }}>
+                  Fourchette actuelle: {fmt(minAvailablePrice, store?.currency || 'XAF')} - {fmt(maxAvailablePrice, store?.currency || 'XAF')}
+                </div>
+              </div>
+
+              <div style={{ padding: 14, borderRadius: 16, background: 'linear-gradient(180deg, color-mix(in srgb, var(--s-primary) 8%, white), #fff)' }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--s-text)', marginBottom: 6 }}>Pourquoi acheter ici</div>
+                <div style={{ display: 'grid', gap: 8, fontSize: 13, color: 'var(--s-text2)' }}>
+                  <div>Paiement flexible</div>
+                  <div>Livraison suivie</div>
+                  <div>Support boutique disponible</div>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <section>
+            <div className="store-toolbar" style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--s-text)' }}>
+                  {sortedProducts.length} article{sortedProducts.length !== 1 ? 's' : ''}
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--s-text2)' }}>
+                  {activeCategory === 'all' ? 'Toute la collection' : activeCategory}
+                </div>
+                {(availability !== 'all' || priceRange !== 'all' || search) && (
+                  <div style={{ fontSize: 12, color: 'var(--s-text2)' }}>
+                    {availability === 'in-stock' ? 'En stock uniquement' : availability === 'out-of-stock' ? 'Produits en rupture' : 'Tous statuts'}
+                    {priceRange !== 'all' ? ` · ${activePriceFilter.label}` : ''}
+                    {search ? ` · Recherche: ${search}` : ''}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setMobileFiltersOpen((value) => !value)}
+                  style={{ padding: '11px 14px', borderRadius: 12, border: '1px solid #E5E7EB', backgroundColor: '#fff', color: 'var(--s-text)', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                >
+                  <Menu size={16} />
+                  Filtres
+                </button>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  style={{ padding: '11px 14px', borderRadius: 12, border: '1px solid #E5E7EB', backgroundColor: '#fff', color: 'var(--s-text)', fontSize: 14, fontWeight: 600, outline: 'none', minWidth: 190 }}
+                >
+                  <option value="featured">Mis en avant</option>
+                  <option value="price-asc">Prix croissant</option>
+                  <option value="price-desc">Prix décroissant</option>
+                  <option value="name-asc">Nom A-Z</option>
+                  <option value="name-desc">Nom Z-A</option>
+                </select>
+                {(activeCategory !== 'all' || availability !== 'all' || priceRange !== 'all' || search) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveCategory('all');
+                      setAvailability('all');
+                      setPriceRange('all');
+                      setSearch('');
+                    }}
+                    style={{ padding: '11px 14px', borderRadius: 12, border: '1px solid #E5E7EB', backgroundColor: '#fff', color: 'var(--s-text2)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Réinitialiser
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {sortedProducts.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '80px 20px' }}>
+                <ShoppingBag size={48} style={{ color: '#D1D5DB', marginBottom: 16 }} />
+                <p style={{ fontSize: 16, color: 'var(--s-text2)' }}>Aucun produit trouvé.</p>
+                {(activeCategory !== 'all' || search) && (
+                  <button onClick={() => { setActiveCategory('all'); setSearch(''); }} style={{
+                    marginTop: 12, padding: '10px 24px', borderRadius: 40, border: 'none',
+                    backgroundColor: 'var(--s-primary)', color: '#fff', fontSize: 14,
+                    fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--s-font)',
+                  }}>Réinitialiser</button>
+                )}
+              </div>
+            ) : (
+              <div className="store-products-grid">
+                {sortedProducts.map((p) => (
+                  <CollectionProductCard key={p._id} product={p} prefix={prefix} store={store} subdomain={store?.subdomain} />
+                ))}
+              </div>
+            )}
+          </section>
         </div>
 
-        {/* Product grid */}
-        {filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-            <ShoppingBag size={48} style={{ color: '#D1D5DB', marginBottom: 16 }} />
-            <p style={{ fontSize: 16, color: 'var(--s-text2)' }}>Aucun produit trouvé.</p>
-            {activeCategory !== 'all' && (
-              <button onClick={() => setActiveCategory('all')} style={{
-                marginTop: 12, padding: '10px 24px', borderRadius: 40, border: 'none',
-                backgroundColor: 'var(--s-primary)', color: '#fff', fontSize: 14,
-                fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--s-font)',
-              }}>Voir tous les produits</button>
-            )}
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16 }}>
-            {filtered.map(p => <MemoizedProductCard key={p._id} product={p} prefix={prefix} store={store} subdomain={store?.subdomain} />)}
-          </div>
-        )}
       </div>
       <SharedStorefrontFooter store={store} prefix={prefix} footer={footer} />
     </div>

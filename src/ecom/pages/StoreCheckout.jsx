@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, ShoppingCart, CheckCircle, AlertCircle, Loader2, User, Phone, MapPin, FileText, Truck, Package, ChevronDown } from 'lucide-react';
-import { PHONE_CODES, getDefaultPhoneCodeFromConfig, buildFullPhone } from '../utils/phoneCodes.js';
+import { PHONE_CODES, getDefaultPhoneCodeFromConfig, getPhoneCodeByCountryName, buildFullPhone } from '../utils/phoneCodes.js';
 import { publicStoreApi } from '../services/storeApi.js';
 import { useSubdomain } from '../hooks/useSubdomain.js';
 import { setDocumentMeta } from '../utils/pageMeta';
@@ -186,6 +186,13 @@ const StoreCheckout = () => {
     })();
   }, [subdomain, cartProducts]);
 
+  useEffect(() => {
+    const nextPhoneCode = getPhoneCodeByCountryName(form.country);
+    if (nextPhoneCode && nextPhoneCode !== phoneCode) {
+      setPhoneCode(nextPhoneCode);
+    }
+  }, [form.country, phoneCode]);
+
   // Redirect if no products
   useEffect(() => {
     if (!loading && cartProducts.length === 0) {
@@ -304,7 +311,8 @@ const StoreCheckout = () => {
 
   // Order confirmation screen
   if (orderResult) {
-    const whatsappMsg = `Bonjour ! 👋\n\nJe viens de passer une commande sur votre boutique.\n\n📦 *Commande N° ${orderResult.orderNumber}*\n💰 *Montant : ${formatPrice(orderResult.total, orderResult.currency)}*\n\n👤 Nom : ${form.customerName}\n📞 Téléphone : ${form.phone}${form.country ? `\n🌍 Pays : ${form.country}` : ''}${form.city ? `\n📍 Ville : ${form.city}` : ''}${form.address ? `\nAdresse : ${form.address}` : ''}${form.notes ? `\n📝 Notes : ${form.notes}` : ''}${deliveryStatus.type === 'livraison' ? '\n🚚 Mode : Livraison (paiement à la réception)' : deliveryStatus.type === 'expedition' ? '\n📦 Mode : Expédition (paiement avant envoi)' : ''}\n\nMerci de confirmer ma commande ! 🙏`;
+    const displayPhone = buildFullPhone(phoneCode, form.phone);
+    const whatsappMsg = `Bonjour ! 👋\n\nJe viens de passer une commande sur votre boutique.\n\n📦 *Commande N° ${orderResult.orderNumber}*\n💰 *Montant : ${formatPrice(orderResult.total, orderResult.currency)}*\n\n👤 Nom : ${form.customerName}\n📞 Téléphone : ${displayPhone}${form.country ? `\n🌍 Pays : ${form.country}` : ''}${form.city ? `\n📍 Ville : ${form.city}` : ''}${form.address ? `\nAdresse : ${form.address}` : ''}${form.notes ? `\n📝 Notes : ${form.notes}` : ''}${deliveryStatus.type === 'livraison' ? '\n🚚 Mode : Livraison (paiement à la réception)' : deliveryStatus.type === 'expedition' ? '\n📦 Mode : Expédition (paiement avant envoi)' : ''}\n\nMerci de confirmer ma commande ! 🙏`;
 
     const storeWhatsapp = (store?.whatsapp || store?.phone || '').replace(/[^0-9+]/g, '');
     const whatsappLink = storeWhatsapp
