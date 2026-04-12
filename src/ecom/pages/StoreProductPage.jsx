@@ -1087,7 +1087,6 @@ const buildAiGalleryImages = (product) => {
   const seen = new Set();
   const gallery = [];
   const nativeProductImages = Array.isArray(product?.images) ? product.images : [];
-  const hasNativeProductImages = nativeProductImages.length > 0;
   const pushImage = (entry, fallbackAlt = '') => {
     if (!entry) return;
     const rawUrl = typeof entry === 'string' ? entry : entry.url;
@@ -1097,32 +1096,16 @@ const buildAiGalleryImages = (product) => {
   };
 
   const pageData = product?._pageData || {};
-  // Les images natives du produit sont la source de vérité après modification manuelle.
-  // On n'injecte les anciens visuels hero/poster IA que s'il n'existe encore aucune image produit.
-  if (!hasNativeProductImages) {
-    // Hero image en premier — c'est l'image principale du produit
+  // Source de vérité unique: les images du produit dans l'ordre choisi par l'utilisateur.
+  nativeProductImages.forEach((image, index) => {
+    pushImage(image, index === 0 ? (product?.name || 'Image hero') : `${product?.name || 'Produit'} — image ${index + 1}`);
+  });
+
+  // Fallback minimal pour les anciens produits sans images natives.
+  if (!gallery.length) {
     pushImage(pageData.heroImage, product?.name || 'Hero image');
-    // Affiche hero graphique (poster)
     pushImage(pageData.heroPosterImage, product?.name || 'Affiche produit');
   }
-  // Before/After images (array ou single pour backward compat)
-  (pageData.beforeAfterImages?.length ? pageData.beforeAfterImages : (pageData.beforeAfterImage ? [pageData.beforeAfterImage] : [])).forEach((photo, index) => {
-    pushImage(photo, `${product?.name || 'Produit'} — avant/après ${index + 1}`);
-  });
-  // Angles/affiches marketing ensuite
-  (pageData.angles || []).forEach((angle, index) => {
-    pushImage(angle?.poster_url, angle?.titre_angle || `${product?.name || 'Produit'} ${index + 1}`);
-  });
-  // Photos lifestyle "personne tenant le produit" après les angles
-  (pageData.peoplePhotos || []).forEach((photo, index) => {
-    pushImage(photo, `${product?.name || 'Produit'} — client ${index + 1}`);
-  });
-  // Photos réelles uploadées par l'utilisateur
-  (pageData.realPhotos || []).forEach((photo, index) => {
-    pushImage(photo, `${product?.name || 'Produit'} — photo ${index + 1}`);
-  });
-  // Images originales uploadées en dernier
-  nativeProductImages.forEach((image) => pushImage(image, product?.name || 'Produit'));
 
   return gallery;
 };
@@ -2258,7 +2241,7 @@ const StoreProductPage = () => {
             : product?.testimonials?.length > 0
               ? product.testimonials
               : getDefaultTestimonials(product?.country || store?.country);
-        const prodImg = product?._pageData?.heroImage || product?.images?.[0]?.url || product?.images?.[0] || null;
+        const prodImg = product?.images?.[0]?.url || product?.images?.[0] || product?._pageData?.heroImage || null;
         const groupImg = product?._pageData?.testimonialsGroupImage || null;
         const socialImg = product?._pageData?.testimonialsSocialProofImage || null;
         return (

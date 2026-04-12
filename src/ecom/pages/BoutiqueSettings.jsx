@@ -445,6 +445,35 @@ const BoutiqueSettings = () => {
                   </div>
                 </Field>
               </div>
+
+              <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4 space-y-4">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Barre d'annonce</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Affichée en haut de la boutique, y compris sur les pages produit quand elle est activée.</p>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => set('announcementEnabled', !form.announcementEnabled)}
+                      className={`relative w-11 h-6 rounded-full transition-colors ${form.announcementEnabled ? 'bg-[#0F6B4F]' : 'bg-gray-300'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.announcementEnabled ? 'translate-x-5' : ''}`} />
+                    </button>
+                    <span className="text-sm text-gray-600">{form.announcementEnabled ? 'Activée' : 'Désactivée'}</span>
+                  </div>
+                </div>
+
+                <Field label="Texte de l'annonce" hint="Ex: Livraison rapide · Paiement à la livraison · Retours faciles">
+                  <input
+                    type="text"
+                    value={form.announcement}
+                    onChange={(e) => set('announcement', e.target.value)}
+                    placeholder="Livraison rapide · Paiement à la livraison · Retours faciles"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 focus:ring-2 focus:ring-[#0F6B4F] focus:border-transparent outline-none transition"
+                  />
+                </Field>
+              </div>
             </div>
           </Section>
 
