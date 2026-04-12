@@ -177,19 +177,50 @@ const ItemsEditor = ({ items = [], onChange, renderItem, newItem, label = 'Élé
 // SECTION CARD
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const SectionCard = ({ section, index, total, onMove, onToggle, onEdit, onDelete, isActive, onSelect }) => {
+const SectionCard = ({
+  section,
+  index,
+  total,
+  onMove,
+  onToggle,
+  onEdit,
+  onDelete,
+  isActive,
+  onSelect,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  isDragging,
+  isDragOver,
+}) => {
   const typeInfo = SECTION_TYPES[section.type] || SECTION_TYPES.custom;
   const itemCount = section.config?.items?.length;
   
   return (
     <div
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.effectAllowed = 'move';
+        onDragStart?.(section.id);
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        onDragOver?.(section.id);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        onDrop?.(section.id);
+      }}
+      onDragEnd={onDragEnd}
       className={`group bg-white rounded-xl border-2 transition-all cursor-pointer ${
         isActive
           ? 'border-[#0F6B4F] shadow-md shadow-[#0F6B4F]/10'
           : section.visible !== false
             ? 'border-gray-200 hover:border-[#4D9F82]'
             : 'border-gray-100 opacity-60'
-      }`}
+      } ${isDragging ? 'opacity-50 scale-[0.99]' : ''} ${isDragOver ? 'ring-2 ring-[#0F6B4F] ring-offset-1' : ''}`}
       onClick={() => onSelect?.(section)}
     >
       <div className="flex items-center gap-3 px-4 py-3">
@@ -239,6 +270,10 @@ const SectionCard = ({ section, index, total, onMove, onToggle, onEdit, onDelete
             section.visible !== false ? 'translate-x-5' : ''
           }`} />
         </button>
+
+        <svg className="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
       </div>
     </div>
   );
@@ -656,10 +691,13 @@ const BoutiquePages = () => {
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
   const [activeSection, setActiveSection] = useState(null);
-  const [showAddModal, setShowAddModal] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [previewDevice, setPreviewDevice] = useState('desktop');
   const [iframeKey, setIframeKey] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarMode, setSidebarMode] = useState('sections');
+  const [dragFromId, setDragFromId] = useState(null);
+  const [dragOverId, setDragOverId] = useState(null);
   const saveTimer = useRef(null);
 
   // Load sections
@@ -707,6 +745,21 @@ const BoutiquePages = () => {
     }, 450);
   }, []);
 
+  const openEditor = useCallback((section) => {
+    setActiveSection(section);
+    setSidebarMode('editor');
+    setSidebarOpen(true);
+  }, []);
+
+  const openLibrary = useCallback(() => {
+    setSidebarMode('library');
+    setSidebarOpen(true);
+  }, []);
+
+  const backToSections = useCallback(() => {
+    setSidebarMode('sections');
+  }, []);
+
   // Move section
   const handleMove = useCallback((index, direction) => {
     setSections(prev => {
@@ -749,10 +802,46 @@ const BoutiquePages = () => {
       autoSave(next);
       if (activeSection?.id === id) {
         setActiveSection(next[0] || null);
+        setSidebarMode(next[0] ? 'editor' : 'sections');
       }
       return next;
     });
   }, [activeSection?.id, autoSave]);
+
+  const handleDragDrop = useCallback((fromId, toId) => {
+    if (!fromId || !toId || fromId === toId) return;
+    setSections((prev) => {
+      const fromIndex = prev.findIndex((section) => section.id === fromId);
+      const toIndex = prev.findIndex((section) => section.id === toId);
+      if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      autoSave(next);
+      return next;
+    });
+  }, [autoSave]);
+
+  const handleDragStart = useCallback((id) => {
+    setDragFromId(id);
+  }, []);
+
+  const handleDragOver = useCallback((id) => {
+    if (id !== dragFromId) {
+      setDragOverId(id);
+    }
+  }, [dragFromId]);
+
+  const handleDragEnd = useCallback(() => {
+    setDragFromId(null);
+    setDragOverId(null);
+  }, []);
+
+  const handleDrop = useCallback((toId) => {
+    handleDragDrop(dragFromId, toId);
+    setDragFromId(null);
+    setDragOverId(null);
+  }, [dragFromId, handleDragDrop]);
 
   // Add section with proper defaults
   const handleAdd = useCallback((type) => {
@@ -787,6 +876,8 @@ const BoutiquePages = () => {
       return next;
     });
     setActiveSection(newSection);
+    setSidebarMode('editor');
+    setSidebarOpen(true);
   }, [autoSave]);
 
   // Save
@@ -843,13 +934,50 @@ const BoutiquePages = () => {
 
   return (
     <div className="p-4 lg:p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Page Builder Accueil</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Construisez votre page d'accueil avec un vrai builder et un aperçu live</p>
-        </div>
-        <div className="flex gap-2">
+      <div className="flex flex-col gap-4 rounded-[28px] border border-gray-200 bg-white p-4 shadow-sm lg:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-3">
+            <button
+              onClick={() => setSidebarOpen((current) => !current)}
+              className="mt-0.5 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-gray-600 transition hover:bg-gray-50"
+              title={sidebarOpen ? 'Fermer le panneau' : 'Ouvrir le panneau'}
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={sidebarOpen ? 'M15 19l-7-7 7-7' : 'M9 5l7 7-7 7'} />
+              </svg>
+            </button>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Homepage Builder</h1>
+              <p className="text-sm text-gray-500 mt-0.5">Mode Shopify: sidebar repliable, édition structurée et aperçu boutique en direct.</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center bg-gray-100 rounded-xl p-1">
+              {['desktop', 'tablet', 'mobile'].map((device) => (
+                <button
+                  key={device}
+                  onClick={() => setPreviewDevice(device)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${previewDevice === device ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  {device === 'desktop' ? 'Desktop' : device === 'tablet' ? 'Tablette' : 'Mobile'}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setIframeKey((current) => current + 1)}
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
+            >
+              Recharger
+            </button>
+            <button
+              onClick={openLibrary}
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold text-[#0F6B4F] bg-[#E6F2ED] hover:bg-[#D1E8DC] transition"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Ajouter une section
+            </button>
           {storeUrl && (
             <a
               href={storeUrl}
@@ -891,8 +1019,8 @@ const BoutiquePages = () => {
           </button>
         </div>
       </div>
+      </div>
 
-      {/* Store URL banner */}
       {storeUrl && (
         <div className="bg-gradient-to-r from-[#0F6B4F] to-[#0A5740] rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="text-white text-center sm:text-left">
@@ -928,116 +1056,202 @@ const BoutiquePages = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <p className="text-xs text-[#0A5740]">
-          <strong>Builder homepage</strong> : sélectionnez une section, modifiez-la à droite et visualisez le rendu de votre boutique en direct.
+          <strong>Builder homepage</strong> : glissez-déposez l'ordre des sections dans le panneau, éditez chaque bloc dans le sidebar et fermez le panneau pour travailler en plein aperçu.
         </p>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[320px_minmax(360px,460px)_minmax(420px,1fr)]">
-        <div className="space-y-4">
-          <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-4 sticky top-[88px]">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold text-gray-900">Sections</p>
-                <p className="text-xs text-gray-400">{sections.length} blocs sur la page d'accueil</p>
-              </div>
+      <div className="overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-sm">
+        <div className="flex min-h-[760px] bg-gray-50">
+          {sidebarOpen && (
+            <aside className="w-full max-w-[360px] flex-shrink-0 border-r border-gray-200 bg-white flex flex-col">
+              {sidebarMode === 'editor' && activeSection ? (
+                <>
+                  <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 bg-gray-50">
+                    <button
+                      onClick={backToSections}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 transition"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Sections
+                    </button>
+                    <p className="text-xs font-bold text-gray-800 truncate">{SECTION_TYPES[activeSection.type]?.label || 'Section'}</p>
+                    <button
+                      onClick={() => setSidebarOpen(false)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-gray-200 transition"
+                    >
+                      <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 12H5" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="flex-1 min-h-0 p-3">
+                    <SectionEditor
+                      section={activeSection}
+                      onSave={handleUpdate}
+                      inline
+                      onClose={backToSections}
+                    />
+                  </div>
+                </>
+              ) : sidebarMode === 'library' ? (
+                <>
+                  <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 bg-gray-50">
+                    <button
+                      onClick={backToSections}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 transition"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Retour
+                    </button>
+                    <p className="text-xs font-bold text-gray-800">Bibliothèque de sections</p>
+                    <button
+                      onClick={() => setSidebarOpen(false)}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-gray-200 transition"
+                    >
+                      <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 12H5" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-4">
+                    <div className="grid grid-cols-1 gap-2.5">
+                      {Object.entries(SECTION_TYPES).map(([type, info]) => (
+                        <button
+                          key={type}
+                          onClick={() => handleAdd(type)}
+                          className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-left transition hover:border-[#4D9F82] hover:shadow-sm ${info.color}`}
+                        >
+                          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/80">{info.icon}</span>
+                          <span className="text-sm font-semibold">{info.label}</span>
+                          <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 bg-gray-50">
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">Sections</p>
+                      <p className="text-xs text-gray-400">{sections.length} blocs sur la page d'accueil</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={openLibrary}
+                        className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold text-[#0F6B4F] bg-[#E6F2ED] hover:bg-[#D1E8DC] transition"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Ajouter
+                      </button>
+                      <button
+                        onClick={() => setSidebarOpen(false)}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-gray-200 transition"
+                      >
+                        <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 12H5" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                    {sections.length === 0 ? (
+                      <div className="text-center py-10 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+                        <p className="text-gray-500 mb-4">Aucune section configurée</p>
+                        <div className="flex justify-center gap-2">
+                          <button
+                            onClick={openLibrary}
+                            className="px-4 py-2.5 bg-[#0F6B4F] text-white rounded-xl font-semibold hover:bg-[#0A5740] transition"
+                          >
+                            Ajouter une section
+                          </button>
+                          <button
+                            onClick={handleRegenerate}
+                            disabled={regenerating}
+                            className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition"
+                          >
+                            {regenerating ? 'Génération...' : 'Générer IA'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      sections.map((section, idx) => (
+                        <SectionCard
+                          key={section.id}
+                          section={section}
+                          index={idx}
+                          total={sections.length}
+                          onMove={handleMove}
+                          onToggle={handleToggle}
+                          onEdit={openEditor}
+                          onDelete={handleDelete}
+                          isActive={activeSection?.id === section.id}
+                          onSelect={openEditor}
+                          onDragStart={handleDragStart}
+                          onDragOver={handleDragOver}
+                          onDrop={handleDrop}
+                          onDragEnd={handleDragEnd}
+                          isDragging={dragFromId === section.id}
+                          isDragOver={dragOverId === section.id && dragFromId !== section.id}
+                        />
+                      ))
+                    )}
+                  </div>
+                </>
+              )}
+            </aside>
+          )}
+
+          <div className="flex-1 min-w-0 bg-[#e8eaed] p-3 lg:p-4 overflow-hidden relative">
+            {!sidebarOpen && (
               <button
-                onClick={() => setShowAddModal(true)}
-                className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold text-[#0F6B4F] bg-[#E6F2ED] hover:bg-[#D1E8DC] transition"
+                onClick={() => setSidebarOpen(true)}
+                className="absolute left-4 top-4 z-10 inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
-                Ajouter
+                Ouvrir le panneau
               </button>
-            </div>
-
-            {sections.length === 0 ? (
-              <div className="text-center py-10 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
-                <p className="text-gray-500 mb-4">Aucune section configurée</p>
-                <button
-                  onClick={handleRegenerate}
-                  disabled={regenerating}
-                  className="px-5 py-2.5 bg-[#0F6B4F] text-white rounded-xl font-semibold hover:bg-[#0A5740] transition"
-                >
-                  {regenerating ? 'Génération...' : 'Générer avec l\'IA'}
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
-                {sections.map((section, idx) => (
-                  <SectionCard
-                    key={section.id}
-                    section={section}
-                    index={idx}
-                    total={sections.length}
-                    onMove={handleMove}
-                    onToggle={handleToggle}
-                    onEdit={setActiveSection}
-                    onDelete={handleDelete}
-                    isActive={activeSection?.id === section.id}
-                    onSelect={setActiveSection}
-                  />
-                ))}
-              </div>
             )}
-          </div>
-        </div>
 
-        <div className="min-h-[720px]">
-          {activeSection ? (
-            <SectionEditor
-              section={activeSection}
-              onSave={handleUpdate}
-              inline
-            />
-          ) : (
-            <div className="bg-white rounded-2xl border border-gray-200 p-10 text-center text-gray-400 h-full flex items-center justify-center">
-              Sélectionnez une section pour modifier son contenu.
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-4">
-          <div className="bg-white rounded-2xl border border-gray-200 p-4 sticky top-[88px] space-y-4">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div>
-                <p className="text-sm font-bold text-gray-900">Aperçu live</p>
-                <p className="text-xs text-gray-400">Rendu réel de votre homepage boutique</p>
-              </div>
-              <div className="flex items-center gap-2">
-                {['desktop', 'tablet', 'mobile'].map((device) => (
-                  <button
-                    key={device}
-                    onClick={() => setPreviewDevice(device)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${previewDevice === device ? 'bg-[#0F6B4F] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                  >
-                    {device === 'desktop' ? 'Desktop' : device === 'tablet' ? 'Tablette' : 'Mobile'}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setIframeKey((current) => current + 1)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
-                >
-                  Recharger
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-gray-100 rounded-[28px] p-3 overflow-auto">
-              {storeUrl ? (
-                <div className={`${previewDevice === 'desktop' ? '' : 'flex justify-center'} min-w-full`}>
-                  <iframe
-                    key={iframeKey}
-                    src={`${storeUrl}${storeUrl.includes('?') ? '&' : '?'}builderPreview=${iframeKey}`}
-                    title="Aperçu boutique"
-                    className={`${previewFrameClass} rounded-[20px] border border-gray-200 bg-white`}
-                  />
+            <div className="h-full rounded-[26px] bg-white shadow-xl overflow-hidden border border-gray-200 flex flex-col">
+              <div className="h-10 bg-gray-100 border-b border-gray-200 flex items-center px-3 gap-2 select-none shrink-0">
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
                 </div>
-              ) : (
-                <div className="h-[640px] flex items-center justify-center text-sm text-gray-400 bg-white rounded-[20px] border border-gray-200">
-                  L'aperçu sera disponible dès qu'un sous-domaine sera configuré.
+                <div className="flex-1 bg-white rounded px-2 py-1 text-[10px] text-gray-400 font-mono border border-gray-200 truncate">
+                  {storeUrl ? `${storeUrl}${storeUrl.includes('?') ? '&' : '?'}builderPreview=${iframeKey}` : 'Aperçu indisponible'}
                 </div>
-              )}
+              </div>
+
+              <div className="flex-1 bg-[#f3f4f6] overflow-auto p-3">
+                {storeUrl ? (
+                  <div className={`${previewDevice === 'desktop' ? 'h-full' : 'flex justify-center'} min-w-full`}>
+                    <iframe
+                      key={iframeKey}
+                      src={`${storeUrl}${storeUrl.includes('?') ? '&' : '?'}builderPreview=${iframeKey}`}
+                      title="Aperçu boutique"
+                      className={`${previewFrameClass} rounded-[20px] border border-gray-200 bg-white shadow-sm`}
+                    />
+                  </div>
+                ) : (
+                  <div className="h-full min-h-[640px] flex items-center justify-center text-sm text-gray-400 bg-white rounded-[20px] border border-gray-200">
+                    L'aperçu sera disponible dès qu'un sous-domaine sera configuré.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1075,21 +1289,6 @@ const BoutiquePages = () => {
         </Link>
       </div>
 
-      {/* Modals */}
-      {false && activeSection && (
-        <SectionEditor
-          section={activeSection}
-          onSave={handleUpdate}
-          onClose={() => setActiveSection(null)}
-        />
-      )}
-
-      {showAddModal && (
-        <AddSectionModal
-          onAdd={handleAdd}
-          onClose={() => setShowAddModal(false)}
-        />
-      )}
     </div>
   );
 };

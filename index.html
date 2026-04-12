@@ -158,12 +158,40 @@
   <script>
     // Defer SW registration to after page is interactive (doesn't compete with main bundle)
     if ('serviceWorker' in navigator) {
+      var _swRefreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function() {
+        if (_swRefreshing) return;
+        _swRefreshing = true;
+        window.location.reload();
+      });
+
+      var _registerSW = function() {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          registrations.forEach(function(registration) {
+            var scriptUrl = registration.active && registration.active.scriptURL
+              || registration.waiting && registration.waiting.scriptURL
+              || registration.installing && registration.installing.scriptURL
+              || '';
+            if (scriptUrl.indexOf('/sw-optimized.js') !== -1) {
+              registration.unregister().catch(function(){});
+            }
+          });
+        }).catch(function(){});
+
+        navigator.serviceWorker.register('/sw.js').then(function(registration) {
+          registration.update().catch(function(){});
+          if (registration.waiting) {
+            registration.waiting.postMessage({ type: 'skip-waiting' });
+          }
+        }).catch(function(){});
+      };
+
       var _swTimer = setTimeout(function() {
-        navigator.serviceWorker.register('/sw.js').catch(function(){});
+        _registerSW();
       }, 3000);
       window.addEventListener('load', function() {
         clearTimeout(_swTimer);
-        navigator.serviceWorker.register('/sw.js').catch(function(){});
+        _registerSW();
       });
     }
   </script>
