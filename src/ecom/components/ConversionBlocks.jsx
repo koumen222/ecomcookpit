@@ -36,55 +36,37 @@ export default function ConversionBlocks({ blocks = null, compact = false }) {
 
   return (
     <div style={{
-      display: 'grid',
-      gridTemplateColumns: compact ? 'repeat(2, minmax(0, 1fr))' : 'repeat(auto-fit, minmax(140px, 1fr))',
-      gap: compact ? 8 : 12,
-      marginTop: compact ? 10 : 24,
-      marginBottom: compact ? 12 : 24,
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: compact ? 6 : 8,
+      marginTop: compact ? 10 : 16,
+      marginBottom: compact ? 12 : 16,
     }}>
       {displayBlocks.map((block, index) => (
         <div
           key={index}
           style={{
             display: 'flex',
-            flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'center',
-            padding: compact ? '10px 8px' : '16px 12px',
-            backgroundColor: 'var(--ai-surface, #fff)',
-            border: '2px solid var(--ai-primary, var(--s-primary))',
-            borderRadius: compact ? 10 : 12,
-            textAlign: 'center',
-            transition: 'all 0.2s',
-            boxShadow: 'var(--ai-shadow, none)',
+            gap: 6,
+            padding: compact ? '6px 10px' : '8px 14px',
+            backgroundColor: 'var(--s-bg, #fff)',
+            border: '1px solid var(--s-border, #e5e7eb)',
+            borderRadius: 999,
+            whiteSpace: 'nowrap',
           }}
-          className="conversion-block"
         >
+          <BlockIcon icon={block.icon} color="var(--s-primary, #16a34a)" />
           <span style={{
-            marginBottom: compact ? 4 : 6,
-            lineHeight: 1,
-          }}>
-            <BlockIcon icon={block.icon} color="var(--ai-primary, var(--s-primary))" />
-          </span>
-          <p style={{
-            fontSize: compact ? 11.5 : 13,
-            fontWeight: 700,
+            fontSize: compact ? 11.5 : 12.5,
+            fontWeight: 600,
             color: 'var(--s-text)',
-            margin: 0,
             fontFamily: 'var(--s-font)',
-            lineHeight: compact ? 1.2 : 1.3,
           }}>
             {block.text}
-          </p>
+          </span>
         </div>
       ))}
-
-      <style>{`
-        .conversion-block:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-      `}</style>
     </div>
   );
 }

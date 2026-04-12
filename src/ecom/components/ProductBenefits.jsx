@@ -9,12 +9,9 @@ export default function ProductBenefits({ benefits = [], title = "💥 Les bén�
 
   return (
     <div style={{
-      background: 'var(--ai-soft-gradient, var(--s-bg))',
       borderRadius: compact ? 14 : 16,
       padding: compact ? '10px 10px' : '24px 20px',
       marginBottom: compact ? 12 : 24,
-      border: '1px solid var(--ai-soft-border, var(--s-border))',
-      boxShadow: 'var(--ai-shadow, none)',
     }}>
       {title ? (
         <h3 style={{
@@ -47,26 +44,26 @@ export default function ProductBenefits({ benefits = [], title = "💥 Les bén�
                 alignItems: 'flex-start',
                 gap: compact ? 10 : 12,
                 padding: compact ? '8px 10px' : '14px 16px',
-                backgroundColor: 'var(--ai-surface, #fff)',
+                backgroundColor: 'var(--s-bg, #fff)',
                 borderRadius: compact ? 10 : 12,
-                border: '1px solid var(--ai-soft-border, var(--s-border))',
+                border: '1px solid var(--s-border, #e5e7eb)',
                 transition: 'all 0.2s',
               }}
               className="benefit-item"
             >
               <span style={{
-                width: compact ? 18 : 22,
-                height: compact ? 18 : 22,
+                width: compact ? 20 : 24,
+                height: compact ? 20 : 24,
                 borderRadius: '50%',
-                background: 'var(--ai-gradient, var(--s-primary))',
+                background: 'var(--s-primary, #16a34a)',
                 color: '#fff',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: compact ? 11 : 13,
+                fontSize: compact ? 12 : 14,
                 fontWeight: 700,
                 flexShrink: 0,
-                marginTop: compact ? 3 : 2,
+                marginTop: compact ? 2 : 1,
               }}>
                 ✓
               </span>
@@ -85,12 +82,6 @@ export default function ProductBenefits({ benefits = [], title = "💥 Les bén�
         })}
       </div>
 
-      <style>{`
-        .benefit-item:hover {
-          transform: translateX(4px);
-          box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
-      `}</style>
     </div>
   );
 }

@@ -92,7 +92,7 @@ async function uploadToKieAi(base64Data, mimeType = 'image/jpeg') {
  * Submit a generation task to Kie.ai NanoBanana API.
  * Uses nano-banana-pro by default for 1K product visuals.
  */
-async function submitGrokImagineTask(prompt, imageUrls = [], aspectRatio = '1:1', maxRetries = 3) {
+async function submitGrokImagineTask(prompt, imageUrls = [], aspectRatio = '4:5', maxRetries = 3) {
   // Acquire rate-limit slot before calling API
   await acquireSlot();
 
@@ -103,7 +103,7 @@ async function submitGrokImagineTask(prompt, imageUrls = [], aspectRatio = '1:1'
 
   const input = {
     prompt: truncatedPrompt,
-    aspect_ratio: aspectRatio || '1:1',
+    aspect_ratio: aspectRatio || '4:5',
     resolution: '1K',
     output_format: 'jpg',
   };
@@ -232,7 +232,7 @@ async function generateViaGrokImagine(prompt, imageUrls = [], aspectRatio = '1:1
 /**
  * Text-to-image — nano-banana-2 supports text-to-image natively.
  */
-export async function generateNanoBananaImage(prompt, aspectRatio = '1:1', numImages = 1) {
+export async function generateNanoBananaImage(prompt, aspectRatio = '4:5', numImages = 1) {
   console.log(`🎨 NanoBanana 2 text-to-image (${aspectRatio})...`);
   return await generateViaGrokImagine(prompt, [], aspectRatio);
 }
@@ -240,7 +240,7 @@ export async function generateNanoBananaImage(prompt, aspectRatio = '1:1', numIm
 /**
  * Image-to-image — Kie.ai NanoBanana Pro (only)
  */
-export async function generateNanoBananaImageToImage(prompt, imageInput, aspectRatio = '1:1', numImages = 1) {
+export async function generateNanoBananaImageToImage(prompt, imageInput, aspectRatio = '4:5', numImages = 1) {
 
   // Resize input image
   let base64Image;
