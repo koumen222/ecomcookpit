@@ -12,7 +12,7 @@
  */
 
 // Version du Service Worker (incrémenter pour forcer la mise à jour)
-const CACHE_VERSION = '2.0.0';
+const CACHE_VERSION = '2.1.0';
 const CACHE_NAME = `scalor-v${CACHE_VERSION}`;
 const STATIC_CACHE = `scalor-static-v${CACHE_VERSION}`;
 const FONT_CACHE = `scalor-fonts-v${CACHE_VERSION}`;
@@ -243,7 +243,8 @@ self.addEventListener('notificationclose', (event) => {
 
 /**
  * Caching strategies:
- * - Hashed assets (chunks/*.js, assets/*) → Cache-first (immutable)
+ * - Hashed JS/CSS assets → Network-first with cache fallback
+ * - Other hashed assets (images/fonts) → Cache-first
  * - Fonts (googleapis, fontshare) → Stale-while-revalidate
  * - API requests → Network-only
  * - HTML navigation → Network-first with offline fallback
@@ -258,7 +259,29 @@ self.addEventListener('fetch', (event) => {
   // Skip API calls — always go to network
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/socket.io')) return;
 
-  // ── Hashed static assets: cache-first (immutable) ──
+  const isHashedScriptOrStyle =
+    url.origin === self.location.origin &&
+    req.destination &&
+    ['script', 'style'].includes(req.destination) &&
+    (url.pathname.match(/\.[a-f0-9]{8,}\.(js|css)$/) ||
+     url.pathname.startsWith('/chunks/') ||
+     url.pathname.startsWith('/assets/'));
+
+  if (isHashedScriptOrStyle) {
+    event.respondWith(
+      caches.open(STATIC_CACHE).then((cache) =>
+        fetch(req)
+          .then((res) => {
+            if (res.ok) cache.put(req, res.clone());
+            return res;
+          })
+          .catch(() => cache.match(req))
+      )
+    );
+    return;
+  }
+
+  // ── Other hashed static assets: cache-first (immutable) ──
   if (
     url.origin === self.location.origin &&
     (url.pathname.match(/\.[a-f0-9]{8,}\.(js|css)$/) ||
