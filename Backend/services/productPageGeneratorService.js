@@ -411,19 +411,19 @@ Pose-toi 3 questions :
 ═══ IMAGES D'ANGLES — VISUELS ILLUSTRATIFS AVEC PERSONNES AFRICAINES ═══
 Les 5 images d'angles sont des visuels marketing illustratifs avec des personnes africaines et du texte qui illustre le bénéfice du produit.
 
-🎯 OBJECTIF : Visuel percutant montrant une personne africaine RÉELLE qui bénéficie du produit, dans un environnement africain authentique. L'image doit pouvoir convertir sur Facebook Ads / TikTok Ads auprès d'un public africain francophone.
+🎯 OBJECTIF : Visuel percutant montrant une personne africaine RÉELLE qui bénéficie du produit, dans un environnement MODERNE et HAUT DE GAMME. L'image doit pouvoir convertir sur Facebook Ads / TikTok Ads auprès d'un public africain francophone.
 
 ✅ CE QU'IL FAUT :
 - Personne africaine authentique : peau noire naturelle, traits RÉALISTES (pas caricaturaux), cheveux naturels africains (afro, tresses, locs, etc.)
-- Vêtements simples du quotidien africain — clean, relatables, PAS de luxe exagéré
+- Vêtements modernes et stylés — clean, relatables, élégants
 - Expression faciale SUBTILE — naturelle, confiante, PAS théâtrale ni exagérée
 - Attitude naturelle comme dans la vraie vie — PAS de pose mannequin forcée
-- Environnement africain RÉALISTE : maison, chambre, salon, salle de bain, rue locale — décor cohérent
+- Environnement MODERNE et HAUT DE GAMME : appartement moderne, studio contemporain, bureau élégant, quartier urbain chic — PAS de marché, PAS de village, PAS de décor traditionnel
 - Lumière NATURELLE douce — PAS artificielle, PAS de filtres agressifs
 - ⚠️ ADAPTE le cadrage à la ZONE DU PRODUIT : produit cheveux → cadre sur les cheveux et la chevelure ; produit corpo → cadre sur le corps ; produit visage → cadre sur le visage ; etc. Ne jamais montrer le visage par défaut si le produit n'est pas un produit visage.
 - Le produit VISIBLE dans l'image ou son résultat clairement montré — TAILLE RÉELLE du produit (pas surdimensionné), placement naturel
-- Court texte overlay en français : 1 titre court (4-6 mots max) + éventuellement 1 courte phrase (8-10 mots max)
-- ⚠️ ORTHOGRAPHE PARFAITE OBLIGATOIRE : texte vérifié à 100% — ZÉRO faute. Ton simple, direct, local africain
+- PAS de titre texte sur l'image. Uniquement éventuellement 1 courte phrase descriptive (8-10 mots max) si nécessaire
+- ⚠️ ORTHOGRAPHE PARFAITE OBLIGATOIRE : texte vérifié à 100% — ZÉRO faute. Ton simple, direct, moderne
 - Cadrage vertical 4:5 serré, fond net
 - Style soft, propre, naturel — PAS flashy, PAS saturé
 - PHOTORÉALISTE — doit ressembler à une VRAIE photo, PAS un rendu IA visible
@@ -444,9 +444,9 @@ Les 5 images d'angles sont des visuels marketing illustratifs avec des personnes
 ═══ VISUELS HÉRO — 2 IMAGES PRINCIPALES ═══
 ⚠️ Génère DEUX prompts hero différents et complémentaires pour ce produit :
 
-**1. prompt_affiche_hero** = Photo lifestyle premium RÉALISTE pour le marché africain : le produit réel + personne africaine authentique (peau noire naturelle, traits réalistes, vêtements simples du quotidien) qui l'utilise NATURELLEMENT dans un environnement africain réel. Expression subtile, pas théâtrale. Lumière naturelle douce. Style soft, propre, crédible — comme une VRAIE photo.
+**1. prompt_affiche_hero** = Photo lifestyle premium RÉALISTE : le produit réel + personne africaine authentique (peau noire naturelle, traits réalistes, vêtements modernes et stylés) qui l'utilise NATURELLEMENT dans un décor MODERNE HAUT DE GAMME (appartement contemporain, studio design, espace urbain chic). Expression subtile, pas théâtrale. Lumière naturelle douce. Style soft, propre, crédible — comme une VRAIE photo.
 
-**2. prompt_hero_poster** = Affiche publicitaire graphique : le produit réel en grand au centre sur fond foncé dramatique (gradient profond) avec un titre français gras en haut ou en bas + EXACTEMENT 3 personnes africaines réelles et photographiques visibles, avec le produit en main de manière naturelle. Ambiance lancement de marque premium adapté marché africain.
+**2. prompt_hero_poster** = Affiche publicitaire graphique : le produit réel en grand au centre sur fond foncé dramatique (gradient profond) SANS TITRE TEXTE + EXACTEMENT 3 personnes africaines réelles et photographiques visibles dans un cadre MODERNE, avec le produit en main de manière naturelle. Ambiance lancement de marque premium.
 
 ☝️ Les deux prompts doivent être entièrement basés sur CE produit spécifique — jamais générique, jamais copié des exemples.
 
@@ -473,15 +473,15 @@ Le HERO doit être :
 ❌ PAS de cadrage trop large avec marges vides
 
 ═══ VISUEL AVANT/APRÈS — TRANSFORMATION RÉALISTE AVEC PERSONNE AFRICAINE ═══
-⚠️ Le visuel avant/après est le second visuel fort. Il DOIT montrer une personne africaine authentique dans une VRAIE situation du quotidien africain.
+⚠️ Le visuel avant/après est le second visuel fort. Il DOIT montrer une personne africaine authentique dans un cadre MODERNE et CONTEMPORAIN.
 
 Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE produit :
 ✅ Split-screen : côté gauche = AVANT (le problème concret, visible mais NATUREL — pas exagéré, pas théâtral)
 ✅ Côté droit = APRÈS (le résultat CRÉDIBLE et réaliste après utilisation — amélioration visible mais pas magique)
 ✅ ⚠️ NE PAS utiliser juste "visage triste vs sourire" — montrer une VRAIE différence visuelle liée au produit
 ✅ Personne africaine OBLIGATOIRE : peau noire naturelle, traits réalistes africains (pas caricaturaux), cheveux naturels africains
-✅ Apparence naturelle : vêtements simples du quotidien africain (pas luxe exagéré), expression SUBTILE (pas théâtrale)
-✅ Décor = environnement africain RÉALISTE (maison africaine, salle de bain locale, chambre, salon, rue)
+✅ Apparence naturelle : vêtements modernes et stylés, expression SUBTILE (pas théâtrale)
+✅ Décor = environnement MODERNE et CONTEMPORAIN (appartement moderne, salle de bain design, chambre contemporaine, salon élégant — PAS de marché, PAS de village, PAS de décor traditionnel)
 ✅ RÈGLE GENRE : FEMME africaine si produit féminin ; HOMME africain si produit masculin ; adapte si mixte
 ✅ Le PRODUIT LUI-MÊME visible sur le côté APRÈS — taille RÉELLE (pas surdimensionné), placement naturel
 ✅ Cadrage vertical 4:5 (1080×1250), serré, lumière naturelle douce, pas artificielle
@@ -511,8 +511,8 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
     "✅ Bénéfice clé 3 avec emoji pertinent",
     "⚡ Bénéfice clé 4 avec emoji pertinent"
   ],
-  "prompt_hero_poster": "[Generate in English: BOLD ADVERTISING POSTER for THIS SPECIFIC product (describe its exact name, type, color, packaging). Vertical 4:5 (1080×1250) graphic-design meets product photography. The product shown LARGE, dominant, perfectly sharp (min 50% of frame), exact same packaging/color/shape. Premium dark gradient background (deep midnight blue to black, OR deep forest green to charcoal, or deep burgundy — choose what contrasts best with product colors). Dramatic cinematic lighting with product glow. EXACTLY 3 authentic photographed Black African adults must be visible in the composition, all looking real, all naturally posed, and at least 2 of them clearly holding the exact product in hand with believable grip and scale. MANDATORY: 1 bold French headline in large modern sans-serif font at top or bottom — CRITICAL: French text MUST be 100% perfectly spelled with all accents. Optional thin accent line or minimal graphic element. NO price, NO phone, NO fake button, NO URL. Mood: aspirational, premium brand launch poster, scroll-stopping. Think Apple product launch. Adapted for African market.]",
-  "prompt_avant_apres": "[Generate in English: Photorealistic split-screen before/after transformation image for the African market. MUST look like a real photograph, NOT AI-generated. LEFT (AVANT): the SPECIFIC problem this product solves — visible but NATURAL, not exaggerated or theatrical. RIGHT (APRÈS): CREDIBLE realistic improvement after using the product — visible but not magical. MANDATORY: Authentic Black African person (dark skin, natural African features, natural African hair). Simple everyday African clothing, SUBTLE facial expressions — NOT theatrical. Setting: realistic African home environment (bathroom, bedroom, living room). The SAME person on both sides. Product visible at REAL SIZE on the AFTER side — natural placement. Small 'Avant'/'Après' labels in perfect French. Vertical 4:5 (1080×1250), tight crop. Soft natural lighting, clean style, NO aggressive filters, NO over-saturation. Match the EXACT body zone of the product. The transformation must be BELIEVABLE — not just sad face vs happy face but a real visual difference related to the product benefit.]",
+  "prompt_hero_poster": "[Generate in English: BOLD ADVERTISING POSTER for THIS SPECIFIC product (describe its exact name, type, color, packaging). Vertical 4:5 (1080×1250) graphic-design meets product photography. The product shown LARGE, dominant, perfectly sharp (min 50% of frame), exact same packaging/color/shape. Premium dark gradient background (deep midnight blue to black, OR deep forest green to charcoal, or deep burgundy — choose what contrasts best with product colors). Dramatic cinematic lighting with product glow. EXACTLY 3 authentic photographed Black African adults in MODERN UPSCALE setting (luxury apartment, modern studio, sleek office, high-end urban location — NOT a market, NOT a village, NOT a traditional setting). All looking real, all naturally posed, and at least 2 of them clearly holding the exact product in hand with believable grip and scale. NO title text, NO headline on the image. Optional thin accent line or minimal graphic element. NO price, NO phone, NO fake button, NO URL. Mood: aspirational, premium brand launch poster, scroll-stopping. Think Apple product launch.]",
+  "prompt_avant_apres": "[Generate in English: Photorealistic split-screen before/after transformation image. MUST look like a real photograph, NOT AI-generated. LEFT (AVANT): the SPECIFIC problem this product solves — visible but NATURAL, not exaggerated or theatrical. RIGHT (APRÈS): CREDIBLE realistic improvement after using the product — visible but not magical. MANDATORY: Authentic Black African person (dark skin, natural African features, natural African hair). Modern stylish clothing, SUBTLE facial expressions — NOT theatrical. Setting: MODERN UPSCALE interior (modern bathroom, sleek bedroom, contemporary living room — NOT a traditional African home, NOT a market). The SAME person on both sides. Product visible at REAL SIZE on the AFTER side — natural placement. Small 'Avant'/'Après' labels in perfect French. NO title text on the image. Vertical 4:5 (1080×1250), tight crop. Soft natural lighting, clean style, NO aggressive filters, NO over-saturation. Match the EXACT body zone of the product. The transformation must be BELIEVABLE — not just sad face vs happy face but a real visual difference related to the product benefit.]",
   "angles": [
     {
       "titre_angle": "Phrase complète de 10-15 mots suivant l'étape de la méthode ${marketingApproach} — explique concrètement le bénéfice",
@@ -656,7 +656,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
   const messages = [
     {
       role: "system",
-      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit complète et optimisée pour la conversion avec des visuels représentant des personnes africaines authentiques. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS PARFAIT (sauf prompts images en anglais) — zéro faute d'orthographe, zéro faute de grammaire. 3) ZÉRO généricité. 4) ZÉRO exagération. 5) CRITIQUE problem_section : 3 vraies douleurs SPÉCIFIQUES. 6) CRITIQUE solution_section : paragraphe persuasif reliant chaque douleur au produit. 7) CRITIQUE hero_cta : bouton d'achat percutant 3-5 mots. 8) CRITIQUE stats_bar : 3 stats crédibles. 9) CRITIQUE seo : meta_title max 60 chars, meta_description max 155 chars, slug kebab-case. 10) RÈGLE GENRE OBLIGATOIRE pour toutes les images : produit FEMME → femme africaine ; produit HOMME → homme africain ; produit MIXTE → genre le plus naturel selon contexte — JAMAIS de femme par défaut pour un produit masculin ou neutre. 11) RÈGLE ZONE CORPORELLE pour toutes les images : identifier la zone exacte (cheveux, visage, corps, ventre, dents, etc.) et cadrer sur cette zone — JAMAIS le visage par défaut si le produit est pour les cheveux ou le corps. 12) LE PRODUIT LUI-MÊME (packaging, flacon, boîte) doit être visible et grand dans chaque image. 13) prompt_hero_poster = affiche graphique, produit grand sur fond sombre dramatique, titre français gras, avec EXACTEMENT 3 personnes africaines réelles et au moins 2 tenant le produit en main. 14) avant/après : zone correcte + genre correct + produit visible côté APRÈS. 15) angles : 4 visuels, produit visible (40%+) + texte overlay français + zone et genre corrects. Quand des humains sont présents dans ces visuels, privilégier EXACTEMENT 3 personnes africaines réelles avec le produit en main au lieu d'icônes ou de personnages génériques. 16) Témoignages : noms et villes adaptés au pays. 17) Le template choisi agit uniquement sur le design visuel des images, icones, fonds, ambiance et palette; il ne doit jamais inventer une promesse, une cible ou un usage produit. 18) Les consignes couleur des affiches, visuel hero, décorations, couleur des titres et couleur du contenu doivent être appliquées réellement aux visuels quand elles sont fournies. 19) Les personnes dans les images doivent ressembler a de vraies personnes photographiees: texture de peau naturelle, legere asymetrie, mains correctes, yeux et dents realistes, zero rendu plastique ou uncanny. 20) Chaque image doit illustrer exactement le texte marketing correspondant; aucun badge, icone ou scene ne doit etre decoratif sans lien direct avec le message. 21) Même si du texte est posé sur l'image, la scène doit rester explicite sans lire ce texte: le visuel seul doit raconter la situation. 22) description_optimisee = chaîne vide. 23) JSON uniquement."
+      content: "Tu es expert e-commerce, copywriting et psychologie de l'acheteur, spécialiste marché africain. MISSION : générer une page produit complète et optimisée pour la conversion avec des visuels représentant des personnes africaines authentiques. RÈGLES ABSOLUES : 1) Analyse le produit en profondeur avant de rédiger quoi que ce soit. 2) 100% FRANÇAIS PARFAIT (sauf prompts images en anglais) — zéro faute d'orthographe, zéro faute de grammaire. 3) ZÉRO généricité. 4) ZÉRO exagération. 5) CRITIQUE problem_section : 3 vraies douleurs SPÉCIFIQUES. 6) CRITIQUE solution_section : paragraphe persuasif reliant chaque douleur au produit. 7) CRITIQUE hero_cta : bouton d'achat percutant 3-5 mots. 8) CRITIQUE stats_bar : 3 stats crédibles. 9) CRITIQUE seo : meta_title max 60 chars, meta_description max 155 chars, slug kebab-case. 10) RÈGLE GENRE OBLIGATOIRE pour toutes les images : produit FEMME → femme africaine ; produit HOMME → homme africain ; produit MIXTE → genre le plus naturel selon contexte — JAMAIS de femme par défaut pour un produit masculin ou neutre. 11) RÈGLE ZONE CORPORELLE pour toutes les images : identifier la zone exacte (cheveux, visage, corps, ventre, dents, etc.) et cadrer sur cette zone — JAMAIS le visage par défaut si le produit est pour les cheveux ou le corps. 12) LE PRODUIT LUI-MÊME (packaging, flacon, boîte) doit être visible et grand dans chaque image. 13) prompt_hero_poster = affiche graphique, produit grand sur fond sombre dramatique, SANS TITRE sur l'image, avec EXACTEMENT 3 personnes africaines réelles dans un cadre MODERNE et au moins 2 tenant le produit en main. 14) avant/après : zone correcte + genre correct + produit visible côté APRÈS. 15) angles : 4 visuels, produit visible (40%+) + zone et genre corrects. PAS de titre texte sur les images, uniquement éventuellement une courte phrase descriptive. Quand des humains sont présents dans ces visuels, privilégier EXACTEMENT 3 personnes africaines réelles avec le produit en main au lieu d'icônes ou de personnages génériques. 16) Témoignages : noms et villes adaptés au pays. 17) Le template choisi agit uniquement sur le design visuel des images, icones, fonds, ambiance et palette; il ne doit jamais inventer une promesse, une cible ou un usage produit. 18) Les consignes couleur des affiches, visuel hero, décorations, couleur des titres et couleur du contenu doivent être appliquées réellement aux visuels quand elles sont fournies. 19) Les personnes dans les images doivent ressembler a de vraies personnes photographiees: texture de peau naturelle, legere asymetrie, mains correctes, yeux et dents realistes, zero rendu plastique ou uncanny. 20) Chaque image doit illustrer exactement le texte marketing correspondant; aucun badge, icone ou scene ne doit etre decoratif sans lien direct avec le message. 21) Même si du texte est posé sur l'image, la scène doit rester explicite sans lire ce texte: le visuel seul doit raconter la situation. 22) description_optimisee = chaîne vide. 23) CONTEXTE MODERNE OBLIGATOIRE: les décors des images doivent toujours être MODERNES et HAUT DE GAMME (appartement contemporain, studio design, bureau élégant, espace urbain chic) — JAMAIS de marché, village, décor traditionnel ou rue de quartier populaire. Les personnes africaines sont dans des endroits beaux et modernes. 24) PAS DE TITRE TEXTE sur les images générées. Les prompts d'images ne doivent PAS inclure de headline/titre. 25) JSON uniquement."
     },
     {
       role: "user",
@@ -784,7 +784,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
         explication: `Ce ${title || 'produit'} combine performance et accessibilité, offrant une solution premium sans compromis sur votre budget. Un investissement rentable sur le long terme.`,
         message_principal: "Le meilleur rapport qualité-prix du marché",
         promesse: "La qualité premium accessible à tous",
-        prompt_affiche: `Vertical 4:5 (1080×1250) lifestyle scene showing satisfaction and value around the ${title || 'product'}. Person smiling, product visible and prominent, everyday authentic African setting, professional lighting, no text overlay, no promotional elements.`
+        prompt_affiche: `Vertical 4:5 (1080×1250) lifestyle scene showing satisfaction and value around the ${title || 'product'}. Person smiling, product visible and prominent, modern upscale setting (luxury apartment, contemporary studio, sleek urban backdrop), professional lighting, no text overlay, no promotional elements.`
       }
     ];
     while (result.angles.length < 5) {
@@ -847,7 +847,7 @@ Le champ "prompt_avant_apres" doit décrire un AVANT/APRÈS SPÉCIFIQUE à CE pr
         text: problem
           ? `Avant j'avais vraiment ce problème : "${problem.slice(0,60)}". Depuis que j'utilise ${productName}, la différence est vraiment visible. Je suis contente de mon achat.`
           : `J'utilise ${productName} depuis quelques jours et je suis déjà satisfaite. La qualité est au rendez-vous et ça correspond exactement à ce que je voulais.`,
-        image: '', image_prompt: 'realistic portrait photo of african woman 28-35, natural hair, warm smile, casual home setting'
+        image: '', image_prompt: 'realistic portrait photo of african woman 28-35, natural hair, warm smile, modern stylish interior setting'
       },
       {
         name: 'Armand T.', location: locations[1], rating: 5, verified: true, date: 'Il y a 5 jours',
@@ -953,15 +953,13 @@ Graphic design elements (SUBTLE, premium):
 - Optional small accent shape (circle, corner mark) in matching brand color
 - Product shadow or glow effect for depth
 
-Typography (MANDATORY — 1 headline only):
-1 bold French headline (4-6 words MAX) in modern graphic sans-serif font, positioned prominently at top or bottom.
-The text must be in high contrast to background (white text on dark, or dark text on light).
-CRITICAL SPELLING: French text MUST be 100% perfectly spelled — every accent, every letter. NEVER misspell a French word.
-Optional: 1 short French subline (6-8 words max) in lighter weight.
+Typography (NO TITLE ON IMAGE):
+Do NOT put any headline or title text on the image. The image should be purely visual without text overlay.
+Optional: 1 very short French descriptive phrase (6-8 words max) in lighter weight if needed for context, but NO title.
 
 NO price, NO phone number, NO URL, NO fake CTA button.
 
-Mood: Bold, aspirational, premium brand launch — think Apple product launch poster or Nike campaign, adapted for the African market. Scroll-stopping, impossible to ignore in a social media feed.`;
+Mood: Bold, aspirational, premium brand launch — think Apple product launch poster or Nike campaign. Scroll-stopping, impossible to ignore in a social media feed. Modern upscale setting — NOT a market, NOT a village, NOT traditional decor.`;
 
     const beforeAfterRules = `
 Create a high-converting before/after product transformation image. Ultra realistic, 4K quality, sharp focus, advertising photography style.
@@ -982,10 +980,11 @@ Mood: Trustworthy, convincing, high-conversion, impossible to ignore in a Facebo
     const sceneRules = `
 QUALITY: Ultra HD 4K, razor-sharp, zero blur. Vertical 4:5 (1080×1250).
 PRODUCT REFERENCE (CRITICAL): The reference product image provided MUST be reproduced EXACTLY in the output — same packaging, same colors, same label, same shape, same size proportions. Use the EXACT visual appearance from the reference photo, do NOT recreate or redraw the product. If you cannot faithfully reproduce the EXACT same product, generate the scene WITHOUT the product rather than inventing a different one. A scene without the product is ALWAYS better than a scene with a wrong product.
-PERSON: ALWAYS include authentic Black African person (dark skin, natural hair, confident expression).
+PERSON: ALWAYS include authentic Black African person (dark skin, natural hair, confident expression) in a MODERN UPSCALE setting.
 PRODUCT: Large, dominant, sharp, 40-60% of frame. Must match the reference image exactly.
-TEXT: French only, 100% perfect spelling with accents. Max 3 text elements.
+TEXT: NO title/headline on the image. French only if any short descriptive text is needed, 100% perfect spelling with accents. Max 2 short text elements (NO title).
 NO price, NO phone, NO URL, NO CTA button, NO watermark.
+SETTING: MODERN and UPSCALE — contemporary apartment, design studio, sleek office, chic urban area. NEVER a market, village, or traditional setting.
 CRITICAL: Follow the SPECIFIC visual style described above — unique background, unique decorations, unique mood for THIS image.`;
 
     const productRefRule = `

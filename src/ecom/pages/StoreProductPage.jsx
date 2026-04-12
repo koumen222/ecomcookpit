@@ -1078,6 +1078,8 @@ const buildAiGalleryImages = (product) => {
   const pageData = product?._pageData || {};
   // Hero image en premier — c'est l'image principale du produit
   pushImage(pageData.heroImage, product?.name || 'Hero image');
+  // Affiche hero graphique (poster)
+  pushImage(pageData.heroPosterImage, product?.name || 'Affiche produit');
   pushImage(pageData.beforeAfterImage, product?.name || 'Avant apres');
   // Angles/affiches marketing ensuite
   (pageData.angles || []).forEach((angle, index) => {
@@ -1086,6 +1088,10 @@ const buildAiGalleryImages = (product) => {
   // Photos lifestyle "personne tenant le produit" après les angles
   (pageData.peoplePhotos || []).forEach((photo, index) => {
     pushImage(photo, `${product?.name || 'Produit'} — client ${index + 1}`);
+  });
+  // Photos réelles uploadées par l'utilisateur
+  (pageData.realPhotos || []).forEach((photo, index) => {
+    pushImage(photo, `${product?.name || 'Produit'} — photo ${index + 1}`);
   });
   // Images originales uploadées en dernier
   (product?.images || []).forEach((image) => pushImage(image, product?.name || 'Produit'));
