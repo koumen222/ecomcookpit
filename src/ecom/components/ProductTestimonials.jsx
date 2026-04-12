@@ -80,7 +80,7 @@ export default function ProductTestimonials({ testimonials = [], productImage = 
   if (!validTestimonials.length) return null;
 
   return (
-    <div style={{ margin: '32px 0', overflow: 'hidden' }}>
+    <div style={{ margin: '32px 0', overflow: 'hidden', maxWidth: '100%' }}>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, padding: '0 4px' }}>
@@ -148,7 +148,7 @@ export default function ProductTestimonials({ testimonials = [], productImage = 
             <div
               key={i}
               style={{
-                minWidth: 300, maxWidth: 340, flex: '0 0 auto', scrollSnapAlign: 'start',
+                minWidth: 'min(280px, 85vw)', maxWidth: 340, flex: '0 0 auto', scrollSnapAlign: 'start',
                 background: 'var(--ai-surface, #F3F4F6)',
                 borderRadius: 20,
                 border: '1px solid var(--ai-soft-border, transparent)',

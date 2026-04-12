@@ -1125,7 +1125,7 @@ router.get('/subdomain/check/:subdomain', requireEcomAuth, async (req, res) => {
 router.post('/generate-homepage', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
     const workspace = await EcomWorkspace.findById(req.workspaceId)
-      .select('storeSettings')
+      .select('storeSettings subdomain')
       .lean();
 
     if (!workspace) {
@@ -1141,13 +1141,24 @@ router.post('/generate-homepage', requireEcomAuth, requireWorkspace, async (req,
       generateFooterAndLegalPages(s),
     ]);
 
-    // Sauvegarder footer + pages légales en base
-    const updateFields = {};
+    // Sauvegarder sections + footer + pages légales en base
+    const updateFields = {
+      storePages: { sections },
+    };
     if (footerAndLegal.footer) updateFields.storeFooter = footerAndLegal.footer;
     if (footerAndLegal.legalPages) updateFields.storeLegalPages = footerAndLegal.legalPages;
-    if (Object.keys(updateFields).length > 0) {
+
+    // Save to Store if available, else Workspace
+    const activeStore = await getActiveStore(req);
+    if (activeStore) {
+      await Store.findByIdAndUpdate(activeStore._id, { $set: updateFields });
+    } else {
       await EcomWorkspace.findByIdAndUpdate(req.workspaceId, { $set: updateFields });
     }
+
+    // Invalidate public store cache
+    const subdomain = activeStore?.subdomain || workspace.subdomain;
+    if (subdomain) invalidateStoreCache(subdomain);
 
     console.log(`✅ AI homepage generated: ${sections.length} sections + footer + legal pages for workspace ${req.workspaceId}`);
     res.json({ success: true, sections, footer: footerAndLegal.footer, legalPages: footerAndLegal.legalPages });
@@ -1164,15 +1175,8 @@ router.post('/generate-homepage', requireEcomAuth, requireWorkspace, async (req,
  */
 router.post('/regenerate-homepage', requireEcomAuth, requireWorkspace, async (req, res) => {
   try {
-    // Reset existing pages first (Store + Workspace)
-    const activeStoreForRegen = await getActiveStore(req);
-    if (activeStoreForRegen) {
-      await Store.findByIdAndUpdate(activeStoreForRegen._id, { $set: { storePages: null } });
-    }
-    await EcomWorkspace.findByIdAndUpdate(req.workspaceId, { $set: { storePages: null } });
-
     const workspace = await EcomWorkspace.findById(req.workspaceId)
-      .select('storeSettings')
+      .select('storeSettings subdomain')
       .lean();
 
     if (!workspace) {
@@ -1183,6 +1187,8 @@ router.post('/regenerate-homepage', requireEcomAuth, requireWorkspace, async (re
     const s = { ...(workspace.storeSettings || {}), ...req.body };
 
     // Générer homepage + footer/legal en parallèle
+    // NOTE: on ne reset plus storePages AVANT la génération pour ne pas perdre
+    // l'ancienne page si Groq échoue → on écrase seulement après succès.
     const [sections, footerAndLegal] = await Promise.all([
       generateAIHomepageSections(s),
       generateFooterAndLegalPages(s),
@@ -1200,6 +1206,10 @@ router.post('/regenerate-homepage', requireEcomAuth, requireWorkspace, async (re
     } else {
       await EcomWorkspace.findByIdAndUpdate(req.workspaceId, { $set: updateFields });
     }
+
+    // Invalidate public store cache
+    const subdomain = activeStore?.subdomain || workspace.subdomain;
+    if (subdomain) invalidateStoreCache(subdomain);
 
     console.log(`✅ Homepage regenerated: ${sections.length} sections + footer + legal for workspace ${req.workspaceId}`);
     res.json({ success: true, sections, footer: footerAndLegal.footer, legalPages: footerAndLegal.legalPages });

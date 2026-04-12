@@ -82,6 +82,36 @@ export function invalidateStoreCache(subdomain) {
   if (subdomain) storeCache.delete(subdomain.toLowerCase().trim());
 }
 
+// ─── Default legal pages fallback (when AI generation hasn't run yet) ─────────
+function buildDefaultLegalPages(settings, workspace) {
+  const storeName = settings.storeName || settings.name || workspace.name || 'Notre Boutique';
+  const country = settings.country || '';
+  const city = settings.city || '';
+  const whatsapp = settings.storeWhatsApp || settings.whatsapp || '';
+  const email = settings.email || settings.storeEmail || '';
+  const contact = whatsapp ? `WhatsApp : ${whatsapp}` : (email ? `Email : ${email}` : 'notre support client');
+  const productType = settings.productType || 'produits';
+
+  return {
+    confidentialite: {
+      title: 'Politique de Confidentialité',
+      content: `<h2>Politique de Confidentialité</h2><p>${storeName} s'engage à protéger vos données personnelles.</p><h3>Données collectées</h3><p>Nous collectons uniquement les informations nécessaires au traitement de votre commande : nom, prénom, numéro de téléphone et adresse de livraison.</p><h3>Utilisation des données</h3><ul><li>Traitement et suivi de votre commande</li><li>Livraison de vos produits</li><li>Communication concernant votre commande</li></ul><h3>Protection</h3><p>Vos données sont stockées de manière sécurisée et ne sont jamais vendues à des tiers.</p><h3>Partage</h3><p>Vos informations de livraison sont partagées uniquement avec nos partenaires livreurs pour assurer la bonne réception de votre colis.</p><h3>Contact</h3><p>Pour toute question, contactez-nous via ${contact}.</p>`
+    },
+    cgv: {
+      title: 'Conditions Générales de Vente',
+      content: `<h2>Conditions Générales de Vente</h2><h3>Objet</h3><p>Les présentes conditions régissent la vente en ligne de ${productType} par ${storeName}${country ? ` au ${country}` : ''}.</p><h3>Commande</h3><p>Vous pouvez passer commande via notre site ou par WhatsApp. Chaque commande est confirmée par un message de notre équipe.</p><h3>Paiement</h3><p>Le paiement se fait à la livraison (Cash on Delivery). Vous payez en espèces ou par Mobile Money au moment de la réception de votre colis.</p><h3>Livraison</h3><p>Nous livrons dans un délai de 24h à 72h selon votre zone${city ? ` (${city} et environs)` : ''}. Les frais de livraison sont indiqués lors de la commande.</p><h3>Refus</h3><p>Vous avez le droit de refuser votre commande à la livraison si le produit n'est pas conforme à votre commande.</p><h3>Litiges</h3><p>En cas de problème, contactez-nous via ${contact}. Nous privilégions toujours la résolution amiable.</p>`
+    },
+    mentions: {
+      title: 'Mentions Légales',
+      content: `<h2>Mentions Légales</h2><h3>Identité</h3><p>Nom de la marque : ${storeName}</p><p>Activité : Vente en ligne${productType ? ` de ${productType}` : ''}</p><h3>Contact</h3><p>${contact}</p><h3>Localisation</h3><p>${city ? city + ', ' : ''}${country || 'Non précisée'}</p><h3>Hébergement</h3><p>Ce site est hébergé par Scalor (scalor.net).</p>`
+    },
+    remboursement: {
+      title: 'Politique de Remboursement',
+      content: `<h2>Politique de Remboursement</h2><h3>Principe</h3><p>Chez ${storeName}, vous payez uniquement à la réception de votre commande. Aucun paiement en ligne n'est requis.</p><h3>Vérification</h3><p>À la livraison, vous pouvez vérifier votre produit avant de payer. Si le produit ne correspond pas à votre commande, vous pouvez le refuser.</p><h3>Cas acceptés pour un retour</h3><ul><li>Produit défectueux ou endommagé</li><li>Produit différent de ce qui a été commandé</li><li>Colis endommagé pendant le transport</li></ul><h3>Cas non acceptés</h3><ul><li>Changement d'avis après paiement et réception</li><li>Produit déjà utilisé</li></ul><h3>Procédure</h3><p>Contactez notre support via ${contact} dans les 48h suivant la réception. Nous vous proposerons un remplacement ou un remboursement sous 7 jours.</p>`
+    }
+  };
+}
+
 // Cleanup expired entries every 10 minutes
 setInterval(() => {
   const now = Date.now();
@@ -269,8 +299,8 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
     const pages = workspace.storePages;  // intentional: null if never set
     const pixels = workspace.storePixels || {};
 
-    // Cache at Cloudflare edge for 5 minutes
-    setCacheHeaders(res, 300);
+    // Cache at Cloudflare edge for 30 seconds (fast config refresh after admin edits)
+    setCacheHeaders(res, 30);
 
     res.json({
       success: true,
@@ -312,8 +342,8 @@ router.get('/:subdomain', readLimiter, async (req, res) => {
         sections: pages ? (pages.sections ?? null) : null,
         // Footer config (AI-generated)
         footer: workspace.storeFooter || null,
-        // Legal pages content (AI-generated)
-        legalPages: workspace.storeLegalPages || null,
+        // Legal pages content (AI-generated, with inline fallback if never generated)
+        legalPages: workspace.storeLegalPages || buildDefaultLegalPages(settings, workspace),
         // Pixel IDs for tracking injection
         pixels: {
           metaPixelId: pixels.metaPixelId || '',
