@@ -18,6 +18,47 @@ function markdownImagesToHtml(md) {
   );
 }
 
+function buildSimpleHeroImages(productData = {}, fallbackName = '') {
+  const seen = new Set();
+  const output = [];
+
+  const push = (entry, fallbackAlt) => {
+    const url = typeof entry === 'string' ? entry : entry?.url;
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    output.push({
+      url,
+      alt: typeof entry === 'string' ? fallbackAlt : (entry?.alt || fallbackAlt),
+      order: output.length,
+    });
+  };
+
+  push(productData.heroImage, productData.name || fallbackName || 'Image hero');
+  push(productData.heroPosterImage, productData.name || fallbackName || 'Affiche hero');
+
+  if (!output.length) {
+    const incomingImages = Array.isArray(productData.images) ? productData.images : [];
+    incomingImages.slice(0, 2).forEach((image, index) => {
+      push(image, productData.name || fallbackName || `Image produit ${index + 1}`);
+    });
+  }
+
+  return output;
+}
+
+function clearPublicStoreSessionCaches() {
+  if (typeof window === 'undefined' || !window.sessionStorage) return;
+  const keysToRemove = [];
+  for (let index = 0; index < window.sessionStorage.length; index += 1) {
+    const key = window.sessionStorage.key(index);
+    if (!key) continue;
+    if (key.startsWith('sf_') || key.startsWith('sfp_')) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach((key) => window.sessionStorage.removeItem(key));
+}
+
 const MARKET_COUNTRY_SUGGESTIONS = [
   'Cameroun',
   'Cote d\'Ivoire',
@@ -119,7 +160,9 @@ const StoreProductForm = () => {
       });
     }
     
-    setForm(prev => ({
+    const nextImages = buildSimpleHeroImages(aiGenerated, aiGenerated.name || form.name);
+
+    syncHeroWithImages(prev => ({
       ...prev,
       name: aiGenerated.name || prev.name,
       description: markdownImagesToHtml(processedDescription) || prev.description,
@@ -128,21 +171,7 @@ const StoreProductForm = () => {
       seoTitle: aiGenerated.seoTitle || prev.seoTitle,
       seoDescription: aiGenerated.seoDescription || prev.seoDescription,
       price: aiGenerated.suggestedPrice > 0 ? String(aiGenerated.suggestedPrice) : prev.price,
-      // Add hero image if available
-      heroImage: aiGenerated.heroImage || prev.heroImage,
-      // Add marketing images to gallery
-      images: aiGenerated.benefits && aiGenerated.benefits.length > 0 
-        ? [
-            ...(prev.images || []),
-            ...aiGenerated.benefits
-              .filter(b => b.generated_image_url)
-              .map(b => ({
-                url: b.generated_image_url,
-                alt: b.benefit_title || 'Marketing Image',
-                isMarketing: true
-              }))
-          ]
-        : prev.images
+      images: nextImages.length > 0 ? nextImages : prev.images,
     }));
     setShowAiModal(false);
     setAiInput('');
@@ -168,40 +197,22 @@ const StoreProductForm = () => {
       });
     }
     
-    setForm(prev => {
-      const allImages = [
-        // Add hero image first if available
-        ...(productData.heroImage ? [{ url: productData.heroImage, alt: productData.name || 'Hero Image', isHero: true }] : []),
-        // Add existing product images
-        ...(productData.realPhotos?.map(url => ({ url, alt: productData.name || 'Product Image', isReal: true })) || []),
-        // Add marketing images
-        ...(productData.benefits && productData.benefits.length > 0 
-          ? productData.benefits
-              .filter(b => b.generated_image_url)
-              .map(b => ({
-                url: b.generated_image_url,
-                alt: b.benefit_title || 'Marketing Image',
-                isMarketing: true
-              }))
-          : []
-        )
-      ];
-      
-      return {
-        ...prev,
-        name: productData.name || prev.name,
-        description: markdownImagesToHtml(processedDescription) || prev.description,
-        price: productData.price || prev.price,
-        category: productData.category || prev.category,
-        tags: productData.tags || prev.tags,
-        seoTitle: productData.seoTitle || prev.seoTitle,
-        seoDescription: productData.seoDescription || prev.seoDescription,
-        images: allImages.length > 0 ? allImages : prev.images,
-        testimonials: productData._pageData?.testimonials?.length > 0 ? productData._pageData.testimonials : prev.testimonials,
-        faq: productData._pageData?.faq?.length > 0 ? productData._pageData.faq : prev.faq,
-        _pageData: productData._pageData || prev._pageData
-      };
-    });
+    const simpleHeroImages = buildSimpleHeroImages(productData, productData.name || form.name);
+
+    syncHeroWithImages(prev => ({
+      ...prev,
+      name: productData.name || prev.name,
+      description: markdownImagesToHtml(processedDescription) || prev.description,
+      price: productData.price || prev.price,
+      category: productData.category || prev.category,
+      tags: productData.tags || prev.tags,
+      seoTitle: productData.seoTitle || prev.seoTitle,
+      seoDescription: productData.seoDescription || prev.seoDescription,
+      images: simpleHeroImages.length > 0 ? simpleHeroImages : prev.images,
+      testimonials: productData._pageData?.testimonials?.length > 0 ? productData._pageData.testimonials : prev.testimonials,
+      faq: productData._pageData?.faq?.length > 0 ? productData._pageData.faq : prev.faq,
+      _pageData: productData._pageData || prev._pageData
+    }));
   };
 
   const [form, setForm] = useState({
@@ -602,9 +613,11 @@ const StoreProductForm = () => {
     try {
       if (isEdit) {
         await storeProductsApi.updateProduct(id, payload);
+        clearPublicStoreSessionCaches();
         setSuccess('Produit mis à jour');
       } else {
         await storeProductsApi.createProduct(payload);
+        clearPublicStoreSessionCaches();
         setSuccess('Produit créé avec succès');
         setTimeout(() => navigate(`${basePath}/products`), 1000);
       }

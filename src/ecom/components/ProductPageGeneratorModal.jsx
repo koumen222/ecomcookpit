@@ -1313,9 +1313,12 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
       });
     }
 
-    // Hero and native product visuals stay in product images.
+    // Hero visuals only: keep the generated hero simple and editable.
     if (product.heroImage) {
       pushUniqueImage(productImages, product.heroImage, product.title || 'Image Hero principale', 'hero');
+    }
+    if (product.heroPosterImage) {
+      pushUniqueImage(productImages, product.heroPosterImage, `Affiche — ${product.title || 'Produit'}`, 'hero-poster');
     }
 
     // Social proof before/after visuals go only to the social proof carousel.
@@ -1327,12 +1330,6 @@ const ProductPageGeneratorModal = ({ onClose, onApply, pageMode = false }) => {
       pushUniqueImage(socialProofImages, product.beforeAfterImage, 'Avant / Après - Résultats visibles', 'social-proof-before-after');
     }
     
-    // Real uploaded product photos stay on the product itself.
-    if (product.realPhotos?.length) {
-      product.realPhotos.forEach((imgUrl, i) => {
-        pushUniqueImage(productImages, imgUrl, product.title || `Photo réelle ${i + 1}`, 'real-photo');
-      });
-    }
     const finalSocialProofImages = (product.socialProofImages || []).length
       ? (product.socialProofImages || []).reduce((acc, url, index) => {
           pushUniqueImage(acc, url, `${product.title || 'Produit'} — preuve sociale ${index + 1}`, 'social-proof');

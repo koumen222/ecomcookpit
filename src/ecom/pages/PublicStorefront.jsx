@@ -349,9 +349,8 @@ const EditableText = ({
 // ─── ANNOUNCEMENT BAR ─────────────────────────────────────────────────────────
 const AnnouncementBar = ({ store }) => {
   const [visible, setVisible] = useState(true);
-  // Default announcement sans emojis - utilise des icônes intégrées
-  const defaultAnnouncement = 'Livraison rapide · Paiement à la livraison · Retours faciles';
-  const msg = store?.announcementText || defaultAnnouncement;
+  const msg = String(store?.announcement || '').trim();
+  if (!store?.announcementEnabled || !msg) return null;
   if (!visible) return null;
   return (
     <div style={{
