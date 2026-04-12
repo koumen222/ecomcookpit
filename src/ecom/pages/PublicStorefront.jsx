@@ -2615,7 +2615,7 @@ export const StoreAllProducts = () => {
   const subdomain = paramSubdomain || detectedSubdomain;
   const prefix = isStoreDomain ? '' : (subdomain ? `/store/${subdomain}` : '');
 
-  const { store, products, pixels, error } = useStoreData(subdomain);
+  const { store, products, pixels, footer, error } = useStoreData(subdomain);
   const { cartCount } = useStoreCart(subdomain);
   const { trackPageView } = useStoreAnalytics(subdomain);
   const [search, setSearch] = useState('');
