@@ -200,7 +200,7 @@ const StoreProductsList = () => {
         navigate(`${basePath}/products/${cloned._id}/edit`);
       }
     } catch (err) {
-      setError('Erreur lors de la duplication');
+      setError(err?.response?.data?.message || 'Erreur lors de la duplication');
     }
   };
 
