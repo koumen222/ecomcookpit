@@ -13,6 +13,7 @@ import { storeProductsApi, storeManageApi } from '../services/storeApi.js';
 import { useStore } from '../contexts/StoreContext.jsx';
 import defaultConfig from '../components/productSettings/defaultConfig.js';
 import { formatMoney } from '../utils/currency.js';
+import { buildMergedProductPageConfig, buildProductOnlyPageConfig } from '../utils/productPageConfig.js';
 
 // ─── Section metadata for the 20 productPageConfig sections ──────────────────
 const SECTION_META = {
@@ -105,14 +106,29 @@ const DEFAULT_TESTIMONIALS = [
   { name: 'Rodrigue K.', location: 'Bafoussam', rating: 5, text: 'Super qualité, livraison rapide. Le produit dépasse mes attentes. Je vais en commander encore.', verified: true, date: 'Il y a 1 semaine' },
 ];
 
+const LEGACY_PRODUCT_GALLERY_TITLE = 'Ils nous font confiance';
+const LEGACY_PRODUCT_GALLERY_SUBTITLE = 'Découvrez les retours de nos clients satisfaits';
+
 const PRODUCT_GALLERY_DEFAULTS = {
-  title: 'Ils nous font confiance',
-  subtitle: 'Découvrez les retours de nos clients satisfaits',
-  showHeader: true,
+  title: '',
+  subtitle: '',
+  showHeader: false,
   useProductImages: true,
   images: [],
   mainImageHeight: 420,
   thumbnailSize: 72,
+};
+
+const normalizeProductGalleryContent = (content = {}) => {
+  const normalized = { ...PRODUCT_GALLERY_DEFAULTS, ...(content || {}) };
+  const title = String(normalized.title || '').trim();
+  const subtitle = String(normalized.subtitle || '').trim();
+  if (title === LEGACY_PRODUCT_GALLERY_TITLE && subtitle === LEGACY_PRODUCT_GALLERY_SUBTITLE) {
+    normalized.title = '';
+    normalized.subtitle = '';
+    normalized.showHeader = false;
+  }
+  return normalized;
 };
 
 const MAIN_IMAGE_HEIGHT_OPTIONS = [240, 320, 420, 520, 640, 760, 900];
@@ -364,7 +380,7 @@ const SectionContentEditor = ({ section, onChange, product }) => {
   }
 
   if (schema.fields === 'productGallery') {
-    const gallery = { ...PRODUCT_GALLERY_DEFAULTS, ...content };
+    const gallery = normalizeProductGalleryContent(content);
     const customImages = Array.isArray(gallery.images) ? gallery.images : [];
     const validCustomImages = customImages.filter((image) => image?.url);
     const productImages = Array.isArray(product?.images)
@@ -1370,25 +1386,18 @@ const ProductPageBuilder = () => {
 
   // Compute merged config for LivePreview
   const mergedConfig = (() => {
-    const base = mergeWithDefaults(storeConfig);
+    const base = mergeWithDefaults(buildMergedProductPageConfig(storeConfig, product?.productPageConfig));
     return { ...base, general: { ...base.general, sections: configSections } };
   })();
 
   const subdomain = activeStore?.subdomain || storeSubdomain;
 
   // postMessage live preview — Shopify-style: parent → iframe, no server round-trip
-  const broadcastLive = useCallback((updatedConfig, updatedSections) => {
+  const broadcastLive = useCallback((mergedPreviewConfig) => {
     const iframe = iframeRef.current;
     if (!iframe?.contentWindow) return;
-    const liveConfig = {
-      ...mergeWithDefaults(updatedConfig),
-      general: {
-        ...mergeWithDefaults(updatedConfig).general,
-        sections: updatedSections,
-      },
-    };
     iframe.contentWindow.postMessage(
-      { type: 'PAGE_PREVIEW_UPDATE', payload: liveConfig },
+      { type: 'PAGE_PREVIEW_UPDATE', payload: mergedPreviewConfig },
       '*'
     );
   }, []);
@@ -1414,7 +1423,7 @@ const ProductPageBuilder = () => {
           const raw = configRes.data?.data || configRes.data || {};
           const ppc = raw.storeSettings?.productPageConfig || raw.productPageConfig || null;
           setStoreConfig(ppc);
-          const merged = mergeWithDefaults(ppc);
+          const merged = mergeWithDefaults(buildMergedProductPageConfig(ppc, p?.productPageConfig || null));
           setConfigSections(merged.general.sections);
           // Extract subdomain as fallback for iframe preview
           if (raw.subdomain) setStoreSubdomain(raw.subdomain);
@@ -1452,32 +1461,27 @@ const ProductPageBuilder = () => {
   const storeConfigRef = useRef(storeConfig);
   useEffect(() => { storeConfigRef.current = storeConfig; }, [storeConfig]);
 
+  const productConfigRef = useRef(null);
+  useEffect(() => { productConfigRef.current = product?.productPageConfig || null; }, [product?.productPageConfig]);
+
   const autoSaveConfig = useCallback((newConfigSections) => {
+    const updatedProductConfig = buildProductOnlyPageConfig(productConfigRef.current, newConfigSections);
+    const mergedPreviewConfig = mergeWithDefaults(buildMergedProductPageConfig(storeConfigRef.current, updatedProductConfig));
     // Broadcast live to iframe immediately (no debounce)
-    broadcastLive(storeConfigRef.current, newConfigSections);
+    broadcastLive(mergedPreviewConfig);
     // Save to backend with short debounce (400ms) to avoid data loss on quick reload
     clearTimeout(configSaveTimer.current);
     configSaveTimer.current = setTimeout(async () => {
       try {
-        // Preserve existing config — only update general.sections
-        const existing = storeConfigRef.current || {};
-        const updatedConfig = {
-          ...existing,
-          general: {
-            ...(existing.general || {}),
-            sections: newConfigSections,
-          },
-        };
-        await storeManageApi.updateStoreConfig({ productPageConfig: updatedConfig });
-        // Update local ref so next save doesn't use stale config
-        setStoreConfig(updatedConfig);
+        await storeProductsApi.updateProduct(id, { productPageConfig: updatedProductConfig });
+        setProduct((prev) => prev ? { ...prev, productPageConfig: updatedProductConfig } : prev);
         setSaveStatus('saved');
         setTimeout(() => setSaveStatus(null), 2000);
       } catch {
         setSaveStatus('error');
       }
     }, 400);
-  }, [broadcastLive]);
+  }, [broadcastLive, id]);
 
   // Config section handlers
   const handleConfigMove = useCallback((index, direction) => {

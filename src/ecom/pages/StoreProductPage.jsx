@@ -22,6 +22,7 @@ import { preloadStoreCheckoutRoute, preloadStoreProductRoute } from '../utils/ro
 import { getIconComponent } from '../components/productSettings/ButtonEditor';
 import defaultConfig from '../components/productSettings/defaultConfig';
 import { formatMoney } from '../utils/currency.js';
+import { buildMergedProductPageConfig } from '../utils/productPageConfig.js';
 
 const fmt = (n, cur = 'XAF') => formatMoney(n, cur);
 
@@ -151,14 +152,33 @@ const mergeProductSections = (stored) => {
   return merged;
 };
 
+const LEGACY_PRODUCT_GALLERY_TITLE = 'Ils nous font confiance';
+const LEGACY_PRODUCT_GALLERY_SUBTITLE = 'Découvrez les retours de nos clients satisfaits';
+
 const PRODUCT_GALLERY_DEFAULTS = {
-  title: 'Ils nous font confiance',
-  subtitle: 'Découvrez les retours de nos clients satisfaits',
-  showHeader: true,
+  title: '',
+  subtitle: '',
+  showHeader: false,
   useProductImages: true,
   images: [],
   mainImageHeight: 420,
   thumbnailSize: 72,
+};
+
+const normalizeProductGalleryConfig = (content = {}) => {
+  const normalized = { ...PRODUCT_GALLERY_DEFAULTS, ...(content || {}) };
+  const title = String(normalized.title || '').trim();
+  const subtitle = String(normalized.subtitle || '').trim();
+  const hasLegacyHeader = title === LEGACY_PRODUCT_GALLERY_TITLE
+    && subtitle === LEGACY_PRODUCT_GALLERY_SUBTITLE;
+
+  if (hasLegacyHeader) {
+    normalized.title = '';
+    normalized.subtitle = '';
+    normalized.showHeader = false;
+  }
+
+  return normalized;
 };
 
 const resolveProductGalleryImages = (content = {}, fallbackImages = []) => {
@@ -1083,6 +1103,8 @@ const buildAiVisualTheme = (pageData = null) => {
 const buildAiGalleryImages = (product) => {
   const seen = new Set();
   const gallery = [];
+  const nativeProductImages = Array.isArray(product?.images) ? product.images : [];
+  const hasNativeProductImages = nativeProductImages.length > 0;
   const pushImage = (entry, fallbackAlt = '') => {
     if (!entry) return;
     const rawUrl = typeof entry === 'string' ? entry : entry.url;
@@ -1092,10 +1114,14 @@ const buildAiGalleryImages = (product) => {
   };
 
   const pageData = product?._pageData || {};
-  // Hero image en premier — c'est l'image principale du produit
-  pushImage(pageData.heroImage, product?.name || 'Hero image');
-  // Affiche hero graphique (poster)
-  pushImage(pageData.heroPosterImage, product?.name || 'Affiche produit');
+  // Les images natives du produit sont la source de vérité après modification manuelle.
+  // On n'injecte les anciens visuels hero/poster IA que s'il n'existe encore aucune image produit.
+  if (!hasNativeProductImages) {
+    // Hero image en premier — c'est l'image principale du produit
+    pushImage(pageData.heroImage, product?.name || 'Hero image');
+    // Affiche hero graphique (poster)
+    pushImage(pageData.heroPosterImage, product?.name || 'Affiche produit');
+  }
   // Before/After images (array ou single pour backward compat)
   (pageData.beforeAfterImages?.length ? pageData.beforeAfterImages : (pageData.beforeAfterImage ? [pageData.beforeAfterImage] : [])).forEach((photo, index) => {
     pushImage(photo, `${product?.name || 'Produit'} — avant/après ${index + 1}`);
@@ -1115,7 +1141,7 @@ const buildAiGalleryImages = (product) => {
     pushImage(photo, `${product?.name || 'Produit'} — photo ${index + 1}`);
   });
   // Images originales uploadées en dernier
-  (product?.images || []).forEach((image) => pushImage(image, product?.name || 'Produit'));
+  nativeProductImages.forEach((image) => pushImage(image, product?.name || 'Produit'));
 
   return gallery;
 };
@@ -1271,32 +1297,14 @@ const StoreProductPage = () => {
   // ── productPageConfig — priority: livePreview > product-specific > store global ──
   const storePC = store?.productPageConfig || {};
   const productPC = product?.productPageConfig || {};
+  const previewPC = livePageConfig || {};
+  const baseProductPageConfig = buildMergedProductPageConfig(storePC, productPC);
+  const liveMergedProductPageConfig = buildMergedProductPageConfig(baseProductPageConfig, previewPC);
   const productPageConfig = {
-    ...storePC,
-    ...productPC,
-    ...(livePageConfig || {}),
-    // Deep-merge general so product-level sections override store-level
-    general: {
-      ...(storePC.general || {}),
-      ...(productPC.general || {}),
-      ...((livePageConfig || {}).general || {}),
-    },
-    // Deep-merge design so product-level design overrides store-level
-    design: {
-      ...(storePC.design || {}),
-      ...(productPC.design || {}),
-      ...((livePageConfig || {}).design || {}),
-    },
-    // Deep-merge button
-    button: {
-      ...(storePC.button || {}),
-      ...(productPC.button || {}),
-      ...((livePageConfig || {}).button || {}),
-    },
+    ...liveMergedProductPageConfig,
     conversion: {
-      ...(storePC.conversion || {}),
-      ...(livePageConfig?.conversion || {}),
-      ...(productPC.conversion || {}),
+      ...(baseProductPageConfig.conversion || {}),
+      ...(previewPC.conversion || {}),
       // Quantity offers from QuantityOffer model take highest priority
       ...(product?.quantityOffers?.length > 0 ? {
         offersEnabled: true,
@@ -1988,7 +1996,7 @@ const StoreProductPage = () => {
                       );
 
                     case 'productGallery': {
-                      const galleryConfig = { ...PRODUCT_GALLERY_DEFAULTS, ...(sectionContentMap.productGallery || {}) };
+                      const galleryConfig = normalizeProductGalleryConfig(sectionContentMap.productGallery || {});
                       const galleryImages = resolveProductGalleryImages(galleryConfig, images);
                       return (
                         <InlinePhotoCarousel

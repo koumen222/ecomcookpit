@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { storeManageApi } from '../services/storeApi.js';
 import RichTextEditor from '../components/RichTextEditor.jsx';
+import { normalizeHomepageSections } from '../utils/homepageSections.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ICÔNES DISPONIBLES
@@ -648,7 +649,7 @@ const BoutiquePages = () => {
         
         const data = pagesRes.data?.data || pagesRes.data;
         if (Array.isArray(data?.sections)) {
-          setSections(data.sections);
+          setSections(normalizeHomepageSections(data.sections));
         }
         
         const subdomain = configRes.data?.data?.subdomain;
@@ -750,8 +751,9 @@ const BoutiquePages = () => {
       const res = await storeManageApi.regenerateHomepage();
       const newSections = res.data?.sections;
       if (Array.isArray(newSections) && newSections.length > 0) {
-        setSections(newSections);
-        await storeManageApi.updatePages({ sections: newSections });
+        const normalizedSections = normalizeHomepageSections(newSections);
+        setSections(normalizedSections);
+        await storeManageApi.updatePages({ sections: normalizedSections });
         setSaved(true);
       }
     } catch (err) {
